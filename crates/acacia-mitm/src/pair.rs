@@ -4,14 +4,12 @@
 use std::net::SocketAddr;
 use std::time::Instant;
 
-use acacia_auth::LoginCredentials;
 use acacia_raknet::{self as raknet, Reliability};
 use bytes::Bytes;
-use p384::ecdsa::SigningKey;
 use serde_json::json;
 
 use crate::record::Recorder;
-use crate::relay::{Relay, Wire};
+use crate::relay::Relay;
 
 pub struct Pair {
     upstream: raknet::Client,
@@ -23,12 +21,12 @@ pub struct Pair {
 }
 
 impl Pair {
-    pub fn new(server: SocketAddr, now: Instant, key: SigningKey, credentials: Option<LoginCredentials>) -> Self {
+    pub fn new(server: SocketAddr, now: Instant, relay: Relay) -> Self {
         // go-raknet servers reject positive client GUIDs (DESIGN.md).
         let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng) | 1 << 63;
         Self {
             upstream: raknet::Client::new(raknet::Config::new(guid), server, now),
-            relay: Relay::new(Wire::RakNet, key, credentials),
+            relay,
             pending: Vec::new(),
             to_game: Vec::new(),
             closed: false,

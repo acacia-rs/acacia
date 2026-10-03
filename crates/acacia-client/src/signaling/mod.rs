@@ -15,6 +15,7 @@ use acacia_nethernet::turn::IceServers;
 use acacia_nethernet::{Identity, Signal};
 use futures_util::StreamExt;
 pub(crate) use keepalive::Keepalive;
+pub(crate) use ws::{open as open_stream, Io};
 use rand_core::{OsRng, RngCore};
 
 use crate::net_wire::NetherNetWire;
