@@ -36,8 +36,8 @@ pub const DEFAULT_PLAYER_HEIGHT: f32 = 1.8;
 pub const SNEAKING_PLAYER_HEIGHT: f32 = 1.49;
 pub const CRAWLING_PLAYER_HEIGHT: f32 = 0.6;
 
-/// Eye offsets above the feet; `PlayerAuthInput.position` is feet + this.
-pub const DEFAULT_PLAYER_HEIGHT_OFFSET: f32 = 1.62;
+/// Eye offsets above the feet; `PlayerAuthInput.position` is feet + this. 1.62001 is BDS's (see README).
+pub const DEFAULT_PLAYER_HEIGHT_OFFSET: f32 = 1.62001;
 pub const SNEAKING_PLAYER_HEIGHT_OFFSET: f32 = 1.27;
 pub const COMPACT_PLAYER_HEIGHT_OFFSET: f32 = 0.4;
 

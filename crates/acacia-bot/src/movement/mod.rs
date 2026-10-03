@@ -21,7 +21,7 @@ use crate::state::Me;
 use rewind::{Correction, History};
 
 /// Players' wire positions are eye positions this far above the feet.
-pub(crate) const EYE_HEIGHT: f32 = 1.62;
+pub(crate) const EYE_HEIGHT: f32 = crate::state::PlayerState::EYE_HEIGHT;
 /// `Respawn` state carrying the position the player respawns at.
 const RESPAWN_READY: u8 = 1;
 /// Window for double-tapping forward to sprint.
@@ -258,7 +258,8 @@ impl Movement {
         // rule on the raw key flags, so the simulation must too. A press is the forward impulse reaching
         // full strength: sneaking scales it down on land (not in water, where it means sink), so releasing
         // sneak there with forward held counts. Presses while sneaking never count, and only presses on
-        // the ground or in water do (vanilla client captures, strict BDS fuzz).
+        // the ground or in water do (vanilla client captures, strict BDS fuzz). A press with the sprint key
+        // held starts no tap window (as in Java's `aiStep`).
         let forward = key(c.forward) > 0.0;
         let in_water = physics::touching_water(st, world);
         let sneaking = c.sneak || st.sneaking;
@@ -269,7 +270,7 @@ impl Movement {
         if impulse && !self.prev_impulse && !sneaking && grounded {
             if self.sprint_trigger > 0 {
                 double_tap = true;
-            } else {
+            } else if !c.sprint {
                 self.sprint_trigger = DOUBLE_TAP_TICKS;
             }
         }

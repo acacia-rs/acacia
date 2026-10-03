@@ -70,9 +70,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         bb = bb.translate(z);
         let mut coll = add(add(y, x), z);
 
-        // Overlaps under ~3e-5 are f32 noise (a server eye position less 1.62 is 1 ulp off near y=160),
-        // not penetration: counting them let a box pinned under a ceiling escape upwards (strict BDS fuzz).
-        let has_pen = len_sqr(pen) >= 1e-9;
+        let has_pen = len_sqr(pen) >= 1e-11;
         st.stuck_in_collider = st.penetrated_last_frame && has_pen;
         st.penetrated_last_frame = has_pen;
 

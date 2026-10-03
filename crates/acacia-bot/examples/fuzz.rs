@@ -30,7 +30,15 @@ const OBSTACLES: &[&str] = &["stone", "glass", "smooth_stone_slab", "oak_stairs"
 /// Climbables lean on a stone column on their -z side (ladders and vines need one to face).
 const CLIMBABLES: &[&str] = &["ladder [\"facing_direction\"=3]", "vine [\"vine_direction_bits\"=4]", "scaffolding", "twisting_vines"];
 const INSIDE: &[&str] = &["powder_snow", "sweet_berry_bush [\"growth\"=3]"];
-const SHAPES: &[&str] = &["oak_fence_gate", "oak_trapdoor", "iron_bars", "glass_pane"];
+const SHAPES: &[&str] = &[
+    "oak_fence_gate",
+    "oak_trapdoor",
+    "iron_bars",
+    "glass_pane",
+    "snow_layer [\"height\"=1]",
+    "snow_layer [\"height\"=2]",
+    "snow_layer [\"height\"=4]",
+];
 const COLUMN_BASES: &[&str] = &["soul_sand", "magma"];
 
 #[tokio::main(flavor = "current_thread")]

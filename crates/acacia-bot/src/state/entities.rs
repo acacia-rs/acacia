@@ -12,7 +12,7 @@ use super::Me;
 pub const PLAYER_KIND: &str = "minecraft:player";
 pub const ITEM_KIND: &str = "minecraft:item";
 /// Players' wire position is this far above their feet, whatever their pose.
-pub const PLAYER_EYE_HEIGHT: f32 = 1.62;
+pub const PLAYER_EYE_HEIGHT: f32 = super::PlayerState::EYE_HEIGHT;
 
 const BYTE_ROTATION: f32 = 360.0 / 256.0;
 

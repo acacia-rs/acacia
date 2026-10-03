@@ -87,7 +87,7 @@ impl PlayerState {
     ];
 
     /// Standing eye height of a player; server-sent player positions are offset by it.
-    pub const EYE_HEIGHT: f32 = 1.62;
+    pub const EYE_HEIGHT: f32 = acacia_physics::constants::DEFAULT_PLAYER_HEIGHT_OFFSET;
 
     pub fn eye_position(&self) -> Vec3f {
         Vec3f { y: self.position.y + Self::EYE_HEIGHT, ..self.position.clone() }

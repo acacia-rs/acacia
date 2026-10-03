@@ -64,12 +64,12 @@ impl Input {
     /// Mirrors `toInputState` in tools/diffharness/main.go.
     pub(crate) fn frame(&self, st: &PlayerState, env: &Surroundings) -> Frame {
         let Surroundings { in_water, swim_start_submerged: eyes_in_water, swim_surfacing, stand_fits } = *env;
-        // Sneaking blocks a sprint start, and also on its release tick (see `apply_input`); it ends a
-        // sprint only out of water, where it means crouch rather than sink.
+        // Out of water sneaking blocks a sprint start (also on its release tick, see `apply_input`) and ends a
+        // sprint; in water, where it means sink, it does neither (strict BDS fuzz).
         let sneak = self.sneak || st.sneaking;
         // The sprint before the jump-in-water rule: it decides a swim start (vanilla capture 6-1).
         let wants = self.sprint && self.move_vector[1] > 0.0 && !st.sprint_movement_blocked;
-        let wanted = if st.sprinting { wants && (!sneak || in_water) } else { wants && !sneak };
+        let wanted = wants && (!sneak || in_water);
         // A jump held last tick in water then ends that sprint or cancels its start (StartSprinting and
         // StopSprinting on one tick).
         let jump_in_water = in_water && !st.swimming && st.pressing_jump;

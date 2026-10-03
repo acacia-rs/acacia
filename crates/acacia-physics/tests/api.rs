@@ -17,7 +17,7 @@ fn idle_on_ground_reports_vanilla_delta() {
     let out = tick(&mut st, &Input::default(), &w);
     assert_eq!(out.delta, [0.0, -0.0784, 0.0]);
     assert!(out.on_ground && out.vertical_collision && !out.horizontal_collision);
-    assert_eq!(out.eye_position, [0.5, 1.62, 0.5]);
+    assert_eq!(out.eye_position, [0.5, 1.62001, 0.5]);
 }
 
 #[test]

@@ -51,7 +51,7 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
 - In water (not swimming), a jump held on the previous tick ends a sprint and blocks one (the vanilla
   client's rule, seen in captures; it is what makes BDS drag sprinters heavily after a jump);
   sprinting with the breathing point under water swims (see below), and movement input with the sprint input
-  held, or a ceiling too low to stand under, keeps the swim going; sneaking blocks a sprint start but does not end a sprint; a swimming jump lifts only with
+  held, or a ceiling too low to stand under, keeps the swim going; sneaking neither blocks a sprint (or sprint swim) start nor ends a sprint; a swimming jump lifts only with
   feet + 0.3 under the surface (else vertical speed is zeroed); and cobwebs slow travel as on land.
 - Sprint swim start (from BDS 1.26.52's `SwimTriggerSystem` and `UnderWaterSensingSystem`): the breathing
   point (the eyes, feet + 1.62 standing) must be under its water cell's surface, cell + 1 - d/9 for liquid
@@ -70,7 +70,6 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
 - Ending a swim blocks jumping for 10 ticks, whether or not jump is held meanwhile.
 - Liquid contact during a tick uses the box from before that tick's pose change (a swim ending at a
   ledge still gets water physics on that tick).
-- Penetration under ~3e-5 does not count towards the one-way "stuck in a collider" state (bedsim: 3e-6).
 - While swimming, the sprint ends with the swim (on the same tick, with StopSwimming): when the player leaves
   the water or releases the sprint input, unless a ceiling is too low to stand. A swim start sees the sprint before the jump-in-water rule
   cancels it (the vanilla client then sends StartSprinting, StopSprinting and StartSwimming together).
@@ -92,6 +91,8 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
 - `apply_current` adds liquid currents while BDS holds a teleported player.
 - Inside-block effects (powder snow, berry bushes, bubble columns) visit BDS's entity-inside cells,
   floor(min + 0.001)..=floor(max - 0.001), so a cell the box only grazes does nothing.
+- The standing eye offset is 1.62001 (BDS; bedsim: 1.62), so `PlayerAuthInput.position` matches the server's
+  to the bit; with 1.62 it is an f32 ulp low at most heights and strict BDS corrects nearly every tick.
 - Powder snow freezes (BDS `FreezingComponent`): +1/140 a tick inside, -1/70 outside, and the movement speed
   takes freeze × -0.05; bedsim has no freezing.
 
