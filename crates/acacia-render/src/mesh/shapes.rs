@@ -87,7 +87,11 @@ fn liquid(ctx: &Ctx, p: [i32; 3], out: &mut SectionMesh) {
         pos[axis] = (p[axis] * 16) as u32 + if face.is_multiple_of(2) { u32::from(max[axis]) } else { 0 };
         pos[ua] = (p[ua] * 16) as u32;
         pos[va] = (p[va] * 16) as u32;
-        let quad = Quad::new(pos, face as u8, [u32::from(max[ua]), u32::from(max[va])], ctx.surface(p, b, face), NO_AO);
-        push(out, b, quad);
+        let size = [u32::from(max[ua]), u32::from(max[va])];
+        push(out, b, Quad::new(pos, face as u8, size, ctx.surface(p, b, face), NO_AO));
+        if face == 2 && b.layer == Layer::Translucent {
+            // Back faces are culled, so the surface needs its own underside to show from below.
+            push(out, b, Quad::new(pos, 3, size, ctx.surface(p, b, 3), NO_AO));
+        }
     }
 }

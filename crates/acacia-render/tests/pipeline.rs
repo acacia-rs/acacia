@@ -151,7 +151,28 @@ fn water_draws_no_faces_between_sections() {
     let mesh = mesh_section(&Volume::gather(&world, 0, 3, 0).unwrap(), &table, &BiomeColors::default());
     let faces: Vec<u32> = mesh.translucent.iter().map(|q| (q.0[0] >> 27) & 15).collect();
     let per_face: Vec<usize> = (0..6).map(|f| faces.iter().filter(|&&x| x == f).count()).collect();
-    assert_eq!(per_face, [0, 0, 256, 0, 0, 0], "only the top surface");
+    assert_eq!(per_face, [0, 0, 256, 256, 0, 0], "only the top surface and its underside");
+}
+
+#[test]
+fn translucent_quads_blend_far_plane_first_per_direction() {
+    let Some(pack) = pack() else { return };
+    let registry = BlockRegistry::vanilla_arc();
+    let water = registry.find("minecraft:water", "liquid_depth=0").unwrap();
+    let ice = registry.find("minecraft:ice", "").unwrap();
+    let mut view = ChunkView::new(World::new(registry.clone(), 0, BlockIds::Runtime));
+    view.insert_level_chunk(0, 0, 1, &uniform_section(2, water)).unwrap();
+    for (x, z) in [(3, 3), (3, 4)] {
+        view.set_block(x, 47, z, 0, ice);
+    }
+    let (table, _, _) = BlockTable::build(&registry, &pack);
+    let mesh = mesh_section(&Volume::gather(view.world(), 0, 2, 0).unwrap(), &table, &BiomeColors::default());
+    let heights = |face: u32| -> Vec<u32> {
+        mesh.translucent.iter().filter(|q| q.0[0] >> 27 == face).map(|q| (q.0[0] >> 9) & 511).collect()
+    };
+    let (up, down) = (heights(2), heights(3));
+    assert!(up.is_sorted() && up.first() < up.last(), "water under the ice, then the ice top: {up:?}");
+    assert!(down.is_sorted_by(|a, b| a >= b) && down.contains(&240), "the water surface has an underside: {down:?}");
 }
 
 #[test]

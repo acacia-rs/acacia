@@ -76,7 +76,7 @@ impl Pipelines {
         };
         Pipelines {
             solid: make("fs_solid", None, true, Some(wgpu::Face::Back)),
-            translucent: make("fs_translucent", Some(wgpu::BlendState::ALPHA_BLENDING), false, None),
+            translucent: make("fs_translucent", Some(wgpu::BlendState::ALPHA_BLENDING), false, Some(wgpu::Face::Back)),
             layout,
         }
     }
