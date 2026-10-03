@@ -153,6 +153,13 @@ system.afterEvents.scriptEventReceive.subscribe(({ id, message, sourceEntity }) 
 
 system.afterEvents.scriptEventReceive.subscribe(({ id, message, sourceEntity }) => {
   if (id === "actiontest:ent" && sourceEntity) return say(`ent ${JSON.stringify(entities(sourceEntity.dimension, message))}`);
+  // `/scriptevent actiontest:horsespeed <v>`: sets the scene horse's movement attribute.
+  if (id === "actiontest:horsespeed" && sourceEntity) {
+    for (const h of sourceEntity.dimension.getEntities({ type: "minecraft:horse", tags: [TAG] })) {
+      h.getComponent("minecraft:movement")?.setCurrentValue(Number(message));
+    }
+    return;
+  }
   if (id !== "actiontest:inv" || !sourceEntity) return;
   const inv = sourceEntity.getComponent("minecraft:inventory").container;
   const found = [];

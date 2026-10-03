@@ -46,7 +46,8 @@ impl Bot {
         let out = physics::horse_tick(&mut horse.st, &rider, &PhysicsWorld { view, registry });
         tracing::trace!(tick = input.tick, pos = ?out.position, delta = ?out.delta, yaw = horse.st.yaw, pitch = horse.st.pitch, on_ground = horse.st.on_ground, ?keys, "horse input");
         let [x, y, z] = out.position;
-        input.position = Vec3f { x, y, z };
+        let [ox, oy, oz] = self.ride.report_offset.take().unwrap_or([0.0; 3]);
+        input.position = Vec3f { x: x + ox, y: y + oy, z: z + oz };
         let [dx, dy, dz] = out.delta;
         input.delta = Vec3f { x: dx, y: dy, z: dz };
         input.vehicle_rotation = Some(Vec2f { x: horse.st.pitch, z: horse.st.yaw });

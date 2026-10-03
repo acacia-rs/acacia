@@ -89,6 +89,8 @@ pub struct Movement {
     pub vehicle_corrections: u32,
     /// The latest vehicle correction, for the vehicle simulation to take.
     pub(crate) vehicle_correction: Option<VehicleCorrection>,
+    /// The server's vehicle motion in the latest vehicle correction.
+    pub last_vehicle_delta: Option<Vec3>,
     /// Ticks spent with the spawn chunk loaded but movement not yet started.
     pub(crate) spawn_wait: u32,
     /// Holding "use" on an item (eating, drinking), which slows movement.
@@ -122,6 +124,7 @@ impl Movement {
             teleports: 0,
             vehicle_corrections: 0,
             vehicle_correction: None,
+            last_vehicle_delta: None,
             spawn_wait: 0,
             using_item: false,
             elytra: false,
@@ -226,6 +229,7 @@ impl Movement {
                         pitch_yaw: [c.rotation.x, c.rotation.z],
                     });
                     self.vehicle_corrections += 1;
+                    self.last_vehicle_delta = Some([c.delta.x, c.delta.y, c.delta.z]);
                     return Ok(());
                 }
                 tracing::debug!(

@@ -261,6 +261,43 @@ pub async fn ride_horse(bot: &mut Bot, s: &Scene) -> Check {
     if corrections == 0 { Ok(format!("rode; {detail}")) } else { Err(detail.into()) }
 }
 
+/// Measures BDS's steady horse speed at several movement attributes (`HORSE_SWEEP=0.1,0.2,...`): rides
+/// straight, then reports the horse a little off for one tick so the server's correction shows its own
+/// motion. Lists (speed, server delta x, ours from the simulation's formula).
+pub async fn horse_sweep(bot: &mut Bot, s: &Scene) -> Check {
+    let speeds = std::env::var("HORSE_SWEEP").unwrap_or_else(|_| "0.1,0.15,0.2,0.25,0.3,0.35".into());
+    let [x, y, z] = s.at("horse");
+    let mut rows = Vec::new();
+    for speed in speeds.split(',').filter_map(|v| v.parse::<f32>().ok()) {
+        bot.client().command(&format!("/scriptevent actiontest:horsespeed {speed}"));
+        bot.client().command(&format!("/tp @s {} {y} {} 90 0", x as f32 + 2.5, z as f32 + 0.5));
+        bot.wait_ticks(40).await?;
+        let me = bot.state().player.position.clone();
+        let id = bot.state().entities.nearest(&me, |e| e.kind == "minecraft:horse").map(|e| e.runtime_id).ok_or("no horse tracked")?;
+        bot.mount(id).await?;
+        bot.wait_ticks(5).await?;
+        // South (+z): away from the ledge west of the horse and from the scene.
+        if let Some(c) = bot.controls() {
+            (c.forward, c.strafe, c.yaw, c.pitch) = (1.0, 0.0, 0.0, 0.0);
+        }
+        // Corrections after the first 15 ticks of the straight come at full speed.
+        bot.wait_ticks(15).await?;
+        let before = vehicle_corrections(bot);
+        bot.wait_ticks(45).await?;
+        bot.offset_vehicle_report([0.5, 0.0, 0.5]);
+        bot.wait_ticks(4).await?;
+        let count = vehicle_corrections(bot) - before;
+        let server = (count > 0).then(|| bot.movement().and_then(|m| m.last_vehicle_delta).map(|[_, dy, dz]| (dz, dy))).flatten();
+        let ours = 0.98 * speed * 0.546 / 0.454;
+        rows.push(format!("({speed}: {count} corrections, last (dz, dy) {server:?}, ours {ours:.6})"));
+        if let Some(c) = bot.controls() {
+            c.stop();
+        }
+        bot.dismount().await?;
+    }
+    Ok(rows.join(" "))
+}
+
 fn vehicle_corrections(bot: &Bot) -> u32 {
     bot.movement().map_or(0, |m| m.vehicle_corrections)
 }

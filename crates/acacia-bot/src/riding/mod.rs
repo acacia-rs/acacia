@@ -35,6 +35,8 @@ pub(crate) struct Ride {
     leaving_feet: Option<[f32; 3]>,
     /// Physics bots: the horse being driven.
     horse: Option<horse::HorseSim>,
+    /// Added once to the next reported vehicle position ([`Bot::offset_vehicle_report`]).
+    report_offset: Option<[f32; 3]>,
 }
 
 impl Bot {
@@ -74,6 +76,13 @@ impl Bot {
         }
         self.ride.dismount = false;
         Err(ActionError::Timeout)
+    }
+
+    /// Testing aid: reports the driven vehicle `offset` away from its simulated position on the next
+    /// tick, so the server answers with a correction carrying its own vehicle state.
+    #[doc(hidden)]
+    pub fn offset_vehicle_report(&mut self, offset: [f32; 3]) {
+        self.ride.report_offset = Some(offset);
     }
 
     /// The vehicle the bot sits on, from the server's links (also when the server seated it).

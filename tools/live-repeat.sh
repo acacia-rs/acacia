@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Repeats the live action run on testbox: one sync and build, then tools/live-loop.sh on both BDS instances
 # in parallel (fresh world per run). Streams "<instance>/<run> PASS|FAIL ..." lines, then a per-check tally.
-# usage: [ONLY=a,b] [RUST_LOG=..] [LOG_GREP='regex'] [REMOTE_DIR=..] tools/live-repeat.sh <runs> [idle]
+# usage: [ONLY=a,b] [RUST_LOG=..] [LOG_GREP='regex'] [HORSE_SWEEP=0.1,0.2] [REMOTE_DIR=..] tools/live-repeat.sh <runs> [idle]
 #   LOG_GREP picks pack log lines (after "ACTIONTEST ") to stream with the results.
 #   Failing runs' bot and BDS logs stay on testbox in $REMOTE_DIR/live-repeat/<instance>/<run>.{bot,bds}.log.
 set -uo pipefail
@@ -22,7 +22,7 @@ build=$(REMOTE_DIR=$remote TAIL=3 "$root/tools/remote-run.sh" cargo build --rele
 grep -q '^exit: 0' <<<"$build" || { echo "$build"; exit 1; }
 
 env=()
-for v in ONLY RUST_LOG LOG_GREP; do [ -n "${!v:-}" ] && env+=("$v=${!v}"); done
+for v in ONLY RUST_LOG LOG_GREP HORSE_SWEEP; do [ -n "${!v:-}" ] && env+=("$v=${!v}"); done
 launched=()
 for k in "${!names[@]}"; do
   n=$(( runs / ${#names[@]} + (k < runs % ${#names[@]} ? 1 : 0) ))
