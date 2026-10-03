@@ -10,7 +10,8 @@ Example: `crates/acacia-bot/examples/swarm_specs.rs`.
 - The task drives one connection. It returning after a disconnect means "reconnect per the policy"; returning
   while still connected (or after `bot.disconnect()`) ends the bot with `Removed`. `state` survives reconnects.
 - One bot does one thing at a time (`&mut Bot`), unlike azalea's task per event, so no re-entrancy guards.
-- Handle: `add(spec)`, `remove(id)`, `snapshot()`, `events()` (broadcast), `drain()`, `shutdown()`.
+- Handle: `add(spec)`, `remove(id).await` (→ the spec with its current state), `snapshot()`, `events()`
+  (broadcast), `drain()`, `shutdown()`.
 - Hooks: `bot_config(|spec| …)`, `client(|spec, builder| …)` pick per-bot settings from the spec (e.g. its role
   in `state`). Every bot shares the swarm's `SharedWorlds`, so bots on one server store each chunk once.
 
@@ -49,11 +50,15 @@ refresh token. So:
 
 ## Joins
 Joins to one target are spaced `500 ± 250 ms` across all shards (reconnects too), so a swarm start or a server
-restart does not arrive as a burst. Different targets do not wait for each other.
+restart does not arrive as a burst. Different targets do not wait for each other. Spacing is per node, which is
+enough under the placement rule below; per-IP limits are left to one proxy per account plus each bot's backoff.
 
 ## Horizontal scaling
 The library is the node; placement is the coordinator's job (the AFK service). It gets:
 - `snapshot().shard_load` and per-bot status for placement and health.
-- `drain()` before taking a node away: no new joins, online bots stay until moved (`remove` here, `add` there; the
-  account lease makes the overlap safe).
+- Moving a bot: `node_b.add(node_a.remove(&id).await?)`. `remove` returns once the bot is offline and its lease
+  released, with `state` as the task left it (failed bots keep theirs too), so the new node joins without an
+  `AccountBusy` wait. `S` must be serde to cross the wire. `None` means the bot ended on its own first.
+- `drain()` before taking a node away: no new joins; waiting bots park (`BotStatus::Parked`), online ones play on
+  until removed (or park after a disconnect). Then `remove` each and `add` it elsewhere.
 - Placement rule: keep bots of one server on one node; chunk sharing is per process.

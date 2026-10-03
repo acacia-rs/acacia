@@ -152,7 +152,7 @@ impl<S: Send + 'static> SwarmBuilder<S> {
         });
         let on_panic: OnPanic = {
             let ctx = ctx.clone();
-            Arc::new(move |id, error| ctx.fail(id, format!("panicked: {error}")))
+            Arc::new(move |id, error| ctx.fail(id, format!("panicked: {error}"), None))
         };
         let shards = (0..self.shards).map(|i| Shard::start(i, on_panic.clone())).collect::<std::io::Result<Vec<_>>>()?;
         let task = Arc::new(task);

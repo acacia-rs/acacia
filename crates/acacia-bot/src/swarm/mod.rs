@@ -25,7 +25,7 @@ pub use lease::{AccountLease, Lease, LeaseError, LocalLeases};
 pub use policy::{Decision, DisconnectHook, Policy};
 pub use spec::{BotId, BotSpec, Login, Target};
 
-use registry::Cancelled;
+use registry::Take;
 use shard::{Job, Shard};
 use supervisor::Ctx;
 
@@ -82,21 +82,23 @@ impl<S: Send + 'static> Swarm<S> {
         let job = (self.inner.spawn)(spec, cancel);
         let shards = self.inner.shards.lock().expect("swarm shards lock poisoned");
         if !shards.get(shard).is_some_and(|s| s.submit(id.clone(), job)) {
-            ctx.registry.remove(&id);
+            ctx.registry.removed(&id, None);
             return Err(AddError::ShutDown);
         }
         Ok(())
     }
 
-    /// Disconnects the bot (or forgets a failed one). False if the id is unknown.
-    pub fn remove(&self, id: &BotId) -> bool {
-        match self.inner.ctx.registry.cancel(id) {
-            Cancelled::Signalled => true,
-            Cancelled::Dropped => {
+    /// Disconnects the bot (or forgets a failed one) and returns its spec with the current state,
+    /// once it is offline and its account lease is released: a move is `other.add(remove().await?)`.
+    /// `None` if the id is unknown, or the bot ended (its task returned, or it panicked) first.
+    pub async fn remove(&self, id: &BotId) -> Option<BotSpec<S>> {
+        match self.inner.ctx.registry.take(id) {
+            Take::Pending(spec) => spec.await.ok(),
+            Take::Stopped(spec) => {
                 self.inner.ctx.emit(SwarmEvent::Removed { id: id.clone() });
-                true
+                spec
             }
-            Cancelled::Unknown => false,
+            Take::Unknown => None,
         }
     }
 
@@ -109,8 +111,8 @@ impl<S: Send + 'static> Swarm<S> {
         self.inner.ctx.events.subscribe()
     }
 
-    /// No more joins or reconnects: waiting bots leave, online bots stay until they disconnect or
-    /// are removed. For handing a node's bots over before it goes away.
+    /// No more joins or reconnects, for handing a node's bots over before it goes away: waiting
+    /// bots park (`BotStatus::Parked`), online ones stay until removed or disconnected (then park).
     pub fn drain(&self) {
         self.inner.ctx.draining.store(true, Ordering::Relaxed);
     }

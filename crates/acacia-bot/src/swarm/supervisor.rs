@@ -32,7 +32,7 @@ pub(crate) struct Ctx<S> {
     pub worlds: SharedWorlds,
     pub bot_config: Arc<ConfigFn<S>>,
     pub client: Arc<ClientFn<S>>,
-    pub registry: Registry,
+    pub registry: Registry<S>,
     pub events: broadcast::Sender<SwarmEvent>,
     pub draining: AtomicBool,
 }
@@ -42,15 +42,19 @@ impl<S> Ctx<S> {
         let _ = self.events.send(event);
     }
 
-    fn removed(&self, id: &BotId) {
-        self.registry.remove(id);
+    fn removed(&self, id: &BotId, spec: BotSpec<S>) {
+        self.registry.removed(id, Some(spec));
         self.emit(SwarmEvent::Removed { id: id.clone() });
     }
 
-    pub fn fail(&self, id: &BotId, error: String) {
+    /// `spec` is `None` only when a panic took it with the task.
+    pub fn fail(&self, id: &BotId, error: String, spec: Option<BotSpec<S>>) {
         tracing::warn!(%id, %error, "bot stopped");
-        self.registry.set(id, BotStatus::Failed { error: error.clone() });
+        let taken = self.registry.failed(id, error.clone(), spec);
         self.emit(SwarmEvent::Failed { id: id.clone(), error });
+        if taken {
+            self.emit(SwarmEvent::Removed { id: id.clone() });
+        }
     }
 
     async fn connect(&self, spec: &BotSpec<S>, target: &Target, proxy: Option<&Socks5Proxy>) -> Result<Bot, Failure> {
@@ -72,8 +76,8 @@ where
     let exit = run.until_exit().await;
     run.keeper.release().await;
     match exit {
-        Exit::Removed => ctx.removed(&id),
-        Exit::Failed(error) => ctx.fail(&id, error),
+        Exit::Removed => ctx.removed(&id, run.spec),
+        Exit::Failed(error) => ctx.fail(&id, error, Some(run.spec)),
     }
 }
 
@@ -110,8 +114,11 @@ impl<S, F: AsyncFn(&mut Bot, &mut S)> Run<'_, S, F> {
             let target = follow.take().unwrap_or_else(|| self.spec.target.clone());
             self.ctx.registry.set(&id, BotStatus::Waiting);
             let slot = self.ctx.joins.reserve(&target.to_string());
-            if !self.idle_until(slot).await || self.ctx.draining.load(Ordering::Relaxed) {
+            if !self.idle(Some(slot)).await {
                 return Exit::Removed;
+            }
+            if self.ctx.draining.load(Ordering::Relaxed) {
+                return self.park().await;
             }
             let (next, waiting) = match self.join(&target, attempt, proxy.as_ref()).await {
                 Ok(outcome) => outcome,
@@ -121,7 +128,7 @@ impl<S, F: AsyncFn(&mut Bot, &mut S)> Run<'_, S, F> {
                 Next::After(delay) => {
                     self.ctx.registry.set(&id, waiting);
                     self.ctx.emit(SwarmEvent::Reconnecting { id: id.clone(), after_ms: delay.as_millis() as u64 });
-                    if !self.idle_until(Instant::now() + delay).await {
+                    if !self.idle(Some(Instant::now() + delay)).await {
                         return Exit::Removed;
                     }
                 }
@@ -170,15 +177,28 @@ impl<S, F: AsyncFn(&mut Bot, &mut S)> Run<'_, S, F> {
         Ok((self.ctx.policy.next(&id, &mut self.retry, ended, noise()), BotStatus::Backoff))
     }
 
+    /// Drained: no more joins, but the bot stays listed until `remove` takes its spec for handover.
+    async fn park(&mut self) -> Exit {
+        self.ctx.registry.set(&self.spec.id, BotStatus::Parked);
+        self.idle(None).await;
+        Exit::Removed
+    }
+
     fn lease_unavailable(&mut self, why: String) -> (Next, BotStatus) {
         (self.ctx.policy.next(&self.spec.id, &mut self.retry, Ended::Lease(why), noise()), BotStatus::AccountBusy)
     }
 
-    /// Waits, renewing any held lease; false once cancelled. A lease lost meanwhile is re-acquired
-    /// before the next join.
-    async fn idle_until(&mut self, until: Instant) -> bool {
+    /// Waits until `until` (`None`: until cancelled), renewing any held lease; false once
+    /// cancelled. A lease lost meanwhile is re-acquired before the next join.
+    async fn idle(&mut self, until: Option<Instant>) -> bool {
         loop {
-            match guard(sleep_until(until), &mut self.cancel, &mut self.keeper).await {
+            let wait = async {
+                match until {
+                    Some(t) => sleep_until(t).await,
+                    None => std::future::pending().await,
+                }
+            };
+            match guard(wait, &mut self.cancel, &mut self.keeper).await {
                 Ok(()) => return true,
                 Err(Interrupt::Cancelled) => return false,
                 Err(Interrupt::LeaseLost) => {}

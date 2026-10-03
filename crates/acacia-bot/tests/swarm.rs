@@ -60,12 +60,13 @@ async fn swarm_runs_bots_across_servers_and_shards() {
     swarm.add(online).unwrap();
     let failed = wait_for(&mut events, |e| matches!(e, SwarmEvent::Failed { .. })).await;
     assert!(matches!(&failed, SwarmEvent::Failed { error, .. } if error.contains("token cache")), "{failed:?}");
-    assert!(swarm.remove(&BotId::from("online")));
-    assert!(!swarm.remove(&BotId::from("online")));
+    let failed = swarm.remove(&BotId::from("online")).await.expect("a failed bot keeps its spec");
+    assert_eq!(failed.login, Login::Online { account: "nobody".into() });
+    assert!(swarm.remove(&BotId::from("online")).await.is_none());
 
-    assert!(swarm.remove(&BotId::from("a")));
-    wait_for(&mut events, |e| *e == SwarmEvent::Removed { id: BotId::from("a") }).await;
-    assert_eq!(swarm.snapshot().bots.len(), 1);
+    let a = timeout(Duration::from_secs(10), swarm.remove(&BotId::from("a"))).await.expect("remove finishes");
+    assert_eq!(a.map(|s| s.id), Some(BotId::from("a")));
+    assert_eq!(swarm.snapshot().bots.len(), 1, "gone by the time remove returns");
 
     timeout(Duration::from_secs(10), swarm.shutdown()).await.expect("shutdown finishes");
     assert!(swarm.snapshot().bots.is_empty());

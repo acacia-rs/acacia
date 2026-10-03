@@ -24,6 +24,8 @@ pub enum BotStatus {
     Backoff,
     /// Waiting for the account's lease, held by another bot (here or on another node).
     AccountBusy,
+    /// The swarm is draining; waits, without joining, for `remove` to hand it over.
+    Parked,
     Failed { error: String },
 }
 
