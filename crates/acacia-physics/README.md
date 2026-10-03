@@ -91,10 +91,13 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
 - `apply_current` adds liquid currents while BDS holds a teleported player.
 - Inside-block effects (powder snow, berry bushes, bubble columns) visit BDS's entity-inside cells,
   floor(min + 0.001)..=floor(max - 0.001), so a cell the box only grazes does nothing.
+- The honey wall slowdown (x/z × 0.4 per touched honey side) applies on the ground and rising too, and in lava,
+  but not in water.
 - The standing eye offset is 1.62001 (BDS; bedsim: 1.62), so `PlayerAuthInput.position` matches the server's
   to the bit; with 1.62 it is an f32 ulp low at most heights and strict BDS corrects nearly every tick.
 - Powder snow freezes (BDS `FreezingComponent`): +1/140 a tick inside, -1/70 outside, and the movement speed
-  takes freeze × -0.05; bedsim has no freezing.
+  takes freeze × -0.05; bedsim has no freezing. BDS steps it per world tick, not per input, so a client whose
+  inputs fall behind the server's clock sees the server's freeze run ahead (a ~0.001 drift per tick in the snow).
 
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,

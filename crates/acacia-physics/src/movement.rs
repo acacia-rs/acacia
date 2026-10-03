@@ -188,6 +188,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             walk_on_block(st, &self.w.block(self.standing_on_block(st)), v[1]);
         }
         self.apply_inside_block_effects(st);
+        self.apply_honey_wall_slide(st);
         self.apply_bubble_columns(st);
         true
     }
@@ -209,6 +210,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             st.set_vel([0.0; 3]);
         }
         self.apply_inside_block_effects(st);
+        self.apply_honey_wall_slide(st);
         self.apply_bubble_columns(st);
         true
     }

@@ -80,11 +80,10 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
                 InsideMovement::None => {}
             }
         }
-        self.apply_honey_wall_slide(st);
     }
 
-    /// Slows the player once per overlapped honey block it is sliding down.
-    fn apply_honey_wall_slide(&self, st: &mut PlayerState) {
+    /// Slows the player once per honey block whose side it touches (not in water, see README).
+    pub(crate) fn apply_honey_wall_slide(&self, st: &mut PlayerState) {
         let bb = st.bounding_box().grow_vec([1e-3, 0.0, 1e-3]);
         for pos in overlapped_cells(&bb) {
             if !bb.intersects(&crate::aabb::Aabb::block(pos)) || !self.w.block(pos).honey {

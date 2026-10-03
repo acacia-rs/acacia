@@ -131,6 +131,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         }
         self.apply_bubble_columns(st);
         self.apply_inside_block_effects(st);
+        if !water {
+            self.apply_honey_wall_slide(st);
+        }
         st.fall_distance = 0.0;
         true
     }
