@@ -1,19 +1,7 @@
 // Terrain quads by vertex pulling: 6 vertices per quad, no vertex or index buffers.
 // Quad layout: see src/mesh/quad.rs. The instance index is the section slot.
+// Follows globals.wgsl; light.wgsl follows.
 
-struct Globals {
-    view_proj: mat4x4<f32>,
-    cam_block: vec4<i32>,
-    cam_frac: vec4<f32>,
-    // x: water surface opacity (biomes_client.json water_surface_transparency)
-    water: vec4<f32>,
-    // rgb: fog/sky colour, w: distance where fog is opaque
-    fog: vec4<f32>,
-    // x: ambient brightness
-    light: vec4<f32>,
-};
-
-@group(0) @binding(0) var<uniform> g: Globals;
 @group(0) @binding(1) var<storage, read> quads: array<u32>;
 @group(0) @binding(2) var<storage, read> origins: array<vec4<i32>>;
 @group(0) @binding(3) var atlas: texture_2d_array<f32>;
@@ -110,10 +98,9 @@ fn shade_texel(in: VsOut) -> vec4<f32> {
         rgb = select(rgb * in.tint, mix(rgb, rgb * in.tint, texel.a), material == 3u);
     }
     rgb = rgb * in.shade * brightness(in.face_slot.y, in.face_slot.x, in.local);
-    let fog = smoothstep(g.fog.w * 0.7, g.fog.w, in.dist);
     // Water opacity is the biome's water_surface_transparency, not the texture's alpha.
     let alpha = select(texel.a, g.water.x, tint == 3u);
-    return vec4(mix(rgb, g.fog.rgb, fog), alpha);
+    return vec4(fogged(rgb, in.dist), alpha);
 }
 
 @fragment

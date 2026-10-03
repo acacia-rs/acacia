@@ -11,6 +11,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
+use crate::entities::Smoother;
 use crate::input::FlyInput;
 use crate::net::{Net, NetEvent};
 use crate::shot::Shot;
@@ -29,6 +30,7 @@ pub struct App {
     /// C toggles; `ACACIA_NO_CULL` starts with it off.
     cave_culling: bool,
     player: Option<DVec3>,
+    entities: Smoother,
     camera_placed: bool,
     status: String,
     last_frame: Instant,
@@ -61,6 +63,7 @@ impl App {
             fog_distance: (radius * 16) as f32,
             cave_culling: std::env::var_os("ACACIA_NO_CULL").is_none(),
             player: None,
+            entities: Smoother::default(),
             camera_placed: false,
             status: "starting".into(),
             last_frame: Instant::now(),
@@ -109,6 +112,12 @@ impl App {
                         self.camera_placed = true;
                     }
                 }
+                NetEvent::EntityModels(models) => {
+                    if let Some(r) = &mut self.renderer {
+                        r.set_entity_models(models);
+                    }
+                }
+                NetEvent::Entities(snapshot) => self.entities.push(self.camera.position, snapshot),
                 NetEvent::Status(s) => {
                     tracing::info!("{s}");
                     self.status = s;
@@ -134,6 +143,7 @@ impl App {
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.cave_culling;
         self.camera.aspect = r.aspect();
+        r.set_entities(self.entities.instances(self.camera.position));
         let stats = r.render(&self.camera);
         self.overlay.frames += 1;
         let elapsed = self.overlay.since.elapsed();

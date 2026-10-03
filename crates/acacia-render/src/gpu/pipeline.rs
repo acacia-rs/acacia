@@ -15,7 +15,7 @@ impl Pipelines {
     pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("terrain"),
-            source: wgpu::ShaderSource::Wgsl(concat!(include_str!("terrain.wgsl"), include_str!("light.wgsl")).into()),
+            source: wgpu::ShaderSource::Wgsl(concat!(include_str!("globals.wgsl"), include_str!("terrain.wgsl"), include_str!("light.wgsl")).into()),
         });
         let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
             binding,
@@ -147,6 +147,28 @@ pub fn sampler(device: &wgpu::Device) -> wgpu::Sampler {
         min_filter: wgpu::FilterMode::Nearest,
         mipmap_filter: wgpu::MipmapFilterMode::Linear,
         ..Default::default()
+    })
+}
+
+/// The frame's single pass: clears to `sky` (linear) and to the far plane of reverse-Z.
+pub fn begin_pass<'a>(encoder: &'a mut wgpu::CommandEncoder, view: &wgpu::TextureView, depth: &wgpu::TextureView, sky: [f32; 3]) -> wgpu::RenderPass<'a> {
+    let [r, g, b] = sky.map(f64::from);
+    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("frame"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a: 1.0 }), store: wgpu::StoreOp::Store },
+        })],
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: depth,
+            depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Discard }),
+            stencil_ops: None,
+        }),
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
     })
 }
 

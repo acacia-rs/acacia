@@ -10,7 +10,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::biome::BiomeColors;
 use crate::blocks::BlockTable;
-use crate::light::{LightEvent, LightVolume, Lighting};
+use crate::light::{LightData, LightEvent, LightVolume, Lighting};
+use parking_lot::RwLock;
 use crate::mesh::SectionMesh;
 use crate::workers::{Job, Output, SectionKey, Work, Workers};
 
@@ -81,6 +82,11 @@ impl Scene {
     /// The world, block table and lighting, to build a replacement scene from.
     pub fn into_parts(self) -> (Arc<World>, Arc<BlockTable>, Lighting) {
         (self.tracked.world, self.table, self.lighting)
+    }
+
+    /// Light of the loaded columns, for [`crate::light::LightData::light`] lookups.
+    pub fn light(&self) -> &Arc<RwLock<LightData>> {
+        &self.lighting.data
     }
 
     pub fn pending(&self) -> usize {

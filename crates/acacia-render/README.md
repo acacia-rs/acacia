@@ -92,13 +92,48 @@ both layers).
   BFS from the camera's section enters a neighbour only through a face its entry face sees, never moves
   back towards the camera, and stays in the frustum. Unmeshed sections count as open.
   `Renderer::cave_culling` turns it off (C in the viewer).
-- Frames: frustum culling per section, solid pass front to back, translucent pass back to front with
-  blending and no depth writes. Reverse-Z with an infinite far plane, camera-relative coordinates.
+- Frames: frustum culling per section, solid pass front to back, then entities, then the translucent
+  pass back to front with blending and no depth writes. Reverse-Z with an infinite far plane,
+  camera-relative coordinates.
+- Translucent order inside a section: back faces are culled and `Quad::blend_order` sorts the quads per
+  face direction, far plane first, so every direction that draws blends back to front (water under ice,
+  then the ice). Liquid surfaces emit their own underside. Quads of different directions still blend
+  in key order. Unsorted, water drew over the ice above it everywhere but at section borders.
+
+## Entities (`entity/`, `gpu/entities.rs`)
+
+`EntityModels::load(pack)` reads the client entity definitions (`entity/*.entity.json`; the newest
+`min_engine_version` of a kind wins) and bakes the geometry each names (`models/`) to a rest-pose
+triangle mesh. The renderer draws the `EntityInstance`s given to `Renderer::set_entities`; the caller
+maps its entities to models with `EntityModels::lookup` and `player`.
+
+- **Geometry** (`geometry.rs`): both file layouts. With inheritance (`geometry.a:geometry.b`) a child
+  bone of the same name adds its cubes and overrides the keys it sets, or replaces the bone with
+  `"reset": true`. `bind_pose_rotation` turns only the bone's own cubes; `rotation` also carries its
+  children. A cube without a pivot turns around its centre. `poly_mesh` bones (persona skins) are
+  fan-triangulated.
+- **Model space**: 1/16 block, feet at the origin, facing -z, the entity's right at -x (left-handed
+  against the world). Angles in files are degrees, x and z clockwise: `Rz(-z) · Ry(y) · Rx(-x)`.
+  Placement mirrors z, then turns by the yaw.
+- **Box UV** (`bake.rs`): the unfolded box of Java's `ModelBox`; `mirror` flips u and swaps the sides.
+- **Pose**: none but the head, which turns around the head bone's pivot by head yaw and pitch
+  (vertices under a bone named `head` carry a part flag; two matrices per instance).
+- **Textures**: `default`, or for villagers `base` + `plains` + `unskilled` laid over each other. One
+  GPU texture per model or skin. TGA alpha is a tint mask, so those load opaque; otherwise texels
+  under 10% alpha are cut out.
+- **Players** (`skin.rs`): a classic skin is a texture for one of three humanoids (wide, slim, 64×32
+  layout). A persona skin brings its own geometry and a separate face texture; both bake into one mesh
+  over one stacked texture.
+- **Light**: block and sky level at the entity's position from `LightData`, through the terrain's
+  curve (`gpu/globals.wgsl`), times a directional shade from the normal.
 
 ## Not yet
 
 Day/night (sky light is always full), GPU occlusion culling (Hi-Z), texture animation,
-flow-direction water and sloped liquid surfaces, entities, block entities, UI.
+flow-direction water and sloped liquid surfaces, block entities, UI. Entities: animation (limbs,
+setup poses some old models rely on), render controllers (variants, part visibility: villagers show
+their hat brim, sheep wool has no colour), babies' own proportions where the pack has no baby
+geometry, dropped items, name tags, armour and held items, capes.
 
 Approximate: water loses 2 light per block (the wiki's Bedrock opacity note; its table is ambiguous),
 so seabeds deeper than ~7 blocks go dark. Each section change relights its whole column.

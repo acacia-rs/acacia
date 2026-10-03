@@ -1,3 +1,5 @@
+mod entities;
+mod entity_textures;
 mod pipeline;
 mod screenshot;
 mod store;
@@ -6,6 +8,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use acacia_world::World;
+use glam::DVec3;
+
+use crate::entity::{EntityInstance, EntityModels};
+use entities::EntityPass;
 
 use crate::Error;
 use crate::assets::image::Texture;
@@ -58,6 +64,8 @@ pub struct Renderer {
     sampler: wgpu::Sampler,
     bind_group: wgpu::BindGroup,
     store: Store,
+    entities: EntityPass,
+    entity_list: Vec<EntityInstance>,
     scene: Option<Scene>,
     biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
@@ -112,6 +120,7 @@ impl Renderer {
         let texture_view = pipeline::texture_array(&device, &queue, &[Texture::missing()]);
         let sampler = pipeline::sampler(&device);
         let store = Store::new(&device);
+        let entities = EntityPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &texture_view, &sampler);
         Ok(Renderer {
             depth: pipeline::depth_view(&device, config.width, config.height),
@@ -125,6 +134,8 @@ impl Renderer {
             sampler,
             bind_group,
             store,
+            entities,
+            entity_list: Vec::new(),
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
@@ -181,6 +192,15 @@ impl Renderer {
         self.scene = Some(Scene::new(world, table, self.biomes.clone(), lighting));
     }
 
+    pub fn set_entity_models(&mut self, models: Arc<EntityModels>) {
+        self.entities.set_models(&self.device, models);
+    }
+
+    /// The entities to draw from now on; ids come from the models set last.
+    pub fn set_entities(&mut self, entities: Vec<EntityInstance>) {
+        self.entity_list = entities;
+    }
+
     pub fn world(&self) -> Option<&Arc<World>> {
         self.scene.as_ref().map(Scene::world)
     }
@@ -211,6 +231,15 @@ impl Renderer {
             light: [if self.world().is_none_or(|w| w.dimension().sky) { AMBIENT.0 } else { AMBIENT.1 }, 0.0, 0.0, 0.0],
         };
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
+        let light = self.scene.as_ref().map(|s| s.light().read());
+        // Outside lit columns an entity is as bright as open sky.
+        let light_at = |p: DVec3| {
+            let p = p.floor().as_ivec3();
+            let byte = light.as_ref().and_then(|l| l.light(p.x, p.y, p.z)).unwrap_or(15);
+            [f32::from(byte >> 4), f32::from(byte & 15)]
+        };
+        self.entities.prepare(&self.device, &self.queue, &self.globals, &self.entity_list, camera.position, light_at);
+        drop(light);
         let frustum = Frustum::new(view_proj);
         let reachable = self
             .scene
@@ -241,32 +270,15 @@ impl Renderer {
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         {
-            let sky = srgb_to_linear(SKY).map(f64::from);
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("terrain"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color { r: sky[0], g: sky[1], b: sky[2], a: 1.0 }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth,
-                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Discard }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_bind_group(0, &self.bind_group, &[]);
+            let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, srgb_to_linear(SKY));
             for (pipeline, draws) in [(&self.pipelines.solid, &solid), (&self.pipelines.translucent, &translucent)] {
                 pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, &self.bind_group, &[]);
                 for d in draws {
                     pass.draw(d.first * 6..(d.first + d.count) * 6, d.slot..d.slot + 1);
+                }
+                if std::ptr::eq(pipeline, &self.pipelines.solid) {
+                    self.entities.draw(&mut pass);
                 }
             }
         }

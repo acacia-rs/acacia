@@ -1,12 +1,10 @@
 
 // Smooth lighting from a section's bordered light volume (layout and OPAQUE_CELL: src/light/data.rs).
-// Appended to terrain.wgsl, whose U_AXIS/V_AXIS and Globals it uses.
+// Appended to terrain.wgsl, whose U_AXIS/V_AXIS it uses; `curve` is in globals.wgsl.
 
 const OPAQUE: u32 = 255u;
 const LIGHT_SIDE: i32 = 18;
 const LIGHT_WORDS: u32 = 1458u;
-// Blend between the darker curve (0) and a brighter one (1), like the brightness setting.
-const GAMMA: f32 = 0.5;
 
 var<private> NORMAL: array<vec3<f32>, 6> = array(
     vec3(1.0, 0.0, 0.0), vec3(-1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0),
@@ -33,13 +31,6 @@ fn corner(center: u32, e1: u32, e2: u32, diagonal: u32) -> vec2<f32> {
     if e2 != OPAQUE { sum += levels(e2); n += 1.0; }
     if diagonal != OPAQUE && (e1 != OPAQUE || e2 != OPAQUE) { sum += levels(diagonal); n += 1.0; }
     return sum / n;
-}
-
-fn curve(l: vec2<f32>) -> f32 {
-    let f = max(l.x, l.y) / 15.0;
-    let dark = f / (4.0 - 3.0 * f);
-    let b = mix(dark, 1.0 - pow(1.0 - dark, 4.0), GAMMA);
-    return b + g.light.x * (1.0 - b);
 }
 
 fn flat_light(slot: u32, c: vec3<i32>) -> f32 {
