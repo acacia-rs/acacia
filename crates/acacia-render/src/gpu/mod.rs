@@ -13,6 +13,7 @@ use crate::blocks::BlockTable;
 use crate::biome::BiomeColors;
 use crate::blocks::tint::WATER_ALPHA;
 use crate::camera::{Camera, Frustum};
+use crate::cull;
 use crate::light::Lighting;
 use crate::scene::{Scene, Update};
 use pipeline::Pipelines;
@@ -62,6 +63,8 @@ pub struct Renderer {
     updates: Vec<Update>,
     /// Blocks from the camera where fog turns opaque.
     pub fog_distance: f32,
+    /// Skip sections no open path from the camera reaches ([`crate::cull`]).
+    pub cave_culling: bool,
     screenshot: Option<PathBuf>,
 }
 
@@ -109,7 +112,7 @@ impl Renderer {
         let texture_view = pipeline::texture_array(&device, &queue, &[Texture::missing()]);
         let sampler = pipeline::sampler(&device);
         let store = Store::new(&device);
-        let bind_group = bind_group(&device, &pipelines.layout, &globals, &store, &texture_view, &sampler);
+        let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &texture_view, &sampler);
         Ok(Renderer {
             depth: pipeline::depth_view(&device, config.width, config.height),
             surface,
@@ -126,6 +129,7 @@ impl Renderer {
             biomes: Arc::default(),
             updates: Vec::new(),
             fog_distance: 160.0,
+            cave_culling: true,
             screenshot: None,
         })
     }
@@ -194,7 +198,7 @@ impl Renderer {
             }
         }
         if std::mem::take(&mut self.store.replaced) {
-            self.bind_group = bind_group(&self.device, &self.pipelines.layout, &self.globals, &self.store, &self.textures, &self.sampler);
+            self.bind_group = pipeline::bind_group(&self.device, &self.pipelines.layout, &self.globals, &self.store, &self.textures, &self.sampler);
         }
 
         let view_proj = camera.view_proj();
@@ -207,7 +211,13 @@ impl Renderer {
             light: [if self.world().is_none_or(|w| w.dimension().sky) { AMBIENT.0 } else { AMBIENT.1 }, 0.0, 0.0, 0.0],
         };
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
-        let (solid, translucent) = self.store.draws(&Frustum::new(view_proj), cam_block, cam_frac);
+        let frustum = Frustum::new(view_proj);
+        let reachable = self
+            .scene
+            .as_ref()
+            .filter(|_| self.cave_culling)
+            .map(|s| cull::visible_sections(&frustum, cam_block, cam_frac, s.sections(), |k| s.visibility(k)));
+        let (solid, translucent) = self.store.draws(&frustum, cam_block, cam_frac, reachable.as_ref());
         let stats = FrameStats {
             sections: self.store.sections(),
             drawn: solid.len().max(translucent.len()),
@@ -270,28 +280,6 @@ impl Renderer {
         self.queue.present(frame);
         stats
     }
-}
-
-fn bind_group(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    globals: &wgpu::Buffer,
-    store: &Store,
-    textures: &wgpu::TextureView,
-    sampler: &wgpu::Sampler,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("terrain"),
-        layout,
-        entries: &[
-            wgpu::BindGroupEntry { binding: 0, resource: globals.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 1, resource: store.quads.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 2, resource: store.origins.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(textures) },
-            wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::Sampler(sampler) },
-            wgpu::BindGroupEntry { binding: 5, resource: store.light.as_entire_binding() },
-        ],
-    })
 }
 
 fn srgb_to_linear(c: [f32; 3]) -> [f32; 3] {

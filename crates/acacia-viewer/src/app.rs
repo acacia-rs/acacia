@@ -26,6 +26,8 @@ pub struct App {
     vsync: bool,
     fog_distance: f32,
     player: Option<DVec3>,
+    /// C toggles; `ACACIA_NO_CULL` starts with it off.
+    cave_culling: bool,
     camera_placed: bool,
     status: String,
     last_frame: Instant,
@@ -57,6 +59,7 @@ impl Shot {
             Some((y.parse::<f32>().ok()?, p.parse::<f32>().ok()?))
         }) {
             (camera.yaw, camera.pitch) = (yaw.to_radians(), pitch.to_radians());
+            cave_culling: std::env::var_os("ACACIA_NO_CULL").is_none(),
         }
     }
 }
@@ -129,6 +132,7 @@ impl App {
                         self.camera.position = p;
                         self.camera_placed = true;
                     }
+        r.cave_culling = self.cave_culling;
                 }
                 NetEvent::Status(s) => {
                     tracing::info!("{s}");
@@ -166,6 +170,7 @@ impl App {
 
     fn grab(&mut self, on: bool) {
         let Some(w) = &self.window else { return };
+            (KeyCode::KeyC, true) => self.cave_culling = !self.cave_culling,
         let mode = if on { CursorGrabMode::Locked } else { CursorGrabMode::None };
         let grabbed = w.set_cursor_grab(mode).or_else(|_| w.set_cursor_grab(if on { CursorGrabMode::Confined } else { mode })).is_ok();
         w.set_cursor_visible(!on);

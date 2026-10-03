@@ -45,6 +45,8 @@ struct Tracked {
     versions: FxHashMap<SectionKey, u64>,
     next_version: u64,
     sections: std::ops::Range<i32>,
+    /// Face pairs per meshed section, for [`crate::cull`].
+    visibility: FxHashMap<SectionKey, u16>,
 }
 
 impl Scene {
@@ -62,6 +64,7 @@ impl Scene {
             versions: FxHashMap::default(),
             next_version: 1,
             sections: min..min + (dim.height / 16) as i32,
+            visibility: FxHashMap::default(),
         };
         let lit: Vec<_> = lighting.data.read().columns.iter().copied().collect();
         for (x, z) in lit {
@@ -82,6 +85,17 @@ impl Scene {
 
     pub fn pending(&self) -> usize {
         self.tracked.dirty.len() + self.tracked.in_flight.len()
+    }
+
+    pub fn sections(&self) -> std::ops::Range<i32> {
+        self.tracked.sections.clone()
+    }
+
+    /// A section's face pairs: all open until meshed, `None` outside loaded columns.
+    pub fn visibility(&self, key: SectionKey) -> Option<u16> {
+        let t = &self.tracked;
+        (t.sections.contains(&key.1) && t.columns.contains(&(key.0, key.2)))
+            .then(|| t.visibility.get(&key).copied().unwrap_or(crate::mesh::visibility::ALL))
     }
 
     pub fn pump(&mut self, camera_block: IVec3, out: &mut Vec<Update>) {
@@ -105,8 +119,14 @@ impl Scene {
                     }
                     t.versions.remove(&done.key);
                     out.push(match mesh {
-                        Some(mesh) => Update::Mesh(done.key, mesh),
-                        None => Update::Remove(done.key),
+                        Some(mesh) => {
+                            t.visibility.insert(done.key, mesh.visibility);
+                            Update::Mesh(done.key, mesh)
+                        }
+                        None => {
+                            t.visibility.remove(&done.key);
+                            Update::Remove(done.key)
+                        }
                     });
                 }
                 Output::Light(light) => out.push(Update::Light(done.key, light)),
@@ -188,6 +208,7 @@ impl Tracked {
                 self.dirty.remove(&key);
                 self.relight.remove(&key);
                 self.versions.remove(&key);
+                self.visibility.remove(&key);
                 out.push(Update::Remove(key));
             }
         }

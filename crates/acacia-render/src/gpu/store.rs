@@ -2,7 +2,7 @@
 //! and section origins and light volumes in buffers indexed by slot (the draw's instance index).
 
 use glam::{IVec3, Vec3};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::camera::Frustum;
 use crate::light::LightVolume;
@@ -126,11 +126,13 @@ impl Store {
         queue.write_buffer(&self.light, u64::from(e.slot) * LIGHT_BYTES, &light.cells[..]);
     }
 
-    /// Visible sections: solid front to back (early depth rejection), translucent back to front.
-    pub fn draws(&self, frustum: &Frustum, cam_block: IVec3, cam_frac: Vec3) -> (Vec<Draw>, Vec<Draw>) {
+    /// Sections in the frustum (and in `reachable`, when culling caves): solid front to back
+    /// (early depth rejection), translucent back to front.
+    pub fn draws(&self, frustum: &Frustum, cam_block: IVec3, cam_frac: Vec3, reachable: Option<&FxHashSet<SectionKey>>) -> (Vec<Draw>, Vec<Draw>) {
         let mut visible: Vec<(i32, &Entry)> = self
             .entries
             .iter()
+            .filter(|(k, _)| reachable.is_none_or(|r| r.contains(k)))
             .filter_map(|(&(x, y, z), e)| {
                 let min = (IVec3::new(x, y, z) * 16 - cam_block).as_vec3() - cam_frac;
                 frustum.intersects_box(min, min + Vec3::splat(16.0)).then(|| {

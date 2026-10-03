@@ -10,7 +10,7 @@ use parking_lot::RwLock;
 use crate::biome::BiomeColors;
 use crate::blocks::BlockTable;
 use crate::light::{LightData, LightVolume};
-use crate::mesh::{SectionMesh, Volume, mesh_section};
+use crate::mesh::{SectionMesh, Volume, mesh_section, visibility};
 
 /// Column x, section y (world y >> 4), column z.
 pub type SectionKey = (i32, i32, i32);
@@ -93,7 +93,7 @@ fn build((cx, sy, cz): SectionKey, s: &Shared) -> Option<SectionMesh> {
     let index = usize::try_from(sy - (dim.min_y >> 4)).ok()?;
     let column = s.world.get(cx, cz)?;
     if column.read().section_uniform(index) == Some(dim.air) {
-        return Some(SectionMesh::default());
+        return Some(SectionMesh { visibility: visibility::ALL, ..Default::default() });
     }
     drop(column);
     let volume = Volume::gather(&s.world, cx, sy, cz)?;

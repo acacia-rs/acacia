@@ -86,10 +86,15 @@ both layers).
   origins and light volumes live in buffers indexed by slot, passed as the instance index.
 - Frames: frustum culling per section, solid pass front to back, translucent pass back to front with
   blending and no depth writes. Reverse-Z with an infinite far plane, camera-relative coordinates.
+- Cave culling (`cull.rs`, Java's `SectionOcclusionGraph`): meshing records which of a section's
+  face pairs see each other through non-occluding blocks (`mesh/visibility.rs`, 15 bits). Each frame a
+  BFS from the camera's section enters a neighbour only through a face its entry face sees, never moves
+  back towards the camera, and stays in the frustum. Unmeshed sections count as open.
+  `Renderer::cave_culling` turns it off (C in the viewer).
 
 ## Not yet
 
-Day/night (sky light is always full), cave/occlusion culling, texture animation,
+Day/night (sky light is always full), GPU occlusion culling (Hi-Z), texture animation,
 flow-direction water and sloped liquid surfaces, entities, block entities, UI.
 
 Approximate: water loses 2 light per block (the wiki's Bedrock opacity note; its table is ambiguous),

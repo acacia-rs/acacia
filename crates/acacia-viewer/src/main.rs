@@ -3,7 +3,7 @@
 //! - `@account` signs in online with tokens cached in ./.tokens (see acacia-auth's device_login).
 //! - Textures: run tools/fetch-vanilla-pack.sh first, or point ACACIA_ASSETS at a pack.
 //! - Controls: click to grab the mouse, WASD/Space/Shift to fly, Ctrl faster, wheel changes speed,
-//!   F jumps to the bot, V toggles vsync, Esc releases the mouse.
+//!   F jumps to the bot, V toggles vsync, C toggles cave culling, Esc releases the mouse.
 
 mod app;
 #[cfg(feature = "profile")]

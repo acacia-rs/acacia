@@ -1,5 +1,6 @@
 //! Terrain pipelines, bind group layout and the block texture array.
 
+use super::store::Store;
 use crate::assets::image::{TEXTURE_SIZE, Texture};
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -79,6 +80,28 @@ impl Pipelines {
             layout,
         }
     }
+}
+
+pub fn bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    globals: &wgpu::Buffer,
+    store: &Store,
+    textures: &wgpu::TextureView,
+    sampler: &wgpu::Sampler,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("terrain"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: globals.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 1, resource: store.quads.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 2, resource: store.origins.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(textures) },
+            wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::Sampler(sampler) },
+            wgpu::BindGroupEntry { binding: 5, resource: store.light.as_entire_binding() },
+        ],
+    })
 }
 
 /// Uploads block textures as a 16×16 array with a full mip chain.
