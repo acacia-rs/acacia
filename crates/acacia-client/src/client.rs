@@ -13,6 +13,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::blob_cache::BlobCache;
 use crate::driver::{Command, Driver};
+use crate::pack_cache;
 use crate::filter::PacketFilter;
 use crate::login::{build_login, Identity};
 use crate::route;
@@ -53,6 +54,7 @@ pub struct ClientBuilder {
     via: Via,
     blob_cache: BlobCache,
     blob_payloads: bool,
+    pack_cache_dir: Option<PathBuf>,
     login: Login,
     proxy: Option<Socks5Proxy>,
     transport: TransportKind,
@@ -71,6 +73,7 @@ impl ClientBuilder {
             via: Via::Address,
             blob_cache: BlobCache::Memory,
             blob_payloads: false,
+            pack_cache_dir: None,
             login: Login::Offline { name: "Player".into() },
             proxy: None,
             transport: TransportKind::Auto,
@@ -178,6 +181,13 @@ impl ClientBuilder {
         self
     }
 
+    /// Remember downloaded resource packs in `dir`, one file per account, so later joins skip the
+    /// download like a vanilla player's cache (default: every join downloads).
+    pub fn pack_cache_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.pack_cache_dir = Some(dir.into());
+        self
+    }
+
     /// Keep blob bytes, not just hashes: needed to read terrain ([`Client::blob_store`]).
     pub fn keep_blob_payloads(mut self, keep: bool) -> Self {
         self.blob_payloads = keep;
@@ -215,6 +225,7 @@ impl ClientBuilder {
             auto_respawn: self.auto_respawn,
             initialize_on_spawn: self.initialize_on_spawn,
             blob_store: blob_store.clone(),
+            pack_store: pack_cache::open(self.pack_cache_dir.as_deref(), &account),
         };
         let session = Session::new(cfg, addr, Instant::now());
 

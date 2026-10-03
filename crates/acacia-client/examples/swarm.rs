@@ -17,7 +17,7 @@ async fn main() {
             tokio::spawn(async move {
                 let start = Instant::now();
                 // Tiny capacity on purpose: exercises backpressure while the login burst arrives.
-                let mut client = Client::builder(server).offline(format!("Swarm{i}")).event_capacity(4).blob_cache_dir(".blobs").connect().await?;
+                let mut client = Client::builder(server).offline(format!("Swarm{i}")).event_capacity(4).blob_cache_dir(".blobs").pack_cache_dir(".packs").connect().await?;
                 let spawn = start.elapsed();
                 let idle_until = tokio::time::Instant::now() + Duration::from_secs(secs);
                 let mut packets = 0usize;

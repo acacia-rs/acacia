@@ -16,6 +16,8 @@ pub(super) mod delay {
     pub const HANDSHAKE: (u64, u64) = (30, 45);
     pub const CACHE_STATUS: (u64, u64) = (25, 40);
     pub const PACKS_HAVE_ALL: (u64, u64) = (30, 50);
+    /// Last pack chunk → HaveAllPacks (vanilla 187 ms, one download, 2026-10-03).
+    pub const PACKS_DOWNLOADED: (u64, u64) = (150, 230);
     pub const PACKS_COMPLETED: (u64, u64) = (650, 2800);
     pub const CHUNK_RADIUS: (u64, u64) = (1350, 1500);
     /// First ClientCacheBlobStatus after PlayerSpawn (vanilla 416 ms; blob-cache.md §3).

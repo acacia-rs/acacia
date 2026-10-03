@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let swarm = Swarm::builder()
         .token_cache(Arc::new(FileTokenCache::new(".tokens")?))
-        .client(|_, b| b.blob_cache_dir(".blobs"))
+        .client(|_, b| b.blob_cache_dir(".blobs").pack_cache_dir(".packs"))
         .start(async |bot: &mut Bot, _: &mut ()| while bot.next().await.is_some() {})?;
     let mut events = swarm.events();
     for spec in specs {

@@ -4,7 +4,7 @@ use acacia_proto::packets::{
     ClientCacheStatus, ClientCameraAimAssist, ClientCameraAimAssistAction, ClientToServerHandshake, Disconnect, ItemRegistry, Login, NetworkSettings, NetworkStackLatency,
     PacketViolationWarning,
     PlayStatus, PlayStatusStatus, PlayerAction, RequestChunkRadius,
-    ResourcePackClientResponse, ResourcePackClientResponseResponseStatus, ResourcePackStack, ResourcePacksInfo,
+    ResourcePackChunkData, ResourcePackDataInfo, ResourcePackStack, ResourcePacksInfo,
     Respawn, ServerToClientHandshake, SetLocalPlayerAsInitialized, StartGame, Transfer,
 };
 use acacia_proto::types::{Action, BlockCoordinates, Vec3f};
@@ -63,8 +63,10 @@ impl Session {
                 PlayStatusStatus::PlayerSpawn => self.on_spawn(),
                 failed => return Ok(Some(DisconnectReason::LoginFailed(failed))),
             },
-            ResourcePacksInfo::ID => self.respond_to_packs(delay::PACKS_HAVE_ALL, ResourcePackClientResponseResponseStatus::HaveAllPacks, "downloadingfinished"),
-            ResourcePackStack::ID => self.respond_to_packs(delay::PACKS_COMPLETED, ResourcePackClientResponseResponseStatus::Completed, "resourcepackstackfinished"),
+            ResourcePacksInfo::ID => self.on_packs_info(&raw)?,
+            ResourcePackDataInfo::ID => self.on_pack_data_info(&raw)?,
+            ResourcePackChunkData::ID => self.on_pack_chunk(&raw)?,
+            ResourcePackStack::ID => self.on_pack_stack(),
             StartGame::ID => self.runtime_entity_id = Some(read_runtime_entity_id(&raw.body)?),
             ItemRegistry::ID => {
                 let registry: ItemRegistry = raw.decode()?;
@@ -142,11 +144,6 @@ impl Session {
         codec::write_varint(&mut buf, tokens.len() as u32);
         buf.extend_from_slice(&tokens);
         self.deferred.push(self.now, delay::LOGIN, buf.freeze());
-    }
-
-    fn respond_to_packs(&mut self, delay_ms: (u64, u64), status: ResourcePackClientResponseResponseStatus, name: &str) {
-        let response = ResourcePackClientResponse { response_status: status, response_status_name: name.into(), resourcepackids: None };
-        self.send_later(delay_ms, &response);
     }
 
     fn on_spawn(&mut self) {

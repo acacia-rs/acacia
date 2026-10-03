@@ -1,0 +1,17 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "packtest",
+    "description": "Required resource pack for testing pack downloads",
+    "uuid": "8fbd6e02-fb25-4e1d-adc2-776df9dfb30b",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 0]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "45e1dd8b-a3eb-46ae-9160-d5cd3fa039c4",
+      "version": [1, 0, 0]
+    }
+  ]
+}

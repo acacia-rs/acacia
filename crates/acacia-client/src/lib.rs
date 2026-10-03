@@ -21,6 +21,7 @@ mod lan;
 mod login;
 mod net_wire;
 mod nethernet;
+mod pack_cache;
 mod ping;
 #[cfg(feature = "online")]
 mod qos;
@@ -36,8 +37,10 @@ mod trickle;
 
 pub use acacia_auth as auth;
 pub use acacia_session::blob_store::{BlobStore, MemoryBlobStore};
+pub use acacia_session::pack_store::{MemoryPackStore, PackStore};
 pub use acacia_session::{proto, DisconnectReason};
 pub use blob_cache::DiskBlobStore;
+pub use pack_cache::DiskPackStore;
 pub use client::{Client, ClientBuilder, Login, TransportKind};
 pub use acacia_nethernet::lan::ServerData as LanServerData;
 pub use filter::PacketFilter;

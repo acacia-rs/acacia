@@ -2,6 +2,7 @@ mod blob_cache;
 mod deferred;
 mod handlers;
 mod link;
+mod packs;
 
 use std::collections::VecDeque;
 use std::net::SocketAddr;
@@ -17,10 +18,12 @@ use p384::ecdsa::SigningKey;
 
 use crate::batch::BatchCodec;
 use crate::blob_store::BlobStore;
+use crate::pack_store::PackStore;
 use crate::Error;
 use blob_cache::BlobStatus;
 use deferred::Deferred;
 use link::Link;
+use packs::Packs;
 pub use link::LinkConfig;
 
 pub struct SessionConfig {
@@ -37,6 +40,8 @@ pub struct SessionConfig {
     pub initialize_on_spawn: bool,
     /// Report the client blob cache as enabled and answer with this store; `None` disables it (blob_cache.rs).
     pub blob_store: Option<Arc<dyn BlobStore>>,
+    /// Resource packs this account already holds; the rest are downloaded (packs.rs).
+    pub pack_store: Arc<dyn PackStore>,
 }
 
 #[derive(Debug)]
@@ -91,6 +96,7 @@ pub struct Session {
     /// Replies waiting out a vanilla reaction time (deferred.rs).
     deferred: Deferred,
     blobs: Option<BlobStatus>,
+    packs: Packs,
     /// The time of the event being handled, for `send_later`.
     now: Instant,
     events: VecDeque<Event>,
@@ -116,6 +122,7 @@ impl Session {
             outgoing: Vec::new(),
             deferred: Deferred::new(),
             blobs: cfg.blob_store.map(BlobStatus::new),
+            packs: Packs::new(cfg.pack_store),
             now,
             events: VecDeque::new(),
             scratch: Vec::new(),

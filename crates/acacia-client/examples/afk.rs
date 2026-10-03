@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok("nethernet") => TransportKind::NetherNet,
         _ => TransportKind::Auto,
     };
-    let mut builder = Client::builder(&server).auto_respawn(std::env::var("BEDROCK_AUTO_RESPAWN").is_ok()).transport(transport).blob_cache_dir(".blobs");
+    let mut builder = Client::builder(&server).auto_respawn(std::env::var("BEDROCK_AUTO_RESPAWN").is_ok()).transport(transport).blob_cache_dir(".blobs").pack_cache_dir(".packs");
     if let Some(p) = &proxy {
         println!("via proxy {}:{}", p.host, p.port);
         builder = builder.proxy(p.clone());
