@@ -12,8 +12,8 @@ const FLAT_GEOMETRY: &str = include_str!("../../assets/skin_geometry.json");
 const FLAT_RESOURCE_PATCH: &str = include_str!("../../assets/skin_resource_patch.json");
 
 /// The skin claims of [`super::ClientData`], named as the mitm dump names them.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "PascalCase")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase", default)]
 pub struct Skin {
     pub animated_image_data: Vec<serde_json::Value>,
     pub arm_size: String,

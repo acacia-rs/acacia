@@ -1,7 +1,8 @@
 //! Minecraft Bedrock authentication.
 //!
-//! - Always available (network-free): the Login packet payload builder ([`login`]), ES384 JWT
-//!   helpers ([`jwt`]) and the server handshake parser.
+//! - Always available (network-free): the Login packet payload builder ([`login`]), its
+//!   server-side verifier ([`login::verify`]), ES384 JWT helpers ([`jwt`]) and the server
+//!   handshake parser.
 //! - Feature `online` (default): [`AuthClient`] (device code → Xbox → XSTS → Mojang chain +
 //!   PlayFab → session/start → multiplayer token), [`TokenCache`] and [`Account`].
 //!
