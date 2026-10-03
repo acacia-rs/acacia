@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use acacia_physics::BlockPos;
-use acacia_world::{BlockIds, BlockRegistry, ChunkView, World};
+use acacia_world::{BlockAccess, BlockIds, BlockRegistry, ChunkView, World};
 
 use crate::pathfind::Terrain;
 use crate::world::PhysicsWorld;
@@ -71,6 +71,18 @@ impl Grid {
             }
         }
         self
+    }
+
+    /// Flips `open_bit` of the door, gate or trapdoor at `pos` (and of a door's upper half), as
+    /// the server does on a click.
+    pub fn toggle(&self, [x, y, z]: BlockPos) {
+        for pos in [[x, y, z], [x, y + 1, z]] {
+            let state = self.registry.get(self.view.block(pos[0], pos[1], pos[2])).expect("known block");
+            let Some(open) = state.property("open_bit") else { continue };
+            let flipped = state.properties.replace(&format!("open_bit={open}"), &format!("open_bit={}", if open == "1" { 0 } else { 1 }));
+            let id = self.registry.find(state.name, &flipped).expect("toggled state");
+            self.view.set_block(pos[0], pos[1], pos[2], 0, id);
+        }
     }
 
     pub fn terrain(&self) -> Terrain<'_, &ChunkView> {
