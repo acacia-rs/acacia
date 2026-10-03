@@ -22,7 +22,8 @@ material per face. Build it from the **world's** registry: custom blocks shift r
 
 - **Shape**: vanilla shapes are hard-coded in the game, so full cubes use `Cube`, other solid blocks use
   their collision boxes (clamped to the block, rounded to 1/16), and collisionless blocks use a small table
-  (carpets, rails, torches, buttons) or crossed planes. Signs, banners, vines and heads draw nothing yet.
+  (carpets, rails, torches, buttons, snow layers, open fence gates) or crossed planes. Signs, banners,
+  vines and heads draw nothing yet.
 - **Orientation**: `pillar_axis` and `minecraft:cardinal_direction` (blocks.json fronts face south).
 - **Tint**: which faces take grass, foliage or water colour is by name (birch and spruce leaves are
   fixed colours). Water opacity is `water_surface_transparency` (0.65), not texture alpha.
