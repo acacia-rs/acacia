@@ -16,6 +16,7 @@ pub(super) struct Edges {
     pub jump: (bool, bool),
     pub swim: (bool, bool),
     pub sneaking: bool,
+    pub sprinting: bool,
     /// The sprint key itself, which `Input::sprint` outlasts while a sprint continues.
     pub sprint_key: bool,
 }
@@ -68,9 +69,10 @@ pub(super) fn build(input: &Input, out: &TickOutput, e: &Edges, tick: u64, loade
     set(e.sneak.0, F::SneakPressedRaw);
     set(e.sneak.1, F::StopSneaking);
     set(e.sneak.1, F::SneakReleasedRaw);
-    // The vanilla client's `Sprinting` is the held key, not the sprint state (every tick of the captures); BDS
-    // reads it to accept a swim start sent with a same-tick StopSprinting.
-    set(e.sprint_key, F::Sprinting);
+    // Mouse clients send the held key here; for a Touch player BDS reads it as the sprint state itself (it ends the
+    // sprint when it drops and starts one, even sneaking, when it appears). The swim trigger needs it on a swim
+    // start sent with a same-tick StopSprinting.
+    set(e.sprinting || e.swim.0, F::Sprinting);
     set(e.sprint_key, F::SprintDown);
     set(e.sprint.0, F::StartSprinting);
     set(e.sprint.1, F::StopSprinting);

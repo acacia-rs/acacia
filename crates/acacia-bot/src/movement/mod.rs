@@ -285,6 +285,7 @@ impl Movement {
             jump: (c.jump && !self.prev_jump, !c.jump && self.prev_jump),
             swim: (st.swimming && !was_swimming, !st.swimming && was_swimming),
             sneaking: st.sneaking,
+            sprinting: st.sprinting,
             sprint_key: c.sprint,
         };
         self.prev_jump = c.jump;
