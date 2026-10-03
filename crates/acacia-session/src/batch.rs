@@ -16,6 +16,38 @@ pub struct BatchCodec {
     max_decompressed: usize,
 }
 
+/// A batch body (after the 0xfe byte, before encryption) built once for many receivers: a server
+/// compresses a broadcast once and each connection only frames and encrypts it.
+#[derive(Debug, Clone)]
+pub struct SharedBatch(Bytes);
+
+impl SharedBatch {
+    /// `compression` must be what the receiving codecs use ([`BatchCodec::compression`]).
+    pub fn new<'a>(packets: impl IntoIterator<Item = &'a [u8]>, compression: Option<(Algorithm, usize)>) -> Self {
+        let mut plain = BytesMut::new();
+        for p in packets {
+            put_varuint32(&mut plain, p.len() as u32);
+            plain.put_slice(p);
+        }
+        let body = match compression {
+            Some((alg, threshold)) if plain.len() >= threshold => {
+                let mut out = BytesMut::with_capacity(plain.len() / 2 + 1);
+                out.put_u8(alg.batch_id());
+                alg.compress(&plain, &mut out);
+                out
+            }
+            Some(_) => {
+                let mut out = BytesMut::with_capacity(plain.len() + 1);
+                out.put_u8(NONE_ID);
+                out.put_slice(&plain);
+                out
+            }
+            None => plain,
+        };
+        Self(body.freeze())
+    }
+}
+
 impl Default for BatchCodec {
     fn default() -> Self {
         Self { header: true, compression: None, encryption: None, max_decompressed: DEFAULT_MAX_DECOMPRESSED }
@@ -40,28 +72,24 @@ impl BatchCodec {
         self.encryption.is_some()
     }
 
+    /// The compression in effect, as [`SharedBatch::new`] takes it.
+    pub fn compression(&self) -> Option<(Algorithm, usize)> {
+        self.compression
+    }
+
     /// Encodes already-serialized packets (header + body) into one game message.
     pub fn encode<'a>(&mut self, packets: impl IntoIterator<Item = &'a [u8]>) -> Bytes {
-        let mut plain = BytesMut::new();
-        for p in packets {
-            put_varuint32(&mut plain, p.len() as u32);
-            plain.put_slice(p);
-        }
-        let mut out = BytesMut::with_capacity(plain.len() + 16);
+        let shared = SharedBatch::new(packets, self.compression);
+        self.encode_shared(&shared)
+    }
+
+    /// Frames (and encrypts) a batch body built for this codec's compression setting.
+    pub fn encode_shared(&mut self, batch: &SharedBatch) -> Bytes {
+        let mut out = BytesMut::with_capacity(batch.0.len() + 16);
         if self.header {
             out.put_u8(GAME_MESSAGE_ID);
         }
-        match self.compression {
-            Some((alg, threshold)) if plain.len() >= threshold => {
-                out.put_u8(alg.batch_id());
-                alg.compress(&plain, &mut out);
-            }
-            Some(_) => {
-                out.put_u8(NONE_ID);
-                out.put_slice(&plain);
-            }
-            None => out.put_slice(&plain),
-        }
+        out.put_slice(&batch.0);
         if let Some(enc) = &mut self.encryption {
             enc.seal(&mut out, usize::from(self.header));
         }
@@ -158,6 +186,25 @@ mod tests {
         rx.enable_encryption([4; 32]);
         for _ in 0..3 {
             roundtrip(&mut tx, &mut rx, packets);
+        }
+    }
+
+    #[test]
+    fn one_shared_batch_reaches_receivers_with_different_keys() {
+        let big = vec![7u8; 3000];
+        let packets: &[&[u8]] = &[b"\x01abc", &big];
+        let compression = Some((Algorithm::Deflate, 256));
+        let shared = SharedBatch::new(packets.iter().copied(), compression);
+        for key in [[1u8; 32], [2; 32]] {
+            let (mut tx, mut rx) = (BatchCodec::default(), BatchCodec::default());
+            for c in [&mut tx, &mut rx] {
+                c.enable_compression(Algorithm::Deflate, 256);
+                c.enable_encryption(key);
+            }
+            assert_eq!(tx.compression(), compression);
+            let mut out = vec![];
+            rx.decode(&tx.encode_shared(&shared), &mut out).unwrap();
+            assert_eq!(out.iter().map(|b| &b[..]).collect::<Vec<_>>(), packets);
         }
     }
 
