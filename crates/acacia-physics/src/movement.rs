@@ -126,6 +126,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
             if st.effective_jumping {
                 v[1] = CLIMB_SPEED;
+                // A jump the climb takes over starts no jump delay (BDS fuzz 145851, one sample: it jumped again
+                // 6 ticks later on landing).
+                st.jump_delay = 0;
             }
             if st.sneaking && v[1] < 0.0 {
                 v[1] = 0.0;
