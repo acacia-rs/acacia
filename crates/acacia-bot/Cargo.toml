@@ -15,6 +15,7 @@ acacia-client = { path = "../acacia-client" }
 acacia-physics = { version = "0.1.0", path = "../acacia-physics" }
 acacia-world = { version = "0.1.0", path = "../acacia-world" }
 bytes = "1.12.1"
+flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
 regex = "1"
 serde_json = "1"
 thiserror = "2.0.21"

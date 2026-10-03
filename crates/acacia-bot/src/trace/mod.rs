@@ -8,7 +8,7 @@
 
 mod replay;
 
-pub use replay::{replay, CorrectionDiff, Report, TickDiff};
+pub use replay::{replay, CorrectionDiff, Report, TickDiff, CORRECTION_TOLERANCE};
 
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter, Read, Write};
@@ -109,9 +109,13 @@ fn write_bytes(w: &mut impl Write, b: &[u8]) -> io::Result<()> {
     w.write_all(b)
 }
 
-/// Reads a whole trace; a truncated final event (from a killed recorder) is dropped.
+/// Reads a whole trace (gzipped when the name ends in `.gz`); a truncated final event (from a killed recorder)
+/// is dropped.
 pub fn read(path: &Path) -> io::Result<Vec<Event>> {
-    let mut r = BufReader::new(File::open(path)?);
+    let file = File::open(path)?;
+    let gzipped = path.extension().is_some_and(|e| e == "gz");
+    let mut r: BufReader<Box<dyn Read>> =
+        BufReader::new(if gzipped { Box::new(flate2::read::GzDecoder::new(file)) } else { Box::new(file) });
     let mut magic = [0; 5];
     r.read_exact(&mut magic)?;
     if &magic != MAGIC {

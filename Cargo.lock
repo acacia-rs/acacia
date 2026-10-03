@@ -35,6 +35,7 @@ dependencies = [
  "acacia-testserver",
  "acacia-world",
  "bytes",
+ "flate2",
  "regex",
  "serde_json",
  "thiserror",
