@@ -1,3 +1,4 @@
+use crate::movement::status;
 use crate::spawn::{self, SpawnPacket};
 use crate::trace;
 use crate::world::PhysicsWorld;
@@ -85,6 +86,8 @@ impl Bot {
         if !self.state.player.alive {
             return;
         }
+        let s = &self.state;
+        movement.set_status(status::effects(&s.player.effects), status::equipment(&s.inventory.armor, &s.items));
         let pending = std::mem::take(&mut movement.pending_actions);
         if let Some(mut input) = movement.tick(&PhysicsWorld { view, registry }) {
             if let Some(r) = &mut self.recorder {

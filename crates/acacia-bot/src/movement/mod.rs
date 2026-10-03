@@ -4,6 +4,7 @@
 mod auth_input;
 mod idle;
 mod rewind;
+pub(crate) mod status;
 #[cfg(test)]
 mod tests;
 
@@ -11,6 +12,7 @@ pub use idle::Idle;
 
 use acacia_client::proto::packets::{
     CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, PlayerAuthInput, PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion,
+    UpdateAttributes,
 };
 use acacia_client::proto::types::InputData;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
@@ -92,7 +94,8 @@ pub struct Movement {
 }
 
 impl Movement {
-    pub const PACKETS: &'static [u32] = &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID];
+    pub const PACKETS: &'static [u32] =
+        &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID, UpdateAttributes::ID];
 
     pub fn new() -> Self {
         Self {
@@ -154,6 +157,13 @@ impl Movement {
 
     pub fn eye_position(&self) -> Option<Vec3> {
         self.physics.as_ref().map(PlayerState::eye_position)
+    }
+
+    /// Effects and armor as the server last reported them (see status.rs); call before each tick.
+    pub(crate) fn set_status(&mut self, effects: physics::Effects, equipment: physics::Equipment) {
+        if let Some(st) = &mut self.physics {
+            (st.effects, st.equipment) = (effects, equipment);
+        }
     }
 
     pub fn apply(&mut self, packet: &RawPacket, me: &Me) -> Result<(), DecodeError> {
@@ -218,6 +228,21 @@ impl Movement {
                     let velocity = [m.velocity.x, m.velocity.y, m.velocity.z];
                     if m.tick == 0 || m.tick >= self.tick || !self.history.knockback(m.tick + 1, velocity) {
                         st.queue_knockback(velocity);
+                    }
+                }
+            }
+            UpdateAttributes::ID => {
+                let u: UpdateAttributes = packet.decode()?;
+                let speed = u.attributes.iter().find(|a| a.name == "minecraft:movement");
+                if let (true, Some(a)) = (u.runtime_entity_id == me.runtime_entity_id, speed) {
+                    let without_sprint = status::movement_without_sprint(a);
+                    let default = st.default_movement_speed;
+                    // Only real changes (effects, soul sand, ...): the sprint echo would flag a server speed
+                    // update, and servers that list no modifiers echo it as default × 1.3.
+                    let sprint_echo = st.sprinting && (without_sprint - default * physics::constants::SPRINT_SPEED_MULTIPLIER).abs() < 1e-6;
+                    if (without_sprint - default).abs() > 1e-6 && !sprint_echo {
+                        tracing::debug!(our_tick = self.tick, server_tick = u.tick, without_sprint, "movement attribute");
+                        st.set_movement_attribute(without_sprint);
                     }
                 }
             }
