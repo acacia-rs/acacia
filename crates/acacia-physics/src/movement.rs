@@ -114,9 +114,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         attempt_knockback(st);
         move_relative(st, speed);
-        self.attempt_jump(st);
+        let traversal = self.traversal(st);
+        // Scaffolding's climb replaces the jump outright, sprint boost included (BDS fuzz).
+        if traversal != Traversal::Scaffolding {
+            self.attempt_jump(st);
+        }
         let inside = self.w.block(block_pos(st.pos));
-        let scaffold_descend = apply_ascendable_movement(st, self.traversal(st));
+        let scaffold_descend = apply_ascendable_movement(st, traversal);
 
         let near_climbable = inside.climbable;
         if near_climbable {
