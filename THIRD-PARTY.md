@@ -8,6 +8,7 @@ Acacia is MIT-licensed ([LICENSE](LICENSE)). It includes or derives from these M
 | [opencollab-incubator/Boar](https://github.com/opencollab-incubator/Boar) | (c) 2026 oryxel | Bedrock collision, friction and door rules in `acacia-world/tools/rules.mjs` → `blocks.bin` |
 | [oomph-ac/bedsim](https://github.com/oomph-ac/bedsim) | (c) 2026 Oomph AC | `acacia-physics` is a port; full notice in [crates/acacia-physics/LICENSE-bedsim](crates/acacia-physics/LICENSE-bedsim) |
 | [Sandertv/gophertunnel](https://github.com/Sandertv/gophertunnel) | (c) 2019 Sandertv | `acacia-auth/assets/skin_geometry.json` (default skin geometry) |
+| [df-mc/go-xsapi](https://github.com/df-mc/go-xsapi), [lactyy/gophertunnel `feature/p2p`](https://github.com/lactyy/gophertunnel), [PrismarineJS/prismarine-xbox-services](https://github.com/PrismarineJS/prismarine-xbox-services), [microsoft/xbox-live-api](https://github.com/microsoft/xbox-live-api) | (c) df-mc, lactyy, PrismarineJS contributors, Microsoft Corporation | MPSD and RTA request shapes and the friend-world properties in `acacia-auth/src/online/{mpsd,friend_world,xsapi}.rs` and `acacia-client/src/friend/` (docs/research/friends-join.md) |
 
 Each is used under the MIT License:
 

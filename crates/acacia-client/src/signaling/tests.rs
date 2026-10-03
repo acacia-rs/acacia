@@ -42,6 +42,28 @@ async fn on_frame(ws: &mut WebSocketStream<tokio::net::TcpStream>, host: &mut Rt
     }
 }
 
+#[cfg(feature = "online")]
+#[test]
+fn friend_targets_follow_the_connection_type() {
+    use acacia_auth::{ConnectionKind as K, WorldConnection};
+    let conn = |kind, pmsg: Option<&str>, id: Option<&str>| WorldConnection {
+        kind,
+        nethernet_id: id.map(str::to_owned),
+        pmsg_id: pmsg.map(str::to_owned),
+        host_ip: None,
+        host_port: 0,
+    };
+    let host = "wss://signal.example.net/";
+    let t = |c: &WorldConnection| SignalingTarget::from_friend(c, "MCToken x".into(), host).map(|t| (t.protocol, t.peer, t.host));
+    let jsonrpc = conn(K::SignalingJsonRpc, Some("pmsg-uuid"), Some("42"));
+    assert_eq!(t(&jsonrpc), Some((SignalingProtocol::JsonRpc, "pmsg-uuid".into(), "signal.example.net".into())));
+    let no_pmsg = conn(K::SignalingJsonRpc, None, Some("42"));
+    assert_eq!(t(&no_pmsg).map(|(p, peer, _)| (p, peer)), Some((SignalingProtocol::Legacy, "42".into())));
+    assert_eq!(t(&conn(K::SignalingLegacy, None, Some("7"))).map(|(p, ..)| p), Some(SignalingProtocol::Legacy));
+    assert_eq!(t(&conn(K::Lan, None, Some("7"))), None);
+    assert_eq!(t(&conn(K::SignalingLegacy, None, None)), None);
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn dials_through_a_fake_jsonrpc_host() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

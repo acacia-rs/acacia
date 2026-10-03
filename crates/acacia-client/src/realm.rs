@@ -27,9 +27,14 @@ pub async fn realm_builder(
     let mut builder = Client::builder(&join.address).online(credentials, key);
     if join.protocol != RealmProtocol::RakNet {
         let token = account.service_token().await?.authorization_header;
-        let host = auth.signaling_environment().await?.map_or_else(|| DEFAULT_SIGNALING_HOST.to_owned(), |env| env.service_uri);
+        let host = signaling_host(auth).await?;
         let target = SignalingTarget::from_realm(&join, token, &host).ok_or(RealmJoinError::Unsupported(join.protocol))?;
         builder = builder.signaling(target);
     }
     Ok(builder)
+}
+
+/// Discovery's signaling service host (what vanilla dials for realms and friends' worlds).
+pub(crate) async fn signaling_host(auth: &AuthClient) -> Result<String, crate::auth::Error> {
+    Ok(auth.signaling_environment().await?.map_or_else(|| DEFAULT_SIGNALING_HOST.to_owned(), |env| env.service_uri))
 }

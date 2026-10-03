@@ -1,19 +1,25 @@
 use std::sync::Arc;
 
 use p384::ecdsa::SigningKey;
+use serde_json::Value;
 
 use super::cache::{Stored, TokenCache, Versioned};
 use super::client::AuthClient;
+use super::config::endpoints::RP_XBOXLIVE;
+use super::friend_world::{FriendWorld, SessionRef};
 use super::live::{DeviceCodePrompt, MsaToken};
 use super::minecraft::ServiceToken;
+use super::mpsd;
 use super::realms::{self, PingRegion, Realm, RealmJoin, REALMS_RELYING_PARTY};
 use super::tokens::CachedTokens;
 use super::xbox::XboxToken;
+use super::xsapi::XboxLiveAuth;
 use crate::{LoginCredentials, Result};
 
 /// One Microsoft account backed by a [`TokenCache`]: reuses every cached token while it is
 /// valid and writes back after each refresh (also after a failed login, so partial progress
 /// such as a new device token is kept). If another writer got there first, its copy wins.
+#[derive(Clone)]
 pub struct Account {
     client: Arc<AuthClient>,
     cache: Arc<dyn TokenCache>,
@@ -95,6 +101,49 @@ impl Account {
     /// Where and how to connect to a realm, waiting while it starts. See [`PingRegion`].
     pub async fn join_realm(&self, realm_id: i64, ping_regions: &[PingRegion]) -> Result<RealmJoin> {
         realms::join(&self.client, &self.xsts_token(REALMS_RELYING_PARTY).await?, realm_id, ping_regions).await
+    }
+
+    /// Worlds hosted by people the account follows (MPSD activity handles). See [`FriendWorld`].
+    pub async fn friend_worlds(&self) -> Result<Vec<FriendWorld>> {
+        mpsd::friend_worlds(self.client.http(), &self.xbox_live_auth().await?).await
+    }
+
+    /// Joins `world`'s Xbox session as an active member tied to RTA `rta_connection_id`; returns the
+    /// session document. The membership lasts while that RTA connection does.
+    pub async fn join_friend_world(&self, world: &FriendWorld, rta_connection_id: &str) -> Result<Value> {
+        mpsd::join(self.client.http(), &self.xbox_live_auth().await?, &world.handle_id, rta_connection_id).await
+    }
+
+    /// The current session document, e.g. to read the nonce the host published for us.
+    pub async fn friend_session(&self, session: &SessionRef) -> Result<Value> {
+        mpsd::session(self.client.http(), &self.xbox_live_auth().await?, session).await
+    }
+
+    /// Points the membership at a new RTA connection (after an RTA reconnect).
+    pub async fn set_friend_session_connection(&self, session: &SessionRef, rta_connection_id: &str) -> Result<()> {
+        mpsd::write(self.client.http(), &self.xbox_live_auth().await?, session, &mpsd::connection_body(rta_connection_id)).await
+    }
+
+    /// Publishes the account's activity in `session`, as the game does after joining.
+    pub async fn publish_friend_activity(&self, session: &SessionRef) -> Result<()> {
+        mpsd::set_activity(self.client.http(), &self.xbox_live_auth().await?, session).await
+    }
+
+    pub async fn leave_friend_world(&self, session: &SessionRef) -> Result<()> {
+        mpsd::write(self.client.http(), &self.xbox_live_auth().await?, session, &mpsd::leave_body()).await
+    }
+
+    /// Signed headers for an Xbox Live WebSocket (the RTA service at `url`).
+    pub async fn xbox_live_websocket_headers(&self, url: &str) -> Result<Vec<(&'static str, String)>> {
+        Ok(self.xbox_live_auth().await?.websocket_headers(self.client.http(), url))
+    }
+
+    async fn xbox_live_auth(&self) -> Result<XboxLiveAuth> {
+        self.with_tokens(async |t| {
+            let token = self.client.xsts_with(t, RP_XBOXLIVE).await?;
+            Ok(XboxLiveAuth { token, key: t.xbox_key() })
+        })
+        .await
     }
 
     /// Runs `f` on the cached tokens and writes back whatever it refreshed, even if it failed.

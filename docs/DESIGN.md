@@ -13,7 +13,7 @@ Research behind these decisions: `docs/research/`.
 | Versions | Latest protocol only, one per release. Start with 1.26.51 (protocol 2193) | No per-version branching. Geyser servers accept the latest client. Older versions: pin an older crate version |
 | Packets | Generate all of them; decode on demand | A packet arrives as `id + Bytes`. `pkt.decode::<T>()` parses only when asked, so ignored packets (chunks) cost only framing |
 | I/O | Network-free core plus a thin tokio layer | Protocol logic is bytes in, bytes and events out, with no sockets and no async. The same code runs the real client, the fake-server tests and benchmarks |
-| Transport | RakNet and NetherNet (direct connect, Realms via the signaling service, or LAN); `TransportKind::Auto` prefers RakNet | Real servers still answer RakNet (probe on 2026-09-29); BDS 26.60 drops it. Auto takes RakNet if it pings, else NetherNet if `GET /v1/join` answers. NetherNet needs an online login. Realms: `ClientBuilder::signaling`; LAN: `discover_lan` + `ClientBuilder::lan`. Both trickle ICE (`trickle.rs`), host candidates first, own sans-IO TURN client as Realm fallback; spec docs/research/nethernet-signaling.md. Friends' worlds not yet |
+| Transport | RakNet and NetherNet (direct connect, Realms via the signaling service, or LAN); `TransportKind::Auto` prefers RakNet | Real servers still answer RakNet (probe on 2026-09-29); BDS 26.60 drops it. Auto takes RakNet if it pings, else NetherNet if `GET /v1/join` answers. NetherNet needs an online login. Realms: `ClientBuilder::signaling`; LAN: `discover_lan` + `ClientBuilder::lan`; friends' worlds: `Account::friend_worlds` + `friend_builder` (`ClientBuilder::friend`), MPSD membership over RTA held for the connection. All trickle ICE (`trickle.rs`), host candidates first, own sans-IO TURN client as Realm fallback; spec docs/research/nethernet-signaling.md, docs/research/friends-join.md |
 | WebRTC | str0m 0.24 (`rust-crypto`), sans-IO | Runs inside the network-free design and lets ICE go through the SOCKS5 relay; no C toolchain |
 | Fingerprint | Bots look like a vanilla **Android** player and never share identifiers | Online logins are Android-titled, so ClientData, input modes and behaviour must agree with it. Device ids derive from the account (`login/device.rs`); DTLS certs are per connection. Evidence: docs/research/{vanilla-capture-2026-10-01,vanilla-input-gaps}.md |
 | Idle input | Bots without physics still send the vanilla standing-still `PlayerAuthInput` every tick (`movement/idle.rs`), the vanilla spawn sequence with its frame hitches (`spawn.rs`), sub-chunk requests (`subchunks.rs`) and ClientMovementPredictionSync (`prediction_sync.rs`), on a jittered ~51 ms tick (`cadence.rs`) | A silent player is the easiest bot tell; full physics only for bots that walk |
@@ -82,7 +82,8 @@ interceptors: it must see the codec-switching packets the proxy owns, and logs p
 7. ✅ **NetherNet** direct connect: joins and rejoins BDS 26.5x directly, over the LAN and through SOCKS5;
    Auto picks it on a NetherNet-only server; HTTPS-then-HTTP signaling and server identity checked.
    ✅ Realms (JSON-RPC signaling) and ✅ LAN (game-hosted world) joined live 2026-10-02
-   (`examples/realm_join.rs`, `examples/lan_join.rs`).
+   (`examples/realm_join.rs`, `examples/lan_join.rs`). ◐ Friends' worlds (`examples/friend_join.rs`): unit-tested,
+   not yet joined live.
 8. ◐ **Indistinguishable bots** (see Fingerprint above): signaling, DTLS cert, Login, persona, idle input and
    spawn/respawn sequences match vanilla.
 9. ◐ **Swarm** (docs/swarm.md): sharded bots across servers and realms with reconnect policy and a

@@ -45,6 +45,8 @@ pub(crate) struct Driver {
     pub capacity: usize,
     /// Held for the connection's life; dropping it closes the signaling socket.
     pub _signaling: Option<Keepalive>,
+    /// Held for the connection's life; dropping it leaves a friend's Xbox session.
+    pub _friend_session: Option<oneshot::Sender<()>>,
 }
 
 impl Driver {

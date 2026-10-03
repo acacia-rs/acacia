@@ -49,6 +49,10 @@ Online logins are Android-titled, so `ClientData.DeviceOS` stays 1 (Android) as 
 10. **Multiplayer token**: `POST {serviceUri}/api/v1.0/multiplayer/session/start`, `Authorization: MCToken ...`,
     body `{"publicKey":<client SPKI b64>}` → `result.signedToken` (claim `cpk` = client key).
 
+11. **Friends' worlds (MPSD)**: `http://xboxlive.com` XSTS, signed, XSAPI headers (`xsapi.rs`). `POST
+    sessiondirectory.xboxlive.com/handles/query`, `PUT handles/<id>/session`, `POST handles` (activity), `PUT`/`GET`
+    the session; RTA `wss://rta.xboxlive.com/connect`. Spec docs/research/friends-join.md. Not live-verified.
+
 **Signature header** (differentially tested vs go-xsapi): base64(`u32be 1 ‖ i64be filetime ‖ r‖s`), P-256/SHA-256 over
 `u32be 1,0, i64be filetime,0, method,0, path?query,0, Authorization,0, body,0`; filetime = unix_ns/100 + 116444736000000000,
 corrected by the last server `Date` header.
