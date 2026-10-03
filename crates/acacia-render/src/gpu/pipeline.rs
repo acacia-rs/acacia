@@ -12,7 +12,10 @@ pub struct Pipelines {
 
 impl Pipelines {
     pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("terrain.wgsl"));
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("terrain"),
+            source: wgpu::ShaderSource::Wgsl(concat!(include_str!("terrain.wgsl"), include_str!("light.wgsl")).into()),
+        });
         let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -32,6 +35,7 @@ impl Pipelines {
                     multisampled: false,
                 }),
                 entry(4, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
+                entry(5, storage),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

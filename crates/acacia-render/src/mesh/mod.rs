@@ -11,12 +11,15 @@ pub use volume::Volume;
 
 use crate::biome::BiomeColors;
 use crate::blocks::{BlockTable, RenderBlock, Tint};
+use crate::light::LightVolume;
 use quad::{Surface, quantize};
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct SectionMesh {
     pub solid: Vec<Quad>,
     pub translucent: Vec<Quad>,
+    /// Gathered with the mesh by the workers; `None` for empty meshes.
+    pub light: Option<LightVolume>,
 }
 
 impl SectionMesh {

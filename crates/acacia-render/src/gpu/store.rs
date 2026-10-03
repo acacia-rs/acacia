@@ -1,21 +1,25 @@
-//! GPU storage for section meshes: one quad buffer shared by all sections (first-fit free list)
-//! and a buffer of section origins indexed by slot (the draw's instance index).
+//! GPU storage for section meshes: one quad buffer shared by all sections (first-fit free list),
+//! and section origins and light volumes in buffers indexed by slot (the draw's instance index).
 
 use glam::{IVec3, Vec3};
 use rustc_hash::FxHashMap;
 
 use crate::camera::Frustum;
+use crate::light::LightVolume;
+use crate::mesh::volume::SIDE;
 use crate::mesh::{Quad, SectionMesh};
 use crate::workers::SectionKey;
 
 const QUAD_BYTES: u64 = size_of::<Quad>() as u64;
 const ORIGIN_BYTES: u64 = 16;
+const LIGHT_BYTES: u64 = (SIDE * SIDE * SIDE) as u64;
 const INITIAL_QUADS: u32 = 1 << 20;
 const INITIAL_SLOTS: u32 = 4096;
 
 pub struct Store {
     pub quads: wgpu::Buffer,
     pub origins: wgpu::Buffer,
+    pub light: wgpu::Buffer,
     quad_capacity: u32,
     max_quads: u32,
     free: FreeList,
@@ -33,6 +37,7 @@ struct Entry {
     offset: u32,
     solid: u32,
     translucent: u32,
+    light_generation: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,6 +54,7 @@ impl Store {
         Store {
             quads: buffer(device, "quads", quad_capacity as u64 * QUAD_BYTES),
             origins: buffer(device, "section origins", INITIAL_SLOTS as u64 * ORIGIN_BYTES),
+            light: buffer(device, "section light", INITIAL_SLOTS as u64 * LIGHT_BYTES),
             quad_capacity,
             max_quads,
             free: FreeList { ranges: vec![(0, quad_capacity)] },
@@ -70,7 +76,7 @@ impl Store {
     }
 
     pub fn gpu_bytes(&self) -> u64 {
-        self.quad_capacity as u64 * QUAD_BYTES + self.slot_capacity as u64 * ORIGIN_BYTES
+        self.quad_capacity as u64 * QUAD_BYTES + self.slot_capacity as u64 * (ORIGIN_BYTES + LIGHT_BYTES)
     }
 
     pub fn clear(&mut self) {
@@ -103,7 +109,21 @@ impl Store {
         let origin = [key.0 * 16, key.1 * 16, key.2 * 16, 0];
         queue.write_buffer(&self.origins, slot as u64 * ORIGIN_BYTES, bytemuck::cast_slice(&origin));
         self.used_quads += u64::from(len);
-        self.entries.insert(key, Entry { slot, offset, solid: len - mesh.translucent.len() as u32, translucent: mesh.translucent.len() as u32 });
+        let translucent = mesh.translucent.len() as u32;
+        self.entries.insert(key, Entry { slot, offset, solid: len - translucent, translucent, light_generation: 0 });
+        if let Some(light) = mesh.light {
+            self.upload_light(queue, key, &light);
+        }
+    }
+
+    /// Ignored for sections without a mesh and for light older than what the slot has.
+    pub fn upload_light(&mut self, queue: &wgpu::Queue, key: SectionKey, light: &LightVolume) {
+        let Some(e) = self.entries.get_mut(&key) else { return };
+        if light.generation < e.light_generation {
+            return;
+        }
+        e.light_generation = light.generation;
+        queue.write_buffer(&self.light, u64::from(e.slot) * LIGHT_BYTES, &light.cells[..]);
     }
 
     /// Visible sections: solid front to back (early depth rejection), translucent back to front.
@@ -148,8 +168,9 @@ impl Store {
         }
         if self.next_slot == self.slot_capacity {
             let new = self.slot_capacity * 2;
-            let (old_bytes, new_bytes) = (self.slot_capacity as u64 * ORIGIN_BYTES, new as u64 * ORIGIN_BYTES);
-            self.origins = grow(device, queue, &self.origins, "section origins", old_bytes, new_bytes);
+            let (old, new64) = (u64::from(self.slot_capacity), u64::from(new));
+            self.origins = grow(device, queue, &self.origins, "section origins", old * ORIGIN_BYTES, new64 * ORIGIN_BYTES);
+            self.light = grow(device, queue, &self.light, "section light", old * LIGHT_BYTES, new64 * LIGHT_BYTES);
             self.slot_capacity = new;
             self.replaced = true;
         }

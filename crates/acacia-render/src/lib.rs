@@ -6,6 +6,7 @@ pub mod biome;
 pub mod blocks;
 pub mod camera;
 mod gpu;
+pub mod light;
 pub mod mesh;
 mod scene;
 mod workers;

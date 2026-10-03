@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use acacia_proto::nbt::Value;
 use acacia_proto::packets::{LevelChunk, StartGame};
@@ -12,8 +12,9 @@ use acacia_render::assets::Pack;
 use acacia_render::assets::image::{Alpha, Texture};
 use acacia_render::biome::{BiomeColors, BiomeDef};
 use acacia_render::blocks::{BlockTable, Layer, Material, Shape, Tint};
+use acacia_render::light::{LightEvent, Lighting};
 use acacia_render::mesh::{Volume, mesh_section};
-use acacia_world::{BlockIds, BlockRegistry, ChunkView, CustomBlock, World};
+use acacia_world::{BlockIds, BlockRegistry, ChunkChange, ChunkView, CustomBlock, World};
 use bytes::Bytes;
 
 fn pack() -> Option<Pack> {
@@ -120,6 +121,38 @@ fn biome_colors_follow_colormaps_and_exceptions() {
     assert!(desert.grass[0] > plains.grass[0], "desert grass is yellower");
     assert_eq!(colors.get(6).grass, [0x6A, 0x70, 0x39], "swamp override");
     assert_eq!(colors.get(999), colors.get(12345), "unknown ids share the plains default");
+}
+
+#[test]
+fn geyser_chunks_light_on_the_light_thread() {
+    let view = geyser_view();
+    let world = view.world().clone();
+    let columns = world.chunk_positions();
+    let start = Instant::now();
+    let lighting = Lighting::new(world.clone());
+    let (mut lit, mut touched) = (0, 0);
+    // A batch's world changes come before its light changes; stop once both go quiet.
+    let mut wait = Duration::from_secs(10);
+    while let Ok(event) = lighting.events.recv_timeout(wait) {
+        match event {
+            LightEvent::World(ChunkChange::Column { .. }) => lit += 1,
+            LightEvent::World(_) => {}
+            LightEvent::Light(_) => touched += 1,
+        }
+        if lit == columns.len() {
+            wait = Duration::from_millis(200);
+        }
+    }
+    assert_eq!(lit, columns.len());
+    assert!(touched >= lit * 24, "every section of a lit column is touched");
+    eprintln!("{lit} columns lit in {:?}, {touched} sections touched", start.elapsed());
+    let data = lighting.data.read();
+    let (x, z) = (columns[0].0 * 16 + 8, columns[0].1 * 16 + 8);
+    let sky = |y| data.light(x, y, z).unwrap() & 15;
+    assert_eq!(sky(300), 15);
+    let floor = (-64..300).rev().find(|&y| sky(y) < 15).unwrap();
+    eprintln!("first sky light below 15 at y {floor}");
+    assert!(floor < 0, "superflat surface is below y 0");
 }
 
 #[test]

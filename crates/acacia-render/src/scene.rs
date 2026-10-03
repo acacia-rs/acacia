@@ -1,8 +1,8 @@
-//! Tracks which sections need meshing from world change events and feeds the worker pool, nearest
-//! first. Knows nothing about the GPU: it yields [`Update`]s for the renderer to apply.
+//! Tracks which sections need meshing or new light from the light thread's events and feeds the
+//! worker pool, nearest first. Knows nothing about the GPU: it yields [`Update`]s for the renderer
+//! to apply. One job per section is in flight at a time, so results arrive in request order.
 
 use std::sync::Arc;
-use std::sync::mpsc::Receiver;
 
 use acacia_world::{ChunkChange, World};
 use glam::IVec3;
@@ -10,11 +10,13 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::biome::BiomeColors;
 use crate::blocks::BlockTable;
+use crate::light::{LightEvent, LightVolume, Lighting};
 use crate::mesh::SectionMesh;
-use crate::workers::{Job, SectionKey, Workers};
+use crate::workers::{Job, Output, SectionKey, Work, Workers};
 
 pub enum Update {
     Mesh(SectionKey, SectionMesh),
+    Light(SectionKey, LightVolume),
     Remove(SectionKey),
 }
 
@@ -27,50 +29,55 @@ const MISSING_NEIGHBOUR_COST: i32 = 4096;
 pub struct Scene {
     workers: Workers,
     table: Arc<BlockTable>,
+    lighting: Lighting,
     tracked: Tracked,
     frame: u64,
 }
 
 struct Tracked {
     world: Arc<World>,
-    changes: Receiver<ChunkChange>,
     columns: FxHashSet<(i32, i32)>,
     dirty: FxHashSet<SectionKey>,
+    /// Sections whose light changed while their blocks didn't.
+    relight: FxHashSet<SectionKey>,
     in_flight: FxHashSet<SectionKey>,
-    /// Newest requested version per section; results of older jobs are dropped.
+    /// Newest requested mesh version per section; results of older jobs are dropped.
     versions: FxHashMap<SectionKey, u64>,
     next_version: u64,
     sections: std::ops::Range<i32>,
 }
 
 impl Scene {
-    pub fn new(world: Arc<World>, table: Arc<BlockTable>, biomes: Arc<BiomeColors>) -> Self {
-        let changes = world.subscribe();
+    /// `lighting` may come from a previous scene of the same world ([`Scene::into_parts`]): its
+    /// lit columns are meshed at once.
+    pub fn new(world: Arc<World>, table: Arc<BlockTable>, biomes: Arc<BiomeColors>, lighting: Lighting) -> Self {
         let dim = world.dimension();
         let min = dim.min_y >> 4;
         let mut t = Tracked {
             world: world.clone(),
-            changes,
             columns: FxHashSet::default(),
             dirty: FxHashSet::default(),
+            relight: FxHashSet::default(),
             in_flight: FxHashSet::default(),
             versions: FxHashMap::default(),
             next_version: 1,
             sections: min..min + (dim.height / 16) as i32,
         };
-        for (x, z) in world.chunk_positions() {
+        let lit: Vec<_> = lighting.data.read().columns.iter().copied().collect();
+        for (x, z) in lit {
             t.apply(ChunkChange::Column { x, z });
         }
-        Scene { workers: Workers::new(table.clone(), biomes), table, tracked: t, frame: 0 }
+        let workers = Workers::new(world, lighting.data.clone(), table.clone(), biomes);
+        Scene { workers, table, lighting, tracked: t, frame: 0 }
     }
 
     pub fn world(&self) -> &Arc<World> {
         &self.tracked.world
     }
 
-    /// The world and block table, to build a replacement scene from.
-    pub fn into_parts(self) -> (Arc<World>, Arc<BlockTable>) {
-        (self.tracked.world, self.table)
+    /// The world, block table and lighting, to build a replacement scene from.
+    pub fn into_parts(self) -> (Arc<World>, Arc<BlockTable>, Lighting) {
+        (self.tracked.world, self.table, self.lighting)
     }
 
     pub fn pending(&self) -> usize {
@@ -80,28 +87,43 @@ impl Scene {
     pub fn pump(&mut self, camera_block: IVec3, out: &mut Vec<Update>) {
         self.frame += 1;
         let t = &mut self.tracked;
-        while let Ok(change) = t.changes.try_recv() {
-            t.apply(change);
+        for event in self.lighting.events.try_iter() {
+            match event {
+                LightEvent::World(change) => t.apply(change),
+                LightEvent::Light(key) => t.light_changed(key),
+            }
         }
         if self.frame.is_multiple_of(UNLOAD_CHECK_FRAMES) {
             t.drop_unloaded(out);
         }
         for done in self.workers.finished() {
             t.in_flight.remove(&done.key);
-            if t.versions.get(&done.key) != Some(&done.version) {
-                continue;
+            match done.output {
+                Output::Mesh { version, mesh } => {
+                    if t.versions.get(&done.key) != Some(&version) {
+                        continue;
+                    }
+                    t.versions.remove(&done.key);
+                    out.push(match mesh {
+                        Some(mesh) => Update::Mesh(done.key, mesh),
+                        None => Update::Remove(done.key),
+                    });
+                }
+                Output::Light(light) => out.push(Update::Light(done.key, light)),
             }
-            t.versions.remove(&done.key);
-            out.push(match done.mesh {
-                Some(mesh) => Update::Mesh(done.key, mesh),
-                None => Update::Remove(done.key),
-            });
         }
         let free = (self.workers.threads * 2).saturating_sub(t.in_flight.len());
         for key in t.next_jobs(camera_block, free) {
             t.dirty.remove(&key);
+            t.relight.remove(&key);
             t.in_flight.insert(key);
-            self.workers.submit(Job { key, version: t.versions[&key], world: t.world.clone() });
+            self.workers.submit(Job { key, work: Work::Mesh { version: t.versions[&key] } });
+        }
+        let ready: Vec<_> = t.relight.iter().copied().filter(|k| !t.in_flight.contains(k)).collect();
+        for key in ready {
+            t.relight.remove(&key);
+            t.in_flight.insert(key);
+            self.workers.submit(Job { key, work: Work::Light });
         }
     }
 }
@@ -142,6 +164,12 @@ impl Tracked {
         }
     }
 
+    fn light_changed(&mut self, key: SectionKey) {
+        if self.sections.contains(&key.1) && self.columns.contains(&(key.0, key.2)) && !self.dirty.contains(&key) {
+            self.relight.insert(key);
+        }
+    }
+
     fn mark(&mut self, key: SectionKey) {
         if !self.sections.contains(&key.1) || !self.columns.contains(&(key.0, key.2)) {
             return;
@@ -158,6 +186,7 @@ impl Tracked {
             for sy in self.sections.clone() {
                 let key = (x, sy, z);
                 self.dirty.remove(&key);
+                self.relight.remove(&key);
                 self.versions.remove(&key);
                 out.push(Update::Remove(key));
             }

@@ -22,17 +22,19 @@ pub struct Dimension {
     /// Height in blocks, a multiple of 16.
     pub height: u32,
     pub air: u32,
+    /// Has sky light (the overworld only).
+    pub sky: bool,
 }
 
 impl Dimension {
     pub const fn overworld(air: u32) -> Self {
-        Dimension { min_y: -64, height: 384, air }
+        Dimension { min_y: -64, height: 384, air, sky: true }
     }
     pub const fn nether(air: u32) -> Self {
-        Dimension { min_y: 0, height: 128, air }
+        Dimension { min_y: 0, height: 128, air, sky: false }
     }
     pub const fn end(air: u32) -> Self {
-        Dimension { min_y: 0, height: 256, air }
+        Dimension { min_y: 0, height: 256, air, sky: false }
     }
     /// From the protocol dimension id (0 overworld, 1 nether, 2 end).
     pub const fn from_id(id: i32, air: u32) -> Self {

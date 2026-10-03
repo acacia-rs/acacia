@@ -63,5 +63,6 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
 - `DYNAMIC_SHAPE` blocks (scaffolding, powder snow, bamboo, pointed dripstone) need physics-side handling.
 - Fence arms use Java's post width (0.375 to 0.625, 1.5 high). Panes and bars use Boar's thin-bar boxes.
 - Custom blocks collide as full cubes, block all light, and have no properties or hash.
+- `Dimension::sky` is true for the overworld only.
 - Trial spawner light by state (4 idle, 9 active) and vault (6 inactive, 12 otherwise) follow the wiki's
   wording; conduits always emit 15 (activity lives in the block entity).

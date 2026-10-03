@@ -13,12 +13,15 @@ use crate::blocks::BlockTable;
 use crate::biome::BiomeColors;
 use crate::blocks::tint::WATER_ALPHA;
 use crate::camera::{Camera, Frustum};
+use crate::light::Lighting;
 use crate::scene::{Scene, Update};
 use pipeline::Pipelines;
 use store::Store;
 
 /// Sky and fog colour (sRGB).
 const SKY: [f32; 3] = [0.62, 0.76, 1.0];
+/// Brightness of unlit blocks, with and without sky light (Java's nether ambient is 0.1).
+const AMBIENT: (f32, f32) = (0.02, 0.1);
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -28,6 +31,8 @@ struct Globals {
     cam_frac: [f32; 4],
     water: [f32; 4],
     fog: [f32; 4],
+    /// x: ambient brightness.
+    light: [f32; 4],
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -153,22 +158,23 @@ impl Renderer {
     pub fn set_world(&mut self, world: Arc<World>, table: Arc<BlockTable>, textures: &[Texture]) {
         self.textures = pipeline::texture_array(&self.device, &self.queue, textures);
         self.store.replaced = true;
-        self.rebuild_scene(world, table);
+        let lighting = Lighting::new(world.clone());
+        self.rebuild_scene(world, table, lighting);
     }
 
     /// Replaces the biome colours (from the server's `BiomeDefinitionList`) and remeshes.
     pub fn set_biomes(&mut self, biomes: Arc<BiomeColors>) {
         self.biomes = biomes;
         if let Some(scene) = self.scene.take() {
-            let (world, table) = scene.into_parts();
-            self.rebuild_scene(world, table);
+            let (world, table, lighting) = scene.into_parts();
+            self.rebuild_scene(world, table, lighting);
         }
     }
 
-    fn rebuild_scene(&mut self, world: Arc<World>, table: Arc<BlockTable>) {
+    fn rebuild_scene(&mut self, world: Arc<World>, table: Arc<BlockTable>, lighting: Lighting) {
         self.store.clear();
         self.updates.clear();
-        self.scene = Some(Scene::new(world, table, self.biomes.clone()));
+        self.scene = Some(Scene::new(world, table, self.biomes.clone(), lighting));
     }
 
     pub fn world(&self) -> Option<&Arc<World>> {
@@ -183,6 +189,7 @@ impl Renderer {
         for update in self.updates.drain(..) {
             match update {
                 Update::Mesh(key, mesh) => self.store.upload(&self.device, &self.queue, key, mesh),
+                Update::Light(key, light) => self.store.upload_light(&self.queue, key, &light),
                 Update::Remove(key) => self.store.remove(key),
             }
         }
@@ -197,6 +204,7 @@ impl Renderer {
             cam_frac: [cam_frac.x, cam_frac.y, cam_frac.z, 0.0],
             water: [WATER_ALPHA, 0.0, 0.0, 0.0],
             fog: { let s = srgb_to_linear(SKY); [s[0], s[1], s[2], self.fog_distance] },
+            light: [if self.world().is_none_or(|w| w.dimension().sky) { AMBIENT.0 } else { AMBIENT.1 }, 0.0, 0.0, 0.0],
         };
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
         let (solid, translucent) = self.store.draws(&Frustum::new(view_proj), cam_block, cam_frac);
@@ -281,6 +289,7 @@ fn bind_group(
             wgpu::BindGroupEntry { binding: 2, resource: store.origins.as_entire_binding() },
             wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(textures) },
             wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::Sampler(sampler) },
+            wgpu::BindGroupEntry { binding: 5, resource: store.light.as_entire_binding() },
         ],
     })
 }

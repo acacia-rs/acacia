@@ -48,17 +48,49 @@ quads merge only within a uniform colour.
   `gpu/terrain.wgsl`: no vertex or index buffers. UVs are world-aligned and tile per block through the repeat sampler, so merged quads need no
   atlas math.
 
+## Lighting (`light/`)
+
+Bedrock sends no light, so the client computes it. Emission and filter per state come from
+`acacia-world` (`BlockState::light_emission`, `light_filter`; waterlogged blocks take the stronger of
+both layers).
+
+- **Thread**: `Lighting::new(world)` starts a light thread that subscribes to world changes. Column and
+  section changes relight the whole column, once per batch. Block changes update incrementally. Then
+  it forwards the change and every section whose bordered light changed (`LightEvent`), so the scene
+  meshes only lit sections.
+- **Data** (`LightData`, `parking_lot::RwLock`): a byte per block for light (block << 4 | sky) and for
+  props (emission << 4 | filter), uniform sections stored as one value. Unloaded columns are dropped
+  by polling `World::get`.
+- **Propagation** (`propagate.rs`): BFS per channel. A step loses 1 + the entered block's filter; sky
+  light at 15 going down loses only the filter. Removal clears what may have come from the old light,
+  then refills from the brighter cells it met. Sky enters the top layer. Sky columns fill straight down
+  first and spread only from their ends and their sides that face shorter columns or the chunk edge.
+  There's no sky light in the nether and the end; they get a higher ambient instead (`gpu/mod.rs`
+  `AMBIENT`).
+- **GPU**: each section slot has an 18³ light volume (5832 bytes, `OPAQUE_CELL` marks filter-15 blocks).
+  `gpu/light.wgsl` smooths per fragment: each face corner averages the 4 cells in front of it (without
+  opaque ones, and without the diagonal when both edges are opaque), interpolated across the face.
+  Cross planes and faces whose front cell is opaque use their own cell. Brightness is Java's curve at
+  50% gamma, `max(block, sky)`, raised by the ambient. Quads keep their AO and directional shade.
+- **Light-only updates**: when a section's light changes but its blocks don't, a light job re-gathers
+  the volume into its slot without remeshing. Volumes carry the light generation, and the store keeps
+  the newest.
+
 ## Scene and GPU
 
-- `scene.rs` subscribes to world changes, marks affected sections (a block change dirties the sections
+- `scene.rs` reads the light thread's events, marks affected sections (a block change dirties the sections
   of its 3×3×3 neighbourhood) and feeds the worker pool nearest first, sections with unloaded neighbours
-  last. Stale results are dropped by version. Unloaded columns are found by polling `World::get`.
+  last. Light changes queue light-only jobs. One job per section is in flight at a time, and stale mesh
+  results are dropped by version. Unloaded columns are found by polling `World::get`.
 - `gpu/store.rs`: all quads live in one storage buffer (first-fit free list, grows by doubling); section
-  origins live in a second buffer indexed by slot, passed as the instance index.
+  origins and light volumes live in buffers indexed by slot, passed as the instance index.
 - Frames: frustum culling per section, solid pass front to back, translucent pass back to front with
   blending and no depth writes. Reverse-Z with an infinite far plane, camera-relative coordinates.
 
 ## Not yet
 
-Lighting (Bedrock sends none; caves are lit), cave/occlusion culling, texture animation,
+Day/night (sky light is always full), cave/occlusion culling, texture animation,
 flow-direction water and sloped liquid surfaces, entities, block entities, UI.
+
+Approximate: water loses 2 light per block (the wiki's Bedrock opacity note; its table is ambiguous),
+so seabeds deeper than ~7 blocks go dark. Each section change relights its whole column.
