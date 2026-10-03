@@ -115,6 +115,8 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   1/16, so a box against it is in its cell, and one flush against a full block beside it is not.
 - An elytra glide divides by the look vector's own horizontal length (bedsim: cos(pitch)); the yaw's table sine
   and cosine do not square to exactly one, which shifts the glide by up to 2e-5 a tick.
+- Levitation's vertical speed takes the 0.98 air drag too: v = (v + (0.05·level − v)·0.2)·0.98, a steady
+  climb of 0.04537 a tick at level 1 (bedsim: 0.05). In liquid it is untested.
 - Weaving replaces any queued inside-block slowdown with (0.5, 0.25, 0.5), not only a cobweb's (BDS).
 - A horizontal axis counts as collided when the move was cut by more than 1.19e-7 (BDS `FinalizeMoveSystem`).
 - The standing eye offset is 1.62001 (BDS; bedsim: 1.62), so `PlayerAuthInput.position` matches the server's

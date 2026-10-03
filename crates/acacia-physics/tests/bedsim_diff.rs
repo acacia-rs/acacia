@@ -126,6 +126,7 @@ const DELIBERATE: &[(&str, usize)] = &[
     ("honey_walk", 2),
     ("powder_snow", 7),
     ("elytra_glide", 97),
+    ("levitation", 0),
 ];
 
 #[test]

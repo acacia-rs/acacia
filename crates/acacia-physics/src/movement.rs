@@ -162,7 +162,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !scaffold_descend {
             if let Some(amp) = st.effects.levitation {
                 let lev = LEVITATION_GRAVITY_MULTIPLIER * (amp + 1) as f32;
-                v[1] += (lev - v[1]) * 0.2;
+                // The 0.98 applies here too (BDS, as Java; a steady climb is 0.04537, not bedsim's 0.05).
+                v[1] = (v[1] + (lev - v[1]) * 0.2) * NORMAL_GRAVITY_MULTIPLIER;
             } else if st.has_gravity {
                 v[1] -= effective_gravity(st, v);
                 v[1] *= NORMAL_GRAVITY_MULTIPLIER;
