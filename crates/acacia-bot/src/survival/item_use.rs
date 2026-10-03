@@ -84,7 +84,7 @@ impl ItemUse {
                     return if now.consumed_since(&self.before) { UseTick::Nothing } else { UseTick::Finish };
                 }
                 let left = self.use_ticks - self.elapsed;
-                if self.elapsed >= EFFECTS_AFTER && left > 0 && left % EFFECT_EVERY == 0 {
+                if self.elapsed >= EFFECTS_AFTER && left > 0 && left.is_multiple_of(EFFECT_EVERY) {
                     return UseTick::Effect;
                 }
             }

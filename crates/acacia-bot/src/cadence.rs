@@ -37,7 +37,7 @@ impl Cadence {
     pub fn next(&mut self, now: Duration) -> Fire {
         self.slot = (self.slot + PERIOD).max(now);
         let mut ticks = 1;
-        if self.random() % BURST_ONE_IN == 0 {
+        if self.random().is_multiple_of(BURST_ONE_IN) {
             self.slot += PERIOD;
             ticks = 2;
         }

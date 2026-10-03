@@ -117,7 +117,7 @@ impl FakeServer {
         tokio::time::timeout(WAIT_TIMEOUT, wait).await.unwrap_or_else(|_| Err(io::Error::new(io::ErrorKind::TimedOut, "fake server wait timed out")))
     }
 
-    /// Both directions as a tools/mitm capture, for `capdiff` against a vanilla capture.
+    /// Both directions as an acacia-mitm capture, for `capdiff` against a vanilla capture.
     pub fn write_capture(&self, path: &std::path::Path) -> io::Result<()> {
         let shared = self.shared.lock().expect(LOCK);
         let ms = |d: Duration| d.as_secs_f64() * 1000.0;
@@ -181,8 +181,8 @@ async fn run(socket: UdpSocket, script: Script, shared: Arc<Mutex<Shared>>, mut 
             }
             let mut s = shared.lock().expect(LOCK);
             let changed = !p.received.is_empty() || !p.sent.is_empty();
-            s.received.extend(p.received.drain(..));
-            s.sent.extend(p.sent.drain(..));
+            s.received.append(&mut p.received);
+            s.sent.append(&mut p.sent);
             s.spawned = s.spawned.or_else(|| Some(p.spawned_at? - p.login_at()?));
             if changed {
                 changes.send_replace(());

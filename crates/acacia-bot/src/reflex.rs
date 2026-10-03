@@ -92,11 +92,12 @@ impl Bot {
                 }
             }
             // The first inventory is what the client starts holding; it sends no MobEquipment for it.
-            InventoryContent::ID if self.reflexes.equipped.is_none() => {
-                if packet.decode::<InventoryContent>().is_ok_and(|p| p.window_id.to_raw() as i32 == Inventory::WINDOW_INVENTORY) {
-                    let inv = &self.state.inventory;
-                    self.reflexes.equipped = Some((inv.selected_hotbar_slot, inv.held().clone()));
-                }
+            InventoryContent::ID
+                if self.reflexes.equipped.is_none()
+                    && packet.decode::<InventoryContent>().is_ok_and(|p| p.window_id.to_raw() as i32 == Inventory::WINDOW_INVENTORY) =>
+            {
+                let inv = &self.state.inventory;
+                self.reflexes.equipped = Some((inv.selected_hotbar_slot, inv.held().clone()));
             }
             _ => {}
         }

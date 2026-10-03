@@ -72,12 +72,10 @@ pub(crate) fn walk_on_block(st: &mut PlayerState, under: &BlockPhysics, final_vy
         return;
     }
     let mut v = st.vel;
-    if under.bounce == Bounce::Slime || under.honey {
-        if final_vy < 0.1 {
-            let d = 0.4 + final_vy.abs() * 0.2;
-            v[0] *= d;
-            v[2] *= d;
-        }
+    if (under.bounce == Bounce::Slime || under.honey) && final_vy < 0.1 {
+        let d = 0.4 + final_vy.abs() * 0.2;
+        v[0] *= d;
+        v[2] *= d;
     }
     st.set_vel(v);
 }

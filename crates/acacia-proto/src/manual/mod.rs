@@ -44,20 +44,6 @@ impl std::str::FromStr for Uuid {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::Uuid;
-
-    #[test]
-    fn uuid_strings_match_the_wire_layout() {
-        // The vanilla client's "wave" emote, as captured on the wire.
-        let wire = [0xcd, 0x47, 0x2e, 0xdf, 0x10, 0xe7, 0x8a, 0x4c, 0x67, 0x3d, 0x1a, 0xf2, 0x7b, 0xcc, 0x4d, 0x81];
-        let uuid: Uuid = "4c8ae710-df2e-47cd-814d-cc7bf21a3d67".parse().unwrap();
-        assert_eq!(uuid.0, wire);
-        assert_eq!(uuid.to_string(), "4c8ae710-df2e-47cd-814d-cc7bf21a3d67");
-    }
-}
-
 /// Vanilla shield runtime id; items with this network id carry an extra `blocking_tick` field.
 pub const DEFAULT_SHIELD_ITEM_ID: i32 = 387;
 
@@ -71,4 +57,18 @@ pub fn shield_item_id() -> i32 {
 
 pub fn set_shield_item_id(id: i32) {
     SHIELD_ITEM_ID.store(id, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Uuid;
+
+    #[test]
+    fn uuid_strings_match_the_wire_layout() {
+        // The vanilla client's "wave" emote, as captured on the wire.
+        let wire = [0xcd, 0x47, 0x2e, 0xdf, 0x10, 0xe7, 0x8a, 0x4c, 0x67, 0x3d, 0x1a, 0xf2, 0x7b, 0xcc, 0x4d, 0x81];
+        let uuid: Uuid = "4c8ae710-df2e-47cd-814d-cc7bf21a3d67".parse().unwrap();
+        assert_eq!(uuid.0, wire);
+        assert_eq!(uuid.to_string(), "4c8ae710-df2e-47cd-814d-cc7bf21a3d67");
+    }
 }

@@ -103,6 +103,24 @@ impl SpawnSequence {
     }
 }
 
+/// Sends one step of the spawn sequence for the player `runtime_entity_id`.
+pub(crate) fn send(client: &acacia_client::Client, runtime_entity_id: u64, packet: SpawnPacket) {
+    use acacia_client::proto::manual::Uuid;
+    use acacia_client::proto::packets::{EmoteList, ServerboundLoadingScreen, SetLocalPlayerAsInitialized};
+    let screen = |r#type| ServerboundLoadingScreen { r#type, loading_screen_id: None };
+    match packet {
+        SpawnPacket::LoadingScreenStart => client.send(&screen(LOADING_SCREEN_START)),
+        SpawnPacket::LoadingScreenEnd => client.send(&screen(LOADING_SCREEN_END)),
+        SpawnPacket::MouseOverNothing => client.send(&crate::interact::wire::mouse_over_nothing()),
+        SpawnPacket::EmoteList => client.send(&EmoteList {
+            player_id: runtime_entity_id,
+            emote_pieces: DEFAULT_EMOTES.iter().map(|id| id.parse::<Uuid>().expect("constant UUIDs")).collect(),
+        }),
+        SpawnPacket::Initialized => client.send(&SetLocalPlayerAsInitialized { runtime_entity_id }),
+        SpawnPacket::RespawnDone => client.respawn_done(),
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,22 +141,4 @@ mod tests {
         assert_eq!(stalls.len(), STALLS.len());
         assert!(stalls.iter().zip(STALLS).all(|(&ms, (_, lo, hi))| (lo..=hi).contains(&ms)), "{stalls:?}");
     }
-}
-
-/// Sends one step of the spawn sequence for the player `runtime_entity_id`.
-pub(crate) fn send(client: &acacia_client::Client, runtime_entity_id: u64, packet: SpawnPacket) {
-    use acacia_client::proto::manual::Uuid;
-    use acacia_client::proto::packets::{EmoteList, ServerboundLoadingScreen, SetLocalPlayerAsInitialized};
-    let screen = |r#type| ServerboundLoadingScreen { r#type, loading_screen_id: None };
-    match packet {
-        SpawnPacket::LoadingScreenStart => client.send(&screen(LOADING_SCREEN_START)),
-        SpawnPacket::LoadingScreenEnd => client.send(&screen(LOADING_SCREEN_END)),
-        SpawnPacket::MouseOverNothing => client.send(&crate::interact::wire::mouse_over_nothing()),
-        SpawnPacket::EmoteList => client.send(&EmoteList {
-            player_id: runtime_entity_id,
-            emote_pieces: DEFAULT_EMOTES.iter().map(|id| id.parse::<Uuid>().expect("constant UUIDs")).collect(),
-        }),
-        SpawnPacket::Initialized => client.send(&SetLocalPlayerAsInitialized { runtime_entity_id }),
-        SpawnPacket::RespawnDone => client.respawn_done(),
-    };
 }

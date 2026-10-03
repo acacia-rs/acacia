@@ -60,11 +60,13 @@ pub(crate) async fn connect<P: SignalPath>(
     loop {
         let now = Instant::now();
         ice_servers = ice_servers.or_else(|| path.take_ice_servers());
-        if now >= fallback_at && wire.turn().is_none() && !wire.conn.is_open() {
-            if let Some((addr, username, password)) = ice_servers.take().as_ref().and_then(turn_server) {
-                tracing::debug!(%addr, "ICE still down; falling back to TURN");
-                wire.set_turn(TurnClient::new(resolve(&addr).await?, username, password, now), now);
-            }
+        if now >= fallback_at
+            && wire.turn().is_none()
+            && !wire.conn.is_open()
+            && let Some((addr, username, password)) = ice_servers.take().as_ref().and_then(turn_server)
+        {
+            tracing::debug!(%addr, "ICE still down; falling back to TURN");
+            wire.set_turn(TurnClient::new(resolve(&addr).await?, username, password, now), now);
         }
         while let Some(event) = wire.turn_mut().and_then(TurnClient::poll_event) {
             match event {
@@ -80,14 +82,14 @@ pub(crate) async fn connect<P: SignalPath>(
                 TurnEvent::Failed(e) => tracing::debug!("TURN allocation failed: {e}"),
             }
         }
-        while let Some(event) = wire.conn.poll_event() {
-            match event {
+        if let Some(event) = wire.conn.poll_event() {
+            return match event {
                 NetEvent::Open => {
                     path.flush().await?;
-                    return Ok(wire);
+                    Ok(wire)
                 }
-                NetEvent::Closed(reason) => return Err(ConnectError::Signaling(format!("connection closed: {reason}"))),
-            }
+                NetEvent::Closed(reason) => Err(ConnectError::Signaling(format!("connection closed: {reason}"))),
+            };
         }
         while let Some((dest, datagram)) = wire.poll_datagram(now) {
             if let Err(e) = transport.send_to(&datagram, dest).await {

@@ -48,7 +48,7 @@ pub fn find(bot: &Bot, name: &str) -> Result<SlotRef, Box<dyn Error>> {
     bot.find_item(name).ok_or_else(|| format!("no {name} in the inventory").into())
 }
 
-pub fn stack<'a>(bot: &'a Bot, slot: SlotRef) -> Option<&'a ItemStack> {
+pub fn stack(bot: &Bot, slot: SlotRef) -> Option<&ItemStack> {
     let inv = &bot.state().inventory;
     match slot {
         SlotRef::Main(i) => inv.main.get(usize::from(i)),

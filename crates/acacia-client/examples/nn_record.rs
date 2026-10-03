@@ -6,6 +6,7 @@
 //!   address, so all UDP goes through the relay; identities sign only the fingerprints, so both
 //!   sides still accept the SDP.
 //! - UDP `listen_port + 1`: relays ICE/DTLS/SCTP to BDS and logs each datagram as hex to `udp.log`.
+//!
 //! Join `<bind_ip>:<listen_port>` from the game (a LAN IP avoids app loopback isolation), then stop with Ctrl+C.
 use std::net::SocketAddr;
 use std::sync::Arc;

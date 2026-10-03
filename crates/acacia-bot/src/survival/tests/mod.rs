@@ -167,8 +167,7 @@ fn armour_slots_and_hotbar_target() {
     assert_eq!(armor_slot("minecraft:leather_boots"), Some(3));
     assert_eq!(armor_slot("minecraft:diamond_sword"), None);
 
-    let mut inv = Inventory::default();
-    inv.selected_hotbar_slot = 4;
+    let mut inv = Inventory { selected_hotbar_slot: 4, ..Inventory::default() };
     for slot in 0..3 {
         inv.main[slot] = ItemStack { network_id: 1, count: 1, ..ItemStack::default() };
     }
