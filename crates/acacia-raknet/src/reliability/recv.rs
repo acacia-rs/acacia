@@ -59,6 +59,8 @@ impl RecvState {
         let seq = unwrap24(self.highest_datagram.unwrap_or(0), seq24);
         let next = self.highest_datagram.map_or(0, |h| h + 1);
         if seq < next {
+            // Late, not lost: arrived before the tick that would have NACKed it.
+            self.nacks.retain(|&n| n != seq24);
             return;
         }
         for missing in next.max(seq.saturating_sub(MAX_NACK_GAP))..seq {
