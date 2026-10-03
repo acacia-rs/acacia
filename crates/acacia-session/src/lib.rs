@@ -6,6 +6,7 @@ pub mod blob_store;
 pub mod compression;
 pub mod crypto;
 mod error;
+pub mod server;
 mod session;
 
 pub use acacia_proto as proto;

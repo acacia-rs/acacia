@@ -1,11 +1,12 @@
-//! Recording RakNet proxy for ground-truth captures of the vanilla client against the local test BDS:
-//! the game joins this proxy, the proxy joins BDS offline as the same player, and every packet on the
-//! game's side is logged (record.rs).
+//! Recording RakNet proxy for ground-truth captures of the vanilla client: the game joins this proxy,
+//! the proxy joins the server as the same player, and every packet on the game's side is logged
+//! (record.rs).
 //!
-//! `cargo run -p acacia-mitm -- [--listen 0.0.0.0:19180] [--server 127.0.0.1:19140] [--out .testserver/mitm]`
+//! `cargo run -p acacia-mitm -- [--listen 0.0.0.0:19180] [--server 127.0.0.1:19140] [--out .testserver/mitm] [--online <account>]`
 //!
-//! Only for the local offline BDS: never put it in front of a real server (it would need its own
-//! login). Login is logged as a structural summary only (login.rs): no tokens or signatures.
+//! Offline by default, for the local test BDS. `--online <account>` signs in with that account
+//! (`.tokens`, device code on first use) for real servers; sign the game into the same account so the
+//! client data matches. Login is logged as a structural summary only (login.rs): no tokens or signatures.
 
 mod login;
 mod pair;
@@ -16,8 +17,10 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use acacia_auth::{Account, AuthClient, AuthConfig, FileTokenCache};
 use acacia_raknet::{Reliability, Server, ServerConfig, ServerEvent};
 use bytes::{Bytes, BytesMut};
+use p384::ecdsa::SigningKey;
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
@@ -29,23 +32,34 @@ const STATUS_INTERVAL: Duration = Duration::from_secs(3);
 
 struct Args {
     listen: SocketAddr,
-    server: SocketAddr,
+    /// `host:port`, resolved once at start.
+    server: String,
     out: String,
+    online: Option<String>,
 }
 
 fn args() -> Result<Args, String> {
-    let mut args = Args { listen: "0.0.0.0:19180".parse().unwrap(), server: "127.0.0.1:19140".parse().unwrap(), out: ".testserver/mitm".into() };
+    let mut args = Args { listen: "0.0.0.0:19180".parse().unwrap(), server: "127.0.0.1:19140".into(), out: ".testserver/mitm".into(), online: None };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
         let value = it.next().ok_or(format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--listen" => args.listen = value.parse().map_err(|e| format!("--listen: {e}"))?,
-            "--server" => args.server = value.parse().map_err(|e| format!("--server: {e}"))?,
+            "--server" => args.server = value,
             "--out" => args.out = value,
+            "--online" => args.online = Some(value),
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
     Ok(args)
+}
+
+async fn sign_in(id: &str) -> Result<Account, Box<dyn std::error::Error>> {
+    let account = Account::new(Arc::new(AuthClient::new(AuthConfig::default())?), Arc::new(FileTokenCache::new(".tokens")?), id);
+    if !account.is_signed_in() {
+        account.sign_in(|p| println!("sign in at {} with code {}", p.verification_uri, p.user_code)).await?;
+    }
+    Ok(account)
 }
 
 /// A proxied player plus the socket and task that carry its server side.
@@ -62,11 +76,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let trace = std::env::var_os("MITM_TRACE").is_some();
     let stamp = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
     let name = stamp.format(time::macros::format_description!("[year][month][day]-[hour][minute][second]"))?;
+    let target = tokio::net::lookup_host(&args.server).await?.next().ok_or(format!("{}: no address", args.server))?;
+    let account = match &args.online {
+        Some(id) => Some(sign_in(id).await?),
+        None => None,
+    };
     let mut rec = Recorder::create(args.out.as_ref(), &name)?;
     let listener = UdpSocket::bind(args.listen).await?;
     let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng);
     let mut server = Server::new(ServerConfig::new(guid, String::new()), Instant::now());
-    let mut motd = watch_status(args.server, guid, args.listen.port());
+    let mut motd = watch_status(target, guid, args.listen.port());
     motd.mark_changed();
     let (upstream_tx, mut upstream_rx) = mpsc::unbounded_channel::<(SocketAddr, Bytes)>();
     let mut links: HashMap<SocketAddr, Link> = HashMap::new();
@@ -80,10 +99,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match event {
                 ServerEvent::Connected(game) => {
                     println!("{game} connected (RakNet)");
+                    let key = SigningKey::random(&mut rand_core::OsRng);
+                    let credentials = match &account {
+                        Some(account) => match account.credentials(&key).await {
+                            Ok(c) => Some(c),
+                            Err(e) => {
+                                eprintln!("online login: {e}");
+                                server.close(game, now);
+                                continue;
+                            }
+                        },
+                        None => None,
+                    };
                     let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
-                    socket.connect(args.server).await?;
+                    socket.connect(target).await?;
                     let reader = tokio::spawn(read_upstream(socket.clone(), game, upstream_tx.clone()));
-                    links.insert(game, Link { pair: Pair::new(args.server, now), socket, reader });
+                    links.insert(game, Link { pair: Pair::new(target, now, key, credentials), socket, reader });
                 }
                 ServerEvent::Message(game, msg) => {
                     if let Some(link) = links.get_mut(&game) {

@@ -30,25 +30,29 @@ Research behind these decisions: `docs/research/`.
 
 ```
 acacia-client             tokio sockets and timers, SOCKS5 (UDP + CONNECT), NetherNet signaling I/O, public Client API
- ├─ acacia-session        network-free session over a RakNet or message link: handshake, ECDH + AES-CTR, compression, batching
+ ├─ acacia-session        network-free session over a RakNet or message link: handshake, ECDH + AES-CTR, compression, batching;
+ │                        `server::ServerConnection` is the server side (FakeServer, mitm)
  │   ├─ acacia-raknet     network-free RakNet client and server: reliability, split packets, ACK/NACK, ordering
  │   └─ acacia-proto      generated packet structs + codec (varints, lazy Packet)
  ├─ acacia-nethernet      network-free NetherNet: signaling HTTP bytes, signal text, signaling-service session,
  │                        STUN/TURN client, a=identity, fragment framing, str0m connection (trickle ICE)
  └─ acacia-auth           MSA device code → Xbox → XSTS → PlayFab → session/start → multiplayer token
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
-tools/mitm                recording proxy for vanilla-client captures against the local BDS (acacia-mitm)
+tools/mitm                recording proxy for vanilla-client captures, local BDS or (`--online`) real servers (acacia-mitm)
 tools/capdiff             compares what two clients sent in captures (vanilla vs bot): order, delays, cadence, fields
-acacia-testserver         (dev) FakeServer replays a recorded BDS join over loopback RakNet; capture reader
+acacia-testserver         (dev) FakeServer replays a recorded BDS join over loopback RakNet, then takes send/recv/kick
+                          from the test; capture reader
 ```
 
 Fingerprint checks without BDS: `crates/acacia-bot/tests/fake_server.rs` joins an idle bot to the replayed
-session and asserts the vanilla timeline; `FAKE_CAPTURE=<file>` saves the exchange for `capdiff`. New
+session and asserts the vanilla timeline; `FAKE_CAPTURE=<file>` saves the exchange for `capdiff`.
+`fake_server_handle.rs` shows server-driven scenarios (forms, kicks) after the join. New
 scripts: `cargo run -p acacia-testserver --example make_script` on a capture of a bot (never the real game:
 scripts ship in the repo and replay PlayerList and skins).
 
 `tools/mitm` terminates only the encryption handshake (each side gets its own key) and re-signs the
-game's Login as an offline login. Everything else passes through as it came, cache and pack replies
+game's Login: offline by default, or with `--online <account>` as that signed-in account (sign the game
+into the same one, since its client data passes through). Everything else passes through as it came, cache and pack replies
 included. Capture format: `tools/mitm/src/record.rs`. `name` is acacia-proto's struct name; captures
 made before 2026-10-02 used gophertunnel's names.
 

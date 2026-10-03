@@ -70,11 +70,12 @@ struct SelfSignedTokenClaims<'a> {
 
 /// Online connection request: token-only, as the vanilla client sends it. Without a multiplayer
 /// token, falls back to the legacy form: a self-signed head JWT (x5u = client key,
-/// `identityPublicKey` = the Mojang chain's first x5u) prepended to the Mojang chain.
+/// `identityPublicKey` = the Mojang chain's first x5u) prepended to the Mojang chain. `client` is
+/// usually a [`ClientData`]; tools/mitm passes the game's own claims.
 pub fn build_connection_request(
     creds: &LoginCredentials,
     key: &SigningKey,
-    client: &ClientData,
+    client: &impl Serialize,
 ) -> Vec<u8> {
     if let Some(token) = creds.multiplayer_token.as_deref() {
         let envelope = TokenEnvelope { authentication_type: AUTH_TYPE_FULL, token };

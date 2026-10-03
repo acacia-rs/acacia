@@ -11,7 +11,7 @@ acacia-raknet = { path = "../acacia-raknet" }
 acacia-session = { path = "../acacia-session" }
 acacia-proto = { path = "../acacia-proto" }
 acacia-auth = { path = "../acacia-auth", default-features = false }
-tokio = { version = "1.53.1", features = ["rt", "net", "time", "macros"] }
+tokio = { version = "1.53.1", features = ["rt", "net", "time", "macros", "sync"] }
 bytes = "1.12.1"
 p384 = { version = "0.13", features = ["ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }

@@ -18,4 +18,6 @@ pub enum Error {
     Decode(#[from] acacia_proto::DecodeError),
     #[error("server handshake: {0}")]
     Handshake(String),
+    #[error("client login: {0}")]
+    Login(String),
 }

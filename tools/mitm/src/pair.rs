@@ -6,9 +6,11 @@
 use std::net::SocketAddr;
 use std::time::Instant;
 
+use acacia_auth::LoginCredentials;
 use acacia_session::batch::BatchCodec;
 use acacia_session::compression::Algorithm;
 use acacia_session::crypto::derive_key;
+use acacia_session::server::ServerConnection;
 use acacia_proto::packets::{Login, NetworkSettings, PlayStatus, PlayStatusStatus, ServerToClientHandshake};
 use acacia_proto::{Packet, RawPacket};
 use acacia_raknet::{self as raknet, Reliability};
@@ -21,10 +23,12 @@ use crate::record::Recorder;
 
 pub struct Pair {
     upstream: raknet::Client,
-    game_codec: BatchCodec,
+    game: ServerConnection,
     up_codec: BatchCodec,
     /// The proxy's key on both sides: it signs the upstream login and the game-side handshake.
     key: SigningKey,
+    /// Online login for the server, bound to `key`; offline without.
+    credentials: Option<LoginCredentials>,
     game_key: Option<p384::PublicKey>,
     /// Batches from the game that arrived before the upstream connection was up.
     pending: Vec<Bytes>,
@@ -33,14 +37,15 @@ pub struct Pair {
 }
 
 impl Pair {
-    pub fn new(server: SocketAddr, now: Instant) -> Self {
+    pub fn new(server: SocketAddr, now: Instant, key: SigningKey, credentials: Option<LoginCredentials>) -> Self {
         // go-raknet servers reject positive client GUIDs (DESIGN.md).
         let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng) | 1 << 63;
         Self {
             upstream: raknet::Client::new(raknet::Config::new(guid), server, now),
-            game_codec: BatchCodec::default(),
+            game: ServerConnection::new(key.clone()),
             up_codec: BatchCodec::default(),
-            key: SigningKey::random(&mut rand_core::OsRng),
+            key,
+            credentials,
             game_key: None,
             pending: Vec::new(),
             to_game: Vec::new(),
@@ -94,10 +99,10 @@ impl Pair {
     }
 
     pub fn on_game_message(&mut self, msg: &[u8], rec: &mut Recorder) {
-        let mut packets = Vec::new();
-        if let Err(e) = self.game_codec.decode(msg, &mut packets) {
-            return self.fail(format_args!("game batch: {e}"), rec);
-        }
+        let packets = match self.game.decode(msg) {
+            Ok(packets) => packets,
+            Err(e) => return self.fail(format_args!("game batch: {e}"), rec),
+        };
         let mut forward = Vec::with_capacity(packets.len());
         for buf in packets {
             let raw = match RawPacket::parse(buf.clone()) {
@@ -109,7 +114,7 @@ impl Pair {
                 forward.push(buf);
                 continue;
             }
-            match login::read(&raw.body, &self.key) {
+            match login::read(&raw.body, &self.key, self.credentials.as_ref()) {
                 Ok(l) => {
                     rec.login(raw.body.len(), l.summary);
                     rec.write(json!({ "event": "login", "client_data": login::trimmed(&l.client_data), "identity": l.identity }));
@@ -157,24 +162,22 @@ impl Pair {
             match raw.id {
                 NetworkSettings::ID => {
                     rec.packet(false, &raw);
+                    let settings: NetworkSettings = raw.decode().map_err(|e| e.to_string())?;
+                    self.game.start_compression(&settings).map_err(|e| e.to_string())?;
+                    let alg = Algorithm::from_settings(settings.compression_algorithm).map_err(|e| e.to_string())?;
+                    self.up_codec.enable_compression(alg, settings.compression_threshold.into());
                     forward.push(buf);
                     self.send_to_game(&mut forward);
-                    let settings: NetworkSettings = raw.decode().map_err(|e| e.to_string())?;
-                    let alg = Algorithm::from_settings(settings.compression_algorithm).map_err(|e| e.to_string())?;
-                    let threshold = settings.compression_threshold.into();
-                    self.game_codec.enable_compression(alg, threshold);
-                    self.up_codec.enable_compression(alg, threshold);
                 }
                 ServerToClientHandshake::ID => {
                     let handshake: ServerToClientHandshake = raw.decode().map_err(|e| e.to_string())?;
                     let (server_key, salt) = acacia_auth::parse_server_handshake(&handshake.token).map_err(|e| e.to_string())?;
                     self.up_codec.enable_encryption(derive_key(&self.key, &server_key, &salt));
                     let game_key = self.game_key.as_ref().ok_or("server handshake before the game's login")?;
-                    let (ours, session_key) = login::handshake_for_game(&self.key, game_key);
+                    let ours = self.game.start_encryption(game_key);
                     rec.packet(false, &RawPacket::parse(ours.clone()).expect("encoded above"));
                     forward.push(ours);
                     self.send_to_game(&mut forward);
-                    self.game_codec.enable_encryption(session_key);
                 }
                 _ => {
                     if raw.decode::<PlayStatus>().is_ok_and(|s| s.status == PlayStatusStatus::PlayerSpawn) {
@@ -192,7 +195,7 @@ impl Pair {
     /// Encodes `packets` as one game batch now, before a codec change applies to later ones.
     fn send_to_game(&mut self, packets: &mut Vec<Bytes>) {
         if !packets.is_empty() {
-            self.to_game.push(self.game_codec.encode(packets.iter().map(|b| &b[..])));
+            self.to_game.push(self.game.encode(packets));
             packets.clear();
         }
     }

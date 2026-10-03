@@ -10,7 +10,7 @@ rust-version.workspace = true
 acacia-raknet = { path = "../../crates/acacia-raknet" }
 acacia-session = { path = "../../crates/acacia-session" }
 acacia-proto = { path = "../../crates/acacia-proto" }
-acacia-auth = { path = "../../crates/acacia-auth", default-features = false }
+acacia-auth = { path = "../../crates/acacia-auth" }
 tokio = { version = "1.53.1", features = ["rt", "net", "time", "sync", "macros"] }
 bytes = "1.12.1"
 p384 = { version = "0.13", features = ["ecdsa"] }

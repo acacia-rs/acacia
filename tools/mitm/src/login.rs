@@ -1,13 +1,18 @@
 //! The game's Login: summarised for the capture without secrets, and re-signed with the proxy's key
-//! for the server (an offline login carrying the game's identity and client data verbatim).
+//! for the server, carrying the game's client data verbatim: offline with the game's identity, or
+//! online as the proxy's signed-in account (`--online`).
 
 use std::fmt;
 
 use base64::Engine;
+use acacia_auth::LoginCredentials;
 use acacia_auth::jwt;
-use acacia_auth::login::{OfflineIdentity, build_offline_connection_request_for, offline_identity, split_connection_request};
+use acacia_auth::login::{
+    OfflineIdentity, build_connection_request, build_offline_connection_request_for, offline_identity, split_connection_request,
+};
 use acacia_proto::packets::Login;
 use acacia_proto::{Packet, codec};
+use acacia_session::server::read_login;
 use bytes::{Bytes, BytesMut};
 use p384::ecdsa::SigningKey;
 use serde::de::{IgnoredAny, MapAccess, Visitor};
@@ -27,15 +32,12 @@ pub struct GameLogin {
     pub identity: Value,
 }
 
-pub fn read(body: &[u8], key: &SigningKey) -> Result<GameLogin, String> {
-    let mut r = body;
-    let protocol = codec::read_i32(&mut r).map_err(|e| e.to_string())?;
-    let len = codec::read_varint(&mut r).map_err(|e| e.to_string())? as usize;
-    let request = r.get(..len).ok_or("Login tokens truncated")?;
+/// `credentials` (bound to `key`) log in online; without them the login is offline.
+pub fn read(body: &[u8], key: &SigningKey, credentials: Option<&LoginCredentials>) -> Result<GameLogin, String> {
+    let (protocol, request, game_key) = read_login(body).map_err(|e| e.to_string())?;
     let (envelope, client_jwt) = split_connection_request(request).ok_or("malformed connection request")?;
     let client_jwt = std::str::from_utf8(client_jwt).map_err(|e| e.to_string())?;
     let client = jwt::decode(client_jwt).map_err(|e| e.to_string())?;
-    let game_key = acacia_auth::login::client_public_key(request).map_err(|e| e.to_string())?;
     let outer: Value = serde_json::from_slice(envelope).map_err(|e| e.to_string())?;
 
     let token_claims = outer["Token"].as_str().and_then(|t| jwt::decode(t).ok()).map(|t| t.claims);
@@ -48,7 +50,10 @@ pub fn read(body: &[u8], key: &SigningKey) -> Result<GameLogin, String> {
     let xuid = claim("xid", "XUID").unwrap_or_default();
     let uuid = claim("leguuid", "identity").unwrap_or_else(|| offline_identity(&name));
 
-    let request = build_offline_connection_request_for(&OfflineIdentity { name: &name, xuid: &xuid, uuid: &uuid }, key, &client.claims);
+    let request = match credentials {
+        Some(creds) => build_connection_request(creds, key, &client.claims),
+        None => build_offline_connection_request_for(&OfflineIdentity { name: &name, xuid: &xuid, uuid: &uuid }, key, &client.claims),
+    };
     let mut upstream = BytesMut::with_capacity(request.len() + 16);
     codec::write_varint(&mut upstream, Login::ID);
     codec::write_i32(&mut upstream, protocol);
@@ -121,14 +126,6 @@ fn key_order(json: &[u8]) -> Vec<String> {
     }
     let mut de = serde_json::Deserializer::from_slice(json);
     serde::Deserializer::deserialize_map(&mut de, Keys).unwrap_or_default()
-}
-
-/// The game-side ServerToClientHandshake (signed by the proxy) and the session key it sets up.
-pub fn handshake_for_game(key: &SigningKey, game_key: &p384::PublicKey) -> (Bytes, [u8; 32]) {
-    let (token, salt) = acacia_auth::login::build_server_handshake(key);
-    let mut packet = BytesMut::new();
-    acacia_proto::encode_packet(&acacia_proto::packets::ServerToClientHandshake { token }, &mut packet);
-    (packet.freeze(), acacia_session::crypto::derive_key(key, game_key, &salt))
 }
 
 #[cfg(test)]

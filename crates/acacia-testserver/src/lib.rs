@@ -1,5 +1,6 @@
 //! Test servers and capture tooling: [`FakeServer`] replays a recorded BDS session to a real client over
-//! loopback RakNet and records what the client sends; [`capture`] reads tools/mitm captures.
+//! loopback RakNet, records what the client sends and lets the test send, receive and kick;
+//! [`capture`] reads tools/mitm captures.
 //!
 //! ```no_run
 //! # async fn t() -> std::io::Result<()> {
@@ -15,4 +16,4 @@ mod server;
 
 pub use peer::Received;
 pub use script::{Script, Step};
-pub use server::FakeServer;
+pub use server::{FakeServer, WAIT_TIMEOUT};
