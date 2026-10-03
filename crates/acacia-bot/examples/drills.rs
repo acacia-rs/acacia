@@ -123,6 +123,14 @@ const fn waterfall(name: &'static str, x: f32) -> Drill {
     Drill { name, fills: WATERFALL, start: [x, 8.0, 0.5], settle: 80, steps: FALL, pitch: 0.0 }
 }
 
+/// A 2-deep pit from x+4: the sneak edge stop at its rim.
+const PIT: &[Fill] = &[([4, -2, -12], [24, -1, 12], "air")];
+
+/// Sprint `ticks` at `yaw` towards the pit, then sneak on.
+const fn rush(ticks: u32, yaw: f32) -> [Step; 3] {
+    [(ticks, 1.0, true, false, yaw, false), (25, 1.0, false, false, yaw, true), STOP]
+}
+
 /// Plain walk/stop/sneak steps for the double-tap drills.
 const fn walk(ticks: u32, forward: f32, sprint: bool, sneak: bool) -> Step {
     (ticks, forward, sprint, false, 0.0, sneak)
@@ -199,6 +207,12 @@ const DRILLS: &[Drill] = &[
     plunge("pl39e", -39.0, 1.6), plunge("pl39f", -39.0, 1.75),
     plunge("pl70a", -70.0, 1.0), plunge("pl70b", -70.0, 1.15), plunge("pl70c", -70.0, 1.3), plunge("pl70d", -70.0, 1.45),
     plunge("pl70e", -70.0, 1.6), plunge("pl70f", -70.0, 1.75),
+    // The sneak edge stop meeting leftover sprint momentum, so it only shrinks the velocity (fuzz 145851 tick 281:
+    // BDS kept a partly shrunk axis's velocity but zeroes a fully stopped one).
+    drill("edge4", PIT, &rush(4, 0.0)), drill("edge6", PIT, &rush(6, 0.0)), drill("edge8", PIT, &rush(8, 0.0)),
+    drill("edge10", PIT, &rush(10, 0.0)), drill("edge12", PIT, &rush(12, 0.0)),
+    drill("edged4", PIT, &rush(4, 25.0)), drill("edged6", PIT, &rush(6, 25.0)), drill("edged8", PIT, &rush(8, 25.0)),
+    drill("edged10", PIT, &rush(10, 25.0)), drill("edged12", PIT, &rush(12, 25.0)),
 ];
 
 #[tokio::main(flavor = "current_thread")]

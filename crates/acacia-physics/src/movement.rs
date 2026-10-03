@@ -147,6 +147,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         }
 
         let stuck = apply_stuck_speed_multiplier(st);
+        let before_edge = st.vel;
         if !self.sweep_loaded(st) || !self.avoid_edge(st) {
             return false;
         }
@@ -173,6 +174,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
         };
         st.mov = st.vel;
+        // The edge stop shortens the move but keeps the velocity, unless it stopped that axis outright (BDS fuzz
+        // 145851 tick 281, `edge` drills).
+        for i in [0, 2] {
+            if st.mov[i] != 0.0 {
+                st.vel[i] = before_edge[i];
+            }
+        }
         if stuck {
             st.set_vel([0.0; 3]);
             old_vel = [0.0; 3];
