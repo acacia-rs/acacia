@@ -2,6 +2,7 @@ mod admission;
 mod congestion;
 mod flow;
 mod handshake;
+mod schedule;
 
 use std::time::Duration;
 

@@ -72,8 +72,8 @@ impl Server {
             recv_limits: self.cfg.recv_limits,
             congestion_window: true,
         };
-        let handshake_deadline = now + self.cfg.handshake_timeout;
-        let peer = Peer { conn: Conn::new(self.epoch, cfg, now), guid: request.client_guid, connected: false, handshake_deadline };
+        let mut peer = Peer::new(Conn::new(self.epoch, cfg, now), request.client_guid, now + self.cfg.handshake_timeout);
+        self.schedule.touch(from, &mut peer);
         self.peers.insert(from, peer);
         o::reply_2(out, self.cfg.guid, from, mtu);
         Ok(())
