@@ -113,6 +113,8 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
 - The honey wall slowdown (x/z × 0.4) applies on the ground and rising too, and in lava, but not in water. It
   is an inside-block effect, once per honey cell the box is in (see the cells above): honey's box is inset
   1/16, so a box against it is in its cell, and one flush against a full block beside it is not.
+- An elytra glide divides by the look vector's own horizontal length (bedsim: cos(pitch)); the yaw's table sine
+  and cosine do not square to exactly one, which shifts the glide by up to 2e-5 a tick.
 - Weaving replaces any queued inside-block slowdown with (0.5, 0.25, 0.5), not only a cobweb's (BDS).
 - A horizontal axis counts as collided when the move was cut by more than 1.19e-7 (BDS `FinalizeMoveSystem`).
 - The standing eye offset is 1.62001 (BDS; bedsim: 1.62), so `PlayerAuthInput.position` matches the server's

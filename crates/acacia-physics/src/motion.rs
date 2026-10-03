@@ -135,7 +135,9 @@ pub(crate) fn simulate_glide(st: &mut PlayerState) {
 
     let mut v = st.vel;
     let vel_hz = (v[0] * v[0] + v[2] * v[2]).sqrt();
-    let look_hz = pitch_cos;
+    // The look's own horizontal length (BDS, as Java): the table sine and cosine of the yaw do not square
+    // to exactly one, and bedsim's cos(pitch) is off by up to 2e-5.
+    let look_hz = (look[0] * look[0] + look[2] * look[2]).sqrt();
     let sqr_pitch_cos = pitch_cos * pitch_cos;
     let gravity = if st.slow_falling { SLOW_FALLING_GRAVITY } else { st.gravity };
     v[1] += -gravity + sqr_pitch_cos * (gravity * 0.75);
