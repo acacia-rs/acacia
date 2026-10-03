@@ -27,6 +27,7 @@ mod spawn;
 mod subchunks;
 pub mod state;
 pub mod survival;
+pub mod swarm;
 mod wait;
 pub mod workstation;
 pub mod world;

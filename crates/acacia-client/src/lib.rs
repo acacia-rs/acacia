@@ -24,6 +24,8 @@ mod nethernet;
 mod ping;
 #[cfg(feature = "online")]
 mod qos;
+#[cfg(feature = "online")]
+mod realm;
 mod route;
 mod signaling;
 mod socks5;
@@ -43,6 +45,8 @@ pub use lan::{discover_lan, LanServer};
 pub use ping::{ping, ServerStatus};
 #[cfg(feature = "online")]
 pub use qos::measure_ping_regions;
+#[cfg(feature = "online")]
+pub use realm::{realm_builder, RealmJoinError};
 pub use signaling::{SignalingProtocol, SignalingTarget};
 pub use socks5::{ProxyParseError, Socks5Proxy};
 

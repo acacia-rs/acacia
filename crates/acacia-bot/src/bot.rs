@@ -60,6 +60,7 @@ pub struct Bot {
     pub(crate) bed: Bed,
     pub(crate) request_ids: RequestIds,
     pub(crate) reflexes: Reflexes,
+    closed: Option<DisconnectReason>,
 }
 
 impl Bot {
@@ -118,7 +119,13 @@ impl Bot {
             bed: Bed::default(),
             request_ids: RequestIds::default(),
             reflexes: Reflexes::default(),
+            closed: None,
         })
+    }
+
+    /// Why the connection ended, once it has.
+    pub fn disconnect_reason(&self) -> Option<&DisconnectReason> {
+        self.closed.as_ref()
     }
 
     /// Labels the recorded trace from here on (no-op when not recording).
@@ -192,7 +199,10 @@ impl Bot {
                     self.apply(&packet);
                     Some(Step::Packet(packet))
                 }
-                Event::Disconnected(reason) => Some(Step::Disconnected(reason)),
+                Event::Disconnected(reason) => {
+                    self.closed = Some(reason.clone());
+                    Some(Step::Disconnected(reason))
+                }
             },
             ticks = self.ticker.wait() => {
                 (0..ticks).for_each(|_| self.on_tick());

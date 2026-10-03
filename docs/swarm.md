@@ -1,0 +1,45 @@
+# Swarm (`acacia_bot::swarm`)
+
+Many bots, many servers, one process; the interfaces a coordinator needs to spread bots over nodes.
+Example: `crates/acacia-bot/examples/swarm_specs.rs`.
+
+## Model
+- `Swarm::builder()…start(async |bot: &mut Bot, state: &mut S| { … })` starts K shard threads (default: one
+  per core), each a single-threaded tokio runtime. A bot lives on one shard for its whole life, so the task
+  future need not be `Send` (Rust cannot yet bound an async closure's future `Send`).
+- The task drives one connection. It returning after a disconnect means "reconnect per the policy"; returning
+  while still connected (or after `bot.disconnect()`) ends the bot with `Removed`. `state` survives reconnects.
+- One bot does one thing at a time (`&mut Bot`), unlike azalea's task per event, so no re-entrancy guards.
+- Handle: `add(spec)`, `remove(id)`, `snapshot()`, `events()` (broadcast), `drain()`, `shutdown()`.
+- Hooks: `bot_config(|spec| …)`, `client(|spec, builder| …)` pick per-bot settings from the spec (e.g. its role
+  in `state`). Every bot shares the swarm's `SharedWorlds`, so bots on one server store each chunk once.
+
+## Specs are data
+`BotSpec<S> { id, login, target, proxy, state }` is serde, as are `SwarmEvent` and `Snapshot`:
+- `id` is chosen by the caller, so it stays unique across nodes.
+- `Login::Online { account }` names an account; the node signs it in from its `token_cache`. Share one
+  `TokenCache` implementation (e.g. a database) across nodes and any node can run any account.
+- `Target::Server { address }` or `Target::Realm { id }` (online only, via `acacia_client::realm_builder`).
+- `proxy` (`host:port[:user:pass]`) carries both the game connection and sign-in (one auth client per proxy).
+
+## Reconnect policy (`Policy`, policy.rs)
+| Ended by | Default |
+|---|---|
+| Transport, I/O, timeout, NetherNet failure | Reconnect, backoff 1 s doubling to 60 s, ±25 %; a 60 s session resets it |
+| Kick | Reconnect; 3 kicks in a row each within 30 s of spawning → `Failed` (ban / whitelist) |
+| `Transfer` | Join the new address next; later reconnects use the spec's target |
+| Login refused (outdated, edu, editor) | `Failed`; server full reconnects |
+| Auth needing the account holder (`requires_user_action`, OAuth, no tokens) | `Failed` |
+| Invalid spec (bad proxy, realm with offline login, no token cache) | `Failed` |
+
+`Policy::on_disconnect` gets the default `Decision` and may replace it. Failed bots stay listed until removed.
+
+## Joins
+Joins to one target are spaced `500 ± 250 ms` across all shards (reconnects too), so a swarm start or a server
+restart does not arrive as a burst. Different targets do not wait for each other.
+
+## Horizontal scaling
+The library is the node; placement is the coordinator's job (the AFK service). It gets:
+- `snapshot().shard_load` and per-bot status for placement and health.
+- `drain()` before taking a node away: no new joins, online bots stay until moved (`remove` here, `add` there).
+- Placement rule: keep bots of one server on one node; chunk sharing is per process.

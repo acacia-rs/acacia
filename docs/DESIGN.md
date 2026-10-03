@@ -73,6 +73,8 @@ made before 2026-10-02 used gophertunnel's names.
    (`examples/realm_join.rs`, `examples/lan_join.rs`).
 8. ◐ **Indistinguishable bots** (see Fingerprint above): signaling, DTLS cert, Login, persona, idle input and
    spawn/respawn sequences match vanilla.
+9. ◐ **Swarm** (docs/swarm.md): sharded bots across servers and realms with reconnect policy and a
+   coordinator-ready handle. Tested against fake servers; next: a live run and the load benchmark.
 
 ## Gotchas / open items
 

@@ -36,6 +36,7 @@ dependencies = [
  "acacia-world",
  "bytes",
  "regex",
+ "serde",
  "serde_json",
  "thiserror",
  "tokio",
