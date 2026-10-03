@@ -7,7 +7,10 @@ use std::sync::Arc;
 use acacia_proto::nbt::Value;
 use acacia_proto::packets::{LevelChunk, StartGame};
 use acacia_proto::{Packet, RawPacket};
-use acacia_world::{BlockAccess, BlockIds, BlockRegistry, ChunkView, CustomBlock, Inserted, World};
+use acacia_world::{
+    BlockAccess, BlockIds, BlockRegistry, Chunk, ChunkView, CustomBlock, Dimension, Inserted, SECTION_VOLUME, World,
+    level_chunk_block_entities,
+};
 use bytes::Bytes;
 
 fn fixture_dir(server: &str) -> PathBuf {
@@ -150,6 +153,55 @@ fn captured_chunks_end_in_block_entities() {
             }
             eprintln!("{server} chunk {},{}: {count} block entities", c.x, c.z);
         }
+    }
+}
+
+fn section_contents(chunk: &Chunk) -> Vec<[Vec<u32>; 3]> {
+    let air = chunk.dimension().air;
+    let section = |i| {
+        let mut bufs = [[air; SECTION_VOLUME]; 3];
+        let [blocks, liquid, biomes] = &mut bufs;
+        chunk.copy_section(i, blocks, liquid);
+        chunk.copy_biomes(i, biomes);
+        bufs.map(|b| b.to_vec())
+    };
+    (0..chunk.section_count()).map(section).collect()
+}
+
+/// Decoding a captured chunk and encoding it again keeps every block and biome.
+#[test]
+fn geyser_chunks_re_encode() {
+    let air = geyser_world().registry().air_id();
+    for c in level_chunks("geyser") {
+        let dim = Dimension::from_id(c.dimension, air);
+        let chunk = Chunk::decode(c.x, c.z, dim, c.sub_chunk_count, &c.payload).unwrap();
+        let tail = level_chunk_block_entities(&c.payload, c.sub_chunk_count, Some(dim)).unwrap();
+        let data = chunk.level_chunk(&c.payload[tail..], &|id| id);
+        let again = Chunk::decode(c.x, c.z, dim, data.sub_chunk_count, &data.payload).unwrap();
+        assert!(section_contents(&chunk) == section_contents(&again), "chunk {},{}", c.x, c.z);
+        // Geyser's palettes are often wider than needed and it never uses the biome marker.
+        assert_eq!(data.sub_chunk_count, c.sub_chunk_count);
+        assert!(data.payload.len() <= c.payload.len());
+        let common = c.payload.iter().zip(&data.payload).take_while(|(a, b)| a == b).count();
+        eprintln!("geyser chunk {},{}: {} B -> {} B, first {common} B equal", c.x, c.z, c.payload.len(), data.payload.len());
+    }
+}
+
+/// BDS request-mode payloads are the biomes plus the border-block count. Ours differ only in using
+/// the copy-below marker for every repeated section, where BDS keeps it for the top ones.
+#[test]
+fn bds_request_payloads_re_encode() {
+    for c in level_chunks("bds") {
+        let dim = Dimension::from_id(c.dimension, 0);
+        let mut chunk = Chunk::empty(c.x, c.z, dim);
+        chunk.set_biomes(&c.payload);
+        let data = chunk.level_chunk_request();
+        let mut again = Chunk::empty(c.x, c.z, dim);
+        again.set_biomes(&data.payload);
+        assert!(section_contents(&chunk) == section_contents(&again), "chunk {},{}", c.x, c.z);
+        assert!(data.payload.len() <= c.payload.len());
+        assert_eq!((data.payload.last(), c.payload.last()), (Some(&0), Some(&0)));
+        assert_eq!(level_chunk_block_entities(&data.payload, 0, Some(dim)), Ok(data.payload.len()));
     }
 }
 

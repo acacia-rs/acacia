@@ -3,11 +3,31 @@
 //! `LevelChunk`, make up the whole payload in sub-chunk request mode, and form the biome blob in
 //! cache mode.
 
+use std::borrow::Cow;
+
 use super::reader::Reader;
 use super::storage::Storage;
 
 /// Header meaning "same as the section below" (bits 127, runtime palette).
 pub(super) const COPY_BELOW: u8 = 0xff;
+
+/// Writes one storage per section. A section equal to the one below it is the marker; sections past
+/// the known ones repeat the top one (biome 0 when none are known).
+pub(super) fn encode(biomes: &[Storage], sections: usize, out: &mut Vec<u8>) {
+    let mut below: Option<Cow<Storage>> = None;
+    for i in 0..sections {
+        let storage = match biomes.get(i) {
+            Some(s) => s.compacted(),
+            None => below.clone().unwrap_or(Cow::Owned(Storage::Single(0))),
+        };
+        if below.as_ref() == Some(&storage) {
+            out.push(COPY_BELOW);
+        } else {
+            storage.encode(out, &|id| id);
+        }
+        below = Some(storage);
+    }
+}
 
 /// Decodes up to `sections` storages. Biomes only tint, so malformed or truncated data keeps what
 /// decoded before it instead of failing the chunk.

@@ -3,10 +3,17 @@
 //! ([`level_chunk_block_entities`] finds the latter).
 
 mod biomes;
+mod build;
+mod encode;
+mod heightmap;
 mod reader;
 mod storage;
+mod storage_write;
 mod tail;
+mod writer;
 
+pub use encode::{LevelChunkData, SubChunkData};
+pub use heightmap::{ColumnHeights, Heightmap};
 pub use storage::VOLUME as SECTION_VOLUME;
 pub use tail::{level_chunk_block_entities, sub_chunk_block_entities};
 

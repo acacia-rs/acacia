@@ -60,6 +60,12 @@ impl BlockRegistry {
         map.get(&hash).copied()
     }
 
+    /// Inverse of [`BlockRegistry::runtime_id_from_hash`], for encoding chunks with hashed ids.
+    /// Unknown ids and custom blocks (which have no hash) give 0.
+    pub fn network_hash(&self, runtime_id: u32) -> u32 {
+        self.get(runtime_id).map_or(0, |s| s.network_hash)
+    }
+
     /// Registry with custom blocks merged in the client's order. Names already present are skipped:
     /// since 26.50 servers also list data-driven vanilla blocks (wool stairs etc.) in
     /// `block_properties`, and those are already part of the vanilla palette.
