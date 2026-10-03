@@ -30,7 +30,8 @@ impl Conn {
     pub fn new(epoch: Instant, mtu: u16, idle_timeout: Duration, ping_interval: Duration, now: Instant) -> Self {
         Self {
             epoch,
-            mtu,
+            // The peer names the MTU; below the floor the payload arithmetic would underflow.
+            mtu: mtu.max(o::MIN_MTU),
             idle_timeout,
             ping_interval,
             send: SendQueue::new(),
@@ -165,6 +166,16 @@ mod tests {
         let mut ranges = Vec::new();
         decode_acks(datagram, |a, b| ranges.push((a, b))).unwrap();
         ranges
+    }
+
+    #[test]
+    fn mtu_below_the_floor_is_raised() {
+        let now = Instant::now();
+        let mut c = Conn::new(now, 20, Duration::from_secs(10), Duration::from_secs(5), now);
+        c.queue(Bytes::from(vec![1u8; 5000]), Reliability::ReliableOrdered);
+        let sent: Vec<Bytes> = std::iter::from_fn(|| c.poll_transmit(now)).collect();
+        let max = usize::from(o::MIN_MTU - o::UDP_OVERHEAD);
+        assert!(sent.len() > 5000 / max && sent.iter().all(|d| d.len() <= max), "{} datagrams", sent.len());
     }
 
     #[test]

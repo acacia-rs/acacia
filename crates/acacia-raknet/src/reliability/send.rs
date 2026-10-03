@@ -104,15 +104,15 @@ impl SendQueue {
             body,
         };
 
-        let room = max_payload - DATAGRAM_HEADER_LEN;
-        if body.len() <= room - UNSPLIT_HEADER_LEN {
+        let room = max_payload.saturating_sub(DATAGRAM_HEADER_LEN);
+        if body.len() <= room.saturating_sub(UNSPLIT_HEADER_LEN) {
             let reliable_index = if reliability.is_reliable() { self.take_reliable_index() } else { 0 };
             self.pending.push_back(template(reliability, reliable_index, None, body));
             return;
         }
 
         let reliability = reliability.for_split();
-        let chunk = room - MAX_FRAME_HEADER_LEN;
+        let chunk = room.saturating_sub(MAX_FRAME_HEADER_LEN).max(1);
         let count = body.len().div_ceil(chunk) as u32;
         let id = self.next_split_id;
         self.next_split_id = id.wrapping_add(1);

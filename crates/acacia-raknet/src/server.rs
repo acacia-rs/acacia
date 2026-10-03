@@ -57,7 +57,8 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(cfg: ServerConfig, now: Instant) -> Self {
+    pub fn new(mut cfg: ServerConfig, now: Instant) -> Self {
+        cfg.max_mtu = cfg.max_mtu.max(o::MIN_MTU);
         Self { cfg, epoch: now, peers: HashMap::new(), outbox: VecDeque::new(), events: VecDeque::new() }
     }
 
@@ -138,6 +139,9 @@ impl Server {
             }
             o::ID_OPEN_CONNECTION_REQUEST_1 => {
                 let (protocol, mtu) = o::parse_request_1(data)?;
+                if mtu < o::MIN_MTU {
+                    return Ok(());
+                }
                 if protocol == self.cfg.protocol_version {
                     o::reply_1(&mut out, self.cfg.guid, mtu.min(self.cfg.max_mtu));
                 } else {
@@ -146,6 +150,9 @@ impl Server {
             }
             o::ID_OPEN_CONNECTION_REQUEST_2 => {
                 let (mtu, _guid) = o::parse_request_2(data)?;
+                if mtu < o::MIN_MTU {
+                    return Ok(());
+                }
                 let mtu = mtu.min(self.cfg.max_mtu);
                 // A repeated request 2 (our reply got lost) or a rejoin from the same port starts over.
                 self.drop_peer(from, DisconnectReason::ClientClosed);
@@ -187,6 +194,37 @@ impl Server {
 mod tests {
     use super::*;
     use crate::{Client, Config, Event};
+
+    #[test]
+    fn requests_below_the_mtu_floor_are_ignored() {
+        let now = Instant::now();
+        let (server_addr, from): (SocketAddr, SocketAddr) = ("127.0.0.1:19132".parse().unwrap(), "127.0.0.1:50000".parse().unwrap());
+        let mut server = Server::new(ServerConfig::new(1, "MCPE;test".into()), now);
+        let mut request_1 = BytesMut::new();
+        o::open_connection_request_1(&mut request_1, 11, 100);
+        server.handle_datagram(now, from, request_1.freeze());
+        for mtu in [0, 20, 44, o::MIN_MTU - 1] {
+            let mut request_2 = BytesMut::new();
+            o::open_connection_request_2(&mut request_2, None, server_addr, mtu, 2);
+            server.handle_datagram(now, from, request_2.freeze());
+        }
+        assert_eq!(server.poll_transmit(now), None);
+        assert!(server.peers.is_empty());
+    }
+
+    #[test]
+    fn client_survives_a_tiny_mtu_in_the_replies() {
+        let now = Instant::now();
+        let server_addr: SocketAddr = "127.0.0.1:19132".parse().unwrap();
+        let mut client = Client::new(Config::new(2), server_addr, now);
+        let (mut reply_1, mut reply_2) = (BytesMut::new(), BytesMut::new());
+        o::reply_1(&mut reply_1, 1, 0);
+        o::reply_2(&mut reply_2, 1, "127.0.0.1:50000".parse().unwrap(), 0);
+        client.handle_datagram(now, reply_1.freeze());
+        client.handle_datagram(now, reply_2.freeze());
+        let sent: Vec<Bytes> = std::iter::from_fn(|| client.poll_transmit(now)).collect();
+        assert!(sent.len() >= 3, "requests 1 and 2, then the connection request");
+    }
 
     #[test]
     fn client_connects_and_messages_flow_both_ways() {

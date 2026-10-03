@@ -18,6 +18,8 @@ pub const ID_UNCONNECTED_PONG: u8 = 0x1c;
 
 /// IPv4 + UDP header bytes that the MTU includes but a datagram payload cannot use.
 pub const UDP_OVERHEAD: u16 = 28;
+/// The smallest MTU RakNet clients try, and the smallest any IPv4 host must accept.
+pub const MIN_MTU: u16 = 576;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pong {
