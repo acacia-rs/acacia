@@ -43,7 +43,7 @@ impl Reader {
 
 fn parse_tables() -> Blob {
     let mut r = Reader { pos: 0 };
-    assert_eq!(r.bytes(4), b"BWB2", "blocks.bin: bad magic");
+    assert_eq!(r.bytes(4), b"BWB3", "blocks.bin: bad magic");
     let frictions = (0..r.u8()).map(|_| r.f32()).collect();
     let strings = (0..r.u32())
         .map(|_| {
@@ -86,6 +86,7 @@ pub(super) fn vanilla_states() -> Vec<BlockState> {
             let friction = blob.frictions[r.u8() as usize];
             let network_hash = r.u32() as u32;
             let mining = blob.mining[r.u16() as usize];
+            let light = r.u8();
             BlockState {
                 name,
                 properties,
@@ -95,6 +96,8 @@ pub(super) fn vanilla_states() -> Vec<BlockState> {
                 liquid_depth,
                 network_hash,
                 mining,
+                light_emission: light >> 4,
+                light_filter: light & 15,
             }
         })
         .collect()

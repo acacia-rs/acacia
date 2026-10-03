@@ -69,6 +69,10 @@ pub struct BlockState {
     /// `{name, states}`. 0 for custom blocks (not computed).
     pub network_hash: u32,
     pub mining: Mining,
+    /// Block light level the state emits, 0..=15.
+    pub light_emission: u8,
+    /// Extra light lost passing through, on top of 1 per block step; 15 blocks all light, 0 is clear.
+    pub light_filter: u8,
 }
 
 impl BlockState {

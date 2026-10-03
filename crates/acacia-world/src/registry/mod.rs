@@ -134,6 +134,8 @@ fn custom_state(name: &'static str) -> BlockState {
         liquid_depth: 0,
         network_hash: 0,
         mining: Mining::UNKNOWN,
+        light_emission: 0,
+        light_filter: 15,
     }
 }
 

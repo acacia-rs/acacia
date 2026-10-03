@@ -69,6 +69,36 @@ fn liquids() {
 }
 
 #[test]
+fn light_emission_and_filter() {
+    let light = |name, props| {
+        let s = state(name, props);
+        (s.light_emission, s.light_filter)
+    };
+    assert_eq!(light("minecraft:stone", ""), (0, 15));
+    assert_eq!(light("minecraft:air", ""), (0, 0));
+    assert_eq!(light("minecraft:glowstone", ""), (15, 15));
+    assert_eq!(light("minecraft:torch", "torch_facing_direction=top"), (14, 0));
+    assert_eq!(light("minecraft:lit_furnace", "minecraft:cardinal_direction=north").0, 13);
+    assert_eq!(light("minecraft:unlit_redstone_torch", "torch_facing_direction=top").0, 0);
+    assert_eq!(light("minecraft:light_block_7", ""), (7, 0));
+    assert_eq!(light("minecraft:white_candle", "candles=2,lit=1").0, 9);
+    assert_eq!(light("minecraft:white_candle", "candles=2,lit=0").0, 0);
+    assert_eq!(light("minecraft:sea_pickle", "cluster_count=3,dead_bit=0").0, 15);
+    assert_eq!(light("minecraft:sea_pickle", "cluster_count=3,dead_bit=1").0, 0);
+    assert_eq!(light("minecraft:respawn_anchor", "respawn_anchor_charge=2").0, 7);
+    assert_eq!(light("minecraft:waxed_weathered_copper_bulb", "lit=1,powered_bit=0").0, 8);
+    assert_eq!(light("minecraft:campfire", "extinguished=1,minecraft:cardinal_direction=north").0, 0);
+    assert_eq!(light("minecraft:cauldron", "cauldron_liquid=lava,fill_level=6"), (15, 2));
+    assert_eq!(light("minecraft:water", "liquid_depth=0").1, 1);
+    assert_eq!(light("minecraft:oak_leaves", "persistent_bit=0,update_bit=0").1, 2);
+    assert_eq!(light("minecraft:oak_slab", "minecraft:vertical_half=bottom").1, 1);
+    assert_eq!(light("minecraft:oak_double_slab", "minecraft:vertical_half=bottom").1, 15);
+    assert_eq!(light("minecraft:waxed_double_cut_copper_slab", "minecraft:vertical_half=bottom").1, 15);
+    assert_eq!(light("minecraft:glowingobsidian", ""), (12, 15));
+    assert_eq!(light("minecraft:glass", "").1, 0);
+}
+
+#[test]
 fn stairs_have_step_and_corner_boxes() {
     let east = state("minecraft:oak_stairs", "minecraft:corner=none,upside_down_bit=0,weirdo_direction=0");
     assert_eq!(east.boxes, &[b([0.0; 3], [1.0, 0.5, 1.0]), b([0.5, 0.5, 0.0], [1.0; 3])]);

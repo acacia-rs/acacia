@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { readNbt, fnv1_64 } from './nbt.mjs';
 import * as R from './rules.mjs';
 import { miningTable, UNKNOWN_MINING } from './mining.mjs';
+import { lightFor } from './light.mjs';
 
 const GEYSER_PALETTE = 'block_palette.26_50.nbt';
 const MCDATA_VERSION = '1.26.30';
@@ -103,6 +104,7 @@ const shp = (boxes) => {
 };
 
 const mining = miningTable(mcBlocks);
+const mcByName = new Map(mcBlocks.map((b) => [b.name, b]));
 const noMining = new Set();
 const miningIds = new Map();
 const miningList = [];
@@ -122,15 +124,16 @@ const states = palette.map((s) => {
   const boxes = shapeFor(s);
   const flags = R.blockFlags(s.name, s.props) | (isFull(boxes) ? R.FLAG.FULL_CUBE : 0);
   const liquid = flags & (R.FLAG.WATER | R.FLAG.LAVA) ? s.props.liquid_depth ?? 0 : 0;
-  return [str(s.name), str(propsKey(s.props)), shp(boxes), flags, liquid, R.frictionIndex(s.name), s.hash, miningFor(s.name)];
+  const [emit, filter] = lightFor(mcByName, s.name, s.props);
+  return [str(s.name), str(propsKey(s.props)), shp(boxes), flags, liquid, R.frictionIndex(s.name), s.hash, miningFor(s.name), emit << 4 | filter];
 });
 
 // Layout (little endian), parsed by src/registry/blob.rs:
-// "BWB2", u8 n + n*f32 frictions, u32 n + n*(u16 len, utf8) strings, u32 n + n*(u8 boxes, boxes*6 f32) shapes,
+// "BWB3", u8 n + n*f32 frictions, u32 n + n*(u16 len, utf8) strings, u32 n + n*(u8 boxes, boxes*6 f32) shapes,
 // u16 n + n*(f32 hardness, u8 material, u8 harvest tool kinds, u8 min harvest level) mining,
 // u32 n + n*(u16 name, u16 props, u16 shape, u16 flags, u8 liquid_depth, u8 friction index,
-// u32 network hash = FNV-1a 32 of LE NBT {name, states}, u16 mining) states.
-const parts = [Buffer.from('BWB2')];
+// u32 network hash = FNV-1a 32 of LE NBT {name, states}, u16 mining, u8 light emission << 4 | filter) states.
+const parts = [Buffer.from('BWB3')];
 const u8 = (v) => parts.push(Buffer.from([v]));
 const u16 = (v) => { const b = Buffer.alloc(2); b.writeUInt16LE(v); parts.push(b); };
 const u32 = (v) => { const b = Buffer.alloc(4); b.writeUInt32LE(v); parts.push(b); };
@@ -143,7 +146,7 @@ for (const boxes of shapeList) { u8(boxes.length); boxes.flat().forEach(f32); }
 u16(miningList.length);
 for (const [hardness, mat, kinds, level] of miningList) { f32(hardness); u8(mat); u8(kinds); u8(level); }
 u32(states.length);
-for (const [n, p, sh, fl, lq, fr, h, mi] of states) { u16(n); u16(p); u16(sh); u16(fl); u8(lq); u8(fr); u32(h); u16(mi); }
+for (const [n, p, sh, fl, lq, fr, h, mi, li] of states) { u16(n); u16(p); u16(sh); u16(fl); u8(lq); u8(fr); u32(h); u16(mi); u8(li); }
 
 mkdirSync(dirname(out), { recursive: true });
 const blob = Buffer.concat(parts);

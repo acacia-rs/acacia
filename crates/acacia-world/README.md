@@ -15,7 +15,10 @@ chunk storage shared between bots on one server.
 - **Mining** (`tools/mining.mjs`): minecraft-data `blocks.json` `hardness`, `material` (→ `Material`) and
   `harvestTools` (item ids 939 + 5·tier + kind, 1134 = shears → allowed tool kinds + minimum harvest level).
   Blocks missing from minecraft-data borrow via `templateFor`; the rest (`shelf_mushroom`) get NaN hardness.
-- Output: `data/blocks.bin` (~590 KB, `include_bytes!`, parsed once on first use).
+- **Light** (`tools/light.mjs`): minecraft-data `emitLight`/`filterLight`, corrected from minecraft.wiki/w/Light:
+  its Bedrock filter table (leaves and ice 2, slabs 1, beacon 14...) and state-dependent emitters (`lit_*`
+  blocks, candles, sea pickles, respawn anchors, copper bulbs, campfires, lava cauldrons, `light_block_N`).
+- Output: `data/blocks.bin` (~610 KB, `include_bytes!`, parsed once on first use).
 
 ## Runtime ids
 
@@ -30,7 +33,7 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
 
 - `BlockRegistry`: `vanilla()`, `vanilla_arc()`, `with_custom_blocks`, `get(id)`, `air_id()`, `find(name, props)`,
   `states_of(name)`, `runtime_id_from_hash`. `BlockState`: `name`, `properties` (`k=v,...` sorted), `boxes`,
-  `friction`, `flags` (`BlockFlags`), `liquid_depth`, `network_hash`, `mining` (`Mining`: hardness, `Material`,
+  `friction`, `flags` (`BlockFlags`), `liquid_depth`, `network_hash`, `light_emission`, `light_filter`, `mining` (`Mining`: hardness, `Material`,
   `can_harvest(Option<Tool>)`; `Tool::from_identifier("minecraft:iron_pickaxe")`), plus `is_solid`, `is_liquid`,
   `fluid_height`, `jump_factor`, `stuck_multiplier`, `property(key)`.
 - `Chunk::decode(x, z, Dimension, sub_chunk_count, payload)`, `block`/`liquid(x, y, z)` (world coords),
@@ -59,4 +62,6 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
   the same shape.
 - `DYNAMIC_SHAPE` blocks (scaffolding, powder snow, bamboo, pointed dripstone) need physics-side handling.
 - Fence arms use Java's post width (0.375 to 0.625, 1.5 high). Panes and bars use Boar's thin-bar boxes.
-- Custom blocks collide as full cubes and have no properties or hash.
+- Custom blocks collide as full cubes, block all light, and have no properties or hash.
+- Trial spawner light by state (4 idle, 9 active) and vault (6 inactive, 12 otherwise) follow the wiki's
+  wording; conduits always emit 15 (activity lives in the block entity).
