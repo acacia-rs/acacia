@@ -60,7 +60,8 @@ function build(player) {
     const [e] = dim.getEntities({ type, location: { x, y: by, z }, maxDistance: 1, excludeTags: [TAG] });
     if (!e) return log(`no ${type} spawned`);
     e.addTag(TAG);
-    if (type !== "minecraft:boat") e.addEffect("slowness", 20000000, { amplifier: 255, showParticles: false });
+    // Slowness would also slow the ridden horse, whose own speed the bot simulates.
+    if (!["minecraft:boat", "minecraft:horse"].includes(type)) e.addEffect("slowness", 20000000, { amplifier: 255, showParticles: false });
     homes.set(e.id, { x, y: by, z });
   };
   homes.clear();
@@ -68,6 +69,11 @@ function build(player) {
   spawn("minecraft:villager", -1, 1, "minecraft:spawn_farmer");
   spawn("minecraft:pig", 1, 1, "minecraft:on_saddled");
   spawn("minecraft:boat", 1, -1);
+  spawn("minecraft:horse", -6, 0, "minecraft:on_tame");
+  run(`replaceitem entity @e[type=horse,tag=${TAG}] slot.saddle 0 saddle`);
+  scene.horse = [bx - 6, by, bz];
+  // A 1-block ledge across the horse ride's westward stretch: a ridden horse walks up it (step 1.0625).
+  run(`fill ${bx - 12} ${by} ${bz - 5} ${bx - 12} ${by} ${bz + 5} stone`);
   for (const e of dim.getEntities({ type: "minecraft:item" })) e.remove();
 
   for (const rule of ["dodaylightcycle false", "domobspawning false", "doweathercycle false", "spawnradius 0"]) run(`gamerule ${rule}`);
@@ -194,13 +200,17 @@ world.beforeEvents.playerInteractWithEntity.subscribe(({ player, target, itemSta
 });
 world.afterEvents.playerInteractWithEntity.subscribe(({ target }) => log(`interact after ${target.typeId}`));
 
-// The server's own glide, every tick: position, velocity and the rotation it has for the player.
+// The server's own glide or ridden vehicle, every tick: position, velocity and rotation.
 system.runInterval(() => {
+  const line = (what, e) => {
+    const v = e.getVelocity();
+    const r = e.getRotation();
+    log(`${what} ${system.currentTick} ${where(e)} v ${[v.x, v.y, v.z].map((c) => c.toFixed(5))} rot ${r.x.toFixed(2)},${r.y.toFixed(2)}`);
+  };
   for (const p of world.getAllPlayers()) {
-    if (!p.isGliding) continue;
-    const v = p.getVelocity();
-    const r = p.getRotation();
-    log(`glide ${system.currentTick} ${where(p)} v ${[v.x, v.y, v.z].map((c) => c.toFixed(5))} rot ${r.x.toFixed(2)},${r.y.toFixed(2)}`);
+    if (p.isGliding) line("glide", p);
+    const vehicle = p.getComponent("minecraft:riding")?.entityRidingOn;
+    if (vehicle?.typeId === "minecraft:horse") line("horse", vehicle);
   }
 }, 1);
 

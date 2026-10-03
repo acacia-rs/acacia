@@ -1,8 +1,9 @@
 //! Riding: mounting by right-clicking an entity, dismounting, and the seated player's `PlayerAuthInput`.
-//! The seat itself is tracked in `state::Riding`. Steering is not implemented: it needs vehicle physics
-//! (docs/research/riding-fishing-elytra.md, with the vanilla packet sequences).
+//! The seat itself is tracked in `state::Riding`. Physics bots steer horses (`horse.rs`); other
+//! vehicles are not simulated yet (docs/research/riding-fishing-elytra.md, with the vanilla packet sequences).
 
 mod exit;
+mod horse;
 mod input;
 mod tick;
 
@@ -32,6 +33,8 @@ pub(crate) struct Ride {
     dismount: bool,
     /// Feet position for a physics bot leaving the current seat (the server's exit spot when known).
     leaving_feet: Option<[f32; 3]>,
+    /// Physics bots: the horse being driven.
+    horse: Option<horse::HorseSim>,
 }
 
 impl Bot {

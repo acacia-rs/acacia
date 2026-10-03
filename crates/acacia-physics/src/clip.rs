@@ -1,7 +1,6 @@
 //! Port of bedsim `collision.go` (vanilla `AABB::clipCollide`) and the auto-step sweep.
 
 use crate::aabb::Aabb;
-use crate::constants::STEP_HEIGHT;
 use crate::math::{Vec3, add};
 
 /// Contact distances within one micrometre snap to zero.
@@ -112,11 +111,11 @@ pub(crate) struct AutoStep {
     pub velocity: Vec3,
 }
 
-/// The client auto-step sequence: up by the step height, X, Z, then back down.
-pub(crate) fn auto_step(original: &Aabb, velocity: Vec3, boxes: &[Aabb], one_way: bool) -> AutoStep {
+/// The client auto-step sequence: up by `height`, X, Z, then back down.
+pub(crate) fn auto_step(original: &Aabb, velocity: Vec3, boxes: &[Aabb], one_way: bool, height: f32) -> AutoStep {
     let relevant: Vec<Aabb> = boxes.iter().copied().filter(|b| b.min[1] < original.max[1]).collect();
     let mut bb = *original;
-    let up = clip_all(&relevant, &bb, [0.0, STEP_HEIGHT, 0.0], one_way, None);
+    let up = clip_all(&relevant, &bb, [0.0, height, 0.0], one_way, None);
     bb = bb.translate(up);
     let x = clip_all(&relevant, &bb, [velocity[0], 0.0, 0.0], one_way, None);
     bb = bb.translate(x);

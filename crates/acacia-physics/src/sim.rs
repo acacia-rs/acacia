@@ -162,7 +162,7 @@ pub(crate) fn land_teleport(st: &mut PlayerState, pos: Vec3) {
 }
 
 pub(crate) fn effective_air_speed(st: &PlayerState) -> f32 {
-    if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED }
+    st.fixed_air_speed.unwrap_or(if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED })
 }
 
 fn tick_state(st: &mut PlayerState) {

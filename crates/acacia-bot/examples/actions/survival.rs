@@ -223,6 +223,48 @@ pub async fn glide_water(bot: &mut Bot, s: &Scene) -> Check {
     glide_until_landed(bot, before, "glided into the water").await
 }
 
+/// Rides the scene's tamed, saddled horse: forward, a 90° turn, strafing, backing, stopping (physics
+/// bots). Passes with no server corrections of the horse.
+pub async fn ride_horse(bot: &mut Bot, s: &Scene) -> Check {
+    let [x, y, z] = s.at("horse");
+    bot.client().command(&format!("/tp @s {} {y} {} 90 0", x as f32 + 2.5, z as f32 + 0.5));
+    bot.wait_ticks(15).await?;
+    let me = bot.state().player.position.clone();
+    let id = bot.state().entities.nearest(&me, |e| e.kind == "minecraft:horse").map(|e| e.runtime_id).ok_or("no horse tracked")?;
+    bot.mount(id).await?;
+    bot.wait_ticks(5).await?;
+    // The first input after the mount may correct a horse that wandered since the bot last saw it.
+    bot.wait_ticks(5).await?;
+    let mut phases = Vec::new();
+    let phase_list = [
+        ("west", 1.0, 0.0, 90.0, 40),
+        ("turn", 1.0, 0.0, 180.0, 30),
+        ("strafe", 0.0, 1.0, 180.0, 15),
+        ("back", -1.0, 0.0, 180.0, 15),
+        ("stop", 0.0, 0.0, 180.0, 10),
+    ];
+    for (name, forward, strafe, yaw, ticks) in phase_list {
+        let before = vehicle_corrections(bot);
+        if let Some(c) = bot.controls() {
+            (c.forward, c.strafe, c.yaw) = (forward, strafe, yaw);
+        }
+        bot.wait_ticks(ticks).await?;
+        phases.push((name, vehicle_corrections(bot) - before));
+    }
+    if let Some(c) = bot.controls() {
+        c.stop();
+    }
+    let speed = bot.vehicle().and_then(|v| v.runtime_id).and_then(|id| bot.state().entities.get(id)).and_then(|e| e.movement);
+    bot.dismount().await?;
+    let corrections: u32 = phases.iter().map(|(_, n)| n).sum();
+    let detail = format!("horse corrections per phase {phases:?}; speed attribute {speed:?}");
+    if corrections == 0 { Ok(format!("rode; {detail}")) } else { Err(detail.into()) }
+}
+
+fn vehicle_corrections(bot: &Bot) -> u32 {
+    bot.movement().map_or(0, |m| m.vehicle_corrections)
+}
+
 /// Waits for the glide to end by itself, then checks the server never corrected the bot after `before`.
 async fn glide_until_landed(bot: &mut Bot, before: u32, done: &str) -> Check {
     let mut ticks = 0;

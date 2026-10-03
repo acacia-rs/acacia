@@ -64,6 +64,10 @@ pub struct PlayerState {
     /// Effective movement attribute without the sprint modifier.
     pub default_movement_speed: f32,
     pub air_speed: f32,
+    /// Replaces the walk/sprint air speed: a ridden horse's is its movement attribute x 0.1 (`vehicle.rs`).
+    pub fixed_air_speed: Option<f32>,
+    /// Highest ledge walked up without a jump: the player's 0.5625, a ridden horse's 1.0625.
+    pub step_height: f32,
     pub underwater_movement_speed: f32,
     pub lava_movement_speed: f32,
     pub swim_speed_multiplier: f32,
@@ -149,6 +153,8 @@ impl PlayerState {
             movement_speed: DEFAULT_MOVEMENT_SPEED,
             default_movement_speed: DEFAULT_MOVEMENT_SPEED,
             air_speed: WALK_AIR_SPEED,
+            fixed_air_speed: None,
+            step_height: STEP_HEIGHT,
             underwater_movement_speed: 0.0,
             lava_movement_speed: 0.0,
             swim_speed_multiplier: 0.0,

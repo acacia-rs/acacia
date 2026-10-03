@@ -76,6 +76,10 @@ pub struct Movement {
     pub corrections: u32,
     /// Server teleports received (including setbacks).
     pub teleports: u32,
+    /// Corrections of a vehicle the bot drives: each one means the vehicle simulation disagreed.
+    pub vehicle_corrections: u32,
+    /// The latest vehicle correction (position, delta, on ground), for the vehicle simulation to take.
+    pub(crate) vehicle_correction: Option<(Vec3, Vec3, bool)>,
     /// Ticks spent with the spawn chunk loaded but movement not yet started.
     pub(crate) spawn_wait: u32,
     /// Holding "use" on an item (eating, drinking), which slows movement.
@@ -107,6 +111,8 @@ impl Movement {
             pending_actions: Vec::new(),
             corrections: 0,
             teleports: 0,
+            vehicle_corrections: 0,
+            vehicle_correction: None,
             spawn_wait: 0,
             using_item: false,
             elytra: false,
@@ -197,8 +203,17 @@ impl Movement {
             }
             CorrectPlayerMovePrediction::ID => {
                 let c: CorrectPlayerMovePrediction = packet.decode()?;
-                // Corrections of a driven boat or horse; applied to the player they sank it 1.62 below the vehicle.
-                if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle { return Ok(()); }
+                // Corrections of a driven boat or horse go to the vehicle simulation (riding/horse.rs);
+                // applied to the player they sank it 1.62 below the vehicle.
+                if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle {
+                    tracing::debug!(
+                        server_tick = c.tick, server = ?[c.position.x, c.position.y, c.position.z], delta = ?[c.delta.x, c.delta.y, c.delta.z],
+                        on_ground = c.on_ground, "vehicle correction"
+                    );
+                    self.vehicle_correction = Some(([c.position.x, c.position.y, c.position.z], [c.delta.x, c.delta.y, c.delta.z], c.on_ground));
+                    self.vehicle_corrections += 1;
+                    return Ok(());
+                }
                 tracing::debug!(
                     our_tick = self.tick, server_tick = c.tick, ours = ?st.pos, server = ?feet(&c.position),
                     delta = ?[c.delta.x, c.delta.y, c.delta.z], on_ground = c.on_ground, "movement correction"
