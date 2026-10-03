@@ -3,7 +3,7 @@
 use super::reader::Reader;
 use crate::Error;
 
-const VOLUME: usize = 4096;
+pub const VOLUME: usize = 4096;
 const VALID_BITS: [u8; 8] = [1, 2, 3, 4, 5, 6, 8, 16];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,6 +116,28 @@ impl Storage {
         }
     }
 
+    pub(crate) fn copy_into(&self, out: &mut [u32; VOLUME]) {
+        match self {
+            Storage::Single(id) => out.fill(*id),
+            Storage::Packed { bits, palette, words } => {
+                let (per, mask) = (per_word(*bits), (1u32 << bits) - 1);
+                for (chunk, &w) in out.chunks_mut(per).zip(words.iter()) {
+                    for (i, v) in chunk.iter_mut().enumerate() {
+                        let p = (w >> (i * *bits as usize)) & mask;
+                        *v = palette.get(p as usize).copied().unwrap_or(palette[0]);
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn single(&self) -> Option<u32> {
+        match self {
+            Storage::Single(id) => Some(*id),
+            Storage::Packed { .. } => None,
+        }
+    }
+
     /// Distinct runtime ids this storage can contain.
     pub(crate) fn palette(&self) -> &[u32] {
         match self {
@@ -162,5 +184,8 @@ mod tests {
         for i in 0..VOLUME {
             assert_eq!(s.get(i), (i % 40) as u32 + 100);
         }
+        let mut out = [0; VOLUME];
+        s.copy_into(&mut out);
+        assert!(out.iter().enumerate().all(|(i, &v)| v == (i % 40) as u32 + 100));
     }
 }

@@ -13,6 +13,7 @@ use std::sync::{Arc, Weak};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use rustc_hash::FxHashMap;
 
+use crate::change::{ChunkChange, Notifier};
 use crate::{BlockRegistry, Chunk, Dimension, Error};
 
 pub struct SharedChunk {
@@ -75,13 +76,13 @@ pub struct World {
     ids: BlockIds,
     chunks: RwLock<FxHashMap<(i32, i32), Weak<SharedChunk>>>,
     pub(crate) next_view: AtomicU64,
-
+    changes: Notifier,
 }
 
 impl World {
     pub fn new(registry: Arc<BlockRegistry>, dimension_id: i32, ids: BlockIds) -> Arc<World> {
         let dim = Dimension::from_id(dimension_id, registry.air_id());
-        Arc::new(World { registry, dim, ids, chunks: RwLock::default(), next_view: AtomicU64::new(NO_OWNER + 1) })
+        Arc::new(World { registry, dim, ids, chunks: RwLock::default(), next_view: AtomicU64::new(NO_OWNER + 1), changes: Notifier::default() })
     }
 
     /// Translates a wire block id (chunk palettes, `UpdateBlock`) to a runtime id.
@@ -111,6 +112,17 @@ impl World {
 
     pub fn get(&self, x: i32, z: i32) -> Option<Arc<SharedChunk>> {
         self.chunks.read().get(&(x, z))?.upgrade()
+    }
+
+    /// Positions of chunks still held by at least one view.
+    pub fn chunk_positions(&self) -> Vec<(i32, i32)> {
+        self.chunks.read().iter().filter(|(_, w)| w.strong_count() > 0).map(|(&p, _)| p).collect()
+    }
+
+    /// Every content change applied from now on. Chunks already loaded are not replayed: read
+    /// [`World::chunk_positions`] after subscribing.
+    pub fn subscribe(&self) -> std::sync::mpsc::Receiver<ChunkChange> {
+        self.changes.subscribe()
     }
 
     /// Chunks still held by at least one view.
@@ -156,6 +168,7 @@ impl World {
             }
             *slot = fresh;
             drop(slot);
+            self.changes.send(ChunkChange::Column { x, z });
             return Ok((c, Inserted::Decoded));
         }
         // Amortized pruning of chunks every view has dropped.
@@ -165,6 +178,8 @@ impl World {
         let c = SharedChunk::new(fresh);
         c.claim(view);
         map.insert((x, z), Arc::downgrade(&c));
+        drop(map);
+        self.changes.send(ChunkChange::Column { x, z });
         Ok((c, Inserted::Decoded))
     }
 
@@ -183,6 +198,8 @@ impl World {
         let mut slot = c.slot.write();
         slot.chunk.set(x, y, z, layer, id);
         slot.payload_hash = None;
+        drop(slot);
+        self.changes.send(ChunkChange::Block { x, y, z });
         true
     }
 
@@ -206,6 +223,7 @@ impl World {
         slot.chunk.set_sub_chunk_mapped(section_y, payload, &|id| self.runtime_id(id))?;
         slot.payload_hash = None;
         drop(slot);
+        self.changes.send(ChunkChange::Section { x, section_y, z });
         Ok(c)
     }
 }

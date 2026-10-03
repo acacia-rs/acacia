@@ -6,6 +6,7 @@ mod reader;
 mod storage;
 mod tail;
 
+pub use storage::VOLUME as SECTION_VOLUME;
 pub use tail::{level_chunk_block_entities, sub_chunk_block_entities};
 
 use reader::Reader;
@@ -124,6 +125,28 @@ impl Chunk {
             0 => s.blocks.set(index(x, y, z), id),
             1 => s.liquid.set(index(x, y, z), id),
             _ => {}
+        }
+    }
+
+    /// Number of 16-block sections from `min_y` up.
+    pub fn section_count(&self) -> usize {
+        self.sections.len()
+    }
+
+    /// Unpacks section `index` (0 = lowest) into XZY-ordered runtime ids, `(x << 8) | (z << 4) | y`.
+    /// Returns false, leaving the buffers untouched, when the section was never sent (all air).
+    pub fn copy_section(&self, index: usize, blocks: &mut [u32; SECTION_VOLUME], liquid: &mut [u32; SECTION_VOLUME]) -> bool {
+        let Some(s) = self.sections.get(index).and_then(Option::as_deref) else { return false };
+        s.blocks.copy_into(blocks);
+        s.liquid.copy_into(liquid);
+        true
+    }
+
+    /// Whether section `index` holds only one block id in both layers (e.g. all stone or all air).
+    pub fn section_uniform(&self, index: usize) -> Option<u32> {
+        match self.sections.get(index)? {
+            None => Some(self.dim.air),
+            Some(s) => s.blocks.single().filter(|_| s.liquid.single() == Some(self.dim.air)),
         }
     }
 

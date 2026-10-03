@@ -39,6 +39,9 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
   strong refs: `insert_level_chunk` (skips decoding when the payload hash matches the live chunk),
   `insert_sub_chunk`, `set_block` (UpdateBlock / UpdateSubChunkBlocks, wire ids), `retain_within`, `remove`.
   `World::wire_id(runtime_id)` gives the id to send back (hash under `BlockIds::Hashed`).
+- `World::subscribe()` yields every applied `ChunkChange` (`Column`, `Section`, `Block`); loaded chunks
+  aren't replayed, so read `chunk_positions()` after subscribing. `Chunk::copy_section` unpacks a section's
+  two layers in XZY order and `section_uniform` spots all-air sections (for renderers).
 - `BlockAccess` (`block`, `liquid`; unloaded reads air) is implemented by `ChunkView`.
 - Since 26.50, stairs (`minecraft:corner`), fences and panes (`minecraft:connection_*`) carry their
   connections in the state, and walls already did. So `boxes` is complete and needs no neighbour lookups.

@@ -37,6 +37,8 @@ acacia-client             tokio sockets and timers, SOCKS5 (UDP + CONNECT), Neth
  ├─ acacia-nethernet      network-free NetherNet: signaling HTTP bytes (both sides), signal text, signaling-service
  │                        session, STUN/TURN client, a=identity, fragment framing, str0m connection (offer or BDS-style answer)
  └─ acacia-auth           MSA device code → Xbox → XSTS → PlayFab → session/start → multiplayer token
+acacia-viewer             (app) world viewer: a bot on a tokio thread, winit window, fly camera
+ └─ acacia-render         wgpu terrain renderer over acacia-world (no network): pack loading, meshing, drawing
 acacia-mitm               recording proxy for vanilla-client captures over RakNet or NetherNet direct connect,
                           local BDS or (`--online`) real servers
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
@@ -81,6 +83,8 @@ made before 2026-10-02 used gophertunnel's names.
    spawn/respawn sequences match vanilla.
 9. ◐ **Swarm** (docs/swarm.md): sharded bots across servers and realms with reconnect policy and a
    coordinator-ready handle. Tested against fake servers; next: a live run and the load benchmark.
+10. ◐ **Renderer** (crates/acacia-render/README.md): ✅ world viewer on BDS 26.52 (textured terrain, greedy
+   meshing with AO, fly camera). Next: memory profile, biome colours, lighting, cave culling.
 
 ## Gotchas / open items
 

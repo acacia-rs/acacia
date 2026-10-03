@@ -2,7 +2,7 @@ mod common;
 
 use std::sync::Arc;
 
-use acacia_world::{BlockAccess, BlockIds, BlockRegistry, ChunkView, Inserted, World};
+use acacia_world::{BlockAccess, BlockIds, BlockRegistry, ChunkChange, ChunkView, Inserted, SECTION_VOLUME, World};
 use common::*;
 
 fn world() -> Arc<World> {
@@ -135,4 +135,40 @@ fn concurrent_inserts_end_up_with_one_chunk() {
     let first = views[0].chunk(7, 7).unwrap();
     assert!(views.iter().all(|v| Arc::ptr_eq(first, v.chunk(7, 7).unwrap())));
     assert_eq!(w.live_chunks(), 1);
+}
+
+#[test]
+fn subscribers_see_applied_changes_only() {
+    let w = world();
+    let changes = w.subscribe();
+    let (mut a, mut b) = (ChunkView::new(w.clone()), ChunkView::new(w.clone()));
+    a.insert_level_chunk(1, 2, 1, &chunk_payload(1)).unwrap();
+    b.insert_level_chunk(1, 2, 1, &chunk_payload(1)).unwrap();
+    b.set_block(17, 64, 33, 0, 2);
+    a.set_block(17, 64, 33, 0, 2);
+    a.insert_sub_chunk(1, 5, 2, &section_v9(5, &[&filled(3)])).unwrap();
+    let got: Vec<_> = changes.try_iter().collect();
+    assert_eq!(got, [
+        ChunkChange::Column { x: 1, z: 2 },
+        ChunkChange::Block { x: 17, y: 64, z: 33 },
+        ChunkChange::Section { x: 1, section_y: 5, z: 2 },
+    ]);
+    assert_eq!(w.chunk_positions(), [(1, 2)]);
+}
+
+#[test]
+fn copy_section_unpacks_xzy() {
+    let w = world();
+    let mut v = ChunkView::new(w.clone());
+    v.insert_level_chunk(0, 0, 1, &chunk_payload(1)).unwrap();
+    v.set_block(3, 66, 5, 0, 9);
+    let chunk = v.chunk(0, 0).unwrap().read();
+    let (mut blocks, mut liquid) = ([0; SECTION_VOLUME], [0; SECTION_VOLUME]);
+    assert!(!chunk.copy_section(0, &mut blocks, &mut liquid), "section 0 never sent");
+    assert_eq!(chunk.section_uniform(0), Some(w.dimension().air));
+    assert!(chunk.copy_section(8, &mut blocks, &mut liquid));
+    assert_eq!(blocks[(3 << 8) | (5 << 4) | 2], 9);
+    assert_eq!(blocks.iter().filter(|&&b| b == 1).count(), SECTION_VOLUME - 1);
+    assert!(liquid.iter().all(|&l| l == w.dimension().air));
+    assert_eq!(chunk.section_uniform(8), None);
 }

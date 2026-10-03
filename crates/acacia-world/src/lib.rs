@@ -2,13 +2,15 @@
 //! physics flags), chunk decoding, and chunk storage shared between bots. See README.md.
 
 mod access;
+mod change;
 mod chunk;
 mod registry;
 mod view;
 mod world;
 
 pub use access::BlockAccess;
-pub use chunk::{Chunk, Dimension, level_chunk_block_entities, sub_chunk_block_entities};
+pub use change::ChunkChange;
+pub use chunk::{Chunk, Dimension, SECTION_VOLUME, level_chunk_block_entities, sub_chunk_block_entities};
 pub use registry::{
     Aabb, BlockFlags, BlockRegistry, BlockState, CustomBlock, Material, Mining, Tool, ToolKind, ToolTier, fnv1_64,
 };
