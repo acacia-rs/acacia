@@ -35,8 +35,8 @@ ticks), sneak, crawl and swim pose fitting under ceilings, teleports, knockback,
 Riptide, vehicles, creative flight and no-clip (bedsim does not simulate these either; it resets to the client),
 bedsim's client-drift correction and reconciliation, the step tie-breaker (always accepted, as with
 `IgnoreClientStepTiebreaker`), slide offset, legacy sprint timing, server-forced sprint, crawl input flags,
-the `AutoJumpingInWater` input flag, and dynamic, player-dependent collision shapes (scaffolding,
-powder snow with leather boots) — the world adapter must resolve those itself. Speed and Slowness come in
+the `AutoJumpingInWater` input flag, and powder snow's player-dependent collision shape (leather boots, a
+long fall) — the world adapter must resolve that itself. Speed and Slowness come in
 through `set_movement_attribute`, which takes the server's `minecraft:movement` without its sprint and freeze
 modifiers (the simulation adds both itself).
 
@@ -91,6 +91,12 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
 - `apply_current` adds liquid currents while BDS holds a teleported player.
 - Inside-block effects (powder snow, berry bushes, bubble columns) visit BDS's entity-inside cells,
   floor(min + 0.001)..=floor(max - 0.001), so a cell the box only grazes does nothing.
+- A box overlapping a collider is never moved out of it (bedsim depenetrates until stuck for two ticks): along
+  the shallowest axis it may move out but not further in, and BDS `MoveTowardsClosestSpaceSystem` pins the x/z
+  velocity at 0.1 away from the mean centre of the overlapped boxes (+x+z when centred; an axis whose next block
+  is taken turns round, or drops out if both sides are). Seen after a teleport into snow layers or a block
+  placed on the player.
+- Scaffolding collides only from above its block and not while descending (bedsim leaves this to the world).
 - The honey wall slowdown (x/z × 0.4 per touched honey side) applies on the ground and rising too, and in lava,
   but not in water.
 - The standing eye offset is 1.62001 (BDS; bedsim: 1.62), so `PlayerAuthInput.position` matches the server's

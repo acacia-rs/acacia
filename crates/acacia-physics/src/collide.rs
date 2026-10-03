@@ -7,7 +7,7 @@ use crate::math::{BlockPos, Vec3, add, block_pos, hz_dist_sqr, len_sqr, pos_vec,
 use crate::motion::sprint_movement_blocked;
 use crate::sim::Sim;
 use crate::state::PlayerState;
-use crate::world::WorldView;
+use crate::world::{Traversal, WorldView};
 
 /// Cells from floor(min) to ceil(max) inclusive, y outermost (bedsim `nearbyBlocks`).
 pub(crate) fn nearby_cells(bb: &Aabb) -> impl Iterator<Item = BlockPos> {
@@ -52,14 +52,27 @@ fn shrink_towards_zero(v: f32) -> f32 {
 }
 
 impl<W: WorldView + ?Sized> Sim<'_, W> {
+    /// Boxes movement collides with: scaffolding is solid only from above its block and not while descending
+    /// (as Java's `ScaffoldingBlock`; strict BDS fuzz walks through its side).
+    pub(crate) fn movement_bboxes(&self, st: &PlayerState, area: &Aabb) -> Vec<Aabb> {
+        let feet = st.bounding_box().min[1];
+        let mut boxes = self.nearby_bboxes(area);
+        boxes.retain(|b| {
+            let cell = block_pos([(b.min[0] + b.max[0]) * 0.5, (b.min[1] + b.max[1]) * 0.5, (b.min[2] + b.max[2]) * 0.5]);
+            self.w.block(cell).traversal != Traversal::Scaffolding || !st.pressing_descend && feet > cell[1] as f32 + 1.0 - 1e-5
+        });
+        boxes
+    }
+
     /// Sweeps Y, X, Z against nearby boxes, tries an auto-step and commits position and flags.
     pub(crate) fn try_collisions(&self, st: &mut PlayerState) -> bool {
         self.prepare_collision_box(st);
         let start = st.bounding_box();
         let mut bb = start;
         let cur = st.vel;
-        let boxes = self.nearby_bboxes(&bb.extend(cur));
-        let one_way = st.stuck_in_collider;
+        let boxes = self.movement_bboxes(st, &bb.extend(cur));
+        // BDS never moves a player out of a box it overlaps (see `push_out`); bedsim only once stuck.
+        let one_way = true;
         let mut pen = [0f32; 3];
 
         let y = clip_all(&boxes, &bb, [0.0, cur[1], 0.0], one_way, Some(&mut pen));

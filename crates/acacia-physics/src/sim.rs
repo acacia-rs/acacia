@@ -235,6 +235,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             freeze(st);
             return Outcome::Unloaded;
         }
+        self.push_towards_closest_space(st);
         Outcome::Normal
     }
 
