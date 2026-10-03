@@ -106,6 +106,11 @@ interceptors: it must see the codec-switching packets the proxy owns, and logs p
 - Login: vanilla 1.26.52 sends a token-only envelope and alphabetically sorted client-data claims
   (`login/request.rs`). BDS online-mode accepts it (verified 2026-10-01).
 - RakNet client GUIDs must be negative: go-raknet (Dragonfly) rejects positive ones and blocks the IP 10 s.
+- RakNet server (`acacia-raknet/src/server/`) is built for untrusted peers: address cookies, `max_peers`, a
+  handshake deadline and bans (`handshake.rs`), per-peer buffer limits (`RecvLimits`), a congestion window
+  (`reliability/congestion.rs`) and scheduled instead of scanned peers (`schedule.rs`). The client shares the
+  code but sends unwindowed: its pacing is part of the fingerprint. Still open: RakNet has no integrity, so a
+  spoofed *connected* datagram can still end a session; pings are not rate limited; no per-IP peer limit.
 - Bedrock UUIDs travel as two little-endian u64 halves; `proto::manual::Uuid` keeps wire bytes and converts
   only in `Display`/`FromStr`.
 - Joining BDS sends `Respawn(searching)` without a death; vanilla answers none of them (`handlers.rs`).
