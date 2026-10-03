@@ -11,8 +11,9 @@ pub use idle::Idle;
 
 use acacia_client::proto::packets::{
     CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, PlayerAuthInput, PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion,
+    UpdateAttributes,
 };
-use acacia_client::proto::types::InputData;
+use acacia_client::proto::types::{InputData, PlayerAttributesItem};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 use acacia_physics::{self as physics, Input, PlayerState, Vec3, WorldView};
 
@@ -92,7 +93,7 @@ pub struct Movement {
 }
 
 impl Movement {
-    pub const PACKETS: &'static [u32] = &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID];
+    pub const PACKETS: &'static [u32] = &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID, UpdateAttributes::ID];
 
     pub fn new() -> Self {
         Self {
@@ -221,6 +222,18 @@ impl Movement {
                     }
                 }
             }
+            UpdateAttributes::ID => {
+                let a: UpdateAttributes = packet.decode()?;
+                if a.runtime_entity_id == me.runtime_entity_id
+                    && let Some(m) = a.attributes.iter().find(|a| a.name == "minecraft:movement")
+                {
+                    let base = movement_without_sprint(m);
+                    tracing::debug!(our_tick = self.tick, server_tick = a.tick, current = m.current, base, "movement attribute");
+                    if base != st.default_movement_speed {
+                        st.set_movement_attribute(base);
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -313,6 +326,15 @@ fn keys(strafe: f32, forward: f32) -> [f32; 2] {
 /// A movement axis as a key press: -1, 0 or 1.
 fn key(axis: f32) -> f32 {
     if axis > 0.0 { 1.0 } else if axis < 0.0 { -1.0 } else { 0.0 }
+}
+
+/// The server's `minecraft:movement` rebuilt from its modifiers without the sprint boost, which the simulation
+/// applies from its own sprint state (the server's lags). Operations: 0 add, 1 multiply base, 2 multiply total.
+fn movement_without_sprint(a: &PlayerAttributesItem) -> f32 {
+    let mods = || a.modifiers.iter().filter(|m| m.name != "Sprinting speed boost");
+    let added = a.default + mods().filter(|m| m.operation == 0).map(|m| m.amount).sum::<f32>();
+    let based = added + added * mods().filter(|m| m.operation == 1).map(|m| m.amount).sum::<f32>();
+    mods().filter(|m| m.operation == 2).fold(based, |v, m| v * (1.0 + m.amount))
 }
 
 fn feet(eye: &acacia_client::proto::types::Vec3f) -> Vec3 {

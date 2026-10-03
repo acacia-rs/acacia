@@ -35,8 +35,9 @@ ticks), sneak, crawl and swim pose fitting under ceilings, teleports, knockback,
 Riptide, vehicles, creative flight and no-clip (bedsim does not simulate these either; it resets to the client),
 bedsim's client-drift correction and reconciliation, the step tie-breaker (always accepted, as with
 `IgnoreClientStepTiebreaker`), slide offset, legacy sprint timing, server-forced sprint, crawl input flags,
-the `AutoJumpingInWater` input flag, and dynamic, player-dependent collision shapes (scaffolding,
-powder snow with leather boots) — the world adapter must resolve those itself. Speed and Slowness are expected
+the `AutoJumpingInWater` input flag, scaffolding's unsupported-bottom lip, and powder snow's solid shape with
+leather boots — the world adapter must resolve that one itself. Scaffolding collides only under a player standing
+above it who isn't descending (`Sim::collides_for`). Speed and Slowness are expected
 inside the movement attribute, as bedsim expects.
 
 ## Deliberate deviations from bedsim

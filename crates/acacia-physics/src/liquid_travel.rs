@@ -120,7 +120,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             if !self.loaded(&raised_box) {
                 return false;
             }
-            if !self.has_nearby_bboxes(&raised_box) && !self.contains_any_liquid(&raised_box) {
+            if !self.has_nearby_bboxes(st, &raised_box) && !self.contains_any_liquid(&raised_box) {
                 v[1] = 0.3;
             }
         }

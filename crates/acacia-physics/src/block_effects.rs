@@ -42,13 +42,16 @@ pub(crate) fn apply_ascendable_movement(st: &mut PlayerState, traversal: Travers
                 v[1] = 0.15;
             }
         }
-        Traversal::PowderSnow => {
+        // Only boots make powder snow walkable; without them sneaking leaves the sink to gravity (BDS fuzz: a
+        // sneaking jump in powder snow still rises).
+        Traversal::PowderSnow if st.equipment.leather_boots => {
             if st.pressing_descend {
                 v[1] = -0.15;
-            } else if st.pressing_ascend && st.equipment.leather_boots {
+            } else if st.pressing_ascend {
                 v[1] = 0.2;
             }
         }
+        Traversal::PowderSnow => {}
         Traversal::None => {}
     }
     st.set_vel(v);
