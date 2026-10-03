@@ -22,6 +22,11 @@ struct Entry {
     tick: u64,
     input: Input,
     knockback: Option<Vec3>,
+    /// A server movement attribute (without sprint and freeze) taking effect on this tick.
+    movement: Option<f32>,
+    /// The server's freeze count after this tick: its newest attribute stamped here, which includes server ticks
+    /// that ran without an input since.
+    frozen: Option<u32>,
     /// The state at the end of the tick.
     after: PlayerState,
 }
@@ -40,7 +45,24 @@ impl History {
         if self.entries.len() == HISTORY {
             self.entries.pop_front();
         }
-        self.entries.push_back(Entry { tick, input, knockback, after: after.clone() });
+        self.entries.push_back(Entry { tick, input, knockback, movement: None, frozen: None, after: after.clone() });
+    }
+
+    /// A server movement attribute effective from input `tick`: kept tick states from then on take it, and a
+    /// replay over `tick` applies it there, so rewinding to an older state doesn't undo it. Our predicted freeze
+    /// counts from then on shift by the server's correction; returns the newest kept count, if `tick` is kept.
+    pub(super) fn movement_attribute(&mut self, tick: u64, base: f32, frozen: u32) -> Option<u32> {
+        let at = self.entries.iter().position(|e| e.tick == tick)?;
+        let shift = i64::from(frozen) - i64::from(self.entries[at].after.frozen_ticks);
+        for e in self.entries.iter_mut().skip(at) {
+            if e.tick == tick {
+                e.movement = Some(base);
+                e.frozen = Some(frozen);
+            }
+            e.after.set_movement_attribute(base);
+            e.after.set_frozen_ticks((i64::from(e.after.frozen_ticks) + shift).max(0) as u32);
+        }
+        self.entries.back().map(|e| e.after.frozen_ticks)
     }
 
     /// Resets the state as of the end of `tick` before the next simulated tick. The newest tick wins:
@@ -97,8 +119,14 @@ impl History {
             return replayed;
         }
         for e in self.entries.iter_mut().filter(|e| e.tick > base) {
+            if let Some(m) = e.movement {
+                st.set_movement_attribute(m);
+            }
             st.knockback = e.knockback;
             physics::tick(st, &e.input, world);
+            if let Some(f) = e.frozen {
+                st.set_frozen_ticks(f);
+            }
             e.after = st.clone();
             replayed += 1;
         }

@@ -92,6 +92,7 @@ pub fn tick<W: WorldView + ?Sized>(st: &mut PlayerState, input: &Input, world: &
     } else {
         st.air_speed = effective_air_speed(st);
         tick_state(st);
+        update_freeze(st);
     }
     st.sprint_movement_blocked &= outcome == Outcome::Normal;
     TickOutput {
@@ -165,6 +166,18 @@ pub(crate) fn effective_air_speed(st: &PlayerState) -> f32 {
     if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED }
 }
 
+/// Freezes a tick in powder snow (leather boots protect) and thaws two out of it, after the move: BDS moves tick T
+/// with the count before T's update and stamps the one after it.
+fn update_freeze(st: &mut PlayerState) {
+    let ticks = if st.in_powder_snow && !st.equipment.leather_boots {
+        st.frozen_ticks + 1
+    } else {
+        st.frozen_ticks.saturating_sub(2)
+    };
+    st.in_powder_snow = false;
+    st.set_frozen_ticks(ticks);
+}
+
 fn tick_state(st: &mut PlayerState) {
     if st.glide_boost_ticks > 0 {
         st.glide_boost_ticks -= 1;
@@ -181,7 +194,6 @@ fn tick_state(st: &mut PlayerState) {
         st.jump_delay -= 1;
     }
     st.swim_exit_jump_delay = st.swim_exit_jump_delay.saturating_sub(1);
-    st.stopped_swimming_this_tick = false;
 }
 
 /// Block-aligned volume containing every lookup normal movement performs.

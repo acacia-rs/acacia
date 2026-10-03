@@ -26,6 +26,8 @@ const AREA_MIN: [i32; 2] = [0, -8];
 const AREA_MAX: [i32; 2] = [20, 8];
 const FLOORS: &[&str] = &["ice", "packed_ice", "blue_ice", "slime", "honey_block", "soul_sand"];
 const OBSTACLES: &[&str] = &["stone", "glass", "smooth_stone_slab", "oak_stairs", "oak_fence", "cobblestone_wall", "white_carpet"];
+/// Climbables on the -x face of a stone pillar (ladder facing west, vine attached east).
+const CLIMBABLES: &[&str] = &[r#"ladder ["facing_direction"=4]"#, r#"vine ["vine_direction_bits"=8]"#];
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Error> {
@@ -128,14 +130,16 @@ async fn run_commands(server: &str, admin: &str, mut commands: mpsc::UnboundedRe
 }
 
 /// Random features: slippery or sticky floor patches, obstacles (partial blocks included), cobwebs,
-/// still pools and flowing water. The start cell stays plain stone.
+/// still pools, flowing water, climbables, scaffolding, powder snow and berry bushes. The start cell
+/// stays plain stone.
 fn terrain(rng: &mut Rng) -> Vec<Fill<'static>> {
     let mut fills = Vec::new();
     for _ in 0..rng.range(10, 17) {
         let (x, z) = (rng.range(AREA_MIN[0], AREA_MAX[0]), rng.range(AREA_MIN[1], AREA_MAX[1]));
         let (w, d) = (rng.range(0, 4), rng.range(0, 4));
         let (a, b) = ([x, 0, z], [(x + w).min(AREA_MAX[0]), 0, (z + d).min(AREA_MAX[1])]);
-        let (kind, floor, obstacle, top, depth) = (rng.range(0, 6), *rng.pick(FLOORS), *rng.pick(OBSTACLES), rng.range(0, 2), rng.range(1, 5));
+        let (kind, floor, obstacle, top, depth) = (rng.range(0, 10), *rng.pick(FLOORS), *rng.pick(OBSTACLES), rng.range(0, 2), rng.range(1, 5));
+        let (climbable, height) = (*rng.pick(CLIMBABLES), rng.range(2, 6));
         match kind {
             0 | 1 if on("floors") => fills.push(([a[0], -1, a[2]], [b[0], -1, b[2]], floor)),
             2 if on("obstacles") => fills.push((a, [b[0], top, b[2]], obstacle)),
@@ -144,6 +148,12 @@ fn terrain(rng: &mut Rng) -> Vec<Fill<'static>> {
             4 if on("pools") => fills.push(([a[0], -depth, a[2]], [(b[0] + 3).min(AREA_MAX[0]), -1, (b[2] + 3).min(AREA_MAX[1])], "water")),
             // A block placed and removed above a source: BDS `/fill` schedules no liquid update.
             5 if on("flow") => fills.extend([(a, a, "water"), ([x, 1, z], [x, 1, z], "stone"), ([x, 1, z], [x, 1, z], "air")]),
+            6 if on("climb") && x > AREA_MIN[0] => {
+                fills.extend([(a, [x, height, z], "stone"), ([x - 1, 0, z], [x - 1, height, z], climbable)])
+            }
+            7 if on("scaffold") => fills.push((a, [x, height - 2, z], "scaffolding")),
+            8 if on("powder") => fills.push(([a[0], -1, a[2]], [b[0], -1, b[2]], "powder_snow")),
+            9 if on("berry") => fills.push((a, b, r#"sweet_berry_bush ["growth"=3]"#)),
             _ => {}
         }
     }
@@ -204,7 +214,7 @@ async fn drive(bot: &mut Bot, pad: &Pad, rng: &mut Rng, ticks: u32) -> Result<()
 }
 
 /// Whether a fuzz feature is enabled: `FUZZ_OFF` lists disabled ones (turn, walk, strafe, sprint, jump, sneak,
-/// pitch, floors, obstacles, web, pools, flow), for bisecting a mismatch to its cause.
+/// pitch, floors, obstacles, web, pools, flow, climb, scaffold, powder, berry), for bisecting a mismatch to its cause.
 fn on(feature: &str) -> bool {
     std::env::var("FUZZ_OFF").map_or(true, |off| !off.split(',').any(|f| f == feature))
 }

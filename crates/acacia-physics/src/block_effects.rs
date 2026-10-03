@@ -4,7 +4,7 @@ use crate::collide::overlapped_cells;
 use crate::math::{Vec3, len_sqr};
 use crate::sim::Sim;
 use crate::state::PlayerState;
-use crate::world::{InsideMovement, Traversal, WorldView};
+use crate::world::{InsideMovement, LiquidKind, Traversal, WorldView};
 
 fn queue_stuck_speed_multiplier(st: &mut PlayerState, m: Vec3) {
     let mut q = st.stuck_speed_multiplier;
@@ -34,7 +34,8 @@ pub(crate) fn apply_ascendable_movement(st: &mut PlayerState, traversal: Travers
     let mut v = st.vel;
     match traversal {
         Traversal::Scaffolding => {
-            if st.pressing_descend {
+            // On the ground below, sneaking inside scaffolding leaves ordinary gravity (BDS fuzz).
+            if st.pressing_descend && !st.on_ground {
                 v[1] = -0.15;
                 st.set_vel(v);
                 return true;
@@ -42,13 +43,16 @@ pub(crate) fn apply_ascendable_movement(st: &mut PlayerState, traversal: Travers
                 v[1] = 0.15;
             }
         }
-        Traversal::PowderSnow => {
+        // Only boots make powder snow walkable; without them sneaking leaves the sink to gravity (BDS fuzz: a
+        // sneaking jump in powder snow still rises).
+        Traversal::PowderSnow if st.equipment.leather_boots => {
             if st.pressing_descend {
                 v[1] = -0.15;
-            } else if st.pressing_ascend && st.equipment.leather_boots {
+            } else if st.pressing_ascend {
                 v[1] = 0.2;
             }
         }
+        Traversal::PowderSnow => {}
         Traversal::None => {}
     }
     st.set_vel(v);
@@ -68,23 +72,29 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
             match b.inside {
                 InsideMovement::SweetBerryBush => queue_stuck_speed_multiplier(st, [0.8, 0.75, 0.8]),
-                InsideMovement::PowderSnow => queue_stuck_speed_multiplier(st, [0.9, 1.5, 0.9]),
+                InsideMovement::PowderSnow => {
+                    st.in_powder_snow = true;
+                    queue_stuck_speed_multiplier(st, [0.9, 1.5, 0.9]);
+                }
                 InsideMovement::None => {}
             }
         }
         self.apply_honey_wall_slide(st);
     }
 
-    /// Slows the player once per overlapped honey block it is sliding down.
+    /// Slows the player once per overlapped honey block it is sliding down: airborne, falling, out of water and
+    /// below the block's full height (BDS fuzz 154827, `honey` drills; Java stops at the 15/16 shape top, bedsim
+    /// slows on any contact).
     fn apply_honey_wall_slide(&self, st: &mut PlayerState) {
+        if !self.liquid_blocks_touching(st.bounding_box(), LiquidKind::Water).is_empty() {
+            return;
+        }
         let bb = st.bounding_box().grow_vec([1e-3, 0.0, 1e-3]);
         for pos in overlapped_cells(&bb) {
             if !bb.intersects(&crate::aabb::Aabb::block(pos)) || !self.w.block(pos).honey {
                 continue;
             }
-            // Only while sliding down its side: airborne, falling, below its top (BDS, as Java; bedsim
-            // slows on any contact).
-            if st.on_ground || st.vel[1] >= -0.08 || st.pos[1] > pos[1] as f32 + 0.9375 - 1e-7 {
+            if st.on_ground || st.vel[1] >= -0.08 || st.pos[1] > pos[1] as f32 + 1.0 - 1e-7 {
                 continue;
             }
             let mut v = st.vel;

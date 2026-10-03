@@ -1,6 +1,6 @@
 //! Liquid travel step (bedsim `simulateLiquidTravel`).
 
-use crate::block_effects::apply_stuck_speed_multiplier;
+use crate::block_effects::{apply_ascendable_movement, apply_stuck_speed_multiplier};
 use crate::constants::*;
 use crate::motion::{move_relative, set_post_collision_motion, walk_on_block};
 use crate::sim::Sim;
@@ -64,6 +64,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
         }
         move_relative(st, speed);
+        // Scaffolding climbs in liquids too (BDS fuzz: 0.15 up, then liquid drag).
+        apply_ascendable_movement(st, self.traversal(st));
         // Cobwebs slow liquid travel too (BDS; bedsim only checks them on land).
         let in_cobweb = self.is_inside_cobweb(st);
         if in_cobweb {
@@ -97,8 +99,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         let mut v = st.vel;
         if water {
-            let light = st.swimming || st.sprinting;
-            let mut drag = if light || st.stopped_swimming_this_tick { 0.9 } else { WATER_DRAG };
+            let mut drag = if st.swam_before_input || st.sprinting { 0.9 } else { WATER_DRAG };
             if depth_strider > 0.0 && swim_multiplier <= 1.0 {
                 drag += (0.54600006 - drag) * (depth_strider / 3.0);
             }
@@ -120,7 +121,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             if !self.loaded(&raised_box) {
                 return false;
             }
-            if !self.has_nearby_bboxes(&raised_box) && !self.contains_any_liquid(&raised_box) {
+            if !self.has_nearby_bboxes(st, &raised_box) && !self.contains_any_liquid(&raised_box) {
                 v[1] = 0.3;
             }
         }

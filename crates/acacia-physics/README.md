@@ -25,7 +25,8 @@ Gravity and drag, per-block friction (ice, blue ice, slime, honey) and soul sand
 sneak speeds with the swift-sneak and item-use slowdowns, and sneak edge avoidance. Jumping includes the sprint
 boost, the 10-tick jump delay and honey's reduced jump. Collisions sweep Y, then X, then Z, with a 0.5625 auto-step,
 depenetration and one-way stuck handling. Also ported: supporting-block lookup; ladders and vines; cobweb and
-Weaving; powder snow and berry-bush stuck multipliers; scaffolding and powder-snow traversal; slime and bed bounce;
+Weaving; powder snow and berry-bush stuck multipliers; powder snow freeze (`frozen_ticks`, synced from the server's
+"Freeze effect" modifier); scaffolding and powder-snow traversal; slime and bed bounce;
 honey wall slide; and bubble columns. Liquids cover water and lava travel, swimming (with the swim hitbox and
 water grace), currents including falling water, Depth Strider and the dolphin multiplier, and the ledge-exit
 boost. Effects: jump boost, levitation, slow falling. Also ported: elytra gliding (including the firework boost
@@ -35,8 +36,9 @@ ticks), sneak, crawl and swim pose fitting under ceilings, teleports, knockback,
 Riptide, vehicles, creative flight and no-clip (bedsim does not simulate these either; it resets to the client),
 bedsim's client-drift correction and reconciliation, the step tie-breaker (always accepted, as with
 `IgnoreClientStepTiebreaker`), slide offset, legacy sprint timing, server-forced sprint, crawl input flags,
-the `AutoJumpingInWater` input flag, and dynamic, player-dependent collision shapes (scaffolding,
-powder snow with leather boots) — the world adapter must resolve those itself. Speed and Slowness are expected
+the `AutoJumpingInWater` input flag, scaffolding's unsupported-bottom lip, and powder snow's solid shape with
+leather boots — the world adapter must resolve that one itself. Scaffolding collides only under a player standing
+above it who isn't descending (`Sim::collides_for`). Speed and Slowness are expected
 inside the movement attribute, as bedsim expects.
 
 ## Deliberate deviations from bedsim
@@ -88,6 +90,15 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
 - Water contact counts any liquid cell the shrunk box overlaps, however shallow, and so does the
   ledge-exit probe (but only by more than 1e-5: a box flush against the cell does not count).
 - `apply_current` adds liquid currents while BDS holds a teleported player.
+- Water drag (0.9 vs 0.8) reads the swimming state from before this tick's StartSwimming/StopSwimming.
+- StopSprinting always drops the sprint modifier, also while the server streams movement attributes.
+- Scaffolding's climb replaces the jump outright, sprint boost included.
+- A sneak edge stop shortens the move but keeps the velocity of an axis it did not stop outright.
+- The honey wall slide holds up to the block's full height (bedsim and Java: its 15/16 top) and never while the
+  box touches water.
+- Powder snow freezes `frozen_ticks` (+1 a tick inside without leather boots, -2 out, at most 140) after the move,
+  and its "Freeze effect" modifier (-0.05·ticks/140, added before sprint) slows the next tick's walk; the server's
+  count resyncs it.
 
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,

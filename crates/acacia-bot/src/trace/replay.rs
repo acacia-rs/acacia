@@ -62,12 +62,29 @@ impl CorrectionDiff {
     }
 }
 
+/// Server corrections within this of our position are periodic resyncs, not mismatches.
+pub const CORRECTION_TOLERANCE: f32 = 0.001;
+/// Farther than any tick of movement: BDS applied a `/tp` it has not sent us yet (it can lag many ticks).
+const TELEPORT_LAG_DISTANCE: f32 = 4.0;
+
 #[derive(Debug, Default)]
 pub struct Report {
     pub ticks: usize,
     /// Ticks off the recording by more than the tolerance.
     pub diverged: Vec<TickDiff>,
     pub corrections: Vec<CorrectionDiff>,
+}
+
+impl Report {
+    /// Corrections we disagree with beyond `tolerance`, and those skipped as teleport lags.
+    pub fn correction_mismatches(&self, tolerance: f32) -> (Vec<&CorrectionDiff>, Vec<&CorrectionDiff>) {
+        let (lagged, mismatches) = self
+            .corrections
+            .iter()
+            .filter(|c| c.mismatch(tolerance))
+            .partition(|c| c.error().is_some_and(|e| e > TELEPORT_LAG_DISTANCE));
+        (mismatches, lagged)
+    }
 }
 
 /// Replays a trace through [`Movement`] with the recorded controls. With `resync`, the state is reset

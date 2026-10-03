@@ -52,7 +52,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         let start = st.bounding_box();
         let mut bb = start;
         let cur = st.vel;
-        let boxes = self.nearby_bboxes(&bb.extend(cur));
+        let boxes = self.nearby_bboxes(st, &bb.extend(cur));
         let one_way = st.stuck_in_collider;
         let mut pen = [0f32; 3];
 
@@ -76,7 +76,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
                 return false;
             }
             let step = auto_step(&start, cur, &boxes, one_way);
-            if !self.has_nearby_bboxes(&step.bb) && hz_dist_sqr(coll) < hz_dist_sqr(step.velocity) {
+            if !self.has_nearby_bboxes(st, &step.bb) && hz_dist_sqr(coll) < hz_dist_sqr(step.velocity) {
                 coll = step.velocity;
                 bb = step.bb;
             }
@@ -111,7 +111,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !self.loaded(&bb.extend([xm, DROP, zm])) {
             return false;
         }
-        let supported = |dx: f32, dz: f32| self.has_nearby_bboxes(&bb.translate([dx, DROP, dz]));
+        let supported = |dx: f32, dz: f32| self.has_nearby_bboxes(st, &bb.translate([dx, DROP, dz]));
 
         let mut i = 0;
         while i < EDGE_MAX_ITER && xm != 0.0 && !supported(xm, 0.0) {
@@ -171,7 +171,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         let mut best = None;
         let mut min_dist = f32::MAX;
         let mut boxes = Vec::new();
-        for pos in nearby_cells(bb) {
+        for pos in nearby_cells(bb).filter(|&p| self.collides_for(st, p)) {
             boxes.clear();
             self.w.block_collisions(pos, &mut boxes);
             let origin = pos_vec(pos);
@@ -194,7 +194,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         plane.max[1] = plane.min[1];
         let mut best = None;
         let mut boxes = Vec::new();
-        for pos in nearby_cells(&plane) {
+        for pos in nearby_cells(&plane).filter(|&p| self.collides_for(st, p)) {
             boxes.clear();
             self.w.block_collisions(pos, &mut boxes);
             let origin = pos_vec(pos);
