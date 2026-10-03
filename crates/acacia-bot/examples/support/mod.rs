@@ -87,7 +87,7 @@ impl Pad {
         Pad { commander, ..self }
     }
 
-    fn run(&self, bot: &Bot, command: &str) {
+    pub fn run(&self, bot: &Bot, command: &str) {
         match &self.commander {
             Commander::Own => {
                 bot.client().command(command);

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use acacia_client::proto::packets::{CorrectPlayerMovePrediction, MovePlayer, PlayerAuthInput, SetEntityData, SetEntityMotion};
+use acacia_client::proto::packets::{ClientCacheMissResponse, CorrectPlayerMovePrediction, MovePlayer, PlayerAuthInput, SetEntityData, SetEntityMotion};
+use acacia_client::{BlobStore, MemoryBlobStore};
 use acacia_client::proto::types::{InputData as F, MetadataFlags1, Vec3f};
 use acacia_client::proto::Packet;
 use acacia_physics::Vec3;
@@ -76,6 +78,9 @@ pub struct Report {
 pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     let mut state = GameState::default();
     let mut world = WorldTracker::new("replay".into(), SharedWorlds::new());
+    // The recording client held every blob it was sent; later sections name them by id only.
+    let blobs = Arc::new(MemoryBlobStore::with_payloads());
+    world.set_blob_store(blobs.clone());
     let mut movement = Movement::new();
     // Our eye position and velocity per input tick.
     let mut ours: HashMap<u64, (Vec3, Vec3)> = HashMap::new();
@@ -90,6 +95,13 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
             Event::Mark(label) => mark = Some(label.clone()),
             Event::Start { feet, yaw, pitch } => movement.start(*feet, *yaw, *pitch),
             Event::Packet(p) => {
+                if p.id == ClientCacheMissResponse::ID
+                    && let Ok(r) = p.decode::<ClientCacheMissResponse>()
+                {
+                    for blob in &r.blobs {
+                        blobs.insert(blob.hash, &blob.payload);
+                    }
+                }
                 let _ = state.apply(p);
                 let _ = world.apply(p);
                 world.outgoing.clear();
