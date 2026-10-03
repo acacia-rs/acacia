@@ -72,10 +72,10 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         let (xc, yc, zc) = (cur[0] != coll[0], cur[1] != coll[1], cur[2] != coll[2]);
         if (st.on_ground || (yc && cur[1] < 0.0)) && (xc || zc) {
-            if !self.loaded(&start.extend(cur).extend_up(STEP_HEIGHT)) {
+            if !self.loaded(&start.extend(cur).extend_up(st.step_height)) {
                 return false;
             }
-            let step = auto_step(&start, cur, &boxes, one_way);
+            let step = auto_step(&start, cur, &boxes, one_way, st.step_height);
             if !self.has_nearby_bboxes(st, &step.bb) && hz_dist_sqr(coll) < hz_dist_sqr(step.velocity) {
                 coll = step.velocity;
                 bb = step.bb;

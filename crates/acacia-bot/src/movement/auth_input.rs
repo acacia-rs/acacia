@@ -15,6 +15,7 @@ pub(super) struct Edges {
     pub sneak: (bool, bool),
     pub jump: (bool, bool),
     pub swim: (bool, bool),
+    pub glide: (bool, bool),
     pub sneaking: bool,
     pub sprinting: bool,
     /// The sprint key itself, which `Input::sprint` outlasts while a sprint continues.
@@ -78,6 +79,9 @@ pub(super) fn build(input: &Input, out: &TickOutput, e: &Edges, tick: u64, loade
     set(e.sprint.1, F::StopSprinting);
     set(e.swim.0, F::StartSwimming);
     set(e.swim.1, F::StopSwimming);
+    // Landing ends a glide in the simulation on the tick after ground contact, where vanilla sends StopGliding.
+    set(e.glide.0, F::StartGliding);
+    set(e.glide.1, F::StopGliding);
     set(out.vertical_collision, F::VerticalCollision);
     set(out.horizontal_collision, F::HorizontalCollision);
     set(out.teleported, F::HandledTeleport);

@@ -60,7 +60,8 @@ function build(player) {
     const [e] = dim.getEntities({ type, location: { x, y: by, z }, maxDistance: 1, excludeTags: [TAG] });
     if (!e) return log(`no ${type} spawned`);
     e.addTag(TAG);
-    if (type !== "minecraft:boat") e.addEffect("slowness", 20000000, { amplifier: 255, showParticles: false });
+    // Slowness would also slow the ridden horse, whose own speed the bot simulates.
+    if (!["minecraft:boat", "minecraft:horse"].includes(type)) e.addEffect("slowness", 20000000, { amplifier: 255, showParticles: false });
     homes.set(e.id, { x, y: by, z });
   };
   homes.clear();
@@ -68,8 +69,13 @@ function build(player) {
   spawn("minecraft:villager", -1, 1, "minecraft:spawn_farmer");
   spawn("minecraft:pig", 1, 1, "minecraft:on_saddled");
   spawn("minecraft:boat", 1, -1);
-  // The trader brings leashed llamas; they would wander through the scene.
-  for (const e of dim.getEntities({ type: "minecraft:trader_llama" })) e.remove();
+  spawn("minecraft:horse", -6, 0, "minecraft:on_tame");
+  // A fixed, fast horse: a random slow one hides speed errors under the correction threshold.
+  for (const h of dim.getEntities({ type: "minecraft:horse", tags: [TAG] })) h.getComponent("minecraft:movement")?.setCurrentValue(0.3);
+  run(`replaceitem entity @e[type=horse,tag=${TAG}] slot.saddle 0 saddle`);
+  scene.horse = [bx - 6, by, bz];
+  // A 1-block ledge across the horse ride's westward stretch: a ridden horse walks up it (step 1.0625).
+  run(`fill ${bx - 12} ${by} ${bz - 5} ${bx - 12} ${by} ${bz + 5} stone`);
   for (const e of dim.getEntities({ type: "minecraft:item" })) e.remove();
 
   for (const rule of ["dodaylightcycle false", "domobspawning false", "doweathercycle false", "spawnradius 0"]) run(`gamerule ${rule}`);
@@ -91,6 +97,12 @@ function build(player) {
   watchSign(dim, scene.sign);
 }
 
+// The trader's leashed llamas arrive ticks after it; the boat pulls them in and, both seats full,
+// silently refuses the bot's mount.
+world.afterEvents.entitySpawn.subscribe(({ entity }) => {
+  if (entity.typeId === "minecraft:trader_llama") entity.remove();
+});
+
 // Mobs still get pushed around; put scene entities back unless someone rides them.
 const homes = new Map();
 system.runInterval(() => {
@@ -98,7 +110,9 @@ system.runInterval(() => {
     const e = world.getEntity(id);
     if (!e || e.getComponent("minecraft:rideable")?.getRiders().length) continue;
     const { x, z } = e.location;
-    if (Math.hypot(x - home.x, z - home.z) > 0.3) e.teleport(home);
+    if (Math.hypot(x - home.x, z - home.z) <= 0.3) continue;
+    log(`home ${e.typeId} from ${x.toFixed(3)},${z.toFixed(3)} at tick ${system.currentTick}`);
+    e.teleport(home);
   }
 }, 20);
 
@@ -139,6 +153,13 @@ system.afterEvents.scriptEventReceive.subscribe(({ id, message, sourceEntity }) 
 
 system.afterEvents.scriptEventReceive.subscribe(({ id, message, sourceEntity }) => {
   if (id === "actiontest:ent" && sourceEntity) return say(`ent ${JSON.stringify(entities(sourceEntity.dimension, message))}`);
+  // `/scriptevent actiontest:horsespeed <v>`: sets the scene horse's movement attribute.
+  if (id === "actiontest:horsespeed" && sourceEntity) {
+    for (const h of sourceEntity.dimension.getEntities({ type: "minecraft:horse", tags: [TAG] })) {
+      h.getComponent("minecraft:movement")?.setCurrentValue(Number(message));
+    }
+    return;
+  }
   if (id !== "actiontest:inv" || !sourceEntity) return;
   const inv = sourceEntity.getComponent("minecraft:inventory").container;
   const found = [];
@@ -175,6 +196,34 @@ system.runInterval(() => {
     offSeat.set(p.id, t + 1);
     const { x, y, z } = p.location;
     say(`dismounted +${t + 1} ${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`);
+  }
+}, 1);
+
+// The server's side of an entity right-click: the before event fires only past the transaction checks.
+const where = (e) => [e.location.x, e.location.y, e.location.z].map((v) => v.toFixed(3)).join(",");
+world.beforeEvents.playerInteractWithEntity.subscribe(({ player, target, itemStack }) => {
+  const riding = player.getComponent("minecraft:riding")?.entityRidingOn?.typeId;
+  const v = target.getVelocity();
+  const riders = target.getComponent("minecraft:rideable")?.getRiders().map((r) => r.typeId);
+  log(`interact before ${target.typeId} at ${where(target)} v ${[v.x, v.y, v.z].map((c) => c.toFixed(4))} riders ${riders} valid ${target.isValid}; player ${where(player)} sneaking ${player.isSneaking} slot ${player.selectedSlotIndex} item ${itemStack?.typeId} riding ${riding}`);
+});
+world.afterEvents.playerInteractWithEntity.subscribe(({ target }) => log(`interact after ${target.typeId}`));
+
+// The server's own glide or ridden vehicle, every tick: position, velocity and rotation.
+system.runInterval(() => {
+  const line = (what, e) => {
+    const v = e.getVelocity();
+    const r = e.getRotation();
+    log(`${what} ${system.currentTick} ${where(e)} v ${[v.x, v.y, v.z].map((c) => c.toFixed(5))} rot ${r.x.toFixed(2)},${r.y.toFixed(2)}`);
+  };
+  for (const p of world.getAllPlayers()) {
+    if (p.isGliding) line("glide", p);
+    const vehicle = p.getComponent("minecraft:riding")?.entityRidingOn;
+    if (vehicle?.typeId === "minecraft:horse") {
+      line("horse", vehicle);
+      const m = vehicle.getComponent("minecraft:movement");
+      if (m) log(`horse movement current ${m.currentValue} default ${m.defaultValue} effective ${m.effectiveMax ?? "-"}`);
+    }
   }
 }, 1);
 

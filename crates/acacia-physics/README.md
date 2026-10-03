@@ -44,6 +44,9 @@ inside the movement attribute, as bedsim expects.
 ## Deliberate deviations from bedsim
 Each was found by fuzzing against strict BDS (`acacia-bot` examples `fuzz` and `replay`) and fixes
 mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge because of them.
+- Gliding follows BDS's `glideTravelVelocity`: the look vector from -pitch, its real horizontal length,
+  BDS's gravity form (docs/research/riding-fishing-elytra.md). Over a long glide this drifts about 1e-5
+  from bedsim, which uses cos(pitch). Strict BDS showed 0 corrections over 14 live glides.
 - The sneak slowdown lasts through the tick sneaking stops, and a sprint cannot start on that tick.
 - No sneak slowdown in water (contact this tick), where sneak means sink. Sinking needs `want_down`
   (the vanilla client's `WantDown`, sent with every sneak) or else the top of a standing head (feet +

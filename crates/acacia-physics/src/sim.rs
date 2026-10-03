@@ -163,7 +163,7 @@ pub(crate) fn land_teleport(st: &mut PlayerState, pos: Vec3) {
 }
 
 pub(crate) fn effective_air_speed(st: &PlayerState) -> f32 {
-    if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED }
+    st.fixed_air_speed.unwrap_or(if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED })
 }
 
 /// Freezes a tick in powder snow (leather boots protect) and thaws two out of it, after the move: BDS moves tick T

@@ -101,7 +101,16 @@ impl Idle {
             move_vector: [0.0, 0.0],
             outcome: if teleported { Outcome::Teleport } else { Outcome::Normal },
         };
-        let edges = Edges { sprint: (false, false), sneak: (false, false), jump: (false, false), swim: (false, false), sneaking: false, sprinting: false, sprint_key: false };
+        let edges = Edges {
+            sprint: (false, false),
+            sneak: (false, false),
+            jump: (false, false),
+            swim: (false, false),
+            glide: (false, false),
+            sneaking: false,
+            sprinting: false,
+            sprint_key: false,
+        };
         Some(auth_input::build(&input, &out, &edges, self.tick, loaded))
     }
 }

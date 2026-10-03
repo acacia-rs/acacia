@@ -58,7 +58,7 @@ impl Bot {
         };
         if let Some(mut input) = idle.tick_facing(&self.state.player, yaw, 0.0, true) {
             input.position = eye;
-            input.input_data.append(&mut self.queued_flags);
+            self.add_queued_flags(&mut input);
             self.client.send(&input);
         }
         true
