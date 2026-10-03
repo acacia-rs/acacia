@@ -5,8 +5,20 @@ members = ["crates/acacia-auth", "crates/acacia-bot", "crates/acacia-client","cr
 [workspace.package]
 edition = "2024"
 license = "MIT"
-publish = false
+repository = "https://github.com/acacia-rs/acacia"
+readme = "README.md"
 rust-version = "1.98"
+
+# version + path: published crates resolve from crates.io, workspace builds from source
+[workspace.dependencies]
+acacia-auth = { version = "0.1.0", path = "crates/acacia-auth", default-features = false }
+acacia-client = { version = "0.1.0", path = "crates/acacia-client" }
+acacia-nethernet = { version = "0.1.0", path = "crates/acacia-nethernet" }
+acacia-physics = { version = "0.1.0", path = "crates/acacia-physics" }
+acacia-proto = { version = "0.1.0", path = "crates/acacia-proto" }
+acacia-raknet = { version = "0.1.0", path = "crates/acacia-raknet" }
+acacia-session = { version = "0.1.0", path = "crates/acacia-session" }
+acacia-world = { version = "0.1.0", path = "crates/acacia-world" }
 
 # Login crypto (ES384 signing, ECDH, AES) is ~100x slower unoptimised: debug bots and tests would answer
 # the handshake seconds late and fail reaction-time checks.

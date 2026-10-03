@@ -3,13 +3,15 @@ name = "acacia-session"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+description = "Network-free Minecraft: Bedrock Edition session layer: batching, compression, encryption, login"
+repository.workspace = true
+readme.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-acacia-raknet = { path = "../acacia-raknet" }
-acacia-proto = { path = "../acacia-proto" }
-acacia-auth = { path = "../acacia-auth", default-features = false }
+acacia-raknet.workspace = true
+acacia-proto.workspace = true
+acacia-auth.workspace = true
 bytes = "1.12.1"
 aes = "0.8"
 ctr = "0.9"

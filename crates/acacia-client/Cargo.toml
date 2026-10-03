@@ -3,7 +3,9 @@ name = "acacia-client"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+description = "Async Minecraft: Bedrock Edition client over RakNet and NetherNet"
+repository.workspace = true
+readme.workspace = true
 rust-version.workspace = true
 
 [features]
@@ -14,9 +16,9 @@ online = ["acacia-auth/online"]
 socks = ["online", "acacia-auth/socks"]
 
 [dependencies]
-acacia-session = { path = "../acacia-session" }
-acacia-nethernet = { path = "../acacia-nethernet" }
-acacia-auth = { path = "../acacia-auth", default-features = false }
+acacia-session.workspace = true
+acacia-nethernet.workspace = true
+acacia-auth.workspace = true
 tokio = { version = "1.53.1", features = ["rt", "net", "time", "sync", "macros", "io-util"] }
 bytes = "1.12.1"
 thiserror = "2.0.21"
