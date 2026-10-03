@@ -6,8 +6,8 @@ cross-checked with prismarine-auth 2.7.0. "Live-verified" = exercised against th
 ## Features
 - default `online`: `AuthClient`, `Account`, `TokenCache` (+ `FileTokenCache`, `MemoryTokenCache`).
 - `--no-default-features`: `ClientData`, `build_connection_request`, `build_offline_connection_request`,
-  `public_key_der_b64`, `parse_server_handshake`, `jwt` (no reqwest/tokio). `socks` adds `socks5://` proxies.
-- Crypto: RustCrypto `p384 0.13` (client key, ES384) and `p256 0.13` (Xbox proof key).
+  `public_key_der_b64`, `parse_server_handshake`, `jwt`, `login::verify` (no reqwest/tokio). `socks` adds `socks5://` proxies.
+- Crypto: RustCrypto `p384 0.13` (client key, ES384), `p256 0.13` (Xbox proof key) and `rsa 0.9` (RS256 verification only).
 
 ## Titles (`Title`)
 | | client_id | title id | User-Agent | device |
@@ -71,6 +71,27 @@ envelope = {"Certificate":"{\"chain\":[...]}","AuthenticationType":N,"Token":"<m
 - JWTs: header `{"alg":"ES384","x5u":<SPKI DER b64>}`, raw 96-byte r‖s. Client data = gophertunnel `ClientData` keys,
   Android defaults, 64×64 skin with gophertunnel's `geometry.humanoid.custom` (assets/, MIT).
 - Server handshake: `parse_server_handshake(jwt)` verifies against its x5u and returns `(PublicKey, salt)`.
+
+## Verifying logins (servers)
+`login::verify` (network-free, no `online` needed), after gophertunnel `login.Parse` / `service/jwks.go` (master, 2026-10-03):
+`Verifier::new(SigningKeys::from_jwks(json)).verify(request, now_unix)` → `VerifiedLogin { identity, authenticated, client_key,
+client_data, client_claims }` or a `VerifyError` naming the failed check and JWT (`Part`).
+- **Keys**: `GET https://authorization.franchise.minecraft-services.net/.well-known/openid-configuration` → `issuer` (with trailing
+  slash), `jwks_uri` = `…/.well-known/keys` (live-verified; RSA keys, `x5t` in hex, ignored). `AuthClient::fetch_signing_keys`
+  (`online`) does both; the verifier never fetches. Re-fetch on `UnknownSigningKey`, rate-limited (`SigningKeys::contains(kid)`).
+- **Token** (takes precedence over a chain): RS256 by the key its `kid` names, `iss` = issuer exactly, `aud` contains the multiplayer
+  audience, `exp` required, `exp`/`nbf` with 60 s leeway; the client key is `cpk`. `authenticated` = issued and `xid` non-empty;
+  UUID = v3-style MD5 of `pocket-auth-1-xuid:<xid>` (`xuid_identity`). ES384 tokens are self-signed (verified against their own
+  `cpk`): never authenticated. Any other `alg` is refused.
+- **Legacy chain**: 1 JWT = self-signed, offline. 3 JWTs = head signed by its `x5u`, each next one by the previous
+  `identityPublicKey`, links 1–2 `iss` = `Mojang`; authenticated only if the head names `MOJANG_ROOT_KEY`. A 3-chain with an XUID
+  but another root is refused (`UntrustedChain`). Identity = last `extraData`; the client key is the last `identityPublicKey`.
+- **Client data**: ES384 by that client key. This is what binds a replayed token or chain to its owner, so use
+  `VerifiedLogin::client_key` for the encryption handshake. Parsed leniently (missing claims default, unknown ones only in
+  `client_claims`); field values are not validated.
+- Unauthenticated logins drop any claimed XUID; the UUID is the client's claim (`leguuid` / `extraData.identity`) or derived
+  from the name. Guest logins (`AuthenticationType` 1) are refused. Policy (online-mode, duplicate XUIDs) is the server's.
+- Not live-verified: a real vanilla token against the live JWKS; tests use a stand-in RSA issuer.
 
 ## Cache (`CachedTokens`, one JSON per account in `FileTokenCache`)
 `msa`, `xbox_device_key` (P-256 hex, reused so device tokens stay valid), `device_id`, `device_token`, `sisu`,
