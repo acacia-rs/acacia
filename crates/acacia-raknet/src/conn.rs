@@ -16,6 +16,8 @@ pub(crate) struct ConnConfig {
     pub idle_timeout: Duration,
     pub ping_interval: Duration,
     pub recv_limits: RecvLimits,
+    /// Send under a congestion window. Off for the client, whose pacing is part of how it looks.
+    pub congestion_window: bool,
 }
 
 /// The connected half of a RakNet connection, shared by client and server: reliability, ACKs,
@@ -41,7 +43,7 @@ impl Conn {
             mtu: cfg.mtu.max(o::MIN_MTU),
             idle_timeout: cfg.idle_timeout,
             ping_interval: cfg.ping_interval,
-            send: SendQueue::new(),
+            send: SendQueue::new(cfg.congestion_window),
             recv: RecvState::new(cfg.recv_limits),
             last_recv: now,
             last_ping: now,
@@ -61,6 +63,10 @@ impl Conn {
 
     pub fn rtt(&self) -> Option<Duration> {
         self.send.rtt()
+    }
+
+    pub fn send_queue(&self) -> &SendQueue {
+        &self.send
     }
 
     pub fn time(&self, now: Instant) -> i64 {
@@ -106,7 +112,7 @@ impl Conn {
             match msg.first() {
                 Some(&c::ID_CONNECTED_PING) => {
                     if let Ok(time) = c::parse_timestamp(&msg) {
-                        self.queue(c::connected_pong(time, self.time(now)), Reliability::Unreliable);
+                        self.send.push_control(c::connected_pong(time, self.time(now)));
                     }
                 }
                 Some(&c::ID_CONNECTED_PONG) | None => {}
@@ -141,7 +147,7 @@ impl Conn {
         self.send.on_timeout(now);
         if now >= self.last_ping + self.ping_interval {
             self.last_ping = now;
-            self.queue(c::connected_ping(self.time(now)), Reliability::Unreliable);
+            self.send.push_control(c::connected_ping(self.time(now)));
         }
         Ok(())
     }
@@ -149,8 +155,7 @@ impl Conn {
     /// Queues a disconnection notification and packs everything still queued into datagrams.
     pub fn close(&mut self, now: Instant) -> Vec<Bytes> {
         self.queue(c::disconnection_notification(), Reliability::ReliableOrdered);
-        let max = self.max_payload();
-        std::iter::from_fn(|| self.send.pack(now, max)).collect()
+        self.send.flush(now, self.max_payload())
     }
 }
 
@@ -162,7 +167,8 @@ mod tests {
     use crate::wire::datagram::{put_datagram_header, Split};
 
     fn conn_with_mtu(now: Instant, mtu: u16) -> Conn {
-        let cfg = ConnConfig { mtu, idle_timeout: Duration::from_secs(10), ping_interval: Duration::from_secs(5), recv_limits: RecvLimits::SERVER };
+        let (idle_timeout, ping_interval) = (Duration::from_secs(10), Duration::from_secs(5));
+        let cfg = ConnConfig { mtu, idle_timeout, ping_interval, recv_limits: RecvLimits::SERVER, congestion_window: true };
         Conn::new(now, cfg, now)
     }
 

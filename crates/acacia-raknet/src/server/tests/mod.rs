@@ -1,4 +1,5 @@
 mod admission;
+mod congestion;
 mod flow;
 mod handshake;
 
@@ -44,12 +45,15 @@ struct Net {
     clients: Vec<(SocketAddr, Client)>,
     /// Every server event so far.
     events: Vec<ServerEvent>,
+    /// Datagrams the server sent in [`Net::run`]; every `lose_every`th of them is lost.
+    sent: u64,
+    lose_every: Option<u64>,
 }
 
 impl Net {
     fn new(cfg: ServerConfig) -> Self {
         let now = Instant::now();
-        Self { now, server: Server::new(cfg, now), clients: Vec::new(), events: Vec::new() }
+        Self { now, server: Server::new(cfg, now), clients: Vec::new(), events: Vec::new(), sent: 0, lose_every: None }
     }
 
     /// Starts a client on `port` (also its GUID) and returns its index.
@@ -67,6 +71,10 @@ impl Net {
                 }
             }
             while let Some((to, d)) = self.server.poll_transmit(self.now) {
+                self.sent += 1;
+                if self.lose_every.is_some_and(|n| self.sent % n == 0) {
+                    continue;
+                }
                 if let Some((_, client)) = self.clients.iter_mut().find(|(a, _)| *a == to) {
                     client.handle_datagram(self.now, d);
                 }

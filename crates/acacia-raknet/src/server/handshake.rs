@@ -70,6 +70,7 @@ impl Server {
             idle_timeout: self.cfg.idle_timeout,
             ping_interval: self.cfg.ping_interval,
             recv_limits: self.cfg.recv_limits,
+            congestion_window: true,
         };
         let handshake_deadline = now + self.cfg.handshake_timeout;
         let peer = Peer { conn: Conn::new(self.epoch, cfg, now), guid: request.client_guid, connected: false, handshake_deadline };

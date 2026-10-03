@@ -199,6 +199,7 @@ impl Client {
                     idle_timeout: self.cfg.idle_timeout,
                     ping_interval: self.cfg.ping_interval,
                     recv_limits: RecvLimits::CLIENT,
+                    congestion_window: false,
                 };
                 let mut conn = Conn::new(self.epoch, cfg, now);
                 conn.queue(c::connection_request(self.cfg.guid, conn.time(now)), Reliability::Reliable);

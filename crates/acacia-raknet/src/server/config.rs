@@ -53,6 +53,14 @@ pub struct PeerStats {
     pub mtu: u16,
     /// Smoothed round trip of our datagrams to their ACKs; `None` until the first ACK.
     pub rtt: Option<Duration>,
+    /// Message bytes queued but not yet sent (or waiting to be resent): what to throttle on.
+    pub queued_bytes: usize,
+    /// Datagrams sent and not yet acknowledged; at most `window`.
+    pub in_flight: usize,
+    /// The congestion window in datagrams (`reliability/congestion.rs`).
+    pub window: usize,
+    /// Datagrams lost so far, by NACK or by timeout.
+    pub resent: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

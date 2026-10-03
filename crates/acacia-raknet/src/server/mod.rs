@@ -81,7 +81,16 @@ impl Server {
     /// `None` unless `peer` is connected.
     pub fn stats(&self, peer: SocketAddr) -> Option<PeerStats> {
         let p = self.peers.get(&peer).filter(|p| p.connected)?;
-        Some(PeerStats { guid: p.guid, mtu: p.conn.mtu(), rtt: p.conn.rtt() })
+        let send = p.conn.send_queue();
+        Some(PeerStats {
+            guid: p.guid,
+            mtu: p.conn.mtu(),
+            rtt: send.rtt(),
+            queued_bytes: send.queued_bytes(),
+            in_flight: send.in_flight(),
+            window: send.window(),
+            resent: send.resent(),
+        })
     }
 
     /// Queues a message on ordering channel 0. Returns false if `peer` is not connected.

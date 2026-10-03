@@ -40,7 +40,7 @@ fn first_error(limits: RecvLimits, frames: &[Frame]) -> Option<RecvError> {
 #[test]
 fn ordered_split_messages_survive_reordering_and_duplicates() {
     let now = Instant::now();
-    let mut send = SendQueue::new();
+    let mut send = SendQueue::new(false);
     let msgs: Vec<Bytes> = (0..20).map(|i| body(i, if i % 3 == 0 { 5000 } else { 40 })).collect();
     for m in &msgs {
         send.push(m.clone(), Reliability::ReliableOrdered, 0, MTU_PAYLOAD);
@@ -62,7 +62,7 @@ fn ordered_split_messages_survive_reordering_and_duplicates() {
 #[test]
 fn nacked_datagrams_are_resent_and_acks_clear_in_flight() {
     let now = Instant::now();
-    let mut send = SendQueue::new();
+    let mut send = SendQueue::new(false);
     for i in 0..5 {
         send.push(body(i, 1000), Reliability::ReliableOrdered, 0, MTU_PAYLOAD);
     }
@@ -96,7 +96,7 @@ fn nacked_datagrams_are_resent_and_acks_clear_in_flight() {
 #[test]
 fn unacked_datagrams_resend_after_rto() {
     let now = Instant::now();
-    let mut send = SendQueue::new();
+    let mut send = SendQueue::new(false);
     send.push(body(0, 10), Reliability::Reliable, 0, MTU_PAYLOAD);
     send.push(body(1, 10), Reliability::Unreliable, 0, MTU_PAYLOAD);
     assert_eq!(drain(&mut send, now).len(), 1);
@@ -107,6 +107,60 @@ fn unacked_datagrams_resend_after_rto() {
     let resent = drain(&mut send, deadline);
     assert_eq!(resent.len(), 1);
     assert_eq!(resent[0].len(), DATAGRAM_HEADER_LEN + 3 + 3 + 10, "only the reliable frame is resent");
+}
+
+/// A windowed queue holding `n` messages of one datagram each.
+fn windowed(n: usize) -> SendQueue {
+    let mut send = SendQueue::new(true);
+    for i in 0..n {
+        send.push(body(i, 1000), Reliability::ReliableOrdered, 0, MTU_PAYLOAD);
+    }
+    send
+}
+
+#[test]
+fn a_burst_leaves_one_window_at_a_time() {
+    let now = Instant::now();
+    let mut send = windowed(100);
+    assert_eq!(send.queued_bytes(), 100_000);
+    let (mut flights, mut next) = (vec![], 0);
+    while send.queued_bytes() > 0 {
+        let flight = drain(&mut send, now).len() as u32;
+        assert_eq!(send.in_flight(), flight as usize);
+        send.on_ack(now, next, next + flight - 1);
+        next += flight;
+        flights.push(flight);
+    }
+    assert_eq!(flights, [10, 20, 40, 30], "slow start doubles the window per round trip");
+    assert_eq!((send.in_flight(), send.resent()), (0, 0));
+}
+
+#[test]
+fn pings_pass_a_closed_window_and_a_flush_ignores_it() {
+    let now = Instant::now();
+    let mut send = windowed(20);
+    assert_eq!(drain(&mut send, now).len(), 10);
+    send.push_control(body(0, 9));
+    let ping = drain(&mut send, now);
+    assert_eq!(ping.iter().map(Bytes::len).collect::<Vec<_>>(), [DATAGRAM_HEADER_LEN + 3 + 9]);
+    assert_eq!(send.flush(now, MTU_PAYLOAD).len(), 10);
+}
+
+#[test]
+fn a_resend_timeout_shrinks_the_window_and_backs_off() {
+    let t0 = Instant::now();
+    let mut send = windowed(20);
+    assert_eq!(drain(&mut send, t0).len(), 10);
+    let first = send.next_resend().unwrap();
+    send.on_timeout(first);
+    assert_eq!((send.in_flight(), send.resent(), send.window()), (0, 10, 2));
+
+    let resent = drain(&mut send, first);
+    assert_eq!(resent.len(), 2);
+    let mut r = Reader::new(&resent[0]);
+    r.take(DATAGRAM_HEADER_LEN).unwrap();
+    assert_eq!(Frame::decode(&mut r, &resent[0]).unwrap().reliable_index, 0, "the oldest datagram goes first");
+    assert_eq!(send.next_resend().unwrap() - first, (first - t0) * 2);
 }
 
 #[test]
