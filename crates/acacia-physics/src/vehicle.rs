@@ -1,6 +1,6 @@
-//! A player-steered horse, as BDS 1.26.52 moves one (bdsre 2026-10-03, docs/research/riding-fishing-elytra.md
-//! "Horse"): the rider's input becomes the horse's, and the horse travels like a player on its own
-//! box and attributes. Step height and the charged jump are not modelled yet.
+//! A player-steered horse, as BDS 1.26.52 moves one (docs/research/riding-fishing-elytra.md "Horse"):
+//! the rider's input becomes the horse's, and the horse travels like a player on its own box and
+//! attributes. The charged jump is not modelled yet.
 
 use crate::input::Input;
 use crate::sim::{TickOutput, tick};
@@ -10,7 +10,7 @@ use crate::Vec3;
 
 const HORSE_WIDTH: f32 = 1.4;
 const HORSE_HEIGHT: f32 = 1.6;
-/// BDS VariableMaxAutoStep with a controlling rider (0.5625 without, or on a block that prevents jumping).
+/// With a controlling rider (0.5625 without, or on a block that prevents jumping).
 const HORSE_STEP_HEIGHT: f32 = 1.0625;
 
 /// The rider's controls for one tick.

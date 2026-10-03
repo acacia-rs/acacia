@@ -120,8 +120,8 @@ pub(crate) fn set_post_collision_motion(st: &mut PlayerState, old: Vec3, old_on_
     st.set_vel(v);
 }
 
-/// Elytra flight acceleration, as BDS's glide travel system computes it (2026-10-03, bdsre
-/// `glideTravelVelocity`): the look vector from -pitch, its true horizontal length, gravity in BDS's form.
+/// Elytra flight acceleration as BDS computes it (docs/research/riding-fishing-elytra.md): the look vector
+/// from -pitch, its true horizontal length, gravity in BDS's form.
 pub(crate) fn simulate_glide(st: &mut PlayerState) {
     if st.vel[1] > GLIDE_FALL_DISTANCE_VELOCITY_THRESHOLD {
         st.fall_distance = 1.0;

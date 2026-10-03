@@ -82,8 +82,8 @@ per-kind hitboxes (`interact/geometry.rs`), since aiming at a player-sized box a
   count−1 ~250–490 ms later (generic hotbar rule).
 - PlayerArmorDamage about 1/s while gliding.
 
-### Elytra physics (`acacia-physics` `motion.rs::simulate_glide`; BDS 1.26.52, bdsre 2026-10-03)
-Per tick while gliding, BDS `glideTravelVelocity` (0x1484403b0). Drag and boost apply before the move:
+### Elytra physics (`acacia-physics` `motion.rs::simulate_glide`; BDS 1.26.52, verified live 2026-10-03)
+Per tick while gliding. Drag and boost apply before the move:
 ```
 G = -0.08 (-0.01 with slow falling); sin/cos from the 65536-entry table; p, y = current pitch, yaw (rad)
 look = (sin(-y-PI) * -cos(-p), sin(-p), cos(-y-PI) * -cos(-p))    // from -p: table index can differ
@@ -108,7 +108,7 @@ vx *= 0.99; vy *= 0.98; vz *= 0.99; then move + collide
 - **UNKNOWN**: wall-impact damage (`GlidingCollisionDamageCalculateSystem`, not decoded), the durability
   threshold, the glide box size.
 
-### Horse (`acacia-physics` `vehicle.rs`, bot `riding/horse.rs`; BDS 1.26.52, bdsre 2026-10-03)
+### Horse (`acacia-physics` `vehicle.rs`, bot `riding/horse.rs`; BDS 1.26.52, verified live 2026-10-03)
 Client-predicted when tamed, saddled and driven by a player. Per tick:
 - **Yaw:** eases toward the rider's. With `d = wrap180(riderYaw − yaw)`, `yaw += d·0.7·max(0.18, (45 − min(|d|, 45))/90)`.
 - **Pitch:** rider pitch × 0.5.
@@ -122,7 +122,7 @@ Corrections:
 
 Live (`ride_horse`, horse at 0.2): walking, turning, strafing, backing and a 1-block ledge, with 0 corrections.
 
-**Open:** above about movement 0.25, BDS's steady speed drifts from the formula. At 0.3 it was 0.3547751 against our 0.35356, reproducible. At 0.35 two sweeps disagreed: +1% once, no corrections the next time. bdsre shows no extra term. Probe with `HORSE_SWEEP=… ONLY=horse_sweep tools/live-repeat.sh`, or compare against a vanilla capture of a fast horse. The jump charge is not modelled; its formulas are in the bdsre notes (horse jump `143b722e0`, `145e36020`).
+**Open:** above about movement 0.25, BDS's steady speed drifts from the formula. At 0.3 it was 0.3547751 against our 0.35356, reproducible. At 0.35 two sweeps disagreed: +1% once, no corrections the next time; the cause is not known. Probe with `HORSE_SWEEP=… ONLY=horse_sweep tools/live-repeat.sh`, or compare against a vanilla capture of a fast horse. The charged jump is not modelled yet.
 
 ## Still open
 1. Exit spot: `dismount_mode on_top_center` vehicles and exempt blocks (`blockIgnoredForExit`) are not modelled.

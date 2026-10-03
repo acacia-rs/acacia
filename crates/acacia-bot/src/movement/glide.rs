@@ -27,5 +27,5 @@ impl Movement {
     }
 }
 
-/// The client's own boost prediction before the server's effect arrives (BDS client path).
+/// The client's own boost prediction before the server's effect arrives.
 const PREDICTED_BOOST_TICKS: i64 = 20;
