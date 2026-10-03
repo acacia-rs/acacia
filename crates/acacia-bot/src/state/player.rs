@@ -1,5 +1,6 @@
+use super::Effects;
 use acacia_client::proto::packets::{
-    ChangeDimension, CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, Respawn,
+    ChangeDimension, CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MovePlayer, Respawn,
     SetEntityData, SetHealth, SetPlayerGameType, SetSpawnPosition, SetSpawnPositionSpawnType, StartGame, UpdateAttributes,
     UpdatePlayerGameType,
 };
@@ -41,6 +42,9 @@ pub struct PlayerState {
     pub alive: bool,
     /// Deaths seen this session (a death and respawn can both land between two polls).
     pub deaths: u32,
+    pub effects: Effects,
+    /// `minecraft:movement` attribute: base walking speed with modifiers (sprinting, slowness, ...).
+    pub movement_speed: f32,
     /// The sleeping entity flag (Geyser) and player flag (BDS, PocketMine) from `SetEntityData`.
     pub(crate) sleep_flags: [bool; 2],
     /// Own `MovePlayer`s and ready `Respawn`s seen: each needs `HandledTeleport` (movement::Idle).
@@ -66,6 +70,8 @@ impl Default for PlayerState {
             xp_progress: 0.0,
             alive: true,
             deaths: 0,
+            effects: Effects::default(),
+            movement_speed: 0.1,
             sleep_flags: [false; 2],
             teleports: 0,
         }
@@ -84,6 +90,7 @@ impl PlayerState {
         ChangeDimension::ID,
         SetSpawnPosition::ID,
         Respawn::ID,
+        MobEffect::ID,
     ];
 
     /// Standing eye height of a player; server-sent player positions are offset by it.
@@ -141,6 +148,12 @@ impl PlayerState {
                     p.attributes.iter().for_each(|a| self.on_attribute(a));
                 }
             }
+            MobEffect::ID => {
+                let p: MobEffect = packet.decode()?;
+                if p.runtime_entity_id == self.runtime_entity_id {
+                    self.effects.apply(&p);
+                }
+            }
             SetHealth::ID => self.set_health(packet.decode::<SetHealth>()?.health as f32),
             SetPlayerGameType::ID => self.game_mode = packet.decode::<SetPlayerGameType>()?.gamemode,
             UpdatePlayerGameType::ID => {
@@ -167,6 +180,7 @@ impl PlayerState {
                     self.health = self.max_health;
                     self.alive = true;
                     self.sleep_flags = [false; 2];
+                    self.effects.clear();
                     self.teleports += 1;
                 }
             }
@@ -196,6 +210,7 @@ impl PlayerState {
                 self.max_health = a.max;
                 self.set_health(a.current);
             }
+            "minecraft:movement" => self.movement_speed = a.current,
             "minecraft:player.hunger" => self.hunger = a.current,
             "minecraft:player.saturation" => self.saturation = a.current,
             "minecraft:player.level" => self.xp_level = a.current as i32,

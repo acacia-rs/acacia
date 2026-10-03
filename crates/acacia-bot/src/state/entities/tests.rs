@@ -151,6 +151,48 @@ fn respawned_runtime_id_drops_stale_unique_index() {
 }
 
 #[test]
+fn metadata_attributes_and_effects_update_the_entity() {
+    use acacia_client::proto::packets::MobEffectEventId;
+    use acacia_client::proto::types::{
+        MetadataDictionaryItem, MetadataDictionaryItemKey as Key, MetadataDictionaryItemType, MetadataDictionaryItemValue,
+        MetadataDictionaryItemValueDefault as Plain, PlayerAttributesItem,
+    };
+    let mut es = world();
+    let mut data: SetEntityData = fixture();
+    data.runtime_entity_id = 3;
+    data.metadata = vec![MetadataDictionaryItem {
+        key: Key::Nametag,
+        r#type: MetadataDictionaryItemType::String,
+        legacy_type: 4,
+        value: MetadataDictionaryItemValue::Default(Plain::String("Bob".into())),
+    }];
+    es.apply(&raw(&data), &ME).unwrap();
+
+    let mut attrs: UpdateAttributes = fixture();
+    attrs.runtime_entity_id = 3;
+    attrs.attributes = vec![PlayerAttributesItem {
+        min: 0.0,
+        max: 20.0,
+        current: 7.0,
+        default_min: 0.0,
+        default_max: 20.0,
+        default: 20.0,
+        name: "minecraft:health".into(),
+        modifiers: Vec::new(),
+    }];
+    es.apply(&raw(&attrs), &ME).unwrap();
+
+    let mut effect: MobEffect = fixture();
+    (effect.runtime_entity_id, effect.event_id, effect.effect_id, effect.amplifier) = (3, MobEffectEventId::Add, 1, 1);
+    es.apply(&raw(&effect), &ME).unwrap();
+
+    let z = es.get(3).unwrap();
+    assert_eq!(z.metadata.name_tag(), Some("Bob"));
+    assert_eq!(z.health(), Some(7.0));
+    assert_eq!(z.effects.level(1), 2);
+}
+
+#[test]
 fn dimension_change_clears() {
     let mut es = world();
     es.apply(&fixtures::<ChangeDimension>()[0], &ME).unwrap();

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use acacia_client::proto::packets::{
-    AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MoveEntity, MoveEntityDelta, MovePlayer, RemoveEntity,
-    SetEntityMotion,
+    AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MobEffect, MoveEntity, MoveEntityDelta, MovePlayer, RemoveEntity,
+    SetEntityData, SetEntityMotion, UpdateAttributes,
 };
 use acacia_client::proto::types::Vec3f;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
-use super::Me;
+use super::{Effects, Me, Metadata};
 
 pub const PLAYER_KIND: &str = "minecraft:player";
 pub const ITEM_KIND: &str = "minecraft:item";
@@ -32,9 +32,31 @@ pub struct Entity {
     /// Last velocity from spawn or SetEntityMotion; not derived from movement.
     pub velocity: Vec3f,
     pub on_ground: bool,
+    pub metadata: Metadata,
+    /// Current attribute values by name (`minecraft:health`, `minecraft:movement`, ...).
+    pub attributes: HashMap<String, f32>,
+    pub effects: Effects,
 }
 
 impl Entity {
+    fn spawned(runtime_id: u64, unique_id: i64, kind: String, position: Vec3f, velocity: Vec3f) -> Self {
+        Entity {
+            runtime_id,
+            unique_id,
+            kind,
+            username: None,
+            position,
+            yaw: 0.0,
+            pitch: 0.0,
+            head_yaw: 0.0,
+            velocity,
+            on_ground: false,
+            metadata: Metadata::default(),
+            attributes: HashMap::new(),
+            effects: Effects::default(),
+        }
+    }
+
     pub fn is_player(&self) -> bool {
         self.kind == PLAYER_KIND
     }
@@ -48,6 +70,11 @@ impl Entity {
     pub fn distance_sq(&self, to: &Vec3f) -> f32 {
         let (dx, dy, dz) = (self.position.x - to.x, self.position.y - to.y, self.position.z - to.z);
         dx * dx + dy * dy + dz * dz
+    }
+
+    /// `minecraft:health` if the server sent it (mobs only; players' health is not broadcast).
+    pub fn health(&self) -> Option<f32> {
+        self.attributes.get("minecraft:health").copied()
     }
 }
 
@@ -68,6 +95,9 @@ impl Entities {
         MoveEntityDelta::ID,
         MovePlayer::ID,
         SetEntityMotion::ID,
+        SetEntityData::ID,
+        UpdateAttributes::ID,
+        MobEffect::ID,
         ChangeDimension::ID,
     ];
 
@@ -111,50 +141,45 @@ impl Entities {
                     e.velocity = p.velocity;
                 }
             }
+            SetEntityData::ID => {
+                let p: SetEntityData = packet.decode()?;
+                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
+                    e.metadata.merge(p.metadata);
+                }
+            }
+            UpdateAttributes::ID => {
+                let p: UpdateAttributes = packet.decode()?;
+                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
+                    e.attributes.extend(p.attributes.into_iter().map(|a| (a.name, a.current)));
+                }
+            }
+            MobEffect::ID => {
+                let p: MobEffect = packet.decode()?;
+                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
+                    e.effects.apply(&p);
+                }
+            }
             AddPlayer::ID => {
                 let p: AddPlayer = packet.decode()?;
-                self.insert(me, Entity {
-                    runtime_id: p.runtime_id,
-                    unique_id: p.unique_id,
-                    kind: PLAYER_KIND.to_owned(),
-                    username: Some(p.username),
-                    position: p.position,
-                    yaw: p.yaw,
-                    pitch: p.pitch,
-                    head_yaw: p.head_yaw,
-                    velocity: p.velocity,
-                    on_ground: false,
-                });
+                let mut e = Entity::spawned(p.runtime_id, p.unique_id, PLAYER_KIND.to_owned(), p.position, p.velocity);
+                (e.yaw, e.pitch, e.head_yaw) = (p.yaw, p.pitch, p.head_yaw);
+                e.username = Some(p.username);
+                e.metadata = p.metadata.into();
+                self.insert(me, e);
             }
             AddEntity::ID => {
                 let p: AddEntity = packet.decode()?;
-                self.insert(me, Entity {
-                    runtime_id: p.runtime_id,
-                    unique_id: p.unique_id,
-                    kind: p.entity_type,
-                    username: None,
-                    position: p.position,
-                    yaw: p.yaw,
-                    pitch: p.pitch,
-                    head_yaw: p.head_yaw,
-                    velocity: p.velocity,
-                    on_ground: false,
-                });
+                let mut e = Entity::spawned(p.runtime_id, p.unique_id, p.entity_type, p.position, p.velocity);
+                (e.yaw, e.pitch, e.head_yaw) = (p.yaw, p.pitch, p.head_yaw);
+                e.metadata = p.metadata.into();
+                e.attributes = p.attributes.into_iter().map(|a| (a.name, a.value)).collect();
+                self.insert(me, e);
             }
             AddItemEntity::ID => {
                 let p: AddItemEntity = packet.decode()?;
-                self.insert(me, Entity {
-                    runtime_id: p.runtime_entity_id,
-                    unique_id: p.entity_id_self,
-                    kind: ITEM_KIND.to_owned(),
-                    username: None,
-                    position: p.position,
-                    yaw: 0.0,
-                    pitch: 0.0,
-                    head_yaw: 0.0,
-                    velocity: p.velocity,
-                    on_ground: false,
-                });
+                let mut e = Entity::spawned(p.runtime_entity_id, p.entity_id_self, ITEM_KIND.to_owned(), p.position, p.velocity);
+                e.metadata = p.metadata.into();
+                self.insert(me, e);
             }
             RemoveEntity::ID => {
                 let unique = packet.decode::<RemoveEntity>()?.entity_id_self;
