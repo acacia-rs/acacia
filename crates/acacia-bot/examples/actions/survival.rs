@@ -181,14 +181,51 @@ pub async fn elytra(bot: &mut Bot) -> Check {
     Ok("worn".into())
 }
 
-/// Teleports up, opens the elytra, boosts and closes it again (physics bots).
+/// Teleports up, opens the elytra, glides level, boosts, climbs while turning, then dives until the
+/// landing ends the glide (physics bots). Passes with no server corrections from the start to the landing.
 pub async fn glide(bot: &mut Bot) -> Check {
     bot.equip(find(bot, "minecraft:firework_rocket")?, Destination::Hand).await?;
-    bot.client().command("/tp @s ~ ~30 ~");
+    bot.client().command("/tp @s ~ ~30 ~ -90 0");
     bot.wait_ticks(15).await?;
     bot.start_gliding().await?;
-    bot.boost_with_firework().await?;
+    let before = corrections(bot);
     bot.wait_ticks(20).await?;
-    bot.stop_gliding().await?;
-    Ok("glided".into())
+    bot.boost_with_firework().await?;
+    bot.wait_ticks(15).await?;
+    for (yaw, pitch, ticks) in [(-60.0, -20.0, 12), (-75.0, 30.0, 0)] {
+        if let Some(c) = bot.controls() {
+            (c.yaw, c.pitch) = (yaw, pitch);
+        }
+        bot.wait_ticks(ticks).await?;
+    }
+    glide_until_landed(bot, before, "glided").await
+}
+
+/// Dives from above the scene's pool into the water, which ends the glide (physics bots).
+pub async fn glide_water(bot: &mut Bot, s: &Scene) -> Check {
+    let [x, y, z] = s.at("water");
+    bot.client().command(&format!("/tp @s {} {} {} -90 0", x - 2, y + 14, z));
+    bot.wait_ticks(15).await?;
+    bot.start_gliding().await?;
+    let before = corrections(bot);
+    if let Some(c) = bot.controls() {
+        c.pitch = 70.0;
+    }
+    glide_until_landed(bot, before, "glided into the water").await
+}
+
+/// Waits for the glide to end by itself, then checks the server never corrected the bot after `before`.
+async fn glide_until_landed(bot: &mut Bot, before: u32, done: &str) -> Check {
+    let mut ticks = 0;
+    while bot.is_gliding() && ticks < 400 {
+        bot.wait_ticks(1).await?;
+        ticks += 1;
+    }
+    bot.wait_ticks(10).await?;
+    let detail = format!("{} corrections while gliding; landed after {ticks} ticks at {:?}", corrections(bot) - before, feet(bot));
+    match (bot.is_gliding(), corrections(bot) - before) {
+        (true, _) => Err(format!("still gliding; {detail}").into()),
+        (false, 0) => Ok(format!("{done}; {detail}")),
+        _ => Err(detail.into()),
+    }
 }

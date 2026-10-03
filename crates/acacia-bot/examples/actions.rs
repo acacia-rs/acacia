@@ -190,6 +190,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     run!(results, "fish", survival::fish(&mut bot, s));
     run!(results, "equip_elytra", survival::elytra(&mut bot));
     run!(results, "glide", survival::glide(&mut bot));
+    run!(results, "glide_water", survival::glide_water(&mut bot, s));
 
     let failed: Vec<_> = results.iter().filter(|(_, ok)| !ok).map(|(n, _)| *n).collect();
     println!("{} passed, {} failed {failed:?}", results.len() - failed.len(), failed.len());

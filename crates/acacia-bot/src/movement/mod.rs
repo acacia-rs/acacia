@@ -2,6 +2,7 @@
 //! and reports the result in `PlayerAuthInput`, obeying teleports, corrections and knockback.
 
 mod auth_input;
+mod glide;
 mod idle;
 mod rewind;
 #[cfg(test)]
@@ -10,9 +11,9 @@ mod tests;
 pub use idle::Idle;
 
 use acacia_client::proto::packets::{
-    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, PlayerAuthInput, PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion,
+    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, MovementEffect, PlayerAuthInput, PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion,
 };
-use acacia_client::proto::types::InputData;
+use acacia_client::proto::types::{InputData, MovementEffectType};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 use acacia_physics::{self as physics, Input, PlayerState, Vec3, WorldView};
 
@@ -37,6 +38,9 @@ pub struct Controls {
     pub jump: bool,
     pub sneak: bool,
     pub sprint: bool,
+    /// Keep an elytra open. Set in the air to start a glide; the simulation clears it when the glide ends
+    /// (landing, water) or cannot start.
+    pub glide: bool,
     /// Degrees; 0 faces +Z, wrapped to -180..=180 when sent.
     pub yaw: f32,
     /// Degrees; -90 looks up, clamped to -90..=90 when sent.
@@ -76,6 +80,8 @@ pub struct Movement {
     pub(crate) spawn_wait: u32,
     /// Holding "use" on an item (eating, drinking), which slows movement.
     pub(crate) using_item: bool,
+    /// An elytra is worn (set by the bot every tick).
+    pub(crate) elytra: bool,
     physics: Option<PlayerState>,
     tick: u64,
     prev_jump: bool,
@@ -92,7 +98,8 @@ pub struct Movement {
 }
 
 impl Movement {
-    pub const PACKETS: &'static [u32] = &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID];
+    pub const PACKETS: &'static [u32] =
+        &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID, MovementEffect::ID];
 
     pub fn new() -> Self {
         Self {
@@ -102,6 +109,7 @@ impl Movement {
             teleports: 0,
             spawn_wait: 0,
             using_item: false,
+            elytra: false,
             physics: None,
             tick: 0,
             prev_jump: false,
@@ -210,6 +218,13 @@ impl Movement {
                     self.teleports += 1;
                 }
             }
+            MovementEffect::ID => {
+                let e: MovementEffect = packet.decode()?;
+                if e.runtime_id == me.runtime_entity_id && e.effect_type == MovementEffectType::GLIDEBOOST {
+                    tracing::debug!(our_tick = self.tick, server_tick = e.tick, duration = e.effect_duration, "glide boost");
+                    self.server_glide_boost(e.effect_duration, e.tick);
+                }
+            }
             SetEntityMotion::ID => {
                 let m: SetEntityMotion = packet.decode()?;
                 if m.runtime_entity_id == me.runtime_entity_id {
@@ -266,11 +281,16 @@ impl Movement {
             // Releasing the sprint key doesn't stop a sprint: only letting go of forward does.
             sprint: c.sprint || double_tap || (st.sprinting && forward),
             using_item: self.using_item,
+            glide: c.glide,
             ..Input::default()
         };
-        let (was_sprinting, was_sneaking, was_swimming) = (st.sprinting, st.sneaking, st.swimming);
+        let (was_sprinting, was_sneaking, was_swimming, was_gliding) = (st.sprinting, st.sneaking, st.swimming, st.gliding);
         let knockback = st.knockback;
+        st.equipment.elytra = self.elytra;
         let mut out = physics::tick(st, &input, world);
+        if !st.gliding {
+            self.controls.glide = false;
+        }
         if out.teleported && std::mem::take(&mut self.current_on_landing) {
             physics::apply_current(st, world);
             out.delta = st.vel;
@@ -284,6 +304,7 @@ impl Movement {
             sneak: (st.sneaking && !was_sneaking, !st.sneaking && was_sneaking),
             jump: (c.jump && !self.prev_jump, !c.jump && self.prev_jump),
             swim: (st.swimming && !was_swimming, !st.swimming && was_swimming),
+            glide: (st.gliding && !was_gliding, !st.gliding && was_gliding),
             sneaking: st.sneaking,
             sprint_key: c.sprint,
         };

@@ -194,4 +194,14 @@ world.beforeEvents.playerInteractWithEntity.subscribe(({ player, target, itemSta
 });
 world.afterEvents.playerInteractWithEntity.subscribe(({ target }) => log(`interact after ${target.typeId}`));
 
+// The server's own glide, every tick: position, velocity and the rotation it has for the player.
+system.runInterval(() => {
+  for (const p of world.getAllPlayers()) {
+    if (!p.isGliding) continue;
+    const v = p.getVelocity();
+    const r = p.getRotation();
+    log(`glide ${system.currentTick} ${where(p)} v ${[v.x, v.y, v.z].map((c) => c.toFixed(5))} rot ${r.x.toFixed(2)},${r.y.toFixed(2)}`);
+  }
+}, 1);
+
 world.afterEvents.playerLeave.subscribe(({ playerName }) => log(`left ${playerName}`));

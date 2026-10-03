@@ -67,7 +67,9 @@ impl Bot {
     }
 
     fn physics_tick(&mut self) {
+        let elytra = self.wears_elytra();
         let (Some(world), Some(movement)) = (&self.world, &mut self.movement) else { return };
+        movement.elytra = elytra;
         let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return };
         if !movement.is_started() {
             let p = &self.state.player;

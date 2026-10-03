@@ -1,8 +1,11 @@
 # Handoff to the physics session: elytra gliding and vehicle steering
 
-Owner: the `physics-fuzz` session (acacia-physics / `movement/`). The action side is on master
-(2026-10-02); nothing here is implemented in physics yet. Formulas, packet fields and sources:
+Owner: the `physics-fuzz` session (acacia-physics / `movement/`). Formulas, packet fields and sources:
 `docs/research/riding-fishing-elytra.md` ("Elytra physics", "Steering", "PlayerAuthInput while riding").
+
+**Gliding is done** (feat/glide-physics, 2026-10-03). Item 1 and the gliding notes below are kept only for
+context. In the bot it is `Controls::glide`, `movement/glide.rs` and the server boost via MovementEffect;
+in physics, `simulate_glide` follows BDS. Vehicles (items 2-3) are still open.
 
 ## What exists on master
 | Piece | Where | Behaviour now |

@@ -17,7 +17,6 @@ pub const MAX_SNEAK_IMPULSE: f32 = 0.3;
 pub const DEFAULT_UNDERWATER_MOVEMENT_SPEED: f32 = 0.02;
 pub const DEFAULT_LAVA_MOVEMENT_SPEED: f32 = 0.02;
 pub const DEFAULT_SWIM_SPEED_MULTIPLIER: f32 = 1.0;
-pub const GLIDE_HORIZONTAL_LOOK_EPSILON: f32 = 1e-4;
 pub(crate) const GLIDE_FALL_DISTANCE_VELOCITY_THRESHOLD: f32 = -0.5;
 /// Air acceleration picked by the sprint flag alone; it never scales with the movement attribute.
 pub const WALK_AIR_SPEED: f32 = 0.02;

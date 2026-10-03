@@ -138,7 +138,9 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                     continue;
                 }
                 movement.align_tick(rec.tick);
-                movement.controls = controls_of(&rec);
+                movement.controls = controls_of(&rec, movement.controls.glide);
+                // Traces don't record armour; a glide start means an elytra was worn.
+                movement.elytra |= rec.input_data.contains(&F::StartGliding);
                 movement.recorded_want_down = Some(rec.input_data.contains(&F::WantDown));
                 let (Some(view), Some(registry)) = (world.view(), world.registry()) else { continue };
                 let Some(out) = movement.tick(&PhysicsWorld { view, registry }) else { continue };
@@ -273,8 +275,9 @@ fn block_map(view: &impl acacia_world::BlockAccess, registry: &acacia_world::Blo
     out
 }
 
-/// The held controls a `PlayerAuthInput` reports.
-fn controls_of(p: &PlayerAuthInput) -> Controls {
+/// The held controls a `PlayerAuthInput` reports. Gliding shows only as Start/StopGliding edges, so it
+/// carries over from `gliding`, the previous input's state.
+fn controls_of(p: &PlayerAuthInput, gliding: bool) -> Controls {
     let has = |f: F| p.input_data.contains(&f);
     let axis = |pos: bool, neg: bool| f32::from(u8::from(pos)) - f32::from(u8::from(neg));
     Controls {
@@ -283,6 +286,7 @@ fn controls_of(p: &PlayerAuthInput) -> Controls {
         jump: has(F::JumpDown),
         sneak: has(F::SneakDown),
         sprint: has(F::SprintDown),
+        glide: (gliding || has(F::StartGliding)) && !has(F::StopGliding),
         yaw: p.yaw,
         pitch: p.pitch,
     }

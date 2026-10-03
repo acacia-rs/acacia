@@ -38,7 +38,10 @@ taken, which made the bot's mount fail silently.
 
 Entity right-clicks log `ACTIONTEST interact before ...` (target, player state, held item, the
 target's riders) and `interact after <type>`. The before event fires once the click passes the
-transaction checks; the after event only if the entity offered an interaction.
+transaction checks; the after event only if the entity offered an interaction. While a player
+glides, every tick logs `ACTIONTEST glide <tick> <feet> v <velocity> rot <pitch>,<yaw>`: the server's own
+glide, to line up against the bot's `auth input` trace: run the glide with
+`RUST_LOG=acacia_bot::movement=trace`, then `py -3 tools/glide-compare.py <run>.bot.log <run>.bds.log`.
 
 ## Running (testbox)
 
