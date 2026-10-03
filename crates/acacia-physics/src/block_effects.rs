@@ -34,7 +34,8 @@ pub(crate) fn apply_ascendable_movement(st: &mut PlayerState, traversal: Travers
     let mut v = st.vel;
     match traversal {
         Traversal::Scaffolding => {
-            if st.pressing_descend {
+            // On the ground below, sneaking inside scaffolding leaves ordinary gravity (BDS fuzz).
+            if st.pressing_descend && !st.on_ground {
                 v[1] = -0.15;
                 st.set_vel(v);
                 return true;

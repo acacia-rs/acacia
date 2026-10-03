@@ -1,8 +1,9 @@
 //! Ground/air travel (bedsim `simulateMovement`).
 
 use crate::block_effects::{apply_ascendable_movement, apply_stuck_speed_multiplier};
+use crate::collide::overlapped_cells;
 use crate::constants::*;
-use crate::math::{block_pos, sub};
+use crate::math::{BlockPos, block_pos, sub};
 use crate::motion::*;
 use crate::sim::Sim;
 use crate::state::PlayerState;
@@ -102,9 +103,11 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         move_relative(st, speed);
         self.attempt_jump(st);
         let mut inside = self.w.block(block_pos(st.pos));
+        // Any scaffolding the box overlaps counts, not just the feet's cell (BDS fuzz: a jump beside a column
+        // climbs it).
+        let is_scaffolding = |p: BlockPos| self.w.block(p).traversal == Traversal::Scaffolding;
         if inside.traversal == Traversal::None
-            && let Some(sp) = st.supporting_block
-            && self.w.block(sp).traversal == Traversal::Scaffolding
+            && (st.supporting_block.is_some_and(is_scaffolding) || overlapped_cells(&st.bounding_box()).any(is_scaffolding))
         {
             inside.traversal = Traversal::Scaffolding;
         }
