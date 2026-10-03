@@ -97,8 +97,7 @@ pub struct Movement {
     /// The sprint was started by a double tap, so it outlives the (unheld) sprint key.
     tapped_sprint: bool,
     effects: Effects,
-    /// Worn armour, set before each tick (see `equipment::worn`).
-    pub(crate) equipment: Equipment,
+    equipment: Equipment,
     /// An elytra glide is wanted; follows the simulated state after each tick (landing ends it).
     pub(crate) glide: bool,
     history: History,
@@ -147,6 +146,21 @@ impl Movement {
             st.apply_correction(feet, delta, st.on_ground);
             self.tick = tick;
         }
+    }
+
+    /// The worn armour for the ticks from here on (see `equipment::worn`); true when it changed.
+    pub(crate) fn set_equipment(&mut self, equipment: Equipment) -> bool {
+        let changed = equipment != self.equipment;
+        if changed {
+            tracing::debug!(our_tick = self.tick, ?equipment, "equipment");
+            self.equipment = equipment;
+        }
+        changed
+    }
+
+    /// The worn armour the simulation uses.
+    pub fn equipment(&self) -> Equipment {
+        self.equipment
     }
 
     /// Numbers the next simulated tick `tick`: a real client's tick counter can skip (replay only).

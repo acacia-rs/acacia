@@ -68,18 +68,12 @@ pub fn apply_current<W: WorldView + ?Sized>(st: &mut PlayerState, world: &W) {
 pub fn tick<W: WorldView + ?Sized>(st: &mut PlayerState, input: &Input, world: &W) -> TickOutput {
     let sim = Sim { w: world };
     st.jumped = false;
-    // Asked only where the answer matters: while swimming, or crouched with the sneak key up.
-    let forced_crouch = st.sneaking && !st.pressing_sneak && !st.swimming;
-    let stand_fits = !(st.swimming || forced_crouch) || sim.can_fit_height_known(st, st.standing_height) != (false, true);
-    // A crouch forced by a low ceiling ends the tick after standing first fits (strict BDS fuzz).
-    let crouch_held = forced_crouch && !(stand_fits && st.stand_fitted);
-    st.stand_fitted = forced_crouch && stand_fits;
+    let stand_fits = !st.swimming || sim.can_fit_height_known(st, st.standing_height) != (false, true);
     let env = Surroundings {
         in_water: touching_water(st, world),
         swim_start_submerged: sim.swim_start_submerged(st),
         swim_surfacing: sim.swim_surfacing(st),
         stand_fits,
-        crouch_held,
     };
     let frame = input.frame(st, &env);
     sim.prepare_collision_box(st);

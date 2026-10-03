@@ -93,6 +93,9 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     for event in events {
         match event {
             Event::Mark(label) => mark = Some(label.clone()),
+            Event::Equipment(worn) => {
+                movement.set_equipment(*worn);
+            }
             Event::Start { feet, yaw, pitch } => movement.start(*feet, *yaw, *pitch),
             Event::Packet(p) => {
                 if p.id == ClientCacheMissResponse::ID
@@ -152,7 +155,6 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                 movement.align_tick(rec.tick);
                 movement.controls = controls_of(&rec);
                 movement.recorded_want_down = Some(rec.input_data.contains(&F::WantDown));
-                movement.equipment = crate::movement::equipment::worn(&state.inventory, &state.items);
                 movement.glide = (movement.glide || rec.input_data.contains(&F::StartGliding)) && !rec.input_data.contains(&F::StopGliding);
                 let (Some(view), Some(registry)) = (world.view(), world.registry()) else { continue };
                 let Some(out) = movement.tick(&PhysicsWorld { view, registry }) else { continue };

@@ -45,8 +45,11 @@ modifiers (the simulation adds both itself).
 Each was found by fuzzing against strict BDS (`acacia-bot` examples `fuzz` and `replay`) and fixes
 mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge because of them.
 - The sneak slowdown lasts through the tick sneaking stops, and a sprint cannot start on that tick.
-- A crouch forced by a low ceiling (sneak key up) is no sneak for edge avoidance, and ends the tick after
-  standing first fits; a sprint may start on that tick, and then the slowdown ends with it.
+- A crouch forced by a low ceiling (sneak key up) is no sneak for edge avoidance.
+- Sneaking blocks a sprint only while it cuts the input below 0.75: with Swift Sneak 3 (from its third tick)
+  a sprint starts and continues while sneaking. Levels 1 and 2 are untested.
+- Depth Strider: the water speed halves the level by the ground state before the move and the drag by the one
+  after it, and on the tick a swim stops the speed still takes the sprint.
 - No sneak slowdown in water (contact this tick), where sneak means sink. Sinking needs `want_down`
   (the vanilla client's `WantDown`, sent with every sneak) or else the top of a standing head (feet +
   1.8, whatever the pose) under water (a still source's surface is 8/9 high) and not swimming. Without

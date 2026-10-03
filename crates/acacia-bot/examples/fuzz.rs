@@ -11,7 +11,7 @@ mod support;
 use std::path::PathBuf;
 
 use acacia_bot::movement::Controls;
-use acacia_bot::survival::Destination;
+use acacia_bot::survival::{Destination, EquipMethod};
 use acacia_bot::world::SharedWorlds;
 use acacia_bot::Bot;
 use support::{corrections, Commander, Error, Fill, Pad, PAD_MIN};
@@ -113,6 +113,8 @@ async fn fuzz_bot(
     // Spread the seed (xorshift needs a nonzero state): `seed | 1` gave bots n and n+1 one stream.
     let mut rng = Rng(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
     pad.run(&bot, "/effect @s fire_resistance 1000000 0 true");
+    // Snowfall lays snow on the pad a tick before the client hears of it.
+    pad.run(&bot, "/weather clear 1000000");
     for command in std::env::var("FUZZ_CMD").iter().flat_map(|c| c.split(';')) {
         pad.run(&bot, command.trim());
     }
@@ -140,24 +142,36 @@ async fn fuzz_bot(
     Ok(())
 }
 
-/// Gives `item[:enchantment:level]` into the hand, enchants it there and puts it on.
+/// Gives `item[:enchantment:level]`, enchants it in the hand and puts it on.
 async fn wear(bot: &mut Bot, pad: &Pad, piece: &str) -> Result<(), Error> {
     let mut parts = piece.split(':');
     let item = parts.next().unwrap_or_default();
-    pad.run(bot, &format!("/replaceitem entity @s slot.weapon.mainhand 0 {item}"));
-    if let (Some(enchantment), Some(level)) = (parts.next(), parts.next()) {
-        pad.run(bot, &format!("/enchant @s {enchantment} {level}"));
-    }
+    let name = format!("minecraft:{item}");
+    pad.run(bot, &format!("/clear @s {item}"));
+    pad.run(bot, &format!("/give @s {item}"));
     bot.wait_ticks(20).await?;
+    if let (Some(enchantment), Some(level)) = (parts.next(), parts.next()) {
+        let given = bot.find_item(&name).ok_or_else(|| format!("{item} was not given"))?;
+        bot.equip(given, Destination::Hand).await?;
+        bot.wait_ticks(10).await?;
+        pad.run(bot, &format!("/enchant @s {enchantment} {level}"));
+        bot.wait_ticks(20).await?;
+    }
     let to = match item {
         i if i.ends_with("_helmet") => Destination::Head,
         i if i.ends_with("_leggings") => Destination::Legs,
         i if i.ends_with("_boots") => Destination::Feet,
         _ => Destination::Chest,
     };
-    let from = bot.find_item(&format!("minecraft:{item}")).ok_or_else(|| format!("{item} was not given"))?;
-    bot.equip(from, to).await?;
+    let from = bot.find_item(&name).ok_or_else(|| format!("{item} was not given"))?;
+    let method = if std::env::var_os("FUZZ_EQUIP_USE").is_some() { EquipMethod::Use } else { EquipMethod::Inventory };
+    bot.equip_by(from, to, method).await?;
     bot.wait_ticks(20).await?;
+    println!("wearing {piece}: {:?}", bot.movement().map(|m| m.equipment()));
+    if std::env::var_os("FUZZ_DEBUG").is_some() {
+        let inv = &bot.state().inventory;
+        println!("  armor {:?}\n  hand {:?}", inv.armor, inv.main[usize::from(inv.selected_hotbar_slot)]);
+    }
     Ok(())
 }
 

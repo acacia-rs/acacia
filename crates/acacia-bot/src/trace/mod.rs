@@ -4,7 +4,8 @@
 //!
 //! File: `BTRC` + version byte, then events: kind `u8`, then for a packet `id u32, len u32, body`,
 //! for an input `len u32, body`, for a start `feet [f32; 3], yaw f32, pitch f32`, for a mark
-//! `len u32, utf8`. Integers and floats are little-endian.
+//! `len u32, utf8`, for equipment five `i32` (depth strider, soul speed, swift sneak, leather boots, elytra).
+//! Integers and floats are little-endian.
 
 mod replay;
 
@@ -14,23 +15,21 @@ use std::fs::File;
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
-use acacia_client::proto::packets::{InventoryContent, InventorySlot, ItemRegistry as ItemRegistryPacket, ItemStackResponse, PlayerAuthInput, SetEntityData};
+use acacia_client::proto::packets::{PlayerAuthInput, SetEntityData};
 use acacia_client::proto::types::{MetadataDictionaryItemValue, MetadataFlags1};
 use acacia_client::proto::{Packet, RawPacket};
-use acacia_physics::Vec3;
+use acacia_physics::{Equipment, Vec3};
 use bytes::{Bytes, BytesMut};
 
 /// Recorded for analysis only, when about the recording player: its actor flags (the server's sprint state).
 pub const ANALYSIS_PACKETS: &[u32] = &[SetEntityData::ID];
-
-/// Recorded so a replay knows the worn armour (`crate::movement::equipment`).
-pub const EQUIPMENT_PACKETS: &[u32] = &[ItemRegistryPacket::ID, InventoryContent::ID, InventorySlot::ID, ItemStackResponse::ID];
 
 const MAGIC: &[u8; 5] = b"BTRC\x01";
 const PACKET: u8 = 0;
 const INPUT: u8 = 1;
 const START: u8 = 2;
 const MARK: u8 = 3;
+const EQUIPMENT: u8 = 4;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
@@ -42,6 +41,8 @@ pub enum Event {
     Start { feet: Vec3, yaw: f32, pitch: f32 },
     /// A label, e.g. the drill that starts here.
     Mark(String),
+    /// The worn armour from here on (the client predicts some changes the server never sends).
+    Equipment(Equipment),
 }
 
 /// Whether an [`ANALYSIS_PACKETS`] packet concerns this runtime id.
@@ -103,6 +104,13 @@ impl Recorder {
                 w.write_all(&[MARK])?;
                 write_bytes(w, label.as_bytes())
             }
+            Event::Equipment(e) => {
+                w.write_all(&[EQUIPMENT])?;
+                for level in [e.depth_strider, e.soul_speed, e.swift_sneak, i32::from(e.leather_boots), i32::from(e.elytra)] {
+                    w.write_all(&level.to_le_bytes())?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -149,6 +157,13 @@ fn read_event(r: &mut impl Read, kind: u8) -> io::Result<Event> {
             Event::Start { feet: [v[0], v[1], v[2]], yaw: v[3], pitch: v[4] }
         }
         MARK => Event::Mark(String::from_utf8_lossy(&read_bytes(r)?).into_owned()),
+        EQUIPMENT => {
+            let mut v = [0; 5];
+            for x in &mut v {
+                *x = read_u32(r)? as i32;
+            }
+            Event::Equipment(Equipment { depth_strider: v[0], soul_speed: v[1], swift_sneak: v[2], leather_boots: v[3] != 0, elytra: v[4] != 0 })
+        }
         k => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("unknown trace event {k}"))),
     })
 }

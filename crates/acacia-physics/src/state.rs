@@ -114,8 +114,6 @@ pub struct PlayerState {
     pub immobile: bool,
 
     pub gliding: bool,
-    /// Standing fit at the start of the last tick of a forced crouch (see `sim::tick`).
-    pub(crate) stand_fitted: bool,
     pub glide_boost_ticks: i64,
     pub has_gravity: bool,
     pub slow_falling: bool,
@@ -192,7 +190,6 @@ impl PlayerState {
             stuck_in_collider: false,
             immobile: false,
             gliding: false,
-            stand_fitted: false,
             glide_boost_ticks: 0,
             has_gravity: true,
             slow_falling: false,
