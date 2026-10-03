@@ -1,6 +1,6 @@
 //! Replays a recorded movement trace offline and reports, per mark (drill), the ticks that no longer
 //! match the recording and the server corrections the replayed simulation disagrees with.
-//! `cargo run -p acacia-bot --example replay -- <trace> [--resync] [--tolerance 0.0001] [--verbose]`
+//! `cargo run -p acacia-bot --example replay -- <trace> [--resync] [--tolerance 0.0001] [--correction-tolerance 0.001] [--verbose]`
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -14,13 +14,14 @@ const TELEPORT_LAG_DISTANCE: f32 = 4.0;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).without_time().with_ansi(false).try_init();
     let mut path = None;
-    let (mut resync, mut verbose, mut tolerance) = (false, false, 1e-4);
+    let (mut resync, mut verbose, mut tolerance, mut correction_tolerance) = (false, false, 1e-4, CORRECTION_TOLERANCE);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--resync" => resync = true,
             "--verbose" => verbose = true,
             "--tolerance" => tolerance = args.next().ok_or("--tolerance needs a value")?.parse()?,
+            "--correction-tolerance" => correction_tolerance = args.next().ok_or("--correction-tolerance needs a value")?.parse()?,
             _ => path = Some(PathBuf::from(a)),
         }
     }
@@ -36,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (lagged, mismatches): (Vec<_>, Vec<_>) = report
         .corrections
         .iter()
-        .filter(|c| c.mismatch(CORRECTION_TOLERANCE))
+        .filter(|c| c.mismatch(correction_tolerance))
         .partition(|c| c.error().is_some_and(|e| e > TELEPORT_LAG_DISTANCE));
     for c in &mismatches {
         per_mark.entry(label(&c.mark)).or_default().1 += 1;
