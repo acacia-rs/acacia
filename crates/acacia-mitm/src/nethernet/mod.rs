@@ -8,7 +8,7 @@ mod link;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acacia_auth::Account;
@@ -18,30 +18,30 @@ use rand_core::{OsRng, RngCore};
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
+use tokio::sync::mpsc;
 use tokio::time::timeout;
 
-use crate::record::Recorder;
-use crate::relay::{Relay, Wire};
+use crate::intercept::{Injector, Session};
+use crate::proxy::Setup;
+use crate::relay::Wire;
 use link::Link;
 
 const SIGNALING_TIMEOUT: Duration = Duration::from_secs(15);
 
-pub struct Host {
-    pub server: SocketAddr,
+pub(crate) struct Host {
+    pub setup: Setup,
     pub account: Account,
     /// Signs our answers. The game pins it per server address on first use.
     pub key: SigningKey,
-    pub rec: Arc<Mutex<Recorder>>,
 }
 
-pub async fn run(listen: SocketAddr, host: Host) -> io::Result<()> {
-    let listener = TcpListener::bind(listen).await?;
+pub(crate) async fn run(listener: TcpListener, host: Host) -> io::Result<()> {
     let host = Arc::new(host);
     loop {
         let (tcp, peer) = listener.accept().await?;
         let host = host.clone();
         tokio::spawn(async move {
-            if let Err(e) = serve(tcp, &host).await {
+            if let Err(e) = serve(tcp, peer, &host).await {
                 eprintln!("{peer}: {e}");
             }
         });
@@ -67,7 +67,7 @@ fn err(e: impl std::fmt::Display) -> String {
 }
 
 /// One signaling request. A join then runs its link on this task until the player leaves.
-async fn serve(mut tcp: TcpStream, host: &Host) -> Result<(), String> {
+async fn serve(mut tcp: TcpStream, peer: SocketAddr, host: &Host) -> Result<(), String> {
     let raw = timeout(SIGNALING_TIMEOUT, read_http(&mut tcp, |r| http::is_tls(r) || http::request_complete(r)))
         .await
         .map_err(|_| "request timed out")?
@@ -84,11 +84,11 @@ async fn serve(mut tcp: TcpStream, host: &Host) -> Result<(), String> {
             if local.is_loopback() {
                 eprintln!("the game joined on a loopback address; its WebRTC may not reach it. Use this machine's LAN IP");
             }
-            match join(&String::from_utf8_lossy(req.body), local, host).await {
+            match join(&String::from_utf8_lossy(req.body), local, peer, host).await {
                 Ok((answer, link)) => {
                     tcp.write_all(&http::response(200, "application/sdp", &answer)).await.map_err(err)?;
                     drop(tcp);
-                    link.run(host.rec.clone()).await;
+                    link.run().await;
                     Ok(())
                 }
                 Err(e) => {
@@ -101,21 +101,24 @@ async fn serve(mut tcp: TcpStream, host: &Host) -> Result<(), String> {
     }
 }
 
-/// Dials the server for a game whose offer reached us on `local`, then answers the game.
-async fn join(offer: &str, local: IpAddr, host: &Host) -> Result<(String, Link), String> {
+/// Dials the server for a game (signaling from `peer`) whose offer reached us on `local`, then
+/// answers the game.
+async fn join(offer: &str, local: IpAddr, peer: SocketAddr, host: &Host) -> Result<(String, Link), String> {
     let key = SigningKey::random(&mut OsRng);
     let credentials = host.account.credentials(&key).await.map_err(err)?;
     let token = credentials.multiplayer_token.clone().ok_or("the account has no MultiplayerToken")?;
-    let (up, up_udp) = timeout(SIGNALING_TIMEOUT, dial(host.server, &Identity::multiplayer(key.clone(), token)))
+    let (up, up_udp) = timeout(SIGNALING_TIMEOUT, dial(host.setup.server, &Identity::multiplayer(key.clone(), token)))
         .await
         .map_err(|_| "server signaling timed out")??;
     let game_udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await.map_err(err)?;
     let game_addr = SocketAddr::new(local, game_udp.local_addr().map_err(err)?.port());
     let (game, answer) = Connection::answer(offer, game_addr, &host.key, Instant::now()).map_err(err)?;
     println!("NetherNet player joining: game side {game_addr}, server side {:?}", up.host_candidate());
-    host.rec.lock().unwrap_or_else(|p| p.into_inner()).write(json!({ "event": "connected", "transport": "nethernet" }));
-    let relay = Relay::new(Wire::NetherNet, key, Some(credentials));
-    Ok((answer, Link { game, game_udp, up, up_udp, relay }))
+    let (inject_tx, injections) = mpsc::unbounded_channel();
+    let session = Session { game: peer, injector: Injector::new(peer, inject_tx) };
+    let relay = host.setup.relay(Wire::NetherNet, key, Some(credentials), &session);
+    relay.note(json!({ "event": "connected", "transport": "nethernet" }));
+    Ok((answer, Link { game, game_udp, up, up_udp, relay, injections }))
 }
 
 /// Posts our offer to the server and accepts its answer; ICE and DTLS follow in the link.
