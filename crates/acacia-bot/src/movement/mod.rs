@@ -255,10 +255,10 @@ impl Movement {
                         st.set_movement_attribute(value);
                         self.history.movement_attribute(p.tick, value);
                         // Our freeze steps per input tick, the server's per world tick: follow the server's.
-                        match self.history.freeze(p.tick, freeze) {
-                            Some(simulated) => st.set_freeze((st.freeze + freeze - simulated).clamp(0.0, 1.0)),
-                            None if p.tick >= self.tick => st.server_freeze = Some(freeze),
-                            None => {}
+                        let shift = self.history.freeze(p.tick, freeze);
+                        st.set_freeze((st.freeze + shift).clamp(0.0, 1.0));
+                        if p.tick >= self.tick {
+                            st.server_freeze = Some(freeze);
                         }
                     }
                 }

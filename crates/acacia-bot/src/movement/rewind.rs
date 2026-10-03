@@ -63,6 +63,11 @@ impl<T: Copy> Timeline<T> {
         self.0.iter().rev().find(|&&(t, _)| t <= tick).map(|&(_, v)| v)
     }
 
+    /// [`Self::at`] once a later value is known: the server has moved past `tick`, so no update was missed.
+    fn settled(&self, tick: u64) -> Option<T> {
+        self.0.iter().any(|&(t, _)| t > tick).then(|| self.at(tick)).flatten()
+    }
+
     /// [`Self::at`] when a value starts on exactly `tick`.
     fn starting(&self, tick: u64) -> Option<T> {
         self.at(tick).filter(|_| self.0.iter().any(|&(t, _)| t == tick))
@@ -103,11 +108,15 @@ impl History {
         self.speeds.push(tick, value, self.entries.front().map_or(0, |e| e.tick));
     }
 
-    /// Records the server's freeze stamped with `tick`; returns what we simulated for the tick it belongs to,
-    /// if that tick is kept.
-    pub(super) fn freeze(&mut self, tick: u64, freeze: f32) -> Option<f32> {
+    /// Records the server's freeze stamped with `tick` and shifts the kept states from the tick it belongs to
+    /// by what we were off there; returns that shift for the current state (0 when applied again).
+    pub(super) fn freeze(&mut self, tick: u64, freeze: f32) -> f32 {
         self.freezes.push(tick, freeze, self.entries.front().map_or(0, |e| e.tick));
-        self.entries.iter().find(|e| e.tick == tick + 1).map(|e| e.after.freeze)
+        let Some(shift) = self.entries.iter().find(|e| e.tick == tick + 1).map(|e| freeze - e.after.freeze) else { return 0.0 };
+        for e in self.entries.iter_mut().filter(|e| e.tick > tick) {
+            e.after.set_freeze((e.after.freeze + shift).clamp(0.0, 1.0));
+        }
+        shift
     }
 
     pub(super) fn effects(&mut self, tick: u64, effects: Effects) {
@@ -151,7 +160,7 @@ impl History {
         if let Some(v) = self.effects.at(base) {
             st.effects = v;
         }
-        if let Some(v) = self.freezes.starting(base) {
+        if let Some(v) = self.freezes.settled(base) {
             st.set_freeze(v);
         }
         for e in self.entries.iter_mut().filter(|e| e.tick > base) {
@@ -161,7 +170,7 @@ impl History {
             if let Some(v) = self.effects.starting(e.tick) {
                 st.effects = v;
             }
-            st.server_freeze = self.freezes.starting(e.tick);
+            st.server_freeze = self.freezes.settled(e.tick);
             st.knockback = e.knockback;
             physics::tick(st, &e.input, world);
             e.after = st.clone();
