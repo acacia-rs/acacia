@@ -36,6 +36,13 @@ pub struct Reply1 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Request2 {
+    pub cookie: Option<u32>,
+    pub mtu: u16,
+    pub client_guid: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reply2 {
     pub server_guid: u64,
     pub client_addr: SocketAddr,
@@ -141,13 +148,23 @@ pub fn parse_request_1(data: &[u8]) -> Result<(u8, u16)> {
     Ok((protocol, (data.len() as u16).saturating_add(UDP_OVERHEAD)))
 }
 
-/// Without a security cookie, so request 2 carries none either.
-pub fn reply_1(out: &mut BytesMut, server_guid: u64, mtu: u16) {
+/// With a cookie the reply says "has security", and request 2 must echo the cookie.
+pub fn reply_1(out: &mut BytesMut, server_guid: u64, cookie: Option<u32>, mtu: u16) {
     out.put_u8(ID_OPEN_CONNECTION_REPLY_1);
     out.put_magic();
     out.put_u64(server_guid);
-    out.put_u8(0);
+    out.put_u8(u8::from(cookie.is_some()));
+    if let Some(cookie) = cookie {
+        out.put_u32(cookie);
+    }
     out.put_u16(mtu);
+}
+
+/// A refusal such as [`ID_ALREADY_CONNECTED`] or [`ID_NO_FREE_INCOMING_CONNECTIONS`].
+pub fn refusal(out: &mut BytesMut, id: u8, server_guid: u64) {
+    out.put_u8(id);
+    out.put_magic();
+    out.put_u64(server_guid);
 }
 
 pub fn incompatible_protocol(out: &mut BytesMut, protocol: u8, server_guid: u64) {
@@ -157,13 +174,21 @@ pub fn incompatible_protocol(out: &mut BytesMut, protocol: u8, server_guid: u64)
     out.put_u64(server_guid);
 }
 
-/// Returns `(mtu, client_guid)` of a request 2 sent without a cookie.
-pub fn parse_request_2(data: &[u8]) -> Result<(u16, u64)> {
+/// The request carries a cookie only if reply 1 did, and nothing in it says so: pass `with_cookie`
+/// as the server sent it.
+pub fn parse_request_2(data: &[u8], with_cookie: bool) -> Result<Request2> {
     let mut r = Reader::new(data);
     expect_id(&mut r, ID_OPEN_CONNECTION_REQUEST_2)?;
     r.magic()?;
+    let cookie = if with_cookie {
+        let cookie = r.u32_be()?;
+        r.u8()?; // whether the client solved a security challenge
+        Some(cookie)
+    } else {
+        None
+    };
     r.addr()?;
-    Ok((r.u16_be()?, r.u64_be()?))
+    Ok(Request2 { cookie, mtu: r.u16_be()?, client_guid: r.u64_be()? })
 }
 
 pub fn reply_2(out: &mut BytesMut, server_guid: u64, client: SocketAddr, mtu: u16) {
@@ -185,13 +210,18 @@ mod tests {
         open_connection_request_1(&mut buf, 11, 1400);
         assert_eq!(parse_request_1(&buf).unwrap(), (11, 1400));
         let mut buf = BytesMut::new();
-        reply_1(&mut buf, 9, 1400);
+        reply_1(&mut buf, 9, None, 1400);
         assert_eq!(parse_reply_1(&buf).unwrap(), Reply1 { server_guid: 9, cookie: None, mtu: 1400 });
+        let mut buf = BytesMut::new();
+        reply_1(&mut buf, 9, Some(0xdead_beef), 1400);
+        assert_eq!(parse_reply_1(&buf).unwrap(), Reply1 { server_guid: 9, cookie: Some(0xdead_beef), mtu: 1400 });
 
         let client: SocketAddr = "10.0.0.2:5000".parse().unwrap();
-        let mut buf = BytesMut::new();
-        open_connection_request_2(&mut buf, None, "10.0.0.1:19132".parse().unwrap(), 1400, 77);
-        assert_eq!(parse_request_2(&buf).unwrap(), (1400, 77));
+        for cookie in [None, Some(0xdead_beef)] {
+            let mut buf = BytesMut::new();
+            open_connection_request_2(&mut buf, cookie, "10.0.0.1:19132".parse().unwrap(), 1400, 77);
+            assert_eq!(parse_request_2(&buf, cookie.is_some()).unwrap(), Request2 { cookie, mtu: 1400, client_guid: 77 });
+        }
         let mut buf = BytesMut::new();
         reply_2(&mut buf, 9, client, 1400);
         assert_eq!(parse_reply_2(&buf).unwrap(), Reply2 { server_guid: 9, client_addr: client, mtu: 1400 });
