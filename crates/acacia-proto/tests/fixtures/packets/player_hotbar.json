@@ -1,0 +1,22 @@
+[
+ {
+  "selected_slot": 11327,
+  "window_id": "drop_contents",
+  "select_slot": true
+ },
+ {
+  "selected_slot": 11383,
+  "window_id": "enchant_output",
+  "select_slot": false
+ },
+ {
+  "selected_slot": 7639,
+  "window_id": "crafting_use_ingredient",
+  "select_slot": true
+ },
+ {
+  "selected_slot": 15684,
+  "window_id": "beacon",
+  "select_slot": false
+ }
+]

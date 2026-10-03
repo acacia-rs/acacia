@@ -1,0 +1,54 @@
+[
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "string",
+     "value": "xzc.1"
+    }
+   }
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {}
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "int",
+       "value": 21287
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "string",
+     "value": " 9 9 bx."
+    },
+    "kb": {
+     "type": "float",
+     "value": 0
+    }
+   }
+  }
+ }
+]

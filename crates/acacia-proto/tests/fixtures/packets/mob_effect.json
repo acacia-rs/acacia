@@ -1,0 +1,42 @@
+[
+ {
+  "runtime_entity_id": "501992012",
+  "event_id": "remove",
+  "effect_id": 7653,
+  "amplifier": 12084,
+  "particles": true,
+  "duration": -2066,
+  "tick": "202286958",
+  "ambient": true
+ },
+ {
+  "runtime_entity_id": "705757218",
+  "event_id": "update",
+  "effect_id": -5430,
+  "amplifier": 1837,
+  "particles": true,
+  "duration": -15241,
+  "tick": "856341944",
+  "ambient": false
+ },
+ {
+  "runtime_entity_id": "231142268",
+  "event_id": "update",
+  "effect_id": -11465,
+  "amplifier": 15555,
+  "particles": false,
+  "duration": 2321,
+  "tick": "214113638",
+  "ambient": false
+ },
+ {
+  "runtime_entity_id": "779033318",
+  "event_id": "remove",
+  "effect_id": -19647,
+  "amplifier": -19788,
+  "particles": false,
+  "duration": -11032,
+  "tick": "387278904",
+  "ambient": false
+ }
+]

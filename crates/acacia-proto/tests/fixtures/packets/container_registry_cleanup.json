@@ -1,0 +1,40 @@
+[
+ {
+  "removed_containers": [
+   {
+    "container_id": "grindstone_input",
+    "dynamic_container_id": 3554216
+   },
+   {
+    "container_id": "cartography_input",
+    "dynamic_container_id": 2126334131
+   }
+  ]
+ },
+ {
+  "removed_containers": [
+   {
+    "container_id": "smithing_table_material",
+    "dynamic_container_id": 127100504
+   },
+   {
+    "container_id": "elemconstruct_output",
+    "dynamic_container_id": 112933300
+   }
+  ]
+ },
+ {
+  "removed_containers": [
+   {
+    "container_id": "labtable_input",
+    "dynamic_container_id": 505712440
+   },
+   {
+    "container_id": "matreduce_input"
+   }
+  ]
+ },
+ {
+  "removed_containers": []
+ }
+]

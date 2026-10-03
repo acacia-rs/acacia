@@ -1,0 +1,121 @@
+[
+ {
+  "runtime_id": "677150296",
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {}
+  },
+  "encoding_identifier": "cb.x",
+  "instance_name": "x:0x",
+  "bounds": {
+   "min": {
+    "x": -10562,
+    "y": -12058,
+    "z": 5224
+   },
+   "max": {
+    "x": 9555,
+    "y": -8257,
+    "z": -654
+   }
+  },
+  "dimension": 7646,
+  "engine_version": "   zaa"
+ },
+ {
+  "runtime_id": "56383884",
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "int",
+     "value": -87003
+    }
+   }
+  },
+  "encoding_identifier": "",
+  "instance_name": "y",
+  "bounds": {
+   "min": {
+    "x": -19874,
+    "y": -466,
+    "z": -555
+   },
+   "max": {
+    "x": 3287,
+    "y": -11727,
+    "z": -13370
+   }
+  },
+  "dimension": 4923,
+  "engine_version": "0y_cab "
+ },
+ {
+  "runtime_id": "145359659",
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "float",
+     "value": 1.5
+    },
+    "kb": {
+     "type": "string",
+     "value": " y9y1"
+    },
+    "kc": {
+     "type": "float",
+     "value": 100.125
+    }
+   }
+  },
+  "encoding_identifier": "1_a",
+  "instance_name": ":",
+  "bounds": {
+   "min": {
+    "x": -18174,
+    "y": -8208,
+    "z": -14681
+   },
+   "max": {
+    "x": -6471,
+    "y": 7257,
+    "z": 2178
+   }
+  },
+  "dimension": 16574,
+  "engine_version": "a0"
+ },
+ {
+  "runtime_id": "795106174",
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "int",
+     "value": 44036
+    }
+   }
+  },
+  "encoding_identifier": ":y_y0",
+  "instance_name": "9xyzx0x",
+  "bounds": {
+   "min": {
+    "x": -10323,
+    "y": 1191,
+    "z": 2034
+   },
+   "max": {
+    "x": 15022,
+    "y": -11867,
+    "z": 13775
+   }
+  },
+  "dimension": 14891,
+  "engine_version": ""
+ }
+]

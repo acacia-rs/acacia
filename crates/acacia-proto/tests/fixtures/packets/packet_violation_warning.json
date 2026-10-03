@@ -1,0 +1,26 @@
+[
+ {
+  "violation_type": "malformed",
+  "severity": "terminating",
+  "packet_id": -8244,
+  "reason": ""
+ },
+ {
+  "violation_type": "malformed",
+  "severity": "final_warning",
+  "packet_id": 3241,
+  "reason": "y:1:z1_0"
+ },
+ {
+  "violation_type": "malformed",
+  "severity": "final_warning",
+  "packet_id": -13116,
+  "reason": "zc"
+ },
+ {
+  "violation_type": "malformed",
+  "severity": "final_warning",
+  "packet_id": 6317,
+  "reason": "_1az"
+ }
+]

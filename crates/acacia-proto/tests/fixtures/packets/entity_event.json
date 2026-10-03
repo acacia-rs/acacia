@@ -1,0 +1,32 @@
+[
+ {
+  "runtime_entity_id": "288150913",
+  "event_id": "stop_attack",
+  "data": 3207,
+  "fire_at_position": {
+   "x": 0,
+   "y": 0,
+   "z": 100.125
+  }
+ },
+ {
+  "runtime_entity_id": "157565657",
+  "event_id": "love_particles",
+  "data": 6775,
+  "fire_at_position": {
+   "x": 100.125,
+   "y": -2.25,
+   "z": 100.125
+  }
+ },
+ {
+  "runtime_entity_id": "351723588",
+  "event_id": "baby_animal_feed",
+  "data": -2361
+ },
+ {
+  "runtime_entity_id": "594930742",
+  "event_id": "arrow_shake",
+  "data": 17774
+ }
+]

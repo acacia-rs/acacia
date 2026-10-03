@@ -1,0 +1,73 @@
+[
+ {
+  "updates": [
+   {
+    "change_type": "update",
+    "name": "cy",
+    "property": "z:.abbc_",
+    "path": " ",
+    "data_type": "double",
+    "data": -2.25,
+    "update_count": 1678126726,
+    "path_update_count": 1429538229
+   },
+   {
+    "change_type": "removal",
+    "name": ""
+   }
+  ]
+ },
+ {
+  "updates": [
+   {
+    "change_type": "removal",
+    "name": "yy _."
+   },
+   {
+    "change_type": "update",
+    "name": "91c.:",
+    "property": "9bz111",
+    "path": "z_.9_b",
+    "data_type": "double",
+    "data": 0,
+    "update_count": 1954699357,
+    "path_update_count": 1003192467
+   },
+   {
+    "change_type": "removal",
+    "name": "a9"
+   }
+  ]
+ },
+ {
+  "updates": []
+ },
+ {
+  "updates": [
+   {
+    "change_type": "removal",
+    "name": "0x0 zb "
+   },
+   {
+    "change_type": "update",
+    "name": ".:",
+    "property": "x1x_",
+    "path": "1x",
+    "data_type": "double",
+    "data": 1.5,
+    "update_count": 1889007637,
+    "path_update_count": 234613064
+   },
+   {
+    "change_type": "update",
+    "name": ":.",
+    "property": ":9119x0:",
+    "path": "",
+    "data_type": "string",
+    "data": ":00__01",
+    "update_count": 1649120237,
+    "path_update_count": 386433596
+   }
+  ]
+ }
+]

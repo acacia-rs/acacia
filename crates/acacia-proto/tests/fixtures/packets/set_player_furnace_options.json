@@ -1,0 +1,34 @@
+[
+ {
+  "furnace_type": "blast_furnace",
+  "furnace_options": {
+   "left_furnace_tab": 9741,
+   "filtering": false,
+   "layout": -19934
+  }
+ },
+ {
+  "furnace_type": "blast_furnace",
+  "furnace_options": {
+   "left_furnace_tab": -17319,
+   "filtering": true,
+   "layout": -17633
+  }
+ },
+ {
+  "furnace_type": "blast_furnace",
+  "furnace_options": {
+   "left_furnace_tab": 3896,
+   "filtering": false,
+   "layout": -10581
+  }
+ },
+ {
+  "furnace_type": "none",
+  "furnace_options": {
+   "left_furnace_tab": -322,
+   "filtering": true,
+   "layout": -4289
+  }
+ }
+]

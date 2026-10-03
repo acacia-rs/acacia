@@ -1,0 +1,81 @@
+[
+ {
+  "definitions": [
+   {
+    "id": "_yc",
+    "min_y": -2979,
+    "height_range": 6888,
+    "generator": "legacy",
+    "dimension_type": 17408,
+    "pack_id": "e51c0256-e1a4-c6fa-e430-a32940f9cca4",
+    "default_biome": " az."
+   }
+  ]
+ },
+ {
+  "definitions": [
+   {
+    "id": "yc0_z1",
+    "min_y": -13431,
+    "height_range": 3681,
+    "generator": "overworld",
+    "dimension_type": -2539,
+    "pack_id": "3368203c-a74e-fbdf-ab34-08eef0b0eaec",
+    "default_biome": "1a1.:"
+   },
+   {
+    "id": "1",
+    "min_y": 18226,
+    "height_range": 4182,
+    "generator": "void",
+    "dimension_type": 9306,
+    "pack_id": "8801106d-c930-e681-cba5-843fbf2a59de",
+    "default_biome": "y:10x0c"
+   },
+   {
+    "id": "b9b_",
+    "min_y": 9896,
+    "height_range": 15824,
+    "generator": "void",
+    "dimension_type": 10188,
+    "pack_id": "91d5dbb0-98af-ae2e-fe46-5089864263a2",
+    "default_biome": "ycx19z"
+   }
+  ]
+ },
+ {
+  "definitions": [
+   {
+    "id": "",
+    "min_y": 2336,
+    "height_range": 2358,
+    "generator": "overworld",
+    "dimension_type": 16384,
+    "pack_id": "21dada2a-b4b5-e8cb-4c65-388e910d9224",
+    "default_biome": "ayc01z"
+   }
+  ]
+ },
+ {
+  "definitions": [
+   {
+    "id": "b9",
+    "min_y": -10151,
+    "height_range": -18317,
+    "generator": "void",
+    "dimension_type": -13728,
+    "pack_id": "bf6fc90f-5644-74a8-7e4d-bd62ecfe0faa",
+    "default_biome": "y:xc"
+   },
+   {
+    "id": ".a:",
+    "min_y": 17270,
+    "height_range": 12210,
+    "generator": "end",
+    "dimension_type": -9127,
+    "pack_id": "d8c51dd0-6714-446b-54e5-aed0bebd4dc3",
+    "default_biome": "y "
+   }
+  ]
+ }
+]

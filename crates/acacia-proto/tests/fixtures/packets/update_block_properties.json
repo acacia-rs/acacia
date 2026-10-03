@@ -1,0 +1,72 @@
+[
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {}
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "compound",
+       "value": {}
+      },
+      "kb": {
+       "type": "string",
+       "value": "c"
+      }
+     }
+    },
+    "kb": {
+     "type": "int",
+     "value": 51716
+    }
+   }
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "float",
+     "value": 100.125
+    },
+    "kb": {
+     "type": "list",
+     "value": {
+      "type": "int",
+      "value": [
+       16,
+       22
+      ]
+     }
+    }
+   }
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "float",
+     "value": 0.5
+    },
+    "kb": {
+     "type": "int",
+     "value": 96398
+    }
+   }
+  }
+ }
+]

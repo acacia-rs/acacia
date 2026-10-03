@@ -1,0 +1,29 @@
+[
+ {
+  "runtime_id": "861446784",
+  "property_index": 17430,
+  "type": "remove",
+  "legacy_type": 46
+ },
+ {
+  "runtime_id": "853990891",
+  "property_index": 2641,
+  "type": "set_int",
+  "legacy_type": 59,
+  "value": 956834059
+ },
+ {
+  "runtime_id": "452481676",
+  "property_index": 9923,
+  "type": "set_int",
+  "legacy_type": 78,
+  "value": -93620741
+ },
+ {
+  "runtime_id": "416301885",
+  "property_index": 1477,
+  "type": "set_int",
+  "legacy_type": 65,
+  "value": -1035728144
+ }
+]

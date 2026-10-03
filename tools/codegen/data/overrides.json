@@ -1,0 +1,56 @@
+{
+  "_comment": "Corrections applied over minecraft-data's protocol.json before generation; each entry replaces or adds types[name]. Rationale per entry in docs/proto.md.",
+  "types": {
+    "EnchantOption": [
+      "container",
+      [
+        {
+          "name": "cost",
+          "type": "u8"
+        },
+        {
+          "name": "slot_flags",
+          "type": "li32"
+        },
+        {
+          "name": "equip_enchants",
+          "type": [
+            "array",
+            {
+              "countType": "varint",
+              "type": "Enchant"
+            }
+          ]
+        },
+        {
+          "name": "held_enchants",
+          "type": [
+            "array",
+            {
+              "countType": "varint",
+              "type": "Enchant"
+            }
+          ]
+        },
+        {
+          "name": "self_enchants",
+          "type": [
+            "array",
+            {
+              "countType": "varint",
+              "type": "Enchant"
+            }
+          ]
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "option_id",
+          "type": "varint"
+        }
+      ]
+    ]
+  }
+}

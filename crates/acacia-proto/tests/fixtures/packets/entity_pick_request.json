@@ -1,0 +1,34 @@
+[
+ {
+  "runtime_entity_id": [
+   13,
+   2709644390
+  ],
+  "selected_slot": 83,
+  "with_data": true
+ },
+ {
+  "runtime_entity_id": [
+   44,
+   635249018
+  ],
+  "selected_slot": 193,
+  "with_data": true
+ },
+ {
+  "runtime_entity_id": [
+   181,
+   3312245631
+  ],
+  "selected_slot": 71,
+  "with_data": true
+ },
+ {
+  "runtime_entity_id": [
+   57,
+   3813220607
+  ],
+  "selected_slot": 132,
+  "with_data": false
+ }
+]

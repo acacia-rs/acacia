@@ -1,0 +1,38 @@
+[
+ {
+  "event": "particle_trial_spawner_ejecting",
+  "position": {
+   "x": -2.25,
+   "y": 100.125,
+   "z": -2.25
+  },
+  "data": 14031
+ },
+ {
+  "event": "add_particle_campfire_smoke",
+  "position": {
+   "x": 1.5,
+   "y": 0,
+   "z": -2.25
+  },
+  "data": 19810
+ },
+ {
+  "event": "sound_door",
+  "position": {
+   "x": 1.5,
+   "y": 0.5,
+   "z": 100.125
+  },
+  "data": 14788
+ },
+ {
+  "event": "add_particle_sparkler",
+  "position": {
+   "x": 0,
+   "y": 1.5,
+   "z": -2.25
+  },
+  "data": 7999
+ }
+]

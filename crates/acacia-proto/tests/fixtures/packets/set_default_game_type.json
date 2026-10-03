@@ -1,0 +1,14 @@
+[
+ {
+  "gamemode": "survival_spectator"
+ },
+ {
+  "gamemode": "creative"
+ },
+ {
+  "gamemode": "adventure"
+ },
+ {
+  "gamemode": "creative_spectator"
+ }
+]

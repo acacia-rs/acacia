@@ -1,0 +1,18 @@
+[
+ {
+  "server_time": 1.5,
+  "network_time": 0
+ },
+ {
+  "server_time": 0,
+  "network_time": 1.5
+ },
+ {
+  "server_time": 1.5,
+  "network_time": 100.125
+ },
+ {
+  "server_time": -2.25,
+  "network_time": 100.125
+ }
+]

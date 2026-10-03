@@ -1,0 +1,78 @@
+[
+ {
+  "data_flags": "672256116",
+  "bounding_box": {
+   "scale": 0.5,
+   "width": 100.125,
+   "height": 0
+  },
+  "movement_speed": -2.25,
+  "underwater_movement_speed": 1.5,
+  "lava_movement_speed": 0,
+  "jump_strength": 0.5,
+  "health": 0.5,
+  "hunger": 100.125,
+  "unknown_attribute_1": 1.5,
+  "unknown_attribute_2": 100.125,
+  "unknown_attribute_3": -2.25,
+  "entity_runtime_id": "421854959",
+  "is_flying": false
+ },
+ {
+  "data_flags": "464587308",
+  "bounding_box": {
+   "scale": 0.5,
+   "width": 100.125,
+   "height": -2.25
+  },
+  "movement_speed": -2.25,
+  "underwater_movement_speed": 0,
+  "lava_movement_speed": -2.25,
+  "jump_strength": 0,
+  "health": 1.5,
+  "hunger": 1.5,
+  "unknown_attribute_1": 100.125,
+  "unknown_attribute_2": -2.25,
+  "unknown_attribute_3": -2.25,
+  "entity_runtime_id": "600264178",
+  "is_flying": true
+ },
+ {
+  "data_flags": "977673784",
+  "bounding_box": {
+   "scale": -2.25,
+   "width": 100.125,
+   "height": 0.5
+  },
+  "movement_speed": 0.5,
+  "underwater_movement_speed": 0.5,
+  "lava_movement_speed": -2.25,
+  "jump_strength": 0.5,
+  "health": 100.125,
+  "hunger": 0,
+  "unknown_attribute_1": -2.25,
+  "unknown_attribute_2": 0,
+  "unknown_attribute_3": 100.125,
+  "entity_runtime_id": "227961100",
+  "is_flying": false
+ },
+ {
+  "data_flags": "218510671",
+  "bounding_box": {
+   "scale": 0.5,
+   "width": 1.5,
+   "height": 1.5
+  },
+  "movement_speed": 1.5,
+  "underwater_movement_speed": 0,
+  "lava_movement_speed": 100.125,
+  "jump_strength": 100.125,
+  "health": 0,
+  "hunger": 0,
+  "unknown_attribute_1": 0,
+  "unknown_attribute_2": 1.5,
+  "unknown_attribute_3": 100.125,
+  "entity_runtime_id": "121099362",
+  "is_flying": true
+ }
+]

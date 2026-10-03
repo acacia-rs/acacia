@@ -1,0 +1,38 @@
+[
+ {
+  "pack_id": "adb0651e-ca5b-96b0-bcd4-edccfaa022b4",
+  "pack_setting": {
+   "name": "::",
+   "type": "string_list",
+   "value": [
+    "1yyya0a",
+    "az1",
+    ":0_zb9.9"
+   ]
+  }
+ },
+ {
+  "pack_id": "7c977292-45c7-8978-7dbe-30725278fe57",
+  "pack_setting": {
+   "name": "zcz_1.",
+   "type": "bool",
+   "value": true
+  }
+ },
+ {
+  "pack_id": "f8beed8c-a190-a387-fba6-2707652a19df",
+  "pack_setting": {
+   "name": "c ",
+   "type": "bool",
+   "value": true
+  }
+ },
+ {
+  "pack_id": "3d5553b9-3023-b132-1da9-3047ea38b8a8",
+  "pack_setting": {
+   "name": "zc:c99 ",
+   "type": "string",
+   "value": "xyyz:y"
+  }
+ }
+]

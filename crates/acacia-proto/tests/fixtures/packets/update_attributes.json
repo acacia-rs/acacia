@@ -1,0 +1,159 @@
+[
+ {
+  "runtime_entity_id": "677150296",
+  "attributes": [],
+  "tick": "531383907"
+ },
+ {
+  "runtime_entity_id": "56383884",
+  "attributes": [
+   {
+    "min": 0,
+    "max": 0,
+    "current": 0,
+    "default_min": 0,
+    "default_max": 0,
+    "default": 1.5,
+    "name": "",
+    "modifiers": []
+   },
+   {
+    "min": -2.25,
+    "max": -2.25,
+    "current": 1.5,
+    "default_min": 0,
+    "default_max": 100.125,
+    "default": 100.125,
+    "name": "y_cab b",
+    "modifiers": [
+     {
+      "id": "10",
+      "name": "a:a",
+      "amount": -2.25,
+      "operation": 1310703246,
+      "operand": 1575547644,
+      "serializable": false
+     }
+    ]
+   },
+   {
+    "min": 0,
+    "max": -2.25,
+    "current": 1.5,
+    "default_min": -2.25,
+    "default_max": 100.125,
+    "default": 0.5,
+    "name": "z:",
+    "modifiers": [
+     {
+      "id": "",
+      "name": "91",
+      "amount": 100.125,
+      "operation": 1254157087,
+      "operand": -788626307,
+      "serializable": false
+     }
+    ]
+   }
+  ],
+  "tick": "857538735"
+ },
+ {
+  "runtime_entity_id": "145359659",
+  "attributes": [
+   {
+    "min": 0.5,
+    "max": 1.5,
+    "current": 100.125,
+    "default_min": 1.5,
+    "default_max": 100.125,
+    "default": 100.125,
+    "name": "9y1",
+    "modifiers": [
+     {
+      "id": ".xy1_ab:",
+      "name": "",
+      "amount": 1.5,
+      "operation": -1576333607,
+      "operand": -694850398,
+      "serializable": false
+     }
+    ]
+   },
+   {
+    "min": -2.25,
+    "max": 0.5,
+    "current": 1.5,
+    "default_min": 0,
+    "default_max": 100.125,
+    "default": 0.5,
+    "name": "__",
+    "modifiers": [
+     {
+      "id": "19c1",
+      "name": ".9zy",
+      "amount": 0.5,
+      "operation": -210966901,
+      "operand": 2121528634,
+      "serializable": false
+     }
+    ]
+   }
+  ],
+  "tick": "736996164"
+ },
+ {
+  "runtime_entity_id": "795106174",
+  "attributes": [
+   {
+    "min": 0,
+    "max": 100.125,
+    "current": 0,
+    "default_min": -2.25,
+    "default_max": 100.125,
+    "default": 1.5,
+    "name": "y019",
+    "modifiers": []
+   },
+   {
+    "min": 1.5,
+    "max": 1.5,
+    "current": 1.5,
+    "default_min": 0.5,
+    "default_max": 1.5,
+    "default": 1.5,
+    "name": " 1c0",
+    "modifiers": [
+     {
+      "id": "",
+      "name": ".:z xaa",
+      "amount": 0.5,
+      "operation": -284977754,
+      "operand": -897579537,
+      "serializable": true
+     }
+    ]
+   },
+   {
+    "min": 100.125,
+    "max": -2.25,
+    "current": 1.5,
+    "default_min": 1.5,
+    "default_max": 0.5,
+    "default": 1.5,
+    "name": "1z0.",
+    "modifiers": [
+     {
+      "id": "z",
+      "name": ":b..x",
+      "amount": -2.25,
+      "operation": 585556740,
+      "operand": -1056430511,
+      "serializable": true
+     }
+    ]
+   }
+  ],
+  "tick": "235470419"
+ }
+]

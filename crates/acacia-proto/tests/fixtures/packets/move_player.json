@@ -1,0 +1,74 @@
+[
+ {
+  "runtime_id": 10232,
+  "position": {
+   "x": -2.25,
+   "y": 100.125,
+   "z": -2.25
+  },
+  "pitch": 0.5,
+  "yaw": -2.25,
+  "head_yaw": 0,
+  "mode": "teleport",
+  "on_ground": false,
+  "ridden_runtime_id": 9006,
+  "teleport": {
+   "cause": "behavior",
+   "source_entity_type": "npc"
+  },
+  "tick": "670207589"
+ },
+ {
+  "runtime_id": 18573,
+  "position": {
+   "x": 1.5,
+   "y": 0,
+   "z": -2.25
+  },
+  "pitch": 0.5,
+  "yaw": 1.5,
+  "head_yaw": -2.25,
+  "mode": "rotation",
+  "on_ground": false,
+  "ridden_runtime_id": 1393,
+  "teleport": {
+   "cause": "projectile",
+   "source_entity_type": "zombie_horse"
+  },
+  "tick": "824352807"
+ },
+ {
+  "runtime_id": 301,
+  "position": {
+   "x": 1.5,
+   "y": 0.5,
+   "z": 100.125
+  },
+  "pitch": 0.5,
+  "yaw": -2.25,
+  "head_yaw": 0,
+  "mode": "rotation",
+  "on_ground": false,
+  "ridden_runtime_id": 1925,
+  "tick": "329802680"
+ },
+ {
+  "runtime_id": 17628,
+  "position": {
+   "x": 0,
+   "y": 1.5,
+   "z": -2.25
+  },
+  "pitch": 100.125,
+  "yaw": 0,
+  "head_yaw": -2.25,
+  "mode": "rotation",
+  "on_ground": false,
+  "ridden_runtime_id": 10141,
+  "teleport": {
+   "cause": "unknown",
+   "source_entity_type": "command_block_minecart"
+  },
+  "tick": "23064298"
+ }
+]

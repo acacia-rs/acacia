@@ -1,0 +1,39 @@
+[
+ {
+  "dimension": 5256,
+  "position": {
+   "x": 0,
+   "y": 100.125,
+   "z": 1.5
+  },
+  "respawn": true
+ },
+ {
+  "dimension": -15473,
+  "position": {
+   "x": 100.125,
+   "y": -2.25,
+   "z": 100.125
+  },
+  "respawn": true,
+  "loading_screen_id": 595128191
+ },
+ {
+  "dimension": 8636,
+  "position": {
+   "x": 0.5,
+   "y": 0,
+   "z": 100.125
+  },
+  "respawn": true
+ },
+ {
+  "dimension": -13598,
+  "position": {
+   "x": 1.5,
+   "y": 1.5,
+   "z": 1.5
+  },
+  "respawn": false
+ }
+]

@@ -1,0 +1,50 @@
+[
+ {
+  "pack_id": "",
+  "max_chunk_size": 146698669,
+  "chunk_count": 1357450271,
+  "size": [
+   71,
+   527006752
+  ],
+  "hash": "3683",
+  "is_premium": false,
+  "pack_type": "skins"
+ },
+ {
+  "pack_id": ":y.a0xb",
+  "max_chunk_size": 436629110,
+  "chunk_count": 507987259,
+  "size": [
+   126,
+   284878237
+  ],
+  "hash": "",
+  "is_premium": false,
+  "pack_type": "addon"
+ },
+ {
+  "pack_id": "100_yzx:",
+  "max_chunk_size": 2114097504,
+  "chunk_count": 1163756612,
+  "size": [
+   4,
+   1175659872
+  ],
+  "hash": "b5e7b764",
+  "is_premium": false,
+  "pack_type": "resources"
+ },
+ {
+  "pack_id": "b",
+  "max_chunk_size": 1149349515,
+  "chunk_count": 768141580,
+  "size": [
+   75,
+   3562812570
+  ],
+  "hash": "672a982e",
+  "is_premium": true,
+  "pack_type": "world_template"
+ }
+]

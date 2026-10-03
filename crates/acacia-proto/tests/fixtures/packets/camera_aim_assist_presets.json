@@ -1,0 +1,230 @@
+[
+ {
+  "categories": [
+   {
+    "name": " .xbzzy",
+    "entity_priorities": [],
+    "block_priorities": [],
+    "block_tags": [],
+    "entity_type_families": [
+     {
+      "id": ".",
+      "priority": -929505811
+     }
+    ]
+   },
+   {
+    "name": "1190",
+    "entity_priorities": [
+     {
+      "id": "",
+      "priority": -1492100580
+     }
+    ],
+    "block_priorities": [],
+    "block_tags": [
+     2255
+    ],
+    "entity_type_families": [],
+    "entity_default": -1756917040,
+    "block_default": -527374403
+   }
+  ],
+  "presets": [
+   {
+    "id": "xy1",
+    "exclusion_settings": {
+     "blocks": [],
+     "entities": [],
+     "block_tags": [
+      "1y9: 0"
+     ],
+     "entity_type_families": [
+      "0x"
+     ]
+    },
+    "target_liquids": [],
+    "item_settings": [
+     {
+      "id": "",
+      "category": ""
+     }
+    ],
+    "hand_settings": ".bxx:b"
+   },
+   {
+    "id": "ac:",
+    "exclusion_settings": {
+     "blocks": [],
+     "entities": [
+      "1 "
+     ],
+     "block_tags": [
+      "y"
+     ],
+     "entity_type_families": []
+    },
+    "target_liquids": [],
+    "item_settings": [
+     {
+      "id": "_ b",
+      "category": ""
+     }
+    ],
+    "hand_settings": "x:za0 "
+   },
+   {
+    "id": "_x",
+    "exclusion_settings": {
+     "blocks": [
+      ".c"
+     ],
+     "entities": [],
+     "block_tags": [],
+     "entity_type_families": []
+    },
+    "target_liquids": [
+     ""
+    ],
+    "item_settings": [
+     {
+      "id": "",
+      "category": ""
+     }
+    ],
+    "default_item_settings": "9_.cxb",
+    "hand_settings": "xy"
+   }
+  ],
+  "operation": "add_to_existing"
+ },
+ {
+  "categories": [
+   {
+    "name": "",
+    "entity_priorities": [
+     {
+      "id": "",
+      "priority": 1151298189
+     }
+    ],
+    "block_priorities": [
+     {
+      "id": "x",
+      "priority": -774078547
+     }
+    ],
+    "block_tags": [],
+    "entity_type_families": [],
+    "block_default": -1857407521
+   },
+   {
+    "name": "c",
+    "entity_priorities": [
+     {
+      "id": "x_ya0",
+      "priority": 812626242
+     }
+    ],
+    "block_priorities": [],
+    "block_tags": [],
+    "entity_type_families": [
+     {
+      "id": "yz xcya_",
+      "priority": 2094395987
+     }
+    ],
+    "entity_default": 1982856207
+   }
+  ],
+  "presets": [
+   {
+    "id": "_a1::",
+    "exclusion_settings": {
+     "blocks": [
+      "bazz1."
+     ],
+     "entities": [],
+     "block_tags": [],
+     "entity_type_families": []
+    },
+    "target_liquids": [
+     "z:b"
+    ],
+    "item_settings": [],
+    "hand_settings": ""
+   }
+  ],
+  "operation": "set"
+ },
+ {
+  "categories": [
+   {
+    "name": "9",
+    "entity_priorities": [],
+    "block_priorities": [],
+    "block_tags": [],
+    "entity_type_families": [
+     {
+      "id": "0axb",
+      "priority": 270299407
+     }
+    ],
+    "entity_default": -1059823886,
+    "block_default": -783855365
+   },
+   {
+    "name": " :xxy",
+    "entity_priorities": [],
+    "block_priorities": [
+     {
+      "id": "",
+      "priority": 1770240839
+     }
+    ],
+    "block_tags": [
+     7961
+    ],
+    "entity_type_families": []
+   }
+  ],
+  "presets": [
+   {
+    "id": "_b__y1_b",
+    "exclusion_settings": {
+     "blocks": [
+      "z"
+     ],
+     "entities": [],
+     "block_tags": [],
+     "entity_type_families": []
+    },
+    "target_liquids": [],
+    "item_settings": [],
+    "default_item_settings": "xb"
+   }
+  ],
+  "operation": "set"
+ },
+ {
+  "categories": [
+   {
+    "name": "c91",
+    "entity_priorities": [],
+    "block_priorities": [
+     {
+      "id": ":yzb_y",
+      "priority": 1691154275
+     }
+    ],
+    "block_tags": [
+     11584
+    ],
+    "entity_type_families": [],
+    "block_default": 348206220
+   }
+  ],
+  "presets": [],
+  "operation": "add_to_existing"
+ }
+]

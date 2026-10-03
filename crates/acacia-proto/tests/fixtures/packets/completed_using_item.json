@@ -1,0 +1,18 @@
+[
+ {
+  "used_item_id": 16555,
+  "use_method": "place"
+ },
+ {
+  "used_item_id": -17547,
+  "use_method": "place"
+ },
+ {
+  "used_item_id": 5349,
+  "use_method": "retrieved"
+ },
+ {
+  "used_item_id": -24955,
+  "use_method": "shoot"
+ }
+]

@@ -1,0 +1,155 @@
+[
+ {
+  "must_accept": true,
+  "has_addons": true,
+  "has_scripts": true,
+  "disable_vibrant_visuals": false,
+  "world_template": {
+   "uuid": "f5a88d17-9691-18bd-7312-942e4ff724ed",
+   "version": ""
+  },
+  "texture_packs": [
+   {
+    "uuid": "ef7634d1-688e-831b-9ce0-5725c29004ad",
+    "version": " ",
+    "size": [
+     151,
+     1311448605
+    ],
+    "content_key": " xb",
+    "sub_pack_name": "",
+    "content_identity": "9z1cz z",
+    "has_scripts": true,
+    "addon_pack": true,
+    "rtx_enabled": false,
+    "cdn_url": "z_:x1a _"
+   }
+  ]
+ },
+ {
+  "must_accept": true,
+  "has_addons": false,
+  "has_scripts": true,
+  "disable_vibrant_visuals": false,
+  "world_template": {
+   "uuid": "6bf2422c-f924-7f4c-6be8-326c94546644",
+   "version": "bb:a a"
+  },
+  "texture_packs": [
+   {
+    "uuid": "24ddfc03-6544-8e53-72d7-25b6897c21bf",
+    "version": "9z ",
+    "size": [
+     105,
+     1860261955
+    ],
+    "content_key": ": c",
+    "sub_pack_name": "0b",
+    "content_identity": " 0",
+    "has_scripts": true,
+    "addon_pack": true,
+    "rtx_enabled": false,
+    "cdn_url": " yzb"
+   },
+   {
+    "uuid": "b5078276-cb9c-3bd4-67f8-1aa143eb4b90",
+    "version": "_x",
+    "size": [
+     128,
+     3153130544
+    ],
+    "content_key": "11x",
+    "sub_pack_name": "z9:_9",
+    "content_identity": "y9z",
+    "has_scripts": false,
+    "addon_pack": true,
+    "rtx_enabled": false,
+    "cdn_url": "xb99"
+   },
+   {
+    "uuid": "78460103-32a9-94c9-a19e-0145f2619afb",
+    "version": "9.acz0: ",
+    "size": [
+     204,
+     2512522732
+    ],
+    "content_key": ".c__x.yz",
+    "sub_pack_name": " ",
+    "content_identity": "y._x1",
+    "has_scripts": true,
+    "addon_pack": true,
+    "rtx_enabled": true,
+    "cdn_url": ""
+   }
+  ]
+ },
+ {
+  "must_accept": false,
+  "has_addons": true,
+  "has_scripts": true,
+  "disable_vibrant_visuals": false,
+  "world_template": {
+   "uuid": "6cb12343-5e9d-3937-39cd-1d966ec54521",
+   "version": "1xcyz"
+  },
+  "texture_packs": [
+   {
+    "uuid": "3d4a7af2-72f0-e3f2-21f9-fb52374c6dd3",
+    "version": "",
+    "size": [
+     24,
+     2736051387
+    ],
+    "content_key": "9",
+    "sub_pack_name": "19b:9a",
+    "content_identity": "",
+    "has_scripts": false,
+    "addon_pack": true,
+    "rtx_enabled": true,
+    "cdn_url": "yb.ayz."
+   }
+  ]
+ },
+ {
+  "must_accept": true,
+  "has_addons": false,
+  "has_scripts": false,
+  "disable_vibrant_visuals": false,
+  "world_template": {
+   "uuid": "1c4ead62-a81f-c038-f9bf-feea01abf56d",
+   "version": ".zxz"
+  },
+  "texture_packs": [
+   {
+    "uuid": "bfb9bbcd-9017-2bd6-6cbc-0a0aab4e3c00",
+    "version": ":y",
+    "size": [
+     34,
+     2663370802
+    ],
+    "content_key": "_",
+    "sub_pack_name": "._x_ bx",
+    "content_identity": "0.zyc.zb",
+    "has_scripts": true,
+    "addon_pack": false,
+    "rtx_enabled": false,
+    "cdn_url": ":c9yb.1."
+   },
+   {
+    "uuid": "e4a9bf22-70a6-bfc1-889d-94a2e29eec0f",
+    "version": "x0.za9 a",
+    "size": [
+     111,
+     2804140518
+    ],
+    "content_key": "c9_z99",
+    "sub_pack_name": ".",
+    "content_identity": "ca",
+    "has_scripts": false,
+    "addon_pack": true,
+    "rtx_enabled": false,
+    "cdn_url": "x_"
+   }
+  ]
+ }
+]

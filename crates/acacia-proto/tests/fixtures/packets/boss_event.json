@@ -1,0 +1,38 @@
+[
+ {
+  "target_entity_id": "3984023",
+  "type": "query",
+  "title": "0zzcba",
+  "filtered_title": "1bzzz9x0",
+  "progress": 0.5,
+  "color": "blue",
+  "overlay": "notched_6"
+ },
+ {
+  "target_entity_id": "411514437",
+  "type": "set_bar_title",
+  "title": " yb",
+  "filtered_title": ":b_xbxa",
+  "progress": -2.25,
+  "color": "red",
+  "overlay": "notched_20"
+ },
+ {
+  "target_entity_id": "-537715463",
+  "type": "set_bar_progress",
+  "title": "1",
+  "filtered_title": " c_.c",
+  "progress": -2.25,
+  "color": "yellow",
+  "overlay": "notched_20"
+ },
+ {
+  "target_entity_id": "558066635",
+  "type": "query",
+  "title": "",
+  "filtered_title": "",
+  "progress": 0.5,
+  "color": "blue",
+  "overlay": "notched_6"
+ }
+]

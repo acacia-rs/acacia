@@ -1,0 +1,37 @@
+[
+ {
+  "name": "",
+  "success": false,
+  "response_type": "query"
+ },
+ {
+  "name": ".bz",
+  "success": true,
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "compound",
+       "value": {}
+      }
+     }
+    }
+   }
+  },
+  "response_type": "query"
+ },
+ {
+  "name": " ca_z00_",
+  "success": false,
+  "response_type": "import"
+ },
+ {
+  "name": "cyy ..x.",
+  "success": false,
+  "response_type": "query"
+ }
+]

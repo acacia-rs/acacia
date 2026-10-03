@@ -1,0 +1,101 @@
+[
+ {
+  "window_id": "fixed_inventory",
+  "window_type": "furnace",
+  "size": 11603,
+  "trade_tier": 18828,
+  "villager_unique_id": "152771589",
+  "entity_unique_id": "13687808",
+  "display_name": ": .a9y",
+  "new_trading_ui": false,
+  "economic_trades": false,
+  "offers": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "list",
+     "value": {
+      "type": "int",
+      "value": [
+       40,
+       50
+      ]
+     }
+    }
+   }
+  }
+ },
+ {
+  "window_id": "armor",
+  "window_type": "horse",
+  "size": 13388,
+  "trade_tier": 10067,
+  "villager_unique_id": "690124625",
+  "entity_unique_id": "545249530",
+  "display_name": "1.0_.:",
+  "new_trading_ui": true,
+  "economic_trades": false,
+  "offers": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "string",
+       "value": ""
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "window_id": "drop_contents",
+  "window_type": "lectern",
+  "size": 8819,
+  "trade_tier": 3643,
+  "villager_unique_id": "441543410",
+  "entity_unique_id": "672336827",
+  "display_name": "b",
+  "new_trading_ui": true,
+  "economic_trades": true,
+  "offers": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "float",
+     "value": 1.5
+    }
+   }
+  }
+ },
+ {
+  "window_id": "enchant_material",
+  "window_type": "lab_table",
+  "size": 18887,
+  "trade_tier": 175,
+  "villager_unique_id": "644899644",
+  "entity_unique_id": "387482531",
+  "display_name": "zy0xz1.a",
+  "new_trading_ui": false,
+  "economic_trades": false,
+  "offers": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "int",
+     "value": 56931
+    },
+    "kb": {
+     "type": "int",
+     "value": -90413
+    }
+   }
+  }
+ }
+]

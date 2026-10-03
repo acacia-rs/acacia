@@ -1,0 +1,18 @@
+[
+ {
+  "offer_uuid": "a2c650f8-3e70-469d-56d2-b5ac78cc20d2",
+  "redirect_type": "third_party_server_page"
+ },
+ {
+  "offer_uuid": "1b7b5b48-172c-c629-eacc-79ea13bff068",
+  "redirect_type": "third_party_server_page"
+ },
+ {
+  "offer_uuid": "bf0c71b8-318d-83e5-b4e9-f4f608206710",
+  "redirect_type": "dressing_room"
+ },
+ {
+  "offer_uuid": "2533f4c4-b85f-916b-a2b3-94932827ccf0",
+  "redirect_type": "third_party_server_page"
+ }
+]

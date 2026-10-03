@@ -1,0 +1,20 @@
+[
+ {
+  "action": "start",
+  "frame_rate": -493906892,
+  "file_prefix": "xzc.1"
+ },
+ {
+  "action": "stop"
+ },
+ {
+  "action": "start",
+  "frame_rate": 916945910,
+  "file_prefix": "b "
+ },
+ {
+  "action": "start",
+  "frame_rate": -1317300469,
+  "file_prefix": "_xx.b_cb"
+ }
+]

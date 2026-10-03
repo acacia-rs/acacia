@@ -1,0 +1,158 @@
+[
+ {
+  "waypoints": [
+   {
+    "group_handle": "899d8189-77d6-aa22-4669-2996dcc5940b",
+    "waypoint": {
+     "update_flags": 2099530018,
+     "texture_path": "  0",
+     "color": 1375622345
+    },
+    "action": "none"
+   },
+   {
+    "group_handle": "d7848b1a-07af-6750-b6c4-85d21a9256ed",
+    "waypoint": {
+     "update_flags": 1352687946,
+     "visible": false,
+     "world_position": {
+      "position": {
+       "x": -2.25,
+       "y": 1.5,
+       "z": -2.25
+      },
+      "dimension_id": -19657
+     },
+     "texture_path": "zb",
+     "color": 191199706,
+     "client_position_authority": true,
+     "actor_unique_id": "244079345"
+    },
+    "action": "update"
+   }
+  ]
+ },
+ {
+  "waypoints": [
+   {
+    "group_handle": "629f56e9-1742-dd27-399f-a1eab8da6e37",
+    "waypoint": {
+     "update_flags": 1760330307,
+     "visible": false,
+     "world_position": {
+      "position": {
+       "x": 0,
+       "y": 0.5,
+       "z": 0
+      },
+      "dimension_id": 16502
+     },
+     "texture_path": "",
+     "color": 2012252732,
+     "actor_unique_id": "-765887763"
+    },
+    "action": "none"
+   },
+   {
+    "group_handle": "2e26f60b-7193-7f3b-10a0-2981c9ecc6e7",
+    "waypoint": {
+     "update_flags": 844306168,
+     "visible": true,
+     "world_position": {
+      "position": {
+       "x": 1.5,
+       "y": -2.25,
+       "z": 0
+      },
+      "dimension_id": -19913
+     },
+     "texture_path": "..z.xc_9",
+     "icon_size": {
+      "x": 0.5,
+      "z": 0
+     },
+     "color": -134500799,
+     "actor_unique_id": "756218769"
+    },
+    "action": "none"
+   },
+   {
+    "group_handle": "9dcfccc3-de9d-dbaf-1ba1-676c37810bb9",
+    "waypoint": {
+     "update_flags": 1906767141,
+     "visible": true,
+     "texture_path": "x00  _",
+     "client_position_authority": false,
+     "actor_unique_id": "712635801"
+    },
+    "action": "remove"
+   }
+  ]
+ },
+ {
+  "waypoints": []
+ },
+ {
+  "waypoints": [
+   {
+    "group_handle": "168b29db-8b0d-0878-0567-89d6b1ebf607",
+    "waypoint": {
+     "update_flags": 415462046,
+     "visible": true,
+     "world_position": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 1.5
+      },
+      "dimension_id": 8370
+     },
+     "texture_path": "zca .0cb",
+     "color": -2060978641,
+     "client_position_authority": true,
+     "actor_unique_id": "-369799689"
+    },
+    "action": "none"
+   },
+   {
+    "group_handle": "440f5839-abcb-629a-401d-7eb5bb3838b2",
+    "waypoint": {
+     "update_flags": 846154927,
+     "world_position": {
+      "position": {
+       "x": 0.5,
+       "y": 1.5,
+       "z": 0.5
+      },
+      "dimension_id": -12183
+     },
+     "texture_path": "",
+     "icon_size": {
+      "x": 100.125,
+      "z": 1.5
+     },
+     "color": 1309410796,
+     "client_position_authority": false,
+     "actor_unique_id": "-276539066"
+    },
+    "action": "none"
+   },
+   {
+    "group_handle": "6e5f9c19-4f8c-7710-4579-9e0eefcc09b9",
+    "waypoint": {
+     "update_flags": 1427845873,
+     "visible": false,
+     "world_position": {
+      "position": {
+       "x": -2.25,
+       "y": 0.5,
+       "z": 0
+      },
+      "dimension_id": -14336
+     }
+    },
+    "action": "update"
+   }
+  ]
+ }
+]

@@ -1,0 +1,74 @@
+[
+ {
+  "entity_unique_id": [
+   -206,
+   1851701453
+  ],
+  "permission_level": "member",
+  "requested_permissions": {
+   "_value": 115,
+   "build": true,
+   "mine": true,
+   "doors_and_switches": false,
+   "open_containers": false,
+   "attack_players": true,
+   "attack_mobs": true,
+   "operator": true,
+   "teleport": false
+  }
+ },
+ {
+  "entity_unique_id": [
+   -145,
+   1997878004
+  ],
+  "permission_level": "custom",
+  "requested_permissions": {
+   "_value": 80,
+   "build": false,
+   "mine": false,
+   "doors_and_switches": false,
+   "open_containers": false,
+   "attack_players": true,
+   "attack_mobs": false,
+   "operator": true,
+   "teleport": false
+  }
+ },
+ {
+  "entity_unique_id": [
+   130,
+   -1238063363
+  ],
+  "permission_level": "member",
+  "requested_permissions": {
+   "_value": 67,
+   "build": true,
+   "mine": true,
+   "doors_and_switches": false,
+   "open_containers": false,
+   "attack_players": false,
+   "attack_mobs": false,
+   "operator": true,
+   "teleport": false
+  }
+ },
+ {
+  "entity_unique_id": [
+   -118,
+   -236113411
+  ],
+  "permission_level": "operator",
+  "requested_permissions": {
+   "_value": 207,
+   "build": true,
+   "mine": true,
+   "doors_and_switches": true,
+   "open_containers": true,
+   "attack_players": false,
+   "attack_mobs": false,
+   "operator": true,
+   "teleport": true
+  }
+ }
+]

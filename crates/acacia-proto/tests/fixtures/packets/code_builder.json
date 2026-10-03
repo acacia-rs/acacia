@@ -1,0 +1,18 @@
+[
+ {
+  "url": "a ",
+  "should_open_code_builder": false
+ },
+ {
+  "url": "y",
+  "should_open_code_builder": false
+ },
+ {
+  "url": ":zc",
+  "should_open_code_builder": true
+ },
+ {
+  "url": " 9a:z",
+  "should_open_code_builder": false
+ }
+]

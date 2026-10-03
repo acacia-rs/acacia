@@ -1,0 +1,42 @@
+[package]
+name = "acacia-client"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["online"]
+# Microsoft/Xbox sign-in via acacia_client::auth (reqwest).
+online = ["acacia-auth/online"]
+# Lets AuthConfig::proxy take the socks5h:// URL from Socks5Proxy::to_url.
+socks = ["online", "acacia-auth/socks"]
+
+[dependencies]
+acacia-session = { path = "../acacia-session" }
+acacia-nethernet = { path = "../acacia-nethernet" }
+acacia-auth = { path = "../acacia-auth", default-features = false }
+tokio = { version = "1.53.1", features = ["rt", "net", "time", "sync", "macros", "io-util"] }
+bytes = "1.12.1"
+thiserror = "2.0.21"
+p384 = { version = "0.13", features = ["ecdsa"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+tracing = "0.1.44"
+sha2 = "0.10"
+# HTTPS NetherNet signaling; ring is already built for reqwest.
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+webpki-roots = "1"
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
+futures-util = { version = "0.3.34", default-features = false, features = ["sink"] }
+# LAN discovery: vanilla's dual-stack socket and per-interface broadcast addresses.
+socket2 = "0.6"
+if-addrs = "0.15"
+
+[dev-dependencies]
+acacia-nethernet = { path = "../acacia-nethernet", features = ["test-support"] }
+str0m = { version = "0.24.0", default-features = false, features = ["rust-crypto"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "signal", "fs"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+serde_json = "1"
+base64 = "0.22"

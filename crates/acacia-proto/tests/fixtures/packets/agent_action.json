@@ -1,0 +1,22 @@
+[
+ {
+  "request_id": "a ",
+  "action_type": "transfer_item_to",
+  "body": "a"
+ },
+ {
+  "request_id": "y",
+  "action_type": "inspect_item_space",
+  "body": ": :1"
+ },
+ {
+  "request_id": ":zc",
+  "action_type": "inspect",
+  "body": "cbyzx9"
+ },
+ {
+  "request_id": " 9a:z",
+  "action_type": "transfer_item_to",
+  "body": "y0x"
+ }
+]

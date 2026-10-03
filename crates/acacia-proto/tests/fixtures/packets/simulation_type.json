@@ -1,0 +1,14 @@
+[
+ {
+  "type": "game"
+ },
+ {
+  "type": "invalid"
+ },
+ {
+  "type": "editor"
+ },
+ {
+  "type": "test"
+ }
+]

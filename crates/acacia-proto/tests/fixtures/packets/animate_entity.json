@@ -1,0 +1,46 @@
+[
+ {
+  "animation": "z_yc",
+  "next_state": ":a9",
+  "stop_condition": "ya.acyz",
+  "stop_condition_version": 1854893208,
+  "controller": "",
+  "blend_out_time": 100.125,
+  "runtime_entity_ids": [
+   "772487099"
+  ]
+ },
+ {
+  "animation": ":yc0_z",
+  "next_state": "c czccz_",
+  "stop_condition": "a",
+  "stop_condition_version": -1110408337,
+  "controller": ":_x19.",
+  "blend_out_time": 0.5,
+  "runtime_entity_ids": [
+   "631772531",
+   "722900997",
+   "208510226"
+  ]
+ },
+ {
+  "animation": "a  c",
+  "next_state": "bb1:0:b:",
+  "stop_condition": "x.y1_0",
+  "stop_condition_version": 865857805,
+  "controller": "0z",
+  "blend_out_time": 1.5,
+  "runtime_entity_ids": []
+ },
+ {
+  "animation": "xb9xa",
+  "next_state": "c.9z90 ",
+  "stop_condition": "",
+  "stop_condition_version": 2102837860,
+  "controller": "zyx",
+  "blend_out_time": -2.25,
+  "runtime_entity_ids": [
+   "664315656"
+  ]
+ }
+]

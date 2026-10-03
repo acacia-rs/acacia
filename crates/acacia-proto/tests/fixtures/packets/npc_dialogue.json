@@ -1,0 +1,46 @@
+[
+ {
+  "entity_id": [
+   67,
+   388104716
+  ],
+  "action_type": "open",
+  "dialogue": "9ba.:",
+  "screen_name": ".a9y",
+  "npc_name": ".:_0",
+  "action_json": "xx1zzxbz"
+ },
+ {
+  "entity_id": [
+   36,
+   2946835092
+  ],
+  "action_type": "open",
+  "dialogue": "_: :1.",
+  "screen_name": "_.:b9_:",
+  "npc_name": "ybycx",
+  "action_json": "yxxb b90"
+ },
+ {
+  "entity_id": [
+   81,
+   3831237328
+  ],
+  "action_type": "close",
+  "dialogue": "cz:",
+  "screen_name": "b",
+  "npc_name": "zx9",
+  "action_json": "xaa"
+ },
+ {
+  "entity_id": [
+   138,
+   2225255088
+  ],
+  "action_type": "close",
+  "dialogue": "a:z9zy0x",
+  "screen_name": "1.a ",
+  "npc_name": "1a00ca.",
+  "action_json": "9_"
+ }
+]

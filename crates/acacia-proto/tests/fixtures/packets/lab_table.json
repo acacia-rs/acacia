@@ -1,0 +1,38 @@
+[
+ {
+  "action_type": "combine",
+  "position": {
+   "x": 14049,
+   "y": -14330,
+   "z": 12867
+  },
+  "reaction_type": 185
+ },
+ {
+  "action_type": "react",
+  "position": {
+   "x": 12722,
+   "y": 9214,
+   "z": -7041
+  },
+  "reaction_type": 0
+ },
+ {
+  "action_type": "reset",
+  "position": {
+   "x": 11411,
+   "y": -19965,
+   "z": -17087
+  },
+  "reaction_type": 97
+ },
+ {
+  "action_type": "react",
+  "position": {
+   "x": -17215,
+   "y": 11680,
+   "z": -14849
+  },
+  "reaction_type": 82
+ }
+]

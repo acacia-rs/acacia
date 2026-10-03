@@ -1,0 +1,46 @@
+[
+ {
+  "entity_id_self": "-423698173",
+  "runtime_entity_id": "75667508",
+  "coordinates": {
+   "x": -2.25,
+   "y": 0.5,
+   "z": 0
+  },
+  "direction": -19453,
+  "title": ": .a9y"
+ },
+ {
+  "entity_id_self": "-684868685",
+  "runtime_entity_id": "312603963",
+  "coordinates": {
+   "x": 100.125,
+   "y": -2.25,
+   "z": 100.125
+  },
+  "direction": 1810,
+  "title": "1.0_.:"
+ },
+ {
+  "entity_id_self": "-296552824",
+  "runtime_entity_id": "651851392",
+  "coordinates": {
+   "x": -2.25,
+   "y": 0,
+   "z": -2.25
+  },
+  "direction": 6894,
+  "title": "b"
+ },
+ {
+  "entity_id_self": "189861484",
+  "runtime_entity_id": "610548560",
+  "coordinates": {
+   "x": 0.5,
+   "y": 0,
+   "z": 100.125
+  },
+  "direction": -4501,
+  "title": "zy0xz1.a"
+ }
+]

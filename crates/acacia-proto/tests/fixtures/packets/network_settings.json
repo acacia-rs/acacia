@@ -1,0 +1,30 @@
+[
+ {
+  "compression_threshold": 41379,
+  "compression_algorithm": "deflate",
+  "client_throttle": false,
+  "client_throttle_threshold": 99,
+  "client_throttle_scalar": 1.5
+ },
+ {
+  "compression_threshold": 7418,
+  "compression_algorithm": "snappy",
+  "client_throttle": true,
+  "client_throttle_threshold": 184,
+  "client_throttle_scalar": 1.5
+ },
+ {
+  "compression_threshold": 46916,
+  "compression_algorithm": "snappy",
+  "client_throttle": true,
+  "client_throttle_threshold": 203,
+  "client_throttle_scalar": -2.25
+ },
+ {
+  "compression_threshold": 10489,
+  "compression_algorithm": "deflate",
+  "client_throttle": true,
+  "client_throttle_threshold": 61,
+  "client_throttle_scalar": 0.5
+ }
+]

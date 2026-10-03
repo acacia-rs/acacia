@@ -1,0 +1,145 @@
+[
+ {
+  "x": 4875,
+  "y": -10531,
+  "z": -10993,
+  "blocks": [],
+  "extra": [
+   {
+    "position": {
+     "x": 15886,
+     "y": -2185,
+     "z": 6930
+    },
+    "runtime_id": 14895,
+    "flags": 330,
+    "entity_unique_id": "-785392320",
+    "transition_type": "entity"
+   }
+  ]
+ },
+ {
+  "x": 11184,
+  "y": 10637,
+  "z": 6036,
+  "blocks": [
+   {
+    "position": {
+     "x": -6699,
+     "y": 2408,
+     "z": 43
+    },
+    "runtime_id": 15233,
+    "flags": 1789,
+    "entity_unique_id": "183880312",
+    "transition_type": "destroy"
+   }
+  ],
+  "extra": [
+   {
+    "position": {
+     "x": -13121,
+     "y": 10561,
+     "z": 4756
+    },
+    "runtime_id": 15522,
+    "flags": 18618,
+    "entity_unique_id": "-833115739",
+    "transition_type": "create"
+   },
+   {
+    "position": {
+     "x": 16530,
+     "y": 14481,
+     "z": 16904
+    },
+    "runtime_id": 15358,
+    "flags": 8482,
+    "entity_unique_id": "21654230",
+    "transition_type": "destroy"
+   },
+   {
+    "position": {
+     "x": 16940,
+     "y": 791,
+     "z": -15643
+    },
+    "runtime_id": 2211,
+    "flags": 1370,
+    "entity_unique_id": "820455638",
+    "transition_type": "create"
+   }
+  ]
+ },
+ {
+  "x": -11509,
+  "y": -12510,
+  "z": 17797,
+  "blocks": [
+   {
+    "position": {
+     "x": 6172,
+     "y": 13418,
+     "z": 17164
+    },
+    "runtime_id": 18319,
+    "flags": 13456,
+    "entity_unique_id": "-170891118",
+    "transition_type": "create"
+   },
+   {
+    "position": {
+     "x": 899,
+     "y": 15368,
+     "z": -18766
+    },
+    "runtime_id": 15151,
+    "flags": 16238,
+    "entity_unique_id": "-671677270",
+    "transition_type": "create"
+   }
+  ],
+  "extra": []
+ },
+ {
+  "x": 15595,
+  "y": 14576,
+  "z": 14512,
+  "blocks": [
+   {
+    "position": {
+     "x": -10366,
+     "y": 13634,
+     "z": 4118
+    },
+    "runtime_id": 9147,
+    "flags": 1962,
+    "entity_unique_id": "181138254",
+    "transition_type": "entity"
+   },
+   {
+    "position": {
+     "x": -9881,
+     "y": 9435,
+     "z": 6661
+    },
+    "runtime_id": 10095,
+    "flags": 5557,
+    "entity_unique_id": "727675686",
+    "transition_type": "entity"
+   },
+   {
+    "position": {
+     "x": 103,
+     "y": -10849,
+     "z": 15924
+    },
+    "runtime_id": 5332,
+    "flags": 1423,
+    "entity_unique_id": "-269193225",
+    "transition_type": "destroy"
+   }
+  ],
+  "extra": []
+ }
+]

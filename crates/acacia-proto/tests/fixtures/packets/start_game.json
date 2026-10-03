@@ -1,0 +1,677 @@
+[
+ {
+  "entity_id": "3984023",
+  "runtime_entity_id": "917486805",
+  "player_gamemode": "creative_spectator",
+  "player_position": {
+   "x": 0.5,
+   "y": -2.25,
+   "z": -2.25
+  },
+  "rotation": {
+   "x": 1.5,
+   "z": 0
+  },
+  "seed": [
+   7,
+   4062060845
+  ],
+  "biome_type": 32552,
+  "biome_name": "bzzz9x09",
+  "dimension": "overworld",
+  "generator": -4452,
+  "world_gamemode": "creative_spectator",
+  "hardcore": false,
+  "difficulty": -728,
+  "spawn_position": {
+   "x": -8217,
+   "y": -6307,
+   "z": -4641
+  },
+  "achievements_disabled": false,
+  "editor_world_type": "not_editor",
+  "created_in_editor": false,
+  "exported_from_editor": true,
+  "day_cycle_stop_time": -17028,
+  "edu_offer": 4081,
+  "edu_features_enabled": true,
+  "edu_product_uuid": "",
+  "rain_level": 0,
+  "lightning_level": 100.125,
+  "has_confirmed_platform_locked_content": true,
+  "is_multiplayer": true,
+  "broadcast_to_lan": false,
+  "xbox_live_broadcast_mode": 15902,
+  "platform_broadcast_mode": 3157,
+  "enable_commands": true,
+  "is_texturepacks_required": false,
+  "gamerules": [],
+  "experiments": [
+   {
+    "name": "b 1 a.",
+    "enabled": false
+   },
+   {
+    "name": "0 zy.",
+    "enabled": true
+   },
+   {
+    "name": "ca1",
+    "enabled": true
+   }
+  ],
+  "experiments_previously_used": true,
+  "bonus_chest": true,
+  "map_enabled": false,
+  "permission_level": "member",
+  "server_chunk_tick_range": 1577948241,
+  "has_locked_behavior_pack": false,
+  "has_locked_resource_pack": true,
+  "is_from_locked_world_template": true,
+  "msa_gamertags_only": true,
+  "is_from_world_template": false,
+  "is_world_template_option_locked": false,
+  "only_spawn_v1_villagers": false,
+  "persona_disabled": true,
+  "custom_skins_disabled": true,
+  "emote_chat_muted": true,
+  "game_version": "110ycx",
+  "limited_world_width": 2051660542,
+  "limited_world_length": 1729224188,
+  "is_new_nether": false,
+  "edu_resource_uri": {
+   "button_name": "_zxx:y",
+   "link_uri": "a 10_z"
+  },
+  "experimental_gameplay_override": false,
+  "chat_restriction_level": "disabled",
+  "disable_player_interactions": true,
+  "server_editor_connection_policy": -11179,
+  "allow_anonymous_block_drops_in_editor_worlds": true,
+  "level_id": "",
+  "world_name": "y:: xyx ",
+  "premium_world_template_id": ":x.9",
+  "is_trial": false,
+  "rewind_history_size": -14842,
+  "server_authoritative_block_breaking": true,
+  "current_tick": [
+   -152,
+   -682796089
+  ],
+  "enchantment_seed": 12301,
+  "block_properties": [
+   {
+    "name": ":0a_x_",
+    "state": {
+     "type": "compound",
+     "name": "",
+     "value": {}
+    }
+   }
+  ],
+  "multiplayer_correlation_id": "c1",
+  "server_authoritative_inventory": false,
+  "engine": "zcy09cx",
+  "property_data": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "string",
+     "value": "1cyc19"
+    },
+    "kb": {
+     "type": "float",
+     "value": 1.5
+    }
+   }
+  },
+  "block_pallette_checksum": [
+   192,
+   1963404438
+  ],
+  "world_template_id": "d8528385-8900-8776-7d38-d6f90259ac2b",
+  "client_side_generation": false,
+  "block_network_ids_are_hashes": false,
+  "server_controlled_sound": true,
+  "has_server_join_info": false,
+  "server_identifier": "b 0",
+  "scenario_identifier": "_x._:zb",
+  "world_identifier": ":.19.9",
+  "owner_identifier": "_z.xbc"
+ },
+ {
+  "entity_id": "411514437",
+  "runtime_entity_id": "640429482",
+  "player_gamemode": "adventure",
+  "player_position": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": 0
+  },
+  "rotation": {
+   "x": 0.5,
+   "z": 100.125
+  },
+  "seed": [
+   29,
+   2544887099
+  ],
+  "biome_type": -1758,
+  "biome_name": "bx",
+  "dimension": "overworld",
+  "generator": -2397,
+  "world_gamemode": "adventure",
+  "hardcore": false,
+  "difficulty": -16484,
+  "spawn_position": {
+   "x": 6648,
+   "y": 17554,
+   "z": -2019
+  },
+  "achievements_disabled": false,
+  "editor_world_type": "test_level",
+  "created_in_editor": false,
+  "exported_from_editor": false,
+  "day_cycle_stop_time": -9325,
+  "edu_offer": 4167,
+  "edu_features_enabled": true,
+  "edu_product_uuid": "a. bx",
+  "rain_level": 1.5,
+  "lightning_level": 100.125,
+  "has_confirmed_platform_locked_content": true,
+  "is_multiplayer": true,
+  "broadcast_to_lan": false,
+  "xbox_live_broadcast_mode": 2083,
+  "platform_broadcast_mode": 15457,
+  "enable_commands": true,
+  "is_texturepacks_required": true,
+  "gamerules": [
+   {
+    "name": "x:00xc: ",
+    "editable": false,
+    "type": "bool",
+    "value": false
+   }
+  ],
+  "experiments": [],
+  "experiments_previously_used": true,
+  "bonus_chest": false,
+  "map_enabled": false,
+  "permission_level": "visitor",
+  "server_chunk_tick_range": -956349736,
+  "has_locked_behavior_pack": true,
+  "has_locked_resource_pack": false,
+  "is_from_locked_world_template": false,
+  "msa_gamertags_only": true,
+  "is_from_world_template": false,
+  "is_world_template_option_locked": true,
+  "only_spawn_v1_villagers": false,
+  "persona_disabled": true,
+  "custom_skins_disabled": true,
+  "emote_chat_muted": true,
+  "game_version": "1zx11",
+  "limited_world_width": -958757868,
+  "limited_world_length": -397426815,
+  "is_new_nether": true,
+  "edu_resource_uri": {
+   "button_name": "0czxac",
+   "link_uri": "xx"
+  },
+  "experimental_gameplay_override": true,
+  "chat_restriction_level": "disabled",
+  "disable_player_interactions": false,
+  "server_editor_connection_policy": 18885,
+  "allow_anonymous_block_drops_in_editor_worlds": false,
+  "level_id": "z91",
+  "world_name": "",
+  "premium_world_template_id": "b1c_:",
+  "is_trial": true,
+  "rewind_history_size": 5444,
+  "server_authoritative_block_breaking": true,
+  "current_tick": [
+   -153,
+   -1752904802
+  ],
+  "enchantment_seed": -13951,
+  "block_properties": [
+   {
+    "name": "c_z9:b",
+    "state": {
+     "type": "compound",
+     "name": "",
+     "value": {}
+    }
+   }
+  ],
+  "multiplayer_correlation_id": "c _1",
+  "server_authoritative_inventory": true,
+  "engine": "..x",
+  "property_data": {
+   "type": "compound",
+   "name": "",
+   "value": {}
+  },
+  "block_pallette_checksum": [
+   100,
+   3317563941
+  ],
+  "world_template_id": "f5f1c8d7-3879-6f17-01ce-592bb1cd9329",
+  "client_side_generation": true,
+  "block_network_ids_are_hashes": true,
+  "server_controlled_sound": true,
+  "has_server_join_info": false,
+  "server_identifier": ":.z",
+  "scenario_identifier": "",
+  "world_identifier": "ya: .x.",
+  "owner_identifier": ""
+ },
+ {
+  "entity_id": "-537715463",
+  "runtime_entity_id": "490643846",
+  "player_gamemode": "creative",
+  "player_position": {
+   "x": 0.5,
+   "y": 100.125,
+   "z": -2.25
+  },
+  "rotation": {
+   "x": 1.5,
+   "z": -2.25
+  },
+  "seed": [
+   165,
+   3391859550
+  ],
+  "biome_type": -21532,
+  "biome_name": "_9b ",
+  "dimension": "overworld",
+  "generator": -12983,
+  "world_gamemode": "survival",
+  "hardcore": false,
+  "difficulty": 17491,
+  "spawn_position": {
+   "x": -7862,
+   "y": -17974,
+   "z": -5034
+  },
+  "achievements_disabled": true,
+  "editor_world_type": "realms_upload",
+  "created_in_editor": true,
+  "exported_from_editor": true,
+  "day_cycle_stop_time": -2365,
+  "edu_offer": 8148,
+  "edu_features_enabled": false,
+  "edu_product_uuid": "",
+  "rain_level": 100.125,
+  "lightning_level": 0.5,
+  "has_confirmed_platform_locked_content": true,
+  "is_multiplayer": false,
+  "broadcast_to_lan": true,
+  "xbox_live_broadcast_mode": 15539,
+  "platform_broadcast_mode": 12522,
+  "enable_commands": false,
+  "is_texturepacks_required": false,
+  "gamerules": [
+   {
+    "name": ".x9:1_",
+    "editable": false,
+    "type": "int",
+    "value": -466427852
+   },
+   {
+    "name": " ",
+    "editable": true,
+    "type": "bool",
+    "value": true
+   }
+  ],
+  "experiments": [
+   {
+    "name": "_ay :_y",
+    "enabled": true
+   },
+   {
+    "name": "",
+    "enabled": true
+   },
+   {
+    "name": "0_.",
+    "enabled": false
+   }
+  ],
+  "experiments_previously_used": false,
+  "bonus_chest": false,
+  "map_enabled": true,
+  "permission_level": "custom",
+  "server_chunk_tick_range": -13164553,
+  "has_locked_behavior_pack": false,
+  "has_locked_resource_pack": true,
+  "is_from_locked_world_template": false,
+  "msa_gamertags_only": true,
+  "is_from_world_template": false,
+  "is_world_template_option_locked": false,
+  "only_spawn_v1_villagers": false,
+  "persona_disabled": true,
+  "custom_skins_disabled": false,
+  "emote_chat_muted": false,
+  "game_version": "0_9.b cc",
+  "limited_world_width": 1668139013,
+  "limited_world_length": -138699509,
+  "is_new_nether": false,
+  "edu_resource_uri": {
+   "button_name": ":x :x",
+   "link_uri": "0y0:a y"
+  },
+  "experimental_gameplay_override": true,
+  "chat_restriction_level": "disabled",
+  "disable_player_interactions": false,
+  "server_editor_connection_policy": 8276,
+  "allow_anonymous_block_drops_in_editor_worlds": false,
+  "level_id": " _9_b",
+  "world_name": "ybz_1ayx",
+  "premium_world_template_id": "y_",
+  "is_trial": true,
+  "rewind_history_size": 10340,
+  "server_authoritative_block_breaking": false,
+  "current_tick": [
+   211,
+   1542865869
+  ],
+  "enchantment_seed": -5426,
+  "block_properties": [
+   {
+    "name": "cz0y0c",
+    "state": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "int",
+       "value": 3168
+      },
+      "kb": {
+       "type": "list",
+       "value": {
+        "type": "int",
+        "value": [
+         10,
+         34
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "name": "c01xx",
+    "state": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "float",
+       "value": 1.5
+      },
+      "kb": {
+       "type": "float",
+       "value": 100.125
+      }
+     }
+    }
+   },
+   {
+    "name": ".:1_0a0b",
+    "state": {
+     "type": "compound",
+     "name": "",
+     "value": {}
+    }
+   }
+  ],
+  "multiplayer_correlation_id": "_c",
+  "server_authoritative_inventory": true,
+  "engine": " :cb :",
+  "property_data": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "int",
+       "value": -6910
+      }
+     }
+    }
+   }
+  },
+  "block_pallette_checksum": [
+   179,
+   78184485
+  ],
+  "world_template_id": "ee0a258c-c672-2e9b-8b3f-3cf2cf6a0b08",
+  "client_side_generation": false,
+  "block_network_ids_are_hashes": true,
+  "server_controlled_sound": false,
+  "has_server_join_info": true,
+  "server_join_info": {
+   "has_gathering_info": true,
+   "gathering_info": {
+    "experience_id": "17cbef6a-1e5c-c9a9-9fbf-3a3688435bbc",
+    "experience_name": ".x:..a.0",
+    "experience_world_id": "c082c819-9feb-988a-28bb-a63e4c81e33c",
+    "experience_world_name": "  a01",
+    "creator_id": "yabx"
+   },
+   "presence_info": {
+    "world_name": "b",
+    "rich_presence_id": "b1.9"
+   }
+  },
+  "server_identifier": "0_bxa_:1",
+  "scenario_identifier": "9:b99 ",
+  "world_identifier": "yax ",
+  "owner_identifier": " .ayyb0"
+ },
+ {
+  "entity_id": "558066635",
+  "runtime_entity_id": "942059533",
+  "player_gamemode": "survival",
+  "player_position": {
+   "x": 0,
+   "y": 0.5,
+   "z": 1.5
+  },
+  "rotation": {
+   "x": 1.5,
+   "z": 0.5
+  },
+  "seed": [
+   60,
+   3659556521
+  ],
+  "biome_type": -12331,
+  "biome_name": "0zz1a",
+  "dimension": "end",
+  "generator": 265,
+  "world_gamemode": "creative",
+  "hardcore": false,
+  "difficulty": -10060,
+  "spawn_position": {
+   "x": 12587,
+   "y": -4323,
+   "z": 13694
+  },
+  "achievements_disabled": true,
+  "editor_world_type": "realms_upload",
+  "created_in_editor": true,
+  "exported_from_editor": false,
+  "day_cycle_stop_time": 1851,
+  "edu_offer": 12460,
+  "edu_features_enabled": false,
+  "edu_product_uuid": "a y1c1",
+  "rain_level": -2.25,
+  "lightning_level": 0.5,
+  "has_confirmed_platform_locked_content": false,
+  "is_multiplayer": false,
+  "broadcast_to_lan": true,
+  "xbox_live_broadcast_mode": 18383,
+  "platform_broadcast_mode": 3923,
+  "enable_commands": true,
+  "is_texturepacks_required": false,
+  "gamerules": [
+   {
+    "name": "xabyca",
+    "editable": false,
+    "type": "bool",
+    "value": false
+   },
+   {
+    "name": " _c0",
+    "editable": false,
+    "type": "float",
+    "value": 100.125
+   },
+   {
+    "name": "ya:z",
+    "editable": false,
+    "type": "float",
+    "value": -2.25
+   }
+  ],
+  "experiments": [
+   {
+    "name": "x00zba9",
+    "enabled": false
+   }
+  ],
+  "experiments_previously_used": true,
+  "bonus_chest": false,
+  "map_enabled": false,
+  "permission_level": "member",
+  "server_chunk_tick_range": -1704217218,
+  "has_locked_behavior_pack": false,
+  "has_locked_resource_pack": true,
+  "is_from_locked_world_template": false,
+  "msa_gamertags_only": true,
+  "is_from_world_template": false,
+  "is_world_template_option_locked": true,
+  "only_spawn_v1_villagers": false,
+  "persona_disabled": true,
+  "custom_skins_disabled": true,
+  "emote_chat_muted": true,
+  "game_version": "ba0_x.0",
+  "limited_world_width": 1275233356,
+  "limited_world_length": 1629453789,
+  "is_new_nether": true,
+  "edu_resource_uri": {
+   "button_name": "ycc",
+   "link_uri": "zz  "
+  },
+  "experimental_gameplay_override": false,
+  "chat_restriction_level": "disabled",
+  "disable_player_interactions": true,
+  "server_editor_connection_policy": -9345,
+  "allow_anonymous_block_drops_in_editor_worlds": true,
+  "level_id": "c:0a9",
+  "world_name": "b0ax",
+  "premium_world_template_id": "",
+  "is_trial": false,
+  "rewind_history_size": -7345,
+  "server_authoritative_block_breaking": false,
+  "current_tick": [
+   73,
+   1595101929
+  ],
+  "enchantment_seed": 16436,
+  "block_properties": [
+   {
+    "name": "",
+    "state": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "compound",
+       "value": {}
+      }
+     }
+    }
+   },
+   {
+    "name": "a::bb0",
+    "state": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "list",
+       "value": {
+        "type": "int",
+        "value": [
+         10,
+         47
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "name": "x0.:bya",
+    "state": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "float",
+       "value": 0.5
+      }
+     }
+    }
+   }
+  ],
+  "multiplayer_correlation_id": "c y_",
+  "server_authoritative_inventory": true,
+  "engine": "19_90 __",
+  "property_data": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "float",
+     "value": 100.125
+    },
+    "kb": {
+     "type": "list",
+     "value": {
+      "type": "int",
+      "value": [
+       15,
+       40
+      ]
+     }
+    },
+    "kc": {
+     "type": "int",
+     "value": -96433
+    }
+   }
+  },
+  "block_pallette_checksum": [
+   183,
+   22330441
+  ],
+  "world_template_id": "a634a740-fbd4-52c8-5302-8ade8d34c802",
+  "client_side_generation": true,
+  "block_network_ids_are_hashes": false,
+  "server_controlled_sound": false,
+  "has_server_join_info": false,
+  "server_identifier": "0",
+  "scenario_identifier": "c01 yc1b",
+  "world_identifier": "cy_1_xa",
+  "owner_identifier": "9cz_xxa"
+ }
+]

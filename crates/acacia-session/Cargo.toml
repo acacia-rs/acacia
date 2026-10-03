@@ -1,0 +1,22 @@
+[package]
+name = "acacia-session"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+acacia-raknet = { path = "../acacia-raknet" }
+acacia-proto = { path = "../acacia-proto" }
+acacia-auth = { path = "../acacia-auth", default-features = false }
+bytes = "1.12.1"
+aes = "0.8"
+ctr = "0.9"
+sha2 = "0.10"
+snap = "1.1.2"
+thiserror = "2.0.21"
+# Keep p384 in step with acacia-auth: SigningKey crosses the crate boundary.
+p384 = { version = "0.13", features = ["ecdh", "ecdsa"] }
+flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
+tracing = "0.1.44"

@@ -1,0 +1,61 @@
+[
+ {
+  "biome_definitions": [
+   {
+    "name_index": -3472,
+    "biome_id": 18565,
+    "temperature": 1.5,
+    "downfall": -2.25,
+    "snow_foliage": 0.5,
+    "depth": 0.5,
+    "scale": 1.5,
+    "map_water_colour": -245482683,
+    "rain": false
+   }
+  ],
+  "string_list": [
+   "b1c",
+   "0a_x"
+  ]
+ },
+ {
+  "biome_definitions": [],
+  "string_list": []
+ },
+ {
+  "biome_definitions": [
+   {
+    "name_index": 5492,
+    "biome_id": 63516,
+    "temperature": -2.25,
+    "downfall": 1.5,
+    "snow_foliage": 0,
+    "depth": -2.25,
+    "scale": -2.25,
+    "map_water_colour": -1628866319,
+    "rain": false
+   }
+  ],
+  "string_list": [
+   "y.cz"
+  ]
+ },
+ {
+  "biome_definitions": [
+   {
+    "name_index": 9314,
+    "biome_id": 31645,
+    "temperature": -2.25,
+    "downfall": -2.25,
+    "snow_foliage": 1.5,
+    "depth": 100.125,
+    "scale": 0.5,
+    "map_water_colour": -1822042573,
+    "rain": false
+   }
+  ],
+  "string_list": [
+   "a_ycb"
+  ]
+ }
+]

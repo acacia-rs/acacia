@@ -1,0 +1,134 @@
+[
+ {
+  "transaction": {
+   "legacy": {
+    "legacy_request_id": -10125
+   },
+   "transaction_type": "inventory_mismatch",
+   "actions": []
+  }
+ },
+ {
+  "transaction": {
+   "legacy": {
+    "legacy_request_id": -5936,
+    "legacy_transactions": [
+     {
+      "container_id": 131,
+      "changed_slots": []
+     }
+    ]
+   },
+   "transaction_type": "inventory_mismatch",
+   "actions": []
+  }
+ },
+ {
+  "transaction": {
+   "legacy": {
+    "legacy_request_id": 15434
+   },
+   "transaction_type": "item_use",
+   "actions": [],
+   "transaction_data": {
+    "action_type": "click_block",
+    "trigger_type": "simulation_tick",
+    "block_position": {
+     "x": -2695,
+     "y": 13581,
+     "z": -3813
+    },
+    "face": 209,
+    "hotbar_slot": -14976,
+    "hand": "main_hand",
+    "held_item": {
+     "network_id": -19073,
+     "count": 880,
+     "metadata": 18980,
+     "has_stack_id": false,
+     "block_runtime_id": 2399,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "player_pos": {
+     "x": 0.5,
+     "y": 1.5,
+     "z": 0
+    },
+    "click_pos": {
+     "x": 1.5,
+     "y": 0,
+     "z": 1.5
+    },
+    "block_runtime_id": 16625,
+    "client_prediction": "success",
+    "client_cooldown_state": "on"
+   }
+  }
+ },
+ {
+  "transaction": {
+   "legacy": {
+    "legacy_request_id": 15837
+   },
+   "transaction_type": "item_release",
+   "actions": [
+    {
+     "source_type": "container",
+     "window_id": 87,
+     "flags": 10203,
+     "slot": 5734,
+     "old_item": {
+      "network_id": 17690,
+      "count": 13940,
+      "metadata": 7637,
+      "has_stack_id": true,
+      "stack_id": -8928,
+      "block_runtime_id": 7371,
+      "extra": {
+       "has_nbt": 0,
+       "can_place_on": [],
+       "can_destroy": []
+      }
+     },
+     "new_item": {
+      "network_id": -26361,
+      "count": 28323,
+      "metadata": 17802,
+      "has_stack_id": false,
+      "block_runtime_id": 11099,
+      "extra": {
+       "has_nbt": 0,
+       "can_place_on": [],
+       "can_destroy": []
+      }
+     }
+    }
+   ],
+   "transaction_data": {
+    "action_type": "consume",
+    "hotbar_slot": 2539,
+    "held_item": {
+     "network_id": -5828,
+     "count": 55041,
+     "metadata": 5859,
+     "has_stack_id": false,
+     "block_runtime_id": 18590,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "head_pos": {
+     "x": 100.125,
+     "y": 0,
+     "z": 0.5
+    }
+   }
+  }
+ }
+]

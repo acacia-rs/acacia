@@ -1,0 +1,14 @@
+[
+ {
+  "gamemode": "fallback"
+ },
+ {
+  "gamemode": "creative"
+ },
+ {
+  "gamemode": "creative_spectator"
+ },
+ {
+  "gamemode": "survival"
+ }
+]

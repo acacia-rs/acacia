@@ -1,0 +1,50 @@
+[
+ {
+  "sound_id": 110,
+  "position": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": 1.5
+  },
+  "block_id": -932,
+  "entity_type": 15680,
+  "is_baby_mob": false,
+  "is_global": true
+ },
+ {
+  "sound_id": 63,
+  "position": {
+   "x": 0,
+   "y": 1.5,
+   "z": 0
+  },
+  "block_id": 13685,
+  "entity_type": -1682,
+  "is_baby_mob": false,
+  "is_global": false
+ },
+ {
+  "sound_id": 90,
+  "position": {
+   "x": -2.25,
+   "y": 0.5,
+   "z": -2.25
+  },
+  "block_id": -10946,
+  "entity_type": -12084,
+  "is_baby_mob": true,
+  "is_global": false
+ },
+ {
+  "sound_id": 94,
+  "position": {
+   "x": 100.125,
+   "y": -2.25,
+   "z": -2.25
+  },
+  "block_id": -1101,
+  "entity_type": -9979,
+  "is_baby_mob": false,
+  "is_global": false
+ }
+]

@@ -1,0 +1,18 @@
+[
+ {
+  "command_line": "b.zya",
+  "suppress_output": false
+ },
+ {
+  "command_line": ".",
+  "suppress_output": true
+ },
+ {
+  "command_line": "9a0zb.",
+  "suppress_output": false
+ },
+ {
+  "command_line": "y",
+  "suppress_output": true
+ }
+]

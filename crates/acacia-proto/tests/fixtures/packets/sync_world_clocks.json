@@ -1,0 +1,58 @@
+[
+ {
+  "payload_type": "add_time_marker",
+  "add_clock_id": "192656921",
+  "add_time_markers": [
+   {
+    "id": "165472314",
+    "name": "",
+    "time": 10433
+   },
+   {
+    "id": "546450906",
+    "name": ":0",
+    "time": -7802
+   }
+  ]
+ },
+ {
+  "payload_type": "sync_state",
+  "sync_states": [
+   {
+    "clock_id": "85847686",
+    "time": -17401,
+    "paused": true
+   },
+   {
+    "clock_id": "73958033",
+    "time": -14874,
+    "paused": true
+   },
+   {
+    "clock_id": "3166295",
+    "time": -466,
+    "paused": true
+   }
+  ]
+ },
+ {
+  "payload_type": "sync_state",
+  "sync_states": [
+   {
+    "clock_id": "970485437",
+    "time": -8365,
+    "paused": false
+   },
+   {
+    "clock_id": "220154942",
+    "time": 4689,
+    "paused": false
+   }
+  ]
+ },
+ {
+  "payload_type": "remove_time_marker",
+  "remove_clock_id": "876084096",
+  "remove_time_marker_ids": []
+ }
+]

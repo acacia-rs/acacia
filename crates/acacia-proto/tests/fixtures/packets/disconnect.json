@@ -1,0 +1,24 @@
+[
+ {
+  "reason": "empty_auth_from_discovery",
+  "hide_disconnect_reason": false,
+  "message": "0zzcba",
+  "filtered_message": "1bzzz9x0"
+ },
+ {
+  "reason": "world_transfer_not_primary_client",
+  "hide_disconnect_reason": false,
+  "message": " yb",
+  "filtered_message": ":b_xbxa"
+ },
+ {
+  "reason": "outdated_server",
+  "hide_disconnect_reason": true
+ },
+ {
+  "reason": "sub_client_login_disabled",
+  "hide_disconnect_reason": false,
+  "message": "",
+  "filtered_message": ""
+ }
+]

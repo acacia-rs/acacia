@@ -1,0 +1,50 @@
+[
+ {
+  "sound_id": 192,
+  "position": {
+   "x": 1.5,
+   "y": -2.25,
+   "z": 1.5
+  },
+  "block_id": -2903,
+  "entity_type": ".",
+  "is_baby_mob": false,
+  "is_global": true
+ },
+ {
+  "sound_id": 59,
+  "position": {
+   "x": 1.5,
+   "y": 100.125,
+   "z": 0
+  },
+  "block_id": 9530,
+  "entity_type": "cy01z.by",
+  "is_baby_mob": true,
+  "is_global": true
+ },
+ {
+  "sound_id": 148,
+  "position": {
+   "x": 100.125,
+   "y": 1.5,
+   "z": 0
+  },
+  "block_id": 4257,
+  "entity_type": "z",
+  "is_baby_mob": true,
+  "is_global": false
+ },
+ {
+  "sound_id": 30,
+  "position": {
+   "x": 1.5,
+   "y": 100.125,
+   "z": 100.125
+  },
+  "block_id": 10264,
+  "entity_type": "",
+  "is_baby_mob": false,
+  "is_global": false
+ }
+]

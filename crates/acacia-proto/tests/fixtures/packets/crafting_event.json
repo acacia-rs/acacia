@@ -1,0 +1,169 @@
+[
+ {
+  "window_id": "trading_use_inputs",
+  "recipe_type": "crafting",
+  "recipe_id": "8536a0ee-51c0-256e-1a4c-6fae430a3294",
+  "input": [],
+  "result": [
+   {
+    "network_id": 4322,
+    "count": 51042,
+    "metadata": 15507,
+    "has_stack_id": false,
+    "block_runtime_id": 5963,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [
+      ""
+     ],
+     "can_destroy": []
+    }
+   },
+   {
+    "network_id": 15638,
+    "count": 51426,
+    "metadata": 4377,
+    "has_stack_id": true,
+    "stack_id": -16242,
+    "block_runtime_id": 11963,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [],
+     "can_destroy": []
+    }
+   },
+   {
+    "network_id": -27561,
+    "count": 23999,
+    "metadata": 9748,
+    "has_stack_id": true,
+    "stack_id": 12060,
+    "block_runtime_id": 17845,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [
+      "_.xzx"
+     ],
+     "can_destroy": [
+      " ac  9 a"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "window_id": "creative",
+  "recipe_type": "inventory",
+  "recipe_id": "253d139e-cb48-bacc-57dd-bc91efca1790",
+  "input": [
+   {
+    "network_id": -6606,
+    "count": 34303,
+    "metadata": 17384,
+    "has_stack_id": true,
+    "stack_id": 17368,
+    "block_runtime_id": 2459,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [
+      ""
+     ],
+     "can_destroy": []
+    }
+   }
+  ],
+  "result": []
+ },
+ {
+  "window_id": "trading_output",
+  "recipe_type": "crafting",
+  "recipe_id": "fabad263-0d51-65f8-1e2e-7174f1851892",
+  "input": [
+   {
+    "network_id": -5236,
+    "count": 53419,
+    "metadata": 18838,
+    "has_stack_id": true,
+    "stack_id": -9460,
+    "block_runtime_id": 12522,
+    "extra": {
+     "has_nbt": true,
+     "nbt": {
+      "version": 1,
+      "nbt": {
+       "type": "end",
+       "name": ""
+      }
+     },
+     "can_place_on": [],
+     "can_destroy": [
+      " 0cb."
+     ]
+    }
+   },
+   {
+    "network_id": 13302,
+    "count": 12284,
+    "metadata": 11834,
+    "has_stack_id": false,
+    "block_runtime_id": 11604,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [],
+     "can_destroy": [
+      "c_"
+     ]
+    }
+   }
+  ],
+  "result": []
+ },
+ {
+  "window_id": "anvil_output",
+  "recipe_type": "workbench",
+  "recipe_id": "09f2bdb0-95e0-5c25-c3ec-0cd1bc464090",
+  "input": [
+   {
+    "network_id": 8545,
+    "count": 20811,
+    "metadata": 261,
+    "has_stack_id": true,
+    "stack_id": 13265,
+    "block_runtime_id": 16748,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [],
+     "can_destroy": [
+      ""
+     ]
+    }
+   }
+  ],
+  "result": [
+   {
+    "network_id": -21737,
+    "count": 4173,
+    "metadata": 16520,
+    "has_stack_id": false,
+    "block_runtime_id": 18072,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [],
+     "can_destroy": []
+    }
+   },
+   {
+    "network_id": -28357,
+    "count": 34946,
+    "metadata": 6368,
+    "has_stack_id": false,
+    "block_runtime_id": 4084,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [],
+     "can_destroy": []
+    }
+   }
+  ]
+ }
+]

@@ -1,0 +1,80 @@
+[
+ {
+  "runtime_entity_id": "372071981",
+  "helmet": {
+   "network_id": -11077,
+   "count": 1261,
+   "metadata": 18419,
+   "has_stack_id": true,
+   "stack_id": 8462,
+   "block_runtime_id": 5991,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "cyzx9"
+    ],
+    "can_destroy": [
+     "c_0zb1c"
+    ]
+   }
+  },
+  "chestplate": {
+   "network_id": -24397,
+   "count": 46970,
+   "metadata": 18393,
+   "has_stack_id": false,
+   "block_runtime_id": 2994,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "1ab_"
+    ],
+    "can_destroy": []
+   }
+  },
+  "leggings": {
+   "network_id": 286,
+   "count": 2975,
+   "metadata": 10547,
+   "has_stack_id": true,
+   "stack_id": -4222,
+   "block_runtime_id": 9427,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": [
+     "zb"
+    ]
+   }
+  },
+  "boots": {
+   "network_id": 3400,
+   "count": 42702,
+   "metadata": 10863,
+   "has_stack_id": false,
+   "block_runtime_id": 388,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "c0_x 00c"
+    ],
+    "can_destroy": [
+     "xxbc_"
+    ]
+   }
+  },
+  "body": {
+   "network_id": -25016,
+   "count": 56705,
+   "metadata": 7526,
+   "has_stack_id": true,
+   "stack_id": 9334,
+   "block_runtime_id": 12454,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  }
+ }
+]

@@ -1,0 +1,78 @@
+[
+ {
+  "position": {
+   "x": -17659,
+   "y": -6925,
+   "z": -1899
+  },
+  "block_runtime_id": 15139,
+  "flags": {
+   "_value": 252,
+   "neighbors": false,
+   "network": false,
+   "no_graphic": true,
+   "unused": true,
+   "priority": true
+  },
+  "layer": 6450,
+  "entity_unique_id": "307116562",
+  "transition_type": "create"
+ },
+ {
+  "position": {
+   "x": -12416,
+   "y": 10308,
+   "z": -7470
+  },
+  "block_runtime_id": 17046,
+  "flags": {
+   "_value": 111,
+   "neighbors": true,
+   "network": true,
+   "no_graphic": true,
+   "unused": true,
+   "priority": false
+  },
+  "layer": 13876,
+  "entity_unique_id": "987805387",
+  "transition_type": "entity"
+ },
+ {
+  "position": {
+   "x": 11228,
+   "y": -8886,
+   "z": -9410
+  },
+  "block_runtime_id": 19918,
+  "flags": {
+   "_value": 108,
+   "neighbors": false,
+   "network": false,
+   "no_graphic": true,
+   "unused": true,
+   "priority": false
+  },
+  "layer": 16190,
+  "entity_unique_id": "458046674",
+  "transition_type": "entity"
+ },
+ {
+  "position": {
+   "x": -10055,
+   "y": 759,
+   "z": 12366
+  },
+  "block_runtime_id": 18775,
+  "flags": {
+   "_value": 22,
+   "neighbors": false,
+   "network": true,
+   "no_graphic": true,
+   "unused": false,
+   "priority": true
+  },
+  "layer": 15719,
+  "entity_unique_id": "-396951710",
+  "transition_type": "destroy"
+ }
+]

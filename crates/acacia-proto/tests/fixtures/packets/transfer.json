@@ -1,0 +1,39 @@
+[
+ {
+  "server_address": ":",
+  "port": 19704,
+  "reload_world": false,
+  "gatherings_configuration": {
+   "experience_id": "7d380819-32fb-1208-7cc0-758581d5be8a",
+   "experience_name": ":yxby9",
+   "experience_world_id": "607cf3d1-8826-11fd-30f9-c67064b0c54f",
+   "experience_world_name": " :9yb z",
+   "creator_id": "1y ",
+   "scenario_id": "z._.",
+   "server_id": "x9a"
+  }
+ },
+ {
+  "server_address": "1::xx",
+  "port": 601,
+  "reload_world": true
+ },
+ {
+  "server_address": "",
+  "port": 20979,
+  "reload_world": true,
+  "gatherings_configuration": {
+   "experience_id": "65fe632d-d8aa-478d-13c0-51a51d616253",
+   "experience_name": "c01yx9b",
+   "experience_world_id": "1c49d49b-b45f-63f3-c7f2-c52104ba3c24",
+   "creator_id": "x1: 0__b",
+   "scenario_id": "a1_",
+   "server_id": "bx90y"
+  }
+ },
+ {
+  "server_address": "y xz:",
+  "port": 49361,
+  "reload_world": false
+ }
+]

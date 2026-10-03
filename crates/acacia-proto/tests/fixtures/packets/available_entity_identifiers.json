@@ -1,0 +1,82 @@
+[
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "compound",
+       "value": {
+        "ka": {
+         "type": "short",
+         "value": -140
+        }
+       }
+      },
+      "kb": {
+       "type": "list",
+       "value": {
+        "type": "int",
+        "value": [
+         46,
+         42
+        ]
+       }
+      },
+      "kc": {
+       "type": "int",
+       "value": -34833
+      }
+     }
+    },
+    "kb": {
+     "type": "int",
+     "value": -56039
+    },
+    "kc": {
+     "type": "int",
+     "value": -33169
+    }
+   }
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "string",
+     "value": "zbza"
+    }
+   }
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "float",
+     "value": 0.5
+    }
+   }
+  }
+ },
+ {
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "string",
+     "value": "zbx1_xya"
+    }
+   }
+  }
+ }
+]

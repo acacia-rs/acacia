@@ -1,0 +1,300 @@
+[
+ {
+  "unique_id": "3984023",
+  "runtime_id": "917486805",
+  "entity_type": "0zzcba",
+  "position": {
+   "x": 0.5,
+   "y": 0.5,
+   "z": 0
+  },
+  "velocity": {
+   "x": 1.5,
+   "y": 1.5,
+   "z": -2.25
+  },
+  "pitch": 0.5,
+  "yaw": 1.5,
+  "head_yaw": 0.5,
+  "body_yaw": 0.5,
+  "attributes": [],
+  "metadata": [
+   {
+    "key": "interact_text",
+    "type": "string",
+    "legacy_type": 123,
+    "value": "yy"
+   }
+  ],
+  "properties": {
+   "ints": [
+    {
+     "index": 917,
+     "value": 508
+    },
+    {
+     "index": 769,
+     "value": -17028
+    }
+   ],
+   "floats": []
+  },
+  "links": []
+ },
+ {
+  "unique_id": "411514437",
+  "runtime_id": "640429482",
+  "entity_type": " yb",
+  "position": {
+   "x": 0.5,
+   "y": 100.125,
+   "z": 0
+  },
+  "velocity": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": 0
+  },
+  "pitch": 1.5,
+  "yaw": 0,
+  "head_yaw": -2.25,
+  "body_yaw": 1.5,
+  "attributes": [
+   {
+    "name": "",
+    "min": 100.125,
+    "value": 0.5,
+    "max": -2.25
+   },
+   {
+    "name": "_  xcz",
+    "min": 100.125,
+    "value": 0,
+    "max": 100.125
+   },
+   {
+    "name": "bxc.x",
+    "min": 0,
+    "value": 0.5,
+    "max": 0
+   }
+  ],
+  "metadata": [
+   {
+    "key": "owner_eid",
+    "type": "byte",
+    "legacy_type": 79,
+    "value": 110
+   },
+   {
+    "key": "url_tag",
+    "type": "compound",
+    "legacy_type": 212,
+    "value": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "string",
+       "value": ":"
+      },
+      "kb": {
+       "type": "float",
+       "value": 1.5
+      },
+      "kc": {
+       "type": "string",
+       "value": ""
+      }
+     }
+    }
+   },
+   {
+    "key": "freezing_effect_strength",
+    "type": "short",
+    "legacy_type": 70,
+    "value": -12195
+   }
+  ],
+  "properties": {
+   "ints": [
+    {
+     "index": 19182,
+     "value": -13789
+    },
+    {
+     "index": 15012,
+     "value": -10589
+    },
+    {
+     "index": 11241,
+     "value": -18012
+    }
+   ],
+   "floats": []
+  },
+  "links": []
+ },
+ {
+  "unique_id": "-537715463",
+  "runtime_id": "490643846",
+  "entity_type": "1",
+  "position": {
+   "x": 100.125,
+   "y": -2.25,
+   "z": 1.5
+  },
+  "velocity": {
+   "x": -2.25,
+   "y": 100.125,
+   "z": 0
+  },
+  "pitch": -2.25,
+  "yaw": -2.25,
+  "head_yaw": 0.5,
+  "body_yaw": 0,
+  "attributes": [
+   {
+    "name": "",
+    "min": 0,
+    "value": 0,
+    "max": 0.5
+   },
+   {
+    "name": "xaya1bbz",
+    "min": -2.25,
+    "value": -2.25,
+    "max": 0
+   }
+  ],
+  "metadata": [
+   {
+    "key": "aim_assist_priority_category_id",
+    "type": "short",
+    "legacy_type": 190,
+    "value": -25496
+   },
+   {
+    "key": "name_raw_text",
+    "type": "compound",
+    "legacy_type": 244,
+    "value": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "list",
+       "value": {
+        "type": "int",
+        "value": [
+         34,
+         38
+        ]
+       }
+      }
+     }
+    }
+   }
+  ],
+  "properties": {
+   "ints": [
+    {
+     "index": 13497,
+     "value": 14932
+    },
+    {
+     "index": 9393,
+     "value": 468
+    },
+    {
+     "index": 7899,
+     "value": -4344
+    }
+   ],
+   "floats": []
+  },
+  "links": [
+   {
+    "ridden_entity_id": "-95205256",
+    "rider_entity_id": "-665447031",
+    "type": 102,
+    "immediate": false,
+    "rider_initiated": false,
+    "angular_velocity": -2.25
+   },
+   {
+    "ridden_entity_id": "-868031246",
+    "rider_entity_id": "-257741528",
+    "type": 142,
+    "immediate": false,
+    "rider_initiated": false,
+    "angular_velocity": 1.5
+   }
+  ]
+ },
+ {
+  "unique_id": "558066635",
+  "runtime_id": "942059533",
+  "entity_type": "",
+  "position": {
+   "x": 0,
+   "y": 0.5,
+   "z": 1.5
+  },
+  "velocity": {
+   "x": 1.5,
+   "y": 0.5,
+   "z": 1.5
+  },
+  "pitch": 1.5,
+  "yaw": -2.25,
+  "head_yaw": 0.5,
+  "body_yaw": -2.25,
+  "attributes": [
+   {
+    "name": "a._x x0",
+    "min": 1.5,
+    "value": 0.5,
+    "max": 0
+   }
+  ],
+  "metadata": [
+   {
+    "key": "trading_career",
+    "type": "string",
+    "legacy_type": 139,
+    "value": "1.a y"
+   },
+   {
+    "key": "visible_mob_effects",
+    "type": "int",
+    "legacy_type": 233,
+    "value": -3788
+   },
+   {
+    "key": "bed_enter_position",
+    "type": "string",
+    "legacy_type": 234,
+    "value": "1c"
+   }
+  ],
+  "properties": {
+   "ints": [],
+   "floats": [
+    {
+     "index": 18954,
+     "value": 100.125
+    },
+    {
+     "index": 6050,
+     "value": 0
+    },
+    {
+     "index": 2803,
+     "value": 1.5
+    }
+   ]
+  },
+  "links": []
+ }
+]

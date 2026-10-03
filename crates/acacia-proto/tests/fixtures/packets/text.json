@@ -1,0 +1,44 @@
+[
+ {
+  "needs_translation": false,
+  "category": "message_only",
+  "type": "translation",
+  "message": "",
+  "parameters": [],
+  "xuid": "b9::",
+  "platform_chat_id": "y.1_.z",
+  "has_filtered_message": true,
+  "filtered_message": "99_y0x"
+ },
+ {
+  "needs_translation": true,
+  "category": "parameters",
+  "type": "whisper",
+  "source_name": "0:bbyx",
+  "message": "x",
+  "xuid": "x:ax1a0.",
+  "platform_chat_id": "xxbz.0z",
+  "has_filtered_message": false
+ },
+ {
+  "needs_translation": true,
+  "category": "parameters",
+  "type": "announcement",
+  "source_name": "ax:z",
+  "message": "az1 ._",
+  "xuid": "zcxa_b_z",
+  "platform_chat_id": "cb :aaxc",
+  "has_filtered_message": true,
+  "filtered_message": "1"
+ },
+ {
+  "needs_translation": true,
+  "category": "authored",
+  "type": "whisper",
+  "source_name": "",
+  "message": ".:aa",
+  "xuid": "zyx",
+  "platform_chat_id": ":cbc:0:",
+  "has_filtered_message": false
+ }
+]

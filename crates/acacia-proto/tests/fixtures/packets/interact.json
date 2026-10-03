@@ -1,0 +1,32 @@
+[
+ {
+  "action_id": "leave_vehicle",
+  "target_entity_id": "625192261",
+  "has_position": true,
+  "position": {
+   "x": 100.125,
+   "y": -2.25,
+   "z": -2.25
+  }
+ },
+ {
+  "action_id": "npc_open",
+  "target_entity_id": "902447084",
+  "has_position": false
+ },
+ {
+  "action_id": "leave_vehicle",
+  "target_entity_id": "320119137",
+  "has_position": true,
+  "position": {
+   "x": 100.125,
+   "y": 1.5,
+   "z": 1.5
+  }
+ },
+ {
+  "action_id": "npc_open",
+  "target_entity_id": "361360338",
+  "has_position": false
+ }
+]

@@ -1,0 +1,26 @@
+[
+ {
+  "intensity": 1.5,
+  "duration": 0,
+  "type": 148,
+  "action": "stop"
+ },
+ {
+  "intensity": 0,
+  "duration": 1.5,
+  "type": 171,
+  "action": "stop"
+ },
+ {
+  "intensity": 1.5,
+  "duration": 100.125,
+  "type": 112,
+  "action": "add"
+ },
+ {
+  "intensity": -2.25,
+  "duration": 100.125,
+  "type": 241,
+  "action": "add"
+ }
+]

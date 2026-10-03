@@ -1,0 +1,192 @@
+[
+ {
+  "cache_enabled": true,
+  "dimension": 5008,
+  "origin": {
+   "x": -856139101,
+   "y": 841617255,
+   "z": 365111309
+  },
+  "entries": [
+   {
+    "dx": 81,
+    "dy": -67,
+    "dz": 1,
+    "result": "undefined",
+    "payload": "",
+    "heightmap_type": "too_high",
+    "render_heightmap_type": "no_data",
+    "render_heightmap": [
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ],
+    "blob_id": [
+     21,
+     801489095
+    ]
+   }
+  ]
+ },
+ {
+  "cache_enabled": false,
+  "dimension": 16098,
+  "origin": {
+   "x": 708979781,
+   "y": 520228369,
+   "z": -964754952
+  },
+  "entries": [
+   {
+    "dx": -126,
+    "dy": -92,
+    "dz": -94,
+    "result": "y_index_out_of_bounds",
+    "payload": "558ba9e7b4",
+    "heightmap_type": "no_data",
+    "render_heightmap_type": "too_low",
+    "blob_id": [
+     150,
+     707159970
+    ]
+   }
+  ]
+ },
+ {
+  "cache_enabled": true,
+  "dimension": -7195,
+  "origin": {
+   "x": -431699578,
+   "y": 846628735,
+   "z": -506106471
+  },
+  "entries": [
+   {
+    "dx": 114,
+    "dy": 108,
+    "dz": -29,
+    "result": "success",
+    "heightmap_type": "all_copied",
+    "heightmap": [
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ],
+    "render_heightmap_type": "too_high",
+    "render_heightmap": [
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ],
+    "blob_id": [
+     63,
+     4154845456
+    ]
+   }
+  ]
+ },
+ {
+  "cache_enabled": false,
+  "dimension": -5546,
+  "origin": {
+   "x": 292992480,
+   "y": -867429876,
+   "z": -424640755
+  },
+  "entries": [
+   {
+    "dx": 64,
+    "dy": 98,
+    "dz": -69,
+    "result": "success",
+    "payload": "647eac91",
+    "heightmap_type": "no_data",
+    "render_heightmap_type": "too_low",
+    "render_heightmap": [
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "dx": -36,
+    "dy": -75,
+    "dz": 84,
+    "result": "invalid_dimension",
+    "payload": "0ca12b",
+    "heightmap_type": "too_high",
+    "heightmap": [
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ],
+    "render_heightmap_type": "too_low"
+   }
+  ]
+ }
+]

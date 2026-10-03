@@ -1,0 +1,38 @@
+[
+ {
+  "position": {
+   "x": 0,
+   "y": 0,
+   "z": 0.5
+  },
+  "state": 178,
+  "runtime_entity_id": "521445269"
+ },
+ {
+  "position": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": 1.5
+  },
+  "state": 109,
+  "runtime_entity_id": "448589466"
+ },
+ {
+  "position": {
+   "x": -2.25,
+   "y": 0.5,
+   "z": 1.5
+  },
+  "state": 46,
+  "runtime_entity_id": "767789499"
+ },
+ {
+  "position": {
+   "x": 0,
+   "y": 100.125,
+   "z": 1.5
+  },
+  "state": 5,
+  "runtime_entity_id": "122943193"
+ }
+]

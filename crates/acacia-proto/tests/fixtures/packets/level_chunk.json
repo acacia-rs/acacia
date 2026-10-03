@@ -1,0 +1,90 @@
+[
+ {
+  "x": 463,
+  "z": 1198,
+  "dimension": 4325,
+  "sub_chunk_count": 11803,
+  "highest_subchunk_count": 1521,
+  "cache_enabled": true,
+  "blobs": [
+   [
+    141,
+    2146195063
+   ],
+   [
+    104,
+    3648291885
+   ]
+  ],
+  "payload": "d76bab"
+ },
+ {
+  "x": 17146,
+  "z": -4812,
+  "dimension": -13628,
+  "sub_chunk_count": 11370,
+  "highest_subchunk_count": -6236,
+  "cache_enabled": true,
+  "blobs": [
+   [
+    138,
+    1193538501
+   ],
+   [
+    16,
+    970449955
+   ],
+   [
+    107,
+    4103259908
+   ]
+  ],
+  "payload": "2cd3"
+ },
+ {
+  "x": -19398,
+  "z": -5543,
+  "dimension": 14798,
+  "sub_chunk_count": 12910,
+  "highest_subchunk_count": -3030,
+  "cache_enabled": true,
+  "blobs": [
+   [
+    169,
+    4258284938
+   ],
+   [
+    22,
+    1802651998
+   ],
+   [
+    34,
+    2004388136
+   ]
+  ],
+  "payload": "b449"
+ },
+ {
+  "x": 15256,
+  "z": -16398,
+  "dimension": -4826,
+  "sub_chunk_count": 10166,
+  "highest_subchunk_count": -13869,
+  "cache_enabled": false,
+  "blobs": [
+   [
+    169,
+    2710589334
+   ],
+   [
+    118,
+    230968767
+   ],
+   [
+    174,
+    244446838
+   ]
+  ],
+  "payload": ""
+ }
+]

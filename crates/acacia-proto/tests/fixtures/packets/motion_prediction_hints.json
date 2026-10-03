@@ -1,0 +1,38 @@
+[
+ {
+  "entity_runtime_id": "92722665",
+  "velocity": {
+   "x": 0,
+   "y": 100.125,
+   "z": 1.5
+  },
+  "on_ground": true
+ },
+ {
+  "entity_runtime_id": "798013917",
+  "velocity": {
+   "x": 100.125,
+   "y": 1.5,
+   "z": 100.125
+  },
+  "on_ground": true
+ },
+ {
+  "entity_runtime_id": "893825060",
+  "velocity": {
+   "x": 0.5,
+   "y": 100.125,
+   "z": 0.5
+  },
+  "on_ground": true
+ },
+ {
+  "entity_runtime_id": "117836625",
+  "velocity": {
+   "x": 0,
+   "y": -2.25,
+   "z": 1.5
+  },
+  "on_ground": true
+ }
+]

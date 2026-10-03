@@ -1,0 +1,21 @@
+[
+ {
+  "party_info": {
+   "party_id": "aaa",
+   "party_leader": true
+  }
+ },
+ {
+  "party_info": {
+   "party_id": "01b0:",
+   "party_leader": false
+  }
+ },
+ {},
+ {
+  "party_info": {
+   "party_id": ":c_",
+   "party_leader": false
+  }
+ }
+]

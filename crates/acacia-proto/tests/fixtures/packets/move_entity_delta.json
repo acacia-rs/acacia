@@ -1,0 +1,48 @@
+[
+ {
+  "runtime_entity_id": "677150296",
+  "y": 0,
+  "rot_x": 72,
+  "rot_y": 65,
+  "rot_z": 203,
+  "on_ground": true,
+  "force_move": true,
+  "force_move_local_entity": true,
+  "force_completion": false,
+  "ticks": "738875329"
+ },
+ {
+  "runtime_entity_id": "56383884",
+  "x": 0,
+  "on_ground": true,
+  "force_move": true,
+  "force_move_local_entity": true,
+  "force_completion": false,
+  "ticks": "206830911"
+ },
+ {
+  "runtime_entity_id": "145359659",
+  "x": 0.5,
+  "z": 1.5,
+  "rot_x": 154,
+  "rot_z": 85,
+  "on_ground": false,
+  "force_move": false,
+  "force_move_local_entity": false,
+  "force_completion": false,
+  "ticks": "295545111"
+ },
+ {
+  "runtime_entity_id": "795106174",
+  "x": 0,
+  "y": 0,
+  "z": 100.125,
+  "rot_y": 93,
+  "rot_z": 227,
+  "on_ground": false,
+  "force_move": true,
+  "force_move_local_entity": true,
+  "force_completion": true,
+  "ticks": "272703723"
+ }
+]

@@ -1,0 +1,47 @@
+[
+ {
+  "priority_data": [
+   {
+    "preset_index": 1263636715,
+    "category_index": -1053583925,
+    "actor_index": 1558914750,
+    "priority": 254217312
+   }
+  ]
+ },
+ {
+  "priority_data": [
+   {
+    "preset_index": 1450976435,
+    "category_index": -1245384357,
+    "actor_index": 1789317294,
+    "priority": 1971513356
+   },
+   {
+    "preset_index": -370032240,
+    "category_index": -699091761,
+    "actor_index": -1388318123,
+    "priority": -1733128187
+   }
+  ]
+ },
+ {
+  "priority_data": []
+ },
+ {
+  "priority_data": [
+   {
+    "preset_index": 1570478687,
+    "category_index": 286491997,
+    "actor_index": 2113367307,
+    "priority": -1779268351
+   },
+   {
+    "preset_index": 1840537439,
+    "category_index": 78575890,
+    "actor_index": 670184389,
+    "priority": 350798387
+   }
+  ]
+ }
+]

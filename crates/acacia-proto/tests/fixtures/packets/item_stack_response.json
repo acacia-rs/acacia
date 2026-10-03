@@ -1,0 +1,63 @@
+[
+ {
+  "responses": []
+ },
+ {
+  "responses": [
+   {
+    "status": "ok",
+    "request_id": -9410,
+    "containers": []
+   },
+   {
+    "status": "error",
+    "request_id": 9161
+   },
+   {
+    "status": "ok",
+    "request_id": -10395
+   }
+  ]
+ },
+ {
+  "responses": [
+   {
+    "status": "error",
+    "request_id": -13250
+   },
+   {
+    "status": "error",
+    "request_id": -11523,
+    "containers": [
+     {
+      "slot_type": {
+       "container_id": "cursor"
+      },
+      "slots": []
+     }
+    ]
+   },
+   {
+    "status": "ok",
+    "request_id": -11931
+   }
+  ]
+ },
+ {
+  "responses": [
+   {
+    "status": "error",
+    "request_id": -4112,
+    "containers": []
+   },
+   {
+    "status": "error",
+    "request_id": -16699
+   },
+   {
+    "status": "error",
+    "request_id": -9794
+   }
+  ]
+ }
+]

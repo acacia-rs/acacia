@@ -1,0 +1,97 @@
+[
+ {
+  "shapes": [
+   {
+    "cells": {
+     "x_size": 19,
+     "y_size": 148,
+     "z_size": 240,
+     "storage": []
+    },
+    "x_coordinates": [],
+    "y_coordinates": [
+     100.125
+    ],
+    "z_coordinates": [
+     100.125
+    ]
+   }
+  ],
+  "name_map": [],
+  "custom_shape_count": 60822
+ },
+ {
+  "shapes": [],
+  "name_map": [
+   {
+    "name": "_: :1.",
+    "id": 52741
+   }
+  ],
+  "custom_shape_count": 34831
+ },
+ {
+  "shapes": [
+   {
+    "cells": {
+     "x_size": 166,
+     "y_size": 112,
+     "z_size": 46,
+     "storage": []
+    },
+    "x_coordinates": [
+     1.5
+    ],
+    "y_coordinates": [],
+    "z_coordinates": []
+   }
+  ],
+  "name_map": [
+   {
+    "name": "9y",
+    "id": 18620
+   }
+  ],
+  "custom_shape_count": 1413
+ },
+ {
+  "shapes": [
+   {
+    "cells": {
+     "x_size": 156,
+     "y_size": 241,
+     "z_size": 2,
+     "storage": [
+      99
+     ]
+    },
+    "x_coordinates": [
+     1.5
+    ],
+    "y_coordinates": [],
+    "z_coordinates": [
+     1.5
+    ]
+   },
+   {
+    "cells": {
+     "x_size": 117,
+     "y_size": 222,
+     "z_size": 182,
+     "storage": []
+    },
+    "x_coordinates": [
+     0.5
+    ],
+    "y_coordinates": [
+     0
+    ],
+    "z_coordinates": [
+     0.5
+    ]
+   }
+  ],
+  "name_map": [],
+  "custom_shape_count": 3141
+ }
+]

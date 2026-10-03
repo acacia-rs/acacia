@@ -1,0 +1,23 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "formtest",
+    "description": "Shows test forms to the first player and logs the answers",
+    "uuid": "6f0c1d52-3a8e-4c1b-9f37-2b1f0f6e7a01",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 90]
+  },
+  "modules": [
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "6f0c1d52-3a8e-4c1b-9f37-2b1f0f6e7a02",
+      "version": [1, 0, 0],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    { "module_name": "@minecraft/server", "version": "2.0.0" },
+    { "module_name": "@minecraft/server-ui", "version": "2.0.0" }
+  ]
+}

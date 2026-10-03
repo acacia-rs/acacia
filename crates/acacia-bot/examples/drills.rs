@@ -1,0 +1,249 @@
+//! Scripted movement drills on a server where the bot is operator: exact control sequences on a
+//! flat pad (plus whatever blocks a drill needs), reporting server corrections per drill. Used to
+//! pin down vanilla movement rules the simulation must follow.
+//! `cargo run -p acacia-bot --example drills -- <server> <name|@account> [drills]`
+//! `BEDROCK_RECORD=<file>` records a movement trace for the `replay` example.
+mod support;
+
+use acacia_bot::movement::Controls;
+use acacia_bot::Bot;
+use support::{corrections, Error};
+
+/// (ticks, forward, sprint, jump, yaw offset from +X in degrees, sneak)
+type Step = (u32, f32, bool, bool, f32, bool);
+type Fill = support::Fill<'static>;
+
+struct Drill {
+    name: &'static str,
+    fills: &'static [Fill],
+    /// Feet start, offset from the origin block's corner.
+    start: [f32; 3],
+    /// Ticks to wait after building (flowing liquids need time).
+    settle: u32,
+    steps: &'static [Step],
+    /// Look pitch for the whole drill (negative looks up).
+    pitch: f32,
+}
+
+const WALL3: &[Fill] = &[([4, 0, -12], [4, 2, 12], "glass")];
+const WALL2: &[Fill] = &[([4, 0, -12], [4, 1, 12], "glass")];
+/// A falling-water column at x+5 from a floating source 8 blocks up.
+const WATERFALL: &[Fill] = &[([5, 8, 0], [5, 8, 0], "water")];
+/// Water 4 deep from x+1 to x+20 (surface at y-1); deeper leaves a superflat world.
+const POOL: &[Fill] = &[([1, -4, -3], [20, -1, 3], "water")];
+/// Forward with one-tick jump taps every 8 ticks, like the path follower keeping afloat.
+const SWIM_TAP: &[Step] = &[
+    (7, 1.0, false, false, 0.0, false), (1, 1.0, false, true, 0.0, false),
+    (7, 1.0, false, false, 0.0, false), (1, 1.0, false, true, 0.0, false),
+    (7, 1.0, false, false, 0.0, false), (1, 1.0, false, true, 0.0, false),
+    (7, 1.0, false, false, 0.0, false), (1, 1.0, false, true, 0.0, false),
+    (7, 1.0, false, false, 0.0, false), (1, 1.0, false, true, 0.0, false),
+    (7, 1.0, false, false, 0.0, false), (1, 1.0, false, true, 0.0, false),
+    STOP,
+];
+/// A water source, then a block placed and removed above it: BDS `/fill` schedules no liquid update.
+const PUDDLE: &[Fill] = &[([8, 0, 0], [8, 0, 0], "water"), ([8, 1, 0], [8, 1, 0], "stone"), ([8, 1, 0], [8, 1, 0], "air")];
+const FLAT: [f32; 3] = [0.5, 0.0, 0.5];
+const STOP: Step = (20, 0.0, false, false, 0.0, false);
+const FALL: &[Step] = &[(60, 0.0, false, false, 0.0, false)];
+const IDLE: &[Step] = &[(40, 0.0, false, false, 0.0, false)];
+
+const fn drill(name: &'static str, fills: &'static [Fill], steps: &'static [Step]) -> Drill {
+    Drill { name, fills, start: FLAT, settle: 30, steps, pitch: 0.0 }
+}
+
+/// Started at the pool's surface; big fills can reach the client as whole-chunk resends, so wait.
+const fn pool(name: &'static str, x: f32, steps: &'static [Step]) -> Drill {
+    Drill { name, fills: POOL, start: [x, -1.0, 0.5], settle: 40, steps, pitch: 0.0 }
+}
+
+const fn puddle(name: &'static str, x: f32, steps: &'static [Step]) -> Drill {
+    Drill { name, fills: PUDDLE, start: [x, 0.0, 0.5], settle: 60, steps, pitch: 0.0 }
+}
+
+/// The pool plus a platform 1-3 blocks up at its edge, for sprinting off into deep water.
+const DIVES: [&[Fill]; 3] = [
+    &[([1, -4, -3], [20, -1, 3], "water"), ([-3, 0, -1], [0, 0, 1], "stone")],
+    &[([1, -4, -3], [20, -1, 3], "water"), ([-3, 0, -1], [0, 1, 1], "stone")],
+    &[([1, -4, -3], [20, -1, 3], "water"), ([-3, 0, -1], [0, 2, 1], "stone")],
+];
+
+/// Sprint off a `height`-block platform into the pool looking at `pitch`, so the eyes go under while already
+/// sprinting (fuzz 105051-1 tick 3261, 164225-0 tick 4460: BDS delayed StartSwimming while looking up).
+const fn dive(name: &'static str, pitch: f32, height: usize) -> Drill {
+    let steps: &[Step] = &[(45, 1.0, true, false, 0.0, false), STOP];
+    Drill { name, fills: DIVES[height - 1], start: [-2.5, height as f32, 0.5], settle: 40, steps, pitch }
+}
+
+/// Sprint while dropping into the pool from `y` above its surface: the height varies how deep the eyes are on
+/// the first tick they count as under water.
+const fn plunge(name: &'static str, pitch: f32, y: f32) -> Drill {
+    let steps: &[Step] = &[(45, 1.0, true, false, 0.0, false), STOP];
+    Drill { name, fills: POOL, start: [2.5, y, 0.5], settle: 40, steps, pitch }
+}
+
+/// A walled lane of source water over oak slabs: standing on a slab the feet are at 0.5 and the water top at 2,
+/// so the breathing point is under water at feet + 1.27 and out at feet + 1.62 (BDS `OffsetsComponent`).
+const SLAB_LANE: &[Fill] = &[
+    ([0, 0, -2], [13, 2, 2], "glass"),
+    ([1, 0, -1], [12, 2, 1], "air"),
+    ([1, 0, -1], [12, 0, 1], "oak_slab"),
+    ([1, 1, -1], [12, 1, 1], "water"),
+];
+/// The lane over daylight detectors (0.375 high): the breathing point is under the water top at feet + 1.62
+/// (1.995) and out at feet + 1.636 (2.011).
+const SENSOR_LANE: &[Fill] = &[
+    ([0, 0, -2], [13, 2, 2], "glass"),
+    ([1, 0, -1], [12, 2, 1], "air"),
+    ([1, 0, -1], [12, 0, 1], "daylight_detector"),
+    ([1, 1, -1], [12, 1, 1], "water"),
+];
+/// The same lane without slabs (feet at 0, eyes under the water top at 2).
+const STONE_LANE: &[Fill] = &[
+    ([0, 0, -2], [13, 2, 2], "glass"),
+    ([1, 0, -1], [12, 2, 1], "air"),
+    ([1, 0, -1], [12, 1, 1], "water"),
+];
+
+const fn lane(name: &'static str, fills: &'static [Fill], y: f32) -> Drill {
+    let steps: &[Step] = &[(30, 1.0, true, false, 0.0, false), STOP];
+    Drill { name, fills, start: [1.5, y, 0.5], settle: 40, steps, pitch: 0.0 }
+}
+
+const SLIME: &[Fill] = &[([-1, -1, -1], [1, -1, 1], "slime")];
+const BOUNCE: &[Step] = &[(100, 0.0, false, false, 0.0, false)];
+
+/// Dropped onto a slime floor from `y`, then left to bounce out.
+const fn slime(name: &'static str, y: f32) -> Drill {
+    Drill { name, fills: SLIME, start: [0.5, y, 0.5], settle: 10, steps: BOUNCE, pitch: 0.0 }
+}
+
+/// Dropped from the source's height beside the column, `x` = feet x offset (box half-width 0.3).
+const fn waterfall(name: &'static str, x: f32) -> Drill {
+    Drill { name, fills: WATERFALL, start: [x, 8.0, 0.5], settle: 80, steps: FALL, pitch: 0.0 }
+}
+
+/// Plain walk/stop/sneak steps for the double-tap drills.
+const fn walk(ticks: u32, forward: f32, sprint: bool, sneak: bool) -> Step {
+    (ticks, forward, sprint, false, 0.0, sneak)
+}
+
+const DRILLS: &[Drill] = &[
+    drill("sprint", &[], &[(30, 1.0, true, false, 0.0, false), STOP]),
+    drill("sprintwall", WALL3, &[(30, 1.0, true, false, 0.0, false), (15, 1.0, true, false, 60.0, false), (20, 0.0, false, false, 60.0, false)]),
+    drill("sprintwall30", WALL3, &[(12, 1.0, true, false, 0.0, false), (20, 1.0, true, false, 30.0, false), (20, 0.0, false, false, 30.0, false)]),
+    drill("fracsprint", &[], &[(20, 1.0, true, false, 0.0, false), (10, 0.5, true, false, 0.0, false), STOP]),
+    drill("frac75", &[], &[(20, 1.0, true, false, 0.0, false), (10, 0.75, true, false, 0.0, false), STOP]),
+    drill("fracwalk", &[], &[(40, 0.5, false, false, 0.0, false), STOP]),
+    drill("frac75long", &[], &[(10, 1.0, true, false, 0.0, false), (40, 0.75, true, false, 0.0, false), STOP]),
+    drill("jumpwall", WALL2, &[(8, 1.0, true, false, 0.0, false), (12, 1.0, true, true, 20.0, false), (15, 1.0, true, false, 60.0, false), (20, 0.0, false, false, 60.0, false)]),
+    drill("turnsprint", &[], &[(15, 1.0, true, false, 0.0, false), (10, 1.0, true, false, 90.0, false), (10, 1.0, true, false, 150.0, false), STOP]),
+    Drill { name: "drop", fills: &[], start: [0.5, 8.0, 0.5], settle: 10, steps: FALL, pitch: 0.0 },
+    pool("swimhold", 2.5, &[(60, 1.0, false, true, 0.0, false), STOP]),
+    pool("swimtap", 2.5, SWIM_TAP),
+    // A source at x+8 spreads over the pad: depth falls one level per block towards the start.
+    puddle("puddle1", 1.5, IDLE),
+    puddle("puddle3", 3.5, IDLE),
+    puddle("puddle6", 6.5, IDLE),
+    puddle("puddlewalk", 0.5, &[(40, 1.0, false, false, 0.0, false), STOP]),
+    pool("bob60", 8.5, &[(60, 0.0, false, true, 0.0, false), (40, 0.0, false, false, 0.0, false)]),
+    pool("bob13", 8.5, &[(13, 0.0, false, true, 0.0, false), (40, 0.0, false, false, 0.0, false)]),
+    pool("bob5", 8.5, &[(5, 0.0, false, true, 0.0, false), (40, 0.0, false, false, 0.0, false)]),
+    pool("float", 2.5, IDLE),
+    waterfall("wf+05", 4.75),
+    waterfall("wf+02", 4.72),
+    waterfall("wf-01", 4.69),
+    waterfall("wf-10", 4.6),
+    slime("slime2", 2.0),
+    slime("slime4", 4.0),
+    slime("slime6", 6.0),
+    slime("slime9", 9.0),
+    // Double tap around a sneak release (capture session 2 tick 1653; fuzz 220323-0 tick 1255).
+    drill("dtplain", &[], &[walk(3, 1.0, false, false), walk(2, 0.0, false, false), walk(15, 1.0, false, false), STOP]),
+    drill("dtsneakheld", &[], &[walk(10, 1.0, false, true), walk(3, 1.0, false, false), walk(2, 0.0, false, false), walk(15, 1.0, false, false), STOP]),
+    // Sprint at the surface, then sink (WantDown) until the eyes go under: does a continuing sprint start a
+    // swim like a held key does (fuzz 092535-0 tick 331)?
+    pool("swimsinkkey", 2.5, &[walk(5, 1.0, true, false), walk(25, 1.0, true, true), STOP]),
+    pool("swimsinknokey", 2.5, &[walk(5, 1.0, true, false), walk(25, 1.0, false, true), STOP]),
+    // A step lasts one tick less than asked after a control change, so 3 here holds forward for 2.
+    drill("dtsneakpress", &[], &[walk(10, -1.0, false, true), walk(3, 1.0, false, false), walk(4, -1.0, false, false), walk(15, 1.0, false, false), STOP]),
+    drill("dtsneakkey", &[], &[walk(10, -1.0, false, true), walk(3, 1.0, true, false), walk(4, -1.0, true, false), walk(15, 1.0, false, false), STOP]),
+    dive("dive-40", -40.0, 2),
+    dive("dive-20", -20.0, 2),
+    dive("dive-5", -5.0, 2),
+    dive("dive0", 0.0, 2),
+    dive("dive10", 10.0, 2),
+    dive("dive30", 30.0, 2),
+    dive("dive-8", -8.0, 2),
+    dive("dive-9", -9.0, 2),
+    dive("dive-10", -10.0, 2),
+    dive("dive-95", -9.5, 2),
+    dive("dive-11", -11.0, 2),
+    dive("dive-14", -14.0, 2),
+    dive("dive-17", -17.0, 2),
+    dive("dive1-10", -10.0, 1),
+    dive("dive1-20", -20.0, 1),
+    dive("dive1-40", -40.0, 1),
+    dive("dive1-70", -70.0, 1),
+    dive("dive3-10", -10.0, 3),
+    dive("dive3-20", -20.0, 3),
+    dive("dive3-40", -40.0, 3),
+    dive("dive3-70", -70.0, 3),
+    dive("dive-70", -70.0, 2),
+    lane("slablane", SLAB_LANE, 0.5),
+    lane("stonelane", STONE_LANE, 0.0),
+    lane("sensorlane", SENSOR_LANE, 0.375),
+    plunge("pl11a", -11.0, 1.0), plunge("pl11b", -11.0, 1.15), plunge("pl11c", -11.0, 1.3), plunge("pl11d", -11.0, 1.45),
+    plunge("pl11e", -11.0, 1.6), plunge("pl11f", -11.0, 1.75),
+    plunge("pl39a", -39.0, 1.0), plunge("pl39b", -39.0, 1.15), plunge("pl39c", -39.0, 1.3), plunge("pl39d", -39.0, 1.45),
+    plunge("pl39e", -39.0, 1.6), plunge("pl39f", -39.0, 1.75),
+    plunge("pl70a", -70.0, 1.0), plunge("pl70b", -70.0, 1.15), plunge("pl70c", -70.0, 1.3), plunge("pl70d", -70.0, 1.45),
+    plunge("pl70e", -70.0, 1.6), plunge("pl70f", -70.0, 1.75),
+];
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Error> {
+    let _ = tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).try_init();
+    let mut args = std::env::args().skip(1);
+    let server = args.next().unwrap_or_else(|| "127.0.0.1:19140".into());
+    let name = args.next().unwrap_or_else(|| "@default".into());
+    let only: Option<Vec<String>> = args.next().map(|l| l.split(',').map(str::to_owned).collect());
+    let (mut bot, pad) = support::connect(&server, &name).await?;
+
+    for drill in DRILLS {
+        if only.as_ref().is_some_and(|o| !o.iter().any(|n| n == drill.name)) {
+            continue;
+        }
+        bot.trace_mark(&format!("{} build", drill.name));
+        pad.build(&mut bot, drill.fills, drill.settle).await?;
+        pad.teleport(&mut bot, drill.start, -90.0).await?;
+        bot.trace_mark(drill.name);
+        if std::env::var("BEDROCK_COLUMN").is_ok() {
+            println!("  column under start: {}", column(&bot));
+        }
+        let before = corrections(&bot);
+        for &(ticks, forward, sprint, jump, yaw, sneak) in drill.steps {
+            if let Some(c) = bot.controls() {
+                // Bedrock yaw 0 faces +Z; -90 faces +X.
+                *c = Controls { forward, sprint, jump, sneak, yaw: -90.0 + yaw, pitch: drill.pitch, ..Controls::default() };
+            }
+            bot.wait_ticks(ticks).await?;
+        }
+        bot.wait_ticks(10).await?;
+        println!("{:12} corrections {}", drill.name, corrections(&bot) - before);
+    }
+    pad.go_home(&mut bot).await?;
+    bot.disconnect().await;
+    Ok(())
+}
+
+/// Our view of the blocks from the feet down six cells (debugging stale terrain).
+fn column(bot: &Bot) -> String {
+    use acacia_world::BlockAccess;
+    let (Some([x, y, z]), Some(w)) = (bot.block_position(), bot.world()) else { return "?".into() };
+    let (Some(view), Some(r)) = (w.view(), w.registry()) else { return "?".into() };
+    (0..6)
+        .map(|d| r.get(view.block(x, y - d, z)).map_or("?", |s| s.name.trim_start_matches("minecraft:")))
+        .collect::<Vec<_>>()
+        .join(" ")
+}

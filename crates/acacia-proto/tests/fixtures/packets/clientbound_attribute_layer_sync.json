@@ -1,0 +1,111 @@
+[
+ {
+  "payload_type": "update_settings",
+  "layer_name": "x1 _a 0",
+  "dimension_id": 14520,
+  "settings": {
+   "priority": -915788336,
+   "weight_type": "float",
+   "float_weight": 1.5,
+   "enabled": false,
+   "transitions_paused": false
+  }
+ },
+ {
+  "payload_type": "update_environment",
+  "layer_name": "c19zycb",
+  "dimension_id": -15950,
+  "environment_attributes": []
+ },
+ {
+  "payload_type": "update_layers",
+  "layers": [
+   {
+    "name": " ",
+    "noise_name": "",
+    "dimension_id": -16999,
+    "settings": {
+     "priority": -2042197869,
+     "weight_type": "float",
+     "float_weight": 1.5,
+     "enabled": false,
+     "transitions_paused": true
+    },
+    "environment_attributes": []
+   },
+   {
+    "name": "9:za0",
+    "noise_name": ":x0",
+    "dimension_id": 4322,
+    "settings": {
+     "priority": 1811890515,
+     "weight_type": "float",
+     "float_weight": 0,
+     "enabled": false,
+     "transitions_paused": true
+    },
+    "environment_attributes": []
+   },
+   {
+    "name": ".9_:y1",
+    "noise_name": ":zaz",
+    "dimension_id": 10360,
+    "settings": {
+     "priority": 1652916616,
+     "weight_type": "float",
+     "float_weight": 100.125,
+     "enabled": false,
+     "transitions_paused": true
+    },
+    "environment_attributes": []
+   }
+  ]
+ },
+ {
+  "payload_type": "update_environment",
+  "layer_name": " 9b9_: ",
+  "dimension_id": -10993,
+  "environment_attributes": [
+   {
+    "attribute_name": "x9a0 y",
+    "from_attribute": {
+     "type": "colour",
+     "colour_value": 178360381
+    },
+    "attribute": {
+     "type": "bool",
+     "bool_value": true
+    },
+    "to_attribute": {
+     "type": "colour",
+     "colour_value": 1796648578
+    },
+    "current_transition_ticks": 940433366,
+    "total_transition_ticks": 1860543886,
+    "ease_type": 902599903,
+    "local_transition_ticks": 241407153,
+    "noise_transition": false
+   },
+   {
+    "attribute_name": " : ",
+    "from_attribute": {
+     "type": "colour",
+     "colour_value": 747009945
+    },
+    "attribute": {
+     "type": "colour",
+     "colour_value": -285781499
+    },
+    "to_attribute": {
+     "type": "float",
+     "float_value": 1.5
+    },
+    "current_transition_ticks": 1389851372,
+    "total_transition_ticks": 140752466,
+    "ease_type": 1429642025,
+    "local_transition_ticks": 1683868660,
+    "noise_transition": true
+   }
+  ]
+ }
+]

@@ -1,0 +1,22 @@
+[
+ {
+  "gamemode": "survival",
+  "player_unique_id": "-863376218",
+  "tick": "632112041"
+ },
+ {
+  "gamemode": "fallback",
+  "player_unique_id": "304490912",
+  "tick": "314344894"
+ },
+ {
+  "gamemode": "spectator",
+  "player_unique_id": "738011317",
+  "tick": "778131438"
+ },
+ {
+  "gamemode": "survival",
+  "player_unique_id": "-755629931",
+  "tick": "535207575"
+ }
+]

@@ -1,0 +1,75 @@
+[
+ {
+  "server_sound_handle": [
+   49,
+   158627375
+  ]
+ },
+ {
+  "server_sound_handle": [
+   153,
+   1778532454
+  ],
+  "stop": {
+   "unused": 10857
+  },
+  "volume": {
+   "unused": 19879,
+   "volume": 100.125
+  },
+  "pitch": {
+   "unused": 6126,
+   "pitch": 0
+  },
+  "fade": {
+   "unused": 17063,
+   "target_volume": 100.125,
+   "duration": 1.5
+  },
+  "seek_to": {
+   "unused": 18728,
+   "seconds": 0.5
+  },
+  "pause": {
+   "unused": 17442
+  }
+ },
+ {
+  "server_sound_handle": [
+   176,
+   2072621842
+  ],
+  "pitch": {
+   "unused": 14339,
+   "pitch": -2.25
+  },
+  "seek_to": {
+   "unused": 14720,
+   "seconds": -2.25
+  },
+  "pause": {
+   "unused": 13915
+  },
+  "resume": {
+   "unused": 88
+  }
+ },
+ {
+  "server_sound_handle": [
+   72,
+   1918178446
+  ],
+  "stop": {
+   "unused": 10478
+  },
+  "fade": {
+   "unused": 13719,
+   "target_volume": 0.5,
+   "duration": 0.5
+  },
+  "seek_to": {
+   "unused": 11974,
+   "seconds": -2.25
+  }
+ }
+]

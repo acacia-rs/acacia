@@ -1,0 +1,20 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "actiontest",
+    "description": "Builds a gameplay-action test scene around each joining player and logs results",
+    "uuid": "8a3f6c21-5d4e-4b7a-9c1e-3e2f7b8d9a10",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 90]
+  },
+  "modules": [
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "8a3f6c21-5d4e-4b7a-9c1e-3e2f7b8d9a11",
+      "version": [1, 0, 0],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [{ "module_name": "@minecraft/server", "version": "2.0.0" }]
+}

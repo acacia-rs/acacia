@@ -1,0 +1,167 @@
+[
+ {
+  "window_id": "container_input",
+  "input": [
+   {
+    "network_id": -28216,
+    "count": 47197,
+    "metadata": 1741,
+    "has_stack_id": false,
+    "block_runtime_id": 13550,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [
+      "019"
+     ],
+     "can_destroy": []
+    }
+   },
+   {
+    "network_id": -7636,
+    "count": 26061,
+    "metadata": 5454,
+    "has_stack_id": false,
+    "block_runtime_id": 5824,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [
+      "1c01"
+     ],
+     "can_destroy": []
+    }
+   },
+   {
+    "network_id": 18596,
+    "count": 47169,
+    "metadata": 12663,
+    "has_stack_id": true,
+    "stack_id": 1630,
+    "block_runtime_id": 5497,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [],
+     "can_destroy": [
+      "xy:"
+     ]
+    }
+   }
+  ],
+  "container": {
+   "container_id": "trade_ingredient1"
+  },
+  "storage_item": {
+   "network_id": -8876,
+   "count": 55805,
+   "metadata": 5250,
+   "has_stack_id": false,
+   "block_runtime_id": 17710,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     ".bz::b"
+    ],
+    "can_destroy": [
+     "x :xax"
+    ]
+   }
+  }
+ },
+ {
+  "window_id": "offhand",
+  "input": [
+   {
+    "network_id": 29697,
+    "count": 45499,
+    "metadata": 12682,
+    "has_stack_id": false,
+    "block_runtime_id": 6405,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [
+      "y1"
+     ],
+     "can_destroy": [
+      "c"
+     ]
+    }
+   }
+  ],
+  "container": {
+   "container_id": "recipe_search_bar"
+  },
+  "storage_item": {
+   "network_id": -15493,
+   "count": 61550,
+   "metadata": 13676,
+   "has_stack_id": true,
+   "stack_id": -15124,
+   "block_runtime_id": 4718,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "01"
+    ],
+    "can_destroy": []
+   }
+  }
+ },
+ {
+  "window_id": "crafting_add_ingredient",
+  "input": [],
+  "container": {
+   "container_id": "furnace_output"
+  },
+  "storage_item": {
+   "network_id": 8565,
+   "count": 39878,
+   "metadata": 1542,
+   "has_stack_id": true,
+   "stack_id": 55,
+   "block_runtime_id": 7919,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  }
+ },
+ {
+  "window_id": "first",
+  "input": [
+   {
+    "network_id": -29738,
+    "count": 31012,
+    "metadata": 18460,
+    "has_stack_id": true,
+    "stack_id": -3509,
+    "block_runtime_id": 6174,
+    "extra": {
+     "has_nbt": 0,
+     "can_place_on": [],
+     "can_destroy": [
+      "0"
+     ]
+    }
+   }
+  ],
+  "container": {
+   "container_id": "inventory",
+   "dynamic_container_id": 1779823744
+  },
+  "storage_item": {
+   "network_id": 2416,
+   "count": 33024,
+   "metadata": 14821,
+   "has_stack_id": true,
+   "stack_id": 9782,
+   "block_runtime_id": 17208,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": [
+     "c b9c9"
+    ]
+   }
+  }
+ }
+]

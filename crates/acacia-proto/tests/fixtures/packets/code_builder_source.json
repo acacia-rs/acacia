@@ -1,0 +1,22 @@
+[
+ {
+  "operation": "none",
+  "category": "none",
+  "code_status": "in_progress"
+ },
+ {
+  "operation": "none",
+  "category": "instantiation",
+  "code_status": "not_started"
+ },
+ {
+  "operation": "reset",
+  "category": "none",
+  "code_status": "not_started"
+ },
+ {
+  "operation": "none",
+  "category": "code_status",
+  "code_status": "error"
+ }
+]

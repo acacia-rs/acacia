@@ -1,0 +1,150 @@
+[
+ {
+  "clear": false,
+  "target": {
+   "offset": {
+    "x": 100.125,
+    "y": 1.5,
+    "z": 0
+   },
+   "entity_unique_id": [
+    22,
+    644413377
+   ]
+  },
+  "fov": {
+   "field_of_view": 1.5,
+   "ease_time": -2.25,
+   "ease_type": "InCirc",
+   "clear": true
+  },
+  "spline": {
+   "total_time": 100.125,
+   "has_spline_type": false,
+   "curve": [],
+   "progress_key_frames": [],
+   "rotation_options": [
+    {
+     "value": {
+      "x": 1.5,
+      "y": 0.5,
+      "z": 0
+     },
+     "time": 100.125,
+     "has_ease_type": true,
+     "ease_type": "0"
+    }
+   ]
+  },
+  "detach_from_entity": true
+ },
+ {
+  "instruction_set": {
+   "runtime_id": -422273227,
+   "rotation": {
+    "x": 1.5,
+    "z": 0.5
+   },
+   "offset": {
+    "x": 0,
+    "z": 100.125
+   },
+   "default": false,
+   "remove_ignore_starting_values": true
+  },
+  "fade": {
+   "fade_in_duration": 0,
+   "wait_duration": 0,
+   "fade_out_duration": 100.125,
+   "color_rgb": {
+    "x": 0.5,
+    "y": 100.125,
+    "z": 100.125
+   }
+  },
+  "remove_target": false,
+  "fov": {
+   "field_of_view": 100.125,
+   "ease_time": 0.5,
+   "ease_type": "InOutBounce",
+   "clear": true
+  },
+  "detach_from_entity": false
+ },
+ {
+  "instruction_set": {
+   "runtime_id": -846140217,
+   "rotation": {
+    "x": -2.25,
+    "z": -2.25
+   },
+   "facing": {
+    "x": 1.5,
+    "y": 0.5,
+    "z": 0.5
+   },
+   "offset": {
+    "x": 1.5,
+    "z": 1.5
+   },
+   "entity_offset": {
+    "x": 1.5,
+    "y": 0,
+    "z": 0
+   },
+   "remove_ignore_starting_values": true
+  },
+  "clear": true,
+  "fade": {
+   "fade_in_duration": 0.5,
+   "wait_duration": 1.5,
+   "fade_out_duration": -2.25,
+   "color_rgb": {
+    "x": 1.5,
+    "y": 100.125,
+    "z": 1.5
+   }
+  }
+ },
+ {
+  "fade": {
+   "fade_in_duration": 1.5,
+   "wait_duration": 0.5,
+   "fade_out_duration": 100.125,
+   "color_rgb": {
+    "x": -2.25,
+    "y": 1.5,
+    "z": 100.125
+   }
+  },
+  "target": {
+   "offset": {
+    "x": 1.5,
+    "y": 0.5,
+    "z": 0
+   },
+   "entity_unique_id": [
+    15,
+    1268319063
+   ]
+  },
+  "spline": {
+   "total_time": 100.125,
+   "has_spline_type": true,
+   "spline_type": "zxx..b1",
+   "curve": [],
+   "progress_key_frames": [
+    {
+     "value": 1.5,
+     "time": 1.5,
+     "has_ease_type": true,
+     "ease_type": "0_9bby"
+    }
+   ],
+   "rotation_options": [],
+   "spline_identifier": "_.",
+   "load_from_json": true
+  },
+  "detach_from_entity": false
+ }
+]

@@ -1,0 +1,11 @@
+[
+ {
+  "action_type": "refresh_join_code"
+ },
+ {
+  "action_type": "enable_multiplayer"
+ },
+ {
+  "action_type": "disable_multiplayer"
+ }
+]

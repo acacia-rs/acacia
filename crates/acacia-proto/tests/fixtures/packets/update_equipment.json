@@ -1,0 +1,103 @@
+[
+ {
+  "window_id": "enchant_input",
+  "window_type": "anvil",
+  "size": 192,
+  "entity_id": "-223453242",
+  "inventory": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "int",
+     "value": 87589
+    },
+    "kb": {
+     "type": "int",
+     "value": 86706
+    }
+   }
+  }
+ },
+ {
+  "window_id": "offhand",
+  "window_type": "smoker",
+  "size": 118,
+  "entity_id": "443001042",
+  "inventory": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "list",
+       "value": {
+        "type": "int",
+        "value": [
+         5,
+         23
+        ]
+       }
+      }
+     }
+    },
+    "kb": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "int",
+       "value": 17960
+      },
+      "kb": {
+       "type": "compound",
+       "value": {
+        "ka": {
+         "type": "string",
+         "value": " 9:"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "window_id": "anvil_result",
+  "window_type": "none",
+  "size": 15,
+  "entity_id": "586197067",
+  "inventory": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "int",
+     "value": 47454
+    },
+    "kb": {
+     "type": "string",
+     "value": ""
+    }
+   }
+  }
+ },
+ {
+  "window_id": "armor",
+  "window_type": "beacon",
+  "size": 55,
+  "entity_id": "-518897141",
+  "inventory": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "string",
+     "value": "x. y9 a"
+    }
+   }
+  }
+ }
+]

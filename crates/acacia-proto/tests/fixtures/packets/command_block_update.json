@@ -1,0 +1,60 @@
+[
+ {
+  "is_block": false,
+  "minecart_entity_runtime_id": "385003340",
+  "command": "xzc.1",
+  "last_output": "9xc",
+  "name": " c",
+  "filtered_name": "9",
+  "should_track_output": true,
+  "tick_delay": -1518532467,
+  "execute_on_first_tick": true
+ },
+ {
+  "is_block": true,
+  "position": {
+   "x": -4044,
+   "y": 10922,
+   "z": -16591
+  },
+  "mode": "chain",
+  "needs_redstone": false,
+  "conditional": true,
+  "command": "01",
+  "last_output": ".by",
+  "name": "a zy",
+  "filtered_name": "c",
+  "should_track_output": false,
+  "tick_delay": -466833959,
+  "execute_on_first_tick": true
+ },
+ {
+  "is_block": false,
+  "minecart_entity_runtime_id": "713493107",
+  "command": "b ",
+  "last_output": "z",
+  "name": ":",
+  "filtered_name": "0..zc",
+  "should_track_output": false,
+  "tick_delay": -988334150,
+  "execute_on_first_tick": false
+ },
+ {
+  "is_block": true,
+  "position": {
+   "x": -7005,
+   "y": 10037,
+   "z": 8457
+  },
+  "mode": "chain",
+  "needs_redstone": true,
+  "conditional": false,
+  "command": "x0x. ",
+  "last_output": "",
+  "name": "x. __19c",
+  "filtered_name": "cxc .",
+  "should_track_output": true,
+  "tick_delay": -69168145,
+  "execute_on_first_tick": false
+ }
+]

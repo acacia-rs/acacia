@@ -1,0 +1,308 @@
+[
+ {
+  "values_len": 1,
+  "enum_values": [
+   "_c0_."
+  ],
+  "chained_subcommand_values": [],
+  "suffixes": [],
+  "enums": [
+   {
+    "name": "_c_",
+    "values": [
+     189357304
+    ]
+   },
+   {
+    "name": ".1_b.x1c",
+    "values": [
+     423346321
+    ]
+   }
+  ],
+  "chained_subcommands": [],
+  "command_data": [
+   {
+    "name": "xz",
+    "description": "x00 1y1_",
+    "flags": 6778,
+    "permission_level": ". zx",
+    "alias": 1534860545,
+    "chained_subcommand_offsets": [
+     243811929
+    ],
+    "overloads": [
+     {
+      "chaining": false,
+      "parameters": []
+     }
+    ]
+   },
+   {
+    "name": "xcb",
+    "description": "xb.yc1",
+    "flags": 16655,
+    "permission_level": "9.z19 ",
+    "alias": 164178272,
+    "chained_subcommand_offsets": [
+     2054595376
+    ],
+    "overloads": []
+   },
+   {
+    "name": "",
+    "description": "",
+    "flags": 46885,
+    "permission_level": "119x0 ",
+    "alias": -762783821,
+    "chained_subcommand_offsets": [],
+    "overloads": []
+   }
+  ],
+  "dynamic_enums": [
+   {
+    "name": "xz.b..0",
+    "values": []
+   }
+  ],
+  "enum_constraints": [
+   {
+    "value_index": -909016901,
+    "enum_index": -1452990596,
+    "constraints": []
+   },
+   {
+    "value_index": -913964907,
+    "enum_index": -1861614365,
+    "constraints": []
+   },
+   {
+    "value_index": -1106215379,
+    "enum_index": 882830565,
+    "constraints": [
+     {
+      "constraint": "operator_permissions"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "values_len": 3,
+  "enum_values": [
+   "ba:",
+   "9x9",
+   ""
+  ],
+  "chained_subcommand_values": [
+   "0_",
+   "x1"
+  ],
+  "suffixes": [],
+  "enums": [],
+  "chained_subcommands": [
+   {
+    "name": ".:x.09:9",
+    "values": [
+     {
+      "index": 4315,
+      "value": 7341
+     }
+    ]
+   },
+   {
+    "name": "",
+    "values": [
+     {
+      "index": 11640,
+      "value": 4043
+     }
+    ]
+   },
+   {
+    "name": "0a1_",
+    "values": []
+   }
+  ],
+  "command_data": [],
+  "dynamic_enums": [
+   {
+    "name": "",
+    "values": []
+   }
+  ],
+  "enum_constraints": [
+   {
+    "value_index": 331108169,
+    "enum_index": -1250941320,
+    "constraints": [
+     {
+      "constraint": "operator_permissions"
+     }
+    ]
+   },
+   {
+    "value_index": -867865523,
+    "enum_index": -1116029770,
+    "constraints": [
+     {
+      "constraint": "host_permissions"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "values_len": 2,
+  "enum_values": [
+   "cc",
+   " _:z91"
+  ],
+  "chained_subcommand_values": [
+   "c0",
+   "ac",
+   "_0a"
+  ],
+  "suffixes": [
+   "yzc0yca",
+   "bx",
+   " y"
+  ],
+  "enums": [
+   {
+    "name": "yxxy 9x",
+    "values": []
+   },
+   {
+    "name": "1c90:.:",
+    "values": []
+   },
+   {
+    "name": "10cab_",
+    "values": []
+   }
+  ],
+  "chained_subcommands": [
+   {
+    "name": ".zc  .",
+    "values": [
+     {
+      "index": 2701,
+      "value": 15126
+     }
+    ]
+   }
+  ],
+  "command_data": [
+   {
+    "name": ".b",
+    "description": "c_c9:z b",
+    "flags": 47099,
+    "permission_level": "x",
+    "alias": -1734576681,
+    "chained_subcommand_offsets": [],
+    "overloads": [
+     {
+      "chaining": false,
+      "parameters": []
+     }
+    ]
+   }
+  ],
+  "dynamic_enums": [
+   {
+    "name": "_",
+    "values": [
+     "yzcc ."
+    ]
+   }
+  ],
+  "enum_constraints": [
+   {
+    "value_index": 23028274,
+    "enum_index": 850279458,
+    "constraints": []
+   },
+   {
+    "value_index": 1382284624,
+    "enum_index": 1680290494,
+    "constraints": [
+     {
+      "constraint": "host_permissions"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "values_len": 0,
+  "enum_values": [],
+  "chained_subcommand_values": [],
+  "suffixes": [
+   "90 "
+  ],
+  "enums": [
+   {
+    "name": "z0x0a",
+    "values": [
+     809651378
+    ]
+   }
+  ],
+  "chained_subcommands": [],
+  "command_data": [
+   {
+    "name": "c1zxx.",
+    "description": "b1x1xx",
+    "flags": 9777,
+    "permission_level": "0_9bby",
+    "alias": -2131634008,
+    "chained_subcommand_offsets": [],
+    "overloads": []
+   },
+   {
+    "name": ".zca",
+    "description": "1_cac",
+    "flags": 42281,
+    "permission_level": "9:y",
+    "alias": 930255611,
+    "chained_subcommand_offsets": [
+     904959655
+    ],
+    "overloads": []
+   },
+   {
+    "name": "c",
+    "description": "c10c",
+    "flags": 10058,
+    "permission_level": "0yy:ay",
+    "alias": 1920885681,
+    "chained_subcommand_offsets": [
+     1896798352
+    ],
+    "overloads": []
+   }
+  ],
+  "dynamic_enums": [
+   {
+    "name": "9_ z",
+    "values": [
+     "x_b9z_"
+    ]
+   },
+   {
+    "name": "9 cz_y:",
+    "values": [
+     "x1 a:."
+    ]
+   }
+  ],
+  "enum_constraints": [
+   {
+    "value_index": 83271364,
+    "enum_index": 1197221376,
+    "constraints": []
+   }
+  ]
+ }
+]

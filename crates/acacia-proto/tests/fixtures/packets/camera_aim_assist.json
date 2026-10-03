@@ -1,0 +1,46 @@
+[
+ {
+  "preset_id": "c_cb.x",
+  "view_angle": {
+   "x": -2.25,
+   "z": 1.5
+  },
+  "distance": 100.125,
+  "target_mode": "distance",
+  "action": "set",
+  "show_debug_render": true
+ },
+ {
+  "preset_id": "",
+  "view_angle": {
+   "x": 0.5,
+   "z": 0
+  },
+  "distance": 0,
+  "target_mode": "angle",
+  "action": "set",
+  "show_debug_render": true
+ },
+ {
+  "preset_id": ":",
+  "view_angle": {
+   "x": 0.5,
+   "z": 1.5
+  },
+  "distance": 100.125,
+  "target_mode": "angle",
+  "action": "clear",
+  "show_debug_render": false
+ },
+ {
+  "preset_id": "1a.b :y",
+  "view_angle": {
+   "x": -2.25,
+   "z": 1.5
+  },
+  "distance": 0.5,
+  "target_mode": "distance",
+  "action": "clear",
+  "show_debug_render": true
+ }
+]

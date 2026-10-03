@@ -1,0 +1,14 @@
+[
+ {
+  "status": "failed_vanilla_edu"
+ },
+ {
+  "status": "failed_vanilla_editor_mismatch"
+ },
+ {
+  "status": "login_success"
+ },
+ {
+  "status": "failed_editor_vanilla_mismatch"
+ }
+]

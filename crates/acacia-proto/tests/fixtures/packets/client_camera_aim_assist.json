@@ -1,0 +1,22 @@
+[
+ {
+  "preset_id": "9x",
+  "action": "set_from_camera_preset",
+  "allow_aim_assist": false
+ },
+ {
+  "preset_id": "z 9y",
+  "action": "clear",
+  "allow_aim_assist": false
+ },
+ {
+  "preset_id": " cxzc:",
+  "action": "set_from_camera_preset",
+  "allow_aim_assist": false
+ },
+ {
+  "preset_id": "_:",
+  "action": "clear",
+  "allow_aim_assist": false
+ }
+]

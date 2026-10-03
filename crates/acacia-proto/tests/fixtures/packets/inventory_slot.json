@@ -1,0 +1,105 @@
+[
+ {
+  "window_id": "crafting_use_ingredient",
+  "slot": 10257,
+  "container": {
+   "container_id": "blast_furnace_ingredient",
+   "dynamic_container_id": 395239496
+  },
+  "item": {
+   "network_id": -635,
+   "count": 10754,
+   "metadata": 1858,
+   "has_stack_id": false,
+   "block_runtime_id": 6515,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  }
+ },
+ {
+  "window_id": "trading_output",
+  "slot": 9812,
+  "storage_item": {
+   "network_id": 23377,
+   "count": 55471,
+   "metadata": 4712,
+   "has_stack_id": true,
+   "stack_id": -512,
+   "block_runtime_id": 6011,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "9xz "
+    ],
+    "can_destroy": [
+     ""
+    ]
+   }
+  },
+  "item": {
+   "network_id": 22098,
+   "count": 37633,
+   "metadata": 12871,
+   "has_stack_id": false,
+   "block_runtime_id": 7725,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  }
+ },
+ {
+  "window_id": "anvil_result",
+  "slot": 16446,
+  "storage_item": {
+   "network_id": -13620,
+   "count": 14508,
+   "metadata": 6528,
+   "has_stack_id": true,
+   "stack_id": 11984,
+   "block_runtime_id": 17930,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": [
+     "yab"
+    ]
+   }
+  },
+  "item": {
+   "network_id": -16701,
+   "count": 30095,
+   "metadata": 7398,
+   "has_stack_id": false,
+   "block_runtime_id": 13866,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  }
+ },
+ {
+  "window_id": "crafting_result",
+  "slot": 14199,
+  "item": {
+   "network_id": 12196,
+   "count": 30505,
+   "metadata": 13420,
+   "has_stack_id": true,
+   "stack_id": 5894,
+   "block_runtime_id": 15435,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "a"
+    ],
+    "can_destroy": []
+   }
+  }
+ }
+]

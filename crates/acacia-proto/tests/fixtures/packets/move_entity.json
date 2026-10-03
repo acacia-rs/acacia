@@ -1,0 +1,58 @@
+[
+ {
+  "runtime_entity_id": "511587049",
+  "flags": 135,
+  "position": {
+   "x": 100.125,
+   "y": -2.25,
+   "z": 0.5
+  },
+  "rotation": {
+   "yaw": 192.65625,
+   "pitch": 28.125,
+   "head_yaw": 189.84375
+  }
+ },
+ {
+  "runtime_entity_id": "928645261",
+  "flags": 97,
+  "position": {
+   "x": 0,
+   "y": -2.25,
+   "z": 0.5
+  },
+  "rotation": {
+   "yaw": 123.75,
+   "pitch": 154.6875,
+   "head_yaw": 327.65625
+  }
+ },
+ {
+  "runtime_entity_id": "15068101",
+  "flags": 92,
+  "position": {
+   "x": 0.5,
+   "y": 100.125,
+   "z": 0.5
+  },
+  "rotation": {
+   "yaw": 151.875,
+   "pitch": 53.4375,
+   "head_yaw": 307.96875
+  }
+ },
+ {
+  "runtime_entity_id": "881388279",
+  "flags": 23,
+  "position": {
+   "x": 1.5,
+   "y": -2.25,
+   "z": 100.125
+  },
+  "rotation": {
+   "yaw": 54.84375,
+   "pitch": 206.71875,
+   "head_yaw": 293.90625
+  }
+ }
+]

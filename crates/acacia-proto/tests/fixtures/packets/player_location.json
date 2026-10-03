@@ -1,0 +1,42 @@
+[
+ {
+  "entity_unique_id": "-524319949",
+  "type": "coordinates",
+  "unused": -3888,
+  "position": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": 100.125
+  }
+ },
+ {
+  "entity_unique_id": "-724361472",
+  "type": "coordinates",
+  "unused": -14048,
+  "position": {
+   "x": 0,
+   "y": 0.5,
+   "z": 100.125
+  }
+ },
+ {
+  "entity_unique_id": "974566027",
+  "type": "coordinates",
+  "unused": -19758,
+  "position": {
+   "x": 1.5,
+   "y": 0.5,
+   "z": 0.5
+  }
+ },
+ {
+  "entity_unique_id": "-21858466",
+  "type": "coordinates",
+  "unused": 1275,
+  "position": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": 1.5
+  }
+ }
+]

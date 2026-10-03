@@ -1,0 +1,90 @@
+[
+ {
+  "patterns": [],
+  "materials": [
+   {
+    "material": "0",
+    "color": ":x1b:.",
+    "item_name": "x9x.:"
+   },
+   {
+    "material": "_11",
+    "color": "1c:y",
+    "item_name": ""
+   },
+   {
+    "material": "c__a0.c",
+    "color": "",
+    "item_name": "y:x "
+   }
+  ]
+ },
+ {
+  "patterns": [
+   {
+    "item_name": ".ya:.z.",
+    "pattern": "zy.0._"
+   }
+  ],
+  "materials": [
+   {
+    "material": " 1_ 1z",
+    "color": ":1bb",
+    "item_name": "y9b_x"
+   },
+   {
+    "material": ".1y_::c.",
+    "color": "y9. 0yc9",
+    "item_name": ":z yc"
+   }
+  ]
+ },
+ {
+  "patterns": [
+   {
+    "item_name": "aay9z9b",
+    "pattern": " 00bx"
+   },
+   {
+    "item_name": "b1",
+    "pattern": ":1 y"
+   },
+   {
+    "item_name": "yaya",
+    "pattern": "bb09axz"
+   }
+  ],
+  "materials": [
+   {
+    "material": "za1c",
+    "color": "bx09z_1",
+    "item_name": "_za0.yyy"
+   },
+   {
+    "material": ":..ba.",
+    "color": "bzx",
+    "item_name": "1a0 b c0"
+   }
+  ]
+ },
+ {
+  "patterns": [
+   {
+    "item_name": "",
+    "pattern": "by9b_.z"
+   }
+  ],
+  "materials": [
+   {
+    "material": " z_9",
+    "color": "0:",
+    "item_name": "9.0cbc"
+   },
+   {
+    "material": "a",
+    "color": "._",
+    "item_name": "b"
+   }
+  ]
+ }
+]

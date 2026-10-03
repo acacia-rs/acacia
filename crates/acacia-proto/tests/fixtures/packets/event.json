@@ -1,0 +1,26 @@
+[
+ {
+  "runtime_id": "689774911",
+  "event_type": "piglin_barter",
+  "use_player_id": 56,
+  "event_data": "1597b875"
+ },
+ {
+  "runtime_id": "282535568",
+  "event_type": "boss_killed",
+  "use_player_id": 46,
+  "event_data": "877904"
+ },
+ {
+  "runtime_id": "487032225",
+  "event_type": "target_block_hit",
+  "use_player_id": 52,
+  "event_data": ""
+ },
+ {
+  "runtime_id": "641725783",
+  "event_type": "command_executed",
+  "use_player_id": 36,
+  "event_data": "1059ed"
+ }
+]

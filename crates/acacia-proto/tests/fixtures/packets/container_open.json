@@ -1,0 +1,42 @@
+[
+ {
+  "window_id": "trading_use_inputs",
+  "window_type": "command_block",
+  "coordinates": {
+   "x": 428,
+   "y": -5846,
+   "z": -12228
+  },
+  "runtime_entity_id": "-148930567"
+ },
+ {
+  "window_id": "anvil_material",
+  "window_type": "grindstone",
+  "coordinates": {
+   "x": -6975,
+   "y": -12856,
+   "z": 12750
+  },
+  "runtime_entity_id": "33648007"
+ },
+ {
+  "window_id": "trading_input_2",
+  "window_type": "container",
+  "coordinates": {
+   "x": 2336,
+   "y": 2358,
+   "z": -13034
+  },
+  "runtime_entity_id": "819200838"
+ },
+ {
+  "window_id": "enchant_material",
+  "window_type": "minecart_hopper",
+  "coordinates": {
+   "x": -14626,
+   "y": 19151,
+   "z": -10151
+  },
+  "runtime_entity_id": "-915842665"
+ }
+]

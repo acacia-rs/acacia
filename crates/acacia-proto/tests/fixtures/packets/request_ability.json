@@ -1,0 +1,26 @@
+[
+ {
+  "ability": "attack_players",
+  "value_type": "bool",
+  "bool_value": true,
+  "float_val": -2.25
+ },
+ {
+  "ability": "doors_and_switches",
+  "value_type": "bool",
+  "bool_value": true,
+  "float_val": 0
+ },
+ {
+  "ability": "ability_count",
+  "value_type": "bool",
+  "bool_value": true,
+  "float_val": 1.5
+ },
+ {
+  "ability": "flying",
+  "value_type": "bool",
+  "bool_value": false,
+  "float_val": -2.25
+ }
+]

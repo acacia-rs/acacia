@@ -1,0 +1,11 @@
+[
+ {
+  "movement_authority": "server"
+ },
+ {
+  "movement_authority": "server_with_rewind"
+ },
+ {
+  "movement_authority": "client"
+ }
+]

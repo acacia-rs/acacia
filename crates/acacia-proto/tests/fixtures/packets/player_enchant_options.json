@@ -1,0 +1,154 @@
+[
+ {
+  "options": [
+   {
+    "cost": 60,
+    "slot_flags": -1180343208,
+    "equip_enchants": [],
+    "held_enchants": [],
+    "self_enchants": [
+     {
+      "id": 114,
+      "level": 172
+     }
+    ],
+    "name": "abbc_c",
+    "option_id": 2083
+   },
+   {
+    "cost": 57,
+    "slot_flags": 266940359,
+    "equip_enchants": [
+     {
+      "id": 170,
+      "level": 198
+     }
+    ],
+    "held_enchants": [],
+    "self_enchants": [
+     {
+      "id": 108,
+      "level": 1
+     }
+    ],
+    "name": "",
+    "option_id": 5173
+   }
+  ]
+ },
+ {
+  "options": [
+   {
+    "cost": 196,
+    "slot_flags": 648104980,
+    "equip_enchants": [],
+    "held_enchants": [],
+    "self_enchants": [
+     {
+      "id": 128,
+      "level": 194
+     }
+    ],
+    "name": "",
+    "option_id": 3678
+   },
+   {
+    "cost": 238,
+    "slot_flags": 1662321069,
+    "equip_enchants": [],
+    "held_enchants": [
+     {
+      "id": 158,
+      "level": 198
+     }
+    ],
+    "self_enchants": [
+     {
+      "id": 21,
+      "level": 111
+     }
+    ],
+    "name": "11.z_.9_",
+    "option_id": -15643
+   },
+   {
+    "cost": 28,
+    "slot_flags": -1853176447,
+    "equip_enchants": [
+     {
+      "id": 119,
+      "level": 226
+     }
+    ],
+    "held_enchants": [],
+    "self_enchants": [],
+    "name": "00z:0__x",
+    "option_id": -12519
+   }
+  ]
+ },
+ {
+  "options": []
+ },
+ {
+  "options": [
+   {
+    "cost": 221,
+    "slot_flags": 1558159575,
+    "equip_enchants": [
+     {
+      "id": 61,
+      "level": 215
+     }
+    ],
+    "held_enchants": [
+     {
+      "id": 117,
+      "level": 25
+     }
+    ],
+    "self_enchants": [
+     {
+      "id": 24,
+      "level": 64
+     }
+    ],
+    "name": ":_x1x_",
+    "option_id": -10849
+   },
+   {
+    "cost": 229,
+    "slot_flags": -1002432556,
+    "equip_enchants": [],
+    "held_enchants": [],
+    "self_enchants": [
+     {
+      "id": 27,
+      "level": 34
+     }
+    ],
+    "name": ":.",
+    "option_id": 15969
+   },
+   {
+    "cost": 158,
+    "slot_flags": 1895402500,
+    "equip_enchants": [
+     {
+      "id": 226,
+      "level": 241
+     }
+    ],
+    "held_enchants": [],
+    "self_enchants": [
+     {
+      "id": 164,
+      "level": 10
+     }
+    ],
+    "name": "0:00__01",
+    "option_id": 10718
+   }
+  ]
+ }
+]

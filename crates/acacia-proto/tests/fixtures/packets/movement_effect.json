@@ -1,0 +1,26 @@
+[
+ {
+  "runtime_id": "237840025",
+  "effect_type": "GEYSER_BOOST",
+  "effect_duration": 8056,
+  "tick": "446168090"
+ },
+ {
+  "runtime_id": "137819264",
+  "effect_type": "GEYSER_BOOST",
+  "effect_duration": 2976,
+  "tick": "159862324"
+ },
+ {
+  "runtime_id": "987283014",
+  "effect_type": "GLIDE_BOOST",
+  "effect_duration": 121,
+  "tick": "234910934"
+ },
+ {
+  "runtime_id": "489070767",
+  "effect_type": "GEYSER_BOOST",
+  "effect_duration": 10638,
+  "tick": "506075670"
+ }
+]

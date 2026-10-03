@@ -1,0 +1,23 @@
+[
+ {
+  "elements": [],
+  "visibility": "hide"
+ },
+ {
+  "elements": [
+   "TouchControls"
+  ],
+  "visibility": "hide"
+ },
+ {
+  "elements": [
+   "ItemTextPopup",
+   "Crosshair"
+  ],
+  "visibility": "hide"
+ },
+ {
+  "elements": [],
+  "visibility": "reset"
+ }
+]

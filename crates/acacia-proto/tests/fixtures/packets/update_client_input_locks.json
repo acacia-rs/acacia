@@ -1,0 +1,46 @@
+[
+ {
+  "locks": {
+   "_value": 153,
+   "move": false,
+   "jump": false,
+   "sneak": true,
+   "mount": true,
+   "dismount": false,
+   "rotation": false
+  }
+ },
+ {
+  "locks": {
+   "_value": 182,
+   "move": true,
+   "jump": true,
+   "sneak": false,
+   "mount": true,
+   "dismount": true,
+   "rotation": false
+  }
+ },
+ {
+  "locks": {
+   "_value": 187,
+   "move": true,
+   "jump": false,
+   "sneak": true,
+   "mount": true,
+   "dismount": true,
+   "rotation": false
+  }
+ },
+ {
+  "locks": {
+   "_value": 70,
+   "move": true,
+   "jump": true,
+   "sneak": false,
+   "mount": false,
+   "dismount": false,
+   "rotation": true
+  }
+ }
+]

@@ -1,0 +1,130 @@
+[
+ {
+  "splines": [
+   {
+    "name": "aaa",
+    "total_time": 0,
+    "control_points": [],
+    "progress_key_frames": [
+     {
+      "value": 0.5,
+      "time": 100.125,
+      "has_ease_type": false
+     }
+    ],
+    "rotation_key_frames": []
+   },
+   {
+    "name": " ",
+    "total_time": 1.5,
+    "spline_type": "b:z:y",
+    "control_points": [],
+    "progress_key_frames": [
+     {
+      "value": -2.25,
+      "time": 0,
+      "has_ease_type": true,
+      "ease_type": ""
+     }
+    ],
+    "rotation_key_frames": []
+   }
+  ]
+ },
+ {
+  "splines": [
+   {
+    "name": "01b0:",
+    "total_time": 100.125,
+    "spline_type": "",
+    "control_points": [
+     {
+      "x": 0,
+      "y": 1.5,
+      "z": 0
+     }
+    ],
+    "progress_key_frames": [],
+    "rotation_key_frames": []
+   },
+   {
+    "name": "bz_.",
+    "total_time": 0,
+    "spline_type": "9y",
+    "control_points": [],
+    "progress_key_frames": [],
+    "rotation_key_frames": []
+   }
+  ]
+ },
+ {
+  "splines": [
+   {
+    "name": "ybz10:9",
+    "total_time": 100.125,
+    "spline_type": "0b99..c",
+    "control_points": [
+     {
+      "x": -2.25,
+      "y": 0,
+      "z": 0
+     }
+    ],
+    "progress_key_frames": [],
+    "rotation_key_frames": []
+   }
+  ]
+ },
+ {
+  "splines": [
+   {
+    "name": ":c_",
+    "total_time": -2.25,
+    "spline_type": "cz",
+    "control_points": [
+     {
+      "x": 0.5,
+      "y": -2.25,
+      "z": 100.125
+     }
+    ],
+    "progress_key_frames": [],
+    "rotation_key_frames": []
+   },
+   {
+    "name": ".",
+    "total_time": 1.5,
+    "spline_type": "xb .a:9 ",
+    "control_points": [],
+    "progress_key_frames": [],
+    "rotation_key_frames": [
+     {
+      "value": {
+       "x": -2.25,
+       "y": 100.125,
+       "z": 0
+      },
+      "time": 100.125,
+      "has_ease_type": true,
+      "ease_type": "ayab"
+     }
+    ]
+   },
+   {
+    "name": "",
+    "total_time": -2.25,
+    "spline_type": "y__c ",
+    "control_points": [],
+    "progress_key_frames": [
+     {
+      "value": -2.25,
+      "time": 100.125,
+      "has_ease_type": true,
+      "ease_type": "x9xxx"
+     }
+    ],
+    "rotation_key_frames": []
+   }
+  ]
+ }
+]

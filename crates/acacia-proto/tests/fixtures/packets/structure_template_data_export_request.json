@@ -1,0 +1,150 @@
+[
+ {
+  "name": "1a00yz",
+  "position": {
+   "x": -13325,
+   "y": 18251,
+   "z": -6908
+  },
+  "settings": {
+   "palette_name": "b:z_",
+   "ignore_entities": false,
+   "ignore_blocks": true,
+   "non_ticking_players_and_ticking_areas": false,
+   "size": {
+    "x": 18418,
+    "y": 4180,
+    "z": 17183
+   },
+   "structure_offset": {
+    "x": -2167,
+    "y": -9466,
+    "z": 5060
+   },
+   "last_editing_player_unique_id": "2468992",
+   "rotation": "90_deg",
+   "mirror": "x_axis",
+   "animation_mode": "blocks",
+   "animation_duration": 0.5,
+   "integrity": 0.5,
+   "seed": 1629165347,
+   "pivot": {
+    "x": -2.25,
+    "y": 0.5,
+    "z": 0.5
+   }
+  },
+  "request_type": "import_from_save"
+ },
+ {
+  "name": ".909 xb",
+  "position": {
+   "x": 6489,
+   "y": 540,
+   "z": -3595
+  },
+  "settings": {
+   "palette_name": "az ",
+   "ignore_entities": true,
+   "ignore_blocks": true,
+   "non_ticking_players_and_ticking_areas": true,
+   "size": {
+    "x": -6308,
+    "y": 10167,
+    "z": -8140
+   },
+   "structure_offset": {
+    "x": -17963,
+    "y": -13022,
+    "z": 5807
+   },
+   "last_editing_player_unique_id": "3248767",
+   "rotation": "180_deg",
+   "mirror": "x_axis",
+   "animation_mode": "none",
+   "animation_duration": 100.125,
+   "integrity": 100.125,
+   "seed": 438076853,
+   "pivot": {
+    "x": 100.125,
+    "y": 0,
+    "z": 0.5
+   }
+  },
+  "request_type": "export_from_load"
+ },
+ {
+  "name": " 0",
+  "position": {
+   "x": -10550,
+   "y": -4763,
+   "z": -16865
+  },
+  "settings": {
+   "palette_name": "a1",
+   "ignore_entities": false,
+   "ignore_blocks": true,
+   "non_ticking_players_and_ticking_areas": true,
+   "size": {
+    "x": 11727,
+    "y": -10695,
+    "z": -2462
+   },
+   "structure_offset": {
+    "x": -679,
+    "y": 17136,
+    "z": -7298
+   },
+   "last_editing_player_unique_id": "125120419",
+   "rotation": "90_deg",
+   "mirror": "z_axis",
+   "animation_mode": "blocks",
+   "animation_duration": 100.125,
+   "integrity": 0.5,
+   "seed": 1369764366,
+   "pivot": {
+    "x": -2.25,
+    "y": 0,
+    "z": -2.25
+   }
+  },
+  "request_type": "export_from_save"
+ },
+ {
+  "name": "0y. ",
+  "position": {
+   "x": -1032,
+   "y": -19164,
+   "z": 17014
+  },
+  "settings": {
+   "palette_name": "a:0b0.zz",
+   "ignore_entities": true,
+   "ignore_blocks": true,
+   "non_ticking_players_and_ticking_areas": true,
+   "size": {
+    "x": 14526,
+    "y": 13714,
+    "z": -10901
+   },
+   "structure_offset": {
+    "x": 19245,
+    "y": -2264,
+    "z": 19292
+   },
+   "last_editing_player_unique_id": "-991199260",
+   "rotation": "270_deg",
+   "mirror": "x_axis",
+   "animation_mode": "none",
+   "animation_duration": 1.5,
+   "integrity": 1.5,
+   "seed": 847988419,
+   "pivot": {
+    "x": 0.5,
+    "y": 1.5,
+    "z": 0
+   }
+  },
+  "request_type": "export_from_load"
+ }
+]

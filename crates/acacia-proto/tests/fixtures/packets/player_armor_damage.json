@@ -1,0 +1,53 @@
+[
+ {
+  "entries": []
+ },
+ {
+  "entries": [
+   {
+    "armor_slot": "chestplate",
+    "damage": -15417
+   },
+   {
+    "armor_slot": "body",
+    "damage": -4914
+   },
+   {
+    "armor_slot": "body",
+    "damage": 15009
+   }
+  ]
+ },
+ {
+  "entries": [
+   {
+    "armor_slot": "body",
+    "damage": -21709
+   },
+   {
+    "armor_slot": "chestplate",
+    "damage": 5404
+   },
+   {
+    "armor_slot": "chestplate",
+    "damage": 10902
+   }
+  ]
+ },
+ {
+  "entries": [
+   {
+    "armor_slot": "body",
+    "damage": -6737
+   },
+   {
+    "armor_slot": "boots",
+    "damage": -2332
+   },
+   {
+    "armor_slot": "body",
+    "damage": -27360
+   }
+  ]
+ }
+]

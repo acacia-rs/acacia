@@ -1,0 +1,168 @@
+[
+ {
+  "itemstates": [
+   {
+    "name": "aaa",
+    "runtime_id": -32325,
+    "component_based": true,
+    "version": "data_driven",
+    "nbt": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "float",
+       "value": 100.125
+      },
+      "kb": {
+       "type": "string",
+       "value": " "
+      }
+     }
+    }
+   },
+   {
+    "name": ":b:z:",
+    "runtime_id": -10543,
+    "component_based": true,
+    "version": "none",
+    "nbt": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "int",
+       "value": -37040
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "itemstates": [
+   {
+    "name": "01b0:",
+    "runtime_id": 7888,
+    "component_based": false,
+    "version": "legacy",
+    "nbt": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "int",
+       "value": -47297
+      }
+     }
+    }
+   },
+   {
+    "name": "",
+    "runtime_id": -11367,
+    "component_based": false,
+    "version": "legacy",
+    "nbt": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "list",
+       "value": {
+        "type": "int",
+        "value": [
+         37,
+         2
+        ]
+       }
+      },
+      "kb": {
+       "type": "string",
+       "value": "yybc .:_"
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "itemstates": [
+   {
+    "name": "ybz10:9",
+    "runtime_id": 16427,
+    "component_based": false,
+    "version": "none",
+    "nbt": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "int",
+       "value": 99967
+      },
+      "kb": {
+       "type": "compound",
+       "value": {
+        "ka": {
+         "type": "string",
+         "value": "_abxx"
+        }
+       }
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "itemstates": [
+   {
+    "name": ":c_",
+    "runtime_id": 981,
+    "component_based": false,
+    "version": "legacy",
+    "nbt": {
+     "type": "compound",
+     "name": "",
+     "value": {}
+    }
+   },
+   {
+    "name": "09z",
+    "runtime_id": 14408,
+    "component_based": true,
+    "version": "data_driven",
+    "nbt": {
+     "type": "compound",
+     "name": "",
+     "value": {}
+    }
+   },
+   {
+    "name": "x99xb ",
+    "runtime_id": 15931,
+    "component_based": true,
+    "version": "none",
+    "nbt": {
+     "type": "compound",
+     "name": "",
+     "value": {
+      "ka": {
+       "type": "compound",
+       "value": {
+        "ka": {
+         "type": "int",
+         "value": 43175
+        },
+        "kb": {
+         "type": "compound",
+         "value": {}
+        }
+       }
+      }
+     }
+    }
+   }
+  ]
+ }
+]

@@ -1,0 +1,51 @@
+[
+ {
+  "action": "start",
+  "collection_name": " .xbzzy",
+  "from_step": "xa",
+  "to_step": "c.xx",
+  "all_steps": [
+   "1190"
+  ],
+  "current_length_ticks": "916452266",
+  "total_length_ticks": "52734624",
+  "enabled": true
+ },
+ {
+  "action": "set_enabled",
+  "collection_name": "",
+  "from_step": "b.9bx",
+  "to_step": "aa",
+  "all_steps": [],
+  "current_length_ticks": "442346818",
+  "total_length_ticks": "67538611",
+  "enabled": true
+ },
+ {
+  "action": "set_enabled",
+  "collection_name": "9",
+  "from_step": "yy9",
+  "to_step": "0axb",
+  "all_steps": [
+   "x_y  :x",
+   "yx"
+  ],
+  "current_length_ticks": "626301567",
+  "total_length_ticks": "46792666",
+  "enabled": false
+ },
+ {
+  "action": "initialize",
+  "collection_name": "c91",
+  "from_step": "1.",
+  "to_step": "yzb_y",
+  "all_steps": [
+   " _c. ",
+   "",
+   "9 z "
+  ],
+  "current_length_ticks": "31000760",
+  "total_length_ticks": "859906749",
+  "enabled": true
+ }
+]

@@ -1,0 +1,30 @@
+[
+ {
+  "no_pvm": false,
+  "no_mvp": false,
+  "immutable_world": false,
+  "show_name_tags": false,
+  "auto_jump": true
+ },
+ {
+  "no_pvm": false,
+  "no_mvp": true,
+  "immutable_world": false,
+  "show_name_tags": true,
+  "auto_jump": false
+ },
+ {
+  "no_pvm": false,
+  "no_mvp": true,
+  "immutable_world": false,
+  "show_name_tags": true,
+  "auto_jump": true
+ },
+ {
+  "no_pvm": true,
+  "no_mvp": true,
+  "immutable_world": true,
+  "show_name_tags": false,
+  "auto_jump": false
+ }
+]

@@ -1,0 +1,178 @@
+[
+ {
+  "position": {
+   "x": 4875,
+   "y": -10531,
+   "z": -10993
+  },
+  "structure_name": "y",
+  "filtered_structure_name": "z:.abbc_",
+  "data_field": " ",
+  "include_players": true,
+  "show_bounding_box": false,
+  "structure_block_type": 11258,
+  "settings": {
+   "palette_name": "0b:za",
+   "ignore_entities": true,
+   "ignore_blocks": false,
+   "non_ticking_players_and_ticking_areas": true,
+   "size": {
+    "x": -13140,
+    "y": -9473,
+    "z": 12654
+   },
+   "structure_offset": {
+    "x": -15598,
+    "y": -8197,
+    "z": -18193
+   },
+   "last_editing_player_unique_id": "-413343133",
+   "rotation": "90_deg",
+   "mirror": "none",
+   "animation_mode": "none",
+   "animation_duration": 1.5,
+   "integrity": 0,
+   "seed": 6028535,
+   "pivot": {
+    "x": -2.25,
+    "y": 0,
+    "z": 100.125
+   }
+  },
+  "redstone_save_mode": 158,
+  "should_trigger": true,
+  "water_logged": true
+ },
+ {
+  "position": {
+   "x": 11184,
+   "y": 10637,
+   "z": 6036
+  },
+  "structure_name": "y _",
+  "filtered_structure_name": "b 91c.",
+  "data_field": "09bz1",
+  "include_players": false,
+  "show_bounding_box": false,
+  "structure_block_type": 10715,
+  "settings": {
+   "palette_name": "_.9",
+   "ignore_entities": false,
+   "ignore_blocks": true,
+   "non_ticking_players_and_ticking_areas": true,
+   "size": {
+    "x": -17259,
+    "y": 16410,
+    "z": -1314
+   },
+   "structure_offset": {
+    "x": 15419,
+    "y": -7633,
+    "z": -17210
+   },
+   "last_editing_player_unique_id": "880353398",
+   "rotation": "270_deg",
+   "mirror": "both_axes",
+   "animation_mode": "layers",
+   "animation_duration": 100.125,
+   "integrity": 0.5,
+   "seed": 1080479843,
+   "pivot": {
+    "x": -2.25,
+    "y": 1.5,
+    "z": 0
+   }
+  },
+  "redstone_save_mode": 114,
+  "should_trigger": false,
+  "water_logged": true
+ },
+ {
+  "position": {
+   "x": -11509,
+   "y": -12510,
+   "z": 17797
+  },
+  "structure_name": ":091:",
+  "filtered_structure_name": "__1",
+  "data_field": "",
+  "include_players": false,
+  "show_bounding_box": false,
+  "structure_block_type": -13434,
+  "settings": {
+   "palette_name": "ca1z",
+   "ignore_entities": false,
+   "ignore_blocks": true,
+   "non_ticking_players_and_ticking_areas": false,
+   "size": {
+    "x": -17966,
+    "y": 17355,
+    "z": 3241
+   },
+   "structure_offset": {
+    "x": -14573,
+    "y": -18467,
+    "z": -14419
+   },
+   "last_editing_player_unique_id": "-24372137",
+   "rotation": "none",
+   "mirror": "z_axis",
+   "animation_mode": "layers",
+   "animation_duration": 1.5,
+   "integrity": 0.5,
+   "seed": 973153324,
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5,
+    "z": 0.5
+   }
+  },
+  "redstone_save_mode": 87,
+  "should_trigger": true,
+  "water_logged": false
+ },
+ {
+  "position": {
+   "x": 15595,
+   "y": 14576,
+   "z": 14512
+  },
+  "structure_name": "x0 zb b",
+  "filtered_structure_name": ".:",
+  "data_field": "x1x_",
+  "include_players": true,
+  "show_bounding_box": false,
+  "structure_block_type": -9336,
+  "settings": {
+   "palette_name": "",
+   "ignore_entities": true,
+   "ignore_blocks": false,
+   "non_ticking_players_and_ticking_areas": true,
+   "size": {
+    "x": -14622,
+    "y": -8568,
+    "z": 7466
+   },
+   "structure_offset": {
+    "x": 9796,
+    "y": 15969,
+    "z": 4772
+   },
+   "last_editing_player_unique_id": "882615569",
+   "rotation": "270_deg",
+   "mirror": "both_axes",
+   "animation_mode": "blocks",
+   "animation_duration": 1.5,
+   "integrity": 0.5,
+   "seed": 1380665591,
+   "pivot": {
+    "x": 0,
+    "y": 0.5,
+    "z": 0.5
+   }
+  },
+  "redstone_save_mode": 172,
+  "should_trigger": false,
+  "water_logged": false
+ }
+]

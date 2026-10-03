@@ -1,0 +1,27 @@
+[
+ {
+  "unlock_type": "remove_unlocked",
+  "recipes": []
+ },
+ {
+  "unlock_type": "empty",
+  "recipes": [
+   ".y.x",
+   "bzb0"
+  ]
+ },
+ {
+  "unlock_type": "remove_unlocked",
+  "recipes": [
+   "",
+   "zb._cb_",
+   "_c9y.x1"
+  ]
+ },
+ {
+  "unlock_type": "empty",
+  "recipes": [
+   "x"
+  ]
+ }
+]

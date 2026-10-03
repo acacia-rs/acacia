@@ -1,0 +1,14 @@
+[
+ {
+  "scheme": "camera_relative_strafe"
+ },
+ {
+  "scheme": "player_relative"
+ },
+ {
+  "scheme": "locked_player_relative_strafe"
+ },
+ {
+  "scheme": "player_relative_strafe"
+ }
+]

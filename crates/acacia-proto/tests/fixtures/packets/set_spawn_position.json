@@ -1,0 +1,58 @@
+[
+ {
+  "spawn_type": "player",
+  "player_position": {
+   "x": 4136,
+   "y": 1051,
+   "z": -12043
+  },
+  "dimension": 12152,
+  "world_position": {
+   "x": 1288,
+   "y": 8573,
+   "z": -11627
+  }
+ },
+ {
+  "spawn_type": "world",
+  "player_position": {
+   "x": -3933,
+   "y": -16921,
+   "z": -18875
+  },
+  "dimension": 6766,
+  "world_position": {
+   "x": -6619,
+   "y": 17087,
+   "z": -10405
+  }
+ },
+ {
+  "spawn_type": "world",
+  "player_position": {
+   "x": -7880,
+   "y": -11316,
+   "z": -11474
+  },
+  "dimension": 7502,
+  "world_position": {
+   "x": 3008,
+   "y": -727,
+   "z": 6896
+  }
+ },
+ {
+  "spawn_type": "player",
+  "player_position": {
+   "x": -16259,
+   "y": -1515,
+   "z": -5313
+  },
+  "dimension": 19397,
+  "world_position": {
+   "x": 11203,
+   "y": 2434,
+   "z": -5403
+  }
+ }
+]

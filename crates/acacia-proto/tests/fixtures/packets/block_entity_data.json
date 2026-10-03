@@ -1,0 +1,77 @@
+[
+ {
+  "position": {
+   "x": 7086,
+   "y": -12294,
+   "z": 1255
+  },
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {}
+  }
+ },
+ {
+  "position": {
+   "x": -17745,
+   "y": 17248,
+   "z": -16567
+  },
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {}
+  }
+ },
+ {
+  "position": {
+   "x": -14186,
+   "y": 6176,
+   "z": 18820
+  },
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "compound",
+     "value": {}
+    },
+    "kb": {
+     "type": "compound",
+     "value": {
+      "ka": {
+       "type": "float",
+       "value": 1.5
+      },
+      "kb": {
+       "type": "float",
+       "value": 0.5
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "position": {
+   "x": 11805,
+   "y": 15044,
+   "z": -17222
+  },
+  "nbt": {
+   "type": "compound",
+   "name": "",
+   "value": {
+    "ka": {
+     "type": "int",
+     "value": 11233
+    },
+    "kb": {
+     "type": "string",
+     "value": "y019"
+    }
+   }
+  }
+ }
+]

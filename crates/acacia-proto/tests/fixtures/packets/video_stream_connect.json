@@ -1,0 +1,30 @@
+[
+ {
+  "server_uri": "z xzc.",
+  "frame_send_frequency": 0.5,
+  "action": "none",
+  "resolution_x": 1978135003,
+  "resolution_y": -1085721289
+ },
+ {
+  "server_uri": "z0",
+  "frame_send_frequency": 0,
+  "action": "close",
+  "resolution_x": 2122768237,
+  "resolution_y": -1470700572
+ },
+ {
+  "server_uri": ".xb b",
+  "frame_send_frequency": -2.25,
+  "action": "none",
+  "resolution_x": 700317618,
+  "resolution_y": 622346218
+ },
+ {
+  "server_uri": "y",
+  "frame_send_frequency": 100.125,
+  "action": "close",
+  "resolution_x": 1102024234,
+  "resolution_y": -1821417918
+ }
+]

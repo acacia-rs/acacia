@@ -1,0 +1,87 @@
+[
+ {
+  "runtime_entity_id": "237840025",
+  "metadata": [
+   {
+    "key": "rider_max_rotation",
+    "type": "string",
+    "legacy_type": 57,
+    "value": "9xayy"
+   }
+  ],
+  "properties": {
+   "ints": [
+    {
+     "index": 429,
+     "value": 8912
+    }
+   ],
+   "floats": []
+  },
+  "tick": "273335234"
+ },
+ {
+  "runtime_entity_id": "137819264",
+  "metadata": [
+   {
+    "key": "creeper_swell_direction",
+    "type": "short",
+    "legacy_type": 215,
+    "value": 12481
+   }
+  ],
+  "properties": {
+   "ints": [
+    {
+     "index": 11174,
+     "value": -7400
+    }
+   ],
+   "floats": []
+  },
+  "tick": "347701435"
+ },
+ {
+  "runtime_entity_id": "987283014",
+  "metadata": [],
+  "properties": {
+   "ints": [],
+   "floats": []
+  },
+  "tick": "911318485"
+ },
+ {
+  "runtime_entity_id": "489070767",
+  "metadata": [
+   {
+    "key": "evoker_spell_casting_color",
+    "type": "string",
+    "legacy_type": 73,
+    "value": "1a"
+   }
+  ],
+  "properties": {
+   "ints": [
+    {
+     "index": 6447,
+     "value": 15270
+    }
+   ],
+   "floats": [
+    {
+     "index": 10874,
+     "value": 100.125
+    },
+    {
+     "index": 9331,
+     "value": 0
+    },
+    {
+     "index": 3325,
+     "value": 100.125
+    }
+   ]
+  },
+  "tick": "716682175"
+ }
+]

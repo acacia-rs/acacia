@@ -1,0 +1,26 @@
+[
+ {
+  "motion_x": 1.5,
+  "motion_z": 0,
+  "jumping": false,
+  "sneaking": false
+ },
+ {
+  "motion_x": 0,
+  "motion_z": 1.5,
+  "jumping": false,
+  "sneaking": false
+ },
+ {
+  "motion_x": 1.5,
+  "motion_z": 100.125,
+  "jumping": true,
+  "sneaking": true
+ },
+ {
+  "motion_x": -2.25,
+  "motion_z": 100.125,
+  "jumping": false,
+  "sneaking": true
+ }
+]

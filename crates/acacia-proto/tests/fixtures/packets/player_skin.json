@@ -1,0 +1,279 @@
+[
+ {
+  "uuid": "8899d818-977d-6aa2-2466-92996dcc5940",
+  "skin": {
+   "skin_id": "9xb.y ",
+   "play_fab_id": "0b10z",
+   "skin_resource_pack": "",
+   "skin_data": {
+    "width": -1817972399,
+    "height": 1465919545,
+    "data": "864580"
+   },
+   "animations": [
+    {
+     "skin_image": {
+      "width": -1765659336,
+      "height": 618898630,
+      "data": ""
+     },
+     "animation_type": 8891,
+     "animation_frames": 100.125,
+     "expression_type": 19688
+    },
+    {
+     "skin_image": {
+      "width": -308417299,
+      "height": -145284367,
+      "data": "0cbb"
+     },
+     "animation_type": 8389,
+     "animation_frames": 100.125,
+     "expression_type": 6007
+    }
+   ],
+   "cape_data": {
+    "width": 235347830,
+    "height": -653587916,
+    "data": "291ea19f20"
+   },
+   "geometry_data": "y91",
+   "geometry_data_version": "z1 zy",
+   "animation_data": "a1xz",
+   "cape_id": "b",
+   "full_skin_id": " _b :1",
+   "arm_size": "wide",
+   "skin_color": 421723429,
+   "personal_pieces": [
+    {
+     "piece_id": "_b::9",
+     "piece_type": "left_leg",
+     "pack_id": "22af5e6c-a14a-7a3b-5186-2dec06d9ba07",
+     "is_default_piece": true,
+     "product_id": "0"
+    },
+    {
+     "piece_id": "",
+     "piece_type": "body",
+     "pack_id": "f9bdef02-9668-0074-6b65-95f473a58a02",
+     "is_default_piece": true,
+     "product_id": "b0c:0.0"
+    }
+   ],
+   "piece_tint_colors": [],
+   "premium": true,
+   "persona": false,
+   "cape_on_classic": true,
+   "primary_user": true,
+   "overriding_player_appearance": true,
+   "trusted": "",
+   "profile_hash": ":. ..y."
+  },
+  "skin_name": "cb",
+  "old_skin_name": "a 91_"
+ },
+ {
+  "uuid": "e629f56e-9174-2dd2-7399-fa1eab8da6e3",
+  "skin": {
+   "skin_id": "0z09",
+   "play_fab_id": "",
+   "skin_resource_pack": "c1.aa_9x",
+   "skin_data": {
+    "width": 2122257246,
+    "height": -1644731447,
+    "data": "20"
+   },
+   "animations": [
+    {
+     "skin_image": {
+      "width": -1453237554,
+      "height": -428009735,
+      "data": "6d05b8741397"
+     },
+     "animation_type": 3960,
+     "animation_frames": -2.25,
+     "expression_type": 19409
+    },
+    {
+     "skin_image": {
+      "width": -1235684392,
+      "height": 1038514851,
+      "data": ""
+     },
+     "animation_type": 669,
+     "animation_frames": 100.125,
+     "expression_type": 1095
+    },
+    {
+     "skin_image": {
+      "width": -1456669093,
+      "height": 285258953,
+      "data": "15cc97"
+     },
+     "animation_type": 17630,
+     "animation_frames": 0.5,
+     "expression_type": 16138
+    }
+   ],
+   "cape_data": {
+    "width": -372789582,
+    "height": 1758682885,
+    "data": "64d548"
+   },
+   "geometry_data": "c ca01.",
+   "geometry_data_version": "z.xc_9",
+   "animation_data": "0c1_b01c",
+   "cape_id": "0.9.0",
+   "full_skin_id": "x01 00.",
+   "arm_size": "wide",
+   "skin_color": 1883652458,
+   "personal_pieces": [],
+   "piece_tint_colors": [
+    {
+     "piece_type": "az_z0",
+     "colors": [
+      -1184232511,
+      -25372833,
+      87050869,
+      -1693158457
+     ]
+    },
+    {
+     "piece_type": "",
+     "colors": [
+      1065722748,
+      1052255009,
+      408791467,
+      1666050634
+     ]
+    }
+   ],
+   "premium": false,
+   "persona": true,
+   "cape_on_classic": true,
+   "primary_user": false,
+   "overriding_player_appearance": false,
+   "trusted": "00",
+   "profile_hash": " _ya9"
+  },
+  "skin_name": ".1_..xz",
+  "old_skin_name": ".y1_:"
+ },
+ {
+  "uuid": "05dad62d-b125-b4f0-8319-c97359e89cae",
+  "skin": {
+   "skin_id": "1ca.0c_",
+   "play_fab_id": " bac111",
+   "skin_resource_pack": ".x_09",
+   "skin_data": {
+    "width": -1831715710,
+    "height": 786733397,
+    "data": "bf27f2f7f0"
+   },
+   "animations": [
+    {
+     "skin_image": {
+      "width": -1385135525,
+      "height": -1180650117,
+      "data": "bf822ba4"
+     },
+     "animation_type": 8617,
+     "animation_frames": 100.125,
+     "expression_type": 10391
+    }
+   ],
+   "cape_data": {
+    "width": -2118007263,
+    "height": 347049093,
+    "data": "d052"
+   },
+   "geometry_data": "1zc",
+   "geometry_data_version": "19: b",
+   "animation_data": "ya.abb0:",
+   "cape_id": ":cz:",
+   "full_skin_id": ".1__0b",
+   "arm_size": "wide",
+   "skin_color": 1486844973,
+   "personal_pieces": [
+    {
+     "piece_id": "xa9 yz",
+     "piece_type": "head",
+     "pack_id": "fe4b2d67-2808-3efa-2ac2-5aa8331f6110",
+     "is_default_piece": false,
+     "product_id": " "
+    },
+    {
+     "piece_id": "z.:cz",
+     "piece_type": "unknown",
+     "pack_id": "930ae5b9-59c9-e60c-d654-562f07331a77",
+     "is_default_piece": false,
+     "product_id": "9zb..cyy"
+    },
+    {
+     "piece_id": "_:_cx",
+     "piece_type": "hood",
+     "pack_id": "0431cbbd-76c3-80a7-ab7a-dc1e411dd313",
+     "is_default_piece": false,
+     "product_id": ":"
+    }
+   ],
+   "piece_tint_colors": [
+    {
+     "piece_type": "",
+     "colors": [
+      566627987,
+      867822495,
+      -418668626,
+      -627169635
+     ]
+    }
+   ],
+   "premium": true,
+   "persona": true,
+   "cape_on_classic": true,
+   "primary_user": false,
+   "overriding_player_appearance": false,
+   "trusted": ".",
+   "profile_hash": ":00"
+  },
+  "skin_name": "_..9",
+  "old_skin_name": "9_b"
+ },
+ {
+  "uuid": "e168b29d-b8b0-d087-8056-789d6b1ebf60",
+  "skin": {
+   "skin_id": "c1bz",
+   "play_fab_id": "",
+   "skin_resource_pack": "y",
+   "skin_data": {
+    "width": 898743945,
+    "height": 399411297,
+    "data": "7537049cbfd8"
+   },
+   "animations": [],
+   "cape_data": {
+    "width": -1600952629,
+    "height": -1788853338,
+    "data": "05a6127850"
+   },
+   "geometry_data": "x",
+   "geometry_data_version": "a9",
+   "animation_data": "_c",
+   "cape_id": ":...z",
+   "full_skin_id": " ",
+   "arm_size": "wide",
+   "skin_color": -842240660,
+   "personal_pieces": [],
+   "piece_tint_colors": [],
+   "premium": false,
+   "persona": true,
+   "cape_on_classic": false,
+   "primary_user": false,
+   "overriding_player_appearance": true,
+   "trusted": ".c_c_.",
+   "profile_hash": "z"
+  },
+  "skin_name": "01",
+  "old_skin_name": "9c9"
+ }
+]

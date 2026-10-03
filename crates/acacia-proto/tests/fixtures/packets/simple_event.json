@@ -1,0 +1,14 @@
+[
+ {
+  "event_type": "enable_commands"
+ },
+ {
+  "event_type": "uninitialized_subtype"
+ },
+ {
+  "event_type": "disable_commands"
+ },
+ {
+  "event_type": "unlock_world_template_settings"
+ }
+]

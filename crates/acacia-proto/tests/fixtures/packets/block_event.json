@@ -1,0 +1,38 @@
+[
+ {
+  "position": {
+   "x": 463,
+   "y": 1198,
+   "z": 4325
+  },
+  "type": "change_state",
+  "data": 14031
+ },
+ {
+  "position": {
+   "x": 17146,
+   "y": -4812,
+   "z": -13628
+  },
+  "type": "change_state",
+  "data": 19810
+ },
+ {
+  "position": {
+   "x": -19398,
+   "y": -5543,
+   "z": 14798
+  },
+  "type": "change_state",
+  "data": 14788
+ },
+ {
+  "position": {
+   "x": 15256,
+   "y": -16398,
+   "z": -4826
+  },
+  "type": "change_state",
+  "data": 7999
+ }
+]

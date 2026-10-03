@@ -1,0 +1,81 @@
+[
+ {
+  "sound_id": "c_cb.x",
+  "position": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": 100.125
+  },
+  "extra_data": 11864,
+  "entity_type": "xc",
+  "is_baby_mob": false,
+  "is_global": false,
+  "entity_unique_id": [
+   -97,
+   -546286098
+  ],
+  "fire_at_position": {
+   "x": 100.125,
+   "y": 100.125,
+   "z": -2.25
+  }
+ },
+ {
+  "sound_id": "",
+  "position": {
+   "x": 0.5,
+   "y": 0,
+   "z": 0
+  },
+  "extra_data": -15586,
+  "entity_type": "",
+  "is_baby_mob": true,
+  "is_global": true,
+  "entity_unique_id": [
+   -232,
+   -1529963914
+  ],
+  "fire_at_position": {
+   "x": -2.25,
+   "y": -2.25,
+   "z": 1.5
+  }
+ },
+ {
+  "sound_id": ":",
+  "position": {
+   "x": 0.5,
+   "y": 1.5,
+   "z": 100.125
+  },
+  "extra_data": -11194,
+  "entity_type": " y9y1",
+  "is_baby_mob": false,
+  "is_global": false,
+  "entity_unique_id": [
+   115,
+   799605978
+  ]
+ },
+ {
+  "sound_id": "1a.b :y",
+  "position": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": 0.5
+  },
+  "extra_data": 15486,
+  "entity_type": "xyzx0xx_",
+  "is_baby_mob": false,
+  "is_global": false,
+  "entity_unique_id": [
+   -139,
+   -604924706
+  ],
+  "fire_at_position": {
+   "x": 0.5,
+   "y": 0,
+   "z": 100.125
+  }
+ }
+]

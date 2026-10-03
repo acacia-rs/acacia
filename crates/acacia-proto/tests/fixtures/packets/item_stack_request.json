@@ -1,0 +1,91 @@
+[
+ {
+  "requests": [
+   {
+    "request_id": 4136,
+    "actions": [
+     {
+      "type_id": "drop",
+      "legacy_type_id": 205,
+      "count": 136,
+      "source": {
+       "slot_type": {
+        "container_id": "trade2_ingredient2"
+       },
+       "slot": 53,
+       "stack_id": -1540724414
+      },
+      "randomly": false
+     }
+    ],
+    "custom_names": [],
+    "cause": "join_event_text"
+   }
+  ]
+ },
+ {
+  "requests": [
+   {
+    "request_id": -3933,
+    "actions": [],
+    "custom_names": [],
+    "cause": "slash_command_chat"
+   },
+   {
+    "request_id": -6619,
+    "actions": [
+     {
+      "type_id": "destroy",
+      "legacy_type_id": 244,
+      "count": 11,
+      "source": {
+       "slot_type": {
+        "container_id": "trade2_ingredient2"
+       },
+       "slot": 63,
+       "stack_id": 1476924112
+      }
+     }
+    ],
+    "custom_names": [
+     "x1"
+    ],
+    "cause": "sign_text"
+   },
+   {
+    "request_id": -15861,
+    "actions": [
+     {
+      "type_id": "non_implemented",
+      "legacy_type_id": 195
+     }
+    ],
+    "custom_names": [
+     ".0"
+    ],
+    "cause": "summon_command"
+   }
+  ]
+ },
+ {
+  "requests": [
+   {
+    "request_id": -7880,
+    "actions": [],
+    "custom_names": [],
+    "cause": "slash_command_chat"
+   },
+   {
+    "request_id": 3008,
+    "actions": [],
+    "custom_names": [
+     "910"
+    ],
+    "cause": "book_and_quill_text"
+   }
+  ]
+ },
+ {
+  "requests": []
+ }
+]

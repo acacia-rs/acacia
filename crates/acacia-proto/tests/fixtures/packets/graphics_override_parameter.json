@@ -1,0 +1,89 @@
+[
+ {
+  "values": [
+   {
+    "time": 0,
+    "value": {
+     "x": 0,
+     "y": 0,
+     "z": 0.5
+    }
+   }
+  ],
+  "biome_identifier": "",
+  "parameter_type": "highlights_contrast",
+  "reset": false
+ },
+ {
+  "values": [
+   {
+    "time": -2.25,
+    "value": {
+     "x": 0.5,
+     "y": 100.125,
+     "z": 100.125
+    }
+   },
+   {
+    "time": 1.5,
+    "value": {
+     "x": 0,
+     "y": 0,
+     "z": -2.25
+    }
+   }
+  ],
+  "float_value": 100.125,
+  "biome_identifier": " ",
+  "parameter_type": "waves_octaves",
+  "reset": true,
+  "player_id": "_a"
+ },
+ {
+  "values": [
+   {
+    "time": 0,
+    "value": {
+     "x": 0,
+     "y": 0.5,
+     "z": 0.5
+    }
+   }
+  ],
+  "float_value": 0.5,
+  "biome_identifier": "z9za0_9x",
+  "parameter_type": "horizon_blend_min",
+  "reset": true
+ },
+ {
+  "values": [
+   {
+    "time": 0,
+    "value": {
+     "x": 100.125,
+     "y": 0,
+     "z": 0
+    }
+   },
+   {
+    "time": 0,
+    "value": {
+     "x": -2.25,
+     "y": 0.5,
+     "z": 0.5
+    }
+   },
+   {
+    "time": 0.5,
+    "value": {
+     "x": 1.5,
+     "y": 0.5,
+     "z": 1.5
+    }
+   }
+  ],
+  "biome_identifier": " 01c0aaa",
+  "parameter_type": "horizon_blend_mie_start",
+  "reset": false
+ }
+]

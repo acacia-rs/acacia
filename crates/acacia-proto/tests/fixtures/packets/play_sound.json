@@ -1,0 +1,61 @@
+[
+ {
+  "name": "1:0z",
+  "coordinates": {
+   "x": -2066,
+   "y": -11909,
+   "z": -16658
+  },
+  "volume": 0,
+  "pitch": 0.5,
+  "loop_count": 18442,
+  "bypass_listener_range_check": true
+ },
+ {
+  "name": ":y yb1",
+  "coordinates": {
+   "x": 5156,
+   "y": -14916,
+   "z": -1072
+  },
+  "volume": 1.5,
+  "pitch": 0,
+  "loop_count": 5610,
+  "bypass_listener_range_check": true,
+  "handle": [
+   81,
+   3045920289
+  ],
+  "playback_position_seconds": 0
+ },
+ {
+  "name": "_c",
+  "coordinates": {
+   "x": 15555,
+   "y": 4350,
+   "z": 2321
+  },
+  "volume": 1.5,
+  "pitch": -2.25,
+  "loop_count": 14241,
+  "bypass_listener_range_check": true,
+  "handle": [
+   120,
+   1345288277
+  ],
+  "playback_position_seconds": 0
+ },
+ {
+  "name": "9aa1cz9",
+  "coordinates": {
+   "x": -9546,
+   "y": -7526,
+   "z": 2760
+  },
+  "volume": 0.5,
+  "pitch": -2.25,
+  "loop_count": 7876,
+  "bypass_listener_range_check": false,
+  "playback_position_seconds": -2.25
+ }
+]

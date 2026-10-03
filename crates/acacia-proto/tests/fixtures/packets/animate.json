@@ -1,0 +1,29 @@
+[
+ {
+  "action_id": "none",
+  "runtime_entity_id": "61958257",
+  "data": 0.5,
+  "has_swing_source": false
+ },
+ {
+  "action_id": "unknown",
+  "runtime_entity_id": "240906310",
+  "data": 1.5,
+  "has_swing_source": true,
+  "swing_source": "1_x."
+ },
+ {
+  "action_id": "wake_up",
+  "runtime_entity_id": "985765948",
+  "data": 1.5,
+  "has_swing_source": true,
+  "swing_source": " c_cx."
+ },
+ {
+  "action_id": "none",
+  "runtime_entity_id": "762351389",
+  "data": 1.5,
+  "has_swing_source": true,
+  "swing_source": " "
+ }
+]

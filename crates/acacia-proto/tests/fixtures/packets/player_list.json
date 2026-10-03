@@ -1,0 +1,180 @@
+[
+ {
+  "records": [
+   {
+    "type": "add",
+    "legacy_type": 155,
+    "uuid": "9d818977-d6aa-2246-6929-96dcc5940bf4",
+    "entity_unique_id": "-706933215",
+    "username": "y  0b1",
+    "xbox_user_id": "zaa0__x",
+    "platform_chat_id": ".b:a",
+    "build_platform": -238205896,
+    "skin_data": {
+     "skin_id": "9z_ya",
+     "play_fab_id": "z.x y0",
+     "skin_resource_pack": "b",
+     "skin_data": {
+      "width": 559319776,
+      "height": 531008202,
+      "data": ""
+     },
+     "animations": [],
+     "cape_data": {
+      "width": -561882580,
+      "height": -525622325,
+      "data": "daa169eb966f"
+     },
+     "geometry_data": "_a",
+     "geometry_data_version": "xzbb. _",
+     "animation_data": "",
+     "cape_id": ":19  ",
+     "full_skin_id": "_b::9",
+     "arm_size": "wide",
+     "skin_color": -1567340810,
+     "personal_pieces": [],
+     "piece_tint_colors": [],
+     "premium": true,
+     "persona": false,
+     "cape_on_classic": false,
+     "primary_user": true,
+     "overriding_player_appearance": false,
+     "trusted": ".:a",
+     "profile_hash": ":_"
+    },
+    "is_teacher": false,
+    "is_host": true,
+    "is_subclient": false,
+    "player_color": -794927484
+   },
+   {
+    "type": "remove",
+    "legacy_type": 141,
+    "uuid": "62dec06d-9ba0-772c-11f9-bdef02966800"
+   }
+  ]
+ },
+ {
+  "records": [
+   {
+    "type": "remove",
+    "legacy_type": 40,
+    "uuid": "9f56e917-42dd-2739-9fa1-eab8da6e37d6"
+   },
+   {
+    "type": "add",
+    "legacy_type": 250,
+    "uuid": "0e2eb008-f3f1-22e2-6f60-b71937f3b10a",
+    "entity_unique_id": "-890478555",
+    "username": " ",
+    "xbox_user_id": "b0 1",
+    "platform_chat_id": "0z1zz0x",
+    "build_platform": 1450246466,
+    "skin_data": {
+     "skin_id": " ",
+     "play_fab_id": "a",
+     "skin_resource_pack": "1..z.xc",
+     "skin_data": {
+      "width": 14322747,
+      "height": 1920727312,
+      "data": "cc2ddf771fc9"
+     },
+     "animations": [],
+     "cape_data": {
+      "width": 1623967439,
+      "height": -1328960707,
+      "data": "d3c3f2"
+     },
+     "geometry_data": "00x01 ",
+     "geometry_data_version": "0.:9b.:",
+     "animation_data": "",
+     "cape_id": "_z0",
+     "full_skin_id": "__",
+     "arm_size": "slim",
+     "skin_color": -1964731588,
+     "personal_pieces": [],
+     "piece_tint_colors": [],
+     "premium": false,
+     "persona": false,
+     "cape_on_classic": false,
+     "primary_user": false,
+     "overriding_player_appearance": false,
+     "trusted": "x0.",
+     "profile_hash": "00"
+    },
+    "is_teacher": false,
+    "is_host": false,
+    "is_subclient": false,
+    "player_color": -548864713
+   },
+   {
+    "type": "remove",
+    "legacy_type": 240,
+    "uuid": "ebd8bc36-9c5e-7a3e-e713-ed0b17975d91"
+   }
+  ]
+ },
+ {
+  "records": []
+ },
+ {
+  "records": [
+   {
+    "type": "remove",
+    "legacy_type": 97,
+    "uuid": "8b29db8b-0d08-7805-6789-d6b1ebf6073e"
+   },
+   {
+    "type": "remove",
+    "legacy_type": 103,
+    "uuid": "125b9f73-09bd-321c-0a17-52440f5839ab"
+   },
+   {
+    "type": "add",
+    "legacy_type": 189,
+    "uuid": "629a401d-7eb5-bb38-38b2-63de6f3f0da4",
+    "entity_unique_id": "-92224908",
+    "username": "z01ybz9",
+    "xbox_user_id": "9 0",
+    "platform_chat_id": "",
+    "build_platform": 501623662,
+    "skin_data": {
+     "skin_id": "9_",
+     "play_fab_id": "__bayy_",
+     "skin_resource_pack": ":1a11",
+     "skin_data": {
+      "width": 2003859114,
+      "height": 1193679329,
+      "data": "0897b19baa"
+     },
+     "animations": [],
+     "cape_data": {
+      "width": 1752803676,
+      "height": 1276347446,
+      "data": "92d70f243b22"
+     },
+     "geometry_data": "ca",
+     "geometry_data_version": "1_y:c0:",
+     "animation_data": "c.cya",
+     "cape_id": ".c:9y91",
+     "full_skin_id": ":.1x0_zb",
+     "arm_size": "slim",
+     "skin_color": 442657670,
+     "personal_pieces": [],
+     "piece_tint_colors": [],
+     "premium": false,
+     "persona": false,
+     "cape_on_classic": true,
+     "primary_user": true,
+     "overriding_player_appearance": true,
+     "trusted": "c",
+     "profile_hash": "x"
+    },
+    "is_teacher": true,
+    "is_host": true,
+    "is_subclient": false,
+    "player_color": 89939765
+   }
+  ]
+ }
+]

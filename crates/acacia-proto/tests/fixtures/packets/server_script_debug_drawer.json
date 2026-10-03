@@ -1,0 +1,159 @@
+[
+ {
+  "shapes": [
+   {
+    "network_id": "743513478",
+    "shape_type": "line",
+    "location": {
+     "x": -2.25,
+     "y": 0.5,
+     "z": 100.125
+    },
+    "scale": 0.5,
+    "color": 1441229772,
+    "text": "",
+    "box_bound": {
+     "x": 100.125,
+     "y": 100.125,
+     "z": 0
+    },
+    "line_end_location": {
+     "x": 1.5,
+     "y": 100.125,
+     "z": 0.5
+    },
+    "arrow_head_length": 1.5,
+    "arrow_head_radius": 100.125,
+    "segment_count": 212
+   },
+   {
+    "network_id": "99183457",
+    "shape_type": "line",
+    "scale": 0,
+    "rotation": {
+     "x": 0.5,
+     "y": 1.5,
+     "z": -2.25
+    },
+    "time_left": 100.125,
+    "color": -1383897465,
+    "text": ".. cx09",
+    "box_bound": {
+     "x": 0,
+     "y": 100.125,
+     "z": 0
+    },
+    "line_end_location": {
+     "x": -2.25,
+     "y": 0,
+     "z": 0
+    },
+    "arrow_head_length": 1.5,
+    "arrow_head_radius": 0,
+    "segment_count": 66
+   }
+  ]
+ },
+ {
+  "shapes": [
+   {
+    "network_id": "67041037",
+    "shape_type": "line",
+    "location": {
+     "x": -2.25,
+     "y": 0,
+     "z": 100.125
+    },
+    "scale": 1.5,
+    "rotation": {
+     "x": 0,
+     "y": -2.25,
+     "z": 1.5
+    },
+    "time_left": 0.5,
+    "text": "_ xx ac",
+    "box_bound": {
+     "x": 1.5,
+     "y": 0.5,
+     "z": 100.125
+    },
+    "line_end_location": {
+     "x": 0.5,
+     "y": 100.125,
+     "z": -2.25
+    },
+    "arrow_head_length": 0.5,
+    "arrow_head_radius": -2.25
+   },
+   {
+    "network_id": "902525009",
+    "shape_type": "line",
+    "scale": -2.25,
+    "rotation": {
+     "x": 0.5,
+     "y": 100.125,
+     "z": 0
+    },
+    "time_left": 100.125,
+    "color": 2107005817,
+    "box_bound": {
+     "x": 0,
+     "y": -2.25,
+     "z": 1.5
+    },
+    "line_end_location": {
+     "x": 100.125,
+     "y": 1.5,
+     "z": 100.125
+    },
+    "arrow_head_length": -2.25,
+    "arrow_head_radius": 1.5
+   }
+  ]
+ },
+ {
+  "shapes": [
+   {
+    "network_id": "597395586",
+    "shape_type": "box",
+    "location": {
+     "x": 0,
+     "y": 0,
+     "z": 0.5
+    },
+    "time_left": -2.25,
+    "color": -1686987614,
+    "box_bound": {
+     "x": 100.125,
+     "y": 0.5,
+     "z": 0
+    },
+    "arrow_head_length": 0,
+    "segment_count": 116
+   },
+   {
+    "network_id": "31427637",
+    "location": {
+     "x": 1.5,
+     "y": 0,
+     "z": 0.5
+    },
+    "scale": 0.5,
+    "rotation": {
+     "x": 1.5,
+     "y": 1.5,
+     "z": 0.5
+    },
+    "time_left": -2.25,
+    "line_end_location": {
+     "x": 0.5,
+     "y": -2.25,
+     "z": 1.5
+    }
+   }
+  ]
+ },
+ {
+  "shapes": []
+ }
+]

@@ -1,0 +1,109 @@
+[
+ {
+  "map_id": "195874964",
+  "dimension": 212,
+  "locked": false,
+  "origin": {
+   "x": 9748,
+   "y": -9060,
+   "z": -15781
+  },
+  "included_in": [
+   "-328031651"
+  ],
+  "width": -13100,
+  "height": -8657,
+  "pixels": [
+   1658052559,
+   1841763239,
+   1313665717
+  ]
+ },
+ {
+  "map_id": "428233216",
+  "dimension": 5,
+  "locked": false,
+  "origin": {
+   "x": -15760,
+   "y": 10723,
+   "z": 19340
+  },
+  "x_offset": -17299
+ },
+ {
+  "map_id": "465895815",
+  "dimension": 47,
+  "locked": false,
+  "origin": {
+   "x": -6136,
+   "y": -7196,
+   "z": -6482
+  },
+  "included_in": [
+   "541392964",
+   "-887173045"
+  ],
+  "decorations": [
+   {
+    "type": "triangle_green",
+    "rotation": 129,
+    "x": 81,
+    "y": 156,
+    "label": ":xxyx",
+    "color_abgr": 542461100
+   },
+   {
+    "type": "marker_red",
+    "rotation": 233,
+    "x": 200,
+    "y": 101,
+    "label": "cz",
+    "color_abgr": -47181145
+   },
+   {
+    "type": "village_taiga",
+    "rotation": 136,
+    "x": 37,
+    "y": 136,
+    "label": "y1_b",
+    "color_abgr": 1625129307
+   }
+  ],
+  "height": -16952
+ },
+ {
+  "map_id": "-449827845",
+  "dimension": 113,
+  "locked": true,
+  "origin": {
+   "x": 17232,
+   "y": 14877,
+   "z": -10433
+  },
+  "included_in": [
+   "259749803",
+   "-242550238"
+  ],
+  "scale": -108,
+  "tracked_objects": [
+   {
+    "type": "block",
+    "entity_unique_id": "158427765",
+    "block_position": {
+     "x": -12767,
+     "y": 8388,
+     "z": 3243
+    }
+   }
+  ],
+  "width": 17062,
+  "height": -4488,
+  "x_offset": -18760,
+  "y_offset": -19573,
+  "pixels": [
+   -418679073,
+   -1466799437,
+   353806649
+  ]
+ }
+]

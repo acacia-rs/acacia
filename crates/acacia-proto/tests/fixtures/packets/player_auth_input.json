@@ -1,0 +1,355 @@
+[
+ {
+  "pitch": 100.125,
+  "yaw": 0,
+  "position": {
+   "x": -2.25,
+   "y": 0,
+   "z": 0
+  },
+  "move_vector": {
+   "x": 100.125,
+   "z": 1.5
+  },
+  "head_yaw": -2.25,
+  "input_data": [
+   "client_predicted_vehicle"
+  ],
+  "input_mode": "game_pad",
+  "play_mode": "viewer",
+  "interaction_model": "touch",
+  "interact_rotation": {
+   "x": 0,
+   "z": 100.125
+  },
+  "tick": "738875329",
+  "delta": {
+   "x": 1.5,
+   "y": -2.25,
+   "z": 100.125
+  },
+  "transaction": {
+   "legacy": {
+    "legacy_request_id": 2248,
+    "legacy_transactions": []
+   },
+   "actions": [
+    {
+     "source_type": "world_interaction",
+     "slot": 17531,
+     "old_item": {
+      "network_id": -11750,
+      "count": 27815,
+      "metadata": 12699,
+      "has_stack_id": false,
+      "block_runtime_id": 923,
+      "extra": {
+       "has_nbt": 0,
+       "can_place_on": [],
+       "can_destroy": []
+      }
+     },
+     "new_item": {
+      "network_id": 19859,
+      "count": 6888,
+      "metadata": 19141,
+      "has_stack_id": true,
+      "stack_id": -15628,
+      "block_runtime_id": 14365,
+      "extra": {
+       "has_nbt": 0,
+       "can_place_on": [],
+       "can_destroy": []
+      }
+     }
+    }
+   ],
+   "data": {
+    "action_type": "click_air",
+    "trigger_type": "simulation_tick",
+    "block_position": {
+     "x": -16510,
+     "y": 10549,
+     "z": -10086
+    },
+    "face": 207,
+    "hotbar_slot": 16888,
+    "hand": "main_hand",
+    "held_item": {
+     "network_id": -20536,
+     "count": 14834,
+     "metadata": 16077,
+     "has_stack_id": false,
+     "block_runtime_id": 14036,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "player_pos": {
+     "x": -2.25,
+     "y": 0.5,
+     "z": -2.25
+    },
+    "click_pos": {
+     "x": 0.5,
+     "y": 0,
+     "z": 100.125
+    },
+    "block_runtime_id": 19002,
+    "client_prediction": "failure",
+    "client_cooldown_state": "off"
+   }
+  },
+  "item_stack_request": {
+   "request_id": -14273,
+   "actions": [],
+   "custom_names": [
+    " :0.z"
+   ],
+   "cause": "chat_public"
+  },
+  "block_action": [
+   {
+    "action": "start_spin_attack",
+    "position": {
+     "x": -18433,
+     "y": 17822,
+     "z": -17928
+    },
+    "face": 2077
+   },
+   {
+    "action": "drop_item",
+    "position": {
+     "x": -7202,
+     "y": -779,
+     "z": 2257
+    },
+    "face": -14268
+   }
+  ],
+  "vehicle_rotation": {
+   "x": 100.125,
+   "z": 0
+  },
+  "predicted_vehicle": "857492359",
+  "analogue_move_vector": {
+   "x": -2.25,
+   "z": 0.5
+  },
+  "camera_orientation": {
+   "x": 1.5,
+   "y": 1.5,
+   "z": -2.25
+  },
+  "raw_move_vector": {
+   "x": 1.5,
+   "z": 0
+  }
+ },
+ {
+  "pitch": 0,
+  "yaw": 100.125,
+  "position": {
+   "x": 0.5,
+   "y": 1.5,
+   "z": 100.125
+  },
+  "move_vector": {
+   "x": 1.5,
+   "z": 100.125
+  },
+  "head_yaw": 100.125,
+  "input_data": [
+   "sneak_pressed_raw"
+  ],
+  "input_mode": "mouse",
+  "play_mode": "exit_level_living_room",
+  "interaction_model": "classic",
+  "interact_rotation": {
+   "x": 0.5,
+   "z": 100.125
+  },
+  "tick": "295545111",
+  "delta": {
+   "x": 1.5,
+   "y": 0.5,
+   "z": -2.25
+  },
+  "block_action": [],
+  "analogue_move_vector": {
+   "x": 1.5,
+   "z": 100.125
+  },
+  "camera_orientation": {
+   "x": -2.25,
+   "y": 0.5,
+   "z": 1.5
+  },
+  "raw_move_vector": {
+   "x": 0,
+   "z": 100.125
+  }
+ },
+ {
+  "pitch": 100.125,
+  "yaw": 0.5,
+  "position": {
+   "x": 0,
+   "y": 100.125,
+   "z": 0
+  },
+  "move_vector": {
+   "x": -2.25,
+   "z": 100.125
+  },
+  "head_yaw": 1.5,
+  "input_data": [
+   "persist_sneak",
+   "start_using_item"
+  ],
+  "input_mode": "motion_controller",
+  "play_mode": "num_modes",
+  "interaction_model": "touch",
+  "interact_rotation": {
+   "x": 1.5,
+   "z": 1.5
+  },
+  "tick": "272703723",
+  "delta": {
+   "x": 0.5,
+   "y": 1.5,
+   "z": 1.5
+  },
+  "transaction": {
+   "legacy": {
+    "legacy_request_id": 2034,
+    "legacy_transactions": []
+   },
+   "actions": [],
+   "data": {
+    "action_type": "attack",
+    "trigger_type": "simulation_tick",
+    "block_position": {
+     "x": -19796,
+     "y": 11351,
+     "z": 8790
+    },
+    "face": 162,
+    "hotbar_slot": -3966,
+    "hand": "off_hand",
+    "held_item": {
+     "network_id": -14755,
+     "count": 1311,
+     "metadata": 95,
+     "has_stack_id": false,
+     "block_runtime_id": 8673,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "player_pos": {
+     "x": 1.5,
+     "y": 100.125,
+     "z": -2.25
+    },
+    "click_pos": {
+     "x": 1.5,
+     "y": 1.5,
+     "z": 0.5
+    },
+    "block_runtime_id": 5250,
+    "client_prediction": "success",
+    "client_cooldown_state": "on"
+   }
+  },
+  "item_stack_request": {
+   "request_id": 11070,
+   "actions": [
+    {
+     "type_id": "optional",
+     "legacy_type_id": 31,
+     "recipe_network_id": 9004,
+     "filtered_string_index": 626916644
+    }
+   ],
+   "custom_names": [
+    ""
+   ],
+   "cause": "cartography_text"
+  },
+  "block_action": [
+   {
+    "action": "set_enchatnment_seed",
+    "position": {
+     "x": 5454,
+     "y": -9839,
+     "z": -19146
+    },
+    "face": -10581
+   }
+  ],
+  "analogue_move_vector": {
+   "x": -2.25,
+   "z": 0
+  },
+  "camera_orientation": {
+   "x": 0.5,
+   "y": -2.25,
+   "z": -2.25
+  },
+  "raw_move_vector": {
+   "x": -2.25,
+   "z": 1.5
+  }
+ },
+ {
+  "pitch": 0.5,
+  "yaw": 0.5,
+  "position": {
+   "x": 0.5,
+   "y": -2.25,
+   "z": 0.5
+  },
+  "move_vector": {
+   "x": 0,
+   "z": -2.25
+  },
+  "head_yaw": 0.5,
+  "input_data": [
+   "stop_sprinting"
+  ],
+  "input_mode": "unknown",
+  "play_mode": "placement",
+  "interaction_model": "classic",
+  "interact_rotation": {
+   "x": 100.125,
+   "z": 1.5
+  },
+  "tick": "921889558",
+  "delta": {
+   "x": -2.25,
+   "y": 0.5,
+   "z": -2.25
+  },
+  "block_action": [],
+  "predicted_vehicle": "930740480",
+  "analogue_move_vector": {
+   "x": 0.5,
+   "z": 0.5
+  },
+  "camera_orientation": {
+   "x": 100.125,
+   "y": 1.5,
+   "z": 1.5
+  },
+  "raw_move_vector": {
+   "x": -2.25,
+   "z": 0.5
+  }
+ }
+]

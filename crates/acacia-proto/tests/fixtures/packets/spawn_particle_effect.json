@@ -1,0 +1,43 @@
+[
+ {
+  "dimension": 110,
+  "entity_id": "-105941881",
+  "position": {
+   "x": 1.5,
+   "y": 1.5,
+   "z": -2.25
+  },
+  "particle_name": "1yz0cy y"
+ },
+ {
+  "dimension": 63,
+  "entity_id": "-671021692",
+  "position": {
+   "x": 1.5,
+   "y": 0,
+   "z": 0.5
+  },
+  "particle_name": "19bx"
+ },
+ {
+  "dimension": 90,
+  "entity_id": "167614818",
+  "position": {
+   "x": 0.5,
+   "y": -2.25,
+   "z": 1.5
+  },
+  "particle_name": "z",
+  "molang_variables": ":"
+ },
+ {
+  "dimension": 94,
+  "entity_id": "284245493",
+  "position": {
+   "x": -2.25,
+   "y": -2.25,
+   "z": -2.25
+  },
+  "particle_name": " 1"
+ }
+]

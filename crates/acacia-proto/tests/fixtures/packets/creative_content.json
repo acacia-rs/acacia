@@ -1,0 +1,113 @@
+[
+ {
+  "groups": [],
+  "items": [
+   {
+    "entry_id": 4325,
+    "item": {
+     "network_id": -10378,
+     "count": 61699,
+     "metadata": 5291,
+     "block_runtime_id": 11881,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "group_index": 14886
+   }
+  ]
+ },
+ {
+  "groups": [
+   {
+    "category": "nature",
+    "name": "y",
+    "icon_item": {
+     "network_id": -203,
+     "count": 24809,
+     "metadata": 18517,
+     "block_runtime_id": 8866,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    }
+   }
+  ],
+  "items": [
+   {
+    "entry_id": 2821,
+    "item": {
+     "network_id": 19031,
+     "count": 15054,
+     "metadata": 13140,
+     "block_runtime_id": 14464,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "group_index": 16660
+   }
+  ]
+ },
+ {
+  "groups": [],
+  "items": [
+   {
+    "entry_id": 4821,
+    "item": {
+     "network_id": -9565,
+     "count": 24976,
+     "metadata": 15579,
+     "block_runtime_id": -2796,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "group_index": 5117
+   },
+   {
+    "entry_id": 15895,
+    "item": {
+     "network_id": -1389,
+     "count": 37962,
+     "metadata": 10534,
+     "block_runtime_id": 5682,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "group_index": 8379
+   }
+  ]
+ },
+ {
+  "groups": [],
+  "items": [
+   {
+    "entry_id": 18441,
+    "item": {
+     "network_id": -7534,
+     "count": 56839,
+     "metadata": 6535,
+     "block_runtime_id": -5455,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "group_index": 15755
+   }
+  ]
+ }
+]

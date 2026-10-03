@@ -1,0 +1,815 @@
+[
+ {
+  "shaped_recipes": [
+   {
+    "recipe_id": "ybz10:9",
+    "width": 10027,
+    "height": 6094,
+    "input": [
+     {
+      "type": "valid",
+      "descriptor_type": "9",
+      "count": 17946
+     }
+    ],
+    "output": [
+     {
+      "network_id": 7693,
+      "count": 14618,
+      "metadata": 12835,
+      "block_runtime_id": 1455,
+      "extra": {
+       "has_nbt": 0,
+       "can_place_on": [],
+       "can_destroy": []
+      }
+     }
+    ],
+    "uuid": "24319c58-db0c-412f-ec0d-52eb86591ed9",
+    "block": "1c.:",
+    "priority": 776,
+    "assume_symmetry": false,
+    "network_id": 4825
+   }
+  ],
+  "shapeless_recipes": [],
+  "multi_recipes": [
+   {
+    "uuid": "1e8bbc12-81f2-4a79-16a7-ff2bc756b923",
+    "network_id": 5611
+   },
+   {
+    "uuid": "ef9110af-8c9f-2dca-a3d9-4e54c8baf032",
+    "network_id": 18262
+   },
+   {
+    "uuid": "b1c16931-9d91-668c-a09b-cc71cb0660f7",
+    "network_id": 10698
+   }
+  ],
+  "shulker_box_recipes": [],
+  "shapeless_chemistry_recipes": [
+   {
+    "recipe_id": "z_zy .y",
+    "input": [],
+    "output": [],
+    "uuid": "059925fd-5dbd-efa1-9049-9be6a628b2f1",
+    "block": "z :.:xz",
+    "priority": 7820,
+    "unlocking_requirement": {
+     "context": "player_in_water",
+     "ingredients": []
+    },
+    "network_id": 19499
+   },
+   {
+    "recipe_id": " 1_ zbc",
+    "input": [],
+    "output": [],
+    "uuid": "1d0c6acd-8051-da08-cfa8-4cd3cf7c7da7",
+    "block": "x 1",
+    "priority": 3029,
+    "unlocking_requirement": {
+     "context": "player_in_water"
+    },
+    "network_id": 3286
+   }
+  ],
+  "shaped_chemistry_recipes": [],
+  "smithing_transform_recipes": [],
+  "smithing_trim_recipes": [
+   {
+    "recipe_id": ".y x",
+    "template": {
+     "type": "valid",
+     "descriptor_type": " aa:",
+     "count": -3731
+    },
+    "input": {
+     "type": "invalid",
+     "metadata": -16851,
+     "count": 17956
+    },
+    "addition": {
+     "type": "invalid",
+     "metadata": 7643,
+     "count": -11694
+    },
+    "block": "z9:_",
+    "network_id": 3146
+   },
+   {
+    "recipe_id": "091c9",
+    "template": {
+     "type": "invalid",
+     "metadata": -16586,
+     "count": -14750
+    },
+    "input": {
+     "type": "valid",
+     "descriptor_type": "y..xa",
+     "count": 17217
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": "y0aczbc_",
+     "count": -8419
+    },
+    "block": " ",
+    "network_id": 18093
+   }
+  ],
+  "potion_type_recipes": [
+   {
+    "input_item_id": -15040,
+    "input_item_meta": 10258,
+    "ingredient_id": 9769,
+    "ingredient_meta": 11539,
+    "output_item_id": 3284,
+    "output_item_meta": 1723
+   },
+   {
+    "input_item_id": 789,
+    "input_item_meta": 19386,
+    "ingredient_id": -158,
+    "ingredient_meta": -11392,
+    "output_item_id": -18951,
+    "output_item_meta": -15516
+   },
+   {
+    "input_item_id": -9385,
+    "input_item_meta": 5384,
+    "ingredient_id": 5554,
+    "ingredient_meta": 2357,
+    "output_item_id": -14126,
+    "output_item_meta": -13186
+   }
+  ],
+  "potion_container_recipes": [
+   {
+    "input_item_id": -18777,
+    "ingredient_id": 12001,
+    "output_item_id": -8816
+   }
+  ],
+  "material_reducers": [
+   {
+    "mix": -2355,
+    "items": {
+     "network_id": -8355,
+     "count": -252
+    }
+   },
+   {
+    "mix": 18142,
+    "items": {
+     "network_id": 16580,
+     "count": -13535
+    }
+   }
+  ],
+  "clear_recipes": true
+ },
+ {
+  "shaped_recipes": [],
+  "shapeless_recipes": [],
+  "multi_recipes": [
+   {
+    "uuid": "23829b33-a9dd-5508-e880-94e67ceb63aa",
+    "network_id": 5034
+   }
+  ],
+  "shulker_box_recipes": [],
+  "shapeless_chemistry_recipes": [
+   {
+    "recipe_id": "",
+    "input": [],
+    "output": [
+     {
+      "network_id": -6459,
+      "count": 51071,
+      "metadata": 12260,
+      "block_runtime_id": 17423,
+      "extra": {
+       "has_nbt": 0,
+       "can_place_on": [],
+       "can_destroy": []
+      }
+     }
+    ],
+    "uuid": "d2fd8065-9842-0092-8e26-c1d1620199b1",
+    "block": "y00x9c1a",
+    "priority": -8050,
+    "unlocking_requirement": {
+     "context": "player_has_many_items",
+     "ingredients": []
+    },
+    "network_id": 8384
+   }
+  ],
+  "shaped_chemistry_recipes": [],
+  "smithing_transform_recipes": [
+   {
+    "recipe_id": "y",
+    "template": {
+     "type": "invalid",
+     "metadata": -13661,
+     "count": -7992
+    },
+    "base": {
+     "type": "valid",
+     "descriptor_type": "x_1",
+     "count": 9977
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": "_1.cxbc",
+     "count": -13412
+    },
+    "result": {
+     "network_id": -18745,
+     "count": 6718,
+     "metadata": 19398,
+     "block_runtime_id": 2709,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "tag": "_.ax",
+    "network_id": 143
+   },
+   {
+    "recipe_id": "",
+    "template": {
+     "type": "valid",
+     "descriptor_type": "yx",
+     "count": -12594
+    },
+    "base": {
+     "type": "invalid",
+     "metadata": -5463,
+     "count": 7047
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": "c9:b",
+     "count": 10733
+    },
+    "result": {
+     "network_id": 1782,
+     "count": 55410,
+     "metadata": 9086,
+     "block_runtime_id": 1531,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "tag": "bb..y.",
+    "network_id": 15172
+   },
+   {
+    "recipe_id": "b_.",
+    "template": {
+     "type": "invalid",
+     "metadata": 17835,
+     "count": -17348
+    },
+    "base": {
+     "type": "invalid",
+     "metadata": -9025,
+     "count": -16480
+    },
+    "addition": {
+     "type": "invalid",
+     "metadata": -5659,
+     "count": -17726
+    },
+    "result": {
+     "network_id": -5426,
+     "count": 15139,
+     "metadata": 12300,
+     "block_runtime_id": 7752,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "tag": "x_yy9b.",
+    "network_id": 16800
+   }
+  ],
+  "smithing_trim_recipes": [
+   {
+    "recipe_id": ": ay",
+    "template": {
+     "type": "invalid",
+     "metadata": 4047,
+     "count": 9501
+    },
+    "input": {
+     "type": "invalid",
+     "metadata": -4828,
+     "count": 11382
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": "cc",
+     "count": 8206
+    },
+    "block": "b:x:.",
+    "network_id": 16716
+   },
+   {
+    "recipe_id": "z1y: _1",
+    "template": {
+     "type": "invalid",
+     "metadata": -8124,
+     "count": 6148
+    },
+    "input": {
+     "type": "invalid",
+     "metadata": 1046,
+     "count": 4436
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": "x:yx1 .",
+     "count": -12483
+    },
+    "block": "b_",
+    "network_id": 4320
+   },
+   {
+    "recipe_id": "1y19",
+    "template": {
+     "type": "valid",
+     "descriptor_type": "x:cz",
+     "count": -19940
+    },
+    "input": {
+     "type": "valid",
+     "descriptor_type": "za.1_az",
+     "count": 8571
+    },
+    "addition": {
+     "type": "invalid",
+     "metadata": -17067,
+     "count": 18527
+    },
+    "block": "",
+    "network_id": 19712
+   }
+  ],
+  "potion_type_recipes": [
+   {
+    "input_item_id": 389,
+    "input_item_meta": 14698,
+    "ingredient_id": 3314,
+    "ingredient_meta": -7392,
+    "output_item_id": 95,
+    "output_item_meta": 468
+   },
+   {
+    "input_item_id": -6292,
+    "input_item_meta": 15091,
+    "ingredient_id": 3466,
+    "ingredient_meta": 9087,
+    "output_item_id": 14532,
+    "output_item_meta": -6819
+   },
+   {
+    "input_item_id": 13042,
+    "input_item_meta": 10095,
+    "ingredient_id": 10248,
+    "ingredient_meta": -15995,
+    "output_item_id": 11003,
+    "output_item_meta": 5598
+   }
+  ],
+  "potion_container_recipes": [
+   {
+    "input_item_id": -10272,
+    "ingredient_id": -8345,
+    "output_item_id": -7988
+   },
+   {
+    "input_item_id": 9020,
+    "ingredient_id": -4059,
+    "output_item_id": -16368
+   },
+   {
+    "input_item_id": 6011,
+    "ingredient_id": 6773,
+    "output_item_id": 3474
+   }
+  ],
+  "material_reducers": [
+   {
+    "mix": 13166,
+    "items": {
+     "network_id": -14167,
+     "count": 10279
+    }
+   },
+   {
+    "mix": 9275,
+    "items": {
+     "network_id": -4988,
+     "count": -2334
+    }
+   }
+  ],
+  "clear_recipes": true
+ },
+ {
+  "shaped_recipes": [
+   {
+    "recipe_id": "0:09.x",
+    "width": -7575,
+    "height": 9332,
+    "input": [],
+    "output": [],
+    "uuid": "5f7b0b02-4b76-a2cf-1632-e92d3e752a07",
+    "block": "x0cz__:0",
+    "priority": 16448,
+    "assume_symmetry": true,
+    "network_id": 13125
+   }
+  ],
+  "shapeless_recipes": [],
+  "multi_recipes": [
+   {
+    "uuid": "77441d75-46d5-ff95-df08-f3f73f9b57df",
+    "network_id": 19734
+   }
+  ],
+  "shulker_box_recipes": [],
+  "shapeless_chemistry_recipes": [
+   {
+    "recipe_id": "ayy",
+    "input": [
+     {
+      "type": "valid",
+      "descriptor_type": "c: xa",
+      "count": -3032
+     }
+    ],
+    "output": [],
+    "uuid": "b7ab3bae-0cac-3d74-173f-e763f4a6d2c5",
+    "block": " ",
+    "priority": 5382,
+    "network_id": 14567
+   }
+  ],
+  "shaped_chemistry_recipes": [],
+  "smithing_transform_recipes": [
+   {
+    "recipe_id": "1xzb",
+    "template": {
+     "type": "invalid",
+     "metadata": -12480,
+     "count": 15576
+    },
+    "base": {
+     "type": "invalid",
+     "metadata": -13246,
+     "count": 9516
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": "9_x1",
+     "count": -16924
+    },
+    "result": {
+     "network_id": 4547,
+     "count": 18013,
+     "metadata": 17347,
+     "block_runtime_id": -4458,
+     "extra": {
+      "has_nbt": 0,
+      "can_place_on": [],
+      "can_destroy": []
+     }
+    },
+    "tag": "09 0",
+    "network_id": 5676
+   }
+  ],
+  "smithing_trim_recipes": [
+   {
+    "recipe_id": "09",
+    "template": {
+     "type": "valid",
+     "descriptor_type": "cx",
+     "count": 1586
+    },
+    "input": {
+     "type": "invalid",
+     "metadata": -3952,
+     "count": 3257
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": "z_1z",
+     "count": -9781
+    },
+    "block": " y",
+    "network_id": 2180
+   },
+   {
+    "recipe_id": "c:yc.:",
+    "template": {
+     "type": "valid",
+     "descriptor_type": "",
+     "count": 12077
+    },
+    "input": {
+     "type": "valid",
+     "descriptor_type": "",
+     "count": -7740
+    },
+    "addition": {
+     "type": "invalid",
+     "metadata": -48,
+     "count": -19002
+    },
+    "block": "9",
+    "network_id": 4672
+   },
+   {
+    "recipe_id": " ",
+    "template": {
+     "type": "invalid",
+     "metadata": -3447,
+     "count": 809
+    },
+    "input": {
+     "type": "invalid",
+     "metadata": 14837,
+     "count": 6763
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": " a0b01y",
+     "count": -13371
+    },
+    "block": "bb:11_ba",
+    "network_id": 1528
+   }
+  ],
+  "potion_type_recipes": [
+   {
+    "input_item_id": 3673,
+    "input_item_meta": -6016,
+    "ingredient_id": 4468,
+    "ingredient_meta": -2923,
+    "output_item_id": 16113,
+    "output_item_meta": -434
+   },
+   {
+    "input_item_id": 3176,
+    "input_item_meta": -4229,
+    "ingredient_id": -14659,
+    "ingredient_meta": 710,
+    "output_item_id": -1926,
+    "output_item_meta": 8661
+   },
+   {
+    "input_item_id": -1849,
+    "input_item_meta": -10254,
+    "ingredient_id": 9321,
+    "ingredient_meta": 18604,
+    "output_item_id": 19969,
+    "output_item_meta": 5635
+   }
+  ],
+  "potion_container_recipes": [],
+  "material_reducers": [
+   {
+    "mix": 16222,
+    "items": {
+     "network_id": 15616,
+     "count": -1881
+    }
+   },
+   {
+    "mix": -8700,
+    "items": {
+     "network_id": 14361,
+     "count": 7035
+    }
+   }
+  ],
+  "clear_recipes": false
+ },
+ {
+  "shaped_recipes": [
+   {
+    "recipe_id": "xa1z09_",
+    "width": -12804,
+    "height": 4551,
+    "input": [
+     {
+      "type": "valid",
+      "descriptor_type": "c_1z:",
+      "count": -15464
+     }
+    ],
+    "output": [
+     {
+      "network_id": 7471,
+      "count": 37404,
+      "metadata": 19656,
+      "block_runtime_id": 14904,
+      "extra": {
+       "has_nbt": 0,
+       "can_place_on": [],
+       "can_destroy": []
+      }
+     }
+    ],
+    "uuid": "27d580b1-c79d-d5d4-cab4-65d5db55f783",
+    "block": "9_.z_",
+    "priority": -9573,
+    "assume_symmetry": false,
+    "network_id": 17040
+   }
+  ],
+  "shapeless_recipes": [
+   {
+    "recipe_id": "c9:cx",
+    "input": [],
+    "output": [],
+    "uuid": "e4371dc4-a476-3fba-1a48-85d0d99a7673",
+    "block": "1",
+    "priority": 15685,
+    "unlocking_requirement": {
+     "context": "player_in_water",
+     "ingredients": []
+    },
+    "network_id": 18725
+   },
+   {
+    "recipe_id": "y.a",
+    "input": [
+     {
+      "type": "invalid",
+      "metadata": 16170,
+      "count": 10998
+     }
+    ],
+    "output": [],
+    "uuid": "8d5b5204-c8db-69b0-d517-2bed72374c65",
+    "block": " xbcb0 ",
+    "priority": 282,
+    "unlocking_requirement": {
+     "context": "player_has_many_items"
+    },
+    "network_id": 9976
+   },
+   {
+    "recipe_id": "  1",
+    "input": [
+     {
+      "type": "valid",
+      "descriptor_type": "bab",
+      "count": 4388
+     }
+    ],
+    "output": [],
+    "uuid": "fe737879-f28c-77ae-1128-ab7296ee6b3d",
+    "block": "_a: ",
+    "priority": -15244,
+    "network_id": 8572
+   }
+  ],
+  "multi_recipes": [],
+  "shulker_box_recipes": [
+   {
+    "recipe_id": ":",
+    "input": [
+     {
+      "type": "valid",
+      "descriptor_type": "_yx91",
+      "count": 2417
+     }
+    ],
+    "output": [
+     {
+      "network_id": 2171,
+      "count": 41656,
+      "metadata": 6856,
+      "block_runtime_id": 4455,
+      "extra": {
+       "has_nbt": 0,
+       "can_place_on": [],
+       "can_destroy": []
+      }
+     }
+    ],
+    "uuid": "9a506c6f-3fd6-ec3d-4ccf-9f4ec0eba574",
+    "block": "yyc:a:",
+    "priority": -4420,
+    "network_id": 9872
+   }
+  ],
+  "shapeless_chemistry_recipes": [
+   {
+    "recipe_id": "",
+    "input": [
+     {
+      "type": "invalid",
+      "metadata": -17840,
+      "count": 6035
+     }
+    ],
+    "output": [],
+    "uuid": "1b10f176-4a6c-d8b2-4a52-2fb029786a57",
+    "block": "0 ::c c",
+    "priority": 8751,
+    "unlocking_requirement": {
+     "context": "none"
+    },
+    "network_id": 18976
+   }
+  ],
+  "shaped_chemistry_recipes": [],
+  "smithing_transform_recipes": [],
+  "smithing_trim_recipes": [
+   {
+    "recipe_id": "c9bzx",
+    "template": {
+     "type": "valid",
+     "descriptor_type": "__9.a1c",
+     "count": -10921
+    },
+    "input": {
+     "type": "valid",
+     "descriptor_type": ".xa__",
+     "count": 9790
+    },
+    "addition": {
+     "type": "valid",
+     "descriptor_type": "0c0a",
+     "count": 6118
+    },
+    "block": "zay_1",
+    "network_id": 5871
+   }
+  ],
+  "potion_type_recipes": [
+   {
+    "input_item_id": -8200,
+    "input_item_meta": -8148,
+    "ingredient_id": -6662,
+    "ingredient_meta": -10988,
+    "output_item_id": 5523,
+    "output_item_meta": 19569
+   },
+   {
+    "input_item_id": 19244,
+    "input_item_meta": 17395,
+    "ingredient_id": 10447,
+    "ingredient_meta": 13647,
+    "output_item_id": -4429,
+    "output_item_meta": -5343
+   }
+  ],
+  "potion_container_recipes": [
+   {
+    "input_item_id": 13318,
+    "ingredient_id": 4682,
+    "output_item_id": 9957
+   }
+  ],
+  "material_reducers": [
+   {
+    "mix": -16129,
+    "items": {
+     "network_id": -19841,
+     "count": -7902
+    }
+   },
+   {
+    "mix": 18579,
+    "items": {
+     "network_id": -3602,
+     "count": -47
+    }
+   },
+   {
+    "mix": -17957,
+    "items": {
+     "network_id": -16507,
+     "count": -16233
+    }
+   }
+  ],
+  "clear_recipes": true
+ }
+]

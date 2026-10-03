@@ -1,0 +1,34 @@
+[
+ {
+  "entity_id": "689774911",
+  "emote_id": "c:b .z",
+  "emote_length_ticks": 18113,
+  "xuid": "0.",
+  "platform_id": "a_x1x",
+  "flags": "mute_chat"
+ },
+ {
+  "entity_id": "282535568",
+  "emote_id": "c_",
+  "emote_length_ticks": 10579,
+  "xuid": "abyy",
+  "platform_id": "9x.: ",
+  "flags": "mute_chat"
+ },
+ {
+  "entity_id": "487032225",
+  "emote_id": "cb.9zz",
+  "emote_length_ticks": 11087,
+  "xuid": "",
+  "platform_id": " ",
+  "flags": "mute_chat"
+ },
+ {
+  "entity_id": "641725783",
+  "emote_id": "b_a",
+  "emote_length_ticks": 6971,
+  "xuid": "0z99y 10",
+  "platform_id": "a",
+  "flags": "server_side"
+ }
+]

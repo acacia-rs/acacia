@@ -1,0 +1,86 @@
+[
+ {
+  "runtime_entity_id": "566322649",
+  "item": {
+   "network_id": -9168,
+   "count": 4626,
+   "metadata": 963,
+   "has_stack_id": true,
+   "stack_id": -19730,
+   "block_runtime_id": 1824,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     ":.xc y "
+    ],
+    "can_destroy": [
+     ":"
+    ]
+   }
+  },
+  "slot": 111,
+  "selected_slot": 167,
+  "window_id": "drop_contents"
+ },
+ {
+  "runtime_entity_id": "784171950",
+  "item": {
+   "network_id": -6268,
+   "count": 41213,
+   "metadata": 3259,
+   "has_stack_id": true,
+   "stack_id": 599,
+   "block_runtime_id": 19941,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  },
+  "slot": 211,
+  "selected_slot": 255,
+  "window_id": "trading_output"
+ },
+ {
+  "runtime_entity_id": "28668268",
+  "item": {
+   "network_id": 15384,
+   "count": 16253,
+   "metadata": 15350,
+   "has_stack_id": true,
+   "stack_id": 3938,
+   "block_runtime_id": 10598,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  },
+  "slot": 186,
+  "selected_slot": 120,
+  "window_id": "crafting_result"
+ },
+ {
+  "runtime_entity_id": "29142850",
+  "item": {
+   "network_id": -32738,
+   "count": 41240,
+   "metadata": 12578,
+   "has_stack_id": true,
+   "stack_id": 17668,
+   "block_runtime_id": 16213,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "9.01z:yz"
+    ],
+    "can_destroy": [
+     "cyxazz"
+    ]
+   }
+  },
+  "slot": 125,
+  "selected_slot": 159,
+  "window_id": "first"
+ }
+]

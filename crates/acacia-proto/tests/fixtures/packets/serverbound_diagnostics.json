@@ -1,0 +1,360 @@
+[
+ {
+  "average_frames_per_second": 0,
+  "average_server_sim_tick_time": 0,
+  "average_client_sim_tick_time": 100.125,
+  "average_begin_frame_time": 1.5,
+  "average_input_time": 1.5,
+  "average_render_time": 1.5,
+  "average_end_frame_time": -2.25,
+  "average_remainder_time_percent": 0.5,
+  "average_unaccounted_time_percent": 0.5,
+  "memory_category_values": [],
+  "entity_diagnostics": [
+   {
+    "display_name": "b",
+    "entity": "0_.az:9c",
+    "duration_nanos": [
+     196,
+     4125537946
+    ],
+    "percent_of_total": 58,
+    "position": {
+     "x": 0,
+     "y": 100.125,
+     "z": 0
+    },
+    "dimension": "y_9.11"
+   },
+   {
+    "display_name": "0.cy_",
+    "entity": "90:y1cz0",
+    "duration_nanos": [
+     37,
+     2258477563
+    ],
+    "percent_of_total": 174,
+    "position": {
+     "x": 0.5,
+     "y": 100.125,
+     "z": 0
+    },
+    "dimension": "_.yxa"
+   }
+  ],
+  "system_diagnostics": [],
+  "system_categories": [],
+  "whisker_scopes": [
+   {
+    "label": "",
+    "indentation": "9.cc.",
+    "total_high_cost_ns": [
+     128,
+     1666520388
+    ],
+    "total_mid_cost_ns": [
+     71,
+     2219810562
+    ],
+    "total_low_cost_ns": [
+     16,
+     927356495
+    ]
+   },
+   {
+    "label": ".0.ac::",
+    "indentation": "z",
+    "total_high_cost_ns": [
+     55,
+     3796732040
+    ],
+    "total_mid_cost_ns": [
+     55,
+     206983635
+    ],
+    "total_low_cost_ns": [
+     129,
+     1720644415
+    ]
+   }
+  ]
+ },
+ {
+  "average_frames_per_second": 100.125,
+  "average_server_sim_tick_time": 100.125,
+  "average_client_sim_tick_time": 1.5,
+  "average_begin_frame_time": 100.125,
+  "average_input_time": 0,
+  "average_render_time": 100.125,
+  "average_end_frame_time": 1.5,
+  "average_remainder_time_percent": 0,
+  "average_unaccounted_time_percent": 1.5,
+  "memory_category_values": [],
+  "entity_diagnostics": [
+   {
+    "display_name": "",
+    "entity": "a z0b.",
+    "duration_nanos": [
+     141,
+     358640591
+    ],
+    "percent_of_total": 54,
+    "position": {
+     "x": 0,
+     "y": 0.5,
+     "z": 0.5
+    },
+    "dimension": "xcx:b0c"
+   },
+   {
+    "display_name": "._x :ay",
+    "entity": "",
+    "duration_nanos": [
+     171,
+     1654896745
+    ],
+    "percent_of_total": 98,
+    "position": {
+     "x": 100.125,
+     "y": -2.25,
+     "z": -2.25
+    },
+    "dimension": "0"
+   }
+  ],
+  "system_diagnostics": [
+   {
+    "display_name": "",
+    "system_index": [
+     95,
+     2584797795
+    ],
+    "duration_nanos": [
+     37,
+     2175398467
+    ],
+    "percent_of_total": 252
+   },
+   {
+    "display_name": ".y90cxa",
+    "system_index": [
+     178,
+     3351001041
+    ],
+    "duration_nanos": [
+     216,
+     161613589
+    ],
+    "percent_of_total": 85
+   }
+  ],
+  "system_categories": [
+   {
+    "category_name": "9.c xa_",
+    "system_index": [
+     78,
+     3724785580
+    ]
+   }
+  ],
+  "whisker_scopes": [
+   {
+    "label": "_c9",
+    "indentation": "b__c.:",
+    "total_high_cost_ns": [
+     5,
+     362494641
+    ],
+    "total_mid_cost_ns": [
+     55,
+     2506005798
+    ],
+    "total_low_cost_ns": [
+     118,
+     3050189769
+    ]
+   },
+   {
+    "label": "xz1y.1z",
+    "indentation": "1ya___",
+    "total_high_cost_ns": [
+     95,
+     2646831096
+    ],
+    "total_mid_cost_ns": [
+     113,
+     1979732576
+    ],
+    "total_low_cost_ns": [
+     184,
+     481440089
+    ]
+   }
+  ]
+ },
+ {
+  "average_frames_per_second": 0.5,
+  "average_server_sim_tick_time": 0.5,
+  "average_client_sim_tick_time": 100.125,
+  "average_begin_frame_time": 0.5,
+  "average_input_time": -2.25,
+  "average_render_time": 1.5,
+  "average_end_frame_time": -2.25,
+  "average_remainder_time_percent": 1.5,
+  "average_unaccounted_time_percent": 100.125,
+  "memory_category_values": [
+   {
+    "category": "material_render_material",
+    "bytes": [
+     4,
+     1175659872
+    ]
+   },
+   {
+    "category": "resource_packs",
+    "bytes": [
+     165,
+     546382703
+    ]
+   },
+   {
+    "category": "gameface_dom",
+    "bytes": [
+     167,
+     65607180
+    ]
+   }
+  ],
+  "entity_diagnostics": [
+   {
+    "display_name": ":9 :",
+    "entity": "_zx",
+    "duration_nanos": [
+     15,
+     3307318523
+    ],
+    "percent_of_total": 7,
+    "position": {
+     "x": -2.25,
+     "y": -2.25,
+     "z": 100.125
+    },
+    "dimension": "1.."
+   }
+  ],
+  "system_diagnostics": [
+   {
+    "display_name": "x",
+    "system_index": [
+     209,
+     3678254224
+    ],
+    "duration_nanos": [
+     69,
+     2618160079
+    ],
+    "percent_of_total": 48
+   },
+   {
+    "display_name": "1xxb_:c:",
+    "system_index": [
+     50,
+     3539986981
+    ],
+    "duration_nanos": [
+     24,
+     3755434237
+    ],
+    "percent_of_total": 105
+   }
+  ],
+  "system_categories": [
+   {
+    "category_name": "y 90_",
+    "system_index": [
+     92,
+     1412786827
+    ]
+   },
+   {
+    "category_name": "1 1",
+    "system_index": [
+     213,
+     1155400486
+    ]
+   }
+  ],
+  "whisker_scopes": [
+   {
+    "label": "z",
+    "indentation": "10cb",
+    "total_high_cost_ns": [
+     96,
+     1777179987
+    ],
+    "total_mid_cost_ns": [
+     91,
+     4275199327
+    ],
+    "total_low_cost_ns": [
+     144,
+     2456229270
+    ]
+   }
+  ]
+ },
+ {
+  "average_frames_per_second": 0,
+  "average_server_sim_tick_time": 0,
+  "average_client_sim_tick_time": -2.25,
+  "average_begin_frame_time": 1.5,
+  "average_input_time": 1.5,
+  "average_render_time": 100.125,
+  "average_end_frame_time": -2.25,
+  "average_remainder_time_percent": 0,
+  "average_unaccounted_time_percent": -2.25,
+  "memory_category_values": [],
+  "entity_diagnostics": [
+   {
+    "display_name": ":01c1xbb",
+    "entity": "1:.0y:c_",
+    "duration_nanos": [
+     35,
+     3758303919
+    ],
+    "percent_of_total": 46,
+    "position": {
+     "x": 0,
+     "y": 0,
+     "z": -2.25
+    },
+    "dimension": ""
+   }
+  ],
+  "system_diagnostics": [],
+  "system_categories": [
+   {
+    "category_name": "a:ba_1z",
+    "system_index": [
+     179,
+     2077192955
+    ]
+   },
+   {
+    "category_name": "0xxc",
+    "system_index": [
+     156,
+     2651422169
+    ]
+   },
+   {
+    "category_name": "bacy99x",
+    "system_index": [
+     116,
+     1872015058
+    ]
+   }
+  ],
+  "whisker_scopes": []
+ }
+]

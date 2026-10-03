@@ -1,0 +1,54 @@
+[
+ {
+  "max_tests_per_batch": 13543,
+  "repetitions": 3853,
+  "rotation": "180deg",
+  "stop_on_error": true,
+  "position": {
+   "x": -16489,
+   "y": 10433,
+   "z": -8715
+  },
+  "tests_per_row": 10929,
+  "name": ":0"
+ },
+ {
+  "max_tests_per_batch": 1127,
+  "repetitions": 18624,
+  "rotation": "0deg",
+  "stop_on_error": true,
+  "position": {
+   "x": -15586,
+   "y": -17042,
+   "z": -14874
+  },
+  "tests_per_row": 7506,
+  "name": ""
+ },
+ {
+  "max_tests_per_batch": 2907,
+  "repetitions": 13088,
+  "rotation": "360deg",
+  "stop_on_error": true,
+  "position": {
+   "x": 4399,
+   "y": -11194,
+   "z": 4689
+  },
+  "tests_per_row": 12034,
+  "name": "9y1"
+ },
+ {
+  "max_tests_per_batch": 15902,
+  "repetitions": 17522,
+  "rotation": "0deg",
+  "stop_on_error": false,
+  "position": {
+   "x": -16518,
+   "y": 2247,
+   "z": 7099
+  },
+  "tests_per_row": 6295,
+  "name": "y019"
+ }
+]

@@ -1,0 +1,18 @@
+[
+ {
+  "chunk_radius": 10105,
+  "max_radius": 98
+ },
+ {
+  "chunk_radius": -10710,
+  "max_radius": 102
+ },
+ {
+  "chunk_radius": 3265,
+  "max_radius": 182
+ },
+ {
+  "chunk_radius": -15231,
+  "max_radius": 83
+ }
+]

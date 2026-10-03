@@ -1,0 +1,22 @@
+[
+ {
+  "cause": 80,
+  "damage": 16700,
+  "armor_slots": "382636616"
+ },
+ {
+  "cause": 8230,
+  "damage": 5617,
+  "armor_slots": "-271517750"
+ },
+ {
+  "cause": -10755,
+  "damage": -374,
+  "armor_slots": "-573250102"
+ },
+ {
+  "cause": 11162,
+  "damage": 17683,
+  "armor_slots": "-982336340"
+ }
+]

@@ -1,0 +1,81 @@
+[
+ {
+  "prediction_type": "vehicle",
+  "position": {
+   "x": 0.5,
+   "y": -2.25,
+   "z": 0
+  },
+  "delta": {
+   "x": 0,
+   "y": -2.25,
+   "z": 0.5
+  },
+  "rotation": {
+   "x": -2.25,
+   "z": 0.5
+  },
+  "on_ground": false,
+  "tick": "432668281"
+ },
+ {
+  "prediction_type": "vehicle",
+  "position": {
+   "x": 0,
+   "y": 100.125,
+   "z": 1.5
+  },
+  "delta": {
+   "x": 100.125,
+   "y": 0.5,
+   "z": 100.125
+  },
+  "rotation": {
+   "x": 100.125,
+   "z": 0.5
+  },
+  "angular_velocity": 1.5,
+  "on_ground": false,
+  "tick": "51359970"
+ },
+ {
+  "prediction_type": "player",
+  "position": {
+   "x": -2.25,
+   "y": -2.25,
+   "z": 1.5
+  },
+  "delta": {
+   "x": -2.25,
+   "y": 1.5,
+   "z": -2.25
+  },
+  "rotation": {
+   "x": 0,
+   "z": 0
+  },
+  "angular_velocity": 100.125,
+  "on_ground": false,
+  "tick": "547062986"
+ },
+ {
+  "prediction_type": "player",
+  "position": {
+   "x": 0,
+   "y": 100.125,
+   "z": 1.5
+  },
+  "delta": {
+   "x": 1.5,
+   "y": 0,
+   "z": 0.5
+  },
+  "rotation": {
+   "x": 100.125,
+   "z": 0
+  },
+  "angular_velocity": 0.5,
+  "on_ground": true,
+  "tick": "351277578"
+ }
+]

@@ -1,0 +1,113 @@
+[
+ {
+  "must_accept": true,
+  "resource_packs": [
+   {
+    "uuid": ".9y:",
+    "version": "_0b_",
+    "name": "z bb_"
+   }
+  ],
+  "game_version": "0_cab ",
+  "experiments": [
+   {
+    "name": "1",
+    "enabled": true
+   }
+  ],
+  "experiments_previously_used": false,
+  "has_editor_packs": false
+ },
+ {
+  "must_accept": true,
+  "resource_packs": [
+   {
+    "uuid": "1z",
+    "version": "9cxbc0",
+    "name": " bx_9x0z"
+   },
+   {
+    "uuid": "9 cbz0",
+    "version": "xyxyy",
+    "name": "x."
+   },
+   {
+    "uuid": "b",
+    "version": "a a1cx",
+    "name": "09.aczy"
+   }
+  ],
+  "game_version": "x ",
+  "experiments": [
+   {
+    "name": "c_b",
+    "enabled": false
+   },
+   {
+    "name": "cy.y",
+    "enabled": false
+   },
+   {
+    "name": "_0cb.",
+    "enabled": false
+   }
+  ],
+  "experiments_previously_used": true,
+  "has_editor_packs": false
+ },
+ {
+  "must_accept": false,
+  "resource_packs": [
+   {
+    "uuid": "9z",
+    "version": ".bbxxcy",
+    "name": ":0c x_c "
+   }
+  ],
+  "game_version": "1b1:zy",
+  "experiments": [
+   {
+    "name": "yxycb:",
+    "enabled": false
+   },
+   {
+    "name": "cy",
+    "enabled": true
+   },
+   {
+    "name": "c1x:",
+    "enabled": true
+   }
+  ],
+  "experiments_previously_used": false,
+  "has_editor_packs": false
+ },
+ {
+  "must_accept": true,
+  "resource_packs": [
+   {
+    "uuid": "9b0x9:1",
+    "version": "b: ",
+    "name": ""
+   },
+   {
+    "uuid": ".ac 9 .9",
+    "version": "91:aa:.9",
+    "name": "z1"
+   }
+  ],
+  "game_version": ".zxz",
+  "experiments": [
+   {
+    "name": "9. .:.",
+    "enabled": false
+   },
+   {
+    "name": "ab_b.",
+    "enabled": false
+   }
+  ],
+  "experiments_previously_used": true,
+  "has_editor_packs": true
+ }
+]

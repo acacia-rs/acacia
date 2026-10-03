@@ -1,0 +1,53 @@
+[
+ {
+  "rules": [
+   {
+    "name": "_c0_.",
+    "editable": true,
+    "type": "bool",
+    "value": false
+   }
+  ]
+ },
+ {
+  "rules": [
+   {
+    "name": "ba:",
+    "editable": true,
+    "type": "float",
+    "value": 1.5
+   },
+   {
+    "name": "a.x0_cx1",
+    "editable": true,
+    "type": "bool",
+    "value": false
+   },
+   {
+    "name": ".:x.09:9",
+    "editable": false,
+    "type": "bool",
+    "value": true
+   }
+  ]
+ },
+ {
+  "rules": [
+   {
+    "name": "cc",
+    "editable": false,
+    "type": "int",
+    "value": -78080096
+   },
+   {
+    "name": "z910yc",
+    "editable": false,
+    "type": "bool",
+    "value": true
+   }
+  ]
+ },
+ {
+  "rules": []
+ }
+]

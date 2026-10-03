@@ -1,0 +1,484 @@
+[
+ {
+  "uuid": "8ebc7731-0fe2-667e-4ce2-6b8745680801",
+  "username": "b",
+  "runtime_id": "85096791",
+  "platform_chat_id": ".",
+  "position": {
+   "x": -2.25,
+   "y": -2.25,
+   "z": 100.125
+  },
+  "velocity": {
+   "x": 100.125,
+   "y": 0,
+   "z": -2.25
+  },
+  "pitch": 0.5,
+  "yaw": 1.5,
+  "head_yaw": 100.125,
+  "held_item": {
+   "network_id": 12065,
+   "count": 8805,
+   "metadata": 11951,
+   "has_stack_id": false,
+   "block_runtime_id": 11921,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     ":0 zy."
+    ],
+    "can_destroy": []
+   }
+  },
+  "gamemode": "adventure",
+  "metadata": [],
+  "properties": {
+   "ints": [],
+   "floats": [
+    {
+     "index": 8825,
+     "value": -2.25
+    },
+    {
+     "index": 3166,
+     "value": 0.5
+    },
+    {
+     "index": 8476,
+     "value": 0.5
+    }
+   ]
+  },
+  "unique_id": [
+   200,
+   -1973937921
+  ],
+  "permission_level": "visitor",
+  "command_permission": "normal",
+  "abilities": [
+   {
+    "type": "loading_screen",
+    "allowed": {
+     "_value": 244,
+     "build": false,
+     "mine": false,
+     "doors_and_switches": true,
+     "open_containers": false,
+     "attack_players": true,
+     "attack_mobs": true,
+     "operator_commands": true,
+     "teleport": true,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "enabled": {
+     "_value": 142,
+     "build": false,
+     "mine": true,
+     "doors_and_switches": true,
+     "open_containers": true,
+     "attack_players": false,
+     "attack_mobs": false,
+     "operator_commands": false,
+     "teleport": true,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "fly_speed": 0,
+    "vertical_fly_speed": 1.5,
+    "walk_speed": 1.5
+   }
+  ],
+  "links": [
+   {
+    "ridden_entity_id": "755202701",
+    "rider_entity_id": "706900025",
+    "type": 216,
+    "immediate": true,
+    "rider_initiated": true,
+    "angular_velocity": 1.5
+   },
+   {
+    "ridden_entity_id": "955378890",
+    "rider_entity_id": "805232762",
+    "type": 177,
+    "immediate": false,
+    "rider_initiated": false,
+    "angular_velocity": -2.25
+   }
+  ],
+  "device_id": "x:",
+  "device_os": "GearVR"
+ },
+ {
+  "uuid": "ba5861da-2741-4075-f1af-7c89943790b9",
+  "username": "x",
+  "runtime_id": "223157427",
+  "platform_chat_id": "xa1b0a",
+  "position": {
+   "x": 0,
+   "y": 1.5,
+   "z": 0.5
+  },
+  "velocity": {
+   "x": 1.5,
+   "y": 100.125,
+   "z": 0.5
+  },
+  "pitch": 0.5,
+  "yaw": 1.5,
+  "head_yaw": 1.5,
+  "held_item": {
+   "network_id": 11787,
+   "count": 38164,
+   "metadata": 19331,
+   "has_stack_id": true,
+   "stack_id": 14386,
+   "block_runtime_id": 4972,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "cxy09c."
+    ],
+    "can_destroy": []
+   }
+  },
+  "gamemode": "survival_spectator",
+  "metadata": [],
+  "properties": {
+   "ints": [],
+   "floats": []
+  },
+  "unique_id": [
+   73,
+   -524976629
+  ],
+  "permission_level": "custom",
+  "command_permission": "automation",
+  "abilities": [
+   {
+    "type": "loading_screen",
+    "allowed": {
+     "_value": 221,
+     "build": true,
+     "mine": false,
+     "doors_and_switches": true,
+     "open_containers": true,
+     "attack_players": true,
+     "attack_mobs": false,
+     "operator_commands": true,
+     "teleport": true,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "enabled": {
+     "_value": 70,
+     "build": false,
+     "mine": true,
+     "doors_and_switches": true,
+     "open_containers": false,
+     "attack_players": false,
+     "attack_mobs": false,
+     "operator_commands": true,
+     "teleport": false,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "fly_speed": -2.25,
+    "vertical_fly_speed": 0,
+    "walk_speed": 100.125
+   }
+  ],
+  "links": [
+   {
+    "ridden_entity_id": "-618058461",
+    "rider_entity_id": "-99272555",
+    "type": 71,
+    "immediate": true,
+    "rider_initiated": true,
+    "angular_velocity": 1.5
+   },
+   {
+    "ridden_entity_id": "-518741243",
+    "rider_entity_id": "-520868797",
+    "type": 44,
+    "immediate": false,
+    "rider_initiated": false,
+    "angular_velocity": 0.5
+   },
+   {
+    "ridden_entity_id": "632533937",
+    "rider_entity_id": "-174032626",
+    "type": 102,
+    "immediate": false,
+    "rider_initiated": false,
+    "angular_velocity": 0
+   }
+  ],
+  "device_id": "b1c_:",
+  "device_os": "Undefined"
+ },
+ {
+  "uuid": "cf00d36f-449d-66e0-b848-3d6d1d7889db",
+  "username": "",
+  "runtime_id": "556470744",
+  "platform_chat_id": "1c",
+  "position": {
+   "x": 0.5,
+   "y": -2.25,
+   "z": 0.5
+  },
+  "velocity": {
+   "x": -2.25,
+   "y": 0.5,
+   "z": 1.5
+  },
+  "pitch": 0.5,
+  "yaw": 0,
+  "head_yaw": 0,
+  "held_item": {
+   "network_id": 26551,
+   "count": 62107,
+   "metadata": 13718,
+   "has_stack_id": true,
+   "stack_id": -18385,
+   "block_runtime_id": 2803,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  },
+  "gamemode": "fallback",
+  "metadata": [],
+  "properties": {
+   "ints": [
+    {
+     "index": 9597,
+     "value": 2574
+    },
+    {
+     "index": 9512,
+     "value": -12094
+    },
+    {
+     "index": 16623,
+     "value": 5324
+    }
+   ],
+   "floats": [
+    {
+     "index": 13867,
+     "value": -2.25
+    },
+    {
+     "index": 7252,
+     "value": 0
+    },
+    {
+     "index": 12898,
+     "value": 1.5
+    }
+   ]
+  },
+  "unique_id": [
+   125,
+   -299223532
+  ],
+  "permission_level": "custom",
+  "command_permission": "automation",
+  "abilities": [
+   {
+    "type": "loading_screen",
+    "allowed": {
+     "_value": 67,
+     "build": true,
+     "mine": true,
+     "doors_and_switches": false,
+     "open_containers": false,
+     "attack_players": false,
+     "attack_mobs": false,
+     "operator_commands": true,
+     "teleport": false,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "enabled": {
+     "_value": 210,
+     "build": false,
+     "mine": true,
+     "doors_and_switches": false,
+     "open_containers": false,
+     "attack_players": true,
+     "attack_mobs": false,
+     "operator_commands": true,
+     "teleport": true,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "fly_speed": 100.125,
+    "vertical_fly_speed": -2.25,
+    "walk_speed": 0
+   }
+  ],
+  "links": [],
+  "device_id": "9y0:zb1x",
+  "device_os": "NintendoSwitch"
+ },
+ {
+  "uuid": "f5a5d716-f13a-422f-df51-df1671101363",
+  "username": "19xz",
+  "runtime_id": "634705730",
+  "platform_chat_id": "1yc",
+  "position": {
+   "x": -2.25,
+   "y": -2.25,
+   "z": 0.5
+  },
+  "velocity": {
+   "x": 0,
+   "y": 0,
+   "z": 0.5
+  },
+  "pitch": 100.125,
+  "yaw": 1.5,
+  "head_yaw": 0.5,
+  "held_item": {
+   "network_id": 27340,
+   "count": 33254,
+   "metadata": 15137,
+   "has_stack_id": true,
+   "stack_id": -15443,
+   "block_runtime_id": 11371,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": [
+     "0yz1xy.a"
+    ]
+   }
+  },
+  "gamemode": "creative",
+  "metadata": [],
+  "properties": {
+   "ints": [
+    {
+     "index": 10107,
+     "value": -17898
+    },
+    {
+     "index": 3923,
+     "value": -5986
+    }
+   ],
+   "floats": [
+    {
+     "index": 11688,
+     "value": 0
+    },
+    {
+     "index": 7860,
+     "value": -2.25
+    },
+    {
+     "index": 2645,
+     "value": 0
+    }
+   ]
+  },
+  "unique_id": [
+   -92,
+   1768667898
+  ],
+  "permission_level": "visitor",
+  "command_permission": "owner",
+  "abilities": [],
+  "links": [
+   {
+    "ridden_entity_id": "-423647584",
+    "rider_entity_id": "409453081",
+    "type": 153,
+    "immediate": true,
+    "rider_initiated": false,
+    "angular_velocity": 0
+   },
+   {
+    "ridden_entity_id": "867154894",
+    "rider_entity_id": "240761027",
+    "type": 55,
+    "immediate": true,
+    "rider_initiated": true,
+    "angular_velocity": -2.25
+   }
+  ],
+  "device_id": "x  ",
+  "device_os": "Orbis"
+ }
+]

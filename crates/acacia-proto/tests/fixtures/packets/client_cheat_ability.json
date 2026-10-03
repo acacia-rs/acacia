@@ -1,0 +1,202 @@
+[
+ {
+  "entity_unique_id": [
+   117,
+   -1584816421
+  ],
+  "permission_level": "member",
+  "command_permission": "host",
+  "abilities": [
+   {
+    "type": "spectator",
+    "allowed": {
+     "_value": 49,
+     "build": true,
+     "mine": false,
+     "doors_and_switches": false,
+     "open_containers": false,
+     "attack_players": true,
+     "attack_mobs": true,
+     "operator_commands": false,
+     "teleport": false,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "enabled": {
+     "_value": 186,
+     "build": false,
+     "mine": true,
+     "doors_and_switches": false,
+     "open_containers": true,
+     "attack_players": true,
+     "attack_mobs": true,
+     "operator_commands": false,
+     "teleport": true,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "fly_speed": 0.5,
+    "vertical_fly_speed": -2.25,
+    "walk_speed": 0.5
+   }
+  ]
+ },
+ {
+  "entity_unique_id": [
+   -125,
+   1398501269
+  ],
+  "permission_level": "member",
+  "command_permission": "owner",
+  "abilities": []
+ },
+ {
+  "entity_unique_id": [
+   38,
+   38028508
+  ],
+  "permission_level": "operator",
+  "command_permission": "operator",
+  "abilities": []
+ },
+ {
+  "entity_unique_id": [
+   -178,
+   -1344717330
+  ],
+  "permission_level": "member",
+  "command_permission": "owner",
+  "abilities": [
+   {
+    "type": "editor",
+    "allowed": {
+     "_value": 19,
+     "build": true,
+     "mine": true,
+     "doors_and_switches": false,
+     "open_containers": false,
+     "attack_players": true,
+     "attack_mobs": false,
+     "operator_commands": false,
+     "teleport": false,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "enabled": {
+     "_value": 168,
+     "build": false,
+     "mine": false,
+     "doors_and_switches": false,
+     "open_containers": true,
+     "attack_players": false,
+     "attack_mobs": true,
+     "operator_commands": false,
+     "teleport": true,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "fly_speed": -2.25,
+    "vertical_fly_speed": 1.5,
+    "walk_speed": 100.125
+   },
+   {
+    "type": "base",
+    "allowed": {
+     "_value": 192,
+     "build": false,
+     "mine": false,
+     "doors_and_switches": false,
+     "open_containers": false,
+     "attack_players": false,
+     "attack_mobs": false,
+     "operator_commands": true,
+     "teleport": true,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "enabled": {
+     "_value": 145,
+     "build": true,
+     "mine": false,
+     "doors_and_switches": false,
+     "open_containers": false,
+     "attack_players": true,
+     "attack_mobs": false,
+     "operator_commands": false,
+     "teleport": true,
+     "invulnerable": false,
+     "flying": false,
+     "may_fly": false,
+     "instant_build": false,
+     "lightning": false,
+     "fly_speed": false,
+     "walk_speed": false,
+     "muted": false,
+     "world_builder": false,
+     "no_clip": false,
+     "privileged_builder": false,
+     "vertical_fly_speed": false,
+     "count": false
+    },
+    "fly_speed": 0,
+    "vertical_fly_speed": 0.5,
+    "walk_speed": 1.5
+   }
+  ]
+ }
+]

@@ -1,0 +1,22 @@
+[
+ {
+  "window_id": "hotbar",
+  "window_type": "trading",
+  "server": true
+ },
+ {
+  "window_id": "offhand",
+  "window_type": "hand",
+  "server": true
+ },
+ {
+  "window_id": "none",
+  "window_type": "anvil",
+  "server": true
+ },
+ {
+  "window_id": "trading_input_2",
+  "window_type": "structure_editor",
+  "server": false
+ }
+]

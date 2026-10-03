@@ -1,0 +1,81 @@
+[
+ {
+  "shapes": [
+   {
+    "network_id": "144321889",
+    "type": "sphere",
+    "rotation": {
+     "x": -2.25,
+     "y": 0,
+     "z": 0.5
+    },
+    "total_time_left": 0,
+    "color": 340362358,
+    "dimension_id": -6365,
+    "attached_to_entity_id": "696926913",
+    "extra_shape_data": {}
+   },
+   {
+    "network_id": "700929348",
+    "location": {
+     "x": 100.125,
+     "y": -2.25,
+     "z": -2.25
+    },
+    "scale": 100.125,
+    "max_render_distance": 0,
+    "color": 508961203,
+    "dimension_id": -638,
+    "attached_to_entity_id": "329289735"
+   }
+  ]
+ },
+ {
+  "shapes": []
+ },
+ {
+  "shapes": [
+   {
+    "network_id": "960239105",
+    "location": {
+     "x": -2.25,
+     "y": 0,
+     "z": 100.125
+    },
+    "scale": 1.5,
+    "total_time_left": 0.5,
+    "max_render_distance": 1.5,
+    "color": -553496558,
+    "dimension_id": -7805,
+    "attached_to_entity_id": "142122434"
+   },
+   {
+    "network_id": "945121532",
+    "location": {
+     "x": 1.5,
+     "y": 0,
+     "z": -2.25
+    },
+    "max_render_distance": 0,
+    "dimension_id": -3626,
+    "attached_to_entity_id": "-114415154"
+   }
+  ]
+ },
+ {
+  "shapes": [
+   {
+    "network_id": "438449765",
+    "scale": 1.5,
+    "rotation": {
+     "x": 100.125,
+     "y": 0,
+     "z": -2.25
+    },
+    "max_render_distance": 1.5,
+    "color": 1553067378,
+    "attached_to_entity_id": "294202123"
+   }
+  ]
+ }
+]

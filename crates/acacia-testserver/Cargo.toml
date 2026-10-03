@@ -1,0 +1,22 @@
+[package]
+name = "acacia-testserver"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+acacia-raknet = { path = "../acacia-raknet" }
+acacia-session = { path = "../acacia-session" }
+acacia-proto = { path = "../acacia-proto" }
+acacia-auth = { path = "../acacia-auth", default-features = false }
+tokio = { version = "1.53.1", features = ["rt", "net", "time", "macros"] }
+bytes = "1.12.1"
+p384 = { version = "0.13", features = ["ecdsa"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
+hex = "0.4"
+serde_json = "1"
+tracing = "0.1.44"
+

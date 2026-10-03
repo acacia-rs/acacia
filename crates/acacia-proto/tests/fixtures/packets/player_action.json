@@ -1,0 +1,62 @@
+[
+ {
+  "runtime_entity_id": "566322649",
+  "action": "creative_player_destroy_block",
+  "position": {
+   "x": -17177,
+   "y": -18074,
+   "z": -18530
+  },
+  "result_position": {
+   "x": -19730,
+   "y": -16352,
+   "z": -5833
+  },
+  "face": 2331
+ },
+ {
+  "runtime_entity_id": "569124038",
+  "action": "swimming",
+  "position": {
+   "x": 11470,
+   "y": 14373,
+   "z": -15694
+  },
+  "result_position": {
+   "x": 12212,
+   "y": 4868,
+   "z": 4815
+  },
+  "face": 15279
+ },
+ {
+  "runtime_entity_id": "381931060",
+  "action": "missed_swing",
+  "position": {
+   "x": -7540,
+   "y": -16308,
+   "z": -4069
+  },
+  "result_position": {
+   "x": 14329,
+   "y": 11607,
+   "z": 6268
+  },
+  "face": 17036
+ },
+ {
+  "runtime_entity_id": "784171950",
+  "action": "start_glide",
+  "position": {
+   "x": 5155,
+   "y": -13483,
+   "z": -1250
+  },
+  "result_position": {
+   "x": 599,
+   "y": 19881,
+   "z": -9328
+  },
+  "face": -12093
+ }
+]

@@ -1,0 +1,70 @@
+[
+ {
+  "position": {
+   "x": -8474,
+   "y": -16974,
+   "z": 3207
+  },
+  "block_runtime_id": 18828,
+  "flags": {
+   "_value": 39,
+   "neighbors": true,
+   "network": true,
+   "no_graphic": true,
+   "unused": false,
+   "priority": false
+  },
+  "layer": 273
+ },
+ {
+  "position": {
+   "x": -13698,
+   "y": -7496,
+   "z": 6775
+  },
+  "block_runtime_id": 10067,
+  "flags": {
+   "_value": 176,
+   "neighbors": false,
+   "network": false,
+   "no_graphic": false,
+   "unused": false,
+   "priority": true
+  },
+  "layer": 10905
+ },
+ {
+  "position": {
+   "x": -5931,
+   "y": 6074,
+   "z": -2361
+  },
+  "block_runtime_id": 3643,
+  "flags": {
+   "_value": 113,
+   "neighbors": true,
+   "network": false,
+   "no_graphic": false,
+   "unused": false,
+   "priority": true
+  },
+  "layer": 13447
+ },
+ {
+  "position": {
+   "x": 3797,
+   "y": 4422,
+   "z": 17774
+  },
+  "block_runtime_id": 175,
+  "flags": {
+   "_value": 165,
+   "neighbors": true,
+   "network": false,
+   "no_graphic": true,
+   "unused": false,
+   "priority": false
+  },
+  "layer": 7750
+ }
+]

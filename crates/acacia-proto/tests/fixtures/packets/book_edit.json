@@ -1,0 +1,29 @@
+[
+ {
+  "inventory_slot": -12051,
+  "type": "sign",
+  "title": "0",
+  "author": ":x1b:.",
+  "xuid": "x9x.:"
+ },
+ {
+  "inventory_slot": -2755,
+  "type": "sign",
+  "title": "ya:.z.",
+  "author": "zy.0._",
+  "xuid": ". 1_ "
+ },
+ {
+  "inventory_slot": 16419,
+  "type": "swap_pages",
+  "page1": -19965,
+  "page2": -17087
+ },
+ {
+  "inventory_slot": -5976,
+  "type": "replace_page",
+  "page_number": 11680,
+  "text": "y",
+  "photo_name": "b_.z:_ z"
+ }
+]

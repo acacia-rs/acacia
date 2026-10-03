@@ -1,0 +1,265 @@
+[
+ {
+  "presets": [
+   {
+    "name": "_yc",
+    "parent": ":a9",
+    "position": {
+     "x": 1.5,
+     "z": 0
+    },
+    "rotation": {},
+    "rotation_speed": 0.5,
+    "horizontal_rotation_limit": {
+     "x": 1.5,
+     "z": 100.125
+    },
+    "continue_targeting": false,
+    "tracking_radius": 1.5,
+    "radius": 1.5,
+    "yaw_limit_max": 1.5,
+    "player_effects": false,
+    "aim_assist": {
+     "preset_id": "x_ az",
+     "target_mode": "distance",
+     "distance": 0
+    },
+    "control_scheme": "locked_player_relative_strafe",
+    "apply_inherited_starting_rotation": true,
+    "starting_rotation": {
+     "x": 0,
+     "z": 1.5
+    }
+   }
+  ]
+ },
+ {
+  "presets": [
+   {
+    "name": "yc0_z1",
+    "parent": " ",
+    "position": {
+     "y": 1.5
+    },
+    "rotation": {
+     "y": 0
+    },
+    "horizontal_rotation_limit": {
+     "x": 100.125,
+     "z": -2.25
+    },
+    "continue_targeting": false,
+    "tracking_radius": 0.5,
+    "offset": {
+     "x": 100.125,
+     "z": 100.125
+    },
+    "yaw_limit_max": 0.5,
+    "audio_listener": 249,
+    "aim_assist": {
+     "target_mode": "distance",
+     "angle": {
+      "x": 100.125,
+      "z": 100.125
+     },
+     "distance": 0
+    },
+    "control_scheme": "player_relative",
+    "apply_inherited_starting_rotation": false
+   },
+   {
+    "name": "9 9.  ab",
+    "parent": "",
+    "position": {
+     "y": 0.5,
+     "z": -2.25
+    },
+    "rotation": {},
+    "rotation_speed": 1.5,
+    "snap_to_target": true,
+    "horizontal_rotation_limit": {
+     "x": 100.125,
+     "z": 100.125
+    },
+    "continue_targeting": true,
+    "offset": {
+     "x": 100.125,
+     "z": 0.5
+    },
+    "radius": 1.5,
+    "yaw_limit_min": 0.5,
+    "yaw_limit_max": 0.5,
+    "player_effects": false,
+    "aim_assist": {
+     "target_mode": "angle",
+     "angle": {
+      "x": 0,
+      "z": 0.5
+     }
+    },
+    "control_scheme": "player_relative",
+    "apply_inherited_starting_rotation": false,
+    "starting_rotation": {
+     "x": 100.125,
+     "z": 100.125
+    }
+   },
+   {
+    "name": "0",
+    "parent": "1.",
+    "position": {
+     "x": 0,
+     "y": -2.25,
+     "z": 0.5
+    },
+    "rotation": {
+     "x": 0.5
+    },
+    "rotation_speed": 0.5,
+    "snap_to_target": true,
+    "horizontal_rotation_limit": {
+     "x": 1.5,
+     "z": 0
+    },
+    "vertical_rotation_limit": {
+     "x": -2.25,
+     "z": -2.25
+    },
+    "continue_targeting": true,
+    "offset": {
+     "x": 0,
+     "z": 100.125
+    },
+    "radius": 1.5,
+    "audio_listener": 238,
+    "player_effects": false,
+    "apply_inherited_starting_rotation": false
+   }
+  ]
+ },
+ {
+  "presets": [
+   {
+    "name": "",
+    "parent": " c1bb",
+    "position": {
+     "x": 100.125,
+     "y": 100.125
+    },
+    "rotation": {
+     "x": 100.125
+    },
+    "rotation_speed": 1.5,
+    "snap_to_target": false,
+    "horizontal_rotation_limit": {
+     "x": 100.125,
+     "z": 1.5
+    },
+    "vertical_rotation_limit": {
+     "x": -2.25,
+     "z": 1.5
+    },
+    "tracking_radius": -2.25,
+    "offset": {
+     "x": -2.25,
+     "z": 0
+    },
+    "radius": 100.125,
+    "player_effects": true,
+    "apply_inherited_starting_rotation": false,
+    "starting_rotation": {
+     "x": -2.25,
+     "z": 1.5
+    }
+   }
+  ]
+ },
+ {
+  "presets": [
+   {
+    "name": "b9",
+    "parent": "a1",
+    "position": {
+     "y": 0.5,
+     "z": 0.5
+    },
+    "rotation": {
+     "x": -2.25
+    },
+    "rotation_speed": 1.5,
+    "continue_targeting": true,
+    "tracking_radius": -2.25,
+    "offset": {
+     "x": 0.5,
+     "z": 1.5
+    },
+    "entity_offset": {
+     "x": 100.125,
+     "y": 0.5,
+     "z": 1.5
+    },
+    "yaw_limit_min": 100.125,
+    "yaw_limit_max": 0.5,
+    "player_effects": false,
+    "aim_assist": {
+     "preset_id": ":xc",
+     "angle": {
+      "x": 0,
+      "z": 100.125
+     },
+     "distance": 0.5
+    },
+    "control_scheme": "camera_relative",
+    "apply_inherited_starting_rotation": false,
+    "starting_rotation": {
+     "x": 100.125,
+     "z": 1.5
+    }
+   },
+   {
+    "name": "1",
+    "parent": "az_axxx",
+    "position": {
+     "y": 1.5
+    },
+    "rotation": {
+     "x": 1.5,
+     "y": 0.5
+    },
+    "rotation_speed": 0,
+    "snap_to_target": false,
+    "horizontal_rotation_limit": {
+     "x": 0.5,
+     "z": 1.5
+    },
+    "vertical_rotation_limit": {
+     "x": 0.5,
+     "z": 1.5
+    },
+    "offset": {
+     "x": -2.25,
+     "z": 1.5
+    },
+    "entity_offset": {
+     "x": -2.25,
+     "y": -2.25,
+     "z": -2.25
+    },
+    "radius": 0.5,
+    "yaw_limit_min": 0,
+    "yaw_limit_max": 0,
+    "player_effects": false,
+    "aim_assist": {
+     "preset_id": "_ .abazc",
+     "distance": -2.25
+    },
+    "control_scheme": "locked_player_relative_strafe",
+    "apply_inherited_starting_rotation": false,
+    "starting_rotation": {
+     "x": 1.5,
+     "z": 0.5
+    }
+   }
+  ]
+ }
+]

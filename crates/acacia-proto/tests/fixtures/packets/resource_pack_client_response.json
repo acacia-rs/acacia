@@ -1,0 +1,23 @@
+[
+ {
+  "response_status": "refused",
+  "response_status_name": "y"
+ },
+ {
+  "response_status": "have_all_packs",
+  "response_status_name": " 09.1xc:"
+ },
+ {
+  "response_status": "completed",
+  "response_status_name": "c"
+ },
+ {
+  "response_status": "send_packs",
+  "response_status_name": "_ab",
+  "resourcepackids": [
+   "11_ _c",
+   ":",
+   "z0y91.:"
+  ]
+ }
+]

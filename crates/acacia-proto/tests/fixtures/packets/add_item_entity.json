@@ -1,0 +1,254 @@
+[
+ {
+  "entity_id_self": "-524319949",
+  "runtime_entity_id": "404124717",
+  "item": {
+   "network_id": -6371,
+   "count": 29240,
+   "metadata": 4455,
+   "has_stack_id": false,
+   "block_runtime_id": 18790,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": []
+   }
+  },
+  "position": {
+   "x": 1.5,
+   "y": 1.5,
+   "z": 0
+  },
+  "velocity": {
+   "x": 100.125,
+   "y": 1.5,
+   "z": 1.5
+  },
+  "metadata": [],
+  "is_from_fishing": false
+ },
+ {
+  "entity_id_self": "-21858466",
+  "runtime_entity_id": "364703311",
+  "item": {
+   "network_id": 2089,
+   "count": 33166,
+   "metadata": 5703,
+   "has_stack_id": true,
+   "stack_id": 14028,
+   "block_runtime_id": 1268,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [],
+    "can_destroy": [
+     " :_bc.."
+    ]
+   }
+  },
+  "position": {
+   "x": 100.125,
+   "y": 0,
+   "z": 100.125
+  },
+  "velocity": {
+   "x": 100.125,
+   "y": 0,
+   "z": -2.25
+  },
+  "metadata": [
+   {
+    "key": "area_effect_cloud_spawn_time",
+    "type": "int",
+    "legacy_type": 183,
+    "value": -14365
+   },
+   {
+    "key": "flags",
+    "type": "vec3i",
+    "legacy_type": 164,
+    "value": {
+     "_value": "445705154",
+     "onfire": false,
+     "sneaking": true,
+     "riding": false,
+     "sprinting": false,
+     "action": false,
+     "invisible": false,
+     "tempted": true,
+     "inlove": true,
+     "saddled": true,
+     "powered": true,
+     "ignited": false,
+     "baby": true,
+     "converting": false,
+     "critical": true,
+     "can_show_nametag": true,
+     "always_show_nametag": true,
+     "no_ai": false,
+     "silent": false,
+     "wallclimbing": false,
+     "can_climb": false,
+     "swimmer": true,
+     "can_fly": false,
+     "walker": false,
+     "resting": true,
+     "sitting": false,
+     "angry": true,
+     "interested": false,
+     "charged": true,
+     "tamed": true,
+     "orphaned": false,
+     "leashed": false,
+     "sheared": false,
+     "gliding": false,
+     "elder": false,
+     "moving": false,
+     "breathing": false,
+     "chested": false,
+     "stackable": false,
+     "showbase": false,
+     "rearing": false,
+     "vibrating": false,
+     "idling": false,
+     "evoker_spell": false,
+     "charge_attack": false,
+     "wasd_controlled": false,
+     "can_power_jump": false,
+     "can_dash": false,
+     "linger": false,
+     "has_collision": false,
+     "affected_by_gravity": false,
+     "fire_immune": false,
+     "dancing": false,
+     "enchanted": false,
+     "show_trident_rope": false,
+     "container_private": false,
+     "transforming": false,
+     "spin_attack": false,
+     "swimming": false,
+     "bribed": false,
+     "pregnant": false,
+     "laying_egg": false,
+     "rider_can_pick": false,
+     "transition_sitting": false,
+     "eating": false,
+     "laying_down": false
+    }
+   },
+   {
+    "key": "name_author",
+    "type": "long",
+    "legacy_type": 142,
+    "value": "-609796728"
+   }
+  ],
+  "is_from_fishing": true
+ },
+ {
+  "entity_id_self": "-593987715",
+  "runtime_entity_id": "975926401",
+  "item": {
+   "network_id": 30127,
+   "count": 46526,
+   "metadata": 11011,
+   "has_stack_id": false,
+   "block_runtime_id": 4139,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "b1czybx "
+    ],
+    "can_destroy": [
+     "990.x.y"
+    ]
+   }
+  },
+  "position": {
+   "x": 100.125,
+   "y": 0,
+   "z": -2.25
+  },
+  "velocity": {
+   "x": -2.25,
+   "y": 0.5,
+   "z": 0.5
+  },
+  "metadata": [
+   {
+    "key": "controlling_rider_seat_number",
+    "type": "vec3f",
+    "legacy_type": 13,
+    "value": {
+     "x": -2.25,
+     "y": 0,
+     "z": 0.5
+    }
+   },
+   {
+    "key": "url_tag",
+    "type": "long",
+    "legacy_type": 130,
+    "value": "-726197521"
+   },
+   {
+    "key": "player_flags",
+    "type": "short",
+    "legacy_type": 114,
+    "value": 26543
+   }
+  ],
+  "is_from_fishing": false
+ },
+ {
+  "entity_id_self": "-438693091",
+  "runtime_entity_id": "725448959",
+  "item": {
+   "network_id": 8696,
+   "count": 32678,
+   "metadata": 937,
+   "has_stack_id": true,
+   "stack_id": -18954,
+   "block_runtime_id": 166,
+   "extra": {
+    "has_nbt": 0,
+    "can_place_on": [
+     "az0."
+    ],
+    "can_destroy": [
+     "1"
+    ]
+   }
+  },
+  "position": {
+   "x": 0.5,
+   "y": 0,
+   "z": 100.125
+  },
+  "velocity": {
+   "x": 1.5,
+   "y": 1.5,
+   "z": 0.5
+  },
+  "metadata": [
+   {
+    "key": "filtered_name",
+    "type": "string",
+    "legacy_type": 106,
+    "value": ".a99"
+   },
+   {
+    "key": "minecart_has_display",
+    "type": "string",
+    "legacy_type": 183,
+    "value": "z19z"
+   },
+   {
+    "key": "color_2",
+    "type": "short",
+    "legacy_type": 1,
+    "value": -5487
+   }
+  ],
+  "is_from_fishing": true
+ }
+]

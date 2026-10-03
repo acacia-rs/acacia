@@ -1,0 +1,42 @@
+[
+ {
+  "type": "reset",
+  "text": "b0.:x1b",
+  "fade_in_time": 5292,
+  "stay_time": 7921,
+  "fade_out_time": 3492,
+  "xuid": "9x",
+  "platform_online_id": ":y_11z",
+  "filtered_message": "c:ya1c_"
+ },
+ {
+  "type": "set_subtitle",
+  "text": ".ya:.z.",
+  "fade_in_time": 8157,
+  "stay_time": -3433,
+  "fade_out_time": -6928,
+  "xuid": "0._ . ",
+  "platform_online_id": "_ 1z_:1b",
+  "filtered_message": ""
+ },
+ {
+  "type": "action_bar_message_json",
+  "text": "aay9z9b",
+  "fade_in_time": 6594,
+  "stay_time": 4520,
+  "fade_out_time": 12918,
+  "xuid": "bxxb1z:",
+  "platform_online_id": " y yaya",
+  "filtered_message": "bb09axz"
+ },
+ {
+  "type": "set_subtitle",
+  "text": "",
+  "fade_in_time": 11680,
+  "stay_time": -14849,
+  "fade_out_time": -7058,
+  "xuid": "b_.z:_ z",
+  "platform_online_id": "9x0:",
+  "filtered_message": "9.0cbc"
+ }
+]

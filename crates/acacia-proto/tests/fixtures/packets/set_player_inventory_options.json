@@ -1,0 +1,30 @@
+[
+ {
+  "left_tab": "equipment",
+  "right_tab": "crafting",
+  "filtering": false,
+  "layout": "default",
+  "crafting_layout": "inventory_only"
+ },
+ {
+  "left_tab": "search",
+  "right_tab": "fullscreen",
+  "filtering": false,
+  "layout": "inventory_only",
+  "crafting_layout": "none"
+ },
+ {
+  "left_tab": "survival",
+  "right_tab": "armor",
+  "filtering": false,
+  "layout": "none",
+  "crafting_layout": "default"
+ },
+ {
+  "left_tab": "equipment",
+  "right_tab": "none",
+  "filtering": true,
+  "layout": "inventory_only",
+  "crafting_layout": "recipe_book_only"
+ }
+]

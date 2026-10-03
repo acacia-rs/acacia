@@ -1,0 +1,62 @@
+[
+ {
+  "CodeBuilderDefaultURI": " _c",
+  "CodeBuilderTitle": "_.cb z_",
+  "CanResizeCodeBuilder": true,
+  "disable_legacy_title_bar": true,
+  "post_process_filter": "b9.1_",
+  "screenshot_border_path": "",
+  "has_agent_capabilities": false,
+  "HasOverrideURI": true,
+  "OverrideURI": "c cc0xxz",
+  "HasQuiz": false,
+  "has_external_link_settings": true,
+  "external_link_settings": {
+   "has": false,
+   "url": " 1y1_b_",
+   "display_name": " zx19b"
+  }
+ },
+ {
+  "CodeBuilderDefaultURI": "zba:y9x9",
+  "CodeBuilderTitle": "",
+  "CanResizeCodeBuilder": false,
+  "disable_legacy_title_bar": true,
+  "post_process_filter": "_cx1cb.",
+  "screenshot_border_path": ".:x.09:9",
+  "has_agent_capabilities": false,
+  "HasOverrideURI": true,
+  "OverrideURI": "b: ",
+  "HasQuiz": true,
+  "has_external_link_settings": false
+ },
+ {
+  "CodeBuilderDefaultURI": "xcc: ",
+  "CodeBuilderTitle": ":z91",
+  "CanResizeCodeBuilder": false,
+  "disable_legacy_title_bar": true,
+  "post_process_filter": "0x",
+  "screenshot_border_path": "",
+  "has_agent_capabilities": true,
+  "agent_capabilities": {
+   "has": true,
+   "can_modify_blocks": true
+  },
+  "HasOverrideURI": false,
+  "HasQuiz": true,
+  "has_external_link_settings": false
+ },
+ {
+  "CodeBuilderDefaultURI": "",
+  "CodeBuilderTitle": "",
+  "CanResizeCodeBuilder": true,
+  "disable_legacy_title_bar": true,
+  "post_process_filter": "0 y:z0x0",
+  "screenshot_border_path": "",
+  "has_agent_capabilities": false,
+  "HasOverrideURI": true,
+  "OverrideURI": "",
+  "HasQuiz": false,
+  "has_external_link_settings": false
+ }
+]

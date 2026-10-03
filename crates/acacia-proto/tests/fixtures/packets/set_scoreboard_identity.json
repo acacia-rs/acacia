@@ -1,0 +1,51 @@
+[
+ {
+  "action": "register_identity",
+  "entries": []
+ },
+ {
+  "action": "clear_identity",
+  "entries": [
+   {
+    "scoreboard_id": "-371310212",
+    "entity_unique_id": "-861166685"
+   },
+   {
+    "scoreboard_id": "559778538"
+   }
+  ]
+ },
+ {
+  "action": "clear_identity",
+  "entries": [
+   {
+    "scoreboard_id": "556262876",
+    "entity_unique_id": "-48552326"
+   },
+   {
+    "scoreboard_id": "-341020928",
+    "entity_unique_id": "-482805000"
+   },
+   {
+    "scoreboard_id": "373674717",
+    "entity_unique_id": "83832804"
+   }
+  ]
+ },
+ {
+  "action": "register_identity",
+  "entries": [
+   {
+    "scoreboard_id": "892625528",
+    "entity_unique_id": "-633119957"
+   },
+   {
+    "scoreboard_id": "963970193"
+   },
+   {
+    "scoreboard_id": "-414751763",
+    "entity_unique_id": "9854227"
+   }
+  ]
+ }
+]

@@ -1,0 +1,12 @@
+[
+ {
+  "graphics_mode": "fancy"
+ },
+ {},
+ {
+  "filter_profanity": false
+ },
+ {
+  "filter_profanity": true
+ }
+]
