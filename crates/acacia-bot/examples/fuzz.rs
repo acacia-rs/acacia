@@ -3,12 +3,15 @@
 //! `BEDROCK_RECORD=<file>`, then list the disagreeing ticks with the `replay` example.
 //! `cargo run -p acacia-bot --example fuzz -- <server> <name|@account> [rounds] [seed] [ticks]`
 //! `FUZZ_OFF=pitch,web` disables features (see [`on`]); `FUZZ_BOTS=4` runs four bots at once;
-//! `FUZZ_CMD="/effect @s speed 9999 1;/gamerule x y"` runs commands once per bot before the first round.
+//! `FUZZ_CMD="/effect @s speed 9999 1;/gamerule x y"` runs commands once per bot before the first round;
+//! `FUZZ_WEAR="diamond_boots:depth_strider:3,diamond_leggings:swift_sneak:3"` puts armour on;
+//! `FUZZ_GLIDE=1` (with `FUZZ_WEAR=elytra`) adds an elytra dive after each round.
 mod support;
 
 use std::path::PathBuf;
 
 use acacia_bot::movement::Controls;
+use acacia_bot::survival::Destination;
 use acacia_bot::world::SharedWorlds;
 use acacia_bot::Bot;
 use support::{corrections, Commander, Error, Fill, Pad, PAD_MIN};
@@ -113,6 +116,9 @@ async fn fuzz_bot(
     for command in std::env::var("FUZZ_CMD").iter().flat_map(|c| c.split(';')) {
         pad.run(&bot, command.trim());
     }
+    for piece in std::env::var("FUZZ_WEAR").iter().flat_map(|w| w.split(',')) {
+        wear(&mut bot, &pad, piece.trim()).await?;
+    }
     for round in 0..rounds {
         let terrain = terrain(&mut rng);
         bot.trace_mark(&format!("r{round} build"));
@@ -122,9 +128,36 @@ async fn fuzz_bot(
         let before = corrections(&bot);
         drive(&mut bot, &pad, &mut rng, ticks).await?;
         println!("bot {index} round {round:3} corrections {}", corrections(&bot) - before);
+        if std::env::var_os("FUZZ_GLIDE").is_some() {
+            bot.trace_mark(&format!("r{round} glide"));
+            let before = corrections(&bot);
+            glide(&mut bot, &pad, &mut rng).await?;
+            println!("bot {index} round {round:3} glide corrections {}", corrections(&bot) - before);
+        }
     }
     pad.go_home(&mut bot).await?;
     bot.disconnect().await;
+    Ok(())
+}
+
+/// Gives `item[:enchantment:level]` into the hand, enchants it there and puts it on.
+async fn wear(bot: &mut Bot, pad: &Pad, piece: &str) -> Result<(), Error> {
+    let mut parts = piece.split(':');
+    let item = parts.next().unwrap_or_default();
+    pad.run(bot, &format!("/replaceitem entity @s slot.weapon.mainhand 0 {item}"));
+    if let (Some(enchantment), Some(level)) = (parts.next(), parts.next()) {
+        pad.run(bot, &format!("/enchant @s {enchantment} {level}"));
+    }
+    bot.wait_ticks(20).await?;
+    let to = match item {
+        i if i.ends_with("_helmet") => Destination::Head,
+        i if i.ends_with("_leggings") => Destination::Legs,
+        i if i.ends_with("_boots") => Destination::Feet,
+        _ => Destination::Chest,
+    };
+    let from = bot.find_item(&format!("minecraft:{item}")).ok_or_else(|| format!("{item} was not given"))?;
+    bot.equip(from, to).await?;
+    bot.wait_ticks(20).await?;
     Ok(())
 }
 
@@ -229,6 +262,34 @@ async fn drive(bot: &mut Bot, pad: &Pad, rng: &mut Rng, ticks: u32) -> Result<()
     }
     if let Some(controls) = bot.controls() {
         controls.stop();
+    }
+    bot.wait_ticks(10).await?;
+    Ok(())
+}
+
+/// Drops from high above the pad and glides down in a turning dive (needs `FUZZ_WEAR=elytra`): a steady
+/// turn keeps the bot near the pad's loaded chunks.
+async fn glide(bot: &mut Bot, pad: &Pad, rng: &mut Rng) -> Result<(), Error> {
+    pad.teleport(bot, [10.5, 60.0, 0.5], rng.range(-180, 180) as f32).await?;
+    bot.wait_ticks(10).await?;
+    if let Err(e) = bot.start_gliding().await {
+        println!("glide not started: {e}");
+        return Ok(());
+    }
+    let (mut left, mut turn) = (0, 0.0);
+    for _ in 0..400 {
+        if bot.movement().is_none_or(|m| m.on_ground()) {
+            break;
+        }
+        let Some(c) = bot.controls() else { break };
+        if left == 0 {
+            left = rng.range(5, 30);
+            turn = rng.range(6, 15) as f32;
+            c.pitch = rng.range(-20, 70) as f32;
+        }
+        left -= 1;
+        c.yaw += turn;
+        bot.wait_ticks(1).await?;
     }
     bot.wait_ticks(10).await?;
     Ok(())

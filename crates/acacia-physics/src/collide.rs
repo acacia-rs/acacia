@@ -37,6 +37,8 @@ fn centre(bb: &Aabb) -> Vec3 {
     [(bb.min[0] + bb.max[0]) * 0.5, bb.min[1], (bb.min[2] + bb.max[2]) * 0.5]
 }
 
+/// BDS `FinalizeMoveSystem`: a horizontal axis collided when the move was cut by more than this (bedsim: 1e-5).
+const COLLIDED: f32 = 1.1920929e-7;
 const EDGE_BOUNDARY: f32 = 0.025;
 const EDGE_OFFSET: f32 = 0.05;
 const EDGE_MAX_ITER: usize = 1000;
@@ -99,15 +101,26 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
         }
 
-        let end = centre(&bb);
+        // An axis the box did not move on keeps its position: a snapped box's centre is not it (see `pose`).
+        let mut end = centre(&bb);
+        for i in [0, 2] {
+            if bb.min[i] == start.min[i] && bb.max[i] == start.max[i] {
+                end[i] = st.pos[i];
+            }
+        }
         st.sprint_movement_blocked = sprint_movement_blocked(cur, sub(end, st.pos));
         st.set_pos(end);
         st.remember_box(bb);
 
-        let yc = (cur[1] - coll[1]).abs() >= 1e-5;
-        st.collide_x = (cur[0] - coll[0]).abs() >= 1e-5;
+        // A fall that ends exactly on a surface lands too, though nothing was clipped (strict BDS fuzz, lava floor).
+        // The sweep's own boxes leave out a surface the box only touches.
+        let rests = cur[1] < 0.0
+            && cur[1] == coll[1]
+            && self.movement_bboxes(st, &bb.extend_down(1e-4)).iter().any(|b| (bb.min[1] - b.max[1]).abs() <= 1e-6);
+        let yc = (cur[1] - coll[1]).abs() >= 1e-5 || rests;
+        st.collide_x = (cur[0] - coll[0]).abs() > COLLIDED;
         st.collide_y = yc;
-        st.collide_z = (cur[2] - coll[2]).abs() >= 1e-5;
+        st.collide_z = (cur[2] - coll[2]).abs() > COLLIDED;
         // Ground contact comes from the requested Y movement, including after auto-step.
         st.on_ground = (yc && cur[1] < 0.0) || (st.on_ground && !yc && cur[1] == 0.0);
         if !self.check_supporting_block(st, cur) {
@@ -119,7 +132,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
     /// Limits sneaking movement to supported ground.
     pub(crate) fn avoid_edge(&self, st: &mut PlayerState) -> bool {
-        if !st.sneaking || !st.on_ground || st.vel[1] > 0.0 {
+        // Only a held sneak: a crouch forced by a low ceiling walks off edges (strict BDS fuzz).
+        if !st.sneaking || !st.pressing_sneak || !st.on_ground || st.vel[1] > 0.0 {
             return true;
         }
         const DROP: f32 = -STEP_HEIGHT * 1.01;
@@ -227,14 +241,5 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
         }
         best.map_or_else(|| block_pos(st.pos), |(_, _, pos)| pos)
-    }
-
-    pub(crate) fn is_inside_cobweb(&self, st: &PlayerState) -> bool {
-        // BDS ignores a web the box only grazes (fuzz: a 1.4e-5 overlap does not slow).
-        let bb = st.bounding_box().grow(-0.001);
-        nearby_cells(&bb.grow(1.0)).any(|pos| {
-            let b = self.w.block(pos);
-            !b.air && b.cobweb && bb.intersects(&Aabb::block(pos))
-        })
     }
 }

@@ -1,12 +1,11 @@
-//! Elytra actions: equipping one, starting and stopping a glide, firework boosts. Only the input side
-//! (shapes from the 2026-10-02 vanilla capture): gliding physics is not simulated yet
-//! (docs/physics-handoff-glide-vehicles.md), so a gliding physics bot drifts and the server corrects it.
+//! Elytra actions: equipping one, starting and stopping a glide, firework boosts (input shapes from the
+//! 2026-10-02 vanilla capture). The glide itself is simulated (`Movement::glide`); a firework boost is not yet.
 
 use std::time::Duration;
 
 use acacia_client::proto::codec::read_varint64;
 use acacia_client::proto::packets::SetEntityData;
-use acacia_client::proto::types::{InputData, MetadataDictionaryItemValue, MetadataFlags1};
+use acacia_client::proto::types::{MetadataDictionaryItemValue, MetadataFlags1};
 use acacia_client::proto::{Packet, RawPacket};
 
 use crate::human::HOTBAR_SWITCH;
@@ -49,10 +48,15 @@ impl Bot {
         if !self.wears_elytra() {
             return Err(ActionError::NotPossible("no elytra worn".into()));
         }
-        self.press_jump_with(&[InputData::StartGliding, InputData::WantUp]).await?;
+        self.press_jump(true).await?;
         let me = self.state.player.runtime_entity_id;
         match self.wait_until(GLIDE_TIMEOUT, |_, p| gliding_flag(p, me).filter(|&g| g)).await {
-            Err(ActionError::Timeout) => Err(ActionError::Rejected("the server did not start the glide".into())),
+            Err(ActionError::Timeout) => {
+                if let Some(movement) = self.movement.as_mut() {
+                    movement.glide = false;
+                }
+                Err(ActionError::Rejected("the server did not start the glide".into()))
+            }
             other => other.map(drop),
         }
     }
@@ -63,11 +67,11 @@ impl Bot {
         let Some(movement) = self.movement.as_ref().filter(|m| m.is_started()) else {
             return Err(ActionError::NotPossible("gliding needs a physics bot".into()));
         };
-        if !movement.on_ground() {
-            return self.press_jump_with(&[InputData::StopGliding, InputData::WantUp]).await;
+        // On the ground the simulation has already ended the glide and sent `StopGliding`.
+        if movement.on_ground() {
+            return Ok(());
         }
-        self.queued_flags.push(InputData::StopGliding);
-        self.next_tick(|_, _| false).await.map(drop)
+        self.press_jump(false).await
     }
 
     /// Uses a firework rocket from the hotbar like vanilla: `Animate` "useitem" + `UseItem` ClickAir,
@@ -86,12 +90,13 @@ impl Bot {
         Ok(())
     }
 
-    /// Holds jump for one tick with `flags` added to that tick's input, then releases it.
-    async fn press_jump_with(&mut self, flags: &[InputData]) -> Result<(), ActionError> {
+    /// Holds jump for one tick, on which the glide starts or stops (`StartGliding`/`StopGliding` follow from
+    /// the simulation, `WantUp` from the jump), then releases it.
+    async fn press_jump(&mut self, glide: bool) -> Result<(), ActionError> {
         let Some(movement) = self.movement.as_mut() else { return Ok(()) };
         let held = movement.controls.jump;
         movement.controls.jump = true;
-        self.queued_flags.extend_from_slice(flags);
+        movement.glide = glide;
         let ticked = self.next_tick(|_, _| false).await;
         if let Some(movement) = self.movement.as_mut() {
             movement.controls.jump = held;

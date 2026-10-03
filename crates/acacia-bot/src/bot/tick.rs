@@ -85,6 +85,7 @@ impl Bot {
         if !self.state.player.alive {
             return;
         }
+        movement.equipment = crate::movement::equipment::worn(&self.state.inventory, &self.state.items);
         let pending = std::mem::take(&mut movement.pending_actions);
         if let Some(mut input) = movement.tick(&PhysicsWorld { view, registry }) {
             if let Some(r) = &mut self.recorder {

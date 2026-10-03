@@ -216,6 +216,7 @@ impl Bot {
             && (PlayerState::PACKETS.contains(&packet.id)
                 || WorldTracker::PACKETS.contains(&packet.id)
                 || Movement::PACKETS.contains(&packet.id)
+                || trace::EQUIPMENT_PACKETS.contains(&packet.id)
                 || trace::ANALYSIS_PACKETS.contains(&packet.id) && trace::about(packet, self.state.me().runtime_entity_id))
         {
             r.write(&trace::Event::Packet(packet.clone()));

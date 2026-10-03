@@ -1,6 +1,6 @@
 //! Movement-sensitive blocks (bedsim `block_effects.go`, `bubble.go`).
 
-use crate::collide::{inside_cells, overlapped_cells};
+use crate::collide::inside_cells;
 use crate::constants::{FREEZE_GAIN, FREEZE_LOSS};
 use crate::math::{Vec3, len_sqr};
 use crate::sim::Sim;
@@ -19,11 +19,15 @@ fn queue_stuck_speed_multiplier(st: &mut PlayerState, m: Vec3) {
     st.stuck_speed_multiplier = q;
 }
 
-/// Applies the queued berry-bush/powder-snow multiplier once; true when one was applied.
+/// Applies the queued cobweb/berry-bush/powder-snow multiplier once; true when one was applied.
 pub(crate) fn apply_stuck_speed_multiplier(st: &mut PlayerState) -> bool {
-    let m = st.stuck_speed_multiplier;
+    let mut m = st.stuck_speed_multiplier;
     if len_sqr(m) <= 1e-7 {
         return false;
+    }
+    // BDS: Weaving replaces whatever was queued, not only a cobweb's.
+    if st.effects.weaving {
+        m = [0.5, 0.25, 0.5];
     }
     st.set_vel([st.vel[0] * m[0], st.vel[1] * m[1], st.vel[2] * m[2]]);
     st.stuck_speed_multiplier = [0.0; 3];
@@ -44,9 +48,8 @@ pub(crate) fn apply_ascendable_movement(st: &mut PlayerState, traversal: Travers
             }
         }
         Traversal::PowderSnow => {
-            if st.pressing_descend {
-                v[1] = -0.15;
-            } else if st.pressing_ascend && st.equipment.leather_boots {
+            // No sneak descent: BDS sinks a sneaker at plain gravity (bedsim's -0.15 is not there).
+            if st.pressing_ascend && st.equipment.leather_boots {
                 v[1] = 0.2;
             }
         }
@@ -75,6 +78,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             if b.air {
                 continue;
             }
+            if b.cobweb {
+                queue_stuck_speed_multiplier(st, [0.25, 0.05, 0.25]);
+            }
             match b.inside {
                 InsideMovement::SweetBerryBush => queue_stuck_speed_multiplier(st, [0.8, 0.75, 0.8]),
                 InsideMovement::PowderSnow => queue_stuck_speed_multiplier(st, [0.9, 1.5, 0.9]),
@@ -85,9 +91,11 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
     /// Slows the player once per honey block whose side it touches (not in water, see README).
     pub(crate) fn apply_honey_wall_slide(&self, st: &mut PlayerState) {
-        let bb = st.bounding_box().grow_vec([1e-3, 0.0, 1e-3]);
-        for pos in overlapped_cells(&bb) {
-            if !bb.intersects(&crate::aabb::Aabb::block(pos)) || !self.w.block(pos).honey {
+        // An inside-block effect: honey's box is inset 1/16, so a box against it is in its cell, while one
+        // flush against a full block beside it is not. (Contact with the inset box itself is too strict: a
+        // box walking along a honey wall is slowed by each cell it is in.)
+        for pos in inside_cells(&st.bounding_box()) {
+            if !self.w.block(pos).honey {
                 continue;
             }
             // Any contact with its side, airborne or not, rising or falling (strict BDS fuzz: 0.4 per

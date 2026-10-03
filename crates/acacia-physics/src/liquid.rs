@@ -122,7 +122,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// BDS `SwimTriggerSystem`'s look-up stop: swimming with the breathing point (the swim eye) in an air block
     /// while looking up more than 45° by its measure, acos(cos²(pitch)) (pitch above ~32.8°).
     pub(crate) fn swim_surfacing(&self, st: &PlayerState) -> bool {
-        let a = st.pitch * -PI32 / 180.0;
+        let a = st.prev_pitch * -PI32 / 180.0;
         let (look_y, horizontal) = (mc_sin(a), mc_cos(a));
         look_y > 0.0
             && (horizontal * horizontal).acos() * 57.29578 > 45.0

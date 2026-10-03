@@ -14,7 +14,7 @@ use std::fs::File;
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
-use acacia_client::proto::packets::{PlayerAuthInput, SetEntityData};
+use acacia_client::proto::packets::{InventoryContent, InventorySlot, ItemRegistry as ItemRegistryPacket, ItemStackResponse, PlayerAuthInput, SetEntityData};
 use acacia_client::proto::types::{MetadataDictionaryItemValue, MetadataFlags1};
 use acacia_client::proto::{Packet, RawPacket};
 use acacia_physics::Vec3;
@@ -22,6 +22,9 @@ use bytes::{Bytes, BytesMut};
 
 /// Recorded for analysis only, when about the recording player: its actor flags (the server's sprint state).
 pub const ANALYSIS_PACKETS: &[u32] = &[SetEntityData::ID];
+
+/// Recorded so a replay knows the worn armour (`crate::movement::equipment`).
+pub const EQUIPMENT_PACKETS: &[u32] = &[ItemRegistryPacket::ID, InventoryContent::ID, InventorySlot::ID, ItemStackResponse::ID];
 
 const MAGIC: &[u8; 5] = b"BTRC\x01";
 const PACKET: u8 = 0;

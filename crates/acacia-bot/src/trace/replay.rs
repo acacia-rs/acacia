@@ -152,6 +152,8 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                 movement.align_tick(rec.tick);
                 movement.controls = controls_of(&rec);
                 movement.recorded_want_down = Some(rec.input_data.contains(&F::WantDown));
+                movement.equipment = crate::movement::equipment::worn(&state.inventory, &state.items);
+                movement.glide = (movement.glide || rec.input_data.contains(&F::StartGliding)) && !rec.input_data.contains(&F::StopGliding);
                 let (Some(view), Some(registry)) = (world.view(), world.registry()) else { continue };
                 let Some(out) = movement.tick(&PhysicsWorld { view, registry }) else { continue };
                 let pos = vec3(&out.position);

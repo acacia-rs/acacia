@@ -63,9 +63,9 @@ impl<T: Copy> Timeline<T> {
         self.0.iter().rev().find(|&&(t, _)| t <= tick).map(|&(_, v)| v)
     }
 
-    /// [`Self::at`] once a later value is known: the server has moved past `tick`, so no update was missed.
-    fn settled(&self, tick: u64) -> Option<T> {
-        self.0.iter().any(|&(t, _)| t > tick).then(|| self.at(tick)).flatten()
+    /// [`Self::at`] once a value for `tick` or later is known: the server has reached `tick`.
+    fn known(&self, tick: u64) -> Option<T> {
+        self.0.iter().any(|&(t, _)| t >= tick).then(|| self.at(tick)).flatten()
     }
 
     /// [`Self::at`] when a value starts on exactly `tick`.
@@ -108,15 +108,26 @@ impl History {
         self.speeds.push(tick, value, self.entries.front().map_or(0, |e| e.tick));
     }
 
-    /// Records the server's freeze stamped with `tick` and shifts the kept states from the tick it belongs to
-    /// by what we were off there; returns that shift for the current state (0 when applied again).
+    /// Records the server's freeze stamped with `tick` and moves the kept states onto it (see README,
+    /// "Freeze"); returns the change for the current state (0 when applied again).
     pub(super) fn freeze(&mut self, tick: u64, freeze: f32) -> f32 {
-        self.freezes.push(tick, freeze, self.entries.front().map_or(0, |e| e.tick));
-        let Some(shift) = self.entries.iter().find(|e| e.tick == tick + 1).map(|e| freeze - e.after.freeze) else { return 0.0 };
-        for e in self.entries.iter_mut().filter(|e| e.tick > tick) {
-            e.after.set_freeze((e.after.freeze + shift).clamp(0.0, 1.0));
+        let last = self.freezes.0.back().copied();
+        if last == Some((tick + 1, freeze)) {
+            return 0.0;
         }
-        shift
+        let repeat = last.is_some_and(|(t, _)| t == tick + 1);
+        self.freezes.push(tick, freeze, self.entries.front().map_or(0, |e| e.tick));
+        let before = self.entries.back().map_or(0.0, |e| e.after.freeze);
+        let shift = self.entries.iter().find(|e| e.tick == tick + 1).map_or(0.0, |e| freeze - e.after.freeze);
+        for e in &mut self.entries {
+            let value = match self.freezes.known(e.tick) {
+                Some(v) => v,
+                None if !repeat && e.tick > tick => e.after.freeze + shift,
+                None => continue,
+            };
+            e.after.set_freeze(value.clamp(0.0, 1.0));
+        }
+        self.entries.back().map_or(0.0, |e| e.after.freeze) - before
     }
 
     pub(super) fn effects(&mut self, tick: u64, effects: Effects) {
@@ -160,7 +171,7 @@ impl History {
         if let Some(v) = self.effects.at(base) {
             st.effects = v;
         }
-        if let Some(v) = self.freezes.settled(base) {
+        if let Some(v) = self.freezes.known(base) {
             st.set_freeze(v);
         }
         for e in self.entries.iter_mut().filter(|e| e.tick > base) {
@@ -170,7 +181,7 @@ impl History {
             if let Some(v) = self.effects.starting(e.tick) {
                 st.effects = v;
             }
-            st.server_freeze = self.freezes.settled(e.tick);
+            st.server_freeze = Some(self.freezes.known(e.tick).unwrap_or(e.after.freeze));
             st.knockback = e.knockback;
             physics::tick(st, &e.input, world);
             e.after = st.clone();

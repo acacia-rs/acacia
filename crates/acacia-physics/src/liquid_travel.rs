@@ -64,12 +64,6 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
         }
         move_relative(st, speed);
-        // Cobwebs slow liquid travel too (BDS; bedsim only checks them on land).
-        let in_cobweb = self.is_inside_cobweb(st);
-        if in_cobweb {
-            let (xz, y) = if st.effects.weaving { (0.5, 0.25) } else { (0.25, 0.05) };
-            st.set_vel([st.vel[0] * xz, st.vel[1] * y, st.vel[2] * xz]);
-        }
         let stuck = apply_stuck_speed_multiplier(st);
         // A sneaker standing in shallow liquid keeps to the edge too (BDS; bedsim only on land).
         if !self.sweep_loaded(st) || !self.avoid_edge(st) {
@@ -91,14 +85,12 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !stuck {
             st.mov = st.vel;
         }
-        if in_cobweb {
-            st.set_vel([0.0; 3]);
-        }
 
         let mut v = st.vel;
         if water {
-            let light = st.swimming || st.sprinting;
-            let mut drag = if light || st.stopped_swimming_this_tick { 0.9 } else { WATER_DRAG };
+            // BDS `WaterDrag` reads the sprint flag alone: a swim whose sprint was cancelled drags heavily. On
+            // the tick a swim stops, the flag we clear with it is still set there.
+            let mut drag = if st.sprinting || st.stopped_swimming_this_tick { 0.9 } else { WATER_DRAG };
             if depth_strider > 0.0 && swim_multiplier <= 1.0 {
                 drag += (0.54600006 - drag) * (depth_strider / 3.0);
             }

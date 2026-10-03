@@ -125,12 +125,6 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             st.set_vel(v);
         }
 
-        let in_cobweb = self.is_inside_cobweb(st);
-        if in_cobweb {
-            let (xz, y) = if st.effects.weaving { (0.5, 0.25) } else { (0.25, 0.05) };
-            st.set_vel([st.vel[0] * xz, st.vel[1] * y, st.vel[2] * xz]);
-        }
-
         let stuck = apply_stuck_speed_multiplier(st);
         if !self.sweep_loaded(st) || !self.avoid_edge(st) {
             return false;
@@ -163,9 +157,6 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             old_vel = [0.0; 3];
         }
         set_post_collision_motion(st, old_vel, old_on_ground, &under, st.gravity);
-        if in_cobweb {
-            st.set_vel([0.0; 3]);
-        }
 
         let mut v = st.vel;
         if !scaffold_descend {

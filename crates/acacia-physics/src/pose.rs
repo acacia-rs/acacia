@@ -51,6 +51,8 @@ impl PlayerState {
     }
 }
 
+const CONTACT_NOISE: f32 = 1e-5;
+
 /// Restores horizontal contact faces only when the box's f32 centre still equals `pos`.
 fn recover_rounded_contacts(bb: Aabb, pos: Vec3, boxes: &[Aabb]) -> Aabb {
     let (omin, omax) = (bb.min, bb.max);
@@ -76,6 +78,22 @@ fn recover_rounded_contacts(bb: Aabb, pos: Vec3, boxes: &[Aabb]) -> Aabb {
             high[axis] = omax[axis];
         }
     }
+    // A face the rebuilt box is inside by float noise only: the server's box touches it (see README).
+    for other in boxes {
+        for axis in [0, 2] {
+            let across = (0..3).filter(|&i| i != axis).all(|i| other.max[i] - omin[i] > CONTACT_NOISE && omax[i] - other.min[i] > CONTACT_NOISE);
+            if !across {
+                continue;
+            }
+            let (inside_low, inside_high) = (other.max[axis] - low[axis], high[axis] - other.min[axis]);
+            if inside_low > 0.0 && inside_low < CONTACT_NOISE {
+                low[axis] = other.max[axis];
+            }
+            if inside_high > 0.0 && inside_high < CONTACT_NOISE {
+                high[axis] = other.min[axis];
+            }
+        }
+    }
     Aabb::new(low[0], low[1], low[2], high[0], high[1], high[2])
 }
 
@@ -98,7 +116,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !self.loaded(&bb) {
             return;
         }
-        let boxes = self.nearby_bboxes(&bb);
+        // Wider than the box, or `Aabb::intersects` drops the faces it is inside by noise.
+        let boxes = self.nearby_bboxes(&bb.grow_vec([2.0 * CONTACT_NOISE, 0.0, 2.0 * CONTACT_NOISE]));
         let bb = recover_rounded_contacts(bb, st.pos, &boxes);
         st.remember_box(bb);
     }

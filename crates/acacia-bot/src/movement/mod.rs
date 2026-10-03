@@ -2,6 +2,7 @@
 //! and reports the result in `PlayerAuthInput`, obeying teleports, corrections and knockback.
 
 mod auth_input;
+pub(crate) mod equipment;
 mod idle;
 mod rewind;
 #[cfg(test)]
@@ -16,7 +17,7 @@ use acacia_client::proto::packets::{
 use acacia_client::proto::types::InputData;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 use acacia_physics::constants::FREEZE_SPEED_MODIFIER;
-use acacia_physics::{self as physics, Effects, Input, PlayerState, Vec3, WorldView};
+use acacia_physics::{self as physics, Effects, Equipment, Input, PlayerState, Vec3, WorldView};
 
 use crate::state::Me;
 use rewind::{Correction, History};
@@ -96,6 +97,10 @@ pub struct Movement {
     /// The sprint was started by a double tap, so it outlives the (unheld) sprint key.
     tapped_sprint: bool,
     effects: Effects,
+    /// Worn armour, set before each tick (see `equipment::worn`).
+    pub(crate) equipment: Equipment,
+    /// An elytra glide is wanted; follows the simulated state after each tick (landing ends it).
+    pub(crate) glide: bool,
     history: History,
     /// Replay only: the recorded `WantDown` (bot traces before 2026-10-02 never sent it), else it follows sneak.
     pub(crate) recorded_want_down: Option<bool>,
@@ -122,6 +127,8 @@ impl Movement {
             prev_impulse: false,
             tapped_sprint: false,
             effects: Effects::default(),
+            equipment: Equipment::default(),
+            glide: false,
             history: History::default(),
         }
     }
@@ -255,8 +262,8 @@ impl Movement {
                         st.set_movement_attribute(value);
                         self.history.movement_attribute(p.tick, value);
                         // Our freeze steps per input tick, the server's per world tick: follow the server's.
-                        let shift = self.history.freeze(p.tick, freeze);
-                        st.set_freeze((st.freeze + shift).clamp(0.0, 1.0));
+                        let change = self.history.freeze(p.tick, freeze);
+                        st.set_freeze((st.freeze + change).clamp(0.0, 1.0));
                         if p.tick >= self.tick {
                             st.server_freeze = Some(freeze);
                         }
@@ -296,6 +303,7 @@ impl Movement {
         if replayed > 0 {
             tracing::debug!(tick = self.tick, replayed, "rewound");
         }
+        st.equipment = self.equipment;
         // Pressing forward again within DOUBLE_TAP_TICKS of the last press sprints: BDS runs this client
         // rule on the raw key flags, so the simulation must too. A press is the forward impulse reaching
         // full strength: sneaking scales it down on land (not in water, where it means sink), so releasing
@@ -329,9 +337,10 @@ impl Movement {
             // corrected); a double-tap sprint has no key and lasts while forward is held.
             sprint: c.sprint || double_tap || (self.tapped_sprint && st.sprinting && forward),
             using_item: self.using_item,
+            glide: self.glide && self.equipment.elytra,
             ..Input::default()
         };
-        let (was_sprinting, was_sneaking, was_swimming) = (st.sprinting, st.sneaking, st.swimming);
+        let (was_sprinting, was_sneaking, was_swimming, was_gliding) = (st.sprinting, st.sneaking, st.swimming, st.gliding);
         let knockback = st.knockback;
         let mut out = physics::tick(st, &input, world);
         if out.teleported && std::mem::take(&mut self.current_on_landing) {
@@ -347,10 +356,12 @@ impl Movement {
             sneak: (st.sneaking && !was_sneaking, !st.sneaking && was_sneaking),
             jump: (c.jump && !self.prev_jump, !c.jump && self.prev_jump),
             swim: (st.swimming && !was_swimming, !st.swimming && was_swimming),
+            glide: (st.gliding && !was_gliding, !st.gliding && was_gliding),
             sneaking: st.sneaking,
             sprint_key: c.sprint,
         };
         self.prev_jump = c.jump;
+        self.glide = st.gliding;
         self.tick += 1;
         self.history.record(self.tick, input, knockback, st);
         // Movement starts only after the bot has left the loading screen (bot.rs).
