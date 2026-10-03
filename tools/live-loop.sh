@@ -13,6 +13,14 @@ mkdir -p "$out" && rm -f "$out"/*
 : >"$out/results"
 ctl() { (cd "$bds" && bash "$root/tools/bds-ctl.sh" "$1" >/dev/null); }
 
+# Box convention: heavy or timing-sensitive runs hold ~/bench.lock. Shared, so the two instances run
+# together; another project's exclusive benchmark makes them wait (BDS timed out under its load).
+exec 9>"$HOME/bench.lock"
+if ! flock -n -s 9; then
+  echo "0 WAIT bench.lock is held by another benchmark; waiting" >>"$out/results"
+  flock -s 9
+fi
+
 for i in $(seq "$runs"); do
   ctl stop; ctl reset; ctl start
   timeout 1500 "$root/target/release/examples/actions" "127.0.0.1:$port" ActionBot "$@" >"$out/bot.log" 2>&1

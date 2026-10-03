@@ -61,4 +61,6 @@ merge): `[ONLY=..] [RUST_LOG=..] [LOG_GREP='interact|dismounted'] tools/live-rep
 It syncs and builds once, then loops on testbox (`tools/live-loop.sh`) on both instances
 (`bds-actions` :19170, `bds-actions2` :19172) in parallel. It streams `<instance>/<run> PASS|FAIL`
 lines and ends with a per-check tally. Failing runs keep their bot and BDS logs in
-`$REMOTE_DIR/live-repeat/<instance>/`.
+`$REMOTE_DIR/live-repeat/<instance>/`. The loops hold `~/bench.lock` shared, so they wait (a `WAIT`
+line) while another project's benchmark has it. Don't run `remote-test.sh` at the same time: BDS times
+out under a parallel cargo build.

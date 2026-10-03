@@ -52,5 +52,5 @@ while :; do
   sleep 5
 done
 echo "== tally"
-grep -oE '(PASS|FAIL) +[a-z_]+|ERROR' "$all" | sort | uniq -c
+grep -oE '(PASS|FAIL) +[a-z_]+|ERROR|WAIT' "$all" | sort | uniq -c
 rm -f "$all"
