@@ -5,6 +5,8 @@
 mod adapter;
 mod blobs;
 mod near;
+#[cfg(test)]
+mod tests;
 
 pub use adapter::PhysicsWorld;
 
@@ -21,6 +23,7 @@ use acacia_client::proto::types::{BlockCoordinates, SubChunkEntryItemResult, Vec
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 use acacia_world::{BlockIds, BlockRegistry, ChunkView, CustomBlock, Dimension, World};
 use blobs::{Blobs, Ready};
+use bytes::Bytes;
 use near::Near;
 
 /// (server address, dimension id) → world.
@@ -234,8 +237,23 @@ impl WorldTracker {
                 let requests = (0..count).map(|i| Vec3i8 { x: 0, y: (lowest + i) as i8, z: 0 }).collect();
                 self.outgoing.push(SubchunkRequest { dimension: c.dimension, requests, origin: Vec3li { x: c.x, y: 0, z: c.z } });
             }
-            // TODO: full chunks in cache mode (sections as blobs); servers seen so far use request mode.
-            None if c.cache_enabled => tracing::debug!(x = c.x, z = c.z, "cached full chunk not supported"),
+            // Layout from gophertunnel (unverified on BDS, which uses request mode): one blob per section,
+            // bottom first, then the biome blob; the payload is border blocks + block entities.
+            None if c.cache_enabled => {
+                let reset = view.insert_level_chunk(c.x, c.z, 0, &[]).map(drop);
+                log_err(reset);
+                let lowest = Dimension::from_id(c.dimension, 0).min_y >> 4;
+                let sections = c.blobs.len().min(c.sub_chunk_count as usize);
+                for (i, &id) in c.blobs[..sections].iter().enumerate() {
+                    let pos = (c.x, lowest + i as i32, c.z);
+                    if let Some(section) = self.blobs.section(pos, id, Bytes::new()) {
+                        insert_section(view, self.near.as_mut(), pos, &section);
+                    }
+                }
+                if let Some(biomes) = c.blobs.get(sections).and_then(|&id| self.blobs.biomes((c.x, c.z), id)) {
+                    view.insert_biomes(c.x, c.z, &biomes);
+                }
+            }
             None => {
                 let inserted = view.insert_level_chunk(c.x, c.z, c.sub_chunk_count, &c.payload).map(drop);
                 if let (Ok(()), Some(near)) = (&inserted, &mut self.near) {
