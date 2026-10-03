@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use acacia_physics::{self as physics, Input, PlayerState, Vec3, WorldView};
+use acacia_physics::{self as physics, Effects, Input, PlayerState, Vec3, WorldView};
 
 /// Ticks kept for replay (5 s): older events apply as of now.
 const HISTORY: usize = 100;
@@ -33,9 +33,40 @@ pub(super) struct History {
     newest: u64,
     /// Earliest tick given a knockback since the last replay.
     knocked: Option<u64>,
-    /// Movement attribute values by the input tick they take effect on, oldest first: a rewind restores
-    /// state saved before a late update arrived.
-    speeds: VecDeque<(u64, f32)>,
+    speeds: Timeline<f32>,
+    effects: Timeline<Effects>,
+    /// The server's freeze as of the end of each tick (see `PlayerState::server_freeze`).
+    freezes: Timeline<f32>,
+}
+
+/// Server-sent values by the input tick they take effect on, oldest first: a rewind restores state saved
+/// before a late update arrived.
+struct Timeline<T>(VecDeque<(u64, T)>);
+
+impl<T> Default for Timeline<T> {
+    fn default() -> Self {
+        Self(VecDeque::new())
+    }
+}
+
+impl<T: Copy> Timeline<T> {
+    /// Records a value stamped with server `tick`; like knockback, it applies from input tick + 1.
+    fn push(&mut self, tick: u64, value: T, oldest_kept: u64) {
+        while self.0.len() > 1 && self.0[1].0 <= oldest_kept {
+            self.0.pop_front();
+        }
+        self.0.push_back((tick + 1, value));
+    }
+
+    /// The newest value in effect on input tick `tick`.
+    fn at(&self, tick: u64) -> Option<T> {
+        self.0.iter().rev().find(|&&(t, _)| t <= tick).map(|&(_, v)| v)
+    }
+
+    /// [`Self::at`] when a value starts on exactly `tick`.
+    fn starting(&self, tick: u64) -> Option<T> {
+        self.at(tick).filter(|_| self.0.iter().any(|&(t, _)| t == tick))
+    }
 }
 
 impl History {
@@ -68,13 +99,19 @@ impl History {
         true
     }
 
-    /// Records a movement attribute stamped with server `tick`; like knockback, it applies from input tick + 1.
     pub(super) fn movement_attribute(&mut self, tick: u64, value: f32) {
-        let oldest = self.entries.front().map_or(0, |e| e.tick);
-        while self.speeds.len() > 1 && self.speeds[1].0 <= oldest {
-            self.speeds.pop_front();
-        }
-        self.speeds.push_back((tick + 1, value));
+        self.speeds.push(tick, value, self.entries.front().map_or(0, |e| e.tick));
+    }
+
+    /// Records the server's freeze stamped with `tick`; returns what we simulated for the tick it belongs to,
+    /// if that tick is kept.
+    pub(super) fn freeze(&mut self, tick: u64, freeze: f32) -> Option<f32> {
+        self.freezes.push(tick, freeze, self.entries.front().map_or(0, |e| e.tick));
+        self.entries.iter().find(|e| e.tick == tick + 1).map(|e| e.after.freeze)
+    }
+
+    pub(super) fn effects(&mut self, tick: u64, effects: Effects) {
+        self.effects.push(tick, effects, self.entries.front().map_or(0, |e| e.tick));
     }
 
     /// Rewinds to a scheduled correction, or to before the earliest new knockback, and replays the
@@ -108,13 +145,23 @@ impl History {
             st.knockback = queued;
             return replayed;
         }
-        if let Some(v) = speed_at(&self.speeds, base) {
+        if let Some(v) = self.speeds.at(base) {
             st.set_movement_attribute(v);
         }
+        if let Some(v) = self.effects.at(base) {
+            st.effects = v;
+        }
+        if let Some(v) = self.freezes.starting(base) {
+            st.set_freeze(v);
+        }
         for e in self.entries.iter_mut().filter(|e| e.tick > base) {
-            if let Some(v) = speed_at(&self.speeds, e.tick).filter(|_| self.speeds.iter().any(|&(t, _)| t == e.tick)) {
+            if let Some(v) = self.speeds.starting(e.tick) {
                 st.set_movement_attribute(v);
             }
+            if let Some(v) = self.effects.starting(e.tick) {
+                st.effects = v;
+            }
+            st.server_freeze = self.freezes.starting(e.tick);
             st.knockback = e.knockback;
             physics::tick(st, &e.input, world);
             e.after = st.clone();
@@ -123,9 +170,4 @@ impl History {
         st.knockback = queued;
         replayed
     }
-}
-
-/// The newest movement attribute value in effect on input tick `tick`.
-fn speed_at(speeds: &VecDeque<(u64, f32)>, tick: u64) -> Option<f32> {
-    speeds.iter().rev().find(|&&(t, _)| t <= tick).map(|&(_, v)| v)
 }

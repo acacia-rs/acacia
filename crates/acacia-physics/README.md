@@ -16,7 +16,8 @@ bedsim files (`movement.rs` = `simulateMovement`, `collide.rs` = `tryCollisions`
   Start and stop edges are derived from the state, the same way as `toInputState` in the harness.
 - `PlayerState`: `queue_teleport(feet)` (applied on the next tick, velocity reset to zero),
   `queue_knockback(vel)`, `apply_correction(feet, delta, on_ground)`, `set_movement_attribute(v)`,
-  `eye_position()`. Effects and equipment are set on `state.effects` and `state.equipment`.
+  `set_freeze(f)`, `eye_position()`. Effects and equipment are set on `state.effects` and `state.equipment`
+  (`acacia-bot` sets the effects from `MobEffect`; it does not read equipment yet).
 - `WorldView`: `block_collisions(pos)` (block-local boxes), `block(pos) -> BlockPhysics`, plus the defaulted
   `collisions(area)` and `is_area_loaded(area)`. `test_world::TestWorld` is a synthetic grid.
 
@@ -102,8 +103,9 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
 - The standing eye offset is 1.62001 (BDS; bedsim: 1.62), so `PlayerAuthInput.position` matches the server's
   to the bit; with 1.62 it is an f32 ulp low at most heights and strict BDS corrects nearly every tick.
 - Powder snow freezes (BDS `FreezingComponent`): +1/140 a tick inside, -1/70 outside, and the movement speed
-  takes freeze × -0.05; bedsim has no freezing. BDS steps it per world tick, not per input, so a client whose
-  inputs fall behind the server's clock sees the server's freeze run ahead (a ~0.001 drift per tick in the snow).
+  takes freeze × -0.05; bedsim has no freezing. BDS steps it per world tick, not per input,
+  which drifts a step either way; `server_freeze` takes the server's value for a tick (the "Freeze effect"
+  modifier on the movement attribute / -0.05) in place of the step.
 
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,

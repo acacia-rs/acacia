@@ -10,12 +10,13 @@ mod tests;
 pub use idle::Idle;
 
 use acacia_client::proto::packets::{
-    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, PlayerAuthInput, PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion,
-    UpdateAttributes,
+    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MobEffectEventId, MovePlayer, PlayerAuthInput,
+    PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion, UpdateAttributes,
 };
 use acacia_client::proto::types::InputData;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
-use acacia_physics::{self as physics, Input, PlayerState, Vec3, WorldView};
+use acacia_physics::constants::FREEZE_SPEED_MODIFIER;
+use acacia_physics::{self as physics, Effects, Input, PlayerState, Vec3, WorldView};
 
 use crate::state::Me;
 use rewind::{Correction, History};
@@ -24,6 +25,11 @@ use rewind::{Correction, History};
 pub(crate) const EYE_HEIGHT: f32 = crate::state::PlayerState::EYE_HEIGHT;
 /// `Respawn` state carrying the position the player respawns at.
 const RESPAWN_READY: u8 = 1;
+/// `MobEffect` ids of the effects that change movement (Speed and Slowness come through the movement attribute).
+const EFFECT_JUMP_BOOST: i32 = 8;
+const EFFECT_LEVITATION: i32 = 24;
+const EFFECT_SLOW_FALLING: i32 = 27;
+const EFFECT_WEAVING: i32 = 33;
 /// Window for double-tapping forward to sprint.
 const DOUBLE_TAP_TICKS: u32 = 7;
 
@@ -89,13 +95,14 @@ pub struct Movement {
     prev_impulse: bool,
     /// The sprint was started by a double tap, so it outlives the (unheld) sprint key.
     tapped_sprint: bool,
+    effects: Effects,
     history: History,
     /// Replay only: the recorded `WantDown` (bot traces before 2026-10-02 never sent it), else it follows sneak.
     pub(crate) recorded_want_down: Option<bool>,
 }
 
 impl Movement {
-    pub const PACKETS: &'static [u32] = &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID];
+    pub const PACKETS: &'static [u32] = &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID, MobEffect::ID];
 
     pub fn new() -> Self {
         Self {
@@ -114,13 +121,16 @@ impl Movement {
             recorded_want_down: None,
             prev_impulse: false,
             tapped_sprint: false,
+            effects: Effects::default(),
             history: History::default(),
         }
     }
 
     /// Starts simulating from the spawn position (feet).
     pub fn start(&mut self, feet: Vec3, yaw: f32, pitch: f32) {
-        self.physics = Some(PlayerState::new(feet));
+        let mut st = PlayerState::new(feet);
+        st.effects = self.effects;
+        self.physics = Some(st);
         (self.controls.yaw, self.controls.pitch) = (yaw, pitch);
     }
 
@@ -160,7 +170,32 @@ impl Movement {
         self.physics.as_ref().map(PlayerState::eye_position)
     }
 
+    /// Tracks the effects that change movement; they also arrive at login, before movement starts.
+    fn apply_effect(&mut self, p: &MobEffect) {
+        let level = (p.event_id != MobEffectEventId::Remove).then_some(p.amplifier);
+        tracing::trace!(our_tick = self.tick, server_tick = p.tick, id = p.effect_id, event = ?p.event_id, amplifier = p.amplifier, "effect");
+        match p.effect_id {
+            EFFECT_JUMP_BOOST => self.effects.jump_boost = level,
+            EFFECT_LEVITATION => self.effects.levitation = level,
+            EFFECT_SLOW_FALLING => self.effects.slow_falling = level.is_some(),
+            EFFECT_WEAVING => self.effects.weaving = level.is_some(),
+            _ => return,
+        }
+        tracing::debug!(our_tick = self.tick, server_tick = p.tick, effects = ?self.effects, "movement effects");
+        if let Some(st) = &mut self.physics {
+            st.effects = self.effects;
+            self.history.effects(p.tick, self.effects);
+        }
+    }
+
     pub fn apply(&mut self, packet: &RawPacket, me: &Me) -> Result<(), DecodeError> {
+        if packet.id == MobEffect::ID {
+            let p: MobEffect = packet.decode()?;
+            if p.runtime_entity_id == me.runtime_entity_id {
+                self.apply_effect(&p);
+            }
+            return Ok(());
+        }
         let Some(st) = &mut self.physics else {
             // A teleport before movement starts still needs HandledTeleport, or BDS drops our inputs.
             self.ack_teleport |= packet.id == MovePlayer::ID && u64::from(packet.decode::<MovePlayer>()?.runtime_id) == me.runtime_entity_id;
@@ -215,9 +250,16 @@ impl Movement {
                     for a in p.attributes.iter().filter(|a| a.name == "minecraft:movement") {
                         let amount = |name: &str| a.modifiers.iter().find(|m| m.name == name).map_or(0.0, |m| m.amount);
                         let value = a.current as f32 / (1.0 + amount("Sprinting speed boost")) - amount("Freeze effect");
-                        tracing::debug!(our_tick = self.tick, server_tick = p.tick, value, "movement attribute");
+                        let freeze = amount("Freeze effect") / FREEZE_SPEED_MODIFIER;
+                        tracing::debug!(our_tick = self.tick, server_tick = p.tick, value, freeze, "movement attribute");
                         st.set_movement_attribute(value);
                         self.history.movement_attribute(p.tick, value);
+                        // Our freeze steps per input tick, the server's per world tick: follow the server's.
+                        match self.history.freeze(p.tick, freeze) {
+                            Some(simulated) => st.set_freeze((st.freeze + freeze - simulated).clamp(0.0, 1.0)),
+                            None if p.tick >= self.tick => st.server_freeze = Some(freeze),
+                            None => {}
+                        }
                     }
                 }
             }

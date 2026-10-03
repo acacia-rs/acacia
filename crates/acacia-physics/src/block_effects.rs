@@ -61,7 +61,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     // TODO: immunity (BDS skips freezing for some players; Java: any leather armour).
     pub(crate) fn update_freeze(&self, st: &mut PlayerState) {
         let in_snow = inside_cells(&st.bounding_box()).any(|pos| self.w.block(pos).inside == InsideMovement::PowderSnow);
-        let freeze = if in_snow { (st.freeze + FREEZE_GAIN).min(1.0) } else { (st.freeze - FREEZE_LOSS).max(0.0) };
+        let stepped = if in_snow { (st.freeze + FREEZE_GAIN).min(1.0) } else { (st.freeze - FREEZE_LOSS).max(0.0) };
+        let freeze = st.server_freeze.take().unwrap_or(stepped);
         if freeze != st.freeze {
             st.freeze = freeze;
             st.refresh_movement_speed();

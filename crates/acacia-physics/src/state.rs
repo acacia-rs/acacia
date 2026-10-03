@@ -67,6 +67,9 @@ pub struct PlayerState {
     pub movement_attribute: f32,
     /// Powder snow freezing, 0 to 1 (see `block_effects::update_freeze`).
     pub freeze: f32,
+    /// The server's freeze for the next tick, taken instead of stepping it: BDS steps per world tick, which
+    /// drifts by a step either way from the input ticks.
+    pub server_freeze: Option<f32>,
     pub air_speed: f32,
     pub underwater_movement_speed: f32,
     pub lava_movement_speed: f32,
@@ -152,6 +155,7 @@ impl PlayerState {
             default_movement_speed: DEFAULT_MOVEMENT_SPEED,
             movement_attribute: DEFAULT_MOVEMENT_SPEED,
             freeze: 0.0,
+            server_freeze: None,
             air_speed: WALK_AIR_SPEED,
             underwater_movement_speed: 0.0,
             lava_movement_speed: 0.0,
@@ -231,6 +235,12 @@ impl PlayerState {
     /// modifiers; the simulation adds both itself.
     pub fn set_movement_attribute(&mut self, value: f32) {
         self.movement_attribute = value;
+        self.refresh_movement_speed();
+    }
+
+    /// Sets the freeze the server reports (the "Freeze effect" modifier / -0.05) as of the end of a tick.
+    pub fn set_freeze(&mut self, freeze: f32) {
+        self.freeze = freeze;
         self.refresh_movement_speed();
     }
 
