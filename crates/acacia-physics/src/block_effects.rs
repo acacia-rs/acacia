@@ -4,7 +4,7 @@ use crate::collide::overlapped_cells;
 use crate::math::{Vec3, len_sqr};
 use crate::sim::Sim;
 use crate::state::PlayerState;
-use crate::world::{InsideMovement, Traversal, WorldView};
+use crate::world::{InsideMovement, LiquidKind, Traversal, WorldView};
 
 fn queue_stuck_speed_multiplier(st: &mut PlayerState, m: Vec3) {
     let mut q = st.stuck_speed_multiplier;
@@ -79,16 +79,19 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         self.apply_honey_wall_slide(st);
     }
 
-    /// Slows the player once per overlapped honey block it is sliding down.
+    /// Slows the player once per overlapped honey block it is sliding down: airborne, falling, out of water and
+    /// below the block's full height (BDS fuzz 154827, `honey` drills; Java stops at the 15/16 shape top, bedsim
+    /// slows on any contact).
     fn apply_honey_wall_slide(&self, st: &mut PlayerState) {
+        if !self.liquid_blocks_touching(st.bounding_box(), LiquidKind::Water).is_empty() {
+            return;
+        }
         let bb = st.bounding_box().grow_vec([1e-3, 0.0, 1e-3]);
         for pos in overlapped_cells(&bb) {
             if !bb.intersects(&crate::aabb::Aabb::block(pos)) || !self.w.block(pos).honey {
                 continue;
             }
-            // Only while sliding down its side: airborne, falling, below its top (BDS, as Java; bedsim
-            // slows on any contact).
-            if st.on_ground || st.vel[1] >= -0.08 || st.pos[1] > pos[1] as f32 + 0.9375 - 1e-7 {
+            if st.on_ground || st.vel[1] >= -0.08 || st.pos[1] > pos[1] as f32 + 1.0 - 1e-7 {
                 continue;
             }
             let mut v = st.vel;

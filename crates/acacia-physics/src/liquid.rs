@@ -45,8 +45,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// Liquid cells the shrunk box overlaps, however shallow the liquid: BDS (and Boar) push a player
     /// standing in the thinnest puddle, where bedsim requires the box to reach below the surface.
     pub(crate) fn touching_liquid_blocks(&self, st: &PlayerState, kind: LiquidKind) -> Vec<BlockPos> {
+        self.liquid_blocks_touching(st.liquid_box.unwrap_or_else(|| st.bounding_box()), kind)
+    }
+
+    /// [`Self::touching_liquid_blocks`] for an explicit player box.
+    pub(crate) fn liquid_blocks_touching(&self, player_box: Aabb, kind: LiquidKind) -> Vec<BlockPos> {
         let o = if kind == LiquidKind::Lava { [0.1, 0.4, 0.1] } else { [0.001, 0.401, 0.001] };
-        let bb = shrink(st.liquid_box.unwrap_or_else(|| st.bounding_box()), o);
+        let bb = shrink(player_box, o);
         let min = block_pos(bb.min);
         let max = [(bb.max[0] + 1.0).floor() as i32, (bb.max[1] + 1.0).floor() as i32, (bb.max[2] + 1.0).floor() as i32];
         let mut out = Vec::new();

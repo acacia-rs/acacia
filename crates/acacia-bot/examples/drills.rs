@@ -126,6 +126,20 @@ const fn waterfall(name: &'static str, x: f32) -> Drill {
 /// A 2-deep pit from x+4: the sneak edge stop at its rim.
 const PIT: &[Fill] = &[([4, -2, -12], [24, -1, 12], "air")];
 
+/// A honey column at x+2, alone or with a 2-deep pool at its foot.
+const HONEY: &[Fill] = &[([2, 0, 0], [2, 4, 0], "honey_block")];
+const HONEY_POOL: &[Fill] = &[([2, 0, 0], [2, 4, 0], "honey_block"), ([0, 0, -1], [1, 1, 1], "water")];
+/// One floating honey block: in a column the block above keeps the slide going, hiding the top threshold.
+const HONEY_ONE: &[Fill] = &[([2, 3, 0], [2, 3, 0], "honey_block")];
+
+/// Dropped from `y` beside the honey column while pressing into it, sliding down its side (fuzz 154827 tick
+/// 4752: BDS slides up to the block's full height, and not while touching water). Start heights vary where
+/// tick ends fall relative to each block's top.
+const fn honey(name: &'static str, fills: &'static [Fill], y: f32) -> Drill {
+    let steps: &[Step] = &[(50, 1.0, false, false, 0.0, false), STOP];
+    Drill { name, fills, start: [1.5, y, 0.5], settle: 10, steps, pitch: 0.0 }
+}
+
 /// Sprint `ticks` at `yaw` towards the pit, then sneak on.
 const fn rush(ticks: u32, yaw: f32) -> [Step; 3] {
     [(ticks, 1.0, true, false, yaw, false), (25, 1.0, false, false, yaw, true), STOP]
@@ -213,6 +227,15 @@ const DRILLS: &[Drill] = &[
     drill("edge10", PIT, &rush(10, 0.0)), drill("edge12", PIT, &rush(12, 0.0)),
     drill("edged4", PIT, &rush(4, 25.0)), drill("edged6", PIT, &rush(6, 25.0)), drill("edged8", PIT, &rush(8, 25.0)),
     drill("edged10", PIT, &rush(10, 25.0)), drill("edged12", PIT, &rush(12, 25.0)),
+    honey("honey0", HONEY, 6.0), honey("honey1", HONEY, 6.03), honey("honey2", HONEY, 6.07), honey("honey3", HONEY, 6.12),
+    honey("honey4", HONEY, 6.18), honey("honey5", HONEY, 6.25),
+    honey("honeyw0", HONEY_POOL, 6.0), honey("honeyw1", HONEY_POOL, 6.03), honey("honeyw2", HONEY_POOL, 6.07),
+    honey("honeyw3", HONEY_POOL, 6.12), honey("honeyw4", HONEY_POOL, 6.18), honey("honeyw5", HONEY_POOL, 6.25),
+    // Start heights 0.05 apart over more than a tick's fall at the block, so some tick ends inside its top 1/16.
+    honey("honeyt0", HONEY_ONE, 6.0), honey("honeyt1", HONEY_ONE, 6.05), honey("honeyt2", HONEY_ONE, 6.1),
+    honey("honeyt3", HONEY_ONE, 6.15), honey("honeyt4", HONEY_ONE, 6.2), honey("honeyt5", HONEY_ONE, 6.25),
+    honey("honeyt6", HONEY_ONE, 6.3), honey("honeyt7", HONEY_ONE, 6.35), honey("honeyt8", HONEY_ONE, 6.4),
+    honey("honeyt9", HONEY_ONE, 6.45), honey("honeyt10", HONEY_ONE, 6.5), honey("honeyt11", HONEY_ONE, 6.55),
 ];
 
 #[tokio::main(flavor = "current_thread")]
