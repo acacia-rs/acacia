@@ -10,8 +10,10 @@ mod error;
 mod generated;
 pub mod manual;
 pub mod nbt;
+mod xxh64;
 
 pub use error::DecodeError;
+pub use xxh64::xxh64;
 pub use generated::{GAME_VERSION, PROTOCOL_VERSION, packets, types};
 
 macro_rules! name_table {
