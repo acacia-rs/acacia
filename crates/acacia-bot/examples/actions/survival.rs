@@ -113,8 +113,8 @@ pub async fn ride(bot: &mut Bot, kind: &str) -> Check {
     let vehicle = match bot.mount(id).await {
         Ok(v) => v,
         Err(e) => {
-            let (eye, p) = (bot.eye_position(), &bot.state().player);
-            let mine = format!("eye {eye:?} rotation {:?}; (bot feet, vehicle) {start:?} now {:?}", (p.yaw, p.pitch), bot.state().entities.get(id).map(|e| e.position.clone()));
+            let eye = bot.eye_position();
+            let mine = format!("eye {eye:?} facing {:?}; (bot feet, vehicle) {start:?} now {:?}", bot.facing(), bot.state().entities.get(id));
             return Err(format!("{e}; {mine}; server sees {}", crate::server_entities(bot, kind).await).into());
         }
     };

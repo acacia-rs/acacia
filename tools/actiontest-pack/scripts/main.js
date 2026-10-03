@@ -68,8 +68,6 @@ function build(player) {
   spawn("minecraft:villager", -1, 1, "minecraft:spawn_farmer");
   spawn("minecraft:pig", 1, 1, "minecraft:on_saddled");
   spawn("minecraft:boat", 1, -1);
-  // The trader brings leashed llamas; they would wander through the scene.
-  for (const e of dim.getEntities({ type: "minecraft:trader_llama" })) e.remove();
   for (const e of dim.getEntities({ type: "minecraft:item" })) e.remove();
 
   for (const rule of ["dodaylightcycle false", "domobspawning false", "doweathercycle false", "spawnradius 0"]) run(`gamerule ${rule}`);
@@ -91,6 +89,12 @@ function build(player) {
   watchSign(dim, scene.sign);
 }
 
+// The trader's leashed llamas arrive ticks after it; the boat pulls them in and, both seats full,
+// silently refuses the bot's mount.
+world.afterEvents.entitySpawn.subscribe(({ entity }) => {
+  if (entity.typeId === "minecraft:trader_llama") entity.remove();
+});
+
 // Mobs still get pushed around; put scene entities back unless someone rides them.
 const homes = new Map();
 system.runInterval(() => {
@@ -98,7 +102,9 @@ system.runInterval(() => {
     const e = world.getEntity(id);
     if (!e || e.getComponent("minecraft:rideable")?.getRiders().length) continue;
     const { x, z } = e.location;
-    if (Math.hypot(x - home.x, z - home.z) > 0.3) e.teleport(home);
+    if (Math.hypot(x - home.x, z - home.z) <= 0.3) continue;
+    log(`home ${e.typeId} from ${x.toFixed(3)},${z.toFixed(3)} at tick ${system.currentTick}`);
+    e.teleport(home);
   }
 }, 20);
 
@@ -177,5 +183,15 @@ system.runInterval(() => {
     say(`dismounted +${t + 1} ${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`);
   }
 }, 1);
+
+// The server's side of an entity right-click: the before event fires only past the transaction checks.
+const where = (e) => [e.location.x, e.location.y, e.location.z].map((v) => v.toFixed(3)).join(",");
+world.beforeEvents.playerInteractWithEntity.subscribe(({ player, target, itemStack }) => {
+  const riding = player.getComponent("minecraft:riding")?.entityRidingOn?.typeId;
+  const v = target.getVelocity();
+  const riders = target.getComponent("minecraft:rideable")?.getRiders().map((r) => r.typeId);
+  log(`interact before ${target.typeId} at ${where(target)} v ${[v.x, v.y, v.z].map((c) => c.toFixed(4))} riders ${riders} valid ${target.isValid}; player ${where(player)} sneaking ${player.isSneaking} slot ${player.selectedSlotIndex} item ${itemStack?.typeId} riding ${riding}`);
+});
+world.afterEvents.playerInteractWithEntity.subscribe(({ target }) => log(`interact after ${target.typeId}`));
 
 world.afterEvents.playerLeave.subscribe(({ playerName }) => log(`left ${playerName}`));

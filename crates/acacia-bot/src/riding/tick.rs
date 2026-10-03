@@ -55,7 +55,7 @@ impl Bot {
         let idle = self.ride.idle.get_or_insert_with(|| Idle::continuing(movement.input_tick()));
         if let Some(mut input) = idle.tick_facing(&self.state.player, yaw, pitch, true) {
             self.seat_input(&mut input, &seat, Some(exit));
-            input.input_data.append(&mut self.queued_flags);
+            self.add_queued_flags(&mut input);
             self.client.send(&input);
         }
         true

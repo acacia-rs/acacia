@@ -32,7 +32,13 @@ retries. `/scriptevent actiontest:ent <type>` reports the scene's entities of a 
 profession `variant`, sleeping).
 
 Entities carry the tag `actiontest`, slowness 255, and are put back in place every second unless
-ridden; the next build removes them. The pig is saddled; the trader's llamas are removed.
+ridden; the next build removes them. The pig is saddled. The trader's llamas are removed whenever
+they spawn: they arrive ticks after the trader, and the boat pulled them in until both seats were
+taken, which made the bot's mount fail silently.
+
+Entity right-clicks log `ACTIONTEST interact before ...` (target, player state, held item, the
+target's riders) and `interact after <type>`. The before event fires once the click passes the
+transaction checks; the after event only if the entity offered an interaction.
 
 ## Running (testbox)
 
@@ -46,3 +52,10 @@ tools/testbox-bds.sh stop
 
 `ONLY=craft,write_sign` (`remote-run.sh env ONLY=craft cargo run ...`) runs a subset; a third argument
 `idle` runs the bot without physics. Results: docs/research/live-action-tests.md.
+
+One full run on a fresh world: `tools/live-actions.sh [idle]`. Repeated runs (flake hunts, before a
+merge): `[ONLY=..] [RUST_LOG=..] [LOG_GREP='interact|dismounted'] tools/live-repeat.sh <runs> [idle]`.
+It syncs and builds once, then loops on testbox (`tools/live-loop.sh`) on both instances
+(`bds-actions` :19170, `bds-actions2` :19172) in parallel. It streams `<instance>/<run> PASS|FAIL`
+lines and ends with a per-check tally. Failing runs keep their bot and BDS logs in
+`$REMOTE_DIR/live-repeat/<instance>/`.
