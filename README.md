@@ -22,6 +22,8 @@ _Currently supported Minecraft version: `1.26.51` (protocol `2193`)._
 - Bots that look like a vanilla Android player: login data, input cadence, spawn sequence and reaction
   times match recorded vanilla sessions
 
+**[Join the Discord](https://discord.gg/DNFJBJBVPr)** for questions, bug reports and to share bots you've built.
+
 ## Goals
 
 - Do everything a vanilla Bedrock client can do.
