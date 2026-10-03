@@ -13,6 +13,7 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 
 use crate::input::FlyInput;
 use crate::net::{Net, NetEvent};
+use crate::shot::Shot;
 
 const TITLE_EVERY: Duration = Duration::from_millis(500);
 
@@ -25,43 +26,16 @@ pub struct App {
     grabbed: bool,
     vsync: bool,
     fog_distance: f32,
-    player: Option<DVec3>,
     /// C toggles; `ACACIA_NO_CULL` starts with it off.
     cave_culling: bool,
+    player: Option<DVec3>,
     camera_placed: bool,
     status: String,
     last_frame: Instant,
     overlay: Overlay,
     shot: Option<Shot>,
-}
-
-/// Unattended capture (`ACACIA_SCREENSHOT=out.png`, `ACACIA_SHOT_AFTER=secs` after the world
-/// arrives, `ACACIA_LOOK=yaw,pitch` in degrees, `ACACIA_RISE=blocks` above the bot); exits after.
-struct Shot {
-    path: std::path::PathBuf,
-    after: Duration,
-    world_at: Option<Instant>,
-    taken: bool,
-}
-
-impl Shot {
-    fn from_env() -> Option<Shot> {
-        let path = std::env::var_os("ACACIA_SCREENSHOT")?.into();
-        let after = std::env::var("ACACIA_SHOT_AFTER").ok().and_then(|s| s.parse().ok()).unwrap_or(15.0);
-        Some(Shot { path, after: Duration::from_secs_f32(after), world_at: None, taken: false })
-    }
-
-    fn place(camera: &mut Camera, player: DVec3) {
-        let rise: f64 = std::env::var("ACACIA_RISE").ok().and_then(|s| s.parse().ok()).unwrap_or(0.0);
-        camera.position = player + DVec3::Y * rise;
-        if let Some((yaw, pitch)) = std::env::var("ACACIA_LOOK").ok().and_then(|s| {
-            let (y, p) = s.split_once(',')?;
-            Some((y.parse::<f32>().ok()?, p.parse::<f32>().ok()?))
-        }) {
-            (camera.yaw, camera.pitch) = (yaw.to_radians(), pitch.to_radians());
-            cave_culling: std::env::var_os("ACACIA_NO_CULL").is_none(),
-        }
-    }
+    /// Why the bot's session ended before an unattended screenshot was taken; the viewer exits.
+    pub failed: Option<String>,
 }
 
 /// Frame-rate and memory figures shown in the title.
@@ -85,12 +59,14 @@ impl App {
             grabbed: false,
             vsync: true,
             fog_distance: (radius * 16) as f32,
+            cave_culling: std::env::var_os("ACACIA_NO_CULL").is_none(),
             player: None,
             camera_placed: false,
             status: "starting".into(),
             last_frame: Instant::now(),
             overlay: Overlay { since: Instant::now(), frames: 0, reports: 0 },
             shot: Shot::from_env(),
+            failed: None,
         }
     }
 
@@ -132,11 +108,17 @@ impl App {
                         self.camera.position = p;
                         self.camera_placed = true;
                     }
-        r.cave_culling = self.cave_culling;
                 }
                 NetEvent::Status(s) => {
                     tracing::info!("{s}");
                     self.status = s;
+                }
+                NetEvent::Ended(reason) => {
+                    tracing::warn!("session ended: {reason}");
+                    if self.shot.as_ref().is_some_and(|s| !s.taken) {
+                        self.failed = Some(reason.clone());
+                    }
+                    self.status = reason;
                 }
             }
         }
@@ -150,6 +132,7 @@ impl App {
         self.input.step(&mut self.camera, dt);
         let Some(r) = &mut self.renderer else { return };
         r.fog_distance = self.fog_distance;
+        r.cave_culling = self.cave_culling;
         self.camera.aspect = r.aspect();
         let stats = r.render(&self.camera);
         self.overlay.frames += 1;
@@ -170,7 +153,6 @@ impl App {
 
     fn grab(&mut self, on: bool) {
         let Some(w) = &self.window else { return };
-            (KeyCode::KeyC, true) => self.cave_culling = !self.cave_culling,
         let mode = if on { CursorGrabMode::Locked } else { CursorGrabMode::None };
         let grabbed = w.set_cursor_grab(mode).or_else(|_| w.set_cursor_grab(if on { CursorGrabMode::Confined } else { mode })).is_ok();
         w.set_cursor_visible(!on);
@@ -188,6 +170,7 @@ impl App {
                     self.camera.position = p;
                 }
             }
+            (KeyCode::KeyC, true) => self.cave_culling = !self.cave_culling,
             (KeyCode::KeyV, true) => {
                 self.vsync = !self.vsync;
                 if let Some(r) = &mut self.renderer {
@@ -254,6 +237,9 @@ impl ApplicationHandler for App {
                     event_loop.exit();
                 }
                 self.frame();
+                if self.failed.is_some() {
+                    event_loop.exit();
+                }
             }
             WindowEvent::Focused(false) => self.grab(false),
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if !self.grabbed => self.grab(true),

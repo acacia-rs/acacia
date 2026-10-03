@@ -10,6 +10,7 @@ mod app;
 mod heap;
 mod input;
 mod net;
+mod shot;
 
 #[cfg(feature = "profile")]
 #[global_allocator]
@@ -27,6 +28,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pack = acacia_render::assets::Pack::load(&acacia_render::assets::Pack::default_dir())?;
     let net = net::spawn(net::Options { server, name, radius }, pack);
     let event_loop = EventLoop::new()?;
-    event_loop.run_app(&mut app::App::new(net, radius))?;
-    Ok(())
+    let mut app = app::App::new(net, radius);
+    event_loop.run_app(&mut app)?;
+    // Unattended screenshots exit non-zero when the session ends first (kicked, e.g. ServerIdConflict).
+    match app.failed {
+        Some(reason) => Err(format!("no screenshot: {reason}").into()),
+        None => Ok(()),
+    }
 }

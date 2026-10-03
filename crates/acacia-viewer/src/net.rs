@@ -30,6 +30,8 @@ pub enum NetEvent {
     /// The bot's eye position.
     Player(DVec3),
     Status(String),
+    /// The bot thread stopped: kicked, disconnected, or failed to join. Last event sent.
+    Ended(String),
 }
 
 /// The running bot thread. [`Net::shutdown`] disconnects cleanly: a bot that just vanishes keeps its
@@ -47,9 +49,16 @@ impl Net {
         let Some(quit) = self.quit.take() else { return };
         let _ = quit.send(());
         let deadline = Instant::now() + Duration::from_secs(3);
-        while let Some(left) = deadline.checked_duration_since(Instant::now()) {
-            if let Err(RecvTimeoutError::Disconnected) = self.events.recv_timeout(left) {
-                break;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            match self.events.recv_timeout(left) {
+                Ok(NetEvent::Ended(reason)) => tracing::info!("session ended: {reason}"),
+                Ok(_) => {}
+                Err(RecvTimeoutError::Disconnected) => break,
+                Err(RecvTimeoutError::Timeout) => {
+                    tracing::warn!("bot did not disconnect within 3 s; the server may hold the session (ServerIdConflict)");
+                    break;
+                }
             }
         }
     }
@@ -62,15 +71,15 @@ pub fn spawn(options: Options, pack: Pack) -> Net {
         .name("bot".into())
         .spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("tokio runtime");
-            if let Err(e) = rt.block_on(run(options, pack, &tx, quit_rx)) {
-                let _ = tx.send(NetEvent::Status(format!("error: {e}")));
-            }
+            let reason = rt.block_on(run(options, pack, &tx, quit_rx)).unwrap_or_else(|e| format!("error: {e}"));
+            let _ = tx.send(NetEvent::Ended(reason));
         })
         .expect("spawn bot thread");
     Net { events, quit: Some(quit) }
 }
 
-async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: oneshot::Receiver<()>) -> Result<(), Box<dyn std::error::Error>> {
+/// Returns why the session ended.
+async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: oneshot::Receiver<()>) -> Result<String, Box<dyn std::error::Error>> {
     let send = |e| tx.send(e).map_err(|_| "window closed");
     send(NetEvent::Status(format!("connecting to {}", options.server)))?;
     let builder = login(Client::builder(&options.server).chunk_radius(options.radius), &options.name).await?;
@@ -78,7 +87,7 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
     let config = BotConfig { physics: true, auto_respawn: true, subscribe, ..BotConfig::default() };
     let mut bot = tokio::select! {
         bot = Bot::connect(builder, config) => bot?,
-        _ = &mut quit => return Ok(()),
+        _ = &mut quit => return Ok("quit".into()),
     };
     send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
 
@@ -90,11 +99,8 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
     loop {
         tokio::select! {
             event = bot.next() => match event {
-                Some(BotEvent::Disconnected(reason)) => {
-                    send(NetEvent::Status(format!("disconnected: {reason:?}")))?;
-                    break;
-                }
-                None => break,
+                Some(BotEvent::Disconnected(reason)) => return Ok(format!("disconnected: {reason:?}")),
+                None => return Ok("bot stopped".into()),
                 Some(BotEvent::Packet(p)) if p.id == BiomeDefinitionList::ID => {
                     let defs = biome_defs(&p.decode()?);
                     tracing::info!(count = defs.len(), "biome definitions");
@@ -107,7 +113,7 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
             _ = report.tick() => {}
             _ = &mut quit => {
                 bot.disconnect().await;
-                break;
+                return Ok("quit".into());
             }
         }
         let world = bot.world().and_then(|w| w.view()).map(|v| v.world().clone());
@@ -135,7 +141,6 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
             }
         }
     }
-    Ok(())
 }
 
 fn biome_defs(list: &BiomeDefinitionList) -> Vec<BiomeDef> {
