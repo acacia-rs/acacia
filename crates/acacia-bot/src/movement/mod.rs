@@ -229,8 +229,10 @@ impl Movement {
                 {
                     let base = movement_without_sprint(m);
                     tracing::debug!(our_tick = self.tick, server_tick = a.tick, current = m.current, base, "movement attribute");
-                    if base != st.default_movement_speed {
-                        st.set_movement_attribute(base);
+                    rewind::set_movement(st, base);
+                    // Stamped T, it already moves the player on input tick T (the freeze updates before the move).
+                    if a.tick != 0 {
+                        self.history.movement_attribute(a.tick, base);
                     }
                 }
             }
@@ -306,7 +308,7 @@ impl Movement {
         self.history.record(self.tick, input, knockback, st);
         // Movement starts only after the bot has left the loading screen (bot.rs).
         let packet = auth_input::build(&input, &out, &edges, self.tick, true);
-        tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, yaw = c.yaw, pitch = c.pitch,
+        tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, speed = st.movement_speed, yaw = c.yaw, pitch = c.pitch,
             pos = ?out.position, delta = ?out.delta, teleported = out.teleported, flags = ?packet.input_data, "auth input");
         Some(packet)
     }
