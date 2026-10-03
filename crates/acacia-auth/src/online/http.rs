@@ -91,14 +91,7 @@ impl Http {
         body: Vec<u8>,
         key: &SigningKey,
     ) -> RequestBuilder {
-        let parsed = url::Url::parse(url).expect("static endpoint URL");
-        let path = match parsed.query() {
-            Some(q) => format!("{}?{q}", parsed.path()),
-            None => parsed.path().to_owned(),
-        };
-        let ft = sign::filetime(self.server_now_nanos());
-        let signature =
-            sign::signature_header(key, ft, "POST", &path, authorization.unwrap_or(""), &body);
+        let signature = self.signature(key, "POST", url, authorization.unwrap_or(""), &body);
         let mut req = self
             .client
             .post(url)
@@ -112,6 +105,16 @@ impl Http {
             req = req.header("Authorization", auth);
         }
         req.body(body)
+    }
+
+    /// The `Signature` header for a request to `url`, stamped with the server-corrected clock.
+    pub fn signature(&self, key: &SigningKey, method: &str, url: &str, authorization: &str, body: &[u8]) -> String {
+        let parsed = url::Url::parse(url).expect("endpoint URL");
+        let path = match parsed.query() {
+            Some(q) => format!("{}?{q}", parsed.path()),
+            None => parsed.path().to_owned(),
+        };
+        sign::signature_header(key, sign::filetime(self.server_now_nanos()), method, &path, authorization, body)
     }
 }
 
