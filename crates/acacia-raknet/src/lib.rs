@@ -13,7 +13,7 @@ pub mod wire;
 pub use client::Client;
 pub use server::{Server, ServerConfig, ServerEvent};
 pub use types::{Config, DisconnectReason, Event};
-pub use reliability::RecvError;
+pub use reliability::{RecvError, RecvLimits};
 pub use wire::datagram::Reliability;
 pub use wire::offline::{parse_pong, unconnected_ping, Pong};
 pub use wire::WireError;

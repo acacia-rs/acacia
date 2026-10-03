@@ -4,7 +4,8 @@ use std::time::{Duration, Instant};
 
 use bytes::{Bytes, BytesMut};
 
-use crate::conn::Conn;
+use crate::conn::{Conn, ConnConfig};
+use crate::reliability::RecvLimits;
 use crate::types::{Config, DisconnectReason, Event};
 use crate::wire::datagram::{Reliability, FLAG_VALID};
 use crate::wire::{connected as c, offline as o, WireError};
@@ -193,7 +194,13 @@ impl Client {
             o::ID_OPEN_CONNECTION_REPLY_2 if matches!(self.state, State::Open2 { .. }) => {
                 let reply = o::parse_reply_2(data)?;
                 self.mtu = self.mtu.min(reply.mtu);
-                let mut conn = Conn::new(self.epoch, self.mtu, self.cfg.idle_timeout, self.cfg.ping_interval, now);
+                let cfg = ConnConfig {
+                    mtu: self.mtu,
+                    idle_timeout: self.cfg.idle_timeout,
+                    ping_interval: self.cfg.ping_interval,
+                    recv_limits: RecvLimits::CLIENT,
+                };
+                let mut conn = Conn::new(self.epoch, cfg, now);
                 conn.queue(c::connection_request(self.cfg.guid, conn.time(now)), Reliability::Reliable);
                 self.state = State::Handshaking(conn);
                 return Ok(());

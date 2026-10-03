@@ -4,7 +4,8 @@ use std::time::{Duration, Instant};
 
 use bytes::{Bytes, BytesMut};
 
-use crate::conn::Conn;
+use crate::conn::{Conn, ConnConfig};
+use crate::reliability::RecvLimits;
 use crate::types::DisconnectReason;
 use crate::wire::datagram::{Reliability, FLAG_VALID};
 use crate::wire::{connected as c, offline as o, WireError};
@@ -18,6 +19,7 @@ pub struct ServerConfig {
     pub max_mtu: u16,
     pub idle_timeout: Duration,
     pub ping_interval: Duration,
+    pub recv_limits: RecvLimits,
 }
 
 impl ServerConfig {
@@ -29,6 +31,7 @@ impl ServerConfig {
             max_mtu: 1492,
             idle_timeout: Duration::from_secs(10),
             ping_interval: Duration::from_secs(2),
+            recv_limits: RecvLimits::SERVER,
         }
     }
 }
@@ -156,7 +159,13 @@ impl Server {
                 let mtu = mtu.min(self.cfg.max_mtu);
                 // A repeated request 2 (our reply got lost) or a rejoin from the same port starts over.
                 self.drop_peer(from, DisconnectReason::ClientClosed);
-                let conn = Conn::new(self.epoch, mtu, self.cfg.idle_timeout, self.cfg.ping_interval, now);
+                let cfg = ConnConfig {
+                    mtu,
+                    idle_timeout: self.cfg.idle_timeout,
+                    ping_interval: self.cfg.ping_interval,
+                    recv_limits: self.cfg.recv_limits,
+                };
+                let conn = Conn::new(self.epoch, cfg, now);
                 self.peers.insert(from, Peer { conn, connected: false });
                 o::reply_2(&mut out, self.cfg.guid, from, mtu);
             }
