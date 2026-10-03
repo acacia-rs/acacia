@@ -140,7 +140,7 @@ fn encrypt(plain: &[u8]) -> Vec<u8> {
 }
 
 fn decrypt(data: &[u8]) -> Option<Vec<u8>> {
-    if data.is_empty() || data.len() % BLOCK != 0 {
+    if data.is_empty() || !data.len().is_multiple_of(BLOCK) {
         return None;
     }
     let cipher = Aes256::new(key().into());

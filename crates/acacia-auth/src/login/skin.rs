@@ -1,4 +1,4 @@
-//! What bots wear: real skins captured from the vanilla game, one per account. `tools/mitm` saves
+//! What bots wear: real skins captured from the vanilla game, one per account. `acacia-mitm` saves
 //! every joining player's skin to `<out>/skins/<SkinId>.json`; files copied into `assets/skins/` are
 //! embedded at build time (build.rs). Without any, bots fall back to a flat 64x64 skin.
 

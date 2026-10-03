@@ -123,4 +123,4 @@ blob. Sizes 526..4951 B, median 2128, 494 KB total.
 8. Tests: fixture of this capture's S>C LevelChunk/Subchunk/MissResponse bodies only (no login/identity
    lines) → replay through `BlobStatusTracker` with an empty `received`, assert every slot listed once,
    no duplicate `missing`, and that the world store reconstructs sections whose xxh64 matches.
-9. Live check on local BDS via `tools/mitm`: compare our status/miss counts and latencies to sections 3-5.
+9. Live check on local BDS via `acacia-mitm`: compare our status/miss counts and latencies to sections 3-5.

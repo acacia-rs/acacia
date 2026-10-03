@@ -1,4 +1,4 @@
-//! Converts a tools/mitm capture of the vanilla client into movement traces for the `replay` example,
+//! Converts an acacia-mitm capture of the vanilla client into movement traces for the `replay` example,
 //! one per session (login): server packets become trace packets, `PlayerAuthInput`s become inputs.
 //! `cargo run -p acacia-bot --example mitm_trace -- <capture.jsonl> <out-prefix>`
 //! then `replay <out-prefix>-<n>.btrc --resync` (a real client: resync after each divergence).

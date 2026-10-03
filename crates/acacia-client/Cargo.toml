@@ -34,7 +34,6 @@ socket2 = "0.6"
 if-addrs = "0.15"
 
 [dev-dependencies]
-acacia-nethernet = { path = "../acacia-nethernet", features = ["test-support"] }
 str0m = { version = "0.24.0", default-features = false, features = ["rust-crypto"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "signal", "fs"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }

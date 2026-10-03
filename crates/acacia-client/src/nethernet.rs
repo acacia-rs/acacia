@@ -78,7 +78,7 @@ async fn roundtrip<S: AsyncRead + AsyncWrite + Unpin>(mut stream: S, request: &[
     stream.write_all(request).await?;
     let mut response = Vec::new();
     let mut chunk = [0u8; 8192];
-    while !http::response_complete(&response) && response.len() < http::MAX_RESPONSE {
+    while !http::response_complete(&response) && response.len() < http::MAX_MESSAGE {
         match stream.read(&mut chunk).await {
             Ok(0) => break,
             Ok(n) => response.extend_from_slice(&chunk[..n]),
@@ -109,10 +109,10 @@ pub(crate) fn tls_config() -> Arc<ClientConfig> {
 pub(crate) async fn probe(endpoint: &Endpoint<'_>) -> Option<Scheme> {
     let request = http::probe_request(&endpoint.authority());
     for scheme in Scheme::PREFERENCE {
-        if let Ok(Ok(raw)) = timeout(PROBE_TIMEOUT, endpoint.exchange(scheme, &request)).await {
-            if http::parse_response(&raw).is_ok_and(|(status, _)| (200..300).contains(&status)) {
-                return Some(scheme);
-            }
+        if let Ok(Ok(raw)) = timeout(PROBE_TIMEOUT, endpoint.exchange(scheme, &request)).await
+            && http::parse_response(&raw).is_ok_and(|(status, _)| (200..300).contains(&status))
+        {
+            return Some(scheme);
         }
     }
     None

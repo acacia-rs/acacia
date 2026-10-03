@@ -53,11 +53,11 @@ pub(crate) fn candidate_line(addr: SocketAddr, typ: CandidateType, ufrag: Option
     s
 }
 
-/// Rebuilds str0m's offer in the vanilla line order with `identity_line` at session level.
-/// Takes the fingerprint and ICE credentials from str0m's offer. With `embedded` the offer carries
-/// that host candidate (direct connect); without, candidates are trickled and the media line holds
-/// libwebrtc's pre-gathering placeholders.
-pub(crate) fn vanilla_offer(str0m_offer: &str, identity_line: &str, embedded: Option<SocketAddr>) -> String {
+/// Rebuilds str0m's offer or answer in the vanilla line order (BDS answers use the same one) with
+/// `identity_line` at session level. Takes the fingerprint, ICE credentials and DTLS setup from
+/// str0m's SDP. With `embedded` the SDP carries that host candidate (direct connect); without,
+/// candidates are trickled and the media line holds libwebrtc's pre-gathering placeholders.
+pub(crate) fn vanilla_sdp(str0m_offer: &str, identity_line: &str, embedded: Option<SocketAddr>) -> String {
     let attr = |name: &str| str0m_offer.lines().find_map(|l| l.strip_prefix(name)).unwrap_or_default();
     let placeholder = SocketAddr::from(([0, 0, 0, 0], 9));
     let media = embedded.unwrap_or(placeholder);
@@ -86,7 +86,7 @@ pub(crate) fn vanilla_offer(str0m_offer: &str, identity_line: &str, embedded: Op
     for fingerprint in str0m_offer.lines().filter(|l| l.starts_with("a=fingerprint:")) {
         line(fingerprint);
     }
-    line("a=setup:actpass");
+    line(&format!("a=setup:{}", attr("a=setup:")));
     line(&format!("a=mid:{VANILLA_MID}"));
     line("a=sctp-port:5000");
     line("a=max-message-size:262144");
@@ -96,6 +96,24 @@ pub(crate) fn vanilla_offer(str0m_offer: &str, identity_line: &str, embedded: Op
 /// The mid str0m gave its data section, needed to map the answer back.
 pub(crate) fn str0m_mid(str0m_offer: &str) -> String {
     str0m_offer.lines().find_map(|l| l.strip_prefix("a=mid:")).unwrap_or_default().to_owned()
+}
+
+/// The peer's `a=max-message-size`, if it sent one.
+pub(crate) fn max_message_size(sdp: &str) -> Result<Option<usize>, crate::Error> {
+    sdp.lines()
+        .find_map(|l| l.strip_prefix("a=max-message-size:"))
+        .map(|v| v.trim().parse().map_err(|_| crate::Error::Sdp("bad max-message-size".into())))
+        .transpose()
+}
+
+/// An offer as str0m should answer it: no `a=identity`, and `actpass` narrowed to `passive` so str0m
+/// takes the DTLS client role (`a=setup:active`) as BDS does; given `actpass` it picks `passive`.
+pub(crate) fn offer_for_str0m(offer: &str) -> String {
+    let mut out = String::with_capacity(offer.len());
+    for l in offer.lines().filter(|l| !l.starts_with(crate::identity::IDENTITY)) {
+        let _ = write!(out, "{}\r\n", if l == "a=setup:actpass" { "a=setup:passive" } else { l });
+    }
+    out
 }
 
 /// The answer as str0m expects it: no `a=identity`, and our mid instead of the vanilla one.
@@ -120,7 +138,7 @@ mod tests {
 
     #[test]
     fn offer_follows_vanilla_layout() {
-        let offer = vanilla_offer(STR0M, "a=identity:e30=", Some("192.168.1.20:50123".parse().unwrap()));
+        let offer = vanilla_sdp(STR0M, "a=identity:e30=", Some("192.168.1.20:50123".parse().unwrap()));
         let key = |l: &str| match l.strip_prefix("a=") {
             Some(attr) => format!("a={}", attr.split(':').next().unwrap_or_default()),
             None if l.starts_with("m=") || l.starts_with("c=") => l.to_owned(),
@@ -140,7 +158,7 @@ mod tests {
 
     #[test]
     fn trickle_offer_has_no_candidates() {
-        let offer = vanilla_offer(STR0M, "a=identity:e30=", None);
+        let offer = vanilla_sdp(STR0M, "a=identity:e30=", None);
         assert!(!offer.contains("a=candidate"));
         assert!(offer.contains("m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\na=ice-ufrag:Ab12\r\n"));
     }

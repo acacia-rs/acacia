@@ -1,4 +1,4 @@
-//! Reads tools/mitm captures (format: tools/mitm/src/record.rs) into sessions.
+//! Reads acacia-mitm captures (format: crates/acacia-mitm/src/record.rs) into sessions.
 
 use serde_json::Value;
 

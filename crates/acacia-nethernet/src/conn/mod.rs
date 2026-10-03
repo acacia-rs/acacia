@@ -1,3 +1,4 @@
+mod answer;
 mod candidates;
 mod pump;
 
@@ -15,11 +16,13 @@ pub use candidates::LocalCandidate;
 
 use crate::frame::Reassembler;
 use crate::identity::identity_line;
-use crate::server_identity::verify_answer;
+use crate::server_identity::{unix_now, verify_answer};
 use crate::{cert, sdp, Error, Identity};
 
 /// Peers that omit `a=max-message-size` accept 64 KiB (RFC 8841).
 const DEFAULT_MAX_MESSAGE: usize = 65536;
+const RELIABLE_LABEL: &str = "ReliableDataChannel";
+const UNRELIABLE_LABEL: &str = "UnreliableDataChannel";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
@@ -37,8 +40,8 @@ pub struct Transmit {
     pub contents: Vec<u8>,
 }
 
-/// One NetherNet connection as the offering client. Sans-IO: feed it datagrams and time, send what
-/// [`Connection::poll_transmit`] yields. Datagrams for the host candidate go to
+/// One NetherNet connection, as the offering client or (see [`Connection::answer`]) the answering
+/// server. Sans-IO: feed it datagrams and time, send what [`Connection::poll_transmit`] yields. Datagrams for the host candidate go to
 /// [`Connection::handle_datagram`] (for a SOCKS5 relay, the advertised address stands in for the
 /// socket); ones unwrapped from a TURN allocation go to [`Connection::handle_relayed`].
 pub struct Connection {
@@ -55,9 +58,9 @@ pub struct Connection {
     server_key: Option<p384::ecdsa::VerifyingKey>,
     /// Game-hosted (LAN) worlds answer without `a=identity`; BDS always asserts one.
     identityless_host_ok: bool,
-    reliable: ChannelId,
-    unreliable: ChannelId,
-    open: [bool; 2],
+    /// Set when each channel opens, matched by label: the offerer creates both, the answerer learns them.
+    reliable: Option<ChannelId>,
+    unreliable: Option<ChannelId>,
     closed: bool,
     max_message: usize,
     reassembler: Reassembler,
@@ -92,34 +95,39 @@ impl Connection {
             rtc.add_local_candidate(Candidate::host(local, "udp").map_err(|e| Error::Sdp(e.to_string()))?);
         }
         let mut api = rtc.sdp_api();
-        let reliable = api.add_channel_with_config(ChannelConfig {
-            label: "ReliableDataChannel".into(),
+        api.add_channel_with_config(ChannelConfig {
+            label: RELIABLE_LABEL.into(),
             ordered: true,
             reliability: Reliability::Reliable,
             ..Default::default()
         });
-        let unreliable = api.add_channel_with_config(ChannelConfig {
-            label: "UnreliableDataChannel".into(),
+        api.add_channel_with_config(ChannelConfig {
+            label: UNRELIABLE_LABEL.into(),
             ordered: false,
             reliability: Reliability::MaxRetransmits { retransmits: 0 },
             ..Default::default()
         });
         let (offer, pending) = api.apply().ok_or_else(|| Error::Sdp("no changes to offer".into()))?;
         let str0m_offer = offer.to_sdp_string();
-        let offer = sdp::vanilla_offer(&str0m_offer, &identity_line(&str0m_offer, identity), embedded);
-        let conn = Self {
+        let offer = sdp::vanilla_sdp(&str0m_offer, &identity_line(&str0m_offer, identity), embedded);
+        let mut conn = Self::new(rtc, embedded, ufrag, sdp::str0m_mid(&str0m_offer));
+        conn.pending_offer = Some(pending);
+        Ok((conn, offer))
+    }
+
+    fn new(rtc: Box<Rtc>, host: Option<SocketAddr>, ufrag: String, mid: String) -> Self {
+        Self {
             rtc,
-            host: embedded,
+            host,
             relays: Vec::new(),
             ufrag,
-            mid: sdp::str0m_mid(&str0m_offer),
-            pending_offer: Some(pending),
+            mid,
+            pending_offer: None,
             early_candidates: Vec::new(),
             server_key: None,
             identityless_host_ok: false,
-            reliable,
-            unreliable,
-            open: [false; 2],
+            reliable: None,
+            unreliable: None,
             closed: false,
             max_message: DEFAULT_MAX_MESSAGE,
             reassembler: Reassembler::default(),
@@ -129,8 +137,7 @@ impl Connection {
             messages: VecDeque::new(),
             events: VecDeque::new(),
             timeout: None,
-        };
-        Ok((conn, offer))
+        }
     }
 
     /// Accepts an answer without `a=identity` (a game-hosted LAN world); one that has it is still verified.
@@ -150,13 +157,12 @@ impl Connection {
 
     pub fn accept_answer(&mut self, answer: &str, now: Instant) -> Result<(), Error> {
         let pending = self.pending_offer.take().ok_or_else(|| Error::Sdp("answer already accepted".into()))?;
-        if let Some(size) = answer.lines().find_map(|l| l.strip_prefix("a=max-message-size:")) {
-            self.max_message = size.trim().parse().map_err(|_| Error::Sdp("bad max-message-size".into()))?;
+        if let Some(size) = sdp::max_message_size(answer)? {
+            self.max_message = size;
         }
         let asserted = answer.lines().any(|l| l.starts_with(crate::identity::IDENTITY));
         if asserted || !self.identityless_host_ok {
-            let unix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
-            self.server_key = Some(verify_answer(answer, unix)?);
+            self.server_key = Some(verify_answer(answer, unix_now())?);
         }
         let answer = SdpAnswer::from_sdp_string(&sdp::answer_for_str0m(answer, &self.mid)).map_err(|e| Error::Sdp(e.to_string()))?;
         self.rtc.sdp_api().accept_answer(pending, answer)?;
@@ -168,7 +174,7 @@ impl Connection {
     }
 
     pub fn is_open(&self) -> bool {
-        self.open == [true; 2]
+        self.reliable.is_some() && self.unreliable.is_some()
     }
 
     /// Queues one game message (sent once the channels are open).

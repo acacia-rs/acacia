@@ -1,5 +1,6 @@
-//! Network-free NetherNet client: direct-connect HTTP signaling, signal text for LAN and the
-//! signaling service, the SDP identity assertion, fragment framing and a str0m WebRTC connection.
+//! Network-free NetherNet: direct-connect HTTP signaling (both sides), signal text for LAN and the
+//! signaling service, the SDP identity assertion, fragment framing and a str0m WebRTC connection
+//! that offers (client) or answers (direct-connect server).
 //! Wire specs: docs/research/nethernet-wire.md, docs/research/nethernet-signaling.md.
 
 mod cert;
@@ -21,9 +22,7 @@ pub use conn::{Connection, Event, LocalCandidate, Transmit};
 pub use signal::{Signal, SignalKind};
 pub use error::{signaling_error_name, Error};
 pub use identity::{Identity, AUTH_DOMAIN};
-/// For fake hosts in other crates' tests.
-#[cfg(feature = "test-support")]
-pub use server_identity::sign_as_server;
+pub use server_identity::sign_answer;
 
 /// `GET` path whose 2xx answer means the server speaks NetherNet.
 pub const PROBE_PATH: &str = "/v1/join";

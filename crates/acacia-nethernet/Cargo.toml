@@ -6,10 +6,6 @@ license.workspace = true
 publish.workspace = true
 rust-version.workspace = true
 
-[features]
-# Exposes sign_as_server so other crates' tests can stand in for a NetherNet host.
-test-support = []
-
 [dependencies]
 # rust-crypto: pure-Rust DTLS, no system OpenSSL or C toolchain.
 str0m = { version = "0.24.0", default-features = false, features = ["rust-crypto"] }

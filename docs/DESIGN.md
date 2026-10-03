@@ -34,11 +34,12 @@ acacia-client             tokio sockets and timers, SOCKS5 (UDP + CONNECT), Neth
  │                        `server::ServerConnection` is the server side (FakeServer, mitm)
  │   ├─ acacia-raknet     network-free RakNet client and server: reliability, split packets, ACK/NACK, ordering
  │   └─ acacia-proto      generated packet structs + codec (varints, lazy Packet)
- ├─ acacia-nethernet      network-free NetherNet: signaling HTTP bytes, signal text, signaling-service session,
- │                        STUN/TURN client, a=identity, fragment framing, str0m connection (trickle ICE)
+ ├─ acacia-nethernet      network-free NetherNet: signaling HTTP bytes (both sides), signal text, signaling-service
+ │                        session, STUN/TURN client, a=identity, fragment framing, str0m connection (offer or BDS-style answer)
  └─ acacia-auth           MSA device code → Xbox → XSTS → PlayFab → session/start → multiplayer token
+acacia-mitm               recording proxy for vanilla-client captures over RakNet or NetherNet direct connect,
+                          local BDS or (`--online`) real servers
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
-tools/mitm                recording proxy for vanilla-client captures, local BDS or (`--online`) real servers (acacia-mitm)
 tools/capdiff             compares what two clients sent in captures (vanilla vs bot): order, delays, cadence, fields
 acacia-testserver         (dev) FakeServer replays a recorded BDS join over loopback RakNet, then takes send/recv/kick
                           from the test; capture reader
@@ -50,10 +51,11 @@ session and asserts the vanilla timeline; `FAKE_CAPTURE=<file>` saves the exchan
 scripts: `cargo run -p acacia-testserver --example make_script` on a capture of a bot (never the real game:
 scripts ship in the repo and replay PlayerList and skins).
 
-`tools/mitm` terminates only the encryption handshake (each side gets its own key) and re-signs the
+`acacia-mitm` terminates only the encryption handshake (each side gets its own key) and re-signs the
 game's Login: offline by default, or with `--online <account>` as that signed-in account (sign the game
 into the same one, since its client data passes through). Everything else passes through as it came, cache and pack replies
-included. Capture format: `tools/mitm/src/record.rs`. `name` is acacia-proto's struct name; captures
+included. `--transport nethernet` (needs `--online`) serves BDS-style signaling to the game and dials the
+NetherNet BDS; add the server by this machine's LAN IP, not 127.0.0.1. Capture format: `crates/acacia-mitm/src/record.rs`. `name` is acacia-proto's struct name; captures
 made before 2026-10-02 used gophertunnel's names.
 
 ## Reference implementations

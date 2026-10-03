@@ -1,20 +1,24 @@
-//! Recording RakNet proxy for ground-truth captures of the vanilla client: the game joins this proxy,
+//! Recording proxy for ground-truth captures of the vanilla client: the game joins this proxy,
 //! the proxy joins the server as the same player, and every packet on the game's side is logged
 //! (record.rs).
 //!
-//! `cargo run -p acacia-mitm -- [--listen 0.0.0.0:19180] [--server 127.0.0.1:19140] [--out .testserver/mitm] [--online <account>]`
+//! `cargo run -p acacia-mitm -- [--transport raknet|nethernet] [--listen 0.0.0.0:19180] [--server <addr>] [--out .testserver/mitm] [--online <account>]`
 //!
-//! Offline by default, for the local test BDS. `--online <account>` signs in with that account
-//! (`.tokens`, device code on first use) for real servers; sign the game into the same account so the
-//! client data matches. Login is logged as a structural summary only (login.rs): no tokens or signatures.
+//! RakNet (default) is offline by default, for the local test BDS on 19140. `--online <account>`
+//! signs in with that account (`.tokens`, device code on first use) for real servers; sign the game
+//! into the same account so the client data matches. NetherNet direct connect (nethernet/) targets
+//! the NetherNet BDS on 19160 and always needs `--online`. Login is logged as a structural summary
+//! only (login.rs): no tokens or signatures.
 
 mod login;
+mod nethernet;
 mod pair;
 mod record;
+mod relay;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use acacia_auth::{Account, AuthClient, AuthConfig, FileTokenCache};
@@ -31,6 +35,7 @@ use record::Recorder;
 const STATUS_INTERVAL: Duration = Duration::from_secs(3);
 
 struct Args {
+    nethernet: bool,
     listen: SocketAddr,
     /// `host:port`, resolved once at start.
     server: String,
@@ -39,17 +44,28 @@ struct Args {
 }
 
 fn args() -> Result<Args, String> {
-    let mut args = Args { listen: "0.0.0.0:19180".parse().unwrap(), server: "127.0.0.1:19140".into(), out: ".testserver/mitm".into(), online: None };
+    let mut args = Args { nethernet: false, listen: "0.0.0.0:19180".parse().unwrap(), server: String::new(), out: ".testserver/mitm".into(), online: None };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
         let value = it.next().ok_or(format!("{flag} needs a value"))?;
         match flag.as_str() {
+            "--transport" => args.nethernet = match value.as_str() {
+                "raknet" => false,
+                "nethernet" => true,
+                _ => return Err(format!("--transport: {value} is not raknet or nethernet")),
+            },
             "--listen" => args.listen = value.parse().map_err(|e| format!("--listen: {e}"))?,
             "--server" => args.server = value,
             "--out" => args.out = value,
             "--online" => args.online = Some(value),
             _ => return Err(format!("unknown flag {flag}")),
         }
+    }
+    if args.server.is_empty() {
+        args.server = if args.nethernet { "127.0.0.1:19160" } else { "127.0.0.1:19140" }.into();
+    }
+    if args.nethernet && args.online.is_none() {
+        return Err("--transport nethernet needs --online <account>: BDS refuses NetherNet offers without a MultiplayerToken".into());
     }
     Ok(args)
 }
@@ -69,11 +85,19 @@ struct Link {
     reader: JoinHandle<()>,
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// Debug-build str0m connections overflow Windows' 1 MiB main-thread stack, so the runtime gets its own.
+const STACK: usize = 64 << 20;
+
+fn main() -> Result<(), String> {
+    let runtime = std::thread::Builder::new().stack_size(STACK).spawn(|| {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
+        rt.block_on(run()).map_err(|e| e.to_string())
+    });
+    runtime.map_err(|e| e.to_string())?.join().map_err(|_| "proxy thread panicked".to_owned())?
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = args()?;
-    // MITM_TRACE=1 logs every datagram on the game's side (first byte and size), to debug joins.
-    let trace = std::env::var_os("MITM_TRACE").is_some();
     let stamp = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
     let name = stamp.format(time::macros::format_description!("[year][month][day]-[hour][minute][second]"))?;
     let target = tokio::net::lookup_host(&args.server).await?.next().ok_or(format!("{}: no address", args.server))?;
@@ -81,15 +105,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(id) => Some(sign_in(id).await?),
         None => None,
     };
-    let mut rec = Recorder::create(args.out.as_ref(), &name)?;
-    let listener = UdpSocket::bind(args.listen).await?;
+    let rec = Recorder::create(args.out.as_ref(), &name)?;
+    println!("join {} from the game; recording to {}", args.listen, rec.path().display());
+    match account {
+        Some(account) if args.nethernet => {
+            let key = nethernet::host_key(args.out.as_ref())?;
+            let host = nethernet::Host { server: target, account, key, rec: Arc::new(Mutex::new(rec)) };
+            Ok(nethernet::run(args.listen, host).await?)
+        }
+        account => run_raknet(args.listen, target, account, rec).await,
+    }
+}
+
+async fn run_raknet(listen: SocketAddr, target: SocketAddr, account: Option<Account>, mut rec: Recorder) -> Result<(), Box<dyn std::error::Error>> {
+    // MITM_TRACE=1 logs every datagram on the game's side (first byte and size), to debug joins and
+    // compare send pacing.
+    let mut trace = match std::env::var_os("MITM_TRACE") {
+        Some(_) => Some(rec.datagram_log()?),
+        None => None,
+    };
+    let listener = UdpSocket::bind(listen).await?;
     let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng);
     let mut server = Server::new(ServerConfig::new(guid, String::new()), Instant::now());
-    let mut motd = watch_status(target, guid, args.listen.port());
+    let mut motd = watch_status(target, guid, listen.port());
     motd.mark_changed();
     let (upstream_tx, mut upstream_rx) = mpsc::unbounded_channel::<(SocketAddr, Bytes)>();
     let mut links: HashMap<SocketAddr, Link> = HashMap::new();
-    println!("join {} from the game; recording to {}", args.listen, rec.path().display());
 
     let mut buf = vec![0u8; 2048];
     loop {
@@ -145,8 +186,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             !link.pair.is_closed()
         });
         while let Some((to, d)) = server.poll_transmit(now) {
-            if trace {
-                eprintln!("-> {to} {:#04x} {}B", d[0], d.len());
+            if let Some(log) = &mut trace {
+                log.write(false, to, &d);
             }
             if let Err(e) = listener.send_to(&d, to).await {
                 eprintln!("send to {to}: {e}");
@@ -157,8 +198,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::select! {
             r = listener.recv_from(&mut buf) => match r {
                 Ok((n, from)) => {
-                    if trace {
-                        eprintln!("<- {from} {:#04x} {n}B", buf[0]);
+                    if let Some(log) = &mut trace {
+                        log.write(true, from, &buf[..n]);
                     }
                     server.handle_datagram(Instant::now(), from, Bytes::copy_from_slice(&buf[..n]));
                 }

@@ -1,4 +1,4 @@
-//! Prints a tools/mitm capture one decoded packet per line: `t_ms dir name {Debug}` (t = ms since Login).
+//! Prints an acacia-mitm capture one decoded packet per line: `t_ms dir name {Debug}` (t = ms since Login).
 //!
 //! `cargo run -p acacia-testserver --example capdump -- <capture.jsonl[#session]> [options]`
 //!   --only A,B        only these packet names

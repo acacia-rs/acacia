@@ -4,7 +4,7 @@
 
 use std::time::{Duration, Instant};
 
-use acacia_nethernet::{sign_as_server, Signal, SignalKind};
+use acacia_nethernet::{sign_answer, Signal, SignalKind};
 use p384::ecdsa::SigningKey;
 use str0m::change::SdpOffer;
 use str0m::net::{Protocol, Receive};
@@ -42,7 +42,10 @@ impl RtcHost {
         let stripped: String = offer.data.lines().filter(|l| !l.starts_with("a=identity")).flat_map(|l| [l, "\r\n"]).collect();
         let answer = rtc.sdp_api().accept_offer(SdpOffer::from_sdp_string(&stripped).unwrap()).unwrap().to_sdp_string();
         let signed = match self.signs {
-            true => sign_as_server(&answer, &SigningKey::from_slice(&[9; 48]).unwrap(), i64::MAX),
+            true => {
+                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+                sign_answer(&answer, &SigningKey::from_slice(&[9; 48]).unwrap(), now)
+            }
             false => answer,
         };
         let (candidates, answer): (Vec<&str>, Vec<&str>) = signed.split_inclusive("\r\n").partition(|l| l.starts_with("a=candidate"));

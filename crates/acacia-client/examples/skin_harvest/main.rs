@@ -1,8 +1,9 @@
 //! Builds acacia-auth's skin pool (`assets/skins`) from default-character skins.
-//! - `--capture <mitm.jsonl> <out dir>`: the game's own in-session skin changes from a tools/mitm
+//! - `--capture <mitm.jsonl> <out dir>`: the game's own in-session skin changes from an acacia-mitm
 //!   capture (change character in the Dressing Room while joined). This is the working source.
 //! - `<server> @account <seconds> [out dir]`: other players' skins from PlayerList. Big networks
 //!   flatten skins, so this mostly prints why each was rejected.
+//!
 //! Keeps only all-default persona pieces without cape or premium (same on everyone, nothing personal),
 //! converted to Login claims byte-exact (styled.rs) with the persona id zeroed. One file per look.
 use std::collections::{BTreeMap, BTreeSet};
@@ -125,7 +126,7 @@ fn harvest(out: &str) -> Result<Harvest> {
     Ok(Harvest { out: out.into(), looks: BTreeMap::new(), seen: 0, rejected: BTreeMap::new() })
 }
 
-/// The game's own in-session skin changes (`PlayerSkin`, game to server) from a tools/mitm capture.
+/// The game's own in-session skin changes (`PlayerSkin`, game to server) from an acacia-mitm capture.
 fn from_capture(path: &str, mut harvest: Harvest) -> Result<()> {
     for line in std::fs::read_to_string(path)?.lines() {
         let v: serde_json::Value = serde_json::from_str(line)?;

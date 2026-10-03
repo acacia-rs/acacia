@@ -57,7 +57,6 @@ fn envelope(sdp: &str, identity: &Identity) -> String {
 }
 
 /// Inserts `line` at session level, just before the first `m=` (where BDS puts its assertion).
-#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn insert_session_line(sdp: &str, line: &str) -> String {
     let at = sdp.find("m=").unwrap_or(sdp.len());
     format!("{}{line}\r\n{}", &sdp[..at], &sdp[at..])

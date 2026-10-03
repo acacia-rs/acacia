@@ -53,5 +53,5 @@ Record drills on BDS strict movement (DESIGN.md "Checking physics") and replay o
   in water (expect 0 corrections after the start tick);
 - boat: paddle straight/turning on water and on ice; horse: walk, sprint, charged jumps over 1- and
   2-block steps.
-Then a vanilla capture of the same moves through `tools/mitm` for the input-flag details still marked
+Then a vanilla capture of the same moves through `acacia-mitm` for the input-flag details still marked
 UNKNOWN in the research doc.

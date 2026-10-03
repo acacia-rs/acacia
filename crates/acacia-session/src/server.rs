@@ -30,6 +30,11 @@ impl ServerConnection {
         Self { codec: BatchCodec::default(), key, pending: None }
     }
 
+    /// Over NetherNet: header-less batches, and see [`plaintext_handshake`](Self::plaintext_handshake).
+    pub fn nethernet(key: SigningKey) -> Self {
+        Self { codec: BatchCodec::without_header(), key, pending: None }
+    }
+
     /// The client's packets in a game message, each with its header.
     pub fn decode(&mut self, msg: &[u8]) -> Result<Vec<Bytes>, Error> {
         let mut packets = Vec::new();
@@ -59,10 +64,20 @@ impl ServerConnection {
     pub fn start_encryption(&mut self, client_key: &p384::PublicKey) -> Bytes {
         let (token, salt) = build_server_handshake(&self.key);
         self.pending = Some(Switch::Encryption(derive_key(&self.key, client_key, &salt)));
-        let mut packet = BytesMut::new();
-        encode_packet(&ServerToClientHandshake { token }, &mut packet);
-        packet.freeze()
+        handshake_packet(token)
     }
+
+    /// The ServerToClientHandshake BDS sends over NetherNet, where batches stay plaintext after it
+    /// (DTLS already encrypts).
+    pub fn plaintext_handshake(&self) -> Bytes {
+        handshake_packet(build_server_handshake(&self.key).0)
+    }
+}
+
+fn handshake_packet(token: String) -> Bytes {
+    let mut packet = BytesMut::new();
+    encode_packet(&ServerToClientHandshake { token }, &mut packet);
+    packet.freeze()
 }
 
 /// A Login body split into its protocol version, connection request and the client key in it.

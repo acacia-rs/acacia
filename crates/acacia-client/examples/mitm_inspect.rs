@@ -1,4 +1,4 @@
-//! Summarizes a tools/mitm capture with acacia-proto: runs of ticks with the same input flags,
+//! Summarizes an acacia-mitm capture with acacia-proto: runs of ticks with the same input flags,
 //! with speed, height and how many of those ticks the server corrected.
 //! `cargo run -p acacia-client --example mitm_inspect -- .testserver/mitm/<capture>.jsonl`
 //! `MITM_ALL_FLAGS=1` keeps the flags normally hidden as noise.

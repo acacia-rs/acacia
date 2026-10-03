@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use str0m::{IceConnectionState, Output};
 
-use super::{Connection, Event, Transmit};
+use super::{Connection, Event, Transmit, RELIABLE_LABEL, UNRELIABLE_LABEL};
 use crate::frame::fragments;
 
 /// str0m buffers at most 128 KiB across streams (`MAX_BUFFERED_ACROSS_STREAMS`); a bigger frame
@@ -45,12 +45,12 @@ impl Connection {
             tracing::debug!(?event, "rtc");
         }
         match event {
-            E::ChannelOpen(id, _) => {
+            E::ChannelOpen(id, label) => {
                 let was_open = self.is_open();
-                if id == self.reliable {
-                    self.open[0] = true;
-                } else if id == self.unreliable {
-                    self.open[1] = true;
+                match label.as_str() {
+                    RELIABLE_LABEL => self.reliable = Some(id),
+                    UNRELIABLE_LABEL => self.unreliable = Some(id),
+                    other => tracing::debug!(label = other, "ignoring unknown data channel"),
                 }
                 if !was_open && self.is_open() {
                     self.events.push_back(Event::Open);
@@ -58,7 +58,7 @@ impl Connection {
                 }
             }
             // Unreliable messages are never split, so they bypass the reliable reassembler.
-            E::ChannelData(d) if d.id == self.unreliable => match d.data.split_first() {
+            E::ChannelData(d) if Some(d.id) == self.unreliable => match d.data.split_first() {
                 Some((0, msg)) => self.messages.push_back(bytes::Bytes::copy_from_slice(msg)),
                 _ => tracing::trace!("dropping fragmented unreliable message"),
             },
@@ -69,6 +69,8 @@ impl Connection {
             },
             E::ChannelBufferedAmountLow(_) => self.write_outbound(),
             E::ChannelClose(id) => self.close_with(format!("data channel {id:?} closed")),
+            // The peer's DTLS close_notify; str0m reports it with no channel event.
+            E::Closed => self.close_with("peer closed".into()),
             E::IceConnectionStateChange(IceConnectionState::Disconnected) => self.close_with("ICE disconnected".into()),
             _ => {}
         }
@@ -85,7 +87,7 @@ impl Connection {
                 Err(e) => return self.close_with(e.to_string()),
             }
         }
-        let Some(mut channel) = self.rtc.channel(self.reliable) else { return };
+        let Some(mut channel) = self.reliable.and_then(|id| self.rtc.channel(id)) else { return };
         let mut failed = None;
         while let Some(frame) = self.outbound.front() {
             match channel.write(true, frame) {

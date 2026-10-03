@@ -31,10 +31,10 @@ impl Reassembler {
         let [remaining, payload @ ..] = frame else {
             return Err(Error::Framing("empty message"));
         };
-        if let Some(expected) = self.remaining {
-            if expected.checked_sub(1) != Some(*remaining) {
-                return Err(Error::Framing("fragment count out of sequence"));
-            }
+        if let Some(expected) = self.remaining
+            && expected.checked_sub(1) != Some(*remaining)
+        {
+            return Err(Error::Framing("fragment count out of sequence"));
         }
         self.buf.extend_from_slice(payload);
         if *remaining > 0 {

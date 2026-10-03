@@ -7,11 +7,12 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-acacia-raknet = { path = "../../crates/acacia-raknet" }
-acacia-session = { path = "../../crates/acacia-session" }
-acacia-proto = { path = "../../crates/acacia-proto" }
-acacia-auth = { path = "../../crates/acacia-auth" }
-tokio = { version = "1.53.1", features = ["rt", "net", "time", "sync", "macros"] }
+acacia-raknet = { path = "../acacia-raknet" }
+acacia-session = { path = "../acacia-session" }
+acacia-proto = { path = "../acacia-proto" }
+acacia-auth = { path = "../acacia-auth" }
+acacia-nethernet = { path = "../acacia-nethernet" }
+tokio = { version = "1.53.1", features = ["rt", "net", "time", "sync", "macros", "io-util"] }
 bytes = "1.12.1"
 p384 = { version = "0.13", features = ["ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }

@@ -1,4 +1,4 @@
-//! Turns a tools/mitm capture into a fake-server script (fixtures/*.script).
+//! Turns an acacia-mitm capture into a fake-server script (fixtures/*.script).
 //! `cargo run -p acacia-testserver --example make_script -- <capture.jsonl[#session]> <out.script> [seconds]`
 //! Record a bot, not the real game: the script ships in the repo and replays the server's PlayerList
 //! and skins of whoever joined.

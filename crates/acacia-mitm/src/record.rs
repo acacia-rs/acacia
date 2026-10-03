@@ -42,6 +42,15 @@ impl Recorder {
         &self.path
     }
 
+    /// A `<capture>.datagrams.tsv` next to the capture, on the same clock.
+    pub fn datagram_log(&self) -> std::io::Result<DatagramLog> {
+        let path = self.path.with_extension("datagrams.tsv");
+        let mut out = File::create(&path)?;
+        out.write_all(b"t_ms\tdir\tpeer\tfirst_byte\tlen\n")?;
+        println!("datagram timings to {}", path.display());
+        Ok(DatagramLog { out, start: self.start })
+    }
+
     pub fn write(&mut self, mut entry: Value) {
         entry["t"] = json!(self.start.elapsed().as_micros() as f64 / 1000.0);
         let mut line = entry.to_string();
@@ -78,6 +87,22 @@ impl Recorder {
         serde::Serialize::serialize(&skin, &mut ser).expect("json values serialize");
         let result = std::fs::create_dir_all(path.parent().expect("has parent")).and_then(|()| std::fs::write(&path, &out));
         println!("skin {id} saved ({} bytes): {result:?}", out.len());
+    }
+}
+
+/// Every game-side RakNet datagram, unbuffered so a Ctrl+C keeps it: input for `capdiff pacing`.
+pub struct DatagramLog {
+    out: File,
+    start: Instant,
+}
+
+impl DatagramLog {
+    pub fn write(&mut self, from_game: bool, peer: std::net::SocketAddr, datagram: &[u8]) {
+        let t = self.start.elapsed().as_micros() as f64 / 1000.0;
+        let line = format!("{t:.3}\t{}\t{peer}\t{:#04x}\t{}\n", dir(from_game), datagram.first().copied().unwrap_or(0), datagram.len());
+        if let Err(e) = self.out.write_all(line.as_bytes()) {
+            eprintln!("datagram log write failed: {e}");
+        }
     }
 }
 

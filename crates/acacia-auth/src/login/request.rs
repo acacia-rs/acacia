@@ -71,7 +71,7 @@ struct SelfSignedTokenClaims<'a> {
 /// Online connection request: token-only, as the vanilla client sends it. Without a multiplayer
 /// token, falls back to the legacy form: a self-signed head JWT (x5u = client key,
 /// `identityPublicKey` = the Mojang chain's first x5u) prepended to the Mojang chain. `client` is
-/// usually a [`ClientData`]; tools/mitm passes the game's own claims.
+/// usually a [`ClientData`]; acacia-mitm passes the game's own claims.
 pub fn build_connection_request(
     creds: &LoginCredentials,
     key: &SigningKey,
@@ -122,7 +122,7 @@ pub struct OfflineIdentity<'a> {
     pub uuid: &'a str,
 }
 
-/// [`build_offline_connection_request`] for any identity and client-data claims (tools/mitm
+/// [`build_offline_connection_request`] for any identity and client-data claims (acacia-mitm
 /// re-signs the game's own).
 pub fn build_offline_connection_request_for(
     identity: &OfflineIdentity,

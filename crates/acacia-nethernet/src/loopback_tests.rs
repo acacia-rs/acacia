@@ -13,7 +13,7 @@ use str0m::{Candidate, Event as RtcEvent, Input, Output, Rtc};
 
 use crate::frame::{fragments, Reassembler};
 use crate::identity::IDENTITY;
-use crate::server_identity::sign_as_server;
+use crate::server_identity::{sign_answer, unix_now};
 use crate::{Connection, Event, Identity, LocalCandidate};
 
 const CLIENT: &str = "10.0.0.1:5000";
@@ -35,7 +35,7 @@ impl Server {
         let offer = SdpOffer::from_sdp_string(&stripped).unwrap();
         let answer = rtc.sdp_api().accept_offer(offer).unwrap().to_sdp_string();
         let server = Self { rtc, channels: vec![], reassembler: Reassembler::default(), messages: vec![] };
-        (server, sign_as_server(&answer, &SigningKey::from_slice(&[9; 48]).unwrap(), i64::MAX))
+        (server, sign_answer(&answer, &SigningKey::from_slice(&[9; 48]).unwrap(), unix_now()))
     }
 
     /// Runs until str0m waits; returns its next deadline and queues datagrams for the client.
@@ -145,7 +145,7 @@ fn exchange_fragmented_messages() {
     assert_eq!(&server.messages[0][..], b"\x06\xc1\x01\x00\x00\x08\x91");
     assert_eq!(server.messages[1], big);
 
-    let reliable = server.channels[0].0;
+    let reliable = server.channels.iter().find(|(_, l)| l == "ReliableDataChannel").unwrap().0;
     let reply: Vec<u8> = vec![7; 300_000];
     let frames: Vec<Vec<u8>> = fragments(&reply, 65_536).unwrap().collect();
     let mut sent = 0;
@@ -154,5 +154,99 @@ fn exchange_fragmented_messages() {
             sent += 1;
         }
         c.poll_message().is_some_and(|m| m == reply)
+    });
+}
+
+/// Runs `test` with the stack unoptimized str0m/SCTP needs for big transfers.
+fn with_big_stack(test: fn()) {
+    std::thread::Builder::new().stack_size(32 << 20).spawn(test).unwrap().join().unwrap();
+}
+
+/// Delivers datagrams both ways until neither side has more.
+fn trade(client: &mut Connection, server: &mut Connection, now: Instant) {
+    loop {
+        let mut moved = false;
+        while let Some(t) = client.poll_transmit() {
+            server.handle_datagram(now, t.source, &t.contents);
+            moved = true;
+        }
+        while let Some(t) = server.poll_transmit() {
+            client.handle_datagram(now, t.source, &t.contents);
+            moved = true;
+        }
+        if !moved {
+            return;
+        }
+    }
+}
+
+/// Moves the virtual clock to the next deadline of either side.
+fn tick(client: &mut Connection, server: &mut Connection, now: &mut Instant) {
+    let next = client.poll_timeout().into_iter().chain(server.poll_timeout()).min().unwrap();
+    *now = next.max(*now + Duration::from_millis(1));
+    client.handle_timeout(*now);
+    server.handle_timeout(*now);
+}
+
+/// Our client joined to our answering side, a login and a 300 KB reply exchanged.
+fn served_client() -> (Connection, Connection, Instant) {
+    let mut now = Instant::now();
+    let identity = Identity::multiplayer(SigningKey::from_slice(&[5; 48]).unwrap(), "token".into());
+    let (mut client, offer) = Connection::offer(CLIENT.parse().unwrap(), &identity, now).unwrap();
+    let key = SigningKey::from_slice(&[9; 48]).unwrap();
+    let (mut server, answer) = Connection::answer(&offer, SERVER.parse().unwrap(), &key, now).unwrap();
+    assert!(answer.contains("a=setup:active\r\n") && answer.contains("a=mid:0\r\n"), "{answer}");
+    assert!(answer.contains(" 10.0.0.2 19132 typ host "), "{answer}");
+    client.accept_answer(&answer, now).unwrap();
+    assert_eq!(client.server_key(), Some(key.verifying_key()));
+
+    let big: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+    client.send(Bytes::from_static(b"login"), now);
+    server.send(Bytes::from(big.clone()), now);
+    let (mut at_server, mut at_client) = (vec![], vec![]);
+    let end = now + Duration::from_secs(30);
+    while at_server.is_empty() || at_client.is_empty() {
+        assert!(now < end, "no exchange: client open={} server open={}", client.is_open(), server.is_open());
+        trade(&mut client, &mut server, now);
+        at_server.extend(std::iter::from_fn(|| server.poll_message()));
+        at_client.extend(std::iter::from_fn(|| client.poll_message()));
+        tick(&mut client, &mut server, &mut now);
+    }
+    assert_eq!(server.poll_event(), Some(Event::Open));
+    assert_eq!(&at_server[0][..], b"login");
+    assert_eq!(at_client[0], big);
+    (client, server, now)
+}
+
+fn closed(conn: &mut Connection) -> bool {
+    std::iter::from_fn(|| conn.poll_event()).any(|e| matches!(e, Event::Closed(_)))
+}
+
+#[test]
+fn answering_connection_serves_our_client() {
+    with_big_stack(|| drop(served_client()));
+}
+
+#[test]
+fn answering_side_sees_a_graceful_close() {
+    with_big_stack(|| {
+        let (mut client, mut server, now) = served_client();
+        client.close(now);
+        trade(&mut client, &mut server, now);
+        assert!(closed(&mut server), "the client's SCTP shutdown and close_notify must end the server side");
+    });
+}
+
+#[test]
+fn answering_side_notices_a_vanished_client() {
+    with_big_stack(|| {
+        let (_client, mut server, mut now) = served_client();
+        let end = now + Duration::from_secs(60);
+        while !closed(&mut server) {
+            assert!(now < end, "no close a minute after the client went silent");
+            while server.poll_transmit().is_some() {}
+            now = server.poll_timeout().unwrap_or(now).max(now + Duration::from_millis(1));
+            server.handle_timeout(now);
+        }
     });
 }
