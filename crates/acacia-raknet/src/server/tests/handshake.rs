@@ -48,7 +48,7 @@ fn spoofed_offline_datagrams_cannot_reset_a_connected_peer() {
     assert!(net.server.send(victim, hello.clone(), Reliability::ReliableOrdered));
     net.run(2);
     assert_eq!(net.client_events(client).last(), Some(&Event::Message(hello)));
-    assert_eq!(net.events, [ServerEvent::Connected(victim)]);
+    assert_eq!(net.events, [joined(50000)]);
 }
 
 #[test]
@@ -58,5 +58,5 @@ fn cookies_can_be_turned_off() {
     assert_eq!(o::parse_reply_1(&reply_1[0]).unwrap().cookie, None);
     net.join(50000);
     net.run(6);
-    assert_eq!(net.events, [ServerEvent::Connected(addr(50000))]);
+    assert_eq!(net.events, [joined(50000)]);
 }

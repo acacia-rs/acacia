@@ -20,6 +20,11 @@ fn config() -> ServerConfig {
     ServerConfig::new(1, "MCPE;test".into())
 }
 
+/// The event for a client from [`Net::join`] on `port`.
+fn joined(port: u16) -> ServerEvent {
+    ServerEvent::Connected { addr: addr(port), guid: port.into(), mtu: 1492 }
+}
+
 fn request_1(mtu: u16) -> BytesMut {
     let mut out = BytesMut::new();
     o::open_connection_request_1(&mut out, 11, mtu);

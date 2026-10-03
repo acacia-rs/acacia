@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use bytes::Bytes;
 
-pub use config::{ServerConfig, ServerEvent};
+pub use config::{PeerStats, ServerConfig, ServerEvent};
 use cookie::Cookies;
 
 use crate::conn::Conn;
@@ -71,6 +71,17 @@ impl Server {
 
     pub fn unban(&mut self, ip: IpAddr) {
         self.banned.remove(&ip);
+    }
+
+    /// The connected peers.
+    pub fn peers(&self) -> impl Iterator<Item = SocketAddr> + '_ {
+        self.peers.iter().filter(|(_, p)| p.connected).map(|(&addr, _)| addr)
+    }
+
+    /// `None` unless `peer` is connected.
+    pub fn stats(&self, peer: SocketAddr) -> Option<PeerStats> {
+        let p = self.peers.get(&peer).filter(|p| p.connected)?;
+        Some(PeerStats { guid: p.guid, mtu: p.conn.mtu(), rtt: p.conn.rtt() })
     }
 
     /// Queues a message on ordering channel 0. Returns false if `peer` is not connected.
@@ -152,7 +163,7 @@ impl Server {
                 }
                 c::ID_NEW_INCOMING_CONNECTION if !p.connected => {
                     p.connected = true;
-                    self.events.push_back(ServerEvent::Connected(from));
+                    self.events.push_back(ServerEvent::Connected { addr: from, guid: p.guid, mtu: p.conn.mtu() });
                 }
                 c::ID_DISCONNECTION_NOTIFICATION => return Err(DisconnectReason::ClientClosed),
                 _ if p.connected => self.events.push_back(ServerEvent::Message(from, msg)),

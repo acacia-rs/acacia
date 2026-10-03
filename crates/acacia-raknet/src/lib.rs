@@ -11,7 +11,7 @@ mod types;
 pub mod wire;
 
 pub use client::Client;
-pub use server::{Server, ServerConfig, ServerEvent};
+pub use server::{PeerStats, Server, ServerConfig, ServerEvent};
 pub use types::{Config, DisconnectReason, Event};
 pub use reliability::{RecvError, RecvLimits};
 pub use wire::datagram::Reliability;

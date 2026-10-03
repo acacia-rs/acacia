@@ -5,8 +5,12 @@ fn client_connects_and_messages_flow_both_ways() {
     let mut net = Net::new(config());
     let client = net.join(50000);
     net.run(6);
-    assert_eq!(net.events, [ServerEvent::Connected(addr(50000))]);
-    assert!(matches!(net.client_events(client)[..], [Event::Connected { .. }]));
+    assert_eq!(net.events, [joined(50000)]);
+    assert!(matches!(net.client_events(client)[..], [Event::Connected { mtu: 1492 }]));
+    assert_eq!(net.server.peers().collect::<Vec<_>>(), [addr(50000)]);
+    let stats = net.server.stats(addr(50000)).unwrap();
+    assert_eq!((stats.guid, stats.mtu, stats.rtt), (50000, 1492, Some(TICK)), "the accepted reply was ACKed a tick later");
+    assert_eq!(net.server.stats(addr(50001)), None);
 
     let (big, hello) = (Bytes::from(vec![7u8; 5000]), Bytes::from_static(b"\xfehello"));
     assert!(net.clients[client].1.send(big.clone(), Reliability::ReliableOrdered));

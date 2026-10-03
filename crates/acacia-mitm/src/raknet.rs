@@ -46,7 +46,7 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
         let now = Instant::now();
         while let Some(event) = server.poll_event() {
             match event {
-                ServerEvent::Connected(game) => {
+                ServerEvent::Connected { addr: game, .. } => {
                     println!("{game} connected (RakNet)");
                     let key = SigningKey::random(&mut rand_core::OsRng);
                     let credentials = match &account {

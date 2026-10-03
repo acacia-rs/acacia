@@ -46,9 +46,19 @@ impl ServerConfig {
     }
 }
 
+/// A snapshot of one peer, from [`super::Server::stats`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PeerStats {
+    pub guid: u64,
+    pub mtu: u16,
+    /// Smoothed round trip of our datagrams to their ACKs; `None` until the first ACK.
+    pub rtt: Option<Duration>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServerEvent {
-    Connected(SocketAddr),
+    /// `guid` is what the client claimed in request 2; nothing makes it unique or stable.
+    Connected { addr: SocketAddr, guid: u64, mtu: u16 },
     /// A message from a connected peer (the first byte is its ID; Bedrock game batches start with 0xfe).
     Message(SocketAddr, Bytes),
     Disconnected(SocketAddr, DisconnectReason),

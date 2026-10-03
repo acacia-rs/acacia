@@ -55,6 +55,10 @@ impl Conn {
         self.epoch + ACK_TICK * ticks as u32
     }
 
+    pub fn mtu(&self) -> u16 {
+        self.mtu
+    }
+
     pub fn rtt(&self) -> Option<Duration> {
         self.send.rtt()
     }
