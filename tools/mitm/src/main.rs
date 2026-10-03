@@ -56,7 +56,7 @@ fn args() -> Result<Args, String> {
 
 async fn sign_in(id: &str) -> Result<Account, Box<dyn std::error::Error>> {
     let account = Account::new(Arc::new(AuthClient::new(AuthConfig::default())?), Arc::new(FileTokenCache::new(".tokens")?), id);
-    if !account.is_signed_in() {
+    if !account.is_signed_in().await? {
         account.sign_in(|p| println!("sign in at {} with code {}", p.verification_uri, p.user_code)).await?;
     }
     Ok(account)

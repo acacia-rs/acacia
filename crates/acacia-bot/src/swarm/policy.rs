@@ -50,6 +50,8 @@ pub(crate) enum Ended<'a> {
     Auth(&'a AuthError),
     /// The spec cannot work as given (bad proxy, realm with an offline login).
     Invalid(String),
+    /// The account's lease is held elsewhere, was lost, or its store failed.
+    Lease(String),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -85,6 +87,10 @@ impl Policy {
             Ended::Auth(e) if permanent(e) => stop(e),
             Ended::Auth(_) => Decision::Reconnect,
             Ended::Invalid(error) => Decision::Stop { error },
+            Ended::Lease(why) => {
+                tracing::debug!(%id, %why, "waiting for the account lease");
+                Decision::Reconnect
+            }
         };
         match decision {
             Decision::Reconnect => {

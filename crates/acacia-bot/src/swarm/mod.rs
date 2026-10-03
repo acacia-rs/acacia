@@ -5,6 +5,8 @@
 mod builder;
 mod events;
 mod join_queue;
+mod keeper;
+mod lease;
 mod login;
 mod policy;
 mod registry;
@@ -19,6 +21,7 @@ use tokio::sync::{broadcast, watch};
 
 pub use builder::SwarmBuilder;
 pub use events::{BotInfo, BotStatus, Snapshot, SwarmEvent};
+pub use lease::{AccountLease, Lease, LeaseError, LocalLeases};
 pub use policy::{Decision, DisconnectHook, Policy};
 pub use spec::{BotId, BotSpec, Login, Target};
 

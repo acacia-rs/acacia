@@ -46,21 +46,23 @@ impl NodeAuth {
         Self { config, cache, clients: Mutex::new(HashMap::new()) }
     }
 
-    fn account(&self, id: &str, proxy: Option<&Socks5Proxy>) -> Result<(Arc<AuthClient>, Account), Failure> {
+    fn auth_client(&self, proxy: Option<&Socks5Proxy>) -> Result<Arc<AuthClient>, Failure> {
         let url = proxy.map(Socks5Proxy::to_url);
         let mut clients = self.clients.lock().expect("auth clients lock poisoned");
-        let client = match clients.get(&url) {
-            Some(c) => c.clone(),
-            None => {
-                let config = AuthConfig { proxy: url.clone(), ..self.config.clone() };
-                // Only a bad proxy URL (e.g. socks5 without the `socks` feature) fails here.
-                let c = Arc::new(AuthClient::new(config).map_err(|e| Failure::Invalid(e.to_string()))?);
-                clients.insert(url, c.clone());
-                c
-            }
-        };
+        if let Some(c) = clients.get(&url) {
+            return Ok(c.clone());
+        }
+        let config = AuthConfig { proxy: url.clone(), ..self.config.clone() };
+        // Only a bad proxy URL (e.g. socks5 without the `socks` feature) fails here.
+        let c = Arc::new(AuthClient::new(config).map_err(|e| Failure::Invalid(e.to_string()))?);
+        clients.insert(url, c.clone());
+        Ok(c)
+    }
+
+    async fn account(&self, id: &str, proxy: Option<&Socks5Proxy>) -> Result<(Arc<AuthClient>, Account), Failure> {
+        let client = self.auth_client(proxy)?;
         let account = Account::new(client.clone(), self.cache.clone(), id);
-        if !account.is_signed_in() {
+        if !account.is_signed_in().await.map_err(Failure::Auth)? {
             return Err(Failure::Invalid(format!("account {id} is not signed in")));
         }
         Ok((client, account))
@@ -81,7 +83,7 @@ pub(crate) async fn client_builder(
         },
         Login::Online { account } => {
             let auth = auth.ok_or_else(|| Failure::Invalid("online login but the swarm has no token cache".into()))?;
-            let (client, account) = auth.account(account, proxy)?;
+            let (client, account) = auth.account(account, proxy).await?;
             match target {
                 Target::Server { address } => {
                     let (key, credentials) = account.login_credentials().await.map_err(Failure::Auth)?;

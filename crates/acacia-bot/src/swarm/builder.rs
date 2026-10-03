@@ -8,7 +8,8 @@ use acacia_client::auth::{AuthConfig, TokenCache};
 use acacia_client::ClientBuilder;
 use tokio::sync::broadcast;
 
-use super::join_queue::JoinQueue;
+use super::join_queue::{noise, JoinQueue};
+use super::lease::{AccountLease, LocalLeases};
 use super::login::NodeAuth;
 use super::policy::Policy;
 use super::registry::Registry;
@@ -26,6 +27,9 @@ pub struct SwarmBuilder<S> {
     join_jitter: Duration,
     auth_config: AuthConfig,
     token_cache: Option<Arc<dyn TokenCache>>,
+    leases: Arc<dyn AccountLease>,
+    node_id: String,
+    lease_ttl: Duration,
     bot_config: Arc<ConfigFn<S>>,
     client: Arc<ClientFn<S>>,
     worlds: SharedWorlds,
@@ -41,6 +45,9 @@ impl<S: Send + 'static> Default for SwarmBuilder<S> {
             join_jitter: Duration::from_millis(250),
             auth_config: AuthConfig::default(),
             token_cache: None,
+            leases: Arc::new(LocalLeases::new()),
+            node_id: format!("node-{:016x}", noise()),
+            lease_ttl: Duration::from_secs(30),
             bot_config: Arc::new(|_| BotConfig::default()),
             client: Arc::new(|_, builder| builder),
             worlds: SharedWorlds::new(),
@@ -71,6 +78,25 @@ impl<S: Send + 'static> SwarmBuilder<S> {
     /// Where online accounts' tokens live; required for [`super::Login::Online`].
     pub fn token_cache(mut self, cache: Arc<dyn TokenCache>) -> Self {
         self.token_cache = Some(cache);
+        self
+    }
+
+    /// Where online accounts' leases live (default: this process only). Share one store across
+    /// nodes that may run the same accounts.
+    pub fn leases(mut self, leases: Arc<dyn AccountLease>) -> Self {
+        self.leases = leases;
+        self
+    }
+
+    /// This node's name in lease holders (`<node>/<bot id>`); default random.
+    pub fn node_id(mut self, id: impl Into<String>) -> Self {
+        self.node_id = id.into();
+        self
+    }
+
+    /// How long a lease outlives its holder going silent (default 30 s); renewed every third.
+    pub fn lease_ttl(mut self, ttl: Duration) -> Self {
+        self.lease_ttl = ttl;
         self
     }
 
@@ -114,6 +140,9 @@ impl<S: Send + 'static> SwarmBuilder<S> {
             policy: self.policy,
             joins: JoinQueue::new(self.join_delay, self.join_jitter),
             auth: self.token_cache.map(|cache| NodeAuth::new(self.auth_config, cache)),
+            leases: self.leases,
+            node_id: self.node_id,
+            lease_ttl: self.lease_ttl,
             worlds: self.worlds,
             bot_config: self.bot_config,
             client: self.client,

@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let account = Account::new(client, Arc::new(FileTokenCache::new(".tokens")?), account_id);
-    if !account.is_signed_in() {
+    if !account.is_signed_in().await? {
         account
             .sign_in(|p| println!("Sign in at {} with code {}", p.verification_uri, p.user_code))
             .await?;

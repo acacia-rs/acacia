@@ -9,7 +9,7 @@ rust-version.workspace = true
 [features]
 default = ["online"]
 # Network auth: AuthClient, device code, Xbox/PlayFab/session token chain, Account.
-online = ["dep:reqwest", "dep:tokio", "dep:p256", "dep:httpdate", "dep:url", "dep:time"]
+online = ["dep:reqwest", "dep:tokio", "dep:p256", "dep:httpdate", "dep:url", "dep:time", "dep:async-trait"]
 # Lets AuthConfig::proxy take socks5:// URLs.
 socks = ["online", "reqwest/socks"]
 
@@ -25,6 +25,7 @@ sha2 = "0.10"
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
 
+async-trait = { version = "0.1", optional = true }
 httpdate = { version = "1", optional = true }
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"], optional = true }

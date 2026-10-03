@@ -12,10 +12,12 @@ mod minecraft;
 mod nsal;
 mod realms;
 pub mod sign;
+mod tokens;
 mod xbox;
 
 pub use account::Account;
-pub use cache::{CachedCredentials, CachedTokens, FileTokenCache, MemoryTokenCache, TokenCache};
+pub use cache::{CacheError, FileTokenCache, MemoryTokenCache, Stored, TokenCache, Versioned};
+pub use tokens::{CachedCredentials, CachedTokens};
 pub use client::AuthClient;
 pub use config::{AuthConfig, GAME_VERSION, Title};
 pub use live::{DeviceCodePrompt, MsaToken};

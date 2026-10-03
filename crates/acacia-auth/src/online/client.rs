@@ -4,7 +4,7 @@ use p256::ecdsa::SigningKey as XboxKey;
 use p384::ecdsa::SigningKey;
 use serde_json::Value;
 
-use super::cache::{CachedCredentials, CachedTokens};
+use super::tokens::{CachedCredentials, CachedTokens};
 use super::config::{AuthConfig, endpoints as ep};
 use super::http::Http;
 use super::live::{self, DeviceCodePrompt, MsaToken};

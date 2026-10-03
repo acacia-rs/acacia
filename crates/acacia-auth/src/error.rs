@@ -33,6 +33,9 @@ pub enum Error {
     DeviceCodeDeclined,
     #[error("unexpected response from {endpoint}: {reason}")]
     Protocol { endpoint: String, reason: String },
+    #[cfg(feature = "online")]
+    #[error(transparent)]
+    Cache(#[from] crate::online::CacheError),
 }
 
 impl Error {

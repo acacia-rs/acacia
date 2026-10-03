@@ -22,6 +22,8 @@ pub enum BotStatus {
     Connecting,
     Online,
     Backoff,
+    /// Waiting for the account's lease, held by another bot (here or on another node).
+    AccountBusy,
     Failed { error: String },
 }
 

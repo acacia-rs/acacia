@@ -7,8 +7,10 @@ use acacia_bot::swarm::{AddError, BotId, BotSpec, BotStatus, Login, Swarm, Swarm
 use acacia_bot::client::TransportKind;
 use acacia_bot::Bot;
 use acacia_testserver::{FakeServer, Script};
-use tokio::sync::broadcast;
+use common::wait_for;
 use tokio::time::timeout;
+
+mod common;
 
 #[derive(Clone, Copy)]
 enum Role {
@@ -20,19 +22,6 @@ enum Role {
 fn spec(id: &str, address: String, role: Role) -> BotSpec<Role> {
     let login = Login::Offline { name: format!("Swarm{id}") };
     BotSpec { id: BotId::from(id), login, target: Target::Server { address }, proxy: None, state: role }
-}
-
-async fn wait_for(events: &mut broadcast::Receiver<SwarmEvent>, want: impl Fn(&SwarmEvent) -> bool) -> SwarmEvent {
-    timeout(Duration::from_secs(20), async {
-        loop {
-            let event = events.recv().await.expect("event stream open");
-            if want(&event) {
-                return event;
-            }
-        }
-    })
-    .await
-    .expect("event within 20 s")
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

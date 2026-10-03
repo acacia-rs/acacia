@@ -72,9 +72,14 @@ envelope = {"Certificate":"{\"chain\":[...]}","AuthenticationType":N,"Token":"<m
 `msa`, `xbox_device_key` (P-256 hex, reused so device tokens stay valid), `device_id`, `device_token`, `sisu`,
 `xsts{rp→token}`, `playfab`, `service_token`, `credentials` (+ client pubkey; reused while unexpired for the same key).
 Tokens are refreshed 60 s before expiry. Files contain refresh tokens: keep the directory private.
+`TokenCache` is async and versioned: `store(account, tokens, expected)` writes only if the stored version is still
+`expected` (`None` = absent), else `Stored::Conflict`. `Account` writes back with the version it read and, on conflict,
+keeps the stored copy (another writer rotated the refresh token first); `sign_in` retries on top of the newer copy.
+A shared implementation (database) must make that check atomic. `FileTokenCache` checks within one process only and
+stores `version` in the JSON (files without it read as 0).
 
 ## Errors
 `Error::Xbox(XboxError)` from `X-Err` header or `XErr` body: `NoXboxProfile` (2148916233), `ChildAccount` (2148916238),
 `Banned`, `ParentallyRestricted`, `TermsNotAccepted`, `CountryNotAuthorized`, `AgeVerificationRequired`, `ScreenTimeExceeded`,
 `GamertagChangeRequired`, `DeviceSignInLimit`, `SignedInElsewhere`, `Other(code)`. `Error::requires_user_action()` is true for all
-named variants (report "xbox_required"). Also `DeviceCodeExpired`, `DeviceCodeDeclined`, `OAuth`, `Status`, `Http`, `Protocol`, `Jwt`, `Key`.
+named variants (report "xbox_required"). Also `DeviceCodeExpired`, `DeviceCodeDeclined`, `OAuth`, `Status`, `Http`, `Protocol`, `Jwt`, `Key`, `Cache`.
