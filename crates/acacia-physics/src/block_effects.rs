@@ -90,9 +90,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             if !bb.intersects(&crate::aabb::Aabb::block(pos)) || !self.w.block(pos).honey {
                 continue;
             }
-            // Only while sliding down its side: airborne, falling, below its top (BDS, as Java; bedsim
-            // slows on any contact).
-            if st.on_ground || st.vel[1] >= -0.08 || st.pos[1] > pos[1] as f32 + 0.9375 - 1e-7 {
+            // Any contact with its side, airborne or not, rising or falling (strict BDS fuzz: 0.4 per
+            // touched honey cell on the ground too, as bedsim); not from on top of it.
+            if st.pos[1] > pos[1] as f32 + 0.9375 - 1e-7 {
                 continue;
             }
             let mut v = st.vel;
