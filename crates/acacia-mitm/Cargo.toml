@@ -3,15 +3,17 @@ name = "acacia-mitm"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
-publish = false
+description = "Recording proxy for Minecraft: Bedrock Edition vanilla-client captures over RakNet or NetherNet"
+repository.workspace = true
+readme.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-acacia-raknet = { path = "../acacia-raknet" }
-acacia-session = { path = "../acacia-session" }
-acacia-proto = { path = "../acacia-proto" }
-acacia-auth = { path = "../acacia-auth" }
-acacia-nethernet = { path = "../acacia-nethernet" }
+acacia-raknet.workspace = true
+acacia-session.workspace = true
+acacia-proto.workspace = true
+acacia-auth = { workspace = true, features = ["online"] }
+acacia-nethernet.workspace = true
 tokio = { version = "1.53.1", features = ["rt", "net", "time", "sync", "macros", "io-util"] }
 bytes = "1.12.1"
 p384 = { version = "0.13", features = ["ecdsa"] }
