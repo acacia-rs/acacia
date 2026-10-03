@@ -4,8 +4,9 @@ use acacia_world::{SECTION_VOLUME, World};
 
 pub const SIDE: usize = 18;
 const CELLS: usize = SIDE * SIDE * SIDE;
-/// Stands in for blocks of unloaded neighbour columns and below the world: hides faces towards
-/// them, so a column's edge isn't drawn until its neighbour arrives (which remeshes it).
+/// Stands in for blocks of unloaded neighbour columns, sections not yet received, and below the
+/// world: hides faces towards them, so an edge isn't drawn until its neighbour arrives (which
+/// remeshes it).
 pub const OCCLUDER: u32 = u32::MAX;
 
 /// Biome id of cells whose biomes the server hasn't sent; tints like plains.
@@ -56,8 +57,10 @@ impl Volume {
                     let below = index < 0;
                     let present = !below && chunk.copy_section(index as usize, &mut blocks, &mut liquid);
                     if !present {
-                        let fill = if below { OCCLUDER } else { dim.air };
-                        blocks.fill(fill);
+                        // Sections the server hasn't sent yet hide faces like unloaded columns do;
+                        // their arrival remeshes the neighbours.
+                        let unknown = below || (index < chunk.section_count() as i32 && !chunk.section_known(index as usize));
+                        blocks.fill(if unknown { OCCLUDER } else { dim.air });
                         liquid.fill(dim.air);
                     }
                     if below || !chunk.copy_biomes(index as usize, &mut biomes) {

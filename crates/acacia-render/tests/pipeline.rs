@@ -123,6 +123,61 @@ fn biome_colors_follow_colormaps_and_exceptions() {
     assert_eq!(colors.get(999), colors.get(12345), "unknown ids share the plains default");
 }
 
+/// Version-9 section of one block, `id` zigzag-varint encoded.
+fn uniform_section(section_y: i8, id: u32) -> Vec<u8> {
+    let mut out = vec![9, 1, section_y as u8, 1];
+    let mut v = id << 1;
+    while v >= 0x80 {
+        out.push(v as u8 | 0x80);
+        v >>= 7;
+    }
+    out.push(v as u8);
+    out
+}
+
+#[test]
+fn water_draws_no_faces_between_sections() {
+    let Some(pack) = pack() else { return };
+    let registry = BlockRegistry::vanilla_arc();
+    let water = registry.find("minecraft:water", "liquid_depth=0").unwrap();
+    let mut view = ChunkView::new(World::new(registry.clone(), 0, BlockIds::Runtime));
+    for (x, z) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
+        let mut payload = uniform_section(2, water);
+        payload.extend(uniform_section(3, water));
+        view.insert_level_chunk(x, z, 2, &payload).unwrap();
+    }
+    let world = view.world().clone();
+    let (table, _, _) = BlockTable::build(&registry, &pack);
+    let mesh = mesh_section(&Volume::gather(&world, 0, 3, 0).unwrap(), &table, &BiomeColors::default());
+    let faces: Vec<u32> = mesh.translucent.iter().map(|q| (q.0[0] >> 27) & 15).collect();
+    let per_face: Vec<usize> = (0..6).map(|f| faces.iter().filter(|&&x| x == f).count()).collect();
+    assert_eq!(per_face, [0, 0, 256, 0, 0, 0], "only the top surface");
+}
+
+#[test]
+fn water_faces_wait_for_unknown_neighbour_sections_but_not_known_air() {
+    let Some(pack) = pack() else { return };
+    let registry = BlockRegistry::vanilla_arc();
+    let water = registry.find("minecraft:water", "liquid_depth=0").unwrap();
+    let mut view = ChunkView::new(World::new(registry.clone(), 0, BlockIds::Runtime));
+    for (x, z) in [(0, 0), (-1, 0), (0, 1), (0, -1)] {
+        let mut payload = uniform_section(2, water);
+        payload.extend(uniform_section(3, water));
+        view.insert_level_chunk(x, z, 2, &payload).unwrap();
+    }
+    // Request mode: the +x neighbour exists, but none of its sub-chunks have arrived.
+    view.insert_biomes(1, 0, &[0xff]);
+    let world = view.world().clone();
+    let (table, _, _) = BlockTable::build(&registry, &pack);
+    let east_faces = |world: &World| {
+        let mesh = mesh_section(&Volume::gather(world, 0, 3, 0).unwrap(), &table, &BiomeColors::default());
+        mesh.translucent.iter().filter(|q| (q.0[0] >> 27) & 15 == 0).count()
+    };
+    assert_eq!(east_faces(&world), 0, "unknown neighbour section hides the wall");
+    view.insert_sub_chunk_air(1, 3, 0);
+    assert_eq!(east_faces(&world), 256, "known air next door shows the whole 16×16 wall");
+}
+
 #[test]
 fn geyser_chunks_light_on_the_light_thread() {
     let view = geyser_view();

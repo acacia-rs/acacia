@@ -39,7 +39,9 @@ quads merge only within a uniform colour.
 ## Meshing (`mesh/`)
 
 - A job copies the section plus a 1-block border (18³ ids, `Volume::gather`), so meshing takes no locks.
-  Unloaded neighbour columns read as occluders; the scene remeshes the edge when they arrive.
+  Unloaded neighbour columns and sections not yet received (`Chunk::section_known`) read as
+  occluders; the scene remeshes the edge when they arrive. Read as air, they drew water walls at chunk
+  borders.
 - Full cubes are greedy-meshed per face and slice; faces merge only with identical texture, tint,
   material and AO. AO looks at the 3 neighbours of each corner; quads split along the brighter diagonal.
 - Other shapes emit one quad per visible face. Liquids draw their surface at `fluid_height`, full height
@@ -84,13 +86,13 @@ both layers).
   results are dropped by version. Unloaded columns are found by polling `World::get`.
 - `gpu/store.rs`: all quads live in one storage buffer (first-fit free list, grows by doubling); section
   origins and light volumes live in buffers indexed by slot, passed as the instance index.
-- Frames: frustum culling per section, solid pass front to back, translucent pass back to front with
-  blending and no depth writes. Reverse-Z with an infinite far plane, camera-relative coordinates.
 - Cave culling (`cull.rs`, Java's `SectionOcclusionGraph`): meshing records which of a section's
   face pairs see each other through non-occluding blocks (`mesh/visibility.rs`, 15 bits). Each frame a
   BFS from the camera's section enters a neighbour only through a face its entry face sees, never moves
   back towards the camera, and stays in the frustum. Unmeshed sections count as open.
   `Renderer::cave_culling` turns it off (C in the viewer).
+- Frames: frustum culling per section, solid pass front to back, translucent pass back to front with
+  blending and no depth writes. Reverse-Z with an infinite far plane, camera-relative coordinates.
 
 ## Not yet
 

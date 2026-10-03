@@ -137,8 +137,12 @@ impl WorldTracker {
                     if self.near.as_ref().is_some_and(|n| !n.covers(pos.0, pos.2)) {
                         continue;
                     }
-                    if let (SubChunkEntryItemResult::SuccessAllAir, Some(near)) = (e.result, &mut self.near) {
-                        near.mark(pos.0, pos.1, pos.2);
+                    if e.result == SubChunkEntryItemResult::SuccessAllAir {
+                        view.insert_sub_chunk_air(pos.0, pos.1, pos.2);
+                        if let Some(near) = &mut self.near {
+                            near.mark(pos.0, pos.1, pos.2);
+                        }
+                        continue;
                     }
                     if e.result != SubChunkEntryItemResult::Success {
                         continue;
@@ -231,6 +235,7 @@ impl WorldTracker {
                 let lowest = dim.min_y >> 4;
                 let full = (dim.height >> 4) as i32;
                 let count = if limit < 0 { full } else { limit.min(full) };
+                view.insert_sub_chunk_limit(c.x, c.z, count as usize);
                 let requests = (0..count).map(|i| Vec3i8 { x: 0, y: (lowest + i) as i8, z: 0 }).collect();
                 self.outgoing.push(SubchunkRequest { dimension: c.dimension, requests, origin: Vec3li { x: c.x, y: 0, z: c.z } });
             }
