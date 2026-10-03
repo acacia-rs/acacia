@@ -246,7 +246,7 @@ pub async fn ride_horse(bot: &mut Bot, s: &Scene) -> Check {
     for (name, forward, strafe, yaw, ticks) in phase_list {
         let before = vehicle_corrections(bot);
         if let Some(c) = bot.controls() {
-            (c.forward, c.strafe, c.yaw) = (forward, strafe, yaw);
+            (c.forward, c.strafe, c.yaw, c.pitch) = (forward, strafe, yaw, 0.0);
         }
         bot.wait_ticks(ticks).await?;
         phases.push((name, vehicle_corrections(bot) - before));

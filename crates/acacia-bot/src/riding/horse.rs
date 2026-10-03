@@ -35,8 +35,10 @@ impl Bot {
             self.ride.horse = Some(HorseSim { unique_id, st: physics::horse(feet, e.yaw, speed) });
         }
         let Some(horse) = self.ride.horse.as_mut() else { return false };
-        if let Some((feet, delta, on_ground)) = movement.vehicle_correction.take() {
-            horse.st.apply_correction(feet, delta, on_ground);
+        if let Some(c) = movement.vehicle_correction.take() {
+            horse.st.apply_correction(c.feet, c.delta, c.on_ground);
+            // BDS also corrects a yaw gap alone; its easing then continues from the server's yaw.
+            [horse.st.pitch, horse.st.yaw] = c.pitch_yaw;
         }
         let c = movement.controls;
         let keys = [axis(c.strafe), axis(c.forward)];

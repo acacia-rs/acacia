@@ -27,6 +27,15 @@ const RESPAWN_READY: u8 = 1;
 /// Window for double-tapping forward to sprint.
 const DOUBLE_TAP_TICKS: u32 = 7;
 
+/// The server's state of a vehicle the bot drives (`CorrectPlayerMovePrediction` type Vehicle).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct VehicleCorrection {
+    pub feet: Vec3,
+    pub delta: Vec3,
+    pub on_ground: bool,
+    pub pitch_yaw: [f32; 2],
+}
+
 /// What the bot is trying to do this tick; persists until changed.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Controls {
@@ -78,8 +87,8 @@ pub struct Movement {
     pub teleports: u32,
     /// Corrections of a vehicle the bot drives: each one means the vehicle simulation disagreed.
     pub vehicle_corrections: u32,
-    /// The latest vehicle correction (position, delta, on ground), for the vehicle simulation to take.
-    pub(crate) vehicle_correction: Option<(Vec3, Vec3, bool)>,
+    /// The latest vehicle correction, for the vehicle simulation to take.
+    pub(crate) vehicle_correction: Option<VehicleCorrection>,
     /// Ticks spent with the spawn chunk loaded but movement not yet started.
     pub(crate) spawn_wait: u32,
     /// Holding "use" on an item (eating, drinking), which slows movement.
@@ -208,9 +217,14 @@ impl Movement {
                 if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle {
                     tracing::debug!(
                         server_tick = c.tick, server = ?[c.position.x, c.position.y, c.position.z], delta = ?[c.delta.x, c.delta.y, c.delta.z],
-                        on_ground = c.on_ground, "vehicle correction"
+                        rotation = ?[c.rotation.x, c.rotation.z], on_ground = c.on_ground, "vehicle correction"
                     );
-                    self.vehicle_correction = Some(([c.position.x, c.position.y, c.position.z], [c.delta.x, c.delta.y, c.delta.z], c.on_ground));
+                    self.vehicle_correction = Some(VehicleCorrection {
+                        feet: [c.position.x, c.position.y, c.position.z],
+                        delta: [c.delta.x, c.delta.y, c.delta.z],
+                        on_ground: c.on_ground,
+                        pitch_yaw: [c.rotation.x, c.rotation.z],
+                    });
                     self.vehicle_corrections += 1;
                     return Ok(());
                 }

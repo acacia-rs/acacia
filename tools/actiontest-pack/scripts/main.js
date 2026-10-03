@@ -70,6 +70,8 @@ function build(player) {
   spawn("minecraft:pig", 1, 1, "minecraft:on_saddled");
   spawn("minecraft:boat", 1, -1);
   spawn("minecraft:horse", -6, 0, "minecraft:on_tame");
+  // A fixed, fast horse: a random slow one hides speed errors under the correction threshold.
+  for (const h of dim.getEntities({ type: "minecraft:horse", tags: [TAG] })) h.getComponent("minecraft:movement")?.setCurrentValue(0.3);
   run(`replaceitem entity @e[type=horse,tag=${TAG}] slot.saddle 0 saddle`);
   scene.horse = [bx - 6, by, bz];
   // A 1-block ledge across the horse ride's westward stretch: a ridden horse walks up it (step 1.0625).
@@ -210,7 +212,11 @@ system.runInterval(() => {
   for (const p of world.getAllPlayers()) {
     if (p.isGliding) line("glide", p);
     const vehicle = p.getComponent("minecraft:riding")?.entityRidingOn;
-    if (vehicle?.typeId === "minecraft:horse") line("horse", vehicle);
+    if (vehicle?.typeId === "minecraft:horse") {
+      line("horse", vehicle);
+      const m = vehicle.getComponent("minecraft:movement");
+      if (m) log(`horse movement current ${m.currentValue} default ${m.defaultValue} effective ${m.effectiveMax ?? "-"}`);
+    }
   }
 }, 1);
 
