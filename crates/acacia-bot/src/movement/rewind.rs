@@ -9,14 +9,6 @@ use acacia_physics::{self as physics, Input, PlayerState, Vec3, WorldView};
 /// Ticks kept for replay (5 s): older events apply as of now.
 const HISTORY: usize = 100;
 
-/// Applies a server movement attribute only when it changes: applying marks the speed server-set, which stops a
-/// later StopSprinting from resetting it.
-pub(super) fn set_movement(st: &mut PlayerState, without_sprint: f32) {
-    if st.default_movement_speed != without_sprint {
-        st.set_movement_attribute(without_sprint);
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Correction {
     pub feet: Vec3,
@@ -60,7 +52,7 @@ impl History {
             if e.tick == tick {
                 e.movement = Some(without_sprint);
             }
-            set_movement(&mut e.after, without_sprint);
+            e.after.set_movement_attribute(without_sprint);
         }
     }
 
@@ -119,7 +111,7 @@ impl History {
         }
         for e in self.entries.iter_mut().filter(|e| e.tick > base) {
             if let Some(m) = e.movement {
-                set_movement(st, m);
+                st.set_movement_attribute(m);
             }
             st.knockback = e.knockback;
             physics::tick(st, &e.input, world);

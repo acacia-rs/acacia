@@ -68,8 +68,6 @@ pub struct PlayerState {
     pub lava_movement_speed: f32,
     pub swim_speed_multiplier: f32,
     pub dolphin_boost_ticks: i64,
-    /// The server sent a movement attribute since the last sprint toggle.
-    pub server_updated_speed: bool,
 
     pub knockback: Option<Vec3>,
     pub pending_teleport: Option<Vec3>,
@@ -153,7 +151,6 @@ impl PlayerState {
             lava_movement_speed: 0.0,
             swim_speed_multiplier: 0.0,
             dolphin_boost_ticks: 0,
-            server_updated_speed: false,
             knockback: None,
             pending_teleport: None,
             sprinting: false,
@@ -229,7 +226,6 @@ impl PlayerState {
         self.default_movement_speed = without_sprint;
         self.movement_speed =
             if self.sprinting { without_sprint * SPRINT_SPEED_MULTIPLIER } else { without_sprint };
-        self.server_updated_speed = true;
     }
 
     /// Rewinds to a server-corrected state (`CorrectPlayerMovePrediction`).

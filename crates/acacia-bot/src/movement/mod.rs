@@ -229,7 +229,7 @@ impl Movement {
                 {
                     let base = movement_without_sprint(m);
                     tracing::debug!(our_tick = self.tick, server_tick = a.tick, current = m.current, base, "movement attribute");
-                    rewind::set_movement(st, base);
+                    st.set_movement_attribute(base);
                     // Stamped T, it already moves the player on input tick T (the freeze updates before the move).
                     if a.tick != 0 {
                         self.history.movement_attribute(a.tick, base);

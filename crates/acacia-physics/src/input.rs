@@ -127,20 +127,10 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         st.pressing_descend = f.sneak_down;
         st.want_down = f.want_down;
 
-        let mut adjust_speed = false;
         st.sprint_start_cancelled = f.start_sprinting && f.stop_sprinting;
-        if f.start_sprinting && f.stop_sprinting {
-            adjust_speed = true;
-            st.sprinting = false;
-        } else if f.start_sprinting {
-            st.sprinting = true;
-            adjust_speed = true;
-        } else if f.stop_sprinting {
-            st.sprinting = false;
-            adjust_speed = !st.server_updated_speed;
-        }
-        if adjust_speed {
-            st.server_updated_speed = false;
+        if f.start_sprinting || f.stop_sprinting {
+            st.sprinting = f.start_sprinting && !f.stop_sprinting;
+            // BDS drops the sprint modifier on the stop tick even while it streams movement attributes (freeze).
             st.movement_speed = st.default_movement_speed;
             if st.sprinting {
                 st.movement_speed *= SPRINT_SPEED_MULTIPLIER;
