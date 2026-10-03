@@ -2,7 +2,7 @@
 //! the proxy joins the server as the same player, and every packet on the game's side is logged
 //! (record.rs).
 //!
-//! `cargo run -p acacia-mitm -- [--transport raknet|nethernet] [--listen 0.0.0.0:19180] [--server <addr>] [--out .testserver/mitm] [--online <account>]`
+//! `cargo run -p acacia-mitm -- [--transport raknet|nethernet] [--listen 0.0.0.0:19180] [--server <addr>] [--out .testserver/mitm] [--online <account>] [--pack-cdn <pack.zip>]`
 //!
 //! RakNet (default) is offline by default, for the local test BDS on 19140. `--online <account>`
 //! signs in with that account (`.tokens`, device code on first use) for real servers; sign the game
@@ -10,6 +10,7 @@
 //! the NetherNet BDS on 19160 and always needs `--online`. Login is logged as a structural summary
 //! only (login.rs): no tokens or signatures.
 
+mod cdn;
 mod login;
 mod nethernet;
 mod pair;
@@ -31,6 +32,7 @@ use tokio::task::JoinHandle;
 
 use pair::Pair;
 use record::Recorder;
+use relay::{Relay, Wire};
 
 const STATUS_INTERVAL: Duration = Duration::from_secs(3);
 
@@ -41,10 +43,19 @@ struct Args {
     server: String,
     out: String,
     online: Option<String>,
+    /// A pack zip to serve as every pack's `cdn_url` (cdn.rs); RakNet only.
+    pack_cdn: Option<String>,
 }
 
 fn args() -> Result<Args, String> {
-    let mut args = Args { nethernet: false, listen: "0.0.0.0:19180".parse().unwrap(), server: String::new(), out: ".testserver/mitm".into(), online: None };
+    let mut args = Args {
+        nethernet: false,
+        listen: "0.0.0.0:19180".parse().unwrap(),
+        server: String::new(),
+        out: ".testserver/mitm".into(),
+        online: None,
+        pack_cdn: None,
+    };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
         let value = it.next().ok_or(format!("{flag} needs a value"))?;
@@ -58,6 +69,7 @@ fn args() -> Result<Args, String> {
             "--server" => args.server = value,
             "--out" => args.out = value,
             "--online" => args.online = Some(value),
+            "--pack-cdn" => args.pack_cdn = Some(value),
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -113,11 +125,23 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             let host = nethernet::Host { server: target, account, key, rec: Arc::new(Mutex::new(rec)) };
             Ok(nethernet::run(args.listen, host).await?)
         }
-        account => run_raknet(args.listen, target, account, rec).await,
+        account => {
+            let pack_cdn = match &args.pack_cdn {
+                Some(zip) => Some(cdn::start(zip.as_ref(), args.listen.port() + 1, &rec.path().with_extension("cdn.log"))?),
+                None => None,
+            };
+            run_raknet(args.listen, target, account, pack_cdn, rec).await
+        }
     }
 }
 
-async fn run_raknet(listen: SocketAddr, target: SocketAddr, account: Option<Account>, mut rec: Recorder) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_raknet(
+    listen: SocketAddr,
+    target: SocketAddr,
+    account: Option<Account>,
+    pack_cdn: Option<String>,
+    mut rec: Recorder,
+) -> Result<(), Box<dyn std::error::Error>> {
     // MITM_TRACE=1 logs every datagram on the game's side (first byte and size), to debug joins and
     // compare send pacing.
     let mut trace = match std::env::var_os("MITM_TRACE") {
@@ -155,7 +179,8 @@ async fn run_raknet(listen: SocketAddr, target: SocketAddr, account: Option<Acco
                     let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
                     socket.connect(target).await?;
                     let reader = tokio::spawn(read_upstream(socket.clone(), game, upstream_tx.clone()));
-                    links.insert(game, Link { pair: Pair::new(target, now, key, credentials), socket, reader });
+                    let relay = Relay::new(Wire::RakNet, key, credentials).with_pack_cdn(pack_cdn.clone());
+                    links.insert(game, Link { pair: Pair::new(target, now, relay), socket, reader });
                 }
                 ServerEvent::Message(game, msg) => {
                     if let Some(link) = links.get_mut(&game) {
