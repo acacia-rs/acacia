@@ -95,7 +95,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
                 return false;
             }
             let step = auto_step(&start, cur, &boxes, one_way);
-            if !self.has_nearby_bboxes(&step.bb) && hz_dist_sqr(coll) < hz_dist_sqr(step.velocity) {
+            if self.movement_bboxes(st, &step.bb).is_empty() && hz_dist_sqr(coll) < hz_dist_sqr(step.velocity) {
                 coll = step.velocity;
                 bb = step.bb;
             }
