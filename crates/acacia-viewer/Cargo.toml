@@ -6,6 +6,10 @@ license.workspace = true
 publish.workspace = true
 rust-version.workspace = true
 
+[features]
+# Heap accounting by thread role, logged with the periodic stats (src/heap.rs).
+profile = []
+
 [dependencies]
 acacia-bot = { path = "../acacia-bot" }
 acacia-render = { path = "../acacia-render" }

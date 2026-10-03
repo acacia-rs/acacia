@@ -1,7 +1,6 @@
 //! Window, event handling and the title-bar overlay.
 
 use std::sync::Arc;
-use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
 
 use acacia_render::{Camera, FrameStats, Renderer};
@@ -13,12 +12,12 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
 use crate::input::FlyInput;
-use crate::net::NetEvent;
+use crate::net::{Net, NetEvent};
 
 const TITLE_EVERY: Duration = Duration::from_millis(500);
 
 pub struct App {
-    events: Receiver<NetEvent>,
+    net: Net,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     camera: Camera,
@@ -66,12 +65,16 @@ impl Shot {
 struct Overlay {
     since: Instant,
     frames: u32,
+    reports: u32,
 }
 
+/// Title updates between stats lines in the log (5 s).
+const LOG_EVERY_TITLES: u32 = 10;
+
 impl App {
-    pub fn new(events: Receiver<NetEvent>, radius: i32) -> Self {
+    pub fn new(net: Net, radius: i32) -> Self {
         App {
-            events,
+            net,
             window: None,
             renderer: None,
             camera: Camera::new(DVec3::new(0.0, 100.0, 0.0)),
@@ -83,7 +86,7 @@ impl App {
             camera_placed: false,
             status: "starting".into(),
             last_frame: Instant::now(),
-            overlay: Overlay { since: Instant::now(), frames: 0 },
+            overlay: Overlay { since: Instant::now(), frames: 0, reports: 0 },
             shot: Shot::from_env(),
         }
     }
@@ -105,7 +108,7 @@ impl App {
     }
 
     fn poll_net(&mut self) {
-        while let Ok(event) = self.events.try_recv() {
+        while let Ok(event) = self.net.events.try_recv() {
             match event {
                 NetEvent::World { world, table, textures } => {
                     if let Some(r) = &mut self.renderer {
@@ -144,10 +147,15 @@ impl App {
         let elapsed = self.overlay.since.elapsed();
         if elapsed >= TITLE_EVERY {
             let fps = self.overlay.frames as f32 / elapsed.as_secs_f32();
+            let line = title(fps, &stats, &self.status);
             if let Some(w) = &self.window {
-                w.set_title(&title(fps, &stats, &self.status));
+                w.set_title(&line);
             }
-            self.overlay = Overlay { since: now, frames: 0 };
+            self.overlay.reports += 1;
+            if self.overlay.reports.is_multiple_of(LOG_EVERY_TITLES) {
+                tracing::info!("{line}");
+            }
+            self.overlay = Overlay { since: now, frames: 0, reports: self.overlay.reports };
         }
     }
 
@@ -182,15 +190,27 @@ impl App {
 }
 
 fn title(fps: f32, s: &FrameStats, status: &str) -> String {
-    let rss = memory_stats::memory_stats().map_or(0, |m| m.physical_mem / (1 << 20));
     format!(
-        "Acacia | {fps:.0} fps | {rss} MB RAM, {} MB GPU buffers | {} sections ({} drawn), {}k quads | {} meshing | {status}",
+        "Acacia | {fps:.0} fps | {} | {} MB GPU buffers | {} sections ({} drawn), {}k quads | {} meshing | {status}",
+        memory(),
         s.gpu_bytes >> 20,
         s.sections,
         s.drawn,
         s.quads / 1000,
         s.pending,
     )
+}
+
+/// Working set (what Windows keeps resident; it trims this freely) and committed private memory.
+fn memory() -> String {
+    let (ws, commit) = memory_stats::memory_stats().map_or((0, 0), |m| (m.physical_mem >> 20, m.virtual_mem >> 20));
+    #[cfg(feature = "profile")]
+    {
+        let heap: Vec<String> = crate::heap::live().iter().zip(crate::heap::ROLES).map(|(b, r)| format!("{r} {:.1}", *b as f64 / 1048576.0)).collect();
+        format!("{ws} MB resident, {commit} MB committed, heap MB: {}", heap.join(" "))
+    }
+    #[cfg(not(feature = "profile"))]
+    format!("{ws} MB resident, {commit} MB committed")
 }
 
 impl ApplicationHandler for App {
@@ -244,6 +264,10 @@ impl ApplicationHandler for App {
         if let (DeviceEvent::MouseMotion { delta: (dx, dy) }, true) = (event, self.grabbed) {
             self.input.mouse(&mut self.camera, dx, dy);
         }
+    }
+
+    fn exiting(&mut self, _: &ActiveEventLoop) {
+        self.net.shutdown();
     }
 
     fn about_to_wait(&mut self, _: &ActiveEventLoop) {

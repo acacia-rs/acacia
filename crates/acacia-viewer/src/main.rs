@@ -6,8 +6,14 @@
 //!   F jumps to the bot, V toggles vsync, Esc releases the mouse.
 
 mod app;
+#[cfg(feature = "profile")]
+mod heap;
 mod input;
 mod net;
+
+#[cfg(feature = "profile")]
+#[global_allocator]
+static ALLOC: heap::Tracking = heap::Tracking;
 
 use winit::event_loop::EventLoop;
 
@@ -19,8 +25,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let radius: i32 = args.next().map_or(Ok(8), |s| s.parse())?;
 
     let pack = acacia_render::assets::Pack::load(&acacia_render::assets::Pack::default_dir())?;
-    let events = net::spawn(net::Options { server, name, radius }, pack);
+    let net = net::spawn(net::Options { server, name, radius }, pack);
     let event_loop = EventLoop::new()?;
-    event_loop.run_app(&mut app::App::new(events, radius))?;
+    event_loop.run_app(&mut app::App::new(net, radius))?;
     Ok(())
 }
