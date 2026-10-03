@@ -108,6 +108,22 @@ vx *= 0.99; vy *= 0.98; vz *= 0.99; then move + collide
 - **UNKNOWN**: wall-impact damage (`GlidingCollisionDamageCalculateSystem`, not decoded), the durability
   threshold, the glide box size.
 
+### Horse (`acacia-physics` `vehicle.rs`, bot `riding/horse.rs`; BDS 1.26.52, bdsre 2026-10-03)
+Client-predicted when tamed, saddled and driven by a player. Per tick:
+- **Yaw:** eases toward the rider's. With `d = wrap180(riderYaw − yaw)`, `yaw += d·0.7·max(0.18, (45 − min(|d|, 45))/90)`.
+- **Pitch:** rider pitch × 0.5.
+- **Move vector:** strafe × 0.5, backward × 0.25, forward unchanged.
+- **Travel:** the player's ground travel with the horse's `minecraft:movement`. Air speed is movement × 0.1.
+- **Box and step:** 1.4 × 1.6; step height 1.0625 with a controlling rider.
+
+Corrections:
+- BDS corrects a yaw gap on its own; the correction's rotation is (pitch, yaw).
+- It ignores the client's reported delta: sending 0 changed nothing.
+
+Live (`ride_horse`, horse at 0.2): walking, turning, strafing, backing and a 1-block ledge, with 0 corrections.
+
+**Open:** above about movement 0.25, BDS's steady speed drifts from the formula. At 0.3 it was 0.3547751 against our 0.35356, reproducible. At 0.35 two sweeps disagreed: +1% once, no corrections the next time. bdsre shows no extra term. Probe with `HORSE_SWEEP=… ONLY=horse_sweep tools/live-repeat.sh`, or compare against a vanilla capture of a fast horse. The jump charge is not modelled; its formulas are in the bdsre notes (horse jump `143b722e0`, `145e36020`).
+
 ## Still open
 1. Exit spot: `dismount_mode on_top_center` vehicles and exempt blocks (`blockIgnoredForExit`) are not modelled.
 2. Seated inputs for horses, camels, minecarts, striders and back seats; sneak-to-dismount (not captured).

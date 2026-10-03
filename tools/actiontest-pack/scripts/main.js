@@ -70,8 +70,9 @@ function build(player) {
   spawn("minecraft:pig", 1, 1, "minecraft:on_saddled");
   spawn("minecraft:boat", 1, -1);
   spawn("minecraft:horse", -6, 0, "minecraft:on_tame");
-  // A fixed, fast horse: a random slow one hides speed errors under the correction threshold.
-  for (const h of dim.getEntities({ type: "minecraft:horse", tags: [TAG] })) h.getComponent("minecraft:movement")?.setCurrentValue(0.3);
+  // A fixed speed, not a random one. 0.2: above about 0.25 BDS's ridden horse drifts from the formula
+  // (docs/research/riding-fishing-elytra.md "Horse"); `actiontest:horsespeed` and the horse_sweep check probe it.
+  for (const h of dim.getEntities({ type: "minecraft:horse", tags: [TAG] })) h.getComponent("minecraft:movement")?.setCurrentValue(0.2);
   run(`replaceitem entity @e[type=horse,tag=${TAG}] slot.saddle 0 saddle`);
   scene.horse = [bx - 6, by, bz];
   // A 1-block ledge across the horse ride's westward stretch: a ridden horse walks up it (step 1.0625).
