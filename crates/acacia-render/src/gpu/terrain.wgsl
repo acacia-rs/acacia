@@ -5,7 +5,8 @@ struct Globals {
     view_proj: mat4x4<f32>,
     cam_block: vec4<i32>,
     cam_frac: vec4<f32>,
-    tints: array<vec4<f32>, 4>,
+    // x: water surface opacity (biomes_client.json water_surface_transparency)
+    water: vec4<f32>,
     // rgb: fog/sky colour, w: distance where fog is opaque
     fog: vec4<f32>,
 };
@@ -44,6 +45,7 @@ struct VsOut {
     @location(2) @interpolate(flat) layer: u32,
     @location(3) @interpolate(flat) tint_material: u32,
     @location(4) dist: f32,
+    @location(5) @interpolate(flat) tint: vec3<f32>,
 };
 
 @vertex
@@ -82,6 +84,9 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     out.layer = (w1 >> 18u) & 4095u;
     out.tint_material = ((w1 >> 30u) & 3u) | (((w2 >> 9u) & 3u) << 2u);
     out.dist = length(rel);
+    // 7-bit sRGB per channel; texels are linear after sampling, so the tint is too.
+    let srgb = vec3<f32>(f32((w2 >> 11u) & 127u), f32((w2 >> 18u) & 127u), f32((w2 >> 25u) & 127u)) / 127.0;
+    out.tint = pow(srgb, vec3(2.2));
     return out;
 }
 
@@ -91,14 +96,13 @@ fn shade_texel(in: VsOut) -> vec4<f32> {
     let material = in.tint_material >> 2u;
     var rgb = texel.rgb;
     if tint != 0u {
-        let t = g.tints[tint].rgb;
         // Overlay: alpha marks the tinted part (the grass strip on grass block sides).
-        rgb = select(rgb * t, mix(rgb, rgb * t, texel.a), material == 3u);
+        rgb = select(rgb * in.tint, mix(rgb, rgb * in.tint, texel.a), material == 3u);
     }
     rgb = rgb * in.shade;
     let fog = smoothstep(g.fog.w * 0.7, g.fog.w, in.dist);
-    // Water opacity is the biome's water_surface_transparency (tints[3].a), not the texture's.
-    let alpha = select(texel.a, g.tints[3].a, tint == 3u);
+    // Water opacity is the biome's water_surface_transparency, not the texture's alpha.
+    let alpha = select(texel.a, g.water.x, tint == 3u);
     return vec4(mix(rgb, g.fog.rgb, fog), alpha);
 }
 

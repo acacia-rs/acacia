@@ -118,6 +118,11 @@ impl App {
                         shot.world_at.get_or_insert_with(Instant::now);
                     }
                 }
+                NetEvent::Biomes(colors) => {
+                    if let Some(r) = &mut self.renderer {
+                        r.set_biomes(colors);
+                    }
+                }
                 NetEvent::Player(p) => {
                     self.player = Some(p);
                     if !self.camera_placed {

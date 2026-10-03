@@ -35,6 +35,11 @@ impl ChunkView {
         Ok(())
     }
 
+    pub fn insert_biomes(&mut self, x: i32, z: i32, payload: &[u8]) {
+        let c = self.world.insert_biomes_by(self.id, x, z, payload);
+        self.chunks.insert((x, z), c);
+    }
+
     /// Applies a block update if this view owns the chunk's updates; returns false if the chunk is not
     /// in this view.
     pub fn set_block(&self, x: i32, y: i32, z: i32, layer: u32, id: u32) -> bool {

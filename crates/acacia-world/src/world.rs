@@ -209,13 +209,7 @@ impl World {
     }
 
     pub(crate) fn insert_sub_chunk_by(&self, view: u64, x: i32, section_y: i32, z: i32, payload: &[u8]) -> Result<Arc<SharedChunk>, Error> {
-        let c = self.get(x, z).unwrap_or_else(|| {
-            let mut map = self.chunks.write();
-            let fresh = || SharedChunk::new(Slot { chunk: Chunk::empty(x, z, self.dim), payload_hash: None });
-            let c = map.get(&(x, z)).and_then(Weak::upgrade).unwrap_or_else(fresh);
-            map.insert((x, z), Arc::downgrade(&c));
-            c
-        });
+        let c = self.get_or_create(x, z);
         if !c.claim(view) {
             return Ok(c);
         }
@@ -225,6 +219,31 @@ impl World {
         drop(slot);
         self.changes.send(ChunkChange::Section { x, section_y, z });
         Ok(c)
+    }
+
+    /// Stores biomes from a biomes-only payload (request mode, or the cache-mode biome blob),
+    /// creating an empty chunk if needed (they arrive before the sub-chunks).
+    pub fn insert_biomes(&self, x: i32, z: i32, payload: &[u8]) -> Arc<SharedChunk> {
+        self.insert_biomes_by(NO_OWNER, x, z, payload)
+    }
+
+    pub(crate) fn insert_biomes_by(&self, view: u64, x: i32, z: i32, payload: &[u8]) -> Arc<SharedChunk> {
+        let c = self.get_or_create(x, z);
+        if c.claim(view) {
+            c.slot.write().chunk.set_biomes(payload);
+            self.changes.send(ChunkChange::Column { x, z });
+        }
+        c
+    }
+
+    fn get_or_create(&self, x: i32, z: i32) -> Arc<SharedChunk> {
+        self.get(x, z).unwrap_or_else(|| {
+            let mut map = self.chunks.write();
+            let fresh = || SharedChunk::new(Slot { chunk: Chunk::empty(x, z, self.dim), payload_hash: None });
+            let c = map.get(&(x, z)).and_then(Weak::upgrade).unwrap_or_else(fresh);
+            map.insert((x, z), Arc::downgrade(&c));
+            c
+        })
     }
 }
 

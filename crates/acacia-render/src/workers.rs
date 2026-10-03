@@ -6,6 +6,7 @@ use std::sync::Arc;
 use acacia_world::World;
 use crossbeam_channel::{Receiver, Sender, unbounded};
 
+use crate::biome::BiomeColors;
 use crate::blocks::BlockTable;
 use crate::mesh::{SectionMesh, Volume, mesh_section};
 
@@ -32,18 +33,18 @@ pub struct Workers {
 }
 
 impl Workers {
-    pub fn new(table: Arc<BlockTable>) -> Self {
+    pub fn new(table: Arc<BlockTable>, biomes: Arc<BiomeColors>) -> Self {
         let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
         let threads = (cores.saturating_sub(2)).clamp(1, 6);
         let (jobs, job_rx) = unbounded::<Job>();
         let (done_tx, done) = unbounded();
         for i in 0..threads {
-            let (rx, tx, table) = (job_rx.clone(), done_tx.clone(), table.clone());
+            let (rx, tx, table, biomes) = (job_rx.clone(), done_tx.clone(), table.clone(), biomes.clone());
             std::thread::Builder::new()
                 .name(format!("mesh-{i}"))
                 .spawn(move || {
                     for job in rx {
-                        let mesh = build(&job, &table);
+                        let mesh = build(&job, &table, &biomes);
                         if tx.send(Done { key: job.key, version: job.version, mesh }).is_err() {
                             break;
                         }
@@ -63,7 +64,7 @@ impl Workers {
     }
 }
 
-fn build(job: &Job, table: &BlockTable) -> Option<SectionMesh> {
+fn build(job: &Job, table: &BlockTable, biomes: &BiomeColors) -> Option<SectionMesh> {
     let (cx, sy, cz) = job.key;
     let dim = job.world.dimension();
     let index = usize::try_from(sy - (dim.min_y >> 4)).ok()?;
@@ -72,5 +73,5 @@ fn build(job: &Job, table: &BlockTable) -> Option<SectionMesh> {
         return Some(SectionMesh::default());
     }
     drop(column);
-    Volume::gather(&job.world, cx, sy, cz).map(|v| mesh_section(&v, table))
+    Volume::gather(&job.world, cx, sy, cz).map(|v| mesh_section(&v, table, biomes))
 }

@@ -10,7 +10,8 @@ use acacia_world::World;
 use crate::Error;
 use crate::assets::image::Texture;
 use crate::blocks::BlockTable;
-use crate::blocks::tint::{DEFAULT_COLORS, WATER_ALPHA};
+use crate::biome::BiomeColors;
+use crate::blocks::tint::WATER_ALPHA;
 use crate::camera::{Camera, Frustum};
 use crate::scene::{Scene, Update};
 use pipeline::Pipelines;
@@ -25,7 +26,7 @@ struct Globals {
     view_proj: [[f32; 4]; 4],
     cam_block: [i32; 4],
     cam_frac: [f32; 4],
-    tints: [[f32; 4]; 4],
+    water: [f32; 4],
     fog: [f32; 4],
 }
 
@@ -52,6 +53,7 @@ pub struct Renderer {
     bind_group: wgpu::BindGroup,
     store: Store,
     scene: Option<Scene>,
+    biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
     /// Blocks from the camera where fog turns opaque.
     pub fog_distance: f32,
@@ -116,6 +118,7 @@ impl Renderer {
             bind_group,
             store,
             scene: None,
+            biomes: Arc::default(),
             updates: Vec::new(),
             fog_distance: 160.0,
             screenshot: None,
@@ -150,9 +153,22 @@ impl Renderer {
     pub fn set_world(&mut self, world: Arc<World>, table: Arc<BlockTable>, textures: &[Texture]) {
         self.textures = pipeline::texture_array(&self.device, &self.queue, textures);
         self.store.replaced = true;
+        self.rebuild_scene(world, table);
+    }
+
+    /// Replaces the biome colours (from the server's `BiomeDefinitionList`) and remeshes.
+    pub fn set_biomes(&mut self, biomes: Arc<BiomeColors>) {
+        self.biomes = biomes;
+        if let Some(scene) = self.scene.take() {
+            let (world, table) = scene.into_parts();
+            self.rebuild_scene(world, table);
+        }
+    }
+
+    fn rebuild_scene(&mut self, world: Arc<World>, table: Arc<BlockTable>) {
         self.store.clear();
         self.updates.clear();
-        self.scene = Some(Scene::new(world, table));
+        self.scene = Some(Scene::new(world, table, self.biomes.clone()));
     }
 
     pub fn world(&self) -> Option<&Arc<World>> {
@@ -175,12 +191,11 @@ impl Renderer {
         }
 
         let view_proj = camera.view_proj();
-        let tint = |c: [f32; 3]| { let l = srgb_to_linear(c); [l[0], l[1], l[2], 1.0] };
         let globals = Globals {
             view_proj: view_proj.to_cols_array_2d(),
             cam_block: [cam_block.x, cam_block.y, cam_block.z, 0],
             cam_frac: [cam_frac.x, cam_frac.y, cam_frac.z, 0.0],
-            tints: [[1.0; 4], tint(DEFAULT_COLORS[0]), tint(DEFAULT_COLORS[1]), { let mut w = tint(DEFAULT_COLORS[2]); w[3] = WATER_ALPHA; w }],
+            water: [WATER_ALPHA, 0.0, 0.0, 0.0],
             fog: { let s = srgb_to_linear(SKY); [s[0], s[1], s[2], self.fog_distance] },
         };
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));

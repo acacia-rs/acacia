@@ -34,6 +34,11 @@ impl Storage {
     /// when bits = 0), zigzag varint runtime ids.
     pub(crate) fn decode(r: &mut Reader) -> Result<Self, Error> {
         let header = r.u8()?;
+        Self::decode_after(r, header)
+    }
+
+    /// [`Storage::decode`] once the header byte was read.
+    pub(crate) fn decode_after(r: &mut Reader, header: u8) -> Result<Self, Error> {
         if header & 1 == 0 {
             return Err(Error::PersistentPalette);
         }

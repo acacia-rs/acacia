@@ -4,9 +4,12 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::time::{Duration, Instant};
 
-use acacia_bot::client::{Client, ClientBuilder};
+use acacia_bot::client::{Client, ClientBuilder, PacketFilter};
+use acacia_bot::proto::Packet;
+use acacia_bot::proto::packets::BiomeDefinitionList;
 use acacia_bot::{Bot, BotConfig, BotEvent};
 use acacia_render::assets::Pack;
+use acacia_render::biome::{BiomeColors, BiomeDef};
 use acacia_render::assets::image::Texture;
 use acacia_render::blocks::BlockTable;
 use acacia_world::World;
@@ -22,6 +25,8 @@ pub struct Options {
 pub enum NetEvent {
     /// A new world (join or dimension change) with render data built from its registry.
     World { world: Arc<World>, table: Arc<BlockTable>, textures: Vec<Texture> },
+    /// Biome colours from the server's `BiomeDefinitionList`.
+    Biomes(Arc<BiomeColors>),
     /// The bot's eye position.
     Player(DVec3),
     Status(String),
@@ -69,7 +74,8 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
     let send = |e| tx.send(e).map_err(|_| "window closed");
     send(NetEvent::Status(format!("connecting to {}", options.server)))?;
     let builder = login(Client::builder(&options.server).chunk_radius(options.radius), &options.name).await?;
-    let config = BotConfig { physics: true, auto_respawn: true, ..BotConfig::default() };
+    let subscribe = PacketFilter::none().with(BiomeDefinitionList::ID);
+    let config = BotConfig { physics: true, auto_respawn: true, subscribe, ..BotConfig::default() };
     let mut bot = tokio::select! {
         bot = Bot::connect(builder, config) => bot?,
         _ = &mut quit => return Ok(()),
@@ -77,6 +83,7 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
     send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
 
     let mut current: Option<Arc<World>> = None;
+    let mut biome_logged = false;
     // `next` only returns for caller-facing events, which a viewer barely subscribes to; the
     // timer reports world and position changes in between (`next` is cancel-safe).
     let mut report = tokio::time::interval(std::time::Duration::from_millis(50));
@@ -88,6 +95,13 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
                     break;
                 }
                 None => break,
+                Some(BotEvent::Packet(p)) if p.id == BiomeDefinitionList::ID => {
+                    let defs = biome_defs(&p.decode()?);
+                    tracing::info!(count = defs.len(), "biome definitions");
+                    let colors = BiomeColors::build(&defs, &pack);
+                    send(NetEvent::Biomes(Arc::new(colors)))?;
+                    continue;
+                }
                 Some(_) => continue,
             },
             _ = report.tick() => {}
@@ -109,12 +123,30 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
             current = Some(world.clone());
             send(NetEvent::World { world, table: Arc::new(table), textures })?;
         }
-        if current.is_some() {
+        if let Some(world) = &current {
             let p = bot.state().player.eye_position();
             send(NetEvent::Player(DVec3::new(p.x.into(), p.y.into(), p.z.into())))?;
+            if !biome_logged {
+                let (x, y, z) = (p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
+                if let Some(id) = world.get(x >> 4, z >> 4).and_then(|c| c.read().biome(x, y, z)) {
+                    tracing::debug!(id, x, y, z, "biome under the bot");
+                    biome_logged = true;
+                }
+            }
         }
     }
     Ok(())
+}
+
+fn biome_defs(list: &BiomeDefinitionList) -> Vec<BiomeDef> {
+    list.biome_definitions
+        .iter()
+        .filter_map(|d| {
+            let name = list.string_list.get(usize::try_from(d.name_index).ok()?)?;
+            let name = name.strip_prefix("minecraft:").unwrap_or(name).to_owned();
+            Some(BiomeDef { id: d.biome_id, name, temperature: d.temperature, downfall: d.downfall })
+        })
+        .collect()
 }
 
 async fn login(builder: ClientBuilder, name: &str) -> Result<ClientBuilder, Box<dyn std::error::Error>> {

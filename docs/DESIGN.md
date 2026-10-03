@@ -84,7 +84,8 @@ made before 2026-10-02 used gophertunnel's names.
 9. ◐ **Swarm** (docs/swarm.md): sharded bots across servers and realms with reconnect policy and a
    coordinator-ready handle. Tested against fake servers; next: a live run and the load benchmark.
 10. ◐ **Renderer** (crates/acacia-render/README.md): ✅ world viewer on BDS 26.52 (textured terrain, greedy
-   meshing with AO, fly camera). Next: memory profile, biome colours, lighting, cave culling.
+   meshing with AO, fly camera), biome colours. ~175 MB committed at radius 8, of which ~24 MB Rust heap
+   (the rest is the Vulkan driver; DX12 is far worse). Next: lighting, cave culling.
 
 ## Gotchas / open items
 

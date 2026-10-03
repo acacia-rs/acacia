@@ -24,8 +24,17 @@ material per face. Build it from the **world's** registry: custom blocks shift r
   their collision boxes (clamped to the block, rounded to 1/16), and collisionless blocks use a small table
   (carpets, rails, torches, buttons) or crossed planes. Signs, banners, vines and heads draw nothing yet.
 - **Orientation**: `pillar_axis` and `minecraft:cardinal_direction` (blocks.json fronts face south).
-- **Tint**: grass, foliage and water by name, plains colours until biomes are decoded. Water opacity is
-  `water_surface_transparency` (0.65), not texture alpha.
+- **Tint**: which faces take grass, foliage or water colour is by name (birch and spruce leaves are
+  fixed colours). Water opacity is `water_surface_transparency` (0.65), not texture alpha.
+
+## Biomes (`biome.rs`)
+
+`BiomeColors::build` takes the server's `BiomeDefinitionList` (id, name, temperature, downfall): grass and
+foliage sample `textures/colormap/{grass,foliage}.png` at (1 − temperature, 1 − downfall·temperature),
+then vanilla's overrides (swamp, mangrove swamp, badlands, cherry grove, pale garden, dark forest);
+water comes from `biomes_client.json`. Until it arrives, and for chunks without biomes, everything
+tints like plains. The mesher averages the tint over the 3×3 columns around each block, so greedy
+quads merge only within a uniform colour.
 
 ## Meshing (`mesh/`)
 
@@ -35,8 +44,8 @@ material per face. Build it from the **world's** registry: custom blocks shift r
   material and AO. AO looks at the 3 neighbours of each corner; quads split along the brighter diagonal.
 - Other shapes emit one quad per visible face. Liquids draw their surface at `fluid_height`, full height
   under the same liquid.
-- Quads are 12 bytes (`mesh/quad.rs`), pulled by vertex index in `gpu/terrain.wgsl`: no vertex or index
-  buffers. UVs are world-aligned and tile per block through the repeat sampler, so merged quads need no
+- Quads are 12 bytes (`mesh/quad.rs`, tint colour as 7-bit sRGB per channel), pulled by vertex index in
+  `gpu/terrain.wgsl`: no vertex or index buffers. UVs are world-aligned and tile per block through the repeat sampler, so merged quads need no
   atlas math.
 
 ## Scene and GPU
@@ -51,5 +60,5 @@ material per face. Build it from the **world's** registry: custom blocks shift r
 
 ## Not yet
 
-Biome colours, lighting (Bedrock sends none; caves are lit), cave/occlusion culling, texture animation,
+Lighting (Bedrock sends none; caves are lit), cave/occlusion culling, texture animation,
 flow-direction water and sloped liquid surfaces, entities, block entities, UI.

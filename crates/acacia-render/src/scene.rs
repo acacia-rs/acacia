@@ -8,6 +8,7 @@ use acacia_world::{ChunkChange, World};
 use glam::IVec3;
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::biome::BiomeColors;
 use crate::blocks::BlockTable;
 use crate::mesh::SectionMesh;
 use crate::workers::{Job, SectionKey, Workers};
@@ -25,6 +26,7 @@ const MISSING_NEIGHBOUR_COST: i32 = 4096;
 
 pub struct Scene {
     workers: Workers,
+    table: Arc<BlockTable>,
     tracked: Tracked,
     frame: u64,
 }
@@ -42,7 +44,7 @@ struct Tracked {
 }
 
 impl Scene {
-    pub fn new(world: Arc<World>, table: Arc<BlockTable>) -> Self {
+    pub fn new(world: Arc<World>, table: Arc<BlockTable>, biomes: Arc<BiomeColors>) -> Self {
         let changes = world.subscribe();
         let dim = world.dimension();
         let min = dim.min_y >> 4;
@@ -59,11 +61,16 @@ impl Scene {
         for (x, z) in world.chunk_positions() {
             t.apply(ChunkChange::Column { x, z });
         }
-        Scene { workers: Workers::new(table), tracked: t, frame: 0 }
+        Scene { workers: Workers::new(table.clone(), biomes), table, tracked: t, frame: 0 }
     }
 
     pub fn world(&self) -> &Arc<World> {
         &self.tracked.world
+    }
+
+    /// The world and block table, to build a replacement scene from.
+    pub fn into_parts(self) -> (Arc<World>, Arc<BlockTable>) {
+        (self.tracked.world, self.table)
     }
 
     pub fn pending(&self) -> usize {

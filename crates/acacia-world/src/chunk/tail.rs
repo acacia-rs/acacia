@@ -1,13 +1,11 @@
 //! Where block entities start in chunk payloads, found by skipping (not decoding) what precedes them.
 //! They are concatenated network NBT compounds running to the end of the payload.
 
+use super::biomes::COPY_BELOW;
 use super::reader::Reader;
 use super::storage::Storage;
 use super::{Dimension, section_header};
 use crate::Error;
-
-/// Biome storage header meaning "same as the section below" (bits 127, runtime palette).
-const BIOME_COPY: u8 = 0xff;
 
 /// Offset of the block entities in a `LevelChunk` payload: after `sections` sub-chunks, one biome
 /// storage per section of `biomes` (`None` in cache mode, where biomes are a blob) and the border
@@ -19,7 +17,7 @@ pub fn level_chunk_block_entities(payload: &[u8], sections: u32, biomes: Option<
     }
     for _ in 0..biomes.map_or(0, |d| d.sections()) {
         let header = r.u8()?;
-        if header != BIOME_COPY {
+        if header != COPY_BELOW {
             Storage::skip(&mut r, header)?;
         }
     }

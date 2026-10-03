@@ -2,6 +2,7 @@
 //! section meshing on worker threads, and drawing. Design: see README.md.
 
 pub mod assets;
+pub mod biome;
 pub mod blocks;
 pub mod camera;
 mod gpu;

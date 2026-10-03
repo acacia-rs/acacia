@@ -42,6 +42,10 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
 - `World::subscribe()` yields every applied `ChunkChange` (`Column`, `Section`, `Block`); loaded chunks
   aren't replayed, so read `chunk_positions()` after subscribing. `Chunk::copy_section` unpacks a section's
   two layers in XZY order and `section_uniform` spots all-air sections (for renderers).
+- Biome ids per section: decoded after the sections of a full `LevelChunk`; `World`/`ChunkView::insert_biomes`
+  takes a biomes-only payload (request-mode `LevelChunk`, or its cache-mode biome blob, which the bot's
+  `Blobs` resolves). `Chunk::biome(x, y, z)`, `copy_biomes(index, out)`; ids are raw, never remapped.
+  Malformed biome data keeps what decoded instead of failing the chunk.
 - `BlockAccess` (`block`, `liquid`; unloaded reads air) is implemented by `ChunkView`.
 - Since 26.50, stairs (`minecraft:corner`), fences and panes (`minecraft:connection_*`) carry their
   connections in the state, and walls already did. So `boxes` is complete and needs no neighbour lookups.

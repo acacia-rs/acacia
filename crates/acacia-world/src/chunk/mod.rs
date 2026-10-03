@@ -2,6 +2,7 @@
 //! layer 1 (liquid, i.e. waterlogging) are kept; biomes, border blocks and block entities are skipped
 //! ([`level_chunk_block_entities`] finds the latter).
 
+mod biomes;
 mod reader;
 mod storage;
 mod tail;
@@ -58,11 +59,13 @@ pub struct Chunk {
     pub z: i32,
     dim: Dimension,
     sections: Box<[Option<Box<Section>>]>,
+    /// Biome ids per section, bottom first; shorter (or empty) until the server sent them.
+    biomes: Vec<Storage>,
 }
 
 impl Chunk {
     pub fn empty(x: i32, z: i32, dim: Dimension) -> Self {
-        Chunk { x, z, dim, sections: vec![None; dim.sections()].into() }
+        Chunk { x, z, dim, sections: vec![None; dim.sections()].into(), biomes: Vec::new() }
     }
 
     /// Decodes a full `LevelChunk` payload (client cache disabled). `sub_chunk_count` sections come
@@ -87,7 +90,26 @@ impl Chunk {
             let slot = y_index.map_or(i as i32, |y| y as i32 - (dim.min_y >> 4));
             chunk.put_section(slot, section);
         }
+        chunk.biomes = biomes::decode(&mut r, dim.sections());
         Ok(chunk)
+    }
+
+    /// Replaces the biomes from a payload that is only biome storages (request-mode `LevelChunk`
+    /// payload, or the biome blob in cache mode).
+    pub fn set_biomes(&mut self, payload: &[u8]) {
+        self.biomes = biomes::decode(&mut Reader::new(payload), self.dim.sections());
+    }
+
+    /// Unpacks the biome ids of section `index` (0 = lowest) in XZY order. False when unknown.
+    pub fn copy_biomes(&self, index: usize, out: &mut [u32; SECTION_VOLUME]) -> bool {
+        let Some(storage) = self.biomes.get(index) else { return false };
+        storage.copy_into(out);
+        true
+    }
+
+    /// Biome id at a world position (x/z modulo 16), if known.
+    pub fn biome(&self, x: i32, y: i32, z: i32) -> Option<u32> {
+        Some(self.biomes.get(self.slot(y)?)?.get(index(x, y, z)))
     }
 
     /// Decodes one `SubChunk` entry payload into section `section_y` (world y >> 4).

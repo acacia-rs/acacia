@@ -10,6 +10,7 @@ use acacia_proto::packets::{LevelChunk, StartGame};
 use acacia_proto::{Packet, RawPacket};
 use acacia_render::assets::Pack;
 use acacia_render::assets::image::{Alpha, Texture};
+use acacia_render::biome::{BiomeColors, BiomeDef};
 use acacia_render::blocks::{BlockTable, Layer, Material, Shape, Tint};
 use acacia_render::mesh::{Volume, mesh_section};
 use acacia_world::{BlockIds, BlockRegistry, ChunkView, CustomBlock, World};
@@ -109,17 +110,32 @@ fn grass_side_overlay_alpha_marks_the_tinted_strip() {
 }
 
 #[test]
+fn biome_colors_follow_colormaps_and_exceptions() {
+    let Some(pack) = pack() else { return };
+    let def = |id, name: &str, temperature, downfall| BiomeDef { id, name: name.into(), temperature, downfall };
+    let colors = BiomeColors::build(&[def(1, "plains", 0.8, 0.4), def(2, "desert", 2.0, 0.0), def(6, "swampland", 0.8, 0.9)], &pack);
+    let (plains, desert) = (colors.get(1), colors.get(2));
+    eprintln!("plains {plains:?}\ndesert {desert:?}");
+    assert!(plains.grass[1] > plains.grass[0] && plains.grass[1] > plains.grass[2], "plains grass is green");
+    assert!(desert.grass[0] > plains.grass[0], "desert grass is yellower");
+    assert_eq!(colors.get(6).grass, [0x6A, 0x70, 0x39], "swamp override");
+    assert_eq!(colors.get(999), colors.get(12345), "unknown ids share the plains default");
+}
+
+#[test]
 fn geyser_chunks_mesh() {
     let Some(pack) = pack() else { return };
     let view = geyser_view();
     let world = view.world().clone();
+    let biome = view.chunk(world.chunk_positions()[0].0, world.chunk_positions()[0].1).unwrap().read().biome(0, -60, 0);
+    assert!(biome.is_some(), "full chunks carry biomes after their sections");
     let (table, _, _) = BlockTable::build(world.registry(), &pack);
     let (mut sections, mut quads, mut translucent) = (0, 0, 0);
     let start = Instant::now();
     for (cx, cz) in world.chunk_positions() {
         for sy in -4..20 {
             let v = Volume::gather(&world, cx, sy, cz).unwrap();
-            let mesh = mesh_section(&v, &table);
+            let mesh = mesh_section(&v, &table, &BiomeColors::default());
             sections += 1;
             quads += mesh.solid.len();
             translucent += mesh.translucent.len();

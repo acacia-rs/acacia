@@ -157,6 +157,29 @@ fn subscribers_see_applied_changes_only() {
 }
 
 #[test]
+fn biomes_only_payload_fills_sections_and_copies_below() {
+    let w = world();
+    let changes = w.subscribe();
+    let mut payload = Vec::new();
+    storage(&mut payload, &[4; VOLUME], None);
+    let mut mixed = [7; VOLUME];
+    mixed[idx(1, 2, 3)] = 9;
+    storage(&mut payload, &mixed, None);
+    payload.push(0xff);
+    let mut v = ChunkView::new(w.clone());
+    v.insert_biomes(2, 3, &payload);
+    let chunk = v.chunk(2, 3).unwrap().read();
+    assert_eq!(chunk.biome(32, -64, 48), Some(4));
+    assert_eq!(chunk.biome(33, -46, 51), Some(9), "section 1, local (1, 2, 3)");
+    assert_eq!(chunk.biome(33, -30, 51), Some(9), "0xff repeats section 1");
+    assert_eq!(chunk.biome(0, 0, 0), None, "sections past the payload");
+    let mut out = [0; VOLUME];
+    assert!(chunk.copy_biomes(1, &mut out));
+    assert_eq!(out, mixed);
+    assert_eq!(changes.try_iter().collect::<Vec<_>>(), [ChunkChange::Column { x: 2, z: 3 }]);
+}
+
+#[test]
 fn copy_section_unpacks_xzy() {
     let w = world();
     let mut v = ChunkView::new(w.clone());

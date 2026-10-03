@@ -20,7 +20,7 @@ use acacia_client::proto::packets::{
 use acacia_client::proto::types::{BlockCoordinates, SubChunkEntryItemResult, Vec3i8, Vec3li};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 use acacia_world::{BlockIds, BlockRegistry, ChunkView, CustomBlock, Dimension, World};
-use blobs::Blobs;
+use blobs::{Blobs, Ready};
 use near::Near;
 
 /// (server address, dimension id) → world.
@@ -156,8 +156,11 @@ impl WorldTracker {
             ClientCacheMissResponse::ID => {
                 let Some(view) = &mut self.view else { return Ok(()) };
                 for blob in packet.decode::<ClientCacheMissResponse>()?.blobs {
-                    for (pos, section) in self.blobs.delivered(blob.hash, &blob.payload) {
-                        insert_section(view, self.near.as_mut(), pos, &section);
+                    for ready in self.blobs.delivered(blob.hash, &blob.payload) {
+                        match ready {
+                            Ready::Section(pos, section) => insert_section(view, self.near.as_mut(), pos, &section),
+                            Ready::Biomes((x, z), biomes) => view.insert_biomes(x, z, &biomes),
+                        }
                     }
                 }
             }
@@ -215,6 +218,15 @@ impl WorldTracker {
         match c.highest_subchunk_count {
             Some(_) if self.near.is_some() => {}
             Some(limit) => {
+                // The payload is the column's biomes, or with the cache its only blob is.
+                let biomes = match (c.cache_enabled, c.blobs.first()) {
+                    (false, _) => Some(c.payload.clone()),
+                    (true, Some(&id)) => self.blobs.biomes((c.x, c.z), id),
+                    (true, None) => None,
+                };
+                if let Some(biomes) = biomes {
+                    view.insert_biomes(c.x, c.z, &biomes);
+                }
                 let dim = Dimension::from_id(c.dimension, 0);
                 let lowest = dim.min_y >> 4;
                 let full = (dim.height >> 4) as i32;
