@@ -10,7 +10,10 @@ mod world;
 
 pub use access::BlockAccess;
 pub use change::ChunkChange;
-pub use chunk::{Chunk, Dimension, SECTION_VOLUME, level_chunk_block_entities, sub_chunk_block_entities};
+pub use chunk::{
+    Chunk, ColumnHeights, Dimension, Heightmap, LevelChunkData, SECTION_VOLUME, SubChunkData, level_chunk_block_entities,
+    sub_chunk_block_entities,
+};
 pub use registry::{
     Aabb, BlockFlags, BlockRegistry, BlockState, CustomBlock, Material, Mining, Tool, ToolKind, ToolTier, fnv1_64,
 };

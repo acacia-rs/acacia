@@ -8,10 +8,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+acacia-proto.workspace = true
+bytes = "1"
 parking_lot = "0.12"
 rustc-hash = "2"
 thiserror = "2"
-
-[dev-dependencies]
-acacia-proto = { path = "../acacia-proto" }
-bytes = "1"
