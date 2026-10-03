@@ -8,6 +8,7 @@ mod friend_world;
 #[cfg(test)]
 mod friend_world_tests;
 mod http;
+mod jwks;
 mod live;
 #[cfg(test)]
 mod live_tests;
