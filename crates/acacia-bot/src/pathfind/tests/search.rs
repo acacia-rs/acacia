@@ -6,14 +6,14 @@ use super::grid::Grid;
 use crate::pathfind::{Goal, MoveKind, Path, SearchOpts, search};
 
 pub fn opts(parkour: bool) -> SearchOpts {
-    SearchOpts { max_nodes: 50_000, budget: Duration::from_secs(5), parkour }
+    SearchOpts { max_nodes: 50_000, budget: Duration::from_secs(5), parkour, ..SearchOpts::default() }
 }
 
 fn find(g: &Grid, from: Vec3, goal: BlockPos, parkour: bool) -> Path {
     search(&g.terrain(), from, &Goal::Block(goal), &opts(parkour))
 }
 
-fn kinds(p: &Path) -> Vec<MoveKind> {
+pub fn kinds(p: &Path) -> Vec<MoveKind> {
     p.nodes.iter().map(|n| n.kind).collect()
 }
 

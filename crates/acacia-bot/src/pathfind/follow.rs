@@ -25,17 +25,27 @@ pub struct Sense {
     pub in_water: bool,
 }
 
+/// Within this of the segment start (horizontally), the bot does a move's work from where it is.
+const WORK_RADIUS: f32 = 0.5;
+/// Horizontal speed (blocks per tick) below which the bot counts as standing for work.
+const SETTLED: f32 = 0.05;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FollowStatus {
     Moving,
     Arrived,
     Stuck,
     OffPath,
+    /// Standing at the start of a move whose [`Work`](super::Work) must be done first: do
+    /// [`Follower::pending_work`], then call [`Follower::work_done`].
+    Work,
 }
 
 pub struct Follower {
     path: Vec<PathNode>,
     index: usize,
+    /// The current node's work is done.
+    worked: bool,
     /// Start of the current segment: the previous node's centre, or where the bot started.
     origin: Vec3,
     last_pos: Option<Vec3>,
@@ -59,7 +69,27 @@ fn dir(a: Vec3, b: Vec3) -> (i32, i32) {
 impl Follower {
     /// `tolerance`: how close (horizontally, blocks) to the final node's centre counts as arrived.
     pub fn new(path: Vec<PathNode>, start: Vec3, tolerance: f32) -> Self {
-        Self { path, index: 0, origin: start, last_pos: None, best_dist: f32::INFINITY, since_progress: 0, tolerance }
+        Self { path, index: 0, worked: false, origin: start, last_pos: None, best_dist: f32::INFINITY, since_progress: 0, tolerance }
+    }
+
+    /// The node whose work is due before moving on, if any.
+    pub fn pending_work(&self) -> Option<&PathNode> {
+        self.has_pending(self.index).then(|| &self.path[self.index])
+    }
+
+    pub fn work_done(&mut self) {
+        self.worked = true;
+        (self.best_dist, self.since_progress) = (f32::INFINITY, 0);
+    }
+
+    fn has_pending(&self, i: usize) -> bool {
+        self.path.get(i).is_some_and(|n| !n.work.is_empty()) && !(i == self.index && self.worked)
+    }
+
+    /// The nodes ahead whose footing exists already: up to the first one waiting for work.
+    pub fn standing_ahead(&self) -> &[PathNode] {
+        let end = (self.index..self.path.len()).find(|&i| self.has_pending(i)).unwrap_or(self.path.len());
+        &self.path[self.index..end]
     }
 
     pub fn path(&self) -> &[PathNode] {
@@ -98,6 +128,9 @@ impl Follower {
         let last = self.index + 1 == self.path.len();
         let dist = hdist(s.pos, target);
         let speed = vel[0].hypot(vel[2]);
+        if self.has_pending(self.index) {
+            return self.approach_work(s, c, speed);
+        }
         if last && dist < self.tolerance && speed < 0.03 && self.reached(&node, s, self.tolerance) {
             c.stop();
             return FollowStatus::Arrived;
@@ -116,6 +149,23 @@ impl Follower {
         FollowStatus::Moving
     }
 
+    /// Work is done from the segment start: walk back there if needed and come to a stop.
+    fn approach_work(&mut self, s: &Sense, c: &mut Controls, speed: f32) -> FollowStatus {
+        let d = hdist(s.pos, self.origin);
+        c.stop();
+        c.sneak = false;
+        if d < WORK_RADIUS && s.on_ground {
+            return if speed < SETTLED { FollowStatus::Work } else { FollowStatus::Moving };
+        }
+        self.since_progress += 1;
+        if self.since_progress > STUCK_TICKS {
+            return FollowStatus::Stuck;
+        }
+        c.yaw = (s.pos[0] - self.origin[0]).atan2(self.origin[2] - s.pos[2]).to_degrees();
+        c.forward = 1.0;
+        FollowStatus::Moving
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn steer(&self, s: &Sense, c: &mut Controls, node: &PathNode, target: Vec3, dist: f32, speed: f32, last: bool) {
         let (dx, dz) = (target[0] - s.pos[0], target[2] - s.pos[2]);
@@ -128,7 +178,7 @@ impl Follower {
             // Bedrock ground friction lets the bot coast: release the key once coasting covers the rest.
             let coast = speed * GROUND_DRAG / (1.0 - GROUND_DRAG);
             if dist < coast + 0.05 { 0.0 } else { 1.0 }
-        } else if matches!(node.kind, MoveKind::ClimbUp | MoveKind::ClimbDown) && dist < 0.15 {
+        } else if matches!(node.kind, MoveKind::ClimbUp | MoveKind::ClimbDown | MoveKind::Pillar | MoveKind::Down) && dist < 0.15 {
             0.0
         } else {
             1.0
@@ -165,7 +215,7 @@ impl Follower {
         let heading = dir(prev, center(&self.path[self.index]));
         let mut run = 0;
         for n in &self.path[self.index..] {
-            if n.kind != MoveKind::Walk || dir(prev, center(n)) != heading {
+            if n.kind != MoveKind::Walk || !n.work.is_empty() || dir(prev, center(n)) != heading {
                 break;
             }
             prev = center(n);
@@ -176,7 +226,7 @@ impl Follower {
 
     fn advance(&mut self, s: &Sense) {
         let before = self.index;
-        while self.index + 1 < self.path.len() {
+        while self.index + 1 < self.path.len() && !self.has_pending(self.index) {
             let node = self.path[self.index];
             let next = self.path[self.index + 1];
             let straight = next.kind == MoveKind::Walk && dir(self.origin, center(&node)) == dir(center(&node), center(&next));
@@ -185,15 +235,18 @@ impl Follower {
             }
             self.origin = center(&node);
             self.index += 1;
+            self.worked = false;
         }
-        // Overshot onto a later node (momentum, a fall): continue from there.
-        let window = (self.index + 1..self.path.len().min(self.index + 4)).rev();
+        // Overshot onto a later node (momentum, a fall): continue from there, but not past work.
+        let end = self.index + self.standing_ahead().len();
+        let window = (self.index + 1..end.min(self.index + 4)).rev();
         for j in window {
             let n = self.path[j];
             let feet_cell = [s.pos[0].floor() as i32, s.pos[2].floor() as i32];
             if feet_cell == [n.pos[0], n.pos[2]] && (s.pos[1] - n.feet).abs() < 0.3 && (s.on_ground || s.in_water) {
                 self.origin = center(&self.path[j - 1]);
                 self.index = j;
+                self.worked = false;
                 break;
             }
         }
@@ -209,7 +262,8 @@ impl Follower {
             MoveKind::ClimbUp => dy > -0.05 && h < 0.5,
             MoveKind::ClimbDown => dy < 0.1 && h < 0.5,
             MoveKind::Ascend => h < radius && dy > -0.25 && dy < 0.6,
-            MoveKind::Parkour | MoveKind::Descend => h < radius.max(0.35) && dy.abs() < 0.5 && (s.on_ground || s.in_water),
+            MoveKind::Parkour | MoveKind::Descend | MoveKind::Down => h < radius.max(0.35) && dy.abs() < 0.5 && (s.on_ground || s.in_water),
+            MoveKind::Pillar => h < 0.5 && dy > -0.1 && dy < 0.6 && s.on_ground,
             MoveKind::Walk | MoveKind::Swim => h < radius && dy.abs() < 0.6,
         }
     }
