@@ -63,13 +63,15 @@ pub struct PlayerState {
     pub movement_speed: f32,
     /// Effective movement attribute without the sprint modifier.
     pub default_movement_speed: f32,
+    /// The server's movement attribute without its sprint and freeze modifiers.
+    pub movement_attribute: f32,
+    /// Powder snow freezing, 0 to 1 (see `block_effects::update_freeze`).
+    pub freeze: f32,
     pub air_speed: f32,
     pub underwater_movement_speed: f32,
     pub lava_movement_speed: f32,
     pub swim_speed_multiplier: f32,
     pub dolphin_boost_ticks: i64,
-    /// The server sent a movement attribute since the last sprint toggle.
-    pub server_updated_speed: bool,
 
     pub knockback: Option<Vec3>,
     pub pending_teleport: Option<Vec3>,
@@ -148,12 +150,13 @@ impl PlayerState {
             fall_distance: 0.0,
             movement_speed: DEFAULT_MOVEMENT_SPEED,
             default_movement_speed: DEFAULT_MOVEMENT_SPEED,
+            movement_attribute: DEFAULT_MOVEMENT_SPEED,
+            freeze: 0.0,
             air_speed: WALK_AIR_SPEED,
             underwater_movement_speed: 0.0,
             lava_movement_speed: 0.0,
             swim_speed_multiplier: 0.0,
             dolphin_boost_ticks: 0,
-            server_updated_speed: false,
             knockback: None,
             pending_teleport: None,
             sprinting: false,
@@ -224,12 +227,17 @@ impl PlayerState {
         self.knockback = Some(velocity);
     }
 
-    /// Applies a server movement attribute (`minecraft:movement`) value that excludes sprint.
-    pub fn set_movement_attribute(&mut self, without_sprint: f32) {
-        self.default_movement_speed = without_sprint;
+    /// Applies a server movement attribute (`minecraft:movement`) value without its sprint and freeze
+    /// modifiers; the simulation adds both itself.
+    pub fn set_movement_attribute(&mut self, value: f32) {
+        self.movement_attribute = value;
+        self.refresh_movement_speed();
+    }
+
+    pub(crate) fn refresh_movement_speed(&mut self) {
+        self.default_movement_speed = self.movement_attribute + FREEZE_SPEED_MODIFIER * self.freeze;
         self.movement_speed =
-            if self.sprinting { without_sprint * SPRINT_SPEED_MULTIPLIER } else { without_sprint };
-        self.server_updated_speed = true;
+            if self.sprinting { self.default_movement_speed * SPRINT_SPEED_MULTIPLIER } else { self.default_movement_speed };
     }
 
     /// Rewinds to a server-corrected state (`CorrectPlayerMovePrediction`).

@@ -80,6 +80,7 @@ pub fn tick<W: WorldView + ?Sized>(st: &mut PlayerState, input: &Input, world: &
     let pose = PoseSnapshot::take(st);
     st.liquid_box = Some(st.bounding_box());
     let (known, move_vector) = sim.apply_input(st, &frame);
+    sim.update_freeze(st);
     let outcome = if known || st.pending_teleport.is_some() {
         sim.simulate_core(st)
     } else {

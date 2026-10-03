@@ -25,6 +25,11 @@ pub const SPRINT_AIR_SPEED: f32 = 0.026;
 pub const WATER_DRAG: f32 = 0.8;
 pub const DEFAULT_MOVEMENT_SPEED: f32 = 0.1;
 pub const SPRINT_SPEED_MULTIPLIER: f32 = 1.3;
+/// BDS `FreezingComponent` (bdsre 148437b10): +1/140 a tick in powder snow, -1/70 out of it; the movement
+/// attribute takes freeze * -0.05 ("Freeze effect").
+pub const FREEZE_GAIN: f32 = 1.0 / 140.0;
+pub const FREEZE_LOSS: f32 = 1.0 / 70.0;
+pub const FREEZE_SPEED_MODIFIER: f32 = -0.05;
 
 pub const DEFAULT_PLAYER_WIDTH: f32 = 0.6;
 pub const DEFAULT_PLAYER_HEIGHT: f32 = 1.8;

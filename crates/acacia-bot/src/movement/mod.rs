@@ -11,6 +11,7 @@ pub use idle::Idle;
 
 use acacia_client::proto::packets::{
     CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, PlayerAuthInput, PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion,
+    UpdateAttributes,
 };
 use acacia_client::proto::types::InputData;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
@@ -205,6 +206,20 @@ impl Movement {
                     self.history.schedule(c.tick, Correction { feet, delta, on_ground, teleport: false });
                 }
                 self.corrections += 1;
+            }
+            UpdateAttributes::ID => {
+                let p: UpdateAttributes = packet.decode()?;
+                if p.runtime_entity_id == me.runtime_entity_id {
+                    // Speed and Slowness arrive as modifiers on the movement attribute, and so do the sprint
+                    // boost (multiplying) and freezing (adding), which the simulation applies itself.
+                    for a in p.attributes.iter().filter(|a| a.name == "minecraft:movement") {
+                        let amount = |name: &str| a.modifiers.iter().find(|m| m.name == name).map_or(0.0, |m| m.amount);
+                        let value = a.current as f32 / (1.0 + amount("Sprinting speed boost")) - amount("Freeze effect");
+                        tracing::debug!(our_tick = self.tick, server_tick = p.tick, value, "movement attribute");
+                        st.set_movement_attribute(value);
+                        self.history.movement_attribute(p.tick, value);
+                    }
+                }
             }
             Respawn::ID => {
                 let r: Respawn = packet.decode()?;

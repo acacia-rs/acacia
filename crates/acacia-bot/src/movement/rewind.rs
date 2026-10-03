@@ -33,6 +33,9 @@ pub(super) struct History {
     newest: u64,
     /// Earliest tick given a knockback since the last replay.
     knocked: Option<u64>,
+    /// Movement attribute values by the input tick they take effect on, oldest first: a rewind restores
+    /// state saved before a late update arrived.
+    speeds: VecDeque<(u64, f32)>,
 }
 
 impl History {
@@ -63,6 +66,15 @@ impl History {
         e.knockback = Some(velocity);
         self.knocked = Some(self.knocked.map_or(tick, |k| k.min(tick)));
         true
+    }
+
+    /// Records a movement attribute stamped with server `tick`; like knockback, it applies from input tick + 1.
+    pub(super) fn movement_attribute(&mut self, tick: u64, value: f32) {
+        let oldest = self.entries.front().map_or(0, |e| e.tick);
+        while self.speeds.len() > 1 && self.speeds[1].0 <= oldest {
+            self.speeds.pop_front();
+        }
+        self.speeds.push_back((tick + 1, value));
     }
 
     /// Rewinds to a scheduled correction, or to before the earliest new knockback, and replays the
@@ -96,7 +108,13 @@ impl History {
             st.knockback = queued;
             return replayed;
         }
+        if let Some(v) = speed_at(&self.speeds, base) {
+            st.set_movement_attribute(v);
+        }
         for e in self.entries.iter_mut().filter(|e| e.tick > base) {
+            if let Some(v) = speed_at(&self.speeds, e.tick).filter(|_| self.speeds.iter().any(|&(t, _)| t == e.tick)) {
+                st.set_movement_attribute(v);
+            }
             st.knockback = e.knockback;
             physics::tick(st, &e.input, world);
             e.after = st.clone();
@@ -105,4 +123,9 @@ impl History {
         st.knockback = queued;
         replayed
     }
+}
+
+/// The newest movement attribute value in effect on input tick `tick`.
+fn speed_at(speeds: &VecDeque<(u64, f32)>, tick: u64) -> Option<f32> {
+    speeds.iter().rev().find(|&&(t, _)| t <= tick).map(|&(_, v)| v)
 }

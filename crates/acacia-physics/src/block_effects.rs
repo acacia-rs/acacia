@@ -1,6 +1,7 @@
 //! Movement-sensitive blocks (bedsim `block_effects.go`, `bubble.go`).
 
-use crate::collide::overlapped_cells;
+use crate::collide::{inside_cells, overlapped_cells};
+use crate::constants::{FREEZE_GAIN, FREEZE_LOSS};
 use crate::math::{Vec3, len_sqr};
 use crate::sim::Sim;
 use crate::state::PlayerState;
@@ -56,12 +57,19 @@ pub(crate) fn apply_ascendable_movement(st: &mut PlayerState, traversal: Travers
 }
 
 impl<W: WorldView + ?Sized> Sim<'_, W> {
+    /// Powder snow freezing and its slowdown, before travel.
+    // TODO: immunity (BDS skips freezing for some players; Java: any leather armour).
+    pub(crate) fn update_freeze(&self, st: &mut PlayerState) {
+        let in_snow = inside_cells(&st.bounding_box()).any(|pos| self.w.block(pos).inside == InsideMovement::PowderSnow);
+        let freeze = if in_snow { (st.freeze + FREEZE_GAIN).min(1.0) } else { (st.freeze - FREEZE_LOSS).max(0.0) };
+        if freeze != st.freeze {
+            st.freeze = freeze;
+            st.refresh_movement_speed();
+        }
+    }
+
     pub(crate) fn apply_inside_block_effects(&self, st: &mut PlayerState) {
-        let bb = st.bounding_box();
-        for pos in overlapped_cells(&bb) {
-            if !bb.intersects(&crate::aabb::Aabb::block(pos)) {
-                continue;
-            }
+        for pos in inside_cells(&st.bounding_box()) {
             let b = self.w.block(pos);
             if b.air {
                 continue;
@@ -99,10 +107,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     }
 
     pub(crate) fn apply_bubble_columns(&self, st: &mut PlayerState) {
-        // BDS walks floor(min + 0.001)..=floor(max - 0.001): a column the box grazes does not push.
-        let bb = st.bounding_box().grow(-1e-3);
         let mut found = false;
-        for pos in overlapped_cells(&bb) {
+        for pos in inside_cells(&st.bounding_box()) {
             let Some(col) = self.w.block(pos).bubble_column else { continue };
             found = true;
             let surface = col.surface.unwrap_or_else(|| {

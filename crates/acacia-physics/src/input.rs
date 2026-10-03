@@ -77,10 +77,12 @@ impl Input {
         // BDS `SwimTriggerSystem`: sprinting with the breathing point under water starts a swim (see
         // `swim_start_submerged`); it stops, only while standing up fits, on no movement, out of water or surfacing.
         let moving = self.move_vector != [0.0, 0.0];
-        let keep_swim = !stand_fits || in_water && moving && !swim_surfacing;
+        // Releasing the sprint input ends the swim and its sprint together (strict BDS fuzz: the server's
+        // drag and gravity turn non-swimming on that tick); a ceiling too low to stand keeps both.
+        let keep_swim = !stand_fits || in_water && moving && !swim_surfacing && self.sprint;
         let swim = self.swim || if st.swimming { keep_swim } else { wanted && eyes_in_water };
-        // While swimming, the sprint ends only out of water (with StopSwimming), not when the input stops.
-        let keeps = if st.swimming { in_water } else { sprinting };
+        // While swimming, the sprint ends only with the swim's input or out of water (with StopSwimming).
+        let keeps = if st.swimming { in_water && (self.sprint || !stand_fits) } else { sprinting };
         let starts = !st.sprinting && wanted;
         Frame {
             move_vector: self.move_vector,
@@ -127,20 +129,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         st.pressing_descend = f.sneak_down;
         st.want_down = f.want_down;
 
-        let mut adjust_speed = false;
         st.sprint_start_cancelled = f.start_sprinting && f.stop_sprinting;
-        if f.start_sprinting && f.stop_sprinting {
-            adjust_speed = true;
-            st.sprinting = false;
-        } else if f.start_sprinting {
-            st.sprinting = true;
-            adjust_speed = true;
-        } else if f.stop_sprinting {
-            st.sprinting = false;
-            adjust_speed = !st.server_updated_speed;
-        }
-        if adjust_speed {
-            st.server_updated_speed = false;
+        if f.start_sprinting || f.stop_sprinting {
+            st.sprinting = f.start_sprinting && !f.stop_sprinting;
             st.movement_speed = st.default_movement_speed;
             if st.sprinting {
                 st.movement_speed *= SPRINT_SPEED_MULTIPLIER;

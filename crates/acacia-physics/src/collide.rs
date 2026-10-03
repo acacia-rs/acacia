@@ -27,6 +27,12 @@ pub(crate) fn overlapped_cells(bb: &Aabb) -> impl Iterator<Item = BlockPos> {
     })
 }
 
+/// Cells BDS's entity-inside walk visits: floor(min + 0.001)..=floor(max - 0.001), so a grazed cell is skipped.
+pub(crate) fn inside_cells(bb: &Aabb) -> impl Iterator<Item = BlockPos> {
+    let (min, max) = (block_pos(bb.min.map(|v| v + 1e-3)), block_pos(bb.max.map(|v| v - 1e-3)));
+    (min[0]..=max[0]).flat_map(move |x| (min[1]..=max[1]).flat_map(move |y| (min[2]..=max[2]).map(move |z| [x, y, z])))
+}
+
 fn centre(bb: &Aabb) -> Vec3 {
     [(bb.min[0] + bb.max[0]) * 0.5, bb.min[1], (bb.min[2] + bb.max[2]) * 0.5]
 }
