@@ -39,8 +39,8 @@ acacia-client             tokio sockets and timers, SOCKS5 (UDP + CONNECT), Neth
  └─ acacia-auth           MSA device code → Xbox → XSTS → PlayFab → session/start → multiplayer token
 acacia-viewer             (app) world viewer: a bot on a tokio thread, winit window, fly camera
  └─ acacia-render         wgpu terrain renderer over acacia-world (no network): pack loading, meshing, drawing
-acacia-mitm               recording proxy for vanilla-client captures over RakNet or NetherNet direct connect,
-                          local BDS or (`--online`) real servers
+acacia-mitm               proxy library (record, drop, rewrite, inject) and recording CLI for vanilla-client
+                          captures over RakNet or NetherNet direct connect, local BDS or (`--online`) real servers
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
 tools/capdiff             compares what two clients sent in captures (vanilla vs bot): order, delays, cadence, fields
 acacia-testserver         (dev) FakeServer replays a recorded BDS join over loopback RakNet, then takes send/recv/kick
@@ -58,7 +58,11 @@ game's Login: offline by default, or with `--online <account>` as that signed-in
 into the same one, since its client data passes through). Everything else passes through as it came, cache and pack replies
 included. `--transport nethernet` (needs `--online`) serves BDS-style signaling to the game and dials the
 NetherNet BDS; add the server by this machine's LAN IP, not 127.0.0.1. Capture format: `crates/acacia-mitm/src/record.rs`. `name` is acacia-proto's struct name; captures
-made before 2026-10-02 used gophertunnel's names.
+made before 2026-10-02 used gophertunnel's names. As a library (`Proxy`), per-player `Interceptor`s get each
+packet as a lazy `RawPacket` and forward, drop or replace it; an `Injector` adds packets either way. Changed
+batches are re-encoded with acacia-session's codecs for that side. Recording stays a built-in layer ahead of the
+interceptors: it must see the codec-switching packets the proxy owns, and logs packets as they arrived
+(`crates/acacia-mitm/src/intercept.rs`).
 
 ## Reference implementations
 
