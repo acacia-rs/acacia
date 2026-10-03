@@ -140,6 +140,14 @@ const fn honey(name: &'static str, fills: &'static [Fill], y: f32) -> Drill {
     Drill { name, fills, start: [1.5, y, 0.5], settle: 10, steps, pitch: 0.0 }
 }
 
+/// Powder snow over the open pad, ankle deep: freezing slows the walk every tick (fuzz 145851 ticks 5575/5625/
+/// 5631, each after two `minecraft:movement` updates stamped with the same input tick).
+const POWDER: &[Fill] = &[([0, 0, -6], [20, 0, 6], "powder_snow")];
+const POWDER_WALK: &[Step] = &[
+    (30, 1.0, false, false, 0.0, false), (30, 1.0, true, false, 20.0, false), (30, -1.0, false, false, -20.0, false),
+    (30, 1.0, true, false, -30.0, false), (40, 1.0, false, false, 0.0, false), STOP,
+];
+
 /// Sprint `ticks` at `yaw` towards the pit, then sneak on.
 const fn rush(ticks: u32, yaw: f32) -> [Step; 3] {
     [(ticks, 1.0, true, false, yaw, false), (25, 1.0, false, false, yaw, true), STOP]
@@ -236,6 +244,8 @@ const DRILLS: &[Drill] = &[
     honey("honeyt3", HONEY_ONE, 6.15), honey("honeyt4", HONEY_ONE, 6.2), honey("honeyt5", HONEY_ONE, 6.25),
     honey("honeyt6", HONEY_ONE, 6.3), honey("honeyt7", HONEY_ONE, 6.35), honey("honeyt8", HONEY_ONE, 6.4),
     honey("honeyt9", HONEY_ONE, 6.45), honey("honeyt10", HONEY_ONE, 6.5), honey("honeyt11", HONEY_ONE, 6.55),
+    drill("powder1", POWDER, POWDER_WALK), drill("powder2", POWDER, POWDER_WALK), drill("powder3", POWDER, POWDER_WALK),
+    drill("powder4", POWDER, POWDER_WALK),
 ];
 
 #[tokio::main(flavor = "current_thread")]

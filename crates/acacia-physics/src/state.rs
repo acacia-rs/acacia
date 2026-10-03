@@ -61,8 +61,12 @@ pub struct PlayerState {
     pub fall_distance: f32,
     /// Effective movement attribute (incl. Speed/Slowness and sprint).
     pub movement_speed: f32,
-    /// Effective movement attribute without the sprint modifier.
+    /// Movement attribute without the sprint and freeze modifiers.
     pub default_movement_speed: f32,
+    /// Powder snow freeze, BDS's per-tick `ticksFrozen`: its modifier slows the walk.
+    pub frozen_ticks: u32,
+    /// The box is in powder snow after this tick's move.
+    pub(crate) in_powder_snow: bool,
     pub air_speed: f32,
     pub underwater_movement_speed: f32,
     pub lava_movement_speed: f32,
@@ -147,6 +151,8 @@ impl PlayerState {
             fall_distance: 0.0,
             movement_speed: DEFAULT_MOVEMENT_SPEED,
             default_movement_speed: DEFAULT_MOVEMENT_SPEED,
+            frozen_ticks: 0,
+            in_powder_snow: false,
             air_speed: WALK_AIR_SPEED,
             underwater_movement_speed: 0.0,
             lava_movement_speed: 0.0,
@@ -222,11 +228,23 @@ impl PlayerState {
         self.knockback = Some(velocity);
     }
 
-    /// Applies a server movement attribute (`minecraft:movement`) value that excludes sprint.
-    pub fn set_movement_attribute(&mut self, without_sprint: f32) {
-        self.default_movement_speed = without_sprint;
-        self.movement_speed =
-            if self.sprinting { without_sprint * SPRINT_SPEED_MULTIPLIER } else { without_sprint };
+    /// Applies a server movement attribute (`minecraft:movement`) value that excludes sprint and freeze.
+    pub fn set_movement_attribute(&mut self, base: f32) {
+        self.default_movement_speed = base;
+        self.refresh_movement_speed();
+    }
+
+    /// Sets the freeze count (the server's, from its "Freeze effect" modifier).
+    pub fn set_frozen_ticks(&mut self, ticks: u32) {
+        self.frozen_ticks = ticks.min(FREEZE_TICKS_MAX);
+        self.refresh_movement_speed();
+    }
+
+    /// The movement attribute from its base, freeze (added) and sprint (multiplied) modifiers.
+    pub(crate) fn refresh_movement_speed(&mut self) {
+        let frozen = -FREEZE_SLOWDOWN * self.frozen_ticks as f32 / FREEZE_TICKS_MAX as f32;
+        let speed = self.default_movement_speed + frozen;
+        self.movement_speed = if self.sprinting { speed * SPRINT_SPEED_MULTIPLIER } else { speed };
     }
 
     /// Rewinds to a server-corrected state (`CorrectPlayerMovePrediction`).

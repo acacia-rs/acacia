@@ -72,7 +72,10 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
             match b.inside {
                 InsideMovement::SweetBerryBush => queue_stuck_speed_multiplier(st, [0.8, 0.75, 0.8]),
-                InsideMovement::PowderSnow => queue_stuck_speed_multiplier(st, [0.9, 1.5, 0.9]),
+                InsideMovement::PowderSnow => {
+                    st.in_powder_snow = true;
+                    queue_stuck_speed_multiplier(st, [0.9, 1.5, 0.9]);
+                }
                 InsideMovement::None => {}
             }
         }

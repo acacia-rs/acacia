@@ -227,13 +227,12 @@ impl Movement {
                 if a.runtime_entity_id == me.runtime_entity_id
                     && let Some(m) = a.attributes.iter().find(|a| a.name == "minecraft:movement")
                 {
-                    let base = movement_without_sprint(m);
-                    tracing::debug!(our_tick = self.tick, server_tick = a.tick, current = m.current, base, "movement attribute");
+                    let (base, frozen) = (movement_base(m), frozen_ticks(m));
+                    tracing::debug!(our_tick = self.tick, server_tick = a.tick, current = m.current, base, frozen, "movement attribute");
                     st.set_movement_attribute(base);
-                    // Stamped T, it already moves the player on input tick T (the freeze updates before the move).
-                    if a.tick != 0 {
-                        self.history.movement_attribute(a.tick, base);
-                    }
+                    // Stamped T: the base already moves input tick T; the freeze count is T's, after its move.
+                    let newest = if a.tick != 0 { self.history.movement_attribute(a.tick, base, frozen) } else { None };
+                    st.set_frozen_ticks(newest.unwrap_or(frozen));
                 }
             }
             _ => {}
@@ -308,7 +307,7 @@ impl Movement {
         self.history.record(self.tick, input, knockback, st);
         // Movement starts only after the bot has left the loading screen (bot.rs).
         let packet = auth_input::build(&input, &out, &edges, self.tick, true);
-        tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, speed = st.movement_speed, yaw = c.yaw, pitch = c.pitch,
+        tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, speed = st.movement_speed, frozen = st.frozen_ticks, yaw = c.yaw, pitch = c.pitch,
             pos = ?out.position, delta = ?out.delta, teleported = out.teleported, flags = ?packet.input_data, "auth input");
         Some(packet)
     }
@@ -332,11 +331,22 @@ fn key(axis: f32) -> f32 {
 
 /// The server's `minecraft:movement` rebuilt from its modifiers without the sprint boost, which the simulation
 /// applies from its own sprint state (the server's lags). Operations: 0 add, 1 multiply base, 2 multiply total.
-fn movement_without_sprint(a: &PlayerAttributesItem) -> f32 {
-    let mods = || a.modifiers.iter().filter(|m| m.name != "Sprinting speed boost");
+const SPRINT_MODIFIER: &str = "Sprinting speed boost";
+const FREEZE_MODIFIER: &str = "Freeze effect";
+
+/// The movement attribute without the modifiers the simulation applies itself (sprint, powder snow freeze).
+fn movement_base(a: &PlayerAttributesItem) -> f32 {
+    let mods = || a.modifiers.iter().filter(|m| m.name != SPRINT_MODIFIER && m.name != FREEZE_MODIFIER);
     let added = a.default + mods().filter(|m| m.operation == 0).map(|m| m.amount).sum::<f32>();
     let based = added + added * mods().filter(|m| m.operation == 1).map(|m| m.amount).sum::<f32>();
     mods().filter(|m| m.operation == 2).fold(based, |v, m| v * (1.0 + m.amount))
+}
+
+/// The server's freeze count, from its "Freeze effect" modifier (`-0.05 * ticks / 140`).
+fn frozen_ticks(a: &PlayerAttributesItem) -> u32 {
+    a.modifiers.iter().find(|m| m.name == FREEZE_MODIFIER).map_or(0, |m| {
+        (-m.amount * physics::constants::FREEZE_TICKS_MAX as f32 / physics::constants::FREEZE_SLOWDOWN).round().max(0.0) as u32
+    })
 }
 
 fn feet(eye: &acacia_client::proto::types::Vec3f) -> Vec3 {

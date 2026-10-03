@@ -25,6 +25,10 @@ pub const SPRINT_AIR_SPEED: f32 = 0.026;
 pub const WATER_DRAG: f32 = 0.8;
 pub const DEFAULT_MOVEMENT_SPEED: f32 = 0.1;
 pub const SPRINT_SPEED_MULTIPLIER: f32 = 1.3;
+/// Fully frozen after this many ticks in powder snow; thaws 2 a tick out of it.
+pub const FREEZE_TICKS_MAX: u32 = 140;
+/// Movement lost when fully frozen ("Freeze effect" modifier).
+pub const FREEZE_SLOWDOWN: f32 = 0.05;
 
 pub const DEFAULT_PLAYER_WIDTH: f32 = 0.6;
 pub const DEFAULT_PLAYER_HEIGHT: f32 = 1.8;
