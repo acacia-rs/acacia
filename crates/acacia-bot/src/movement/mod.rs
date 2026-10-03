@@ -86,6 +86,8 @@ pub struct Movement {
     /// Ticks left in which pressing forward again starts a sprint (double tap).
     sprint_trigger: u32,
     prev_impulse: bool,
+    /// The sprint was started by a double tap, so it outlives the (unheld) sprint key.
+    tapped_sprint: bool,
     history: History,
     /// Replay only: the recorded `WantDown` (bot traces before 2026-10-02 never sent it), else it follows sneak.
     pub(crate) recorded_want_down: Option<bool>,
@@ -110,6 +112,7 @@ impl Movement {
             sprint_trigger: 0,
             recorded_want_down: None,
             prev_impulse: false,
+            tapped_sprint: false,
             history: History::default(),
         }
     }
@@ -256,6 +259,7 @@ impl Movement {
             }
         }
         self.prev_impulse = impulse;
+        self.tapped_sprint = (self.tapped_sprint && st.sprinting || double_tap) && !c.sprint;
         let input = Input {
             move_vector: keys(c.strafe, c.forward),
             yaw,
@@ -263,8 +267,9 @@ impl Movement {
             jump: c.jump,
             sneak: c.sneak,
             want_down: self.recorded_want_down.unwrap_or(c.sneak),
-            // Releasing the sprint key doesn't stop a sprint: only letting go of forward does.
-            sprint: c.sprint || double_tap || (st.sprinting && forward),
+            // Strict BDS 1.26.52 ends a key sprint when the key is released (fuzz: 94% of such ticks were
+            // corrected); a double-tap sprint has no key and lasts while forward is held.
+            sprint: c.sprint || double_tap || (self.tapped_sprint && st.sprinting && forward),
             using_item: self.using_item,
             ..Input::default()
         };

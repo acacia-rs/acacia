@@ -43,7 +43,9 @@ impl WorldView for PhysicsWorld<'_> {
         let Some(s) = self.state(self.view.block(x, y, z)) else { return BlockPhysics::AIR };
         // BDS ignores flowing water in the second layer (spread into a fence or onto soul sand) for movement
         // (fuzz 161505-1); whether it ignores still water there too is untested.
-        let liquid = liquid_of(s).or_else(|| {
+        // A bubble column is water (its layer-2 water is flowing_water, which the rule above would drop).
+        let column_water = s.flags.contains(BlockFlags::BUBBLE_COLUMN).then_some(Liquid { kind: LiquidKind::Water, depth: 8, falling: false });
+        let liquid = liquid_of(s).or(column_water).or_else(|| {
             self.state(self.view.liquid(x, y, z)).filter(|l| !l.name.ends_with("flowing_water")).and_then(liquid_of)
         });
         if s.is_air() && liquid.is_none() {

@@ -99,7 +99,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     }
 
     pub(crate) fn apply_bubble_columns(&self, st: &mut PlayerState) {
-        let bb = st.bounding_box();
+        // BDS walks floor(min + 0.001)..=floor(max - 0.001): a column the box grazes does not push.
+        let bb = st.bounding_box().grow(-1e-3);
         let mut found = false;
         for pos in overlapped_cells(&bb) {
             let Some(col) = self.w.block(pos).bubble_column else { continue };
