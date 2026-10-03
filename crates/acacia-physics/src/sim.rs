@@ -181,7 +181,6 @@ fn tick_state(st: &mut PlayerState) {
         st.jump_delay -= 1;
     }
     st.swim_exit_jump_delay = st.swim_exit_jump_delay.saturating_sub(1);
-    st.stopped_swimming_this_tick = false;
 }
 
 /// Block-aligned volume containing every lookup normal movement performs.

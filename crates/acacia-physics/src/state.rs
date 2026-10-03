@@ -91,7 +91,8 @@ pub struct PlayerState {
 
     pub swimming: bool,
     pub swim_amount: f32,
-    pub stopped_swimming_this_tick: bool,
+    /// Swimming before this tick's Start/StopSwimming: BDS's water drag reads the old state.
+    pub swam_before_input: bool,
     pub(crate) swim_water_contact: bool,
     /// The box before this tick's pose change, which liquid contact uses (BDS changes the pose after moving).
     pub(crate) liquid_box: Option<Aabb>,
@@ -168,7 +169,7 @@ impl PlayerState {
             swim_exit_jump_delay: 0,
             swimming: false,
             swim_amount: 0.0,
-            stopped_swimming_this_tick: false,
+            swam_before_input: false,
             swim_water_contact: false,
             liquid_box: None,
             swim_water_grace_ticks: 0,

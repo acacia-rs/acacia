@@ -99,8 +99,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         let mut v = st.vel;
         if water {
-            let light = st.swimming || st.sprinting;
-            let mut drag = if light || st.stopped_swimming_this_tick { 0.9 } else { WATER_DRAG };
+            let mut drag = if st.swam_before_input || st.sprinting { 0.9 } else { WATER_DRAG };
             if depth_strider > 0.0 && swim_multiplier <= 1.0 {
                 drag += (0.54600006 - drag) * (depth_strider / 3.0);
             }

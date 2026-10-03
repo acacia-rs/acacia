@@ -171,7 +171,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         }
 
         let was_swimming = st.swimming;
-        st.stopped_swimming_this_tick = was_swimming && f.stop_swimming;
+        st.swam_before_input = was_swimming;
         if f.stop_swimming {
             st.swimming = false;
             st.swim_exit_jump_delay = JUMP_DELAY_TICKS;
