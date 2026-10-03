@@ -33,6 +33,10 @@ impl Server {
         if mtu < o::MIN_MTU {
             return Ok(());
         }
+        if self.banned.contains(&from.ip()) {
+            o::refusal(out, o::ID_CONNECTION_BANNED, self.cfg.guid);
+            return Ok(());
+        }
         if protocol != self.cfg.protocol_version {
             o::incompatible_protocol(out, self.cfg.protocol_version, self.cfg.guid);
             return Ok(());
@@ -48,14 +52,17 @@ impl Server {
         if request.cookie.is_some_and(|c| !self.cookies.verify(from, age, c)) || request.mtu < o::MIN_MTU {
             return Ok(());
         }
-        match self.peers.get(&from) {
+        let refuse = match self.peers.get(&from) {
+            _ if self.banned.contains(&from.ip()) => Some(o::ID_CONNECTION_BANNED),
             // Our reply 2 got lost, or the client restarted mid-handshake: start over.
-            Some(p) if !p.connected && p.guid == request.client_guid => {}
-            Some(_) => {
-                o::refusal(out, o::ID_ALREADY_CONNECTED, self.cfg.guid);
-                return Ok(());
-            }
-            None => {}
+            Some(p) if !p.connected && p.guid == request.client_guid => None,
+            Some(_) => Some(o::ID_ALREADY_CONNECTED),
+            None if self.peers.len() >= self.cfg.max_peers => Some(o::ID_NO_FREE_INCOMING_CONNECTIONS),
+            None => None,
+        };
+        if let Some(id) = refuse {
+            o::refusal(out, id, self.cfg.guid);
+            return Ok(());
         }
         let mtu = request.mtu.min(self.cfg.max_mtu);
         let cfg = ConnConfig {
@@ -64,7 +71,8 @@ impl Server {
             ping_interval: self.cfg.ping_interval,
             recv_limits: self.cfg.recv_limits,
         };
-        let peer = Peer { conn: Conn::new(self.epoch, cfg, now), guid: request.client_guid, connected: false };
+        let handshake_deadline = now + self.cfg.handshake_timeout;
+        let peer = Peer { conn: Conn::new(self.epoch, cfg, now), guid: request.client_guid, connected: false, handshake_deadline };
         self.peers.insert(from, peer);
         o::reply_2(out, self.cfg.guid, from, mtu);
         Ok(())

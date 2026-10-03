@@ -4,8 +4,8 @@ mod handshake;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
 
 use bytes::Bytes;
@@ -22,6 +22,22 @@ struct Peer {
     conn: Conn,
     guid: u64,
     connected: bool,
+    /// Only meaningful until `connected`.
+    handshake_deadline: Instant,
+}
+
+impl Peer {
+    fn poll_timeout(&self) -> Instant {
+        let conn = self.conn.poll_timeout();
+        if self.connected { conn } else { conn.min(self.handshake_deadline) }
+    }
+
+    fn handle_timeout(&mut self, now: Instant) -> Result<(), DisconnectReason> {
+        if !self.connected && now >= self.handshake_deadline {
+            return Err(DisconnectReason::ConnectTimeout);
+        }
+        self.conn.handle_timeout(now)
+    }
 }
 
 /// A network-free RakNet server: answers pings and the offline handshake, then keeps one connection
@@ -31,6 +47,7 @@ pub struct Server {
     epoch: Instant,
     cookies: Cookies,
     peers: HashMap<SocketAddr, Peer>,
+    banned: HashSet<IpAddr>,
     outbox: VecDeque<(SocketAddr, Bytes)>,
     events: VecDeque<ServerEvent>,
 }
@@ -39,11 +56,21 @@ impl Server {
     pub fn new(mut cfg: ServerConfig, now: Instant) -> Self {
         cfg.max_mtu = cfg.max_mtu.max(o::MIN_MTU);
         let cookies = Cookies::new(cfg.cookie_secret);
-        Self { cfg, epoch: now, cookies, peers: HashMap::new(), outbox: VecDeque::new(), events: VecDeque::new() }
+        Self { cfg, epoch: now, cookies, peers: HashMap::new(), banned: HashSet::new(), outbox: VecDeque::new(), events: VecDeque::new() }
     }
 
     pub fn set_motd(&mut self, motd: String) {
         self.cfg.motd = motd;
+    }
+
+    /// Refuses new connections from `ip` with "connection banned" until [`Server::unban`].
+    /// Peers already connected from it stay; [`Server::close`] them. Expiry is the caller's policy.
+    pub fn ban(&mut self, ip: IpAddr) {
+        self.banned.insert(ip);
+    }
+
+    pub fn unban(&mut self, ip: IpAddr) {
+        self.banned.remove(&ip);
     }
 
     /// Queues a message on ordering channel 0. Returns false if `peer` is not connected.
@@ -76,13 +103,13 @@ impl Server {
     }
 
     pub fn poll_timeout(&self) -> Option<Instant> {
-        self.peers.values().map(|p| p.conn.poll_timeout()).min()
+        self.peers.values().map(Peer::poll_timeout).min()
     }
 
     pub fn handle_timeout(&mut self, now: Instant) {
         let mut lost = Vec::new();
         for (&addr, p) in &mut self.peers {
-            if let Err(reason) = p.conn.handle_timeout(now) {
+            if let Err(reason) = p.handle_timeout(now) {
                 lost.push((addr, reason));
             }
         }

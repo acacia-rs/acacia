@@ -22,6 +22,10 @@ pub struct ServerConfig {
     pub cookies: bool,
     /// Keys the cookies; random per `ServerConfig::new`, so cookies do not outlive a restart.
     pub cookie_secret: u128,
+    /// Peers held at once, handshaking ones included; a request 2 beyond it is told the server is full.
+    pub max_peers: usize,
+    /// Time a peer gets from reply 2 to its NewIncomingConnection, however busily it keeps talking.
+    pub handshake_timeout: Duration,
 }
 
 impl ServerConfig {
@@ -36,6 +40,8 @@ impl ServerConfig {
             recv_limits: RecvLimits::SERVER,
             cookies: true,
             cookie_secret: random_secret(),
+            max_peers: 1024,
+            handshake_timeout: Duration::from_secs(5),
         }
     }
 }
