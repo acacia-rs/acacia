@@ -4,6 +4,7 @@
 mod block_entities;
 mod containers;
 mod entities;
+mod entity_meta;
 mod fishing;
 mod inventory;
 mod items;
@@ -14,11 +15,14 @@ mod recipes;
 mod riding;
 mod scoreboard;
 mod signs;
+mod skins;
 mod stations;
 
 pub use block_entities::{BlockEntities, BlockEntityTracking};
 pub use containers::{Container, Containers};
 pub use entities::{Entities, Entity, ITEM_KIND, PLAYER_EYE_HEIGHT, PLAYER_KIND};
+pub use entity_meta::EntityMeta;
+pub use skins::{PlayerSkin, SkinTexture, Skins};
 pub use fishing::{Fishing, FishingHook, FISHING_HOOK_KIND};
 pub use riding::{Pose, Riding, Vehicle};
 pub use inventory::{Inventory, ItemStack};
@@ -40,6 +44,8 @@ use crate::forms::Forms;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Trackers {
     pub entities: bool,
+    /// Skin textures of the listed players ([`Skins`]).
+    pub skins: bool,
     /// Block entities kept from chunk data (signs from `BlockActorData` are always kept).
     pub block_entities: BlockEntityTracking,
 }
@@ -63,6 +69,9 @@ impl Trackers {
         ids.extend_from_slice(Fishing::PACKETS);
         if self.entities {
             ids.extend_from_slice(Entities::PACKETS);
+        }
+        if self.skins {
+            ids.extend_from_slice(Skins::PACKETS);
         }
         ids
     }
@@ -88,6 +97,7 @@ pub struct GameState {
     pub scoreboard: Scoreboard,
     pub player_list: PlayerList,
     pub entities: Entities,
+    pub skins: Skins,
     pub forms: Forms,
     pub signs: Signs,
     pub block_entities: BlockEntities,
@@ -154,6 +164,9 @@ impl GameState {
         }
         if self.trackers.entities && Entities::PACKETS.contains(&id) {
             self.entities.apply(packet, &me)?;
+        }
+        if self.trackers.skins && Skins::PACKETS.contains(&id) {
+            self.skins.apply(packet)?;
         }
         Ok(())
     }
