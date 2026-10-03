@@ -1,6 +1,6 @@
 //! Liquid travel step (bedsim `simulateLiquidTravel`).
 
-use crate::block_effects::apply_stuck_speed_multiplier;
+use crate::block_effects::{apply_ascendable_movement, apply_stuck_speed_multiplier};
 use crate::constants::*;
 use crate::motion::{move_relative, set_post_collision_motion, walk_on_block};
 use crate::sim::Sim;
@@ -64,6 +64,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
         }
         move_relative(st, speed);
+        // Scaffolding climbs in liquids too (BDS fuzz: 0.15 up, then liquid drag).
+        apply_ascendable_movement(st, self.traversal(st));
         // Cobwebs slow liquid travel too (BDS; bedsim only checks them on land).
         let in_cobweb = self.is_inside_cobweb(st);
         if in_cobweb {

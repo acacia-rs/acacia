@@ -10,6 +10,19 @@ use crate::state::PlayerState;
 use crate::world::{LiquidKind, Traversal, WorldView};
 
 impl<W: WorldView + ?Sized> Sim<'_, W> {
+    /// The vertical traversal the player is in: the feet's block, else scaffolding underfoot or overlapped by the
+    /// box (BDS fuzz: a jump beside a column climbs it).
+    pub(crate) fn traversal(&self, st: &PlayerState) -> Traversal {
+        let own = self.w.block(block_pos(st.pos)).traversal;
+        let is_scaffolding = |p: BlockPos| self.w.block(p).traversal == Traversal::Scaffolding;
+        if own == Traversal::None
+            && (st.supporting_block.is_some_and(is_scaffolding) || overlapped_cells(&st.bounding_box()).any(is_scaffolding))
+        {
+            return Traversal::Scaffolding;
+        }
+        own
+    }
+
     /// Runs one tick of travel; false when part of the needed world is unknown.
     pub(crate) fn simulate_movement(&self, st: &mut PlayerState) -> bool {
         let mut vel = st.vel;
@@ -102,16 +115,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         attempt_knockback(st);
         move_relative(st, speed);
         self.attempt_jump(st);
-        let mut inside = self.w.block(block_pos(st.pos));
-        // Any scaffolding the box overlaps counts, not just the feet's cell (BDS fuzz: a jump beside a column
-        // climbs it).
-        let is_scaffolding = |p: BlockPos| self.w.block(p).traversal == Traversal::Scaffolding;
-        if inside.traversal == Traversal::None
-            && (st.supporting_block.is_some_and(is_scaffolding) || overlapped_cells(&st.bounding_box()).any(is_scaffolding))
-        {
-            inside.traversal = Traversal::Scaffolding;
-        }
-        let scaffold_descend = apply_ascendable_movement(st, inside.traversal);
+        let inside = self.w.block(block_pos(st.pos));
+        let scaffold_descend = apply_ascendable_movement(st, self.traversal(st));
 
         let near_climbable = inside.climbable;
         if near_climbable {
