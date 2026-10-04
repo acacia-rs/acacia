@@ -83,6 +83,7 @@ impl App {
             if let Some(p) = self.player {
                 Shot::place(&mut self.camera, p);
             }
+            tracing::info!(entities = self.entities.instances(self.camera.position).len(), "shot");
             r.screenshot(shot.path.clone());
             shot.taken = true;
         }

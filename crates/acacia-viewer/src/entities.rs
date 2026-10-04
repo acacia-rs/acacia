@@ -7,8 +7,9 @@ use std::time::Instant;
 
 use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
-use acacia_bot::state::{Entity, PlayerSkin};
-use acacia_render::entity::{EntityInstance, EntityModels, Skin, SkinSource};
+use acacia_bot::proto::types::MetadataFlags1 as Flags;
+use acacia_bot::state::{Entity, EntityMeta, PlayerSkin};
+use acacia_render::entity::{EntityInstance, EntityModels, Skin, SkinSource, Value};
 use glam::DVec3;
 
 /// Seconds between snapshots (the bot thread's report interval).
@@ -21,6 +22,38 @@ pub struct Tracked {
     /// Eye position when this is the bot itself.
     pub own_eyes: Option<DVec3>,
     pub instance: EntityInstance,
+}
+
+/// Molang queries (without the `query.` prefix) the bot's entity data can answer; the rest are 0.
+fn query(meta: &EntityMeta, name: &str) -> Value {
+    Value::Num(match name {
+        // TODO: track synced entity properties; until then every cow, pig and chicken is temperate.
+        "property:minecraft:climate_variant" => return Value::Text("temperate".into()),
+        "variant" => meta.variant as f32,
+        "mark_variant" => meta.mark_variant as f32,
+        "skin_id" => meta.skin_id as f32,
+        "trade_tier" => meta.trade_tier as f32,
+        "color" => f32::from(meta.color),
+        _ => f32::from(u8::from(flag(name).is_some_and(|f| meta.flags.contains(f)))),
+    })
+}
+
+fn flag(query: &str) -> Option<Flags> {
+    Some(match query {
+        "is_baby" => Flags::BABY,
+        "is_sheared" => Flags::SHEARED,
+        "is_saddled" => Flags::SADDLED,
+        "is_tamed" => Flags::TAMED,
+        "is_angry" => Flags::ANGRY,
+        "is_chested" => Flags::CHESTED,
+        "is_powered" => Flags::POWERED,
+        "is_elder" => Flags::ELDER,
+        "is_charging" => Flags::CHARGE_ATTACK,
+        "is_casting" => Flags::EVOKER_SPELL,
+        "is_sitting" => Flags::SITTING,
+        "is_invisible" => Flags::INVISIBLE,
+        _ => return None,
+    })
 }
 
 pub struct Feed {
@@ -59,8 +92,8 @@ impl Feed {
         let instance = if e.is_player() {
             self.player(bot, e.uuid, position, [e.yaw, e.head_yaw, e.pitch], e.meta.scale)?
         } else {
-            let (model, scale) = self.models.lookup(&e.kind, e.meta.is_baby())?;
-            EntityInstance { model, skin: None, position, yaw: e.yaw, head_yaw: e.head_yaw, pitch: e.pitch, scale: scale * e.meta.scale }
+            let (layers, scale) = self.models.appearance(&e.kind, &|name| query(&e.meta, name))?;
+            EntityInstance { layers, skin: None, position, yaw: e.yaw, head_yaw: e.head_yaw, pitch: e.pitch, scale: scale * e.meta.scale }
         };
         Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, instance })
     }
@@ -81,8 +114,8 @@ impl Feed {
             let (_, skin, slim) = &self.skins[&uuid];
             Some((skin.clone(), *slim))
         });
-        let model = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
-        Some(EntityInstance { model, skin: skin.map(|(s, _)| s), position, yaw, head_yaw, pitch, scale })
+        let layers = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
+        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, head_yaw, pitch, scale })
     }
 }
 

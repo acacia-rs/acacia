@@ -55,10 +55,11 @@ pub fn upload(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u3
     texture.create_view(&Default::default())
 }
 
-/// A model's texture layers, the later ones laid over the first where they are opaque; the
-/// missing-texture checkerboard without a readable first layer.
-pub fn load(device: &wgpu::Device, queue: &wgpu::Queue, layers: &[PathBuf]) -> wgpu::TextureView {
-    let open = |f: &PathBuf| match image::open(f) {
+/// Texture layers, the later ones laid over the first where they are opaque; the missing-texture
+/// checkerboard without a readable first layer. `tint_mask` keeps the first layer's alpha, which
+/// then marks the texels to tint.
+pub fn load(device: &wgpu::Device, queue: &wgpu::Queue, layers: &[&PathBuf], tint_mask: bool) -> wgpu::TextureView {
+    let open = |f: &&PathBuf| match image::open(f) {
         Ok(image) => Some((image.into_rgba8(), f.extension().is_some_and(|e| e == "tga"))),
         Err(e) => {
             tracing::warn!(file = %f.display(), %e, "entity texture");
@@ -68,7 +69,7 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue, layers: &[PathBuf]) -> w
     let Some((mut image, mask_alpha)) = layers.first().and_then(open) else {
         return upload(device, queue, 16, 16, &Texture::missing().rgba[..]);
     };
-    if mask_alpha {
+    if mask_alpha && !tint_mask {
         // TGA alpha marks tinted or overlaid texels (sheep wool, horse markings), not holes.
         image.pixels_mut().for_each(|p| p.0[3] = 255);
     }

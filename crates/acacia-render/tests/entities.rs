@@ -2,18 +2,34 @@
 //! skip when it is missing.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use acacia_render::assets::Pack;
-use acacia_render::entity::EntityModels;
+use acacia_render::entity::{EntityModels, Layer, NO_TEXTURE, Value};
 use glam::Vec3;
 
 fn models() -> Option<EntityModels> {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/vanilla");
-    if !dir.join("entity").is_dir() {
-        eprintln!("skipped: {} has no entities (run tools/fetch-vanilla-pack.sh)", dir.display());
+    if !dir.join("render_controllers").is_dir() {
+        eprintln!("skipped: {} has no render controllers (run tools/fetch-vanilla-pack.sh)", dir.display());
         return None;
     }
     Some(EntityModels::load(&Pack::load(&dir).unwrap()))
+}
+
+/// The layers of `kind` in the state given as (query, value) pairs.
+fn look(models: &EntityModels, kind: &str, state: &[(&str, f32)]) -> (Arc<[Layer]>, f32) {
+    let query = |name: &str| Value::Num(state.iter().find(|(n, _)| *n == name).map_or(0.0, |(_, v)| *v));
+    models.appearance(kind, &query).unwrap_or_else(|| panic!("{kind}: no appearance"))
+}
+
+fn bounds(models: &EntityModels, model: u32) -> (Vec3, Vec3) {
+    let points = models.models()[model as usize].mesh.vertices.iter().map(|v| Vec3::from(v.position));
+    points.fold((Vec3::MAX, Vec3::MIN), |(lo, hi), p| (lo.min(p), hi.max(p)))
+}
+
+fn texture(models: &EntityModels, layer: &Layer, slot: usize) -> String {
+    models.textures()[layer.textures[slot] as usize].file_stem().unwrap().to_string_lossy().into_owned()
 }
 
 /// (kind, height in blocks, longest horizontal side in blocks), from the vanilla hitboxes and looks.
@@ -33,17 +49,12 @@ fn common_mobs_stand_on_the_ground_at_their_size() {
     let Some(models) = models() else { return };
     let mut wrong = Vec::new();
     for (kind, height, length) in MOBS {
-        let Some((id, _)) = models.lookup(kind, false) else {
-            wrong.push(format!("{kind}: no model"));
-            continue;
-        };
-        let model = &models.models()[id as usize];
-        let points = model.mesh.vertices.iter().map(|v| Vec3::from(v.position));
-        let (lo, hi) = points.fold((Vec3::MAX, Vec3::MIN), |(lo, hi), p| (lo.min(p), hi.max(p)));
+        let (layers, _) = look(&models, kind, &[]);
+        let (lo, hi) = bounds(&models, layers[0].model);
         let size = hi - lo;
         let fits = (size.y - height).abs() < 0.35 && (size.x.max(size.z) - length).abs() < 0.4 && lo.y.abs() < 0.1;
-        if !fits || model.textures.is_empty() {
-            wrong.push(format!("{kind}: {} vertices, {lo:.2}..{hi:.2}, textures {:?}", model.mesh.vertices.len(), model.textures));
+        if !fits || layers[0].textures[0] == NO_TEXTURE {
+            wrong.push(format!("{kind}: {lo:.2}..{hi:.2}, {:?}", layers[0]));
         }
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
@@ -57,15 +68,43 @@ fn players_have_the_three_skin_layouts() {
     let slim = models.player(Some((&skin(64, 64), true))).unwrap();
     let legacy = models.player(Some((&skin(64, 32), true))).unwrap();
     assert!(wide != slim && slim != legacy && wide != legacy);
-    assert_eq!(models.player(None), Some(wide));
-    assert_eq!(models.models()[wide as usize].textures.len(), 1, "steve is the default");
-    let (villager, _) = models.lookup("minecraft:villager_v2", false).unwrap();
-    assert_eq!(models.models()[villager as usize].textures.len(), 3, "skin, biome clothes, profession");
-    for id in [wide, slim, legacy] {
-        let mesh = &models.models()[id as usize].mesh;
-        let points = mesh.vertices.iter().map(|v| Vec3::from(v.position));
-        let (lo, hi) = points.fold((Vec3::MAX, Vec3::MIN), |(lo, hi), p| (lo.min(p), hi.max(p)));
-        assert!((hi.y - 2.0).abs() < 0.1 && lo.y.abs() < 0.1 && (hi.x - lo.x - 1.0).abs() < 0.1, "{id}: {lo}..{hi}, {} vertices", mesh.vertices.len());
-        assert_eq!(mesh.head_pivot, Vec3::new(0.0, 1.5, 0.0));
+    assert_eq!(models.player(None), Some(wide.clone()));
+    assert_eq!(texture(&models, &wide[0], 0), "steve", "the default skin");
+    for layers in [wide, slim, legacy] {
+        let (lo, hi) = bounds(&models, layers[0].model);
+        assert!((hi.y - 2.0).abs() < 0.1 && lo.y.abs() < 0.1 && (hi.x - lo.x - 1.0).abs() < 0.1, "{layers:?}: {lo}..{hi}");
+        assert_eq!(models.models()[layers[0].model as usize].mesh.head_pivot, Vec3::new(0.0, 1.5, 0.0));
+    }
+}
+
+#[test]
+fn render_controllers_follow_the_entity_state() {
+    let Some(models) = models() else { return };
+
+    // Skin, then biome clothes under the profession's, then the trade level badge.
+    let (librarian, _) = look(&models, "minecraft:villager_v2", &[("variant", 5.0), ("mark_variant", 1.0), ("trade_tier", 2.0)]);
+    assert_eq!(librarian.len(), 3, "{librarian:?}");
+    assert_eq!(texture(&models, &librarian[0], 0), "villager");
+    assert_eq!((texture(&models, &librarian[1], 0), texture(&models, &librarian[1], 1)), ("biome_desert".into(), "librarian".into()));
+    assert_eq!(texture(&models, &librarian[2], 0), "level_gold");
+    let (unskilled, _) = look(&models, "minecraft:villager_v2", &[]);
+    assert_eq!(unskilled.len(), 2, "no badge without a profession: {unskilled:?}");
+
+    let (woolly, adult_scale) = look(&models, "minecraft:sheep", &[("color", 14.0)]);
+    let (sheared, _) = look(&models, "minecraft:sheep", &[("is_sheared", 1.0)]);
+    let (lamb, lamb_scale) = look(&models, "minecraft:sheep", &[("is_baby", 1.0)]);
+    assert!(woolly[0].model != sheared[0].model && lamb[0].model != woolly[0].model);
+    let [r, g, b] = woolly[0].tint.expect("wool takes the dye");
+    assert!(r > 0.3 && g < 0.1 && b < 0.1, "red wool: {r} {g} {b}");
+    assert!(lamb_scale > adult_scale, "the script undoes the half scale the server sends for babies");
+
+    let cat = |variant| texture(&models, &look(&models, "minecraft:cat", &[("variant", variant)]).0[0], 0);
+    assert!(cat(0.0) != cat(1.0) && cat(1.0) != cat(3.0));
+
+    // The slime's translucent shell is left out, the body stays.
+    assert_eq!(look(&models, "minecraft:slime", &[]).0.len(), 1);
+    // Kinds whose controllers are missing or all overlays still draw their default.
+    for kind in ["minecraft:iron_golem", "minecraft:ender_dragon"] {
+        assert_eq!(look(&models, kind, &[]).0.len(), 1, "{kind}");
     }
 }

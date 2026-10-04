@@ -103,11 +103,25 @@ both layers).
 ## Entities (`entity/`, `gpu/entities.rs`)
 
 `EntityModels::load(pack)` reads the client entity definitions (`entity/*.entity.json`; the newest
-`min_engine_version` of a kind wins) and bakes the geometry each names (`models/`) to a rest-pose
+`min_engine_version` of a kind wins) and bakes every geometry they name (`models/`) to a rest-pose
 triangle mesh. The renderer draws the `EntityInstance`s given to `Renderer::set_entities`; the caller
-maps its entities to models with `EntityModels::lookup` and `player`.
+gets an entity's layers from `EntityModels::appearance` (or `player`).
 
-- **Geometry** (`geometry.rs`): both file layouts. With inheritance (`geometry.a:geometry.b`) a child
+- **Render controllers** (`controller.rs`, `render_controllers/`): each controller a definition lists
+  is one `Layer`, drawn in order at the same depth: a mesh, up to three textures laid over each
+  other, the bones it hides (`part_visibility`, a bit per bone in the instance) and a tint. Their
+  expressions and the definition's `initialize`/`pre_animation`/`scale` scripts run per entity
+  against the queries the caller answers (`is_baby`, `variant`, `mark_variant`...; unknown ones are 0).
+  A kind whose controllers yield nothing draws its default geometry and texture.
+- **Molang** (`molang.rs`): numbers, strings, resource names, operators, ternaries, `array.x[i]`
+  (indices wrap), assignments, `math.*`. Loops, structs and `->` do not parse; such a script is
+  skipped and its variables read 0. Colour expressions (`color`, `overlay_color`) and `uv_anim` are
+  not evaluated.
+- **Materials**: no material file is read. Layers whose material is a blended overlay (slime shell,
+  charged creeper, enchantment glint: `OVERLAY_MATERIALS`) are dropped, since the pass is opaque. The
+  `sheep` material tints by the `color` query where the texture's alpha is 0.
+- **Geometry** (`geometry.rs`): both file layouts. A `minecraft:geometry` file without a texture size
+  takes the size of the kind's texture; the old layout defaults to 64×32. With inheritance (`geometry.a:geometry.b`) a child
   bone of the same name adds its cubes and overrides the keys it sets, or replaces the bone with
   `"reset": true`. `bind_pose_rotation` turns only the bone's own cubes; `rotation` also carries its
   children. A cube without a pivot turns around its centre. `poly_mesh` bones (persona skins) are
@@ -118,9 +132,11 @@ maps its entities to models with `EntityModels::lookup` and `player`.
 - **Box UV** (`bake.rs`): the unfolded box of Java's `ModelBox`; `mirror` flips u and swaps the sides.
 - **Pose**: none but the head, which turns around the head bone's pivot by head yaw and pitch
   (vertices under a bone named `head` carry a part flag; two matrices per instance).
-- **Textures**: `default`, or for villagers `base` + `plains` + `unskilled` laid over each other. One
-  GPU texture per model or skin. TGA alpha is a tint mask, so those load opaque; otherwise texels
-  under 10% alpha are cut out.
+- **Textures**: one GPU texture per distinct set of layer textures or skin, composed on first use.
+  TGA alpha marks tinted or overlaid texels, so those load opaque unless the layer is tinted;
+  otherwise texels under 10% alpha are cut out.
+- **Scale**: the definition's `scale` script times the entity's synced scale. Servers send babies at
+  0.5, and kinds with a baby geometry undo that with a script scale of 2.
 - **Players** (`skin.rs`): a classic skin is a texture for one of three humanoids (wide, slim, 64×32
   layout). A persona skin brings its own geometry and a separate face texture; both bake into one mesh
   over one stacked texture.
@@ -131,8 +147,9 @@ maps its entities to models with `EntityModels::lookup` and `player`.
 
 Day/night (sky light is always full), GPU occlusion culling (Hi-Z), texture animation,
 flow-direction water and sloped liquid surfaces, block entities, UI. Entities: animation (limbs,
-setup poses some old models rely on), render controllers (variants, part visibility: villagers show
-their hat brim, sheep wool has no colour), babies' own proportions where the pack has no baby
+setup poses some old models rely on), blended overlay layers and controller colours (slime shell,
+creeper flash, collar and armour dyes), queries that need untracked state (equipment, synced
+properties such as the climate variant), babies' own proportions where the pack has no baby
 geometry, dropped items, name tags, armour and held items, capes.
 
 Approximate: water loses 2 light per block (the wiki's Bedrock opacity note; its table is ambiguous),

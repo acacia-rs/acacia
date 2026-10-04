@@ -54,8 +54,12 @@ pub struct Geometry {
     pub bones: Vec<Bone>,
 }
 
-/// Every geometry under `models/`, by identifier, with inheritance resolved.
-pub fn load_all(root: &Path) -> HashMap<String, Geometry> {
+/// The texture size of geometries in the old layout that state none.
+const LEGACY_TEXTURE: [f32; 2] = [64.0, 32.0];
+
+/// Every geometry under `models/`, by identifier, with inheritance resolved. `texture_sizes` has
+/// the size of the texture a geometry is drawn with, for files that state none.
+pub fn load_all(root: &Path, texture_sizes: &HashMap<&str, [f32; 2]>) -> HashMap<String, Geometry> {
     let mut raw: HashMap<String, (Option<String>, Value)> = HashMap::new();
     let mut files = vec![root.join("models/mobs.json")];
     files.extend(std::fs::read_dir(root.join("models/entity")).into_iter().flatten().flatten().map(|e| e.path()));
@@ -66,7 +70,8 @@ pub fn load_all(root: &Path) -> HashMap<String, Geometry> {
         }
     }
     let ids: Vec<String> = raw.keys().cloned().collect();
-    ids.into_iter().filter_map(|id| Some((id.clone(), resolve(&id, &raw, 0)?))).collect()
+    let size = |id: &str| texture_sizes.get(id).copied().unwrap_or(LEGACY_TEXTURE);
+    ids.into_iter().filter_map(|id| Some((id.clone(), resolve(&id, &raw, size(&id))?))).collect()
 }
 
 /// A geometry a skin brings along: `resource_patch` names it under `geometry.<key>`,
@@ -76,7 +81,7 @@ pub fn from_skin(resource_patch: &str, geometry_data: &str, key: &str) -> Option
     let name = patch.get("geometry")?.get(key)?.as_str()?;
     let mut raw = HashMap::new();
     collect(serde_json::from_str(geometry_data).ok()?, &mut raw);
-    resolve(name, &raw, 0)
+    resolve(name, &raw, LEGACY_TEXTURE)
 }
 
 fn collect(file: Value, raw: &mut HashMap<String, (Option<String>, Value)>) {
@@ -100,9 +105,11 @@ fn collect(file: Value, raw: &mut HashMap<String, (Option<String>, Value)>) {
     }
 }
 
-fn resolve(id: &str, raw: &HashMap<String, (Option<String>, Value)>, depth: usize) -> Option<Geometry> {
-    let (texture_size, bones) = inherit(id, raw, depth)?;
-    let texture_size = texture_size.unwrap_or([64.0, 32.0]);
+fn resolve(id: &str, raw: &HashMap<String, (Option<String>, Value)>, unstated_size: [f32; 2]) -> Option<Geometry> {
+    let (texture_size, bones) = inherit(id, raw, 0)?;
+    // Only the `minecraft:geometry` layout leaves the size to the texture.
+    let described = raw.get(id).is_some_and(|(_, body)| body.get("description").is_some());
+    let texture_size = texture_size.unwrap_or(if described { unstated_size } else { LEGACY_TEXTURE });
     Some(Geometry { texture_size, bones: bones.iter().filter_map(|b| bone(b, texture_size)).collect() })
 }
 

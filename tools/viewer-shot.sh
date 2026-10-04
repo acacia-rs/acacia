@@ -10,7 +10,7 @@ server=${1:-127.0.0.1:19140}
 out=${2:-$root/target/viewer-shot.png}
 bin=${BIN:-$root/target/release/acacia-viewer}
 log=${LOG:-$(mktemp)}
-for attempt in 1 2 3 4; do
+for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
   rm -f "$out"
   ACACIA_SCREENSHOT="$out" ACACIA_ASSETS="${ACACIA_ASSETS:-$root/assets/vanilla}" RUST_LOG=${RUST_LOG:-info,wgpu_core=warn,wgpu_hal=warn} \
     timeout 120 "$bin" "$server" "${NAME:-ViewerShot}" "${RADIUS:-6}" >"$log" 2>&1

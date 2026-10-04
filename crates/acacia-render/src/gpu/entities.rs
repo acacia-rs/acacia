@@ -1,8 +1,9 @@
 //! Draws [`EntityInstance`]s: one vertex buffer holding every model, one instance record per
-//! entity, one bind group per texture (model default or player skin).
+//! layer of an entity, one bind group per texture (a layer's composed textures or a player skin).
 
 use std::collections::HashMap;
 use std::ops::Range;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use glam::{DVec3, Mat4, Vec3};
@@ -10,7 +11,7 @@ use wgpu::util::DeviceExt;
 
 use super::entity_textures;
 use super::pipeline::DEPTH_FORMAT;
-use crate::entity::{EntityInstance, EntityModels, ModelId, Skin, Vertex};
+use crate::entity::{EntityInstance, EntityModels, Skin, TextureId, Vertex};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -19,11 +20,15 @@ struct Instance {
     head: [[f32; 4]; 4],
     /// x: block light, y: sky light (0..=15).
     light: [f32; 4],
+    /// rgb: the layer's tint, a: 1 when the texture's alpha is a tint mask and not a cutout.
+    tint: [f32; 4],
+    hidden: [u32; 4],
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum TextureKey {
-    Model(ModelId),
+    /// A layer's textures, and whether they compose as a tint mask.
+    Layers([TextureId; 3], bool),
     /// Address of the shared [`Skin`]; the map keeps the `Arc` alive, so it stays unique.
     Skin(usize),
 }
@@ -43,7 +48,7 @@ pub struct EntityPass {
     draws: Vec<(Range<u32>, TextureKey)>,
 }
 
-/// GPU side of one texture: a model's default, or a player skin with the mesh it may bring.
+/// GPU side of one texture: a layer's, or a player skin with the mesh it may bring.
 struct Look {
     skin: Option<Arc<Skin>>,
     texture: wgpu::BindGroup,
@@ -108,7 +113,8 @@ impl EntityPass {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::Greater),
+                // Or equal: an entity's later layers lie exactly on its first.
+                depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
@@ -181,16 +187,19 @@ impl EntityPass {
         self.draws.clear();
         self.looks.retain(|_, look| look.skin.as_ref().is_none_or(|s| Arc::strong_count(s) > 1));
         let mut records = Vec::with_capacity(entities.len());
-        for e in entities {
-            let (Some(model), Some(range)) = (self.models.models().get(e.model as usize), self.ranges.get(e.model as usize)) else { continue };
+        for (e, layer) in entities.iter().flat_map(|e| e.layers.iter().map(move |l| (e, l))) {
+            let (Some(model), Some(range)) = (self.models.models().get(layer.model as usize), self.ranges.get(layer.model as usize)) else { continue };
             let key = match &e.skin {
                 Some(skin) => TextureKey::Skin(Arc::as_ptr(skin) as usize),
-                None => TextureKey::Model(e.model),
+                None => TextureKey::Layers(layer.textures, layer.tint.is_some()),
             };
             let look = self.looks.entry(key).or_insert_with(|| {
                 let view = match &e.skin {
                     Some(s) => entity_textures::upload(device, queue, s.width, s.height, &s.rgba),
-                    None => entity_textures::load(device, queue, &model.textures),
+                    None => {
+                        let files: Vec<&PathBuf> = layer.textures.iter().filter_map(|&t| self.models.textures().get(t as usize)).collect();
+                        entity_textures::load(device, queue, &files, layer.tint.is_some())
+                    }
                 };
                 let own_mesh = e.skin.as_ref().and_then(|s| s.mesh.as_ref()).map(|m| vertex_buffer(device, &m.vertices));
                 Look { skin: e.skin.clone(), texture: entity_textures::bind_group(device, &self.texture_layout, &view, &self.sampler), own_mesh }
@@ -204,7 +213,8 @@ impl EntityPass {
             let turn = Mat4::from_rotation_y((e.head_yaw - e.yaw).to_radians()) * Mat4::from_rotation_x(-e.pitch.to_radians());
             let head = body * Mat4::from_translation(pivot) * turn * Mat4::from_translation(-pivot);
             let [block, sky] = light(e.position + DVec3::Y * 0.5);
-            records.push(Instance { body: body.to_cols_array_2d(), head: head.to_cols_array_2d(), light: [block, sky, 0.0, 0.0] });
+            let tint = layer.tint.map_or([0.0; 4], |[r, g, b]| [r, g, b, 1.0]);
+            records.push(Instance { body: body.to_cols_array_2d(), head: head.to_cols_array_2d(), light: [block, sky, 0.0, 0.0], tint, hidden: layer.hidden });
             self.draws.push((range, key));
         }
         if records.len() > self.capacity {

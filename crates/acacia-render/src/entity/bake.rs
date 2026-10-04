@@ -4,8 +4,12 @@ use glam::{Mat4, Vec3};
 
 use super::geometry::{Bone, Corner, Cube, Geometry, Uv};
 
-/// Vertices whose bone is the head or below it turn with the head.
+/// Bit of [`Vertex::part`]: vertices whose bone is the head or below it turn with the head.
 pub const PART_HEAD: u32 = 1;
+/// [`Vertex::part`] holds the bone's index in [`Mesh::bones`] from this bit up.
+pub const PART_BONE_SHIFT: u32 = 8;
+/// Bones a layer can hide one by one; later ones share the last index and always show.
+pub const MAX_BONES: usize = 128;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -23,6 +27,8 @@ pub struct Mesh {
     pub vertices: Vec<Vertex>,
     /// Point the head turns around, in blocks.
     pub head_pivot: Vec3,
+    /// Lowercase bone names, for part visibility.
+    pub bones: Vec<String>,
 }
 
 /// Degrees as written in geometry files to a matrix; the file's x and z angles run clockwise.
@@ -37,21 +43,22 @@ fn around(pivot: [f32; 3], deg: [f32; 3]) -> Mat4 {
 }
 
 pub fn bake(geometry: &Geometry) -> Mesh {
-    let mut mesh = Mesh::default();
-    for bone in &geometry.bones {
+    let mut mesh = Mesh { bones: geometry.bones.iter().map(|b| b.name.to_lowercase()).collect(), ..Mesh::default() };
+    for (index, bone) in geometry.bones.iter().enumerate() {
         let (parents, head) = chain(geometry, bone);
+        let part = u32::from(head) | (index.min(MAX_BONES - 1) as u32) << PART_BONE_SHIFT;
         let matrix = parents * around(bone.pivot, bone.rotation) * around(bone.pivot, bone.bind_pose_rotation);
         if bone.name.eq_ignore_ascii_case("head") {
             mesh.head_pivot = parents.transform_point3(Vec3::from(bone.pivot)) / 16.0;
         }
         for cube in &bone.cubes {
             let m = cube.rotation.map_or(matrix, |(deg, pivot)| matrix * around(pivot, deg));
-            push_cube(&mut mesh.vertices, cube, m, geometry.texture_size, u32::from(head));
+            push_cube(&mut mesh.vertices, cube, m, geometry.texture_size, part);
         }
         for poly in &bone.polys {
             let vertex = |&(position, normal, uv): &Corner| Vertex {
                 position: (matrix.transform_point3(Vec3::from(position)) / 16.0).to_array(),
-                part: u32::from(head),
+                part,
                 normal: matrix.transform_vector3(Vec3::from(normal)).normalize_or_zero().to_array(),
                 uv,
             };
@@ -151,7 +158,7 @@ mod tests {
         let hat = Bone { name: "hat".into(), parent: Some("head".into()), ..Default::default() };
         let mesh = bake(&Geometry { texture_size: [64.0, 64.0], bones: vec![head, hat] });
         assert_eq!(mesh.head_pivot, Vec3::new(0.0, 1.5, 0.0));
-        assert!(mesh.vertices.iter().all(|v| v.part == PART_HEAD));
+        assert!(mesh.vertices.iter().all(|v| v.part == PART_HEAD) && mesh.bones == ["head", "hat"]);
         // The front (-z) face is the sixth: its top-left texel is (8, 8) of 64 and sits at -x.
         let front = &mesh.vertices[30..36];
         assert_eq!((front[0].uv, front[0].position), ([0.125, 0.125], [-0.25, 2.0, -0.25]));

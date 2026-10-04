@@ -29,7 +29,10 @@ impl Skin {
         let (width, height) = source.size;
         let own = |key: &str| {
             let geometry = geometry::from_skin(source.resource_patch, source.geometry_data, key)?;
-            Some(bake::bake(&geometry)).filter(|m| !m.vertices.is_empty())
+            let mut mesh = bake::bake(&geometry);
+            // The two meshes merge below, so bone indices would clash; skins hide no bones.
+            mesh.vertices.iter_mut().for_each(|v| v.part &= bake::PART_HEAD);
+            Some(mesh).filter(|m| !m.vertices.is_empty())
         };
         let plain = |mesh| Skin { width, height, rgba: source.rgba.to_vec(), mesh };
         let Some(mut body) = own("default") else { return plain(None) };
