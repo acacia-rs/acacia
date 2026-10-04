@@ -60,11 +60,31 @@ pub struct Feed {
     models: Arc<EntityModels>,
     /// Render copies of the bot's skins, replaced when the bot's `Arc` changes.
     skins: HashMap<Uuid, (Arc<PlayerSkin>, Arc<Skin>, bool)>,
+    /// Body yaw and position at the last snapshot, by runtime id.
+    bodies: HashMap<u64, (f32, DVec3)>,
+}
+
+/// Share of the way the body turns towards the server's yaw per snapshot while the entity moves.
+const BODY_TURN: f32 = 0.3;
+/// Degrees the head may be turned away from the body before the body follows.
+const MAX_HEAD_TURN: f32 = 75.0;
+const MOVED_SQUARED: f64 = 0.0025 * 0.0025;
+
+fn wrap_degrees(angle: f32) -> f32 {
+    (angle + 540.0).rem_euclid(360.0) - 180.0
+}
+
+/// The body yaw one snapshot on. Servers sync where a mob heads and where it looks, not where its
+/// body points: like the vanilla client, the body eases towards the heading while moving and is
+/// dragged along once the head is turned too far.
+fn turn_body(body: f32, moved: bool, yaw: f32, head_yaw: f32) -> f32 {
+    let body = if moved { body + wrap_degrees(yaw - body) * BODY_TURN } else { body };
+    head_yaw - wrap_degrees(head_yaw - body).clamp(-MAX_HEAD_TURN, MAX_HEAD_TURN)
 }
 
 impl Feed {
     pub fn new(models: Arc<EntityModels>) -> Self {
-        Feed { models, skins: HashMap::new() }
+        Feed { models, skins: HashMap::new(), bodies: HashMap::new() }
     }
 
     pub fn snapshot(&mut self, bot: &Bot) -> Vec<Tracked> {
@@ -80,6 +100,16 @@ impl Feed {
             let own_eyes = Some(DVec3::new(eyes.x.into(), eyes.y.into(), eyes.z.into()));
             out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, instance });
         }
+
+        let mut bodies = HashMap::with_capacity(out.len());
+        for tracked in &mut out {
+            let i = &mut tracked.instance;
+            if let Some(&(body, at)) = self.bodies.get(&tracked.runtime_id) {
+                i.yaw = turn_body(body, at.distance_squared(i.position) > MOVED_SQUARED, i.yaw, i.head_yaw);
+            }
+            bodies.insert(tracked.runtime_id, (i.yaw, i.position));
+        }
+        self.bodies = bodies;
         out
     }
 
@@ -87,8 +117,7 @@ impl Feed {
         if e.meta.is_invisible() {
             return None;
         }
-        let feet = e.feet();
-        let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
+        let feet = e.feet();        let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
         let instance = if e.is_player() {
             self.player(bot, e.uuid, position, [e.yaw, e.head_yaw, e.pitch], e.meta.scale)?
         } else {
@@ -128,7 +157,24 @@ pub struct Smoother {
 }
 
 fn lerp_angle(a: f32, b: f32, t: f32) -> f32 {
-    a + ((b - a + 540.0).rem_euclid(360.0) - 180.0) * t
+    a + wrap_degrees(b - a) * t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bodies_follow_the_heading_and_a_far_turned_head() {
+        // Standing still, the head looks around: the body stays until the head passes 75°.
+        assert_eq!(turn_body(0.0, false, 0.0, 60.0), 0.0);
+        assert_eq!(turn_body(0.0, false, 0.0, 100.0), 25.0);
+        assert_eq!(turn_body(0.0, false, 0.0, 200.0), 275.0);
+        // Walking, it eases towards the heading, the short way round (356°).
+        assert_eq!(turn_body(350.0, true, 10.0, 0.0), -4.0);
+        let settled = (0..40).fold(0.0, |body, _| turn_body(body, true, 90.0, 90.0));
+        assert!((settled - 90.0).abs() < 0.01, "{settled}");
+    }
 }
 
 impl Smoother {
