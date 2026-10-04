@@ -87,6 +87,10 @@ fn do_clip(stationary: &Aabb, moving: &Aabb, velocity: Vec3) -> ClipResult {
         r.depenetrating_axis = best;
         // BDS with no depenetration allowed (a player): out along the shallowest axis is free, further in is not.
         r.clipped[best] = if normals[best] > 0.0 { velocity[best].max(0.0) } else { velocity[best].min(0.0) };
+        // A pose change's overlap is moved out (see README).
+        if result_pen <= crate::pose::HEADROOM_MARGIN {
+            r.clipped[best] = r.depenetrating[best];
+        }
         return r;
     }
 

@@ -1,4 +1,6 @@
 /target
+/target-*
+CLAUDE.md
 /.testserver
 /.tokens
 /.blobs

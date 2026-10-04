@@ -70,6 +70,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         apply_ascendable_movement(st, self.traversal(st));
         let stuck = apply_stuck_speed_multiplier(st);
         // A sneaker standing in shallow liquid keeps to the edge too (BDS; bedsim only on land).
+        let before_edge = st.vel;
         if !self.sweep_loaded(st) || !self.avoid_edge(st) {
             return false;
         }
@@ -78,6 +79,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !self.try_collisions(st) {
             return false;
         }
+        let moved = st.vel;
         if stuck {
             st.mov = st.vel;
             st.set_vel([0.0; 3]);
@@ -88,6 +90,12 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         set_post_collision_motion(st, old_vel, old_on_ground, &under, liquid_gravity(st.swimming, water));
         if !stuck {
             st.mov = st.vel;
+            // The edge stop keeps the velocity as on land, see README.
+            for (i, collided) in [(0, st.collide_x), (2, st.collide_z)] {
+                if moved[i] != 0.0 && !collided {
+                    st.vel[i] = before_edge[i];
+                }
+            }
         }
 
         let mut v = st.vel;

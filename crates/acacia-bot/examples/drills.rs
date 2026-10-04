@@ -148,6 +148,33 @@ const POWDER_WALK: &[Step] = &[
     (30, 1.0, true, false, -30.0, false), (40, 1.0, false, false, 0.0, false), STOP,
 ];
 
+/// A 1.5-high tunnel over slabs from x+3 to x+5, as the fuzz builds its low ceilings.
+const TUNNEL: &[Fill] = &[([1, 0, -1], [9, 0, 1], "smooth_stone_slab"), ([3, 2, -1], [5, 2, 1], "stone")];
+
+/// Sneak into the tunnel, release the sneak inside and walk on: the crouch ends on the tick standing fits. `x`
+/// shifts the start, so each drill leaves the ceiling with a different overlap (fuzz 104210 tick 3951: BDS stood
+/// up with the box still 0.0077 under the ceiling's edge). Timed for Swift Sneak III leggings: the box is
+/// 0.0083 under the edge in `duck0`, 0.002 more per drill from `duck2` on.
+const fn duck(name: &'static str, x: f32) -> Drill {
+    let steps: &[Step] = &[(22, 1.0, false, false, 0.0, true), (110, 0.25, false, false, 0.0, false), STOP];
+    Drill { name, fills: TUNNEL, start: [1.5 + x, 0.5, 0.5], settle: 20, steps, pitch: 0.0 }
+}
+
+/// Water 3 deep, alone or over magma (a downward bubble column).
+const POOL3: &[Fill] = &[([1, -3, -3], [20, -1, 3], "water")];
+const BUBBLES: &[Fill] = &[([1, -3, -3], [20, -1, 3], "water"), ([1, -4, -3], [20, -4, 3], "magma")];
+
+/// Sprint-swim along the pool floor, stop for `gap` ticks, then press forward and sprint again, with or
+/// without jump (fuzz 101523 tick 3023: BDS started that swim a tick late and its sprint two late, after
+/// swimming into a corner; in open water these all match, so the wall is what matters).
+const fn reswim(name: &'static str, fills: &'static [Fill], steps: &'static [Step]) -> Drill {
+    Drill { name, fills, start: [2.5, -3.0, 0.5], settle: 40, steps, pitch: 0.0 }
+}
+
+const fn reswim_steps(gap: u32, jump: bool) -> [Step; 4] {
+    [(15, 1.0, true, false, 0.0, false), (gap, 0.0, false, false, 0.0, false), (15, 1.0, true, jump, 0.0, false), STOP]
+}
+
 /// Sprint `ticks` at `yaw` towards the pit, then sneak on.
 const fn rush(ticks: u32, yaw: f32) -> [Step; 3] {
     [(ticks, 1.0, true, false, yaw, false), (25, 1.0, false, false, yaw, true), STOP]
@@ -246,6 +273,11 @@ const DRILLS: &[Drill] = &[
     honey("honeyt9", HONEY_ONE, 6.45), honey("honeyt10", HONEY_ONE, 6.5), honey("honeyt11", HONEY_ONE, 6.55),
     drill("powder1", POWDER, POWDER_WALK), drill("powder2", POWDER, POWDER_WALK), drill("powder3", POWDER, POWDER_WALK),
     drill("powder4", POWDER, POWDER_WALK),
+    duck("duck0", 0.0), duck("duck1", 0.005), duck("duck2", -0.002), duck("duck3", -0.004), duck("duck4", -0.006),
+    duck("duck5", -0.008), duck("duck6", -0.01), duck("duck7", -0.012), duck("duck8", -0.016), duck("duck9", -0.02),
+    reswim("reswim5j", BUBBLES, &reswim_steps(5, true)), reswim("reswim5", BUBBLES, &reswim_steps(5, false)),
+    reswim("reswim2j", BUBBLES, &reswim_steps(2, true)), reswim("reswim20j", BUBBLES, &reswim_steps(20, true)),
+    reswim("reswimpool5j", POOL3, &reswim_steps(5, true)), reswim("reswimpool5", POOL3, &reswim_steps(5, false)),
 ];
 
 #[tokio::main(flavor = "current_thread")]
@@ -256,6 +288,8 @@ async fn main() -> Result<(), Error> {
     let name = args.next().unwrap_or_else(|| "@default".into());
     let only: Option<Vec<String>> = args.next().map(|l| l.split(',').map(str::to_owned).collect());
     let (mut bot, pad) = support::connect(&server, &name).await?;
+    // Magma floors burn.
+    pad.run(&bot, "/effect @s fire_resistance 3600 1 true");
 
     for drill in DRILLS {
         if only.as_ref().is_some_and(|o| !o.iter().any(|n| n == drill.name)) {
