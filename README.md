@@ -95,7 +95,7 @@ More in each crate's `examples/` directory.
 | [`acacia-world`](crates/acacia-world) | Block registry, chunk decoding, shared chunk storage |
 | [`acacia-physics`](crates/acacia-physics) | Player movement simulation, ported from [bedsim](https://github.com/oomph-ac/bedsim) |
 | [`acacia-testserver`](crates/acacia-testserver) | Replays recorded server sessions for offline tests |
-| [`acacia-mitm`](crates/acacia-mitm) | Recording proxy (RakNet or NetherNet) for captures of the vanilla client |
+| [`acacia-mitm`](crates/acacia-mitm) | Proxy (RakNet or NetherNet): records vanilla-client captures; as a library, drops, rewrites and injects packets |
 
 Dependencies only point downward. The network-free crates never open a socket or spawn a task, so the
 same code drives real connections, replay tests and benchmarks. See [docs/DESIGN.md](docs/DESIGN.md).

@@ -7,8 +7,8 @@ use std::time::Instant;
 
 use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
-use acacia_bot::proto::types::MetadataFlags1 as Flags;
-use acacia_bot::state::{Entity, EntityMeta, PlayerSkin};
+use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 as Flags};
+use acacia_bot::state::{Entity, Metadata, PlayerSkin};
 use acacia_render::entity::{EntityInstance, EntityModels, Skin, SkinSource, Value};
 use glam::DVec3;
 
@@ -25,16 +25,16 @@ pub struct Tracked {
 }
 
 /// Molang queries (without the `query.` prefix) the bot's entity data can answer; the rest are 0.
-fn query(meta: &EntityMeta, name: &str) -> Value {
+fn query(meta: &Metadata, name: &str) -> Value {
     Value::Num(match name {
         // TODO: track synced entity properties; until then every cow, pig and chicken is temperate.
         "property:minecraft:climate_variant" => return Value::Text("temperate".into()),
-        "variant" => meta.variant as f32,
-        "mark_variant" => meta.mark_variant as f32,
-        "skin_id" => meta.skin_id as f32,
-        "trade_tier" => meta.trade_tier as f32,
-        "color" => f32::from(meta.color),
-        _ => f32::from(u8::from(flag(name).is_some_and(|f| meta.flags.contains(f)))),
+        "variant" => meta.int(Key::Variant) as f32,
+        "mark_variant" => meta.int(Key::MarkVariant) as f32,
+        "skin_id" => meta.int(Key::SkinId) as f32,
+        "trade_tier" => meta.int(Key::TradeTier) as f32,
+        "color" => f32::from(meta.color()),
+        _ => f32::from(u8::from(flag(name).is_some_and(|f| meta.flags().contains(f)))),
     })
 }
 
@@ -114,15 +114,15 @@ impl Feed {
     }
 
     fn entity(&mut self, bot: &Bot, e: &Entity) -> Option<Tracked> {
-        if e.meta.is_invisible() {
+        if e.metadata.flags().contains(Flags::INVISIBLE) {
             return None;
         }
         let feet = e.feet();        let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
         let instance = if e.is_player() {
-            self.player(bot, e.uuid, position, [e.yaw, e.head_yaw, e.pitch], e.meta.scale)?
+            self.player(bot, e.uuid, position, [e.yaw, e.head_yaw, e.pitch], e.metadata.scale())?
         } else {
-            let (layers, scale) = self.models.appearance(&e.kind, &|name| query(&e.meta, name))?;
-            EntityInstance { layers, skin: None, position, yaw: e.yaw, head_yaw: e.head_yaw, pitch: e.pitch, scale: scale * e.meta.scale }
+            let (layers, scale) = self.models.appearance(&e.kind, &|name| query(&e.metadata, name))?;
+            EntityInstance { layers, skin: None, position, yaw: e.yaw, head_yaw: e.head_yaw, pitch: e.pitch, scale: scale * e.metadata.scale() }
         };
         Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, instance })
     }

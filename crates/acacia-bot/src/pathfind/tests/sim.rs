@@ -5,31 +5,79 @@ use acacia_physics::Vec3;
 use super::grid::Grid;
 use super::search::{ORIGIN, ladder_course, opts};
 use crate::movement::Movement;
-use crate::pathfind::{FollowStatus, Follower, Goal, Sense, search};
+use crate::pathfind::maneuver;
+use crate::pathfind::{FollowStatus, Follower, Goal, MoveKind, PathNode, SearchOpts, Sense, Step, search};
+use crate::world::PhysicsWorld;
 
-struct Run {
-    ticks: u32,
-    replans: u32,
-    end: Vec3,
+pub struct Run {
+    pub ticks: u32,
+    pub replans: u32,
+    pub end: Vec3,
+}
+
+fn sense(g: &Grid, m: &Movement) -> Sense {
+    let pos = m.position().expect("started");
+    let feet = [pos[0].floor() as i32, pos[1].floor() as i32, pos[2].floor() as i32];
+    Sense { pos, on_ground: m.on_ground(), in_water: g.terrain().cell(feet).is_water() }
+}
+
+/// Does a node's work in the grid the way the navigator does it on a server: breaks and doors at
+/// once, placing after the same maneuvers.
+fn perform(g: &Grid, world: &PhysicsWorld, m: &mut Movement, node: &PathNode) {
+    for step in node.work.steps() {
+        match step {
+            Step::Break(pos) => {
+                g.set_state(pos, "air", "");
+            }
+            Step::Door { pos, .. } => g.toggle(pos),
+            Step::Place { against, face } => {
+                let target = face.adjacent(against);
+                let [dx, _, dz] = face.offset();
+                for _ in 0..30 {
+                    let s = sense(g, m);
+                    let ready = if node.kind == MoveKind::Pillar {
+                        maneuver::rise(&s, target, &mut m.controls)
+                    } else {
+                        maneuver::to_edge(&s, [target[0] - dx, target[1] + 1, target[2] - dz], (dx, dz), &mut m.controls)
+                    };
+                    if ready {
+                        break;
+                    }
+                    m.tick(world);
+                }
+                g.set_state(target, "dirt", "");
+                m.controls.stop();
+                m.controls.sneak = false;
+            }
+        }
+    }
 }
 
 fn run(g: &Grid, start: Vec3, goal: Goal, max_ticks: u32, parkour: bool) -> Run {
+    run_with(g, start, goal, max_ticks, &opts(parkour))
+}
+
+pub fn run_with(g: &Grid, start: Vec3, goal: Goal, max_ticks: u32, search_opts: &SearchOpts) -> Run {
     let world = g.physics();
     let mut m = Movement::new();
     m.start(start, 0.0, 0.0);
     let plan = |pos: Vec3| {
-        let path = search(&g.terrain(), pos, &goal, &opts(parkour));
+        let path = search(&g.terrain(), pos, &goal, search_opts);
         assert!(!path.nodes.is_empty() || path.complete, "no path from {pos:?}");
         (!path.complete, Follower::new(path.nodes, pos, 0.25))
     };
     let (mut partial, mut follower) = plan(start);
     let mut replans = 0;
     for tick in 0..max_ticks {
-        let pos = m.position().expect("started");
-        let feet = [pos[0].floor() as i32, pos[1].floor() as i32, pos[2].floor() as i32];
-        let sense = Sense { pos, on_ground: m.on_ground(), in_water: g.terrain().cell(feet).is_water() };
+        let sense = sense(g, &m);
+        let pos = sense.pos;
         match follower.tick(&sense, &mut m.controls) {
             FollowStatus::Moving => {}
+            FollowStatus::Work => {
+                let node = *follower.pending_work().expect("work due");
+                perform(g, &world, &mut m, &node);
+                follower.work_done();
+            }
             FollowStatus::Arrived if !partial => {
                 eprintln!("arrived at {pos:?} after {tick} ticks, {replans} re-plans");
                 return Run { ticks: tick, replans, end: pos };
@@ -47,7 +95,7 @@ fn run(g: &Grid, start: Vec3, goal: Goal, max_ticks: u32, parkour: bool) -> Run 
     panic!("not arrived after {max_ticks} ticks: at {:?}, next {:?}", m.position(), follower.ahead().first());
 }
 
-fn assert_at(r: &Run, goal: [f32; 3], tolerance: f32) {
+pub fn assert_at(r: &Run, goal: [f32; 3], tolerance: f32) {
     let d = (r.end[0] - goal[0]).hypot(r.end[2] - goal[2]);
     assert!(d < tolerance && (r.end[1] - goal[1]).abs() < 0.1, "ended at {:?}, wanted {goal:?}", r.end);
     assert_eq!(r.replans, 0, "re-planned");

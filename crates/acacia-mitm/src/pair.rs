@@ -1,5 +1,5 @@
-//! One player proxied over RakNet: the game (behind the RakNet server in main.rs), our connection to
-//! the server, and the relay between them (relay.rs).
+//! One player proxied over RakNet: the game (behind the RakNet server in raknet.rs), our connection
+//! to the server, and the relay between them (relay.rs).
 
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -8,13 +8,13 @@ use acacia_raknet::{self as raknet, Reliability};
 use bytes::Bytes;
 use serde_json::json;
 
-use crate::record::Recorder;
-use crate::relay::Relay;
+use crate::intercept::Direction;
+use crate::relay::{Out, Relay};
 
 pub struct Pair {
     upstream: raknet::Client,
     relay: Relay,
-    /// Batches from the game that arrived before the upstream connection was up.
+    /// Batches for the server that came before the upstream connection was up.
     pending: Vec<Bytes>,
     to_game: Vec<Bytes>,
     closed: bool,
@@ -24,13 +24,7 @@ impl Pair {
     pub fn new(server: SocketAddr, now: Instant, relay: Relay) -> Self {
         // go-raknet servers reject positive client GUIDs (DESIGN.md).
         let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng) | 1 << 63;
-        Self {
-            upstream: raknet::Client::new(raknet::Config::new(guid), server, now),
-            relay,
-            pending: Vec::new(),
-            to_game: Vec::new(),
-            closed: false,
-        }
+        Self { upstream: raknet::Client::new(raknet::Config::new(guid), server, now), relay, pending: Vec::new(), to_game: Vec::new(), closed: false }
     }
 
     pub fn is_closed(&self) -> bool {
@@ -50,46 +44,56 @@ impl Pair {
         self.upstream.poll_timeout()
     }
 
-    pub fn handle_timeout(&mut self, now: Instant, rec: &mut Recorder) {
+    pub fn handle_timeout(&mut self, now: Instant) {
         self.upstream.handle_timeout(now);
-        self.pump(rec);
+        self.pump();
     }
 
-    pub fn on_upstream_datagram(&mut self, now: Instant, data: Bytes, rec: &mut Recorder) {
+    pub fn on_upstream_datagram(&mut self, now: Instant, data: Bytes) {
         self.upstream.handle_datagram(now, data);
-        self.pump(rec);
+        self.pump();
     }
 
     /// The game left: say goodbye upstream (drain `poll_transmit` once more to send it).
-    pub fn close(&mut self, now: Instant, rec: &mut Recorder) {
+    pub fn close(&mut self, now: Instant) {
         self.upstream.close(now);
-        self.pump(rec);
+        self.pump();
     }
 
-    fn fail(&mut self, why: impl std::fmt::Display, rec: &mut Recorder) {
+    fn fail(&mut self, why: impl std::fmt::Display) {
         eprintln!("closing: {why}");
         self.upstream.close(Instant::now());
-        self.mark_closed(rec);
+        self.mark_closed();
     }
 
-    fn mark_closed(&mut self, rec: &mut Recorder) {
+    fn mark_closed(&mut self) {
         if !std::mem::replace(&mut self.closed, true) {
-            rec.write(json!({ "event": "closed" }));
+            self.relay.note(json!({ "event": "closed" }));
         }
     }
 
-    pub fn on_game_message(&mut self, msg: &[u8], rec: &mut Recorder) {
-        match self.relay.on_game_message(msg, rec) {
-            Ok(batch) => {
-                if !self.pending.is_empty() || !self.upstream.send(batch.clone(), Reliability::ReliableOrdered) {
-                    self.pending.push(batch);
-                }
+    pub fn on_game_message(&mut self, msg: &[u8]) {
+        match self.relay.on_game_message(msg) {
+            Ok(out) => self.route(out),
+            Err(e) => self.fail(e),
+        }
+    }
+
+    pub fn inject(&mut self, packets: Vec<(Direction, Bytes)>) {
+        let out = self.relay.inject(packets);
+        self.route(out);
+    }
+
+    fn route(&mut self, out: Out) {
+        for batch in out.to_server {
+            if !self.pending.is_empty() || !self.upstream.send(batch.clone(), Reliability::ReliableOrdered) {
+                self.pending.push(batch);
             }
-            Err(e) => self.fail(e, rec),
         }
+        self.to_game.extend(out.to_game);
     }
 
-    fn pump(&mut self, rec: &mut Recorder) {
+    fn pump(&mut self) {
         while let Some(event) = self.upstream.poll_event() {
             match event {
                 raknet::Event::Connected { .. } => {
@@ -97,13 +101,13 @@ impl Pair {
                         self.upstream.send(batch, Reliability::ReliableOrdered);
                     }
                 }
-                raknet::Event::Message(msg) => match self.relay.on_server_message(&msg, rec) {
-                    Ok(batches) => self.to_game.extend(batches),
-                    Err(e) => self.fail(e, rec),
+                raknet::Event::Message(msg) => match self.relay.on_server_message(&msg) {
+                    Ok(out) => self.route(out),
+                    Err(e) => self.fail(e),
                 },
                 raknet::Event::Disconnected(reason) => {
                     println!("server connection ended: {reason:?}");
-                    self.mark_closed(rec);
+                    self.mark_closed();
                 }
             }
         }

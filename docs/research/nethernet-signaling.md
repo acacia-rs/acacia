@@ -188,6 +188,7 @@ spawned in ~9 s. Where this contradicts the references below, these win:
 - Dial budget 15 s; CONNECTERROR fire-and-forget, 2 s (GN dial.go:131-134,348-363).
 
 ## 3. Friends / online worlds
+Superseded by friends-join.md (MPSD, RTA, nonce; implemented). Summary:
 - Shares 2c–2f; only the peer lookup differs.
 - XBL3.0 auth with RP `http://xboxlive.com` (already in `acacia-auth`). Find sessions with
   `POST https://sessiondirectory.xboxlive.com/handles/query?include=relatedInfo,customProperties`
@@ -217,7 +218,7 @@ sockets/WS/HTTP go in `acacia-client`.
 | Signaling env | discovery parses only `auth.prod` (online/minecraft.rs:37) | parse `signaling.prod` {serviceUri,stunUri,turnUri} | auth |
 | Realms XSTS | XSTS per RP cache (online/client.rs:103-110) | request RP `https://pocket.realms.minecraft.net/` | auth |
 | Realms REST | none | worlds/link/join client, 503 poll | client (+ tiny JSON types) |
-| MPSD | none | handles/query, join, RTA | client; defer |
+| MPSD | `acacia-auth` `mpsd.rs`, client `friend/` | done (friends-join.md) | auth + client |
 | Routing | `route.rs` Choice{RakNet,NetherNet} | `Target::{Address, Lan(id), Realm(id/code), Friend(xuid)}` → signaling kind | client |
 | Login ServerAddress | `nethernet.rs::server_address` (URL form) | LAN/Realm value unknown: **capture** | client |
 

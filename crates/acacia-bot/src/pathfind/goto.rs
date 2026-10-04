@@ -9,7 +9,9 @@ use tokio::task::JoinHandle;
 
 use super::astar::{search, Path, SearchOpts};
 use super::follow::{FollowStatus, Follower, Sense};
+use super::execute;
 use super::goal::Goal;
+use super::kit::{DEFAULT_SCAFFOLD, Kit};
 use super::snapshot::WorldBlocks;
 use super::terrain::{Blocks, Terrain};
 use crate::{ActionError, Bot};
@@ -17,22 +19,27 @@ use crate::{ActionError, Bot};
 /// Nodes ahead re-checked every tick for world changes.
 const LOOKAHEAD: usize = 6;
 /// A search that finishes within this runs inline, before the next tick (azalea's instant path).
-const QUICK: SearchOpts = SearchOpts { max_nodes: 5_000, budget: Duration::from_millis(10), parkour: true };
+const QUICK_NODES: usize = 5_000;
+const QUICK_BUDGET: Duration = Duration::from_millis(10);
 
 #[derive(Debug, Clone)]
 pub struct GotoOpts {
+    /// Search settings; its `kit` is refilled from the inventory before every search.
     pub search: SearchOpts,
-    /// Re-plans after getting stuck, knocked off the path or finding no path before giving up.
-    /// Continuing from the end of a partial path and re-planning after a teleport or a block
-    /// change are free.
+    /// Re-plans after getting stuck, knocked off the path, finding no path or failing a dig, place
+    /// or door before giving up. Continuing from the end of a partial path and re-planning after
+    /// a teleport or a block change are free.
     pub max_replans: u32,
     /// How close to the final node's centre (horizontally, blocks) counts as arrived.
     pub tolerance: f32,
+    /// Item identifiers of the throwaway blocks bridging and pillaring may use, in preference order.
+    pub scaffold: Vec<String>,
 }
 
 impl Default for GotoOpts {
     fn default() -> Self {
-        Self { search: SearchOpts::default(), max_replans: 10, tolerance: 0.25 }
+        let scaffold = DEFAULT_SCAFFOLD.iter().map(|s| s.to_string()).collect();
+        Self { search: SearchOpts::default(), max_replans: 10, tolerance: 0.25, scaffold }
     }
 }
 
@@ -40,6 +47,8 @@ impl Default for GotoOpts {
 pub enum NavStatus {
     Searching,
     Moving,
+    /// Digging, placing or opening a door for the next move.
+    Working,
     Arrived,
 }
 
@@ -114,10 +123,26 @@ impl Navigator {
             let pos = bot.movement.as_ref().and_then(|m| m.position()).unwrap_or_default();
             self.accept(path, pos)?;
         }
-        self.drive(bot)
+        let status = self.drive(bot)?;
+        if let Some(node) = self.follower.as_ref().and_then(Follower::pending_work).copied()
+            && status == NavStatus::Working
+        {
+            match execute::perform(bot, &node, &self.opts.scaffold).await {
+                Ok(()) => self.follower.as_mut().into_iter().for_each(Follower::work_done),
+                Err(ActionError::Disconnected) => return Err(ActionError::Disconnected),
+                Err(e) => {
+                    tracing::debug!(%e, ?node, "path work failed; re-planning");
+                    self.follower = None;
+                    self.count_replan(e.to_string())?;
+                }
+            }
+        }
+        Ok(status)
     }
 
     fn drive(&mut self, bot: &mut Bot) -> Result<NavStatus, ActionError> {
+        let s = &self.opts.search;
+        let kit = (s.allow_dig || s.allow_bridge).then(|| bot.path_kit(&self.opts.scaffold));
         let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_mut()) else {
             return Ok(NavStatus::Searching);
         };
@@ -134,13 +159,14 @@ impl Navigator {
         }
         let Some(follower) = &mut self.follower else {
             movement.controls.stop();
-            self.plan(&terrain, view, registry, pos)?;
+            self.plan(&terrain, view, registry, pos, kit)?;
             return Ok(NavStatus::Searching);
         };
         let feet = [pos[0].floor() as i32, pos[1].floor() as i32, pos[2].floor() as i32];
         let sense = Sense { pos, on_ground: movement.on_ground(), in_water: terrain.cell(feet).is_water() };
         match follower.tick(&sense, &mut movement.controls) {
             FollowStatus::Moving => {}
+            FollowStatus::Work => return Ok(NavStatus::Working),
             FollowStatus::Arrived if !self.partial => return Ok(NavStatus::Arrived),
             FollowStatus::Arrived => self.follower = None,
             status @ (FollowStatus::Stuck | FollowStatus::OffPath) => {
@@ -152,12 +178,16 @@ impl Navigator {
         Ok(NavStatus::Moving)
     }
 
-    fn plan(&mut self, terrain: &Terrain<&ChunkView>, view: &ChunkView, registry: &Arc<BlockRegistry>, pos: Vec3) -> Result<(), ActionError> {
-        let quick = search(terrain, pos, &self.goal, &SearchOpts { parkour: self.opts.search.parkour, ..QUICK });
+    fn plan(&mut self, terrain: &Terrain<&ChunkView>, view: &ChunkView, registry: &Arc<BlockRegistry>, pos: Vec3, kit: Option<Kit>) -> Result<(), ActionError> {
+        let mut opts = self.opts.search.clone();
+        if let Some(kit) = kit {
+            opts.kit = kit;
+        }
+        let quick = search(terrain, pos, &self.goal, &SearchOpts { max_nodes: QUICK_NODES, budget: QUICK_BUDGET, ..opts.clone() });
         if quick.complete {
             return self.accept(quick, pos);
         }
-        let (world, registry, goal, opts) = (view.world().clone(), registry.clone(), self.goal.clone(), self.opts.search.clone());
+        let (world, registry, goal) = (view.world().clone(), registry.clone(), self.goal.clone());
         self.pending = Some(tokio::task::spawn_blocking(move || {
             search(&Terrain::new(WorldBlocks::new(world), &registry), pos, &goal, &opts)
         }));
@@ -183,9 +213,10 @@ impl Navigator {
     }
 }
 
-/// The next nodes still offer the same footing.
+/// The next nodes still offer the same footing (up to the first that waits for work: its footing
+/// comes from that work).
 fn still_valid<B: Blocks>(terrain: &Terrain<B>, f: &Follower) -> bool {
-    f.ahead().iter().take(LOOKAHEAD).all(|n| terrain.spot(n.pos).is_some_and(|s| (s.feet - n.feet).abs() < 0.01))
+    f.standing_ahead().iter().take(LOOKAHEAD).all(|n| terrain.spot(n.pos).is_some_and(|s| (s.feet - n.feet).abs() < 0.01))
 }
 
 impl Bot {

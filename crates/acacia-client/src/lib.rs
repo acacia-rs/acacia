@@ -17,6 +17,8 @@ mod blob_cache;
 mod client;
 mod driver;
 mod filter;
+mod friend;
+mod handle;
 mod lan;
 mod login;
 mod net_wire;
@@ -42,9 +44,13 @@ pub use acacia_session::pack_store::{MemoryPackStore, PackStore};
 pub use acacia_session::{proto, DisconnectReason};
 pub use blob_cache::DiskBlobStore;
 pub use pack_cache::DiskPackStore;
-pub use client::{Client, ClientBuilder, Login, TransportKind};
+pub use client::{ClientBuilder, Login, TransportKind};
+pub use handle::Client;
 pub use acacia_nethernet::lan::ServerData as LanServerData;
 pub use filter::PacketFilter;
+pub use friend::FriendJoin;
+#[cfg(feature = "online")]
+pub use friend::{friend_builder, join_friend_world, FriendJoinError};
 pub use lan::{discover_lan, LanServer};
 pub use ping::{ping, ServerStatus};
 #[cfg(feature = "online")]

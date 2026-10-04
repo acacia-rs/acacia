@@ -109,10 +109,12 @@ name = "acacia-mitm"
 version = "0.1.0"
 dependencies = [
  "acacia-auth",
+ "acacia-client",
  "acacia-nethernet",
  "acacia-proto",
  "acacia-raknet",
  "acacia-session",
+ "acacia-testserver",
  "base64 0.22.1",
  "bytes",
  "hex",

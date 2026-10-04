@@ -30,7 +30,7 @@ impl Bot {
         let (unique_id, runtime_id) = (vehicle.unique_id, vehicle.runtime_id);
         if self.ride.horse.as_ref().is_none_or(|h| h.unique_id != unique_id) {
             let Some(e) = runtime_id.and_then(|id| self.state.entities.get(id)) else { return false };
-            let Some(speed) = e.movement else { return false };
+            let Some(&speed) = e.attributes.get("minecraft:movement") else { return false };
             let feet = [e.position.x, e.position.y, e.position.z];
             self.ride.horse = Some(HorseSim { unique_id, st: physics::horse(feet, e.yaw, speed) });
         }

@@ -4,7 +4,7 @@
 mod keepalive;
 #[cfg(test)]
 mod tests;
-mod ws;
+pub(crate) mod ws;
 
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -50,9 +50,26 @@ impl SignalingTarget {
             P::NetherNet => SignalingProtocol::Legacy,
             P::RakNet | P::Other(_) => return None,
         };
-        let host = host.trim_start_matches("wss://").trim_start_matches("https://").trim_end_matches('/').to_owned();
-        Some(Self { host, protocol, peer: join.address.clone(), mc_token })
+        Some(Self { host: bare_host(host), protocol, peer: join.address.clone(), mc_token })
     }
+
+    /// The target for one of a friend's `SupportedConnections`; None if it isn't signaled. A JSON-RPC
+    /// entry without a `PmsgId` falls back to legacy signaling to its NetherNet id, as PrismarineJS dials.
+    pub fn from_friend(connection: &acacia_auth::WorldConnection, mc_token: String, host: &str) -> Option<Self> {
+        use acacia_auth::ConnectionKind as K;
+        let (protocol, peer) = match (connection.kind, &connection.pmsg_id, &connection.nethernet_id) {
+            (K::SignalingJsonRpc, Some(pmsg), _) => (SignalingProtocol::JsonRpc, pmsg),
+            (K::SignalingJsonRpc | K::SignalingLegacy, _, Some(id)) => (SignalingProtocol::Legacy, id),
+            _ => return None,
+        };
+        Some(Self { host: bare_host(host), protocol, peer: peer.clone(), mc_token })
+    }
+}
+
+/// Discovery gives the host as a URL.
+#[cfg(feature = "online")]
+fn bare_host(host: &str) -> String {
+    host.trim_start_matches("wss://").trim_start_matches("https://").trim_end_matches('/').to_owned()
 }
 
 impl SignalingTarget {

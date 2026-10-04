@@ -254,7 +254,7 @@ pub async fn ride_horse(bot: &mut Bot, s: &Scene) -> Check {
     if let Some(c) = bot.controls() {
         c.stop();
     }
-    let speed = bot.vehicle().and_then(|v| v.runtime_id).and_then(|id| bot.state().entities.get(id)).and_then(|e| e.movement);
+    let speed = bot.vehicle().and_then(|v| v.runtime_id).and_then(|id| bot.state().entities.get(id)).and_then(|e| e.attributes.get("minecraft:movement").copied());
     bot.dismount().await?;
     let corrections: u32 = phases.iter().map(|(_, n)| n).sum();
     let detail = format!("horse corrections per phase {phases:?}; speed attribute {speed:?}");

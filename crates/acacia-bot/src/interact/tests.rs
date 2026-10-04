@@ -171,8 +171,9 @@ fn player_at(feet: [f32; 3]) -> Entity {
         velocity: Vec3f { x: 0.0, y: 0.0, z: 0.0 },
         on_ground: true,
         uuid: None,
-        meta: Default::default(),
-        movement: None,
+        metadata: Default::default(),
+        attributes: Default::default(),
+        effects: Default::default(),
     }
 }
 

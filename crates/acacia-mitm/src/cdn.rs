@@ -7,6 +7,23 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
+use acacia_mitm::proto::packets::ResourcePacksInfo;
+use acacia_mitm::proto::RawPacket;
+use acacia_mitm::{Interceptor, Verdict};
+
+/// Replaces every pack's `cdn_url` the game is told. The capture keeps the server's own packet.
+pub struct PointPacks(pub String);
+
+impl Interceptor for PointPacks {
+    fn on_server_packet(&mut self, packet: &RawPacket) -> Verdict {
+        let Some(mut info) = packet.is::<ResourcePacksInfo>().then(|| packet.decode::<ResourcePacksInfo>().ok()).flatten() else {
+            return Verdict::Forward;
+        };
+        info.texture_packs.iter_mut().for_each(|p| p.cdn_url = self.0.clone());
+        Verdict::replace(&info)
+    }
+}
+
 /// Serves `zip` on `port`, logging to `log`; returns the URL to hand the game.
 pub fn start(zip: &Path, port: u16, log: &Path) -> io::Result<String> {
     let pack = std::fs::read(zip).map_err(|e| io::Error::new(e.kind(), format!("--pack-cdn {}: {e}", zip.display())))?;

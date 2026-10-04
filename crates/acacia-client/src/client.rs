@@ -4,24 +4,23 @@ use std::time::{Duration, Instant};
 
 use acacia_auth::LoginCredentials;
 use acacia_session::blob_store::BlobStore;
-use acacia_session::proto::{encode_packet, Packet};
 use acacia_session::{DisconnectReason, Session, SessionConfig};
 use acacia_nethernet::Identity as NetIdentity;
-use bytes::{Bytes, BytesMut};
 use p384::ecdsa::SigningKey;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::blob_cache::BlobCache;
 use crate::driver::{Command, Driver};
+use crate::friend::FriendJoin;
 use crate::pack_cache;
 use crate::filter::PacketFilter;
-use crate::login::{build_login, Identity};
+use crate::login::build_login;
 use crate::route;
 use crate::lan::LanServer;
 use crate::signaling::SignalingTarget;
 use crate::socks5::Socks5Proxy;
 use crate::transport::resolve;
-use crate::{ConnectError, Event};
+use crate::{Client, ConnectError};
 
 /// Which transport to join over.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -52,6 +51,10 @@ enum Via {
 pub struct ClientBuilder {
     server: String,
     via: Via,
+    /// The Login `Nonce` a friend's world handed out.
+    nonce: Option<String>,
+    /// Held by the connection; dropping it leaves the friend's Xbox session.
+    friend_session: Option<oneshot::Sender<()>>,
     blob_cache: BlobCache,
     blob_payloads: bool,
     pack_cache_dir: Option<PathBuf>,
@@ -71,6 +74,8 @@ impl ClientBuilder {
         Self {
             server: server.into(),
             via: Via::Address,
+            nonce: None,
+            friend_session: None,
             blob_cache: BlobCache::Memory,
             blob_payloads: false,
             pack_cache_dir: None,
@@ -110,6 +115,15 @@ impl ClientBuilder {
     /// Joins a world found by [`crate::discover_lan`] instead of dialing `server`.
     pub fn lan(mut self, server: LanServer) -> Self {
         self.via = Via::Lan(server);
+        self
+    }
+
+    /// Joins a friend's world (see `join_friend_world`) through the signaling service, with its nonce.
+    /// The connection keeps the Xbox session membership until it ends.
+    pub fn friend(mut self, join: FriendJoin) -> Self {
+        self.via = Via::Signaling(join.target);
+        self.nonce = join.nonce;
+        self.friend_session = Some(join.session);
         self
     }
 
@@ -216,7 +230,7 @@ impl ClientBuilder {
             Login::Online { credentials, .. } => format!("xbox:{}", credentials.xuid),
         };
         let blob_store = self.blob_cache.open(&account, self.blob_payloads);
-        let (key, login_request, identity) = build_login(self.login, &route.server_address);
+        let (key, login_request, identity) = build_login(self.login, &route.server_address, self.nonce);
         let cfg = SessionConfig {
             link: route.link,
             key,
@@ -243,6 +257,7 @@ impl ClientBuilder {
             capacity: self.event_capacity,
             proxy: self.proxy.clone(),
             _signaling: route.keepalive,
+            _friend_session: self.friend_session,
         };
         tokio::spawn(driver.run());
 
@@ -256,63 +271,5 @@ impl ClientBuilder {
                 Err(ConnectError::Timeout)
             }
         }
-    }
-}
-
-/// A spawned connection. Dropping it disconnects.
-pub struct Client {
-    commands: mpsc::UnboundedSender<Command>,
-    events: mpsc::Receiver<Event>,
-    runtime_entity_id: u64,
-    identity: Identity,
-    blob_store: Option<Arc<dyn BlobStore>>,
-}
-
-impl Client {
-    /// The blob cache this connection reports from; terrain readers fetch blob payloads here.
-    pub fn blob_store(&self) -> Option<&Arc<dyn BlobStore>> {
-        self.blob_store.as_ref()
-    }
-
-    pub fn builder(server: impl Into<String>) -> ClientBuilder {
-        ClientBuilder::new(server)
-    }
-
-    pub fn runtime_entity_id(&self) -> u64 {
-        self.runtime_entity_id
-    }
-
-    pub fn display_name(&self) -> &str {
-        &self.identity.display_name
-    }
-
-    /// Empty for offline logins.
-    pub fn xuid(&self) -> &str {
-        &self.identity.xuid
-    }
-
-    /// Next packet or the final disconnect; `None` once the connection is gone.
-    pub async fn recv(&mut self) -> Option<Event> {
-        self.events.recv().await
-    }
-
-    /// Queues a packet; returns false if the connection has closed.
-    pub fn send<T: Packet>(&self, packet: &T) -> bool {
-        let mut buf = BytesMut::new();
-        encode_packet(packet, &mut buf);
-        self.send_raw(buf.freeze())
-    }
-
-    /// Queues an already-encoded packet (header + body).
-    pub fn send_raw(&self, packet: Bytes) -> bool {
-        self.command_raw(Command::Send(packet))
-    }
-
-    pub fn close(&self) {
-        self.command_raw(Command::Close);
-    }
-
-    pub(crate) fn command_raw(&self, command: Command) -> bool {
-        self.commands.send(command).is_ok()
     }
 }

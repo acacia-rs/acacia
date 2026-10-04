@@ -17,6 +17,21 @@ pub const DANGER_NEAR: f32 = 20.0;
 pub const LONG_JUMP_PENALTY: f32 = 2.0;
 /// Sprint cost per block: turns heuristic distance into ticks (Baritone `costHeuristic`).
 pub const COST_HEURISTIC: f32 = 3.563;
+/// Sneaking to an edge to bridge (Baritone `SNEAK_ONE_BLOCK_COST`).
+pub const SNEAK: f32 = 20.0 / 1.3;
+/// On top of the break time, for tool switches and the risk (Baritone `blockBreakAdditionalPenalty`).
+pub const BREAK_PENALTY: f32 = 2.0;
+/// Blocks that take longer than this to break (30 s) are not dug.
+pub const MAX_DIG_TICKS: u32 = 600;
+/// Placing a scaffold block (Baritone `placeBlockCost`).
+pub const PLACE: f32 = 20.0;
+/// Opening a door or gate: aim, click, wait for the update.
+pub const DOOR: f32 = 10.0;
+
+/// Placing a block with `left` scaffold blocks remaining: dearer as they run out.
+pub fn place(left: u32) -> f32 {
+    PLACE * (1.0 + 4.0 / left.max(1) as f32)
+}
 
 /// Ticks to fall `distance` blocks from rest (the first tick moves before gravity applies).
 pub fn fall_ticks(distance: f32) -> f32 {
@@ -51,5 +66,11 @@ mod tests {
         assert!((fall_ticks(1.0) - 5.61).abs() < 0.05, "{}", fall_ticks(1.0));
         assert!((fall_ticks(3.0) - 9.47).abs() < 0.05, "{}", fall_ticks(3.0));
         assert!((jump_one_block() - 3.163).abs() < 0.05);
+    }
+
+    #[test]
+    fn scarce_blocks_cost_more() {
+        assert!(place(1) > place(8) && place(8) > place(64));
+        assert!((place(64) - PLACE).abs() < 2.0);
     }
 }

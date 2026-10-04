@@ -7,6 +7,7 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
 
 use acacia_proto::{packets, Packet, RawPacket};
@@ -23,6 +24,13 @@ const SKIN_CLAIMS: &[&str] = &[
     "SkinData", "SkinGeometryData", "SkinGeometryDataEngineVersion", "SkinId", "SkinImageHeight", "SkinImageWidth",
     "SkinResourcePatch", "TrustedSkin",
 ];
+
+/// One capture file shared by every player of a proxy.
+pub(crate) type SharedRecorder = Arc<Mutex<Recorder>>;
+
+pub(crate) fn lock(rec: &Mutex<Recorder>) -> MutexGuard<'_, Recorder> {
+    rec.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 pub struct Recorder {
     dir: PathBuf,

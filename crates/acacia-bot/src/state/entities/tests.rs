@@ -93,11 +93,11 @@ fn metadata_updates_reach_tracked_entities_only() {
     }];
     p.runtime_entity_id = 3;
     es.apply(&raw(&p), &ME).unwrap();
-    assert!(es.get(3).unwrap().meta.is_baby());
-    assert_eq!(es.get(3).unwrap().meta.scale, 1.0);
+    assert!(es.get(3).unwrap().metadata.flags().contains(MetadataFlags1::BABY));
+    assert_eq!(es.get(3).unwrap().metadata.scale(), 1.0);
     p.runtime_entity_id = 99;
     es.apply(&raw(&p), &ME).unwrap();
-    assert!(!es.get(2).unwrap().meta.is_baby());
+    assert!(!es.get(2).unwrap().metadata.flags().contains(MetadataFlags1::BABY));
 }
 
 #[test]
@@ -172,6 +172,48 @@ fn respawned_runtime_id_drops_stale_unique_index() {
     es.apply(&add_entity(3, -30, "minecraft:skeleton", v(0.0, 0.0, 0.0)), &ME).unwrap();
     assert!(es.by_unique(-3).is_none());
     assert_eq!(es.by_unique(-30).unwrap().kind, "minecraft:skeleton");
+}
+
+#[test]
+fn metadata_attributes_and_effects_update_the_entity() {
+    use acacia_client::proto::packets::MobEffectEventId;
+    use acacia_client::proto::types::{
+        MetadataDictionaryItem, MetadataDictionaryItemKey as Key, MetadataDictionaryItemType, MetadataDictionaryItemValue,
+        MetadataDictionaryItemValueDefault as Plain, PlayerAttributesItem,
+    };
+    let mut es = world();
+    let mut data: SetEntityData = fixture();
+    data.runtime_entity_id = 3;
+    data.metadata = vec![MetadataDictionaryItem {
+        key: Key::Nametag,
+        r#type: MetadataDictionaryItemType::String,
+        legacy_type: 4,
+        value: MetadataDictionaryItemValue::Default(Plain::String("Bob".into())),
+    }];
+    es.apply(&raw(&data), &ME).unwrap();
+
+    let mut attrs: UpdateAttributes = fixture();
+    attrs.runtime_entity_id = 3;
+    attrs.attributes = vec![PlayerAttributesItem {
+        min: 0.0,
+        max: 20.0,
+        current: 7.0,
+        default_min: 0.0,
+        default_max: 20.0,
+        default: 20.0,
+        name: "minecraft:health".into(),
+        modifiers: Vec::new(),
+    }];
+    es.apply(&raw(&attrs), &ME).unwrap();
+
+    let mut effect: MobEffect = fixture();
+    (effect.runtime_entity_id, effect.event_id, effect.effect_id, effect.amplifier) = (3, MobEffectEventId::Add, 1, 1);
+    es.apply(&raw(&effect), &ME).unwrap();
+
+    let z = es.get(3).unwrap();
+    assert_eq!(z.metadata.name_tag(), Some("Bob"));
+    assert_eq!(z.health(), Some(7.0));
+    assert_eq!(z.effects.level(1), 2);
 }
 
 #[test]

@@ -2,7 +2,8 @@
 //! printing progress every second.
 //! `cargo run -p acacia-bot --example goto -- <server> <name|@account> <dx> <dz> [dy]`
 //! With `dy` the goal is that exact block; without it any y at that x/z.
-//! `BEDROCK_PROXY=host:port:user:pass` as in the other examples.
+//! `BEDROCK_PROXY=host:port:user:pass` as in the other examples; `BEDROCK_DIG` / `BEDROCK_BRIDGE`
+//! let the path dig and place scaffold blocks.
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -66,7 +67,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("at [{x}, {y}, {z}], going to {goal:?}");
 
-    let mut nav = Navigator::new(goal, GotoOpts::default());
+    let mut opts = GotoOpts::default();
+    opts.search.allow_dig = std::env::var("BEDROCK_DIG").is_ok();
+    opts.search.allow_bridge = std::env::var("BEDROCK_BRIDGE").is_ok();
+    let mut nav = Navigator::new(goal, opts);
     let mut report = tokio::time::Instant::now();
     let started = report;
     let mut seen = 0;

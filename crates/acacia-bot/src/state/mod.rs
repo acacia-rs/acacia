@@ -3,11 +3,13 @@
 
 mod block_entities;
 mod containers;
+mod effects;
 mod entities;
-mod entity_meta;
+mod environment;
 mod fishing;
 mod inventory;
 mod items;
+mod metadata;
 mod player;
 mod player_list;
 pub(crate) mod queries;
@@ -20,9 +22,11 @@ mod stations;
 
 pub use block_entities::{BlockEntities, BlockEntityTracking};
 pub use containers::{Container, Containers};
+pub use effects::{effect, Effect, Effects};
 pub use entities::{Entities, Entity, ITEM_KIND, PLAYER_EYE_HEIGHT, PLAYER_KIND};
-pub use entity_meta::EntityMeta;
 pub use skins::{PlayerSkin, SkinTexture, Skins};
+pub use environment::{BossBar, Environment};
+pub use metadata::Metadata;
 pub use fishing::{Fishing, FishingHook, FISHING_HOOK_KIND};
 pub use riding::{Pose, Riding, Vehicle};
 pub use inventory::{Inventory, ItemStack};
@@ -62,6 +66,7 @@ impl Trackers {
         ids.extend_from_slice(Containers::PACKETS);
         ids.extend_from_slice(Scoreboard::PACKETS);
         ids.extend_from_slice(PlayerList::PACKETS);
+        ids.extend_from_slice(Environment::PACKETS);
         ids.extend_from_slice(Forms::PACKETS);
         ids.extend_from_slice(Signs::PACKETS);
         ids.extend_from_slice(self.block_entities.packets());
@@ -96,6 +101,8 @@ pub struct GameState {
     pub containers: Containers,
     pub scoreboard: Scoreboard,
     pub player_list: PlayerList,
+    /// Time of day, weather and boss bars.
+    pub environment: Environment,
     pub entities: Entities,
     pub skins: Skins,
     pub forms: Forms,
@@ -146,6 +153,9 @@ impl GameState {
         }
         if PlayerList::PACKETS.contains(&id) {
             self.player_list.apply(packet)?;
+        }
+        if Environment::PACKETS.contains(&id) {
+            self.environment.apply(packet)?;
         }
         if Riding::PACKETS.contains(&id) {
             self.riding.apply(packet, &me)?;

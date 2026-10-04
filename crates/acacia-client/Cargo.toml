@@ -34,10 +34,11 @@ futures-util = { version = "0.3.34", default-features = false, features = ["sink
 # LAN discovery: vanilla's dual-stack socket and per-interface broadcast addresses.
 socket2 = "0.6"
 if-addrs = "0.15"
+# Xbox RTA frames for friends' worlds.
+serde_json = "1"
 
 [dev-dependencies]
 str0m = { version = "0.24.0", default-features = false, features = ["rust-crypto"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "signal", "fs"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
-serde_json = "1"
 base64 = "0.22"
