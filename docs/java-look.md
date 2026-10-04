@@ -22,7 +22,7 @@ Bedrock pack ─────┘   (separate binary)   (look pack, data)        (
 | Area | Choice | Why |
 |---|---|---|
 | Assets | Real Java Edition assets, not Java styling over the Bedrock pack | The look people prefer includes Java's models, GUI sprites and font |
-| Obtaining them | `lookbake` downloads the pinned client jar from Mojang's version manifest; `$ACACIA_JAVA_JAR` overrides | Nothing redistributed; the version matches the world. A local `.minecraft` is often older than the Bedrock world |
+| Obtaining them | `lookbake fetch-java` downloads the pinned client jar (Java 26.3, the release of Bedrock 26.50's drop) from Mojang's version manifest into `assets/java`, checks its SHA-1 and unpacks `assets/minecraft` | Nothing redistributed; the version matches the world. A local `.minecraft` is often older than the Bedrock world |
 | Packaging | Generic renderer plus a baked look pack, not Java loaders linked into the client | One load path, the client stays MIT, custom Java resource packs work by re-baking |
 | Distribution | Packs are baked locally, never uploaded or shipped | A baked pack contains Mojang's assets |
 | Entities | Java models and animations, expressed in the geometry and animation format the renderer already draws | No second entity pipeline. Mobs not yet converted keep the Bedrock geometry |
@@ -111,12 +111,20 @@ Pomme's files run to several thousand lines. Ports are split by responsibility t
 ## Bedrock state to Java model
 
 The world is Bedrock block states; Java models are keyed by Java block name and properties. `lookbake`
-resolves this once, at bake time, so the pack is keyed by Bedrock state. Proposal, to verify before J1:
-invert GeyserMC's `mappings` block table (Java state to Bedrock state), taking the first Java state
-where several map to one Bedrock state. A Bedrock block with no Java counterpart is baked from the
-Bedrock pack into the same look pack.
+resolves this once, at bake time, so the pack is keyed by Bedrock state.
 
-The same applies to entity identifiers and items.
+The table is ViaBedrock's `blockstate_mappings.json` (GPL-3.0, so it is used only inside `lookbake`):
+a native Bedrock-to-Java map covering all 22,091 states of the 26.50 palette with Java 26.3 targets.
+GeyserMC's MIT `blocks.nbt` was the first candidate and is kept as a cross-check only: it maps Java
+to Bedrock, and its inverse reaches 72% of the palette, misses real states (water depths, partial
+redstone signals, most hanging signs) and gets 156 hanging-sign rotations wrong.
+
+A Bedrock state whose Java target has no model is baked from the Bedrock pack into the same look
+pack. Bed and banner colour, pot contents, skull rotation and chest pairing are in block entities
+under either mapping; the renderer already reads those for beds, chests and heads.
+
+The same applies to entity identifiers and items. Sources, counts and licences: the workspace's
+`research/java-look-sources.md` (2026-10-04).
 
 ## Not covered by a pack
 
@@ -152,8 +160,10 @@ handed over from, whoever holds the render area. J2 onward are new areas (`ui`, 
 
 ## Open items
 
-- The Java release to pin for the Bedrock version the viewer targets.
-- GeyserMC mappings: licence, format and coverage are unverified.
+- J1's renderer half: Java models have rotated elements and per-face UV rectangles, which the packed
+  quad (axis-aligned, UV from position) cannot hold. It needs a general quad in the mesh format and
+  the terrain shader, which is the render area's code.
+- The jar lacks sounds, other languages and the Unifont glyphs; those come from Mojang's asset index.
 - Pack encoding: JSON plus PNG strips for now (about 5 MB for Bedrock, 4 MB of it `pack.json`).
   Revisit if loading is slow or once baked quads make the table much larger.
 - README "Non-goals" still lists graphics and Java Edition; DESIGN.md milestone 10 is out of date.
