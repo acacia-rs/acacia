@@ -82,24 +82,47 @@ per-kind hitboxes (`interact/geometry.rs`), since aiming at a player-sized box a
   count−1 ~250–490 ms later (generic hotbar rule).
 - PlayerArmorDamage about 1/s while gliding.
 
-### Elytra physics (needed in `acacia-physics`, out of scope here)
-Per tick while gliding (BS simulation.go L928-989; Bedrock applies drag and boost BEFORE the move, Java after):
+### Elytra physics (`acacia-physics` `motion.rs::simulate_glide`; BDS 1.26.52, verified live 2026-10-03)
+Per tick while gliding. Drag and boost apply before the move:
 ```
-g = 0.08 (0.01 with slow falling, also while rising on Bedrock)
-look from MCSin/MCCos (65536-entry table, BS math.go): p = pitch rad, y = yaw rad
-lookX = sin(-y-PI) * -cos(p); lookY = -sin(p); lookZ = cos(-y-PI) * -cos(p)
-hz = cos(p); c2 = hz^2; velHz = sqrt(vx^2 + vz^2)
+G = -0.08 (-0.01 with slow falling); sin/cos from the 65536-entry table; p, y = current pitch, yaw (rad)
+look = (sin(-y-PI) * -cos(-p), sin(-p), cos(-y-PI) * -cos(-p))    // from -p: table index can differ
+hzSq = lookX^2 + lookZ^2; hz = sqrt(hzSq); c2 = cos(p)^2; velHz = sqrt(vx^2 + vz^2)
 if vy > -0.5: fallDistance = 1
-vy += -g + c2 * g * 0.75
-if vy < 0 && hz > 1e-4: a = vy * -0.1 * c2; vy += a; vx += lookX*a/hz; vz += lookZ*a/hz
-if p < 0 && hz > 1e-4:  a = velHz * -sin(p) * 0.04; vy += a*3.2; vx -= lookX*a/hz; vz -= lookZ*a/hz
-if hz > 1e-4: vx += (lookX/hz*velHz - vx)*0.1; vz += (lookZ/hz*velHz - vz)*0.1
-if boostTicks > 0 (20 from rocket use): v += look*0.1 + (look*1.5 - v)*0.5   (per axis)
+vy = vy - (0.75*c2 + -1) * G
+if vy < 0 && hzSq > 0: a = vy * -0.1 * c2; vy += a; vx += lookX*a/hz; vz += lookZ*a/hz
+if p < 0:              a = velHz * -sin(p) * 0.04; vy += a*3.2; vx -= lookX*a/hz; vz -= lookZ*a/hz
+if hzSq > 0: vx += (lookX/hz*velHz - vx)*0.1; vz += (lookZ/hz*velHz - vz)*0.1
+if boosting: v += look*0.1 + (look*1.5 - v)*0.5   (per axis)
 vx *= 0.99; vy *= 0.98; vz *= 0.99; then move + collide
 ```
-Stops on ground contact, water (also zeroes the boost; lava does not), levitation, durability < 2. Also
-needed: gliding pose box (0.6 x 0.6), StopGliding emitted on landing, durability -1 per 20 glide ticks
-(433 total, DF player.go). **UNKNOWN**: Bedrock wall-impact damage, boost length for flight 2/3 rockets.
+- **Boost**: the client predicts 20 ticks from the use tick. BDS then sends MovementEffect GLIDEBOOST,
+  stamped with the input tick. Its `duration` is twice the boost: the rocket's lifetime
+  `10*(flight+1) + rand(6) + rand(7)` ticks, so 20–31 for flight 1. Live: duration 44 boosted 22 inputs.
+  The boost only counts down; landing or water don't clear it.
+- **Start/stop**: the server runs the glide itself. It starts on the press for a player with a
+  fly-enabled chest item who is airborne and not riding. It stops on ground, water, riding, flying or a
+  wall climb. It does not wait for the client's StopGliding. No levitation check was found.
+- **Live (actions `glide`, `glide_water`)**: 0 corrections from start to landing over 12 glides (level,
+  boost, climbing turn, dive, water landing).
+- **UNKNOWN**: wall-impact damage (`GlidingCollisionDamageCalculateSystem`, not decoded), the durability
+  threshold, the glide box size.
+
+### Horse (`acacia-physics` `vehicle.rs`, bot `riding/horse.rs`; BDS 1.26.52, verified live 2026-10-03)
+Client-predicted when tamed, saddled and driven by a player. Per tick:
+- **Yaw:** eases toward the rider's. With `d = wrap180(riderYaw − yaw)`, `yaw += d·0.7·max(0.18, (45 − min(|d|, 45))/90)`.
+- **Pitch:** rider pitch × 0.5.
+- **Move vector:** strafe × 0.5, backward × 0.25, forward unchanged.
+- **Travel:** the player's ground travel with the horse's `minecraft:movement`. Air speed is movement × 0.1.
+- **Box and step:** 1.4 × 1.6; step height 1.0625 with a controlling rider.
+
+Corrections:
+- BDS corrects a yaw gap on its own; the correction's rotation is (pitch, yaw).
+- It ignores the client's reported delta: sending 0 changed nothing.
+
+Live (`ride_horse`, horse at 0.2): walking, turning, strafing, backing and a 1-block ledge, with 0 corrections.
+
+**Open:** above about movement 0.25, BDS's steady speed drifts from the formula. At 0.3 it was 0.3547751 against our 0.35356, reproducible. At 0.35 two sweeps disagreed: +1% once, no corrections the next time; the cause is not known. Probe with `HORSE_SWEEP=… ONLY=horse_sweep tools/live-repeat.sh`, or compare against a vanilla capture of a fast horse. The charged jump is not modelled yet.
 
 ## Still open
 1. Exit spot: `dismount_mode on_top_center` vehicles and exempt blocks (`blockIgnoredForExit`) are not modelled.

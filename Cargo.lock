@@ -53,6 +53,7 @@ dependencies = [
  "acacia-world",
  "async-trait",
  "bytes",
+ "flate2",
  "regex",
  "serde",
  "serde_json",

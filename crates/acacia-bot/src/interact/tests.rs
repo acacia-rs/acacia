@@ -12,7 +12,7 @@ use super::breaking::enchantment_level;
 use super::geometry::{block_distance, entity_aim, ray_box};
 use super::wire::{self, Hand, SwingSource};
 use super::{facing_face, to_wire, Face};
-use crate::state::{Entity, ItemStack, PLAYER_KIND};
+use crate::state::{Entity, ItemStack, PLAYER_EYE_HEIGHT, PLAYER_KIND};
 
 fn round_trip<T: Packet + PartialEq + std::fmt::Debug>(packet: &T) -> T {
     let mut buf = BytesMut::new();
@@ -164,7 +164,7 @@ fn player_at(feet: [f32; 3]) -> Entity {
         unique_id: -5,
         kind: PLAYER_KIND.into(),
         username: None,
-        position: Vec3f { x: feet[0], y: feet[1] + 1.62, z: feet[2] },
+        position: Vec3f { x: feet[0], y: feet[1] + PLAYER_EYE_HEIGHT, z: feet[2] },
         yaw: 0.0,
         pitch: 0.0,
         head_yaw: 0.0,
@@ -172,6 +172,7 @@ fn player_at(feet: [f32; 3]) -> Entity {
         on_ground: true,
         uuid: None,
         meta: Default::default(),
+        movement: None,
     }
 }
 

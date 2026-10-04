@@ -4,7 +4,9 @@
 //! server sees. Over NetherNet both sides still get a handshake but stay plaintext, as with BDS.
 
 use acacia_auth::LoginCredentials;
-use acacia_proto::packets::{Disconnect, Login, NetworkSettings, PlayStatus, PlayStatusStatus, ServerToClientHandshake};
+use acacia_proto::packets::{
+    Disconnect, Login, NetworkSettings, PlayStatus, PlayStatusStatus, ResourcePacksInfo, ServerToClientHandshake,
+};
 use acacia_proto::types::DisconnectFailReason;
 use acacia_proto::{encode_packet, Packet, RawPacket};
 use acacia_session::batch::BatchCodec;
@@ -34,6 +36,8 @@ pub struct Relay {
     credentials: Option<LoginCredentials>,
     game_key: Option<p384::PublicKey>,
     game_sent_disconnect: bool,
+    /// Set by `--pack-cdn`: replaces every pack's `cdn_url` the game is told (cdn.rs).
+    pack_cdn: Option<String>,
 }
 
 impl Relay {
@@ -42,7 +46,21 @@ impl Relay {
             Wire::RakNet => (ServerConnection::new(key.clone()), BatchCodec::default()),
             Wire::NetherNet => (ServerConnection::nethernet(key.clone()), BatchCodec::without_header()),
         };
-        Self { wire, game, up_codec, key, credentials, game_key: None, game_sent_disconnect: false }
+        Self { wire, game, up_codec, key, credentials, game_key: None, game_sent_disconnect: false, pack_cdn: None }
+    }
+
+    pub fn with_pack_cdn(mut self, url: Option<String>) -> Self {
+        self.pack_cdn = url;
+        self
+    }
+
+    /// The server's ResourcePacksInfo with every pack pointed at `url`.
+    fn point_packs_at(raw: &RawPacket, url: &str) -> Result<Bytes, String> {
+        let mut info: ResourcePacksInfo = raw.decode().map_err(|e| e.to_string())?;
+        info.texture_packs.iter_mut().for_each(|p| p.cdn_url = url.to_owned());
+        let mut packet = BytesMut::new();
+        encode_packet(&info, &mut packet);
+        Ok(packet.freeze())
     }
 
     /// Records a game message and returns it re-batched for the server, Login re-signed.
@@ -91,6 +109,11 @@ impl Relay {
                     rec.packet(false, &RawPacket::parse(ours.clone()).expect("encoded by us"));
                     forward.push(ours);
                     self.flush_to_game(&mut forward, &mut out);
+                }
+                ResourcePacksInfo::ID if self.pack_cdn.is_some() => {
+                    let ours = Self::point_packs_at(&raw, self.pack_cdn.as_deref().expect("matched"))?;
+                    rec.packet(false, &RawPacket::parse(ours.clone()).expect("encoded by us"));
+                    forward.push(ours);
                 }
                 _ => {
                     if raw.decode::<PlayStatus>().is_ok_and(|s| s.status == PlayStatusStatus::PlayerSpawn) {

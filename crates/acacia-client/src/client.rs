@@ -241,6 +241,7 @@ impl ClientBuilder {
             spawned: Some(spawn_tx),
             filter: self.filter,
             capacity: self.event_capacity,
+            proxy: self.proxy.clone(),
             _signaling: route.keepalive,
         };
         tokio::spawn(driver.run());

@@ -101,8 +101,13 @@ Also: the session logs BDS's `PacketViolationWarning` (it drops the client after
 - ~~mount_boat right after mount_pig~~ (no link, no refusal): fixed on feat/refix-riding by aiming at the boat's
   real hitbox (BDS's look-ray check missed a player-sized box above it) and leaving the pig at the server's
   exit spot; 10/10 boat mounts in the sleep,mount_pig,mount_boat,fish sequence.
-- mount_boat "not seated" in ~1 of 13 runs, idle and physics alike. The one diagnosed case: the boat had
-  been pushed to x 1.73 (1.70 in every passing run), bot and server agreed on it, aim and eye as usual.
+- ~~mount_boat "not seated" in ~1 of 10 runs~~: test-scene artifact. The trader's leashed llamas outlived
+  the pack's one-off removal and the boat pulled them in. With both seats taken BDS offered no interaction:
+  the scripting before-event fired, the after-event did not, and no SetEntityLink came. x 1.728 was the boat
+  settling under two riders. The pack now removes llamas on spawn; 20/20 after (2026-10-03).
+- ~~glide "disconnected"~~: after the physics merge, `WantUp` came from both the held jump and
+  `start_gliding`. BDS drops a `PlayerAuthInput` that lists a flag twice ("readNoHeader failed",
+  packet 144 malformed). Queued flags are now merged without duplicates (`Bot::add_queued_flags`).
 - Idle bots cannot click blocks outside the decoded columns, or in sections whose blob came from an
   earlier session's hash-only cache (`NotPossible`).
 - Physics while sleeping and vehicle physics are not modelled (see above, and

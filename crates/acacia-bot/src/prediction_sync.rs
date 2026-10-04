@@ -5,7 +5,7 @@
 use acacia_client::proto::packets::{
     ClientMovementPredictionSync, ClientMovementPredictionSyncBoundingBox, SetEntityData, UpdateAttributes,
 };
-use acacia_client::proto::types::MetadataDictionaryItemValue;
+use acacia_client::proto::types::{MetadataDictionaryItemValue, MetadataFlags1};
 use acacia_client::proto::{Packet, RawPacket};
 
 use crate::state::PlayerState;
@@ -115,7 +115,12 @@ impl PredictionSync {
         let zigzag = ((player.unique_entity_id << 1) ^ (player.unique_entity_id >> 63)) as u64;
         ClientMovementPredictionSync {
             data_flags: (u128::from(self.flags_extended as u64) << 64) | u128::from(self.flags as u64),
-            bounding_box: ClientMovementPredictionSyncBoundingBox { scale: 1.0, width: 0.6, height: 1.8 },
+            // Gliding shrinks the box to 0.6 tall (vanilla capture 2026-10-02).
+            bounding_box: ClientMovementPredictionSyncBoundingBox {
+                scale: 1.0,
+                width: 0.6,
+                height: if self.flags & MetadataFlags1::GLIDING.0 != 0 { 0.6 } else { 1.8 },
+            },
             movement_speed: if first { FIRST_MOVEMENT_SPEED } else { self.movement },
             underwater_movement_speed: self.underwater_movement,
             lava_movement_speed: self.lava_movement,

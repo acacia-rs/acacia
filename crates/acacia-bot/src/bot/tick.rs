@@ -1,3 +1,5 @@
+use acacia_client::proto::packets::PlayerAuthInput;
+
 use crate::spawn::{self, SpawnPacket};
 use crate::trace;
 use crate::world::PhysicsWorld;
@@ -34,6 +36,16 @@ impl Bot {
         self.physics_tick();
     }
 
+    /// Adds the one-tick flags actions queued (gliding, item use) to this tick's input, skipping any it
+    /// already carries: BDS drops the player for a `PlayerAuthInput` listing a flag twice.
+    pub(crate) fn add_queued_flags(&mut self, input: &mut PlayerAuthInput) {
+        for flag in self.queued_flags.drain(..) {
+            if !input.input_data.contains(&flag) {
+                input.input_data.push(flag);
+            }
+        }
+    }
+
     fn idle_tick(&mut self) {
         let Some((idle, sequence)) = self.idle.as_mut() else { return };
         let step = sequence.tick();
@@ -42,7 +54,7 @@ impl Bot {
         step.before.into_iter().for_each(|p| spawn::send(&self.client, me, p));
         if let Some(mut input) = input {
             self.seat_idle_input(&mut input);
-            input.input_data.append(&mut self.queued_flags);
+            self.add_queued_flags(&mut input);
             self.client.send(&input);
         }
         if let Some(pause) = step.stall {
@@ -55,7 +67,9 @@ impl Bot {
     }
 
     fn physics_tick(&mut self) {
+        let elytra = self.wears_elytra();
         let (Some(world), Some(movement)) = (&self.world, &mut self.movement) else { return };
+        movement.elytra = elytra;
         let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return };
         if !movement.is_started() {
             let p = &self.state.player;
@@ -85,13 +99,19 @@ impl Bot {
         if !self.state.player.alive {
             return;
         }
+        let worn = crate::movement::equipment::worn(&self.state.inventory, &self.state.items);
+        if movement.set_equipment(worn)
+            && let Some(r) = &mut self.recorder
+        {
+            r.write(&trace::Event::Equipment(worn));
+        }
         let pending = std::mem::take(&mut movement.pending_actions);
         if let Some(mut input) = movement.tick(&PhysicsWorld { view, registry }) {
             if let Some(r) = &mut self.recorder {
                 r.input(&input);
             }
             crate::movement::attach_actions(&mut input, pending);
-            input.input_data.append(&mut self.queued_flags);
+            self.add_queued_flags(&mut input);
             self.client.send(&input);
         }
     }

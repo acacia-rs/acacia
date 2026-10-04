@@ -35,6 +35,7 @@ impl Bot {
             return false;
         }
         let Some(seat) = Seat::of(&self.state) else {
+            self.ride.horse = None;
             if let Some(idle) = self.ride.idle.take() {
                 let eye = self.state.player.eye_position();
                 let feet = self.ride.leaving_feet.take().unwrap_or([eye.x, eye.y - EYE_HEIGHT, eye.z]);
@@ -55,7 +56,10 @@ impl Bot {
         let idle = self.ride.idle.get_or_insert_with(|| Idle::continuing(movement.input_tick()));
         if let Some(mut input) = idle.tick_facing(&self.state.player, yaw, pitch, true) {
             self.seat_input(&mut input, &seat, Some(exit));
-            input.input_data.append(&mut self.queued_flags);
+            if self.state.riding.is_riding() {
+                self.drive_horse(&mut input);
+            }
+            self.add_queued_flags(&mut input);
             self.client.send(&input);
         }
         true

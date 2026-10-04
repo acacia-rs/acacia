@@ -14,10 +14,11 @@ pub const BED_BOUNCE_MULTIPLIER: f32 = -0.75;
 pub const CLIMB_SPEED: f32 = 0.2;
 pub const MAX_CONSUMING_IMPULSE: f32 = 0.1225;
 pub const MAX_SNEAK_IMPULSE: f32 = 0.3;
+/// The forward input a sprint start needs and the input length keeping one needs (BDS, 1/sqrt 2).
+pub const SPRINT_MIN_IMPULSE: f32 = std::f32::consts::FRAC_1_SQRT_2;
 pub const DEFAULT_UNDERWATER_MOVEMENT_SPEED: f32 = 0.02;
 pub const DEFAULT_LAVA_MOVEMENT_SPEED: f32 = 0.02;
 pub const DEFAULT_SWIM_SPEED_MULTIPLIER: f32 = 1.0;
-pub const GLIDE_HORIZONTAL_LOOK_EPSILON: f32 = 1e-4;
 pub(crate) const GLIDE_FALL_DISTANCE_VELOCITY_THRESHOLD: f32 = -0.5;
 /// Air acceleration picked by the sprint flag alone; it never scales with the movement attribute.
 pub const WALK_AIR_SPEED: f32 = 0.02;
@@ -25,14 +26,19 @@ pub const SPRINT_AIR_SPEED: f32 = 0.026;
 pub const WATER_DRAG: f32 = 0.8;
 pub const DEFAULT_MOVEMENT_SPEED: f32 = 0.1;
 pub const SPRINT_SPEED_MULTIPLIER: f32 = 1.3;
+/// BDS freezing: +1/140 a tick in powder snow, -1/70 out of it; the movement attribute takes
+/// freeze * -0.05 ("Freeze effect").
+pub const FREEZE_GAIN: f32 = 1.0 / 140.0;
+pub const FREEZE_LOSS: f32 = 1.0 / 70.0;
+pub const FREEZE_SPEED_MODIFIER: f32 = -0.05;
 
 pub const DEFAULT_PLAYER_WIDTH: f32 = 0.6;
 pub const DEFAULT_PLAYER_HEIGHT: f32 = 1.8;
 pub const SNEAKING_PLAYER_HEIGHT: f32 = 1.49;
 pub const CRAWLING_PLAYER_HEIGHT: f32 = 0.6;
 
-/// Eye offsets above the feet; `PlayerAuthInput.position` is feet + this.
-pub const DEFAULT_PLAYER_HEIGHT_OFFSET: f32 = 1.62;
+/// Eye offsets above the feet; `PlayerAuthInput.position` is feet + this. 1.62001 is BDS's (see README).
+pub const DEFAULT_PLAYER_HEIGHT_OFFSET: f32 = 1.62001;
 pub const SNEAKING_PLAYER_HEIGHT_OFFSET: f32 = 1.27;
 pub const COMPACT_PLAYER_HEIGHT_OFFSET: f32 = 0.4;
 

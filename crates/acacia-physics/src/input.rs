@@ -60,16 +60,32 @@ pub(crate) struct Surroundings {
     pub stand_fits: bool,
 }
 
+/// The sneak's share of the move input on its `ticks`-th tick: Swift Sneak adds from the third.
+fn sneak_impulse(st: &PlayerState, ticks: i32) -> f32 {
+    let mut sneak = MAX_SNEAK_IMPULSE;
+    if ticks > 2 && st.equipment.swift_sneak != 0 {
+        sneak += 0.15 * st.equipment.swift_sneak as f32;
+    }
+    clamp(sneak, 0.0, 1.0)
+}
+
 impl Input {
     /// Mirrors `toInputState` in tools/diffharness/main.go.
     pub(crate) fn frame(&self, st: &PlayerState, env: &Surroundings) -> Frame {
         let Surroundings { in_water, swim_start_submerged: eyes_in_water, swim_surfacing, stand_fits } = *env;
-        // Sneaking blocks a sprint start, and also on its release tick (see `apply_input`); it ends a
-        // sprint only out of water, where it means crouch rather than sink.
-        let sneak = self.sneak || st.sneaking;
+        // BDS `IntentSprintTriggerSystem` tests the move input after normalising and the sneak slowdown
+        // (also on the sneak's release tick, see `apply_input`; not in water, where sneak means sink).
+        let slowed = (self.sneak || st.sneaking) && !in_water;
+        let scale = if slowed { sneak_impulse(st, st.ticks_since_can_slowdown + 1) } else { 1.0 };
+        let len = self.move_vector[0].hypot(self.move_vector[1]);
+        let [strafe, forward] = self.move_vector.map(|c| c / len.max(1.0) * scale);
+        let enough = if st.sprinting {
+            forward > 0.0 && strafe.abs() <= SPRINT_MIN_IMPULSE && strafe.hypot(forward) >= SPRINT_MIN_IMPULSE
+        } else {
+            forward >= SPRINT_MIN_IMPULSE
+        };
         // The sprint before the jump-in-water rule: it decides a swim start (vanilla capture 6-1).
-        let wants = self.sprint && self.move_vector[1] > 0.0 && !st.sprint_movement_blocked;
-        let wanted = if st.sprinting { wants && (!sneak || in_water) } else { wants && !sneak };
+        let wanted = self.sprint && enough && !st.sprint_movement_blocked;
         // A jump held last tick in water then ends that sprint or cancels its start (StartSprinting and
         // StopSprinting on one tick).
         let jump_in_water = in_water && !st.swimming && st.pressing_jump;
@@ -77,10 +93,12 @@ impl Input {
         // BDS `SwimTriggerSystem`: sprinting with the breathing point under water starts a swim (see
         // `swim_start_submerged`); it stops, only while standing up fits, on no movement, out of water or surfacing.
         let moving = self.move_vector != [0.0, 0.0];
-        let keep_swim = !stand_fits || in_water && moving && !swim_surfacing;
+        // Releasing the sprint input ends the swim and its sprint together (strict BDS fuzz: the server's
+        // drag and gravity turn non-swimming on that tick); a ceiling too low to stand keeps both.
+        let keep_swim = !stand_fits || in_water && moving && !swim_surfacing && self.sprint;
         let swim = self.swim || if st.swimming { keep_swim } else { wanted && eyes_in_water };
-        // While swimming, the sprint ends only out of water (with StopSwimming), not when the input stops.
-        let keeps = if st.swimming { in_water } else { sprinting };
+        // While swimming, the sprint ends only with the swim's input or out of water (with StopSwimming).
+        let keeps = if st.swimming { in_water && (self.sprint || !stand_fits) } else { sprinting };
         let starts = !st.sprinting && wanted;
         Frame {
             move_vector: self.move_vector,
@@ -127,24 +145,10 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         st.pressing_descend = f.sneak_down;
         st.want_down = f.want_down;
 
-        let mut adjust_speed = false;
         st.sprint_start_cancelled = f.start_sprinting && f.stop_sprinting;
-        if f.start_sprinting && f.stop_sprinting {
-            adjust_speed = true;
-            st.sprinting = false;
-        } else if f.start_sprinting {
-            st.sprinting = true;
-            adjust_speed = true;
-        } else if f.stop_sprinting {
-            st.sprinting = false;
-            adjust_speed = !st.server_updated_speed;
-        }
-        if adjust_speed {
-            st.server_updated_speed = false;
-            st.movement_speed = st.default_movement_speed;
-            if st.sprinting {
-                st.movement_speed *= SPRINT_SPEED_MULTIPLIER;
-            }
+        if f.start_sprinting || f.stop_sprinting {
+            st.sprinting = f.start_sprinting && !f.stop_sprinting;
+            st.refresh_movement_speed();
         }
         st.air_speed = effective_air_speed(st);
 
@@ -181,7 +185,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         }
 
         let was_swimming = st.swimming;
-        st.stopped_swimming_this_tick = was_swimming && f.stop_swimming;
+        st.swam_before_input = was_swimming;
         if f.stop_swimming {
             st.swimming = false;
             st.swim_exit_jump_delay = JUMP_DELAY_TICKS;
@@ -204,15 +208,14 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         // BDS keeps the sneak slowdown on the tick sneaking stops (bedsim drops it at once), and skips
         // it in water, where sneak means sink.
         let in_water = !self.touching_liquid_blocks(st, crate::world::LiquidKind::Water).is_empty();
-        let sneak_slowed = (was_sneaking || st.sneaking) && !in_water;
-        // A crawl slows from the tick after it starts (vanilla capture).
-        if sneak_slowed || was_crawling || st.gliding {
+        let sneak_held = was_sneaking || st.sneaking;
+        // A crawl slows from the tick after it starts (vanilla capture). Sneak ticks in water still count
+        // towards Swift Sneak (strict BDS fuzz).
+        if sneak_held || was_crawling || st.gliding {
             st.ticks_since_can_slowdown += 1;
-            let mut sneak = MAX_SNEAK_IMPULSE;
-            if st.ticks_since_can_slowdown > 2 && st.equipment.swift_sneak != 0 {
-                sneak += 0.15 * st.equipment.swift_sneak as f32;
+            if !in_water || was_crawling || st.gliding {
+                max_impulse *= sneak_impulse(st, st.ticks_since_can_slowdown);
             }
-            max_impulse *= clamp(sneak, 0.0, 1.0);
         } else {
             st.ticks_since_can_slowdown = 0;
         }

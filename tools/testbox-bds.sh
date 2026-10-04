@@ -16,8 +16,7 @@ pack_uuid=$(sed -n 's/.*"uuid": "\(.*\)",/\1/p' "$root/tools/actiontest-pack/man
 opts="-o ConnectTimeout=20 -o ServerAliveInterval=10"
 retry() { for i in 1 2 3 4 5; do "$@" && return 0; echo "retry $i: $1" >&2; sleep 3; done; return 1; }
 remote() { retry ssh $opts testbox "$1"; }
-# Remote prelude: cd into the instance; `mine <regex>` = pids matching it that run in this instance's dir.
-here="cd $dir || exit; mine() { for p in \$(pgrep -f \"\$1\"); do [ \"\$(readlink /proc/\$p/cwd)\" = \"\$PWD\" ] && echo \$p; done; };"
+ctl() { ssh $opts testbox "cd $dir && bash -s $1" <"$root/tools/bds-ctl.sh"; }
 
 props="server-name=actiontest
 gamemode=survival
@@ -53,15 +52,8 @@ case "${1:-}" in
     printf '%s\n' "$props" | retry ssh $opts testbox "cd $dir || exit; cat > props.new; awk -F= 'NR==FNR{k[\$1]=1; print; next} !(\$1 in k)' props.new server.properties > p.tmp && mv p.tmp server.properties; rm props.new" || exit 1
     install_pack ;;
   pack) install_pack ;;
-  start)
-    # Console input goes through a fifo (`cmd`); the cat loop reopens it after each writer.
-    remote "$here [ -n \"\$(mine '^\./bedrock_server')\" ] && { echo already running; exit; }; rm -f console; mkfifo console; { nohup sh -c 'while true; do cat console; done | LD_LIBRARY_PATH=. ./bedrock_server' >bds.log 2>&1 </dev/null & }"
-    remote "for i in \$(seq 30); do grep -q 'Server started' $dir/bds.log && break; sleep 1; done; tail -n 5 $dir/bds.log" ;;
-  stop)
-    # The feed loop outlives a crashed server, so it is killed either way.
-    remote "$here if [ -n \"\$(mine '^\./bedrock_server')\" ]; then echo stop > console; for i in \$(seq 20); do [ -z \"\$(mine '^\./bedrock_server')\" ] && break; sleep 1; done; kill \$(mine '^\./bedrock_server') 2>/dev/null; fi; kill \$(mine '^sh -c while true; do cat console') 2>/dev/null; true" ;;
+  start|stop|reset) retry ctl "$1" ;;
   restart) "$0" stop; "$0" start ;;
-  reset) remote "cd $dir && rm -rf worlds/actions/db worlds/actions/level.dat* worlds/actions/levelname.txt" ;;
   log) remote "tail -n ${2:-60} $dir/bds.log" ;;
   cmd) shift; remote "echo $(printf '%q ' "$@") > $dir/console" ;;
   *) sed -n '2,7p' "$0"; exit 2 ;;

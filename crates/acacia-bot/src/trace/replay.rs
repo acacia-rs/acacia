@@ -64,12 +64,29 @@ impl CorrectionDiff {
     }
 }
 
+/// Server corrections within this of our position are periodic resyncs, not mismatches.
+pub const CORRECTION_TOLERANCE: f32 = 0.001;
+/// Farther than any tick of movement: BDS applied a `/tp` it has not sent us yet (it can lag many ticks).
+const TELEPORT_LAG_DISTANCE: f32 = 4.0;
+
 #[derive(Debug, Default)]
 pub struct Report {
     pub ticks: usize,
     /// Ticks off the recording by more than the tolerance.
     pub diverged: Vec<TickDiff>,
     pub corrections: Vec<CorrectionDiff>,
+}
+
+impl Report {
+    /// Corrections we disagree with beyond `tolerance`, and those skipped as teleport lags.
+    pub fn correction_mismatches(&self, tolerance: f32) -> (Vec<&CorrectionDiff>, Vec<&CorrectionDiff>) {
+        let (lagged, mismatches) = self
+            .corrections
+            .iter()
+            .filter(|c| c.mismatch(tolerance))
+            .partition(|c| c.error().is_some_and(|e| e > TELEPORT_LAG_DISTANCE));
+        (mismatches, lagged)
+    }
 }
 
 /// Replays a trace through [`Movement`] with the recorded controls. With `resync`, the state is reset
@@ -93,6 +110,9 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     for event in events {
         match event {
             Event::Mark(label) => mark = Some(label.clone()),
+            Event::Equipment(worn) => {
+                movement.set_equipment(*worn);
+            }
             Event::Start { feet, yaw, pitch } => movement.start(*feet, *yaw, *pitch),
             Event::Packet(p) => {
                 if p.id == ClientCacheMissResponse::ID
@@ -150,7 +170,9 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                     continue;
                 }
                 movement.align_tick(rec.tick);
-                movement.controls = controls_of(&rec);
+                movement.controls = controls_of(&rec, movement.controls.glide);
+                // Traces don't record armour; a glide start means an elytra was worn.
+                movement.elytra |= rec.input_data.contains(&F::StartGliding);
                 movement.recorded_want_down = Some(rec.input_data.contains(&F::WantDown));
                 let (Some(view), Some(registry)) = (world.view(), world.registry()) else { continue };
                 let Some(out) = movement.tick(&PhysicsWorld { view, registry }) else { continue };
@@ -285,8 +307,9 @@ fn block_map(view: &impl acacia_world::BlockAccess, registry: &acacia_world::Blo
     out
 }
 
-/// The held controls a `PlayerAuthInput` reports.
-fn controls_of(p: &PlayerAuthInput) -> Controls {
+/// The held controls a `PlayerAuthInput` reports. Gliding shows only as Start/StopGliding edges, so it
+/// carries over from `gliding`, the previous input's state.
+fn controls_of(p: &PlayerAuthInput, gliding: bool) -> Controls {
     let has = |f: F| p.input_data.contains(&f);
     let axis = |pos: bool, neg: bool| f32::from(u8::from(pos)) - f32::from(u8::from(neg));
     Controls {
@@ -294,7 +317,9 @@ fn controls_of(p: &PlayerAuthInput) -> Controls {
         strafe: axis(has(F::Left), has(F::Right)),
         jump: has(F::JumpDown),
         sneak: has(F::SneakDown),
-        sprint: has(F::SprintDown),
+        // BDS reads `Sprinting`, not `SprintDown`, as the sprint intent: a bot may send its sprint state there.
+        sprint: has(F::Sprinting),
+        glide: (gliding || has(F::StartGliding)) && !has(F::StopGliding),
         yaw: p.yaw,
         pitch: p.pitch,
     }

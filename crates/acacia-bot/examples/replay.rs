@@ -1,26 +1,22 @@
 //! Replays a recorded movement trace offline and reports, per mark (drill), the ticks that no longer
 //! match the recording and the server corrections the replayed simulation disagrees with.
-//! `cargo run -p acacia-bot --example replay -- <trace> [--resync] [--tolerance 0.0001] [--verbose]`
+//! `cargo run -p acacia-bot --example replay -- <trace> [--resync] [--tolerance 0.0001] [--correction-tolerance 0.001] [--verbose]`
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use acacia_bot::trace;
-
-/// Server corrections within this of our position are periodic resyncs, not mismatches.
-const CORRECTION_TOLERANCE: f32 = 0.001;
-/// Farther than any tick of movement: BDS applied a `/tp` it has not sent us yet (it can lag many ticks).
-const TELEPORT_LAG_DISTANCE: f32 = 4.0;
+use acacia_bot::trace::{self, CORRECTION_TOLERANCE};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).without_time().with_ansi(false).try_init();
     let mut path = None;
-    let (mut resync, mut verbose, mut tolerance) = (false, false, 1e-4);
+    let (mut resync, mut verbose, mut tolerance, mut correction_tolerance) = (false, false, 1e-4, CORRECTION_TOLERANCE);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--resync" => resync = true,
             "--verbose" => verbose = true,
             "--tolerance" => tolerance = args.next().ok_or("--tolerance needs a value")?.parse()?,
+            "--correction-tolerance" => correction_tolerance = args.next().ok_or("--correction-tolerance needs a value")?.parse()?,
             _ => path = Some(PathBuf::from(a)),
         }
     }
@@ -33,11 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         e.0 += 1;
         e.2 = e.2.max(dist(d.ours, d.recorded));
     }
-    let (lagged, mismatches): (Vec<_>, Vec<_>) = report
-        .corrections
-        .iter()
-        .filter(|c| c.mismatch(CORRECTION_TOLERANCE))
-        .partition(|c| c.error().is_some_and(|e| e > TELEPORT_LAG_DISTANCE));
+    let (mismatches, lagged) = report.correction_mismatches(correction_tolerance);
     for c in &mismatches {
         per_mark.entry(label(&c.mark)).or_default().1 += 1;
     }

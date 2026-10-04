@@ -45,8 +45,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// Liquid cells the shrunk box overlaps, however shallow the liquid: BDS (and Boar) push a player
     /// standing in the thinnest puddle, where bedsim requires the box to reach below the surface.
     pub(crate) fn touching_liquid_blocks(&self, st: &PlayerState, kind: LiquidKind) -> Vec<BlockPos> {
+        self.liquid_blocks_touching(st.liquid_box.unwrap_or_else(|| st.bounding_box()), kind)
+    }
+
+    /// [`Self::touching_liquid_blocks`] for an explicit player box.
+    pub(crate) fn liquid_blocks_touching(&self, player_box: Aabb, kind: LiquidKind) -> Vec<BlockPos> {
         let o = if kind == LiquidKind::Lava { [0.1, 0.4, 0.1] } else { [0.001, 0.401, 0.001] };
-        let bb = shrink(st.liquid_box.unwrap_or_else(|| st.bounding_box()), o);
+        let bb = shrink(player_box, o);
         let min = block_pos(bb.min);
         let max = [(bb.max[0] + 1.0).floor() as i32, (bb.max[1] + 1.0).floor() as i32, (bb.max[2] + 1.0).floor() as i32];
         let mut out = Vec::new();
@@ -122,7 +127,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// BDS `SwimTriggerSystem`'s look-up stop: swimming with the breathing point (the swim eye) in an air block
     /// while looking up more than 45° by its measure, acos(cos²(pitch)) (pitch above ~32.8°).
     pub(crate) fn swim_surfacing(&self, st: &PlayerState) -> bool {
-        let a = st.pitch * -PI32 / 180.0;
+        let a = st.prev_pitch * -PI32 / 180.0;
         let (look_y, horizontal) = (mc_sin(a), mc_cos(a));
         look_y > 0.0
             && (horizontal * horizontal).acos() * 57.29578 > 45.0

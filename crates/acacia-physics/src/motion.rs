@@ -120,7 +120,8 @@ pub(crate) fn set_post_collision_motion(st: &mut PlayerState, old: Vec3, old_on_
     st.set_vel(v);
 }
 
-/// Elytra flight acceleration (vanilla `travel` gliding branch).
+/// Elytra flight acceleration as BDS computes it (docs/research/riding-fishing-elytra.md): the look vector
+/// from -pitch, its true horizontal length, gravity in BDS's form.
 pub(crate) fn simulate_glide(st: &mut PlayerState) {
     if st.vel[1] > GLIDE_FALL_DISTANCE_VELOCITY_THRESHOLD {
         st.fall_distance = 1.0;
@@ -129,29 +130,32 @@ pub(crate) fn simulate_glide(st: &mut PlayerState) {
     let (yaw, pitch) = (st.yaw * radians, st.pitch * radians);
     let yaw_cos = mc_cos(-yaw - PI32);
     let yaw_sin = mc_sin(-yaw - PI32);
+    // The table index of cos(-p) can differ from cos(p)'s by one step.
+    let look_pitch_cos = mc_cos(-pitch);
+    let look = [yaw_sin * -look_pitch_cos, mc_sin(-pitch), yaw_cos * -look_pitch_cos];
     let pitch_cos = mc_cos(pitch);
-    let pitch_sin = mc_sin(pitch);
-    let look = [yaw_sin * -pitch_cos, -pitch_sin, yaw_cos * -pitch_cos];
 
     let mut v = st.vel;
     let vel_hz = (v[0] * v[0] + v[2] * v[2]).sqrt();
-    let look_hz = pitch_cos;
+    let look_hz_sq = look[0] * look[0] + look[2] * look[2];
+    let look_hz = look_hz_sq.sqrt();
     let sqr_pitch_cos = pitch_cos * pitch_cos;
     let gravity = if st.slow_falling { SLOW_FALLING_GRAVITY } else { st.gravity };
-    v[1] += -gravity + sqr_pitch_cos * (gravity * 0.75);
-    if v[1] < 0.0 && look_hz > GLIDE_HORIZONTAL_LOOK_EPSILON {
+    v[1] -= (0.75 * sqr_pitch_cos + -1.0) * -gravity;
+    if v[1] < 0.0 && look_hz_sq > 0.0 {
         let y_accel = v[1] * -0.1 * sqr_pitch_cos;
         v[1] += y_accel;
         v[0] += look[0] * y_accel / look_hz;
         v[2] += look[2] * y_accel / look_hz;
     }
-    if pitch < 0.0 && look_hz > GLIDE_HORIZONTAL_LOOK_EPSILON {
-        let y_accel = vel_hz * -pitch_sin * 0.04;
+    // BDS has no horizontal guard here; looking straight up would divide by zero.
+    if pitch < 0.0 && look_hz_sq > 0.0 {
+        let y_accel = vel_hz * -mc_sin(pitch) * 0.04;
         v[1] += y_accel * 3.2;
         v[0] -= look[0] * y_accel / look_hz;
         v[2] -= look[2] * y_accel / look_hz;
     }
-    if look_hz > GLIDE_HORIZONTAL_LOOK_EPSILON {
+    if look_hz_sq > 0.0 {
         v[0] += (look[0] / look_hz * vel_hz - v[0]) * 0.1;
         v[2] += (look[2] / look_hz * vel_hz - v[2]) * 0.1;
     }
