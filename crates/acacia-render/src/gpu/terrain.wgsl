@@ -1,6 +1,6 @@
 // Terrain quads by vertex pulling: 6 vertices per quad, no vertex or index buffers.
 // Quad layout: see src/mesh/quad.rs. The instance index is the section slot.
-// Follows globals.wgsl; light.wgsl follows.
+// Follows globals.wgsl; light.wgsl and model.wgsl follow.
 
 @group(0) @binding(1) var<storage, read> quads: array<u32>;
 @group(0) @binding(2) var<storage, read> origins: array<vec4<i32>>;
@@ -48,6 +48,9 @@ struct VsOut {
 fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -> VsOut {
     let q = vi / 6u;
     let w0 = quads[q * 3u];
+    if (w0 & MODEL) != 0u {
+        return model_vertex(q, vi, slot);
+    }
     let w1 = quads[q * 3u + 1u];
     let w2 = quads[q * 3u + 2u];
     let local = vec3<f32>(f32(w0 & 511u), f32((w0 >> 9u) & 511u), f32((w0 >> 18u) & 511u));
@@ -78,9 +81,12 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
             let h = f32((w1 >> (select(at.x, 3u - at.x, at.y == 1u) * 4u)) & 15u) * (16.0 / 15.0);
             pos.y = local.y + select(c.y * h, h, level);
         }
+        let pu = dot(pos, u);
         let pv = dot(pos, v);
-        // Side textures run top-down; the repeat sampler tiles them per block.
-        uv = vec2(dot(pos, u), select(-pv, pv, level)) / 16.0;
+        // Java's face UVs, so a texture reads the same from outside on every side: east and north
+        // run against their u axis, sides top-down, the bottom against z. The repeat sampler
+        // tiles them per block.
+        uv = vec2(select(pu, -pu, face == 0u || face == 5u), select(-pv, pv, face == 2u)) / 16.0;
         let turn = w2 & 255u;
         if liquid && level && turn != 0u {
             let a = f32(turn - 1u) * (6.2831853 / 255.0);

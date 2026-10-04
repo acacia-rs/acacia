@@ -1,12 +1,17 @@
 //! Render shapes. Vanilla block shapes are hard-coded in the game, not in the resource pack, so
 //! solid blocks use their collision boxes and collisionless ones get a small hand-written table.
 
+use std::sync::Arc;
+
 use acacia_world::BlockState;
+use serde::{Deserialize, Serialize};
+
+use super::{Material, Tint};
 
 /// Box in 1/16 block units: min xyz, max xyz.
 pub type Box16 = [u8; 6];
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Shape {
     None,
     Cube,
@@ -15,6 +20,26 @@ pub enum Shape {
     Cross,
     /// Water or lava; the surface height comes from the state.
     Liquid,
+    /// A baked model: faces that carry their own texture, tint and material.
+    Model(Arc<[ModelFace]>),
+}
+
+/// One face of a [`Shape::Model`], a parallelogram.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelFace {
+    /// Corners 0, 1 and 3 in 1/16 block, counter-clockwise seen from the front; the block spans
+    /// 0..16 and a face may reach a block beyond it.
+    pub corners: [[f32; 3]; 3],
+    /// Texels at those corners.
+    pub uv: [[f32; 2]; 3],
+    pub texture: u16,
+    pub tint: Tint,
+    pub material: Material,
+    /// The axis face it is shaded and lit as ([`crate::assets::FACE_NAMES`] order); `None` takes
+    /// no directional shade.
+    pub shade: Option<u8>,
+    /// Hidden when the neighbour on this side occludes.
+    pub cull: Option<u8>,
 }
 
 const INVISIBLE: &[&str] = &[

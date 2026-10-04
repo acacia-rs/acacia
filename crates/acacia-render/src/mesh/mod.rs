@@ -3,6 +3,7 @@
 
 mod greedy;
 mod liquid;
+pub mod model;
 pub mod quad;
 mod shapes;
 pub mod visibility;
@@ -42,7 +43,7 @@ pub fn mesh_section(volume: &Volume, table: &BlockTable, biomes: &BiomeColors) -
     let mut out = SectionMesh { visibility: visibility::section_visibility(volume, table), ..Default::default() };
     greedy::cubes(&ctx, &mut out);
     shapes::others(&ctx, &mut out);
-    out.translucent.sort_by_key(|q| q.blend_order());
+    model::sort_for_blending(&mut out.translucent);
     out
 }
 

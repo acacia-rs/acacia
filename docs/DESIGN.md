@@ -24,7 +24,7 @@ Research behind these decisions: `docs/research/`.
 | Auth | Separate `acacia-auth` crate | Device code, Xbox/XSTS, PlayFab, session/start and the multiplayer token, with a pluggable `TokenCache`. Offline mode for tests. Browser or password logins stay outside and hand in tokens |
 | Proxies | SOCKS5 UDP relay per client, in v1 | Lets bots spread across IPs. The auth HTTP calls can use the same proxy |
 | Performance | Targets set after v1 works | Keep the hot path free of allocation and copying. The benchmark setup (fake server, replayed traffic, CI tracking) comes in the optimization phase |
-| License | MIT; ported code keeps its notice (`acacia-physics/LICENSE-bedsim`) | Never port from GPL/LGPL sources (Pumpkin's NetherNet, PocketMine, PowerNukkitX); citing their behaviour is fine |
+| License | MIT; ported code keeps its notice (`acacia-physics/LICENSE-bedsim`) | Never port from GPL/LGPL sources (Pumpkin's NetherNet, PocketMine, PowerNukkitX); citing their behaviour is fine. One exception: `tools/lookbake` is GPL-3.0-or-later and holds what is ported from Pomme (`LICENSE-pomme`). It is a separate program that no crate depends on (docs/java-look.md "Licensing") |
 
 ## Crates (dependencies point downward only, no cycles)
 

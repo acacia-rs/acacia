@@ -159,14 +159,24 @@ viewer drawing from a saved pack with no resource pack present. Two things diffe
   code ported from Pomme has to live in the tool.
 
 J0 is a refactor of `acacia-render`'s loaders with no visible change, and is the step that proves the
-format. J0 and J1 touch `acacia-render`; under the one-agent-per-area rule they are done by, or
+format. J1 so far: `lookbake java` writes `assets/looks/java`. It starts from the Bedrock look and replaces
+every state whose Java model has geometry: 21,269 of 22,091 states (934 as greedy-meshed cubes, the
+rest as model faces), with 1,171 texture layers after compaction. Kept on Bedrock rendering: 382
+states drawn as block entities, 64 liquids, 193 with no Java geometry, and 183 whose model lays one
+face over another (grass block sides under their overlay). Left in J1:
+
+- Model faces take no ambient occlusion, weighted variants take the first, and `uvlock` re-projects
+  the texture (exact only for faces textured by position).
+- Tints are still the Bedrock look's, by Bedrock block name: Java-only tinted blocks (lily pads,
+  stems, redstone wire) come out untinted, and water keeps Bedrock's colours and textures.
+- Biome blend radius, mip cap, cutout threshold and the second fog band from "Parameters".
+- `pack.json` is 36 MB for the Java look; model faces want a binary encoding.
+
+J0 and J1 touch `acacia-render`; under the one-agent-per-area rule they are done by, or
 handed over from, whoever holds the render area. J2 onward are new areas (`ui`, `entities`).
 
 ## Open items
 
-- J1's renderer half: Java models have rotated elements and per-face UV rectangles, which the packed
-  quad (axis-aligned, UV from position) cannot hold. It needs a general quad in the mesh format and
-  the terrain shader, which is the render area's code.
 - The jar lacks sounds, other languages and the Unifont glyphs; those come from Mojang's asset index.
 - Pack encoding: JSON plus PNG strips for now (about 5 MB for Bedrock, 4 MB of it `pack.json`).
   Revisit if loading is slow or once baked quads make the table much larger.

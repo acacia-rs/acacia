@@ -51,7 +51,7 @@ mod tests {
 
     /// Every shader module, as the pipelines assemble them.
     const MODULES: [(&str, &str); 3] = [
-        ("terrain", concat!(include_str!("globals.wgsl"), include_str!("terrain.wgsl"), include_str!("light.wgsl"))),
+        ("terrain", concat!(include_str!("globals.wgsl"), include_str!("terrain.wgsl"), include_str!("light.wgsl"), include_str!("model.wgsl"))),
         ("entity", concat!(include_str!("globals.wgsl"), include_str!("entity.wgsl"))),
         ("sky", concat!(include_str!("globals.wgsl"), include_str!("sky.wgsl"))),
     ];

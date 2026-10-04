@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::assets::Pack;
 use crate::assets::flipbook::{Animation, Atlas};
 use crate::assets::image::{Alpha, Texture};
-pub use shape::{Box16, Shape, short_name};
+pub use shape::{Box16, ModelFace, Shape, short_name};
 pub use tint::Tint;
 
 /// How a face's texture alpha is used; the value is the shader's material index.

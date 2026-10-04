@@ -1,51 +1,64 @@
-//! Bakes look packs for the renderer (docs/java-look.md).
-//! - `lookbake bedrock [pack dir] [out dir]`: the Bedrock look. Pack dir: `$ACACIA_ASSETS`, else
-//!   assets/vanilla (tools/fetch-vanilla-pack.sh). Out dir: `$ACACIA_LOOKS`, else assets/looks, then `bedrock`.
-//! - `lookbake fetch-java [dir]`: downloads the pinned Java client jar, unpacks its assets (jar.rs)
-//!   and downloads the Bedrock-to-Java block table (mapping.rs). Dir: `$ACACIA_JAVA_ASSETS`, else assets/java.
-//! - `lookbake java-report [dir]`: the same, then how many Bedrock block states reach a Java model.
+//! Bakes look packs for the renderer (docs/java-look.md). Directories default to: the Bedrock
+//! pack `$ACACIA_ASSETS`, else assets/vanilla (tools/fetch-vanilla-pack.sh); Java assets
+//! `$ACACIA_JAVA_ASSETS`, else assets/java; looks `$ACACIA_LOOKS`, else assets/looks.
+//! - `lookbake bedrock [pack dir] [out dir]`: the Bedrock look.
+//! - `lookbake java [pack dir] [java dir] [out dir]`: the Java look (java.rs), fetching what it needs.
+//! - `lookbake fetch-java [java dir]`: downloads the pinned Java client jar, unpacks its assets
+//!   (jar.rs) and downloads the Bedrock-to-Java block table (mapping.rs).
+//! - `lookbake java-report [java dir]`: the same, then how many Bedrock block states reach a Java model.
 
 mod blockstate;
 mod download;
 mod jar;
+mod java;
 mod mapping;
+mod model;
 mod report;
+mod textures;
 
 use std::path::PathBuf;
 
 use acacia_render::assets::Pack;
 use acacia_render::{Look, LookPack};
 
-const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | lookbake fetch-java [dir] | lookbake java-report [dir]";
+use download::Error;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-report [java dir]";
+
+fn main() -> Result<(), Error> {
     let mut args = std::env::args().skip(1);
-    match args.next().as_deref() {
-        Some("bedrock") => bake_bedrock(args.next(), args.next()),
-        Some(command @ ("fetch-java" | "java-report")) => {
-            let dir = args.next().map_or_else(jar::default_dir, PathBuf::from);
-            let assets = jar::fetch(&dir)?;
-            let mapping = mapping::Mapping::fetch(&dir)?;
-            println!("Java {} assets: {}", jar::VERSION, assets.display());
-            if command == "java-report" { report::print(&assets, &mapping) } else { Ok(()) }
+    let command = args.next();
+    let mut dir = |default: fn() -> PathBuf| args.next().map_or_else(default, PathBuf::from);
+    match command.as_deref() {
+        Some("bedrock") => {
+            let (pack, out) = (Pack::load(&dir(Pack::default_dir))?, dir(|| LookPack::default_dir("bedrock")));
+            let (look, report) = LookPack::bake_bedrock(&pack, Look::BEDROCK);
+            look.save(&out)?;
+            println!("{}; {} blocks without textures, {} images missing", summary(&look, &out), report.blocks_without_textures.len(), report.missing_images.len());
         }
-        _ => Err(USAGE.into()),
+        Some("java") => {
+            let (pack, java, out) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
+            let (assets, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
+            let (look, report) = java::bake_look(&pack, &assets, &mapping);
+            look.save(&out)?;
+            println!("{}", summary(&look, &out));
+            println!("  Java: {} states as cubes, {} as models; kept from Bedrock: {:?}", report.cubes, report.models, report.kept);
+            println!("  textures missing: {:?}; models invalid: {:?}", report.missing_textures, report.invalid_models);
+        }
+        Some(command @ ("fetch-java" | "java-report")) => {
+            let java = dir(jar::default_dir);
+            let (assets, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
+            println!("Java {} assets: {}", jar::VERSION, assets.display());
+            if command == "java-report" {
+                report::print(&assets, &mapping)?;
+            }
+        }
+        _ => return Err(USAGE.into()),
     }
+    Ok(())
 }
 
-fn bake_bedrock(assets: Option<String>, out: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let assets = assets.map_or_else(Pack::default_dir, PathBuf::from);
-    let out = out.map_or_else(|| LookPack::default_dir("bedrock"), PathBuf::from);
-    let (pack, report) = LookPack::bake_bedrock(&Pack::load(&assets)?, Look::BEDROCK);
-    pack.save(&out)?;
-    let (states, blocks) = pack.counts();
-    println!(
-        "{}: {states} states, {blocks} distinct blocks, {} textures ({} animated); {} blocks without textures, {} images missing",
-        out.display(),
-        pack.atlas.layers.len(),
-        pack.atlas.animations.len(),
-        report.blocks_without_textures.len(),
-        report.missing_images.len(),
-    );
-    Ok(())
+fn summary(look: &LookPack, out: &std::path::Path) -> String {
+    let (states, blocks) = look.counts();
+    format!("{}: {states} states, {blocks} distinct blocks, {} textures ({} animated)", out.display(), look.atlas.layers.len(), look.atlas.animations.len())
 }

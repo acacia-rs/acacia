@@ -56,7 +56,13 @@ quads merge only within a uniform colour.
   each side, `FlowingFluid::getFlow`) shows the flowing texture turned downstream; at rest, the still one.
 - Quads are 12 bytes (`mesh/quad.rs`, tint colour as 7-bit sRGB per channel), pulled by vertex index in
   `gpu/terrain.wgsl`: no vertex or index buffers. UVs are world-aligned and tile per block through the repeat sampler, so merged quads need no
-  atlas math.
+  atlas math. They follow Java's face UVs, so a texture reads the same from outside on every side:
+  east and north run against their u axis, sides top-down, the bottom against z.
+- `Shape::Model` blocks (a look pack's baked models) emit their `ModelFace`s: parallelograms with
+  their own texture, texel UVs, tint, material, shade direction and cull side. A face takes three
+  records of the same buffer (`mesh/model.rs`, read by `gpu/model.wgsl`): bit 31 of w0 marks them,
+  and the two records after the first draw nothing themselves. Corners are stored to 1/1024 block,
+  UVs to 1/32 texel. Model faces take no ambient occlusion yet, and are lit like box faces.
 
 ## Lighting (`light/`)
 
@@ -224,6 +230,11 @@ them beside the baked data in the Bedrock pack's layout, and `LookPack::files` i
 a pack baked in memory). A saved pack therefore needs no resource pack to draw from.
 
 The viewer loads a baked pack when there is one, and otherwise bakes the Bedrock pack in memory.
+
+A look is built over another by replacing blocks: `LookPack::block` and `set_block` by state, then
+`compact`, which drops the blocks no state uses any more and the texture layers no block draws
+(the texture array is limited to 2048 layers here). `tools/lookbake java` builds the Java look that
+way from the Bedrock one (docs/java-look.md).
 
 ## Not yet
 

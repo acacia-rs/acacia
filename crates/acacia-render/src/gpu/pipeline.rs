@@ -14,7 +14,7 @@ impl Pipelines {
     pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("terrain"),
-            source: wgpu::ShaderSource::Wgsl(concat!(include_str!("globals.wgsl"), include_str!("terrain.wgsl"), include_str!("light.wgsl")).into()),
+            source: wgpu::ShaderSource::Wgsl(concat!(include_str!("globals.wgsl"), include_str!("terrain.wgsl"), include_str!("light.wgsl"), include_str!("model.wgsl")).into()),
         });
         let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
             binding,

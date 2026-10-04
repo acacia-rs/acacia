@@ -7,7 +7,10 @@
 //! Liquid faces ([`Quad::liquid`]) span a whole block, so they store other things: w1's size bits
 //! hold the surface height at the block's four corners (4 bits each, 1/15 block), w2's AO bits
 //! the turn of the surface texture.
+//!
+//! Bit 31 of w0 marks a model face, which takes three records laid out differently (`model.rs`).
 
+use super::model::{self, MODEL};
 use crate::blocks::Material;
 
 /// Face index: 0..6 are the axis faces in [`crate::assets::FACE_NAMES`] order, 6..10 the two
@@ -74,6 +77,9 @@ impl Quad {
 
     /// The axis face or cross plane this quad faces like: liquid faces map to their axis face.
     pub fn face(&self) -> u32 {
+        if self.0[0] & MODEL != 0 {
+            return self.0[0] & 15;
+        }
         let face = (self.0[0] >> 27) & 15;
         if face >= u32::from(LIQUID) { face - u32::from(LIQUID) } else { face }
     }
@@ -84,7 +90,7 @@ impl Quad {
     pub fn blend_order(&self) -> (u32, u32) {
         let face = self.face();
         let Some(&(axis, ..)) = AXES.get(face as usize) else { return (face, 0) };
-        let plane = (self.0[0] >> (axis * 9)) & 511;
+        let plane = if self.0[0] & MODEL != 0 { model::plane(self, axis) } else { (self.0[0] >> (axis * 9)) & 511 };
         (face, if face.is_multiple_of(2) { plane } else { 511 - plane })
     }
 }

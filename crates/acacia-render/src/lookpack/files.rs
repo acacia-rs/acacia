@@ -14,8 +14,8 @@ use crate::blocks::RenderBlock;
 use crate::entity::EntityModels;
 use crate::look::Look;
 
-/// Packs written as another version are refused; bake again.
-pub const VERSION: u64 = 1;
+/// Packs written as another version are refused; bake again. 2: model faces.
+pub const VERSION: u64 = 2;
 
 #[derive(Serialize, Deserialize)]
 struct PackFile {
@@ -90,7 +90,8 @@ impl LookPack {
             }
             animations.push(Animation { layer: a.layer, frames, ticks_per_frame: a.ticks_per_frame.max(1), blend: a.blend });
         }
-        Ok(LookPack { look: file.look, blocks: file.blocks, states: file.states.into_iter().collect(), atlas: Atlas { layers, animations }, files: dir.to_owned() })
+        let states = file.states.into_iter().collect();
+        Ok(LookPack { look: file.look, blocks: file.blocks, states, distinct: Default::default(), atlas: Atlas { layers, animations }, files: dir.to_owned() })
     }
 }
 
@@ -156,6 +157,7 @@ mod tests {
             look: Look::BEDROCK,
             blocks: vec![BlockTable::cube(0), BlockTable::cube(1)],
             states: [("minecraft:air".to_owned(), 0), ("minecraft:oak_log[pillar_axis=y]".to_owned(), 1)].into_iter().collect(),
+            distinct: Default::default(),
             atlas: Atlas { layers: vec![Texture::missing(), grey(10)], animations: vec![animation] },
             files: temp(&format!("{name}-loose")),
         }
@@ -189,7 +191,7 @@ mod tests {
         let dir = temp("version");
         sample("version").save(&dir).unwrap();
         let json = dir.join("pack.json");
-        let text = std::fs::read_to_string(&json).unwrap().replacen("\"version\":1", "\"version\":0", 1);
+        let text = std::fs::read_to_string(&json).unwrap().replacen(&format!("\"version\":{VERSION}"), "\"version\":0", 1);
         std::fs::write(&json, text).unwrap();
         let error = LookPack::load(&dir).err().expect("refused").to_string();
         std::fs::remove_dir_all(&dir).unwrap();
