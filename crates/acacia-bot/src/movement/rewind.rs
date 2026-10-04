@@ -130,6 +130,10 @@ impl History {
         self.entries.back().map_or(0.0, |e| e.after.freeze) - before
     }
 
+    pub(super) fn server_freeze(&self, tick: u64) -> Option<f32> {
+        self.freezes.at(tick)
+    }
+
     pub(super) fn effects(&mut self, tick: u64, effects: Effects) {
         self.effects.push(tick, effects, self.entries.front().map_or(0, |e| e.tick));
     }

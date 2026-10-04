@@ -45,8 +45,9 @@ pub struct CorrectionDiff {
     pub delta_err: Option<f32>,
     /// The eye position and velocity the recorded client sent for that tick (a real client's own physics).
     pub sent: Option<(Vec3, Vec3)>,
-    /// Explained by a teleport or knockback rather than a disagreement: a correction to a teleport's
-    /// target, or one for a tick the server moved us on before we heard of it.
+    /// Explained by what the client had not been sent yet rather than a disagreement: a correction to a
+    /// teleport's target, or one for a tick the server moved us on before we heard of it, froze us by an
+    /// amount it reported later, or simulated in a chunk we had not received.
     pub explained: bool,
     /// Non-air blocks around the server's position (both layers), for triage.
     pub blocks: String,
@@ -68,6 +69,8 @@ impl CorrectionDiff {
 pub const CORRECTION_TOLERANCE: f32 = 0.001;
 /// Farther than any tick of movement: BDS applied a `/tp` it has not sent us yet (it can lag many ticks).
 const TELEPORT_LAG_DISTANCE: f32 = 4.0;
+/// Ticks a freeze reported late keeps the position off by more than the tolerance.
+const FREEZE_CARRY: u64 = 2;
 
 #[derive(Debug, Default)]
 pub struct Report {
@@ -102,6 +105,8 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     // Our eye position and velocity per input tick.
     let mut ours: HashMap<u64, (Vec3, Vec3)> = HashMap::new();
     let mut sent: HashMap<u64, (Vec3, Vec3)> = HashMap::new();
+    // The freeze each input tick was simulated with; `None` in a chunk not received yet.
+    let mut frozen: HashMap<u64, Option<f32>> = HashMap::new();
     let mut mark: Option<String> = None;
     // (input tick it takes effect on, teleport target, our tick when it arrived)
     let mut moves: Vec<(u64, Option<Vec3>, u64)> = Vec::new();
@@ -155,7 +160,13 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                     let (pos, delta) = ours.get(&tick).map_or((None, None), |&(p, d)| (Some(p), Some(dist(d, vec3(&c.delta)))));
                     let sent = sent.get(&tick).copied();
                     tracing::trace!(tick, ours = ?ours.get(&tick).map(|&(_, d)| d), server = ?vec3(&c.delta), "correction delta");
-                    report.corrections.push(CorrectionDiff { tick, mark: mark.clone(), ours: pos, server, delta_err: delta, sent, explained: false, blocks });
+                    // A late freeze still shows in the position two ticks on.
+                    let explained = (tick.saturating_sub(FREEZE_CARRY)..=tick).any(|t| match frozen.get(&t) {
+                        Some(Some(used)) => movement.freeze_at(t).1.is_some_and(|f| (f - used).abs() > 1e-6),
+                        Some(None) => true,
+                        None => false,
+                    });
+                    report.corrections.push(CorrectionDiff { tick, mark: mark.clone(), ours: pos, server, delta_err: delta, sent, explained, blocks });
                 }
                 let _ = movement.apply(p, &state.me());
             }
@@ -179,6 +190,8 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                 let pos = vec3(&out.position);
                 ours.insert(out.tick, (pos, vec3(&out.delta)));
                 sent.insert(out.tick, (recorded, vec3(&rec.delta)));
+                let received = view.chunk((pos[0].floor() as i32) >> 4, (pos[2].floor() as i32) >> 4).is_some();
+                frozen.insert(out.tick, received.then(|| movement.freeze_at(out.tick).0));
                 last_tick = out.tick;
                 report.ticks += 1;
                 let delta_err = dist(vec3(&out.delta), vec3(&rec.delta));
@@ -198,7 +211,7 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
         });
     }
     for c in &mut report.corrections {
-        c.explained = moves.iter().any(|&(effect, target, arrived)| {
+        c.explained |= moves.iter().any(|&(effect, target, arrived)| {
             let at_target = target.is_some_and(|t| dist(t, c.server) < 1e-3);
             effect.abs_diff(c.tick) <= EVENT_WINDOW && (at_target || (effect <= c.tick && arrived >= c.tick))
         });

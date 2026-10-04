@@ -47,7 +47,10 @@ The loop:
 5. Make the rule unconditional, comment its evidence, list it in `crates/acacia-physics/README.md` if it departs from
    bedsim, add a trace that pins it to the regression set, and confirm with a fresh live fuzz.
 
-Not every mismatch is physics. BDS updates per-tick state (the powder snow freeze) once per server tick, so when the
-network bunches our inputs a tick runs on the next server tick's value; `tools/physics/dupstamp.sh <trace>` shows
-which mismatches follow such a tick. A vanilla client is corrected there too. `tools/physics/freeze.sh` compares the
-freeze counts per tick.
+Not every correction is physics, and the replay leaves out those the client could not have predicted:
+
+- BDS updates per-tick state (the powder snow freeze) once per server tick, so when the network bunches our inputs a
+  tick runs on a value reported later. A correction within two ticks of an input whose freeze differs from the one
+  the server then reported is not counted; a vanilla client is corrected there too. `tools/physics/dupstamp.sh
+  <trace>` and `tools/physics/freeze.sh` show those ticks.
+- A correction for a tick simulated in a chunk not received yet (just after a long teleport) is not counted.

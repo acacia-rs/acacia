@@ -4,15 +4,15 @@ use std::path::Path;
 
 use acacia_bot::trace::{self, CORRECTION_TOLERANCE};
 
-/// (trace, mismatches it is known to keep). Known ones are the spawn tick and BDS freeze updates in server
-/// ticks without an input (network jitter, see docs/testing.md).
+/// (trace, mismatches it is known to keep). Known ones are the spawn tick and single open cases (see
+/// docs/testing.md).
 const TRACES: &[(&str, usize)] = &[
     ("fuzz-a.btrc.gz", 1),
     ("fuzz-b.btrc.gz", 0),
     ("drills-sneak-edge.btrc.gz", 1),
     ("drills-honey.btrc.gz", 1),
     ("drills-honey-top.btrc.gz", 0),
-    ("drills-powder-snow.btrc.gz", 4),
+    ("drills-powder-snow.btrc.gz", 0),
 ];
 
 #[test]

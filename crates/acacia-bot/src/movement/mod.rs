@@ -203,6 +203,11 @@ impl Movement {
         self.tick
     }
 
+    /// The freeze the simulation holds, and the one the server has reported for input `tick`.
+    pub(crate) fn freeze_at(&self, tick: u64) -> (f32, Option<f32>) {
+        (self.physics.as_ref().map_or(0.0, |p| p.freeze), self.history.server_freeze(tick))
+    }
+
     pub fn is_started(&self) -> bool {
         self.physics.is_some()
     }
