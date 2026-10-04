@@ -160,23 +160,6 @@ fn lerp_angle(a: f32, b: f32, t: f32) -> f32 {
     a + wrap_degrees(b - a) * t
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bodies_follow_the_heading_and_a_far_turned_head() {
-        // Standing still, the head looks around: the body stays until the head passes 75°.
-        assert_eq!(turn_body(0.0, false, 0.0, 60.0), 0.0);
-        assert_eq!(turn_body(0.0, false, 0.0, 100.0), 25.0);
-        assert_eq!(turn_body(0.0, false, 0.0, 200.0), 275.0);
-        // Walking, it eases towards the heading, the short way round (356°).
-        assert_eq!(turn_body(350.0, true, 10.0, 0.0), -4.0);
-        let settled = (0..40).fold(0.0, |body, _| turn_body(body, true, 90.0, 90.0));
-        assert!((settled - 90.0).abs() < 0.01, "{settled}");
-    }
-}
-
 impl Smoother {
     pub fn push(&mut self, camera: DVec3, snapshot: Vec<Tracked>) {
         self.from = self.to.iter().zip(self.frame(camera, true)).map(|(t, shown)| (t.runtime_id, shown)).collect();
@@ -204,5 +187,22 @@ impl Smoother {
             }
         };
         self.to.iter().filter(visible).map(blend).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bodies_follow_the_heading_and_a_far_turned_head() {
+        // Standing still, the head looks around: the body stays until the head passes 75°.
+        assert_eq!(turn_body(0.0, false, 0.0, 60.0), 0.0);
+        assert_eq!(turn_body(0.0, false, 0.0, 100.0), 25.0);
+        assert_eq!(turn_body(0.0, false, 0.0, 200.0), 275.0);
+        // Walking, it eases towards the heading, the short way round (356°).
+        assert_eq!(turn_body(350.0, true, 10.0, 0.0), -4.0);
+        let settled = (0..40).fold(0.0, |body, _| turn_body(body, true, 90.0, 90.0));
+        assert!((settled - 90.0).abs() < 0.01, "{settled}");
     }
 }
