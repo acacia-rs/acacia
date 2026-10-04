@@ -4,7 +4,9 @@ use std::f32::consts::{PI, TAU};
 
 use image::RgbaImage;
 
-use crate::assets::Pack;
+use std::path::Path;
+
+use crate::assets::image_file;
 
 /// Ticks in a day; 0 is sunrise, 6000 noon, 18000 midnight.
 pub const DAY_TICKS: f32 = 24000.0;
@@ -57,8 +59,8 @@ pub struct SkyTextures {
 }
 
 impl SkyTextures {
-    pub fn load(pack: &Pack) -> Option<SkyTextures> {
-        let open = |name: &str| Some(image::open(pack.image_file(&format!("textures/environment/{name}"))?).ok()?.into_rgba8());
+    pub fn load(root: &Path) -> Option<SkyTextures> {
+        let open = |name: &str| Some(image::open(image_file(root, &format!("textures/environment/{name}"))?).ok()?.into_rgba8());
         Some(SkyTextures { sun: open("sun")?, moon: open("moon_phases")? })
     }
 }

@@ -11,6 +11,7 @@ use crate::Error;
 use crate::assets::flipbook::{Animation, Atlas};
 use crate::assets::image::{TEXEL_BYTES, TEXTURE_SIZE, Texture};
 use crate::blocks::RenderBlock;
+use crate::entity::EntityModels;
 use crate::look::Look;
 
 /// Packs written as another version are refused; bake again.
@@ -48,7 +49,21 @@ impl LookPack {
         let json = dir.join("pack.json");
         std::fs::write(&json, serde_json::to_vec(&file).expect("a pack serializes")).map_err(io(&json))?;
         write_strip(&dir.join("textures.png"), self.atlas.layers.iter())?;
-        write_strip(&dir.join("frames.png"), animations.iter().flat_map(|a| &a.frames))
+        write_strip(&dir.join("frames.png"), animations.iter().flat_map(|a| &a.frames))?;
+        if self.files == dir {
+            return Ok(());
+        }
+        for name in LOOSE {
+            let from = self.files.join(name);
+            copy_tree(&from, &dir.join(name)).map_err(io(&from))?;
+        }
+        // Entity definitions also name images outside textures/entity (pottery patterns).
+        for image in EntityModels::load(&self.files).textures() {
+            if let Ok(relative) = image.strip_prefix(&self.files) {
+                copy_tree(image, &dir.join(relative)).map_err(io(image))?;
+            }
+        }
+        Ok(())
     }
 
     pub fn load(dir: &Path) -> Result<LookPack, Error> {
@@ -75,8 +90,30 @@ impl LookPack {
             }
             animations.push(Animation { layer: a.layer, frames, ticks_per_frame: a.ticks_per_frame.max(1), blend: a.blend });
         }
-        Ok(LookPack { look: file.look, blocks: file.blocks, states: file.states.into_iter().collect(), atlas: Atlas { layers, animations } })
+        Ok(LookPack { look: file.look, blocks: file.blocks, states: file.states.into_iter().collect(), atlas: Atlas { layers, animations }, files: dir.to_owned() })
     }
+}
+
+/// What [`LookPack::files`] holds, copied beside the baked data.
+const LOOSE: [&str; 9] = [
+    "entity", "models", "render_controllers", "animations", "animation_controllers",
+    "textures/entity", "textures/environment", "textures/colormap", "biomes_client.json",
+];
+
+/// Copies a file or a directory's files; a source that does not exist is skipped.
+fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    if from.is_dir() {
+        for entry in std::fs::read_dir(from)? {
+            let entry = entry?;
+            copy_tree(&entry.path(), &to.join(entry.file_name()))?;
+        }
+    } else if from.is_file() {
+        if let Some(parent) = to.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::copy(from, to)?;
+    }
+    Ok(())
 }
 
 fn image_error(path: &Path) -> impl Fn(image::ImageError) -> Error {
@@ -113,13 +150,14 @@ mod tests {
         Texture { rgba: Box::new([v; TEXEL_BYTES]) }
     }
 
-    fn sample() -> LookPack {
+    fn sample(name: &str) -> LookPack {
         let animation = Animation { layer: 1, frames: vec![grey(10), grey(20)], ticks_per_frame: 3, blend: false };
         LookPack {
             look: Look::BEDROCK,
             blocks: vec![BlockTable::cube(0), BlockTable::cube(1)],
             states: [("minecraft:air".to_owned(), 0), ("minecraft:oak_log[pillar_axis=y]".to_owned(), 1)].into_iter().collect(),
             atlas: Atlas { layers: vec![Texture::missing(), grey(10)], animations: vec![animation] },
+            files: temp(&format!("{name}-loose")),
         }
     }
 
@@ -131,9 +169,13 @@ mod tests {
 
     #[test]
     fn a_saved_pack_loads_back_the_same() {
-        let (dir, pack) = (temp("same"), sample());
+        let (dir, pack) = (temp("same"), sample("same"));
+        std::fs::create_dir_all(pack.files.join("textures/colormap")).unwrap();
+        std::fs::write(pack.files.join("textures/colormap/grass.png"), b"loose").unwrap();
         pack.save(&dir).unwrap();
         let loaded = LookPack::load(&dir).unwrap();
+        assert_eq!(std::fs::read(loaded.files().join("textures/colormap/grass.png")).unwrap(), b"loose");
+        std::fs::remove_dir_all(&pack.files).unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
         assert_eq!((loaded.look, &loaded.blocks, &loaded.states), (pack.look, &pack.blocks, &pack.states));
         let texels = |atlas: &Atlas| atlas.layers.iter().map(|t| t.rgba.to_vec()).collect::<Vec<_>>();
@@ -145,7 +187,7 @@ mod tests {
     #[test]
     fn another_version_is_refused() {
         let dir = temp("version");
-        sample().save(&dir).unwrap();
+        sample("version").save(&dir).unwrap();
         let json = dir.join("pack.json");
         let text = std::fs::read_to_string(&json).unwrap().replacen("\"version\":1", "\"version\":0", 1);
         std::fs::write(&json, text).unwrap();

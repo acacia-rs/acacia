@@ -13,12 +13,12 @@ mod pose;
 mod skin;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use glam::DVec3;
 
-use crate::assets::Pack;
+use crate::assets::image_file;
 pub use bake::{Mesh, Vertex};
 use controller::{Controller, Definition};
 use molang::Scope;
@@ -92,8 +92,8 @@ pub struct EntityInstance {
 }
 
 impl EntityModels {
-    pub fn load(pack: &Pack) -> EntityModels {
-        let root = pack.root();
+    /// `root` holds the Bedrock pack's entity files: a resource pack or a look pack's files.
+    pub fn load(root: &Path) -> EntityModels {
         let mut out = EntityModels {
             kinds: controller::definitions(root),
             controllers: controller::controllers(root),
@@ -103,10 +103,10 @@ impl EntityModels {
         let mut texture_sizes = HashMap::new();
         for d in out.kinds.values() {
             let texture = d.textures.get("default").or_else(|| d.textures.values().min());
-            let Some((w, h)) = texture.and_then(|t| image::image_dimensions(pack.image_file(t)?).ok()) else { continue };
+            let Some((w, h)) = texture.and_then(|t| image::image_dimensions(image_file(root, t)?).ok()) else { continue };
             texture_sizes.extend(d.geometry.values().map(|g| (g.as_str(), [w as f32, h as f32])));
         }
-        let geometries = geometry::load_all(pack.root(), &texture_sizes);
+        let geometries = geometry::load_all(root, &texture_sizes);
         let used = out.kinds.values().flat_map(|d| d.geometry.values()).map(String::as_str).chain(PLAYER_GEOMETRIES);
         for id in used {
             if let Some(geometry) = geometries.get(id).filter(|_| !out.by_geometry.contains_key(id)) {
@@ -120,7 +120,7 @@ impl EntityModels {
         }
         let block_textures = block_models::textures(root);
         for path in out.kinds.values().flat_map(|d| d.textures.values()).chain(&block_textures) {
-            if let Some(file) = pack.image_file(path).filter(|_| !out.texture_ids.contains_key(path)) {
+            if let Some(file) = image_file(root, path).filter(|_| !out.texture_ids.contains_key(path)) {
                 out.texture_ids.insert(path.clone(), out.textures.len() as TextureId);
                 out.textures.push(file);
             }

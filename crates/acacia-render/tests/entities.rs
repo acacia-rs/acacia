@@ -4,7 +4,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use acacia_render::assets::Pack;
 use acacia_render::entity::{EntityModels, Layer, NO_TEXTURE, Value};
 use glam::Vec3;
 
@@ -14,7 +13,7 @@ fn models() -> Option<EntityModels> {
         eprintln!("skipped: {} has no render controllers (run tools/fetch-vanilla-pack.sh)", dir.display());
         return None;
     }
-    Some(EntityModels::load(&Pack::load(&dir).unwrap()))
+    Some(EntityModels::load(&dir))
 }
 
 /// The layers of `kind` in the state given as (query, value) pairs.

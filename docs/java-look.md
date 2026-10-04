@@ -71,8 +71,7 @@ tools/lookbake           GPL  (bin) jar download, blockstates, model baking, .mc
 | Parameters | The table under "Parameters" | Shader literals |
 
 The format is ours and versioned; the renderer refuses a pack baked for another version and the
-viewer re-bakes. The Bedrock look is baked by the same tool from the Bedrock pack, so the renderer's
-current Bedrock loaders move into `lookbake` as MIT modules rather than staying as a second path.
+viewer re-bakes. The Bedrock look goes through the same format (see Milestones for where its baker lives).
 
 ## Parameters
 
@@ -137,11 +136,15 @@ The same applies to entity identifiers and items.
 | J4 | Java entities | Geometry and Molang animations per mob, most-seen first; Bedrock geometry as the fallback | Side-by-side screenshots per mob; a list of mobs still on the fallback |
 | J5 | Bedrock theme | Bedrock-style HUD and menus as the second `Theme` | As J2 and J3 |
 
-J0 so far: `Look` (fog shape, water opacity) and the viewer's settings, `--look` and `L`; the pack
-format for blocks and textures, `tools/lookbake bedrock`, and the viewer drawing from a pack
-(crates/acacia-render/README.md "Look" and "Look pack"). Left in J0: tints, entities, block models
-and sky textures still load from the Bedrock pack at run time, and the Bedrock block loader still
-lives in `acacia-render` (`lookbake` calls it) instead of in the tool.
+J0 is done (crates/acacia-render/README.md "Look" and "Look pack"): `Look` (fog shape, water
+opacity); the viewer's settings, `--look` and `L`; the pack format; `tools/lookbake bedrock`; the
+viewer drawing from a saved pack with no resource pack present. Two things differ from the design above:
+
+- Entities, tints and sky textures are carried as files in the Bedrock pack's layout, not baked
+  into tables. A Java bake writes the same files.
+- The Bedrock baker stays in `acacia-render` (`LookPack::bake_bedrock`), which `lookbake` calls. It
+  is MIT, the renderer's tests are built on it, and it lets the viewer run with no bake step. Only
+  code ported from Pomme has to live in the tool.
 
 J0 is a refactor of `acacia-render`'s loaders with no visible change, and is the step that proves the
 format. J0 and J1 touch `acacia-render`; under the one-agent-per-area rule they are done by, or

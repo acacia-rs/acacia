@@ -97,8 +97,12 @@ impl Pack {
         }
     }
 
-    /// The image file for a texture path, trying `.png` then `.tga`.
     pub fn image_file(&self, path: &str) -> Option<PathBuf> {
-        ["png", "tga"].iter().map(|ext| self.root.join(format!("{path}.{ext}"))).find(|p| p.is_file())
+        image_file(&self.root, path)
     }
+}
+
+/// The image file for a texture path under `root`, trying `.png` then `.tga`.
+pub fn image_file(root: &Path, path: &str) -> Option<PathBuf> {
+    ["png", "tga"].iter().map(|ext| root.join(format!("{path}.{ext}"))).find(|p| p.is_file())
 }

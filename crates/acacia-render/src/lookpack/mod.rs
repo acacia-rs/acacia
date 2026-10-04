@@ -3,7 +3,7 @@
 
 mod files;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use acacia_world::{BlockRegistry, BlockState};
@@ -23,6 +23,8 @@ pub struct LookPack {
     states: FxHashMap<String, u32>,
     /// The texture array the blocks' layers index.
     pub atlas: Atlas,
+    /// See [`LookPack::files`].
+    files: PathBuf,
 }
 
 /// A block state's name in a pack: `minecraft:oak_log[pillar_axis=y]`, or the bare name.
@@ -40,7 +42,7 @@ impl LookPack {
     pub fn bake_bedrock(pack: &Pack, look: Look) -> (LookPack, BuildReport) {
         let registry = BlockRegistry::vanilla();
         let (table, atlas, report) = BlockTable::build(registry, pack);
-        let mut baked = LookPack { look, blocks: Vec::new(), states: FxHashMap::default(), atlas };
+        let mut baked = LookPack { look, blocks: Vec::new(), states: FxHashMap::default(), atlas, files: pack.root().to_owned() };
         let mut distinct: FxHashMap<String, u32> = FxHashMap::default();
         for id in 0..registry.len() as u32 {
             let state = registry.get(id).expect("id below len");
@@ -58,6 +60,12 @@ impl LookPack {
     pub fn with_look(mut self, look: Look) -> LookPack {
         self.look = look;
         self
+    }
+
+    /// Where the files the pack does not bake are, laid out as in a Bedrock resource pack: entity
+    /// models and textures, colormaps, `biomes_client.json`, sky textures.
+    pub fn files(&self) -> &Path {
+        &self.files
     }
 
     /// (states, distinct blocks)

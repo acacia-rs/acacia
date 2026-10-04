@@ -1,5 +1,6 @@
 //! The bot's thread: connects, keeps the bot polled, and reports world changes to the window.
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::time::{Duration, Instant};
@@ -8,7 +9,6 @@ use acacia_bot::client::{Client, ClientBuilder, PacketFilter};
 use acacia_bot::proto::Packet;
 use acacia_bot::proto::packets::BiomeDefinitionList;
 use acacia_bot::{Bot, BotConfig, BotEvent};
-use acacia_render::assets::Pack;
 use acacia_render::biome::{BiomeColors, BiomeDef};
 use acacia_bot::state::Trackers;
 use acacia_render::block_models::BlockDataMap;
@@ -77,14 +77,15 @@ impl Net {
     }
 }
 
-pub fn spawn(options: Options, pack: Pack) -> Net {
+/// `files` is the look pack's ([`acacia_render::LookPack::files`]).
+pub fn spawn(options: Options, files: PathBuf) -> Net {
     let (tx, events) = channel();
     let (quit, quit_rx) = oneshot::channel();
     std::thread::Builder::new()
         .name("bot".into())
         .spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("tokio runtime");
-            let reason = rt.block_on(run(options, pack, &tx, quit_rx)).unwrap_or_else(|e| format!("error: {e}"));
+            let reason = rt.block_on(run(options, &files, &tx, quit_rx)).unwrap_or_else(|e| format!("error: {e}"));
             let _ = tx.send(NetEvent::Ended(reason));
         })
         .expect("spawn bot thread");
@@ -92,14 +93,14 @@ pub fn spawn(options: Options, pack: Pack) -> Net {
 }
 
 /// Returns why the session ended.
-async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: oneshot::Receiver<()>) -> Result<String, Box<dyn std::error::Error>> {
+async fn run(options: Options, files: &Path, tx: &Sender<NetEvent>, mut quit: oneshot::Receiver<()>) -> Result<String, Box<dyn std::error::Error>> {
     let send = |e| tx.send(e).map_err(|_| "window closed");
     send(NetEvent::Status(format!("connecting to {}", options.server)))?;
     let builder = login(Client::builder(&options.server).chunk_radius(options.radius), &options.name).await?;
     let subscribe = PacketFilter::none().with(BiomeDefinitionList::ID);
     let trackers = Trackers { entities: true, skins: true, ..Trackers::default() };
     let config = BotConfig { physics: true, auto_respawn: true, subscribe, trackers, ..BotConfig::default() };
-    let models = Arc::new(EntityModels::load(&pack));
+    let models = Arc::new(EntityModels::load(files));
     send(NetEvent::EntityModels(models.clone()))?;
     let mut feed = Feed::new(models);
     let mut bot = tokio::select! {
@@ -128,7 +129,7 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
                 Some(BotEvent::Packet(p)) if p.id == BiomeDefinitionList::ID => {
                     let defs = biome_defs(&p.decode()?);
                     tracing::info!(count = defs.len(), "biome definitions");
-                    let colors = BiomeColors::build(&defs, &pack);
+                    let colors = BiomeColors::build(&defs, files);
                     send(NetEvent::Biomes(Arc::new(colors)))?;
                     continue;
                 }

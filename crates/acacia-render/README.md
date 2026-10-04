@@ -218,8 +218,12 @@ saves it (`cargo run --release -p lookbake -- bedrock`), by default to `assets/l
 - `textures.png`: the array layers stacked top to bottom.
 - `frames.png`: every animation's frames, in `pack.json`'s order.
 
-The viewer loads a baked pack when there is one and bakes in memory otherwise. Entities, biome
-colours and the sky textures still come from the Bedrock pack directly.
+Entity models, colormaps, `biomes_client.json` and the sky textures are not baked: saving copies
+them beside the baked data in the Bedrock pack's layout, and `LookPack::files` is the directory
+`EntityModels::load`, `BiomeColors::build` and `SkyTextures::load` read (the resource pack itself for
+a pack baked in memory). A saved pack therefore needs no resource pack to draw from.
+
+The viewer loads a baked pack when there is one, and otherwise bakes the Bedrock pack in memory.
 
 ## Not yet
 
