@@ -5,7 +5,7 @@ use crate::constants::{FREEZE_GAIN, FREEZE_LOSS};
 use crate::math::{Vec3, len_sqr};
 use crate::sim::Sim;
 use crate::state::PlayerState;
-use crate::world::{InsideMovement, Traversal, WorldView};
+use crate::world::{InsideMovement, LiquidKind, Traversal, WorldView};
 
 fn queue_stuck_speed_multiplier(st: &mut PlayerState, m: Vec3) {
     let mut q = st.stuck_speed_multiplier;
@@ -39,7 +39,8 @@ pub(crate) fn apply_ascendable_movement(st: &mut PlayerState, traversal: Travers
     let mut v = st.vel;
     match traversal {
         Traversal::Scaffolding => {
-            if st.pressing_descend {
+            // On the ground below, sneaking inside scaffolding leaves ordinary gravity (BDS fuzz).
+            if st.pressing_descend && !st.on_ground {
                 v[1] = -0.15;
                 st.set_vel(v);
                 return true;
@@ -61,9 +62,10 @@ pub(crate) fn apply_ascendable_movement(st: &mut PlayerState, traversal: Travers
 
 impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// Powder snow freezing and its slowdown, before travel.
-    // TODO: immunity (BDS skips freezing for some players; Java: any leather armour).
     pub(crate) fn update_freeze(&self, st: &mut PlayerState) {
-        let in_snow = inside_cells(&st.bounding_box()).any(|pos| self.w.block(pos).inside == InsideMovement::PowderSnow);
+        // Leather boots protect.
+        let in_snow = !st.equipment.leather_boots
+            && inside_cells(&st.bounding_box()).any(|pos| self.w.block(pos).inside == InsideMovement::PowderSnow);
         let stepped = if in_snow { (st.freeze + FREEZE_GAIN).min(1.0) } else { (st.freeze - FREEZE_LOSS).max(0.0) };
         let freeze = st.server_freeze.take().unwrap_or(stepped);
         if freeze != st.freeze {
@@ -91,6 +93,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
     /// Slows the player once per honey block whose side it touches (not in water, see README).
     pub(crate) fn apply_honey_wall_slide(&self, st: &mut PlayerState) {
+        if !self.liquid_blocks_touching(st.bounding_box(), LiquidKind::Water).is_empty() {
+            return;
+        }
         // An inside-block effect: honey's box is inset 1/16, so a box against it is in its cell, while one
         // flush against a full block beside it is not. (Contact with the inset box itself is too strict: a
         // box walking along a honey wall is slowed by each cell it is in.)
@@ -100,7 +105,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
             // Any contact with its side, airborne or not, rising or falling (strict BDS fuzz: 0.4 per
             // touched honey cell on the ground too, as bedsim); not from on top of it.
-            if st.pos[1] > pos[1] as f32 + 0.9375 - 1e-7 {
+            if st.pos[1] > pos[1] as f32 + 1.0 - 1e-7 {
                 continue;
             }
             let mut v = st.vel;

@@ -163,7 +163,7 @@ pub(crate) fn land_teleport(st: &mut PlayerState, pos: Vec3) {
 }
 
 pub(crate) fn effective_air_speed(st: &PlayerState) -> f32 {
-    if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED }
+    st.fixed_air_speed.unwrap_or(if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED })
 }
 
 fn tick_state(st: &mut PlayerState) {
@@ -182,7 +182,6 @@ fn tick_state(st: &mut PlayerState) {
         st.jump_delay -= 1;
     }
     st.swim_exit_jump_delay = st.swim_exit_jump_delay.saturating_sub(1);
-    st.stopped_swimming_this_tick = false;
 }
 
 /// Block-aligned volume containing every lookup normal movement performs.

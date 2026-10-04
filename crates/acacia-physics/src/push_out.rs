@@ -21,7 +21,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         }
         let bb = st.bounding_box();
         let (inside, around): (Vec<Aabb>, Vec<Aabb>) =
-            self.movement_bboxes(st, &bb.grow_vec([1.0, 0.0, 1.0])).into_iter().partition(|b| overlaps(b, &bb));
+            self.nearby_bboxes(st,&bb.grow_vec([1.0, 0.0, 1.0])).into_iter().partition(|b| overlaps(b, &bb));
         if inside.is_empty() {
             return;
         }

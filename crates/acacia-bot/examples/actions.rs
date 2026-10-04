@@ -124,7 +124,7 @@ pub async fn server_entities(bot: &mut Bot, kind: &str) -> String {
 }
 
 macro_rules! run {
-    ($results:ident, $name:literal, $check:expr) => {
+    ($bot:ident, $results:ident, $name:literal, $check:expr) => {
         let only = std::env::var("ONLY").ok();
         if only.as_deref().is_none_or(|o| o.split(',').any(|n| n == $name)) {
             let result: Check = $check.await;
@@ -132,6 +132,8 @@ macro_rules! run {
                 Ok(detail) => println!("PASS {:<16} {detail}", $name),
                 Err(e) => println!("FAIL {:<16} {e}", $name),
             }
+            // Where each check left the bot: a later "too far away" points at the check that moved it.
+            eprintln!("after {}: feet {:?}", $name, $bot.movement().and_then(|m| m.position()));
             $results.push(($name, result.is_ok()));
         }
     };
@@ -165,31 +167,36 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut results = Vec::new();
     let s = &scene;
-    run!(results, "craft", stations::craft(&mut bot, s));
-    run!(results, "smelt", stations::smelt(&mut bot, s));
-    run!(results, "brew", stations::brew(&mut bot, s));
-    run!(results, "enchant", stations::enchant(&mut bot, s));
-    run!(results, "anvil", stations::anvil(&mut bot, s));
-    run!(results, "anvil_rename", stations::anvil_rename(&mut bot, s));
-    run!(results, "grindstone", stations::grindstone(&mut bot, s));
-    run!(results, "stonecut", stations::stonecut(&mut bot, s));
-    run!(results, "smith", stations::smith(&mut bot, s));
-    run!(results, "loom", stations::loom(&mut bot, s));
-    run!(results, "trade", stations::trade(&mut bot, "minecraft:wandering_trader"));
-    run!(results, "trade_villager", stations::trade(&mut bot, "minecraft:villager"));
-    run!(results, "consume", survival::consume(&mut bot));
-    run!(results, "equip", survival::equip(&mut bot));
-    run!(results, "equip_use", pickup::equip_use(&mut bot));
-    run!(results, "pickup", pickup::pickup(&mut bot));
-    run!(results, "equip_best_tool", survival::best_tool(&mut bot, s));
-    run!(results, "write_sign", survival::sign(&mut bot, s));
-    run!(results, "book", survival::book(&mut bot));
-    run!(results, "sleep", survival::sleep(&mut bot, s));
-    run!(results, "mount_pig", survival::ride(&mut bot, "minecraft:pig"));
-    run!(results, "mount_boat", survival::ride(&mut bot, "minecraft:boat"));
-    run!(results, "fish", survival::fish(&mut bot, s));
-    run!(results, "equip_elytra", survival::elytra(&mut bot));
-    run!(results, "glide", survival::glide(&mut bot));
+    run!(bot, results, "craft", stations::craft(&mut bot, s));
+    run!(bot, results, "smelt", stations::smelt(&mut bot, s));
+    run!(bot, results, "brew", stations::brew(&mut bot, s));
+    run!(bot, results, "enchant", stations::enchant(&mut bot, s));
+    run!(bot, results, "anvil", stations::anvil(&mut bot, s));
+    run!(bot, results, "anvil_rename", stations::anvil_rename(&mut bot, s));
+    run!(bot, results, "grindstone", stations::grindstone(&mut bot, s));
+    run!(bot, results, "stonecut", stations::stonecut(&mut bot, s));
+    run!(bot, results, "smith", stations::smith(&mut bot, s));
+    run!(bot, results, "loom", stations::loom(&mut bot, s));
+    run!(bot, results, "trade", stations::trade(&mut bot, "minecraft:wandering_trader"));
+    run!(bot, results, "trade_villager", stations::trade(&mut bot, "minecraft:villager"));
+    run!(bot, results, "consume", survival::consume(&mut bot));
+    run!(bot, results, "equip", survival::equip(&mut bot));
+    run!(bot, results, "equip_use", pickup::equip_use(&mut bot));
+    run!(bot, results, "pickup", pickup::pickup(&mut bot));
+    run!(bot, results, "equip_best_tool", survival::best_tool(&mut bot, s));
+    run!(bot, results, "write_sign", survival::sign(&mut bot, s));
+    run!(bot, results, "book", survival::book(&mut bot));
+    run!(bot, results, "sleep", survival::sleep(&mut bot, s));
+    run!(bot, results, "mount_pig", survival::ride(&mut bot, "minecraft:pig"));
+    run!(bot, results, "mount_boat", survival::ride(&mut bot, "minecraft:boat"));
+    run!(bot, results, "fish", survival::fish(&mut bot, s));
+    run!(bot, results, "equip_elytra", survival::elytra(&mut bot));
+    run!(bot, results, "glide", survival::glide(&mut bot));
+    run!(bot, results, "glide_water", survival::glide_water(&mut bot, s));
+    run!(bot, results, "ride_horse", survival::ride_horse(&mut bot, s));
+    if std::env::var_os("HORSE_SWEEP").is_some() {
+        run!(bot, results, "horse_sweep", survival::horse_sweep(&mut bot, s));
+    }
 
     let failed: Vec<_> = results.iter().filter(|(_, ok)| !ok).map(|(n, _)| *n).collect();
     println!("{} passed, {} failed {failed:?}", results.len() - failed.len(), failed.len());

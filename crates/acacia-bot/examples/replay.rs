@@ -4,12 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use acacia_bot::trace;
-
-/// Server corrections within this of our position are periodic resyncs, not mismatches.
-const CORRECTION_TOLERANCE: f32 = 0.001;
-/// Farther than any tick of movement: BDS applied a `/tp` it has not sent us yet (it can lag many ticks).
-const TELEPORT_LAG_DISTANCE: f32 = 4.0;
+use acacia_bot::trace::{self, CORRECTION_TOLERANCE};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).without_time().with_ansi(false).try_init();
@@ -34,11 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         e.0 += 1;
         e.2 = e.2.max(dist(d.ours, d.recorded));
     }
-    let (lagged, mismatches): (Vec<_>, Vec<_>) = report
-        .corrections
-        .iter()
-        .filter(|c| c.mismatch(correction_tolerance))
-        .partition(|c| c.error().is_some_and(|e| e > TELEPORT_LAG_DISTANCE));
+    let (mismatches, lagged) = report.correction_mismatches(correction_tolerance);
     for c in &mismatches {
         per_mark.entry(label(&c.mark)).or_default().1 += 1;
     }

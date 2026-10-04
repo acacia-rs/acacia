@@ -22,6 +22,7 @@ mod login;
 mod net_wire;
 mod nethernet;
 mod pack_cache;
+mod pack_fetch;
 mod ping;
 #[cfg(feature = "online")]
 mod qos;

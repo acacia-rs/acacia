@@ -1,14 +1,28 @@
 //! Ground/air travel (bedsim `simulateMovement`).
 
 use crate::block_effects::{apply_ascendable_movement, apply_stuck_speed_multiplier};
+use crate::collide::overlapped_cells;
 use crate::constants::*;
-use crate::math::{block_pos, sub};
+use crate::math::{BlockPos, block_pos, sub};
 use crate::motion::*;
 use crate::sim::Sim;
 use crate::state::PlayerState;
 use crate::world::{LiquidKind, Traversal, WorldView};
 
 impl<W: WorldView + ?Sized> Sim<'_, W> {
+    /// The vertical traversal the player is in: the feet's block, else scaffolding underfoot or overlapped by the
+    /// box (BDS fuzz: a jump beside a column climbs it).
+    pub(crate) fn traversal(&self, st: &PlayerState) -> Traversal {
+        let own = self.w.block(block_pos(st.pos)).traversal;
+        let is_scaffolding = |p: BlockPos| self.w.block(p).traversal == Traversal::Scaffolding;
+        if own == Traversal::None
+            && (st.supporting_block.is_some_and(is_scaffolding) || overlapped_cells(&st.bounding_box()).any(is_scaffolding))
+        {
+            return Traversal::Scaffolding;
+        }
+        own
+    }
+
     /// Runs one tick of travel; false when part of the needed world is unknown.
     pub(crate) fn simulate_movement(&self, st: &mut PlayerState) -> bool {
         let mut vel = st.vel;
@@ -100,15 +114,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         attempt_knockback(st);
         move_relative(st, speed);
-        self.attempt_jump(st);
-        let mut inside = self.w.block(block_pos(st.pos));
-        if inside.traversal == Traversal::None
-            && let Some(sp) = st.supporting_block
-            && self.w.block(sp).traversal == Traversal::Scaffolding
-        {
-            inside.traversal = Traversal::Scaffolding;
+        let traversal = self.traversal(st);
+        // Scaffolding's climb replaces the jump outright, sprint boost included (BDS fuzz).
+        if traversal != Traversal::Scaffolding {
+            self.attempt_jump(st);
         }
-        let scaffold_descend = apply_ascendable_movement(st, inside.traversal);
+        let inside = self.w.block(block_pos(st.pos));
+        let scaffold_descend = apply_ascendable_movement(st, traversal);
 
         let near_climbable = inside.climbable;
         if near_climbable {
@@ -118,6 +130,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
             if st.effective_jumping {
                 v[1] = CLIMB_SPEED;
+                // A jump the climb takes over starts no jump delay (BDS fuzz 145851, one sample: it jumped again
+                // 6 ticks later on landing).
+                st.jump_delay = 0;
             }
             if st.sneaking && v[1] < 0.0 {
                 v[1] = 0.0;
@@ -126,6 +141,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         }
 
         let stuck = apply_stuck_speed_multiplier(st);
+        let before_edge = st.vel;
         if !self.sweep_loaded(st) || !self.avoid_edge(st) {
             return false;
         }
@@ -152,6 +168,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             }
         };
         st.mov = st.vel;
+        // The edge stop shortens the move but keeps the velocity, unless it stopped that axis outright (BDS fuzz
+        // 145851 tick 281, `edge` drills).
+        for i in [0, 2] {
+            if st.mov[i] != 0.0 {
+                st.vel[i] = before_edge[i];
+            }
+        }
         if stuck {
             st.set_vel([0.0; 3]);
             old_vel = [0.0; 3];

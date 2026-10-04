@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use acacia_client::proto::packets::{
     AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MoveEntity, MoveEntityDelta, MovePlayer, RemoveEntity,
-    SetEntityMotion,
+    SetEntityMotion, UpdateAttributes,
 };
 use acacia_client::proto::types::Vec3f;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
@@ -15,6 +15,7 @@ pub const ITEM_KIND: &str = "minecraft:item";
 pub const PLAYER_EYE_HEIGHT: f32 = super::PlayerState::EYE_HEIGHT;
 
 const BYTE_ROTATION: f32 = 360.0 / 256.0;
+const MOVEMENT: &str = "minecraft:movement";
 
 /// One tracked entity or other player. Angles are in degrees.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +33,8 @@ pub struct Entity {
     /// Last velocity from spawn or SetEntityMotion; not derived from movement.
     pub velocity: Vec3f,
     pub on_ground: bool,
+    /// The `minecraft:movement` attribute (mobs; from spawn and `UpdateAttributes`): a ridden horse's speed.
+    pub movement: Option<f32>,
 }
 
 impl Entity {
@@ -63,6 +66,7 @@ impl Entities {
         AddPlayer::ID,
         AddEntity::ID,
         AddItemEntity::ID,
+        UpdateAttributes::ID,
         RemoveEntity::ID,
         MoveEntity::ID,
         MoveEntityDelta::ID,
@@ -73,6 +77,16 @@ impl Entities {
 
     pub fn get(&self, runtime_id: u64) -> Option<&Entity> {
         self.by_runtime.get(&runtime_id)
+    }
+
+    /// Moves a tracked entity the bot itself simulates (a vehicle it drives, which the server does not
+    /// send moves for).
+    pub(crate) fn set_pose(&mut self, runtime_id: u64, feet: [f32; 3], yaw: f32, pitch: f32) {
+        if let Some(e) = self.by_runtime.get_mut(&runtime_id) {
+            let [x, y, z] = feet;
+            e.position = Vec3f { x, y, z };
+            (e.yaw, e.pitch) = (yaw, pitch);
+        }
     }
 
     pub fn by_unique(&self, unique_id: i64) -> Option<&Entity> {
@@ -124,10 +138,12 @@ impl Entities {
                     head_yaw: p.head_yaw,
                     velocity: p.velocity,
                     on_ground: false,
+                    movement: None,
                 });
             }
             AddEntity::ID => {
                 let p: AddEntity = packet.decode()?;
+                let movement = p.attributes.iter().find(|a| a.name == MOVEMENT).map(|a| a.value);
                 self.insert(me, Entity {
                     runtime_id: p.runtime_id,
                     unique_id: p.unique_id,
@@ -139,7 +155,16 @@ impl Entities {
                     head_yaw: p.head_yaw,
                     velocity: p.velocity,
                     on_ground: false,
+                    movement,
                 });
+            }
+            UpdateAttributes::ID => {
+                let p: UpdateAttributes = packet.decode()?;
+                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id)
+                    && let Some(a) = p.attributes.iter().find(|a| a.name == MOVEMENT)
+                {
+                    e.movement = Some(a.current);
+                }
             }
             AddItemEntity::ID => {
                 let p: AddItemEntity = packet.decode()?;
@@ -154,6 +179,7 @@ impl Entities {
                     head_yaw: 0.0,
                     velocity: p.velocity,
                     on_ground: false,
+                    movement: None,
                 });
             }
             RemoveEntity::ID => {

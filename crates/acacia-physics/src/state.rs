@@ -71,6 +71,10 @@ pub struct PlayerState {
     /// drifts by a step either way from the input ticks.
     pub server_freeze: Option<f32>,
     pub air_speed: f32,
+    /// Replaces the walk/sprint air speed: a ridden horse's is its movement attribute x 0.1 (`vehicle.rs`).
+    pub fixed_air_speed: Option<f32>,
+    /// Highest ledge walked up without a jump: the player's 0.5625, a ridden horse's 1.0625.
+    pub step_height: f32,
     pub underwater_movement_speed: f32,
     pub lava_movement_speed: f32,
     pub swim_speed_multiplier: f32,
@@ -98,7 +102,8 @@ pub struct PlayerState {
 
     pub swimming: bool,
     pub swim_amount: f32,
-    pub stopped_swimming_this_tick: bool,
+    /// Swimming before this tick's Start/StopSwimming: BDS's water drag reads the old state.
+    pub swam_before_input: bool,
     pub(crate) swim_water_contact: bool,
     /// The box before this tick's pose change, which liquid contact uses (BDS changes the pose after moving).
     pub(crate) liquid_box: Option<Aabb>,
@@ -157,6 +162,8 @@ impl PlayerState {
             freeze: 0.0,
             server_freeze: None,
             air_speed: WALK_AIR_SPEED,
+            fixed_air_speed: None,
+            step_height: STEP_HEIGHT,
             underwater_movement_speed: 0.0,
             lava_movement_speed: 0.0,
             swim_speed_multiplier: 0.0,
@@ -178,7 +185,7 @@ impl PlayerState {
             swim_exit_jump_delay: 0,
             swimming: false,
             swim_amount: 0.0,
-            stopped_swimming_this_tick: false,
+            swam_before_input: false,
             swim_water_contact: false,
             liquid_box: None,
             swim_water_grace_ticks: 0,

@@ -1,5 +1,6 @@
 //! Elytra actions: equipping one, starting and stopping a glide, firework boosts (input shapes from the
-//! 2026-10-02 vanilla capture). The glide itself is simulated (`Movement::glide`); a firework boost is not yet.
+//! 2026-10-02 vanilla capture). The glide itself is simulated (`Controls::glide`); its Start/StopGliding
+//! flags come from the simulation's transitions, landing included.
 
 use std::time::Duration;
 
@@ -48,13 +49,12 @@ impl Bot {
         if !self.wears_elytra() {
             return Err(ActionError::NotPossible("no elytra worn".into()));
         }
-        self.press_jump(true).await?;
+        self.set_glide(true);
+        self.press_jump().await?;
         let me = self.state.player.runtime_entity_id;
         match self.wait_until(GLIDE_TIMEOUT, |_, p| gliding_flag(p, me).filter(|&g| g)).await {
             Err(ActionError::Timeout) => {
-                if let Some(movement) = self.movement.as_mut() {
-                    movement.glide = false;
-                }
+                self.set_glide(false);
                 Err(ActionError::Rejected("the server did not start the glide".into()))
             }
             other => other.map(drop),
@@ -62,16 +62,22 @@ impl Bot {
     }
 
     /// Closes the elytra (physics bots only). In the air vanilla does it on a jump press (`StopGliding`
-    /// + `WantUp` on the press tick); on the ground `StopGliding` alone, as on landing.
+    /// + the press flags); landing ends a glide by itself.
     pub async fn stop_gliding(&mut self) -> Result<(), ActionError> {
         let Some(movement) = self.movement.as_ref().filter(|m| m.is_started()) else {
             return Err(ActionError::NotPossible("gliding needs a physics bot".into()));
         };
-        // On the ground the simulation has already ended the glide and sent `StopGliding`.
-        if movement.on_ground() {
-            return Ok(());
+        let airborne = !movement.on_ground();
+        self.set_glide(false);
+        if airborne {
+            return self.press_jump().await;
         }
-        self.press_jump(false).await
+        self.next_tick(|_, _| false).await.map(drop)
+    }
+
+    /// Whether the simulation is gliding (physics bots).
+    pub fn is_gliding(&self) -> bool {
+        self.movement.as_ref().is_some_and(|m| m.gliding())
     }
 
     /// Uses a firework rocket from the hotbar like vanilla: `Animate` "useitem" + `UseItem` ClickAir,
@@ -87,16 +93,23 @@ impl Bot {
             self.pause(delay).await?;
         }
         self.use_item_like_vanilla();
+        if let Some(movement) = self.movement.as_mut() {
+            movement.predict_glide_boost();
+        }
         Ok(())
     }
 
-    /// Holds jump for one tick, on which the glide starts or stops (`StartGliding`/`StopGliding` follow from
-    /// the simulation, `WantUp` from the jump), then releases it.
-    async fn press_jump(&mut self, glide: bool) -> Result<(), ActionError> {
+    fn set_glide(&mut self, on: bool) {
+        if let Some(movement) = self.movement.as_mut() {
+            movement.controls.glide = on;
+        }
+    }
+
+    /// Holds jump for one tick, then releases it.
+    async fn press_jump(&mut self) -> Result<(), ActionError> {
         let Some(movement) = self.movement.as_mut() else { return Ok(()) };
         let held = movement.controls.jump;
         movement.controls.jump = true;
-        movement.glide = glide;
         let ticked = self.next_tick(|_, _| false).await;
         if let Some(movement) = self.movement.as_mut() {
             movement.controls.jump = held;

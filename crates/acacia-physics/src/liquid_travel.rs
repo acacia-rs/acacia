@@ -1,6 +1,6 @@
 //! Liquid travel step (bedsim `simulateLiquidTravel`).
 
-use crate::block_effects::apply_stuck_speed_multiplier;
+use crate::block_effects::{apply_ascendable_movement, apply_stuck_speed_multiplier};
 use crate::constants::*;
 use crate::motion::{move_relative, set_post_collision_motion, walk_on_block};
 use crate::sim::Sim;
@@ -19,6 +19,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     pub(crate) fn simulate_liquid_travel(&self, st: &mut PlayerState, kind: LiquidKind, touching: bool, can_sink: bool) -> bool {
         let initial_y = st.pos[1];
         let water = kind == LiquidKind::Water;
+        let stopped_swimming = st.swam_before_input && !st.swimming;
         // Captured before the swim-travel update, matching upstream ordering.
         let jumping = st.effective_jumping;
         if water {
@@ -60,11 +61,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
                     depth_strider *= 0.5;
                 }
                 // On the tick a swim stops the server's sprint, which we end with it, is still on.
-                let boost = if st.stopped_swimming_this_tick && !st.sprinting { SPRINT_SPEED_MULTIPLIER } else { 1.0 };
+                let boost = if stopped_swimming && !st.sprinting { SPRINT_SPEED_MULTIPLIER } else { 1.0 };
                 speed += (st.movement_speed * boost - speed) * (depth_strider / 3.0);
             }
         }
         move_relative(st, speed);
+        // Scaffolding climbs in liquids too (BDS fuzz: 0.15 up, then liquid drag).
+        apply_ascendable_movement(st, self.traversal(st));
         let stuck = apply_stuck_speed_multiplier(st);
         // A sneaker standing in shallow liquid keeps to the edge too (BDS; bedsim only on land).
         if !self.sweep_loaded(st) || !self.avoid_edge(st) {
@@ -89,9 +92,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         let mut v = st.vel;
         if water {
-            // BDS `WaterDrag` reads the sprint flag alone: a swim whose sprint was cancelled drags heavily. On
+            // BDS's water drag reads the sprint flag alone: a swim whose sprint was cancelled drags heavily. On
             // the tick a swim stops, the flag we clear with it is still set there.
-            let mut drag = if st.sprinting || st.stopped_swimming_this_tick { 0.9 } else { WATER_DRAG };
+            let mut drag = if st.sprinting || stopped_swimming { 0.9 } else { WATER_DRAG };
             // The drag halves Depth Strider by the ground state after the move (BDS: a landing tick already
             // drags at the full level); the speed above by the one before it.
             let strider = (st.equipment.depth_strider as f32).clamp(0.0, 3.0) * if st.on_ground { 1.0 } else { 0.5 };
@@ -116,7 +119,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             if !self.loaded(&raised_box) {
                 return false;
             }
-            if !self.has_nearby_bboxes(&raised_box) && !self.contains_any_liquid(&raised_box) {
+            if !self.has_nearby_bboxes(st, &raised_box) && !self.contains_any_liquid(&raised_box) {
                 v[1] = 0.3;
             }
         }

@@ -24,6 +24,7 @@ use blob_cache::BlobStatus;
 use deferred::Deferred;
 use link::Link;
 use packs::Packs;
+pub use packs::PackFetch;
 pub use link::LinkConfig;
 
 pub struct SessionConfig {

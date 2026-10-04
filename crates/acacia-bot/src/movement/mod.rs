@@ -3,6 +3,7 @@
 
 mod auth_input;
 pub(crate) mod equipment;
+mod glide;
 mod idle;
 mod rewind;
 #[cfg(test)]
@@ -11,10 +12,10 @@ mod tests;
 pub use idle::Idle;
 
 use acacia_client::proto::packets::{
-    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MobEffectEventId, MovePlayer, PlayerAuthInput,
+    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MobEffectEventId, MovePlayer, MovementEffect, PlayerAuthInput,
     PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion, UpdateAttributes,
 };
-use acacia_client::proto::types::InputData;
+use acacia_client::proto::types::{InputData, MovementEffectType};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 use acacia_physics::constants::FREEZE_SPEED_MODIFIER;
 use acacia_physics::{self as physics, Effects, Equipment, Input, PlayerState, Vec3, WorldView};
@@ -34,6 +35,15 @@ const EFFECT_WEAVING: i32 = 33;
 /// Window for double-tapping forward to sprint.
 const DOUBLE_TAP_TICKS: u32 = 7;
 
+/// The server's state of a vehicle the bot drives (`CorrectPlayerMovePrediction` type Vehicle).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct VehicleCorrection {
+    pub feet: Vec3,
+    pub delta: Vec3,
+    pub on_ground: bool,
+    pub pitch_yaw: [f32; 2],
+}
+
 /// What the bot is trying to do this tick; persists until changed.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Controls {
@@ -45,6 +55,9 @@ pub struct Controls {
     pub jump: bool,
     pub sneak: bool,
     pub sprint: bool,
+    /// Keep an elytra open. Set in the air to start a glide; the simulation clears it when the glide ends
+    /// (landing, water) or cannot start.
+    pub glide: bool,
     /// Degrees; 0 faces +Z, wrapped to -180..=180 when sent.
     pub yaw: f32,
     /// Degrees; -90 looks up, clamped to -90..=90 when sent.
@@ -80,10 +93,18 @@ pub struct Movement {
     pub corrections: u32,
     /// Server teleports received (including setbacks).
     pub teleports: u32,
+    /// Corrections of a vehicle the bot drives: each one means the vehicle simulation disagreed.
+    pub vehicle_corrections: u32,
+    /// The latest vehicle correction, for the vehicle simulation to take.
+    pub(crate) vehicle_correction: Option<VehicleCorrection>,
+    /// The server's vehicle motion in the latest vehicle correction.
+    pub last_vehicle_delta: Option<Vec3>,
     /// Ticks spent with the spawn chunk loaded but movement not yet started.
     pub(crate) spawn_wait: u32,
     /// Holding "use" on an item (eating, drinking), which slows movement.
     pub(crate) using_item: bool,
+    /// An elytra is worn (set by the bot every tick).
+    pub(crate) elytra: bool,
     physics: Option<PlayerState>,
     tick: u64,
     prev_jump: bool,
@@ -98,15 +119,21 @@ pub struct Movement {
     tapped_sprint: bool,
     effects: Effects,
     equipment: Equipment,
-    /// An elytra glide is wanted; follows the simulated state after each tick (landing ends it).
-    pub(crate) glide: bool,
     history: History,
     /// Replay only: the recorded `WantDown` (bot traces before 2026-10-02 never sent it), else it follows sneak.
     pub(crate) recorded_want_down: Option<bool>,
 }
 
 impl Movement {
-    pub const PACKETS: &'static [u32] = &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID, MobEffect::ID];
+    pub const PACKETS: &'static [u32] = &[
+        MovePlayer::ID,
+        CorrectPlayerMovePrediction::ID,
+        SetEntityMotion::ID,
+        Respawn::ID,
+        MobEffect::ID,
+        UpdateAttributes::ID,
+        MovementEffect::ID,
+    ];
 
     pub fn new() -> Self {
         Self {
@@ -114,8 +141,12 @@ impl Movement {
             pending_actions: Vec::new(),
             corrections: 0,
             teleports: 0,
+            vehicle_corrections: 0,
+            vehicle_correction: None,
+            last_vehicle_delta: None,
             spawn_wait: 0,
             using_item: false,
+            elytra: false,
             physics: None,
             tick: 0,
             prev_jump: false,
@@ -127,7 +158,6 @@ impl Movement {
             tapped_sprint: false,
             effects: Effects::default(),
             equipment: Equipment::default(),
-            glide: false,
             history: History::default(),
         }
     }
@@ -249,8 +279,23 @@ impl Movement {
             }
             CorrectPlayerMovePrediction::ID => {
                 let c: CorrectPlayerMovePrediction = packet.decode()?;
-                // Corrections of a driven boat or horse; applied to the player they sank it 1.62 below the vehicle.
-                if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle { return Ok(()); }
+                // Corrections of a driven boat or horse go to the vehicle simulation (riding/horse.rs);
+                // applied to the player they sank it 1.62 below the vehicle.
+                if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle {
+                    tracing::debug!(
+                        server_tick = c.tick, server = ?[c.position.x, c.position.y, c.position.z], delta = ?[c.delta.x, c.delta.y, c.delta.z],
+                        rotation = ?[c.rotation.x, c.rotation.z], on_ground = c.on_ground, "vehicle correction"
+                    );
+                    self.vehicle_correction = Some(VehicleCorrection {
+                        feet: [c.position.x, c.position.y, c.position.z],
+                        delta: [c.delta.x, c.delta.y, c.delta.z],
+                        on_ground: c.on_ground,
+                        pitch_yaw: [c.rotation.x, c.rotation.z],
+                    });
+                    self.vehicle_corrections += 1;
+                    self.last_vehicle_delta = Some([c.delta.x, c.delta.y, c.delta.z]);
+                    return Ok(());
+                }
                 tracing::debug!(
                     our_tick = self.tick, server_tick = c.tick, ours = ?st.pos, server = ?feet(&c.position),
                     delta = ?[c.delta.x, c.delta.y, c.delta.z], on_ground = c.on_ground, "movement correction"
@@ -289,6 +334,13 @@ impl Movement {
                 if r.state == RESPAWN_READY {
                     st.queue_teleport(feet(&r.position));
                     self.teleports += 1;
+                }
+            }
+            MovementEffect::ID => {
+                let e: MovementEffect = packet.decode()?;
+                if e.runtime_id == me.runtime_entity_id && e.effect_type == MovementEffectType::GLIDEBOOST {
+                    tracing::debug!(our_tick = self.tick, server_tick = e.tick, duration = e.effect_duration, "glide boost");
+                    self.server_glide_boost(e.effect_duration, e.tick);
                 }
             }
             SetEntityMotion::ID => {
@@ -351,12 +403,16 @@ impl Movement {
             // corrected); a double-tap sprint has no key and lasts while forward is held.
             sprint: c.sprint || double_tap || (self.tapped_sprint && st.sprinting && forward),
             using_item: self.using_item,
-            glide: self.glide && self.equipment.elytra,
+            glide: c.glide,
             ..Input::default()
         };
         let (was_sprinting, was_sneaking, was_swimming, was_gliding) = (st.sprinting, st.sneaking, st.swimming, st.gliding);
         let knockback = st.knockback;
+        st.equipment.elytra = self.elytra;
         let mut out = physics::tick(st, &input, world);
+        if !st.gliding {
+            self.controls.glide = false;
+        }
         if out.teleported && std::mem::take(&mut self.current_on_landing) {
             physics::apply_current(st, world);
             out.delta = st.vel;
@@ -372,15 +428,15 @@ impl Movement {
             swim: (st.swimming && !was_swimming, !st.swimming && was_swimming),
             glide: (st.gliding && !was_gliding, !st.gliding && was_gliding),
             sneaking: st.sneaking,
+            sprinting: st.sprinting,
             sprint_key: c.sprint,
         };
         self.prev_jump = c.jump;
-        self.glide = st.gliding;
         self.tick += 1;
         self.history.record(self.tick, input, knockback, st);
         // Movement starts only after the bot has left the loading screen (bot.rs).
         let packet = auth_input::build(&input, &out, &edges, self.tick, true);
-        tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, yaw = c.yaw, pitch = c.pitch,
+        tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, speed = st.movement_speed, freeze = st.freeze, yaw = c.yaw, pitch = c.pitch,
             pos = ?out.position, delta = ?out.delta, teleported = out.teleported, flags = ?packet.input_data, "auth input");
         Some(packet)
     }

@@ -85,6 +85,16 @@ impl Bot {
         }
     }
 
+    /// (yaw, pitch) the bot's inputs report: its own aim, or for an idle bot that has not aimed, the
+    /// server's last rotation.
+    pub fn facing(&self) -> (f32, f32) {
+        match (self.movement.as_ref(), self.idle.as_ref()) {
+            (Some(m), _) => (m.controls.yaw, m.controls.pitch),
+            (None, Some((idle, _))) => idle.facing(&self.state.player),
+            (None, None) => (self.state.player.yaw, self.state.player.pitch),
+        }
+    }
+
     /// Turns towards `target` and, if the rotation changed, lets one tick pass so the next
     /// `PlayerAuthInput` has carried it to the server. No-op before a physics bot has spawned.
     /// Idle bots keep the rotation until the server moves them.

@@ -1,10 +1,10 @@
 //! Bounding boxes, retained collision endpoints and pose transitions (bedsim `bbox.go` + pose helpers).
 
 use crate::aabb::Aabb;
-use crate::math::Vec3;
+use crate::math::{BlockPos, Vec3, block_pos};
 use crate::sim::Sim;
 use crate::state::{CollisionShape, PlayerState};
-use crate::world::WorldView;
+use crate::world::{Traversal, WorldView};
 
 impl PlayerState {
     /// Scaled half-width and pose height.
@@ -117,7 +117,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             return;
         }
         // Wider than the box, or `Aabb::intersects` drops the faces it is inside by noise.
-        let boxes = self.nearby_bboxes(&bb.grow_vec([2.0 * CONTACT_NOISE, 0.0, 2.0 * CONTACT_NOISE]));
+        let boxes = self.nearby_bboxes(st, &bb.grow_vec([2.0 * CONTACT_NOISE, 0.0, 2.0 * CONTACT_NOISE]));
         let bb = recover_rounded_contacts(bb, st.pos, &boxes);
         st.remember_box(bb);
     }
@@ -126,15 +126,21 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         self.w.is_area_loaded(area)
     }
 
-    pub(crate) fn nearby_bboxes(&self, area: &Aabb) -> Vec<Aabb> {
+    pub(crate) fn nearby_bboxes(&self, st: &PlayerState, area: &Aabb) -> Vec<Aabb> {
         let mut out = Vec::new();
         self.w.collisions(area, &mut out);
-        out.retain(|b| !b.is_empty());
+        out.retain(|b| !b.is_empty() && self.collides_for(st, block_pos(b.min)));
         out
     }
 
-    pub(crate) fn has_nearby_bboxes(&self, area: &Aabb) -> bool {
-        !self.nearby_bboxes(area).is_empty()
+    pub(crate) fn has_nearby_bboxes(&self, st: &PlayerState, area: &Aabb) -> bool {
+        !self.nearby_bboxes(st, area).is_empty()
+    }
+
+    /// Scaffolding collides only under a player standing above it who isn't descending (Java
+    /// `ScaffoldingBlock::getCollisionShape`; its unsupported-bottom lip is not modelled).
+    pub(crate) fn collides_for(&self, st: &PlayerState, cell: BlockPos) -> bool {
+        self.w.block(cell).traversal != Traversal::Scaffolding || st.pos[1] > cell[1] as f32 + 1.0 - 1e-5 && !st.pressing_descend
     }
 
     pub(crate) fn pose_collisions_available(&self, st: &PlayerState) -> bool {
@@ -148,7 +154,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !self.loaded(&bb) {
             return (false, false);
         }
-        (!self.has_nearby_bboxes(&bb), true)
+        (!self.has_nearby_bboxes(st, &bb), true)
     }
 
     /// Chooses standing, sneaking or crawling without entering a ceiling.

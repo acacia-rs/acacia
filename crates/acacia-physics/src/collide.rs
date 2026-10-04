@@ -7,7 +7,7 @@ use crate::math::{BlockPos, Vec3, add, block_pos, hz_dist_sqr, len_sqr, pos_vec,
 use crate::motion::sprint_movement_blocked;
 use crate::sim::Sim;
 use crate::state::PlayerState;
-use crate::world::{Traversal, WorldView};
+use crate::world::WorldView;
 
 /// Cells from floor(min) to ceil(max) inclusive, y outermost (bedsim `nearbyBlocks`).
 pub(crate) fn nearby_cells(bb: &Aabb) -> impl Iterator<Item = BlockPos> {
@@ -54,25 +54,13 @@ fn shrink_towards_zero(v: f32) -> f32 {
 }
 
 impl<W: WorldView + ?Sized> Sim<'_, W> {
-    /// Boxes movement collides with: scaffolding is solid only from above its block and not while descending
-    /// (as Java's `ScaffoldingBlock`; strict BDS fuzz walks through its side).
-    pub(crate) fn movement_bboxes(&self, st: &PlayerState, area: &Aabb) -> Vec<Aabb> {
-        let feet = st.bounding_box().min[1];
-        let mut boxes = self.nearby_bboxes(area);
-        boxes.retain(|b| {
-            let cell = block_pos([(b.min[0] + b.max[0]) * 0.5, (b.min[1] + b.max[1]) * 0.5, (b.min[2] + b.max[2]) * 0.5]);
-            self.w.block(cell).traversal != Traversal::Scaffolding || !st.pressing_descend && feet > cell[1] as f32 + 1.0 - 1e-5
-        });
-        boxes
-    }
-
     /// Sweeps Y, X, Z against nearby boxes, tries an auto-step and commits position and flags.
     pub(crate) fn try_collisions(&self, st: &mut PlayerState) -> bool {
         self.prepare_collision_box(st);
         let start = st.bounding_box();
         let mut bb = start;
         let cur = st.vel;
-        let boxes = self.movement_bboxes(st, &bb.extend(cur));
+        let boxes = self.nearby_bboxes(st, &bb.extend(cur));
         // BDS never moves a player out of a box it overlaps (see `push_out`); bedsim only once stuck.
         let one_way = true;
         let mut pen = [0f32; 3];
@@ -91,11 +79,11 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         let (xc, yc, zc) = (cur[0] != coll[0], cur[1] != coll[1], cur[2] != coll[2]);
         if (st.on_ground || (yc && cur[1] < 0.0)) && (xc || zc) {
-            if !self.loaded(&start.extend(cur).extend_up(STEP_HEIGHT)) {
+            if !self.loaded(&start.extend(cur).extend_up(st.step_height)) {
                 return false;
             }
-            let step = auto_step(&start, cur, &boxes, one_way);
-            if self.movement_bboxes(st, &step.bb).is_empty() && hz_dist_sqr(coll) < hz_dist_sqr(step.velocity) {
+            let step = auto_step(&start, cur, &boxes, one_way, st.step_height);
+            if !self.has_nearby_bboxes(st, &step.bb) && hz_dist_sqr(coll) < hz_dist_sqr(step.velocity) {
                 coll = step.velocity;
                 bb = step.bb;
             }
@@ -116,7 +104,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         // The sweep's own boxes leave out a surface the box only touches.
         let rests = cur[1] < 0.0
             && cur[1] == coll[1]
-            && self.movement_bboxes(st, &bb.extend_down(1e-4)).iter().any(|b| (bb.min[1] - b.max[1]).abs() <= 1e-6);
+            && self.nearby_bboxes(st, &bb.extend_down(1e-4)).iter().any(|b| (bb.min[1] - b.max[1]).abs() <= 1e-6);
         let yc = (cur[1] - coll[1]).abs() >= 1e-5 || rests;
         st.collide_x = (cur[0] - coll[0]).abs() > COLLIDED;
         st.collide_y = yc;
@@ -142,7 +130,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !self.loaded(&bb.extend([xm, DROP, zm])) {
             return false;
         }
-        let supported = |dx: f32, dz: f32| self.has_nearby_bboxes(&bb.translate([dx, DROP, dz]));
+        let supported = |dx: f32, dz: f32| self.has_nearby_bboxes(st, &bb.translate([dx, DROP, dz]));
 
         let mut i = 0;
         while i < EDGE_MAX_ITER && xm != 0.0 && !supported(xm, 0.0) {
@@ -202,7 +190,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         let mut best = None;
         let mut min_dist = f32::MAX;
         let mut boxes = Vec::new();
-        for pos in nearby_cells(bb) {
+        for pos in nearby_cells(bb).filter(|&p| self.collides_for(st, p)) {
             boxes.clear();
             self.w.block_collisions(pos, &mut boxes);
             let origin = pos_vec(pos);
@@ -225,7 +213,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         plane.max[1] = plane.min[1];
         let mut best = None;
         let mut boxes = Vec::new();
-        for pos in nearby_cells(&plane) {
+        for pos in nearby_cells(&plane).filter(|&p| self.collides_for(st, p)) {
             boxes.clear();
             self.w.block_collisions(pos, &mut boxes);
             let origin = pos_vec(pos);

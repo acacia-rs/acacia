@@ -148,10 +148,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         st.sprint_start_cancelled = f.start_sprinting && f.stop_sprinting;
         if f.start_sprinting || f.stop_sprinting {
             st.sprinting = f.start_sprinting && !f.stop_sprinting;
-            st.movement_speed = st.default_movement_speed;
-            if st.sprinting {
-                st.movement_speed *= SPRINT_SPEED_MULTIPLIER;
-            }
+            st.refresh_movement_speed();
         }
         st.air_speed = effective_air_speed(st);
 
@@ -188,7 +185,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         }
 
         let was_swimming = st.swimming;
-        st.stopped_swimming_this_tick = was_swimming && f.stop_swimming;
+        st.swam_before_input = was_swimming;
         if f.stop_swimming {
             st.swimming = false;
             st.swim_exit_jump_delay = JUMP_DELAY_TICKS;

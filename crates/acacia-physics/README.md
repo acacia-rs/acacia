@@ -26,7 +26,8 @@ Gravity and drag, per-block friction (ice, blue ice, slime, honey) and soul sand
 sneak speeds with the swift-sneak and item-use slowdowns, and sneak edge avoidance. Jumping includes the sprint
 boost, the 10-tick jump delay and honey's reduced jump. Collisions sweep Y, then X, then Z, with a 0.5625 auto-step,
 depenetration and one-way stuck handling. Also ported: supporting-block lookup; ladders and vines; cobweb and
-Weaving; powder snow and berry-bush stuck multipliers; scaffolding and powder-snow traversal; slime and bed bounce;
+Weaving; powder snow and berry-bush stuck multipliers; powder snow freeze (`frozen_ticks`, synced from the server's
+"Freeze effect" modifier); scaffolding and powder-snow traversal; slime and bed bounce;
 honey wall slide; and bubble columns. Liquids cover water and lava travel, swimming (with the swim hitbox and
 water grace), currents including falling water, Depth Strider and the dolphin multiplier, and the ledge-exit
 boost. Effects: jump boost, levitation, slow falling. Also ported: elytra gliding (including the firework boost
@@ -36,14 +37,18 @@ ticks), sneak, crawl and swim pose fitting under ceilings, teleports, knockback,
 Riptide, vehicles, creative flight and no-clip (bedsim does not simulate these either; it resets to the client),
 bedsim's client-drift correction and reconciliation, the step tie-breaker (always accepted, as with
 `IgnoreClientStepTiebreaker`), slide offset, legacy sprint timing, server-forced sprint, crawl input flags,
-the `AutoJumpingInWater` input flag, and powder snow's player-dependent collision shape (leather boots, a
-long fall) — the world adapter must resolve that itself. Speed and Slowness come in
-through `set_movement_attribute`, which takes the server's `minecraft:movement` without its sprint and freeze
-modifiers (the simulation adds both itself).
+the `AutoJumpingInWater` input flag, scaffolding's unsupported-bottom lip, and powder snow's player-dependent
+collision shape (leather boots, a long fall) — the world adapter must resolve that one itself. Scaffolding
+collides only under a player standing above it who isn't descending (`Sim::collides_for`). Speed and Slowness
+come in through `set_movement_attribute`, which takes the server's `minecraft:movement` without its sprint and
+freeze modifiers (the simulation adds both itself).
 
 ## Deliberate deviations from bedsim
 Each was found by fuzzing against strict BDS (`acacia-bot` examples `fuzz` and `replay`) and fixes
 mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge because of them.
+- Gliding follows BDS: the look vector from -pitch, its real horizontal length,
+  BDS's gravity form (docs/research/riding-fishing-elytra.md). Over a long glide this drifts about 1e-5
+  from bedsim, which uses cos(pitch). Strict BDS showed 0 corrections over 14 live glides.
 - The sneak slowdown lasts through the tick sneaking stops, and a sprint cannot start on that tick.
 - A crouch forced by a low ceiling (sneak key up) is no sneak for edge avoidance; a held sneak avoids edges
   on the jump tick too.
@@ -112,25 +117,26 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   velocity at 0.1 away from the mean centre of the overlapped boxes (+x+z when centred; an axis whose next block
   is taken turns round, or drops out if both sides are). Seen after a teleport into snow layers or a block
   placed on the player.
-- Scaffolding collides only from above its block and not while descending (bedsim leaves this to the world).
-- The honey wall slowdown (x/z × 0.4) applies on the ground and rising too, and in lava, but not in water. It
+- The honey wall slowdown (x/z × 0.4) applies on the ground and rising too, up to the block's full height
+  (bedsim and Java: its 15/16 top), and in lava, but never while the box touches water. It
   is an inside-block effect, once per honey cell the box is in (see the cells above): honey's box is inset
   1/16, so a box against it is in its cell, and one flush against a full block beside it is not.
-- An elytra glide divides by the look vector's own horizontal length (bedsim: cos(pitch)); the yaw's table sine
-  and cosine do not square to exactly one, which shifts the glide by up to 2e-5 a tick.
 - Levitation's vertical speed takes the 0.98 air drag too: v = (v + (0.05·level − v)·0.2)·0.98, a steady
   climb of 0.04537 a tick at level 1 (bedsim: 0.05). In liquid it is untested.
 - Weaving replaces any queued inside-block slowdown with (0.5, 0.25, 0.5), not only a cobweb's (BDS).
 - A horizontal axis counts as collided when the move was cut by more than 1.19e-7 (BDS `FinalizeMoveSystem`).
 - The standing eye offset is 1.62001 (BDS; bedsim: 1.62), so `PlayerAuthInput.position` matches the server's
   to the bit; with 1.62 it is an f32 ulp low at most heights and strict BDS corrects nearly every tick.
-- Powder snow freezes (BDS `FreezingComponent`): +1/140 a tick inside, -1/70 outside, and the movement speed
+- Powder snow freezes: +1/140 a tick inside (not with leather boots), -1/70 outside, and the movement speed
   takes freeze × -0.05; bedsim has no freezing. BDS steps it per world tick, not per input,
   which drifts a step either way; `server_freeze` takes the server's value for a tick (the "Freeze effect"
   modifier on the movement attribute / -0.05) in place of the step.
   Freeze: the server reports it once per world tick, stamped with the last input it had processed. An input
   uses the last report stamped before it, so inputs processed in one world tick share a value, and a stamp
   repeated (a world tick without input) moves only the next input (`acacia-bot` `movement/rewind.rs`).
+- StopSprinting always drops the sprint modifier, also while the server streams movement attributes.
+- Scaffolding's climb replaces the jump outright, sprint boost included.
+- A sneak edge stop shortens the move but keeps the velocity of an axis it did not stop outright.
 
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,
