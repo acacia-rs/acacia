@@ -79,7 +79,10 @@ fn liquid(ctx: &Ctx, p: [i32; 3], out: &mut SectionMesh) {
             continue;
         }
         let surface_below_top = face == 2 && height < 16;
-        if !surface_below_top && ctx.block(n).occludes {
+        let against = ctx.block(n);
+        // Ice and stained glass hide the liquid's sides too, or they show through as dark panes.
+        let see_through_cube = face != 2 && against.shape == Shape::Cube && against.layer == Layer::Translucent;
+        if !surface_below_top && (against.occludes || see_through_cube) {
             continue;
         }
         let max = [16, height, 16];
