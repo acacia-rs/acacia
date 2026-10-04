@@ -8,7 +8,7 @@ struct Globals {
     water: vec4<f32>,
     // rgb: fog/sky colour, w: distance where fog is opaque
     fog: vec4<f32>,
-    // x: ambient brightness
+    // x: ambient brightness, y: sky light levels lost to the time of day
     light: vec4<f32>,
 };
 
@@ -19,7 +19,7 @@ const GAMMA: f32 = 0.5;
 
 // Brightness of (block, sky) light levels.
 fn curve(l: vec2<f32>) -> f32 {
-    let f = max(l.x, l.y) / 15.0;
+    let f = max(l.x, l.y - g.light.y) / 15.0;
     let dark = f / (4.0 - 3.0 * f);
     let b = mix(dark, 1.0 - pow(1.0 - dark, 4.0), GAMMA);
     return b + g.light.x * (1.0 - b);

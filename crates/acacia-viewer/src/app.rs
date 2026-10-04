@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use acacia_render::sky::DAY_TICKS;
 use acacia_render::{Camera, FrameStats, Renderer};
 use glam::DVec3;
 use winit::application::ApplicationHandler;
@@ -31,6 +32,8 @@ pub struct App {
     cave_culling: bool,
     player: Option<DVec3>,
     entities: Smoother,
+    /// The server's time of day, once it sent one.
+    time: Option<f32>,
     camera_placed: bool,
     status: String,
     last_frame: Instant,
@@ -46,6 +49,9 @@ struct Overlay {
     frames: u32,
     reports: u32,
 }
+
+/// Share of the gap to the server's time of day closed per second.
+const TIME_EASE: f32 = 3.0;
 
 /// Title updates between stats lines in the log (5 s).
 const LOG_EVERY_TITLES: u32 = 10;
@@ -64,6 +70,7 @@ impl App {
             cave_culling: std::env::var_os("ACACIA_NO_CULL").is_none(),
             player: None,
             entities: Smoother::default(),
+            time: None,
             camera_placed: false,
             status: "starting".into(),
             last_frame: Instant::now(),
@@ -119,6 +126,7 @@ impl App {
                     }
                 }
                 NetEvent::Entities(snapshot) => self.entities.push(self.camera.position, snapshot),
+                NetEvent::Time(time) => self.time = Some(time as f32),
                 NetEvent::Status(s) => {
                     tracing::info!("{s}");
                     self.status = s;
@@ -143,6 +151,11 @@ impl App {
         let Some(r) = &mut self.renderer else { return };
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.cave_culling;
+        if let Some(time) = self.time {
+            // The server sends the time every few seconds: ease towards it, the short way round the day.
+            let ahead = (time - r.time + DAY_TICKS / 2.0).rem_euclid(DAY_TICKS) - DAY_TICKS / 2.0;
+            r.time += ahead * (dt * TIME_EASE).min(1.0);
+        }
         self.camera.aspect = r.aspect();
         r.set_entities(self.entities.instances(self.camera.position));
         let stats = r.render(&self.camera);

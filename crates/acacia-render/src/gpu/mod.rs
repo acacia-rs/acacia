@@ -1,6 +1,7 @@
 mod atlas;
 mod entities;
 mod entity_textures;
+mod globals;
 mod pipeline;
 mod screenshot;
 mod store;
@@ -21,30 +22,14 @@ use crate::assets::image::Texture;
 use crate::blocks::BlockTable;
 use atlas::BlockTextures;
 use crate::biome::BiomeColors;
-use crate::blocks::tint::WATER_ALPHA;
 use crate::camera::{Camera, Frustum};
 use crate::cull;
 use crate::light::Lighting;
 use crate::scene::{Scene, Update};
+use crate::sky::{self, Sky};
+use globals::{Globals, srgb_to_linear};
 use pipeline::Pipelines;
 use store::Store;
-
-/// Sky and fog colour (sRGB).
-const SKY: [f32; 3] = [0.62, 0.76, 1.0];
-/// Brightness of unlit blocks, with and without sky light (Java's nether ambient is 0.1).
-const AMBIENT: (f32, f32) = (0.02, 0.1);
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct Globals {
-    view_proj: [[f32; 4]; 4],
-    cam_block: [i32; 4],
-    cam_frac: [f32; 4],
-    water: [f32; 4],
-    fog: [f32; 4],
-    /// x: ambient brightness.
-    light: [f32; 4],
-}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FrameStats {
@@ -79,6 +64,8 @@ pub struct Renderer {
     pub fog_distance: f32,
     /// Skip sections no open path from the camera reaches ([`crate::cull`]).
     pub cave_culling: bool,
+    /// Time of day in ticks ([`crate::sky`]); noon until set.
+    pub time: f32,
     screenshot: Option<PathBuf>,
 }
 
@@ -148,6 +135,7 @@ impl Renderer {
             updates: Vec::new(),
             fog_distance: 160.0,
             cave_culling: true,
+            time: sky::NOON,
             screenshot: None,
         })
     }
@@ -230,14 +218,11 @@ impl Renderer {
         self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
 
         let view_proj = camera.view_proj();
-        let globals = Globals {
-            view_proj: view_proj.to_cols_array_2d(),
-            cam_block: [cam_block.x, cam_block.y, cam_block.z, 0],
-            cam_frac: [cam_frac.x, cam_frac.y, cam_frac.z, 0.0],
-            water: [WATER_ALPHA, 0.0, 0.0, 0.0],
-            fog: { let s = srgb_to_linear(SKY); [s[0], s[1], s[2], self.fog_distance] },
-            light: [if self.world().is_none_or(|w| w.dimension().sky) { AMBIENT.0 } else { AMBIENT.1 }, 0.0, 0.0, 0.0],
-        };
+        let has_sky = self.world().is_none_or(|w| w.dimension().sky);
+        let sky = Sky::at(if has_sky { self.time } else { sky::NOON });
+        let sky_color = srgb_to_linear(sky.color);
+        let fog = [sky_color[0], sky_color[1], sky_color[2], self.fog_distance];
+        let globals = Globals::new(view_proj, (cam_block, cam_frac), fog, has_sky, sky.darken);
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
         let light = self.scene.as_ref().map(|s| s.light().read());
         // Outside lit columns an entity is as bright as open sky.
@@ -278,7 +263,7 @@ impl Renderer {
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         {
-            let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, srgb_to_linear(SKY));
+            let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, sky_color);
             for (pipeline, draws) in [(&self.pipelines.solid, &solid), (&self.pipelines.translucent, &translucent)] {
                 pass.set_pipeline(pipeline);
                 pass.set_bind_group(0, &self.bind_group, &[]);
@@ -300,8 +285,4 @@ impl Renderer {
         self.queue.present(frame);
         stats
     }
-}
-
-fn srgb_to_linear(c: [f32; 3]) -> [f32; 3] {
-    c.map(|v| if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) })
 }

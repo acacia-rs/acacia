@@ -11,6 +11,7 @@ mod gpu;
 pub mod light;
 pub mod mesh;
 mod scene;
+pub mod sky;
 mod workers;
 
 pub use camera::Camera;

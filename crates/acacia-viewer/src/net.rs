@@ -36,6 +36,8 @@ pub enum NetEvent {
     /// Sent once, before any [`NetEvent::Entities`].
     EntityModels(Arc<EntityModels>),
     Entities(Vec<Tracked>),
+    /// The time of day in ticks, when the server sends a new one.
+    Time(i32),
     Status(String),
     /// The bot thread stopped: kicked, disconnected, or failed to join. Last event sent.
     Ended(String),
@@ -108,6 +110,7 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
 
     let mut current: Option<Arc<World>> = None;
     let mut biome_logged = false;
+    let mut time = None;
     // `next` only returns for caller-facing events, which a viewer barely subscribes to; the
     // timer reports world and position changes in between (`next` is cancel-safe).
     let mut report = tokio::time::interval(Duration::from_secs_f32(SNAPSHOT_SECS));
@@ -149,6 +152,11 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
             let p = bot.state().player.eye_position();
             send(NetEvent::Player(DVec3::new(p.x.into(), p.y.into(), p.z.into())))?;
             send(NetEvent::Entities(feed.snapshot(&bot)))?;
+            let now = bot.state().environment.time;
+            if time.replace(now) != Some(now) {
+                tracing::debug!(time = now, "time of day");
+                send(NetEvent::Time(now))?;
+            }
             if !biome_logged {
                 let (x, y, z) = (p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
                 if let Some(id) = world.get(x >> 4, z >> 4).and_then(|c| c.read().biome(x, y, z)) {

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use acacia_client::proto::codec::read_zigzag32;
 use acacia_client::proto::packets::{
     BossEvent, BossEventColor, BossEventOverlay, BossEventType, ChangeDimension, LevelEvent, LevelEventEvent, SetTime, StartGame,
+    SyncWorldClocks, SyncWorldClocksContent,
 };
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
@@ -20,8 +21,12 @@ pub struct BossBar {
 
 #[derive(Debug, Default)]
 pub struct Environment {
-    /// Time of day in ticks as last sent (`SetTime`); the client advances it locally in between.
+    /// Time of day in ticks as last sent: `SetTime`, or the overworld clock of `SyncWorldClocks`
+    /// (1.26 servers send only the latter). The client advances it locally in between.
     pub time: i32,
+    /// The day cycle is stopped (`SyncWorldClocks` only).
+    pub time_paused: bool,
+    day_clock: Option<u64>,
     /// 0..1; above 0 while it rains.
     pub rain: f32,
     /// 0..1; above 0 during a thunderstorm.
@@ -29,11 +34,12 @@ pub struct Environment {
     pub boss_bars: HashMap<i64, BossBar>,
 }
 
+const DAY_CLOCK: &str = "minecraft:overworld";
 /// LevelEvent rain/thunder intensity is 0..65535.
 const LEVEL_EVENT_SCALE: f32 = 65535.0;
 
 impl Environment {
-    pub const PACKETS: &'static [u32] = &[StartGame::ID, SetTime::ID, LevelEvent::ID, BossEvent::ID, ChangeDimension::ID];
+    pub const PACKETS: &'static [u32] = &[StartGame::ID, SetTime::ID, SyncWorldClocks::ID, LevelEvent::ID, BossEvent::ID, ChangeDimension::ID];
 
     pub fn is_raining(&self) -> bool {
         self.rain > 0.0
@@ -51,6 +57,21 @@ impl Environment {
                 (self.rain, self.thunder) = (p.rain_level, p.lightning_level);
             }
             SetTime::ID => self.time = packet.decode::<SetTime>()?.time,
+            SyncWorldClocks::ID => match packet.decode::<SyncWorldClocks>()?.content {
+                SyncWorldClocksContent::InitializeRegistry(r) => {
+                    if let Some(c) = r.clocks.iter().find(|c| c.name == DAY_CLOCK) {
+                        (self.day_clock, self.time, self.time_paused) = (Some(c.id), c.time, c.paused);
+                    }
+                }
+                SyncWorldClocksContent::SyncState(s) => {
+                    // The first state can precede the registry that names the clocks.
+                    let known = self.day_clock;
+                    if let Some(c) = s.sync_states.iter().find(|c| known.is_none_or(|id| id == c.clock_id)) {
+                        (self.time, self.time_paused) = (c.time, c.paused);
+                    }
+                }
+                _ => {}
+            },
             // Mostly sounds and particles: peek the event so those cost no decode.
             LevelEvent::ID => {
                 let event = LevelEventEvent::from_raw(read_zigzag32(&mut &packet.body[..])?.into());
