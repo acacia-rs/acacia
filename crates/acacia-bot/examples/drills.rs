@@ -175,6 +175,17 @@ const fn reswim_steps(gap: u32, jump: bool) -> [Step; 4] {
     [(15, 1.0, true, false, 0.0, false), (gap, 0.0, false, false, 0.0, false), (15, 1.0, true, jump, 0.0, false), STOP]
 }
 
+/// The 3-deep pool, plain or bubbling, with a glass wall across it at x+8.
+const POOL_WALL: &[Fill] = &[([1, -3, -3], [20, -1, 3], "water"), ([8, -3, -3], [8, 1, 3], "glass")];
+const BUBBLES_WALL: &[Fill] =
+    &[([1, -3, -3], [20, -1, 3], "water"), ([1, -4, -3], [20, -4, 3], "magma"), ([8, -3, -3], [8, 1, 3], "glass")];
+
+/// Sprint into a wall until pinned, stand still for `gap` ticks, then sprint off at `yaw` (fuzz 101523 tick
+/// 3023: after a swim pinned in a corner, BDS started the next sprint and swim late).
+const fn pinned_steps(gap: u32, jump: bool, yaw: f32) -> [Step; 4] {
+    [(40, 1.0, true, false, 0.0, false), (gap, 0.0, false, false, 0.0, false), (15, 1.0, true, jump, yaw, false), (20, 0.0, false, false, yaw, false)]
+}
+
 /// Sprint `ticks` at `yaw` towards the pit, then sneak on.
 const fn rush(ticks: u32, yaw: f32) -> [Step; 3] {
     [(ticks, 1.0, true, false, yaw, false), (25, 1.0, false, false, yaw, true), STOP]
@@ -278,6 +289,12 @@ const DRILLS: &[Drill] = &[
     reswim("reswim5j", BUBBLES, &reswim_steps(5, true)), reswim("reswim5", BUBBLES, &reswim_steps(5, false)),
     reswim("reswim2j", BUBBLES, &reswim_steps(2, true)), reswim("reswim20j", BUBBLES, &reswim_steps(20, true)),
     reswim("reswimpool5j", POOL3, &reswim_steps(5, true)), reswim("reswimpool5", POOL3, &reswim_steps(5, false)),
+    reswim("pin5j", POOL_WALL, &pinned_steps(5, true, 180.0)), reswim("pin5", POOL_WALL, &pinned_steps(5, false, 180.0)),
+    reswim("pin5side", POOL_WALL, &pinned_steps(5, false, 80.0)), reswim("pin1", POOL_WALL, &pinned_steps(1, false, 180.0)),
+    reswim("pin20", POOL_WALL, &pinned_steps(20, false, 180.0)), reswim("pin60", POOL_WALL, &pinned_steps(60, false, 180.0)),
+    reswim("pinbub5j", BUBBLES_WALL, &pinned_steps(5, true, 180.0)), reswim("pinbub5", BUBBLES_WALL, &pinned_steps(5, false, 180.0)),
+    drill("pinland5", WALL3, &pinned_steps(5, false, 180.0)), drill("pinland1", WALL3, &pinned_steps(1, false, 180.0)),
+    drill("pinland20", WALL3, &pinned_steps(20, false, 180.0)), drill("pinland5side", WALL3, &pinned_steps(5, false, 80.0)),
 ];
 
 #[tokio::main(flavor = "current_thread")]

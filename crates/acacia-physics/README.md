@@ -139,6 +139,9 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   repeated (a world tick without input) moves only the next input (`acacia-bot` `movement/rewind.rs`).
 - StopSprinting always drops the sprint modifier, also while the server streams movement attributes.
 - Scaffolding's climb replaces the jump outright, sprint boost included.
+- A wall that stalled a sprint keeps blocking the next sprint start while the player stands still in liquid
+  (zero horizontal velocity), however long: the sprint, and a swim with it, then starts a tick late. Not on
+  land, and not when the wall was walked into (drills `pin*`).
 - A sneak edge stop shortens the move but keeps the velocity of an axis it did not stop outright, on land
   and in liquid.
 

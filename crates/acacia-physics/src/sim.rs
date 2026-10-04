@@ -207,7 +207,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     }
 
     fn simulate_core(&self, st: &mut PlayerState) -> Outcome {
-        st.sprint_movement_blocked = false;
+        // Only a block that began under a sprint outlasts standing still in liquid (see README).
+        let sprint_blocked = st.sprinting || st.was_sprint_movement_blocked;
+        st.was_sprint_movement_blocked = std::mem::take(&mut st.sprint_movement_blocked) && sprint_blocked;
         st.ensure_pose_heights();
         if let Some(pos) = st.pending_teleport.take() {
             land_teleport(st, pos);
