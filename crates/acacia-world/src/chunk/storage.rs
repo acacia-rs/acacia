@@ -1,10 +1,12 @@
 //! One 16³ paletted block storage kept packed as on the wire. Index order is XZY: `(x << 8) | (z << 4) | y`.
 
+use rustc_hash::FxHashMap;
+
 use super::reader::Reader;
 use crate::Error;
 
 pub const VOLUME: usize = 4096;
-const VALID_BITS: [u8; 8] = [1, 2, 3, 4, 5, 6, 8, 16];
+pub(super) const VALID_BITS: [u8; 8] = [1, 2, 3, 4, 5, 6, 8, 16];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Storage {
@@ -80,6 +82,36 @@ impl Storage {
         (0..len).try_for_each(|_| r.var_u32().map(drop))
     }
 
+    /// Packs values in XZY order; the palette lists ids in order of first appearance.
+    pub(crate) fn from_values(values: &[u32; VOLUME]) -> Self {
+        let mut palette = Vec::new();
+        let mut seen = FxHashMap::default();
+        let indices: Vec<u16> = values
+            .iter()
+            .map(|&v| {
+                *seen.entry(v).or_insert_with(|| {
+                    palette.push(v);
+                    (palette.len() - 1) as u16
+                })
+            })
+            .collect();
+        Self::from_indices(palette, indices.into_iter().map(usize::from))
+    }
+
+    /// The smallest storage for a non-empty palette and one palette index per block.
+    pub(super) fn from_indices(palette: Vec<u32>, indices: impl Iterator<Item = usize>) -> Self {
+        if let [id] = palette[..] {
+            return Storage::Single(id);
+        }
+        let bits = *VALID_BITS.iter().find(|&&b| palette.len() <= 1 << b).expect("16 bits holds 4096");
+        let mut words = vec![0; word_count(bits)].into_boxed_slice();
+        let per = per_word(bits);
+        for (i, p) in indices.enumerate() {
+            words[i / per] |= (p as u32) << ((i % per) * bits as usize);
+        }
+        Storage::Packed { bits, palette, words }
+    }
+
     pub(crate) fn get(&self, idx: usize) -> u32 {
         match self {
             Storage::Single(id) => *id,
@@ -152,7 +184,7 @@ impl Storage {
     }
 }
 
-fn packed_get(words: &[u32], bits: u8, idx: usize) -> usize {
+pub(super) fn packed_get(words: &[u32], bits: u8, idx: usize) -> usize {
     let per = per_word(bits);
     let shift = (idx % per) * bits as usize;
     ((words[idx / per] >> shift) & ((1u32 << bits) - 1)) as usize

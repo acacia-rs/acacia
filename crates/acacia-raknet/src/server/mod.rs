@@ -1,0 +1,219 @@
+mod config;
+mod cookie;
+mod handshake;
+mod schedule;
+#[cfg(test)]
+mod tests;
+
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::net::{IpAddr, SocketAddr};
+use std::time::Instant;
+
+use bytes::Bytes;
+
+pub use config::{PeerStats, ServerConfig, ServerEvent};
+use cookie::Cookies;
+use schedule::Schedule;
+
+use crate::conn::Conn;
+use crate::types::DisconnectReason;
+use crate::wire::datagram::{Reliability, FLAG_VALID};
+use crate::wire::{connected as c, offline as o, WireError};
+
+struct Peer {
+    conn: Conn,
+    guid: u64,
+    connected: bool,
+    /// Only meaningful until `connected`.
+    handshake_deadline: Instant,
+    /// Bookkeeping of `schedule.rs`: queued for output, and its timer entries, earliest last.
+    ready: bool,
+    wakes: Vec<Instant>,
+}
+
+impl Peer {
+    fn new(conn: Conn, guid: u64, handshake_deadline: Instant) -> Self {
+        Self { conn, guid, connected: false, handshake_deadline, ready: false, wakes: Vec::new() }
+    }
+
+    fn poll_timeout(&self) -> Instant {
+        let conn = self.conn.poll_timeout();
+        if self.connected { conn } else { conn.min(self.handshake_deadline) }
+    }
+
+    fn handle_timeout(&mut self, now: Instant) -> Result<(), DisconnectReason> {
+        if !self.connected && now >= self.handshake_deadline {
+            return Err(DisconnectReason::ConnectTimeout);
+        }
+        self.conn.handle_timeout(now)
+    }
+}
+
+/// A network-free RakNet server: answers pings and the offline handshake, then keeps one connection
+/// per peer address. Feed it datagrams and timeouts, drain `(address, datagram)` pairs and events.
+///
+/// Drain [`Server::poll_transmit`] before sleeping until [`Server::poll_timeout`]: a peer's timer
+/// is set when its output has been taken.
+pub struct Server {
+    cfg: ServerConfig,
+    epoch: Instant,
+    cookies: Cookies,
+    peers: HashMap<SocketAddr, Peer>,
+    schedule: Schedule,
+    banned: HashSet<IpAddr>,
+    outbox: VecDeque<(SocketAddr, Bytes)>,
+    events: VecDeque<ServerEvent>,
+}
+
+impl Server {
+    pub fn new(mut cfg: ServerConfig, now: Instant) -> Self {
+        cfg.max_mtu = cfg.max_mtu.max(o::MIN_MTU);
+        Self {
+            cookies: Cookies::new(cfg.cookie_secret),
+            cfg,
+            epoch: now,
+            peers: HashMap::new(),
+            schedule: Schedule::default(),
+            banned: HashSet::new(),
+            outbox: VecDeque::new(),
+            events: VecDeque::new(),
+        }
+    }
+
+    pub fn set_motd(&mut self, motd: String) {
+        self.cfg.motd = motd;
+    }
+
+    /// Refuses new connections from `ip` with "connection banned" until [`Server::unban`].
+    /// Peers already connected from it stay; [`Server::close`] them. Expiry is the caller's policy.
+    pub fn ban(&mut self, ip: IpAddr) {
+        self.banned.insert(ip);
+    }
+
+    pub fn unban(&mut self, ip: IpAddr) {
+        self.banned.remove(&ip);
+    }
+
+    /// The connected peers.
+    pub fn peers(&self) -> impl Iterator<Item = SocketAddr> + '_ {
+        self.peers.iter().filter(|(_, p)| p.connected).map(|(&addr, _)| addr)
+    }
+
+    /// `None` unless `peer` is connected.
+    pub fn stats(&self, peer: SocketAddr) -> Option<PeerStats> {
+        let p = self.peers.get(&peer).filter(|p| p.connected)?;
+        let send = p.conn.send_queue();
+        Some(PeerStats {
+            guid: p.guid,
+            mtu: p.conn.mtu(),
+            rtt: send.rtt(),
+            queued_bytes: send.queued_bytes(),
+            in_flight: send.in_flight(),
+            window: send.window(),
+            resent: send.resent(),
+        })
+    }
+
+    /// Queues a message on ordering channel 0. Returns false if `peer` is not connected.
+    pub fn send(&mut self, peer: SocketAddr, data: Bytes, reliability: Reliability) -> bool {
+        match self.peers.get_mut(&peer) {
+            Some(p) if p.connected => {
+                p.conn.queue(data, reliability);
+                self.schedule.touch(peer, p);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Sends `peer` a disconnection notification and forgets it; no event follows.
+    pub fn close(&mut self, peer: SocketAddr, now: Instant) {
+        if let Some(mut p) = self.peers.remove(&peer) {
+            self.outbox.extend(p.conn.close(now).into_iter().map(|d| (peer, d)));
+        }
+    }
+
+    pub fn poll_event(&mut self) -> Option<ServerEvent> {
+        self.events.pop_front()
+    }
+
+    /// The next datagram to send. Peers with output take turns, one datagram each.
+    pub fn poll_transmit(&mut self, now: Instant) -> Option<(SocketAddr, Bytes)> {
+        if let Some(out) = self.outbox.pop_front() {
+            return Some(out);
+        }
+        while let Some(addr) = self.schedule.pop_ready() {
+            let Some(p) = self.peers.get_mut(&addr) else { continue };
+            p.ready = false;
+            match p.conn.poll_transmit(now) {
+                Some(d) => {
+                    self.schedule.mark_ready(addr, p);
+                    return Some((addr, d));
+                }
+                None => self.schedule.arm(addr, p),
+            }
+        }
+        None
+    }
+
+    pub fn poll_timeout(&self) -> Option<Instant> {
+        self.schedule.next_timeout()
+    }
+
+    pub fn handle_timeout(&mut self, now: Instant) {
+        for (at, addr) in self.schedule.take_due(now) {
+            let Some(p) = self.peers.get_mut(&addr).filter(|p| p.wakes.last() == Some(&at)) else { continue };
+            p.wakes.pop();
+            match p.handle_timeout(now) {
+                // Not armed here: until poll_transmit takes what is due, its timeout is still `now`.
+                Ok(()) => self.schedule.mark_ready(addr, p),
+                Err(reason) => self.drop_peer(addr, reason),
+            }
+        }
+    }
+
+    pub fn handle_datagram(&mut self, now: Instant, from: SocketAddr, data: Bytes) {
+        let Some(&id) = data.first() else { return };
+        let Some(p) = self.peers.get_mut(&from).filter(|_| id & FLAG_VALID != 0) else {
+            // Offline datagrams prove nothing about their sender, so a bad one never costs a peer.
+            _ = self.handle_offline(now, from, id, &data);
+            return;
+        };
+        if let Err(reason) = p.conn.handle_datagram(now, &data).and_then(|()| self.handle_messages(now, from)) {
+            self.drop_peer(from, reason);
+        } else if let Some(p) = self.peers.get_mut(&from) {
+            self.schedule.touch(from, p);
+        }
+    }
+
+    fn drop_peer(&mut self, addr: SocketAddr, reason: DisconnectReason) {
+        if let Some(p) = self.peers.remove(&addr)
+            && p.connected
+        {
+            self.events.push_back(ServerEvent::Disconnected(addr, reason));
+        }
+    }
+
+    fn handle_messages(&mut self, now: Instant, from: SocketAddr) -> Result<(), DisconnectReason> {
+        let protocol = |e: WireError| DisconnectReason::Protocol(e.to_string());
+        while let Some(p) = self.peers.get_mut(&from)
+            && let Some(msg) = p.conn.pop_message(now)
+        {
+            match msg[0] {
+                c::ID_CONNECTION_REQUEST if !p.connected => {
+                    let request_time = c::parse_connection_request(&msg).map_err(protocol)?;
+                    let accepted = c::connection_request_accepted(from, request_time, p.conn.time(now));
+                    p.conn.queue(accepted, Reliability::Reliable);
+                }
+                c::ID_NEW_INCOMING_CONNECTION if !p.connected => {
+                    p.connected = true;
+                    self.events.push_back(ServerEvent::Connected { addr: from, guid: p.guid, mtu: p.conn.mtu() });
+                }
+                c::ID_DISCONNECTION_NOTIFICATION => return Err(DisconnectReason::ClientClosed),
+                _ if p.connected => self.events.push_back(ServerEvent::Message(from, msg)),
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+}

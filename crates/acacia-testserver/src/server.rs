@@ -162,7 +162,7 @@ async fn run(socket: UdpSocket, script: Script, shared: Arc<Mutex<Shared>>, mut 
         let now = Instant::now();
         while let Some(event) = server.poll_event() {
             match event {
-                ServerEvent::Connected(addr) if peer.is_none() => peer = Some((addr, Peer::new(script.clone(), now))),
+                ServerEvent::Connected { addr, .. } if peer.is_none() => peer = Some((addr, Peer::new(script.clone(), now))),
                 ServerEvent::Message(addr, msg) => {
                     if let Some((a, p)) = &mut peer
                         && *a == addr

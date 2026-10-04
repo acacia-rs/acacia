@@ -153,7 +153,7 @@ pub fn split_connection_request(request: &[u8]) -> Option<(&[u8], &[u8])> {
     Some((envelope, client_jwt))
 }
 
-fn take_prefixed(buf: &[u8]) -> Option<(&[u8], &[u8])> {
+pub(super) fn take_prefixed(buf: &[u8]) -> Option<(&[u8], &[u8])> {
     let len = usize::try_from(i32::from_le_bytes(buf.get(..4)?.try_into().ok()?)).ok()?;
     let rest = &buf[4..];
     (rest.len() >= len).then(|| rest.split_at(len))
@@ -161,11 +161,21 @@ fn take_prefixed(buf: &[u8]) -> Option<(&[u8], &[u8])> {
 
 /// MD5 name-based UUID (version 3 bits) of `OfflinePlayer:<name>`.
 pub fn offline_identity(display_name: &str) -> String {
+    name_uuid(&format!("OfflinePlayer:{display_name}")).to_string()
+}
+
+/// The player UUID of an Xbox account: MD5 (version 3 bits) of `pocket-auth-1-xuid:<xuid>`, as
+/// gophertunnel `login.identityFromXUID` derives it for token logins.
+pub fn xuid_identity(xuid: &str) -> uuid::Uuid {
+    name_uuid(&format!("pocket-auth-1-xuid:{xuid}"))
+}
+
+pub(super) fn name_uuid(input: &str) -> uuid::Uuid {
     use md5::{Digest, Md5};
-    let mut id: [u8; 16] = Md5::digest(format!("OfflinePlayer:{display_name}")).into();
+    let mut id: [u8; 16] = Md5::digest(input).into();
     id[6] = (id[6] & 0x0f) | 0x30;
     id[8] = (id[8] & 0x3f) | 0x80;
-    uuid::Uuid::from_bytes(id).to_string()
+    uuid::Uuid::from_bytes(id)
 }
 
 fn sign(key: &SigningKey, claims: &impl Serialize) -> String {

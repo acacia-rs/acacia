@@ -5,8 +5,10 @@ use super::skin::Skin;
 
 /// Claims of the client-data JWT in the Login packet: the key set the vanilla 1.26.52 client sends
 /// (no PlayFabId/PartyId/IsPartyLeader), signed with keys sorted (`request::sign_client`).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "PascalCase")]
+/// Reading is lenient for servers: claims another platform omits take their default, unknown ones
+/// are ignored (`login::verify` keeps the raw claims).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase", default)]
 pub struct ClientData {
     #[serde(flatten)]
     pub skin: Skin,

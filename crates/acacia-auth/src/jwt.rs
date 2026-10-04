@@ -1,5 +1,6 @@
 //! Compact ES384 JWTs as Bedrock uses them: header `{"alg":"ES384","x5u":<SPKI DER b64>}`,
-//! signature is raw `r || s` (96 bytes), not DER.
+//! signature is raw `r || s` (96 bytes), not DER. RS256 (the real multiplayer token) is verified by
+//! `login::verify::SigningKeys`.
 
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
@@ -62,8 +63,25 @@ impl Unverified<'_> {
         self.header.get("x5u").and_then(Value::as_str)
     }
 
+    pub fn alg(&self) -> Option<&str> {
+        self.header.get("alg").and_then(Value::as_str)
+    }
+
+    pub fn kid(&self) -> Option<&str> {
+        self.header.get("kid").and_then(Value::as_str)
+    }
+
+    /// The bytes the signature covers: `<header b64>.<claims b64>`.
+    pub fn signing_input(&self) -> &[u8] {
+        self.signing_input.as_bytes()
+    }
+
+    pub fn signature(&self) -> &[u8] {
+        &self.signature
+    }
+
     pub fn verify(&self, key: &p384::PublicKey) -> Result<()> {
-        if self.header.get("alg").and_then(Value::as_str) != Some("ES384") {
+        if self.alg() != Some("ES384") {
             return Err(Error::Jwt("alg is not ES384".into()));
         }
         let sig = Signature::from_slice(&self.signature)

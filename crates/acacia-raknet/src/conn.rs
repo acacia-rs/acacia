@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 
-use crate::reliability::{RecvState, SendQueue};
+use crate::reliability::{RecvLimits, RecvState, SendQueue};
 use crate::types::DisconnectReason;
 use crate::wire::datagram::{decode_acks, Frame, Reliability, FLAG_ACK, FLAG_NACK};
 use crate::wire::{connected as c, offline as o, Reader};
@@ -10,6 +10,15 @@ use crate::wire::{connected as c, offline as o, Reader};
 /// ACKs and NACKs leave on this tick, like RakNet's update loop, not per datagram: vanilla covers
 /// ~4.6 datagrams per ACK after a 5 ms median wait (2026-10-03 capture; acacia-capdiff `pacing`).
 const ACK_TICK: Duration = Duration::from_millis(10);
+
+pub(crate) struct ConnConfig {
+    pub mtu: u16,
+    pub idle_timeout: Duration,
+    pub ping_interval: Duration,
+    pub recv_limits: RecvLimits,
+    /// Send under a congestion window. Off for the client, whose pacing is part of how it looks.
+    pub congestion_window: bool,
+}
 
 /// The connected half of a RakNet connection, shared by client and server: reliability, ACKs,
 /// answering pings, sending our own and the idle timeout.
@@ -27,14 +36,15 @@ pub(crate) struct Conn {
 }
 
 impl Conn {
-    pub fn new(epoch: Instant, mtu: u16, idle_timeout: Duration, ping_interval: Duration, now: Instant) -> Self {
+    pub fn new(epoch: Instant, cfg: ConnConfig, now: Instant) -> Self {
         Self {
             epoch,
-            mtu,
-            idle_timeout,
-            ping_interval,
-            send: SendQueue::new(),
-            recv: RecvState::default(),
+            // The peer names the MTU; below the floor the payload arithmetic would underflow.
+            mtu: cfg.mtu.max(o::MIN_MTU),
+            idle_timeout: cfg.idle_timeout,
+            ping_interval: cfg.ping_interval,
+            send: SendQueue::new(cfg.congestion_window),
+            recv: RecvState::new(cfg.recv_limits),
             last_recv: now,
             last_ping: now,
             ack_at: None,
@@ -47,8 +57,16 @@ impl Conn {
         self.epoch + ACK_TICK * ticks as u32
     }
 
+    pub fn mtu(&self) -> u16 {
+        self.mtu
+    }
+
     pub fn rtt(&self) -> Option<Duration> {
         self.send.rtt()
+    }
+
+    pub fn send_queue(&self) -> &SendQueue {
+        &self.send
     }
 
     pub fn time(&self, now: Instant) -> i64 {
@@ -83,7 +101,7 @@ impl Conn {
         }
         while r.remaining() > 0 {
             let frame = Frame::decode(&mut r, data).map_err(|e| protocol(&e))?;
-            self.recv.on_frame(frame).map_err(|e| protocol(&e))?;
+            self.recv.on_frame(frame, data.len()).map_err(|e| protocol(&e))?;
         }
         Ok(())
     }
@@ -94,7 +112,7 @@ impl Conn {
             match msg.first() {
                 Some(&c::ID_CONNECTED_PING) => {
                     if let Ok(time) = c::parse_timestamp(&msg) {
-                        self.queue(c::connected_pong(time, self.time(now)), Reliability::Unreliable);
+                        self.send.push_control(c::connected_pong(time, self.time(now)));
                     }
                 }
                 Some(&c::ID_CONNECTED_PONG) | None => {}
@@ -129,7 +147,7 @@ impl Conn {
         self.send.on_timeout(now);
         if now >= self.last_ping + self.ping_interval {
             self.last_ping = now;
-            self.queue(c::connected_ping(self.time(now)), Reliability::Unreliable);
+            self.send.push_control(c::connected_ping(self.time(now)));
         }
         Ok(())
     }
@@ -137,17 +155,25 @@ impl Conn {
     /// Queues a disconnection notification and packs everything still queued into datagrams.
     pub fn close(&mut self, now: Instant) -> Vec<Bytes> {
         self.queue(c::disconnection_notification(), Reliability::ReliableOrdered);
-        let max = self.max_payload();
-        std::iter::from_fn(|| self.send.pack(now, max)).collect()
+        self.send.flush(now, self.max_payload())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use bytes::BytesMut;
+
     use super::*;
+    use crate::wire::datagram::{put_datagram_header, Split};
+
+    fn conn_with_mtu(now: Instant, mtu: u16) -> Conn {
+        let (idle_timeout, ping_interval) = (Duration::from_secs(10), Duration::from_secs(5));
+        let cfg = ConnConfig { mtu, idle_timeout, ping_interval, recv_limits: RecvLimits::SERVER, congestion_window: true };
+        Conn::new(now, cfg, now)
+    }
 
     fn conn(now: Instant) -> Conn {
-        Conn::new(now, 1400, Duration::from_secs(10), Duration::from_secs(5), now)
+        conn_with_mtu(now, 1400)
     }
 
     /// `n` reliable datagrams from a peer, one message each.
@@ -165,6 +191,28 @@ mod tests {
         let mut ranges = Vec::new();
         decode_acks(datagram, |a, b| ranges.push((a, b))).unwrap();
         ranges
+    }
+
+    #[test]
+    fn mtu_below_the_floor_is_raised() {
+        let now = Instant::now();
+        let mut c = conn_with_mtu(now, 20);
+        c.queue(Bytes::from(vec![1u8; 5000]), Reliability::ReliableOrdered);
+        let sent: Vec<Bytes> = std::iter::from_fn(|| c.poll_transmit(now)).collect();
+        let max = usize::from(o::MIN_MTU - o::UDP_OVERHEAD);
+        assert!(sent.len() > 5000 / max && sent.iter().all(|d| d.len() <= max), "{} datagrams", sent.len());
+    }
+
+    #[test]
+    fn split_abuse_ends_the_connection() {
+        let t0 = Instant::now();
+        let mut c = conn(t0);
+        let split = Some(Split { count: 100_000, id: 0, index: 0 });
+        let frame = Frame { reliability: Reliability::Reliable, reliable_index: 0, sequence_index: 0, order_index: 0, order_channel: 0, split, body: Bytes::from_static(b"x") };
+        let mut d = BytesMut::new();
+        put_datagram_header(&mut d, 0);
+        frame.encode(&mut d);
+        assert_eq!(c.handle_datagram(t0, &d.freeze()), Err(DisconnectReason::Protocol("BadSplit".into())));
     }
 
     #[test]

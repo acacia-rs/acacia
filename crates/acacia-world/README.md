@@ -54,6 +54,11 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
   `Blobs` resolves). `Chunk::biome(x, y, z)`, `copy_biomes(index, out)`; ids are raw, never remapped.
   Malformed biome data keeps what decoded instead of failing the chunk.
 - `BlockAccess` (`block`, `liquid`; unloaded reads air) is implemented by `ChunkView`.
+- Building and encoding (servers; `chunk/encode.rs` has the layout): `Chunk::empty` then `set`, `fill_section`,
+  `set_section`, `fill_biomes`, `set_biome`. `level_chunk` / `level_chunk_request` (biomes only, sections on
+  request) and their `_cached` forms give a `LevelChunkData` (`packet(x, z, dimension)`); `sub_chunk` /
+  `sub_chunk_cached` give a `SubChunkData` (`entry(dx, dy, dz)`) with the heightmap from `column_heights`.
+  Palettes are compacted on encode. `BlockRegistry::network_hash` is the id map for hashed ids.
 - Since 26.50, stairs (`minecraft:corner`), fences and panes (`minecraft:connection_*`) carry their
   connections in the state, and walls already did. So `boxes` is complete and needs no neighbour lookups.
 
@@ -68,5 +73,10 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
 - Fence arms use Java's post width (0.375 to 0.625, 1.5 high). Panes and bars use Boar's thin-bar boxes.
 - Custom blocks collide as full cubes, block all light, and have no properties or hash.
 - `Dimension::sky` is true for the overworld only.
+- Encoded chunks are checked against our own decoder and the bot's `WorldTracker` only, never a vanilla client.
+  Open: heightmap semantics (dragonfly's: y above the highest counted block, 16 above / -1 below the
+  sub-chunk, rows by z), the render heightmap (sent as a copy), the `0xff` biome marker for any section equal
+  to the one below (dragonfly's; BDS and Geyser write equal sections out, BDS using it only for the top
+  ones), and the full-chunk cache layout (from gophertunnel).
 - Trial spawner light by state (4 idle, 9 active) and vault (6 inactive, 12 otherwise) follow the wiki's
   wording; conduits always emit 15 (activity lives in the block entity).
