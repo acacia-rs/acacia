@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use acacia_proto::nbt::Value;
 use acacia_proto::packets::{LevelChunk, StartGame};
@@ -12,8 +12,9 @@ use acacia_render::assets::Pack;
 use acacia_render::assets::image::{Alpha, Texture};
 use acacia_render::biome::{BiomeColors, BiomeDef};
 use acacia_render::blocks::{BlockTable, Layer, Material, Shape, Tint};
+use acacia_render::light::{LightEvent, Lighting};
 use acacia_render::mesh::{Volume, mesh_section};
-use acacia_world::{BlockIds, BlockRegistry, ChunkView, CustomBlock, World};
+use acacia_world::{BlockIds, BlockRegistry, ChunkChange, ChunkView, CustomBlock, World};
 use bytes::Bytes;
 
 fn pack() -> Option<Pack> {
@@ -120,6 +121,114 @@ fn biome_colors_follow_colormaps_and_exceptions() {
     assert!(desert.grass[0] > plains.grass[0], "desert grass is yellower");
     assert_eq!(colors.get(6).grass, [0x6A, 0x70, 0x39], "swamp override");
     assert_eq!(colors.get(999), colors.get(12345), "unknown ids share the plains default");
+}
+
+/// Version-9 section of one block, `id` zigzag-varint encoded.
+fn uniform_section(section_y: i8, id: u32) -> Vec<u8> {
+    let mut out = vec![9, 1, section_y as u8, 1];
+    let mut v = id << 1;
+    while v >= 0x80 {
+        out.push(v as u8 | 0x80);
+        v >>= 7;
+    }
+    out.push(v as u8);
+    out
+}
+
+#[test]
+fn water_draws_no_faces_between_sections() {
+    let Some(pack) = pack() else { return };
+    let registry = BlockRegistry::vanilla_arc();
+    let water = registry.find("minecraft:water", "liquid_depth=0").unwrap();
+    let mut view = ChunkView::new(World::new(registry.clone(), 0, BlockIds::Runtime));
+    for (x, z) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
+        let mut payload = uniform_section(2, water);
+        payload.extend(uniform_section(3, water));
+        view.insert_level_chunk(x, z, 2, &payload).unwrap();
+    }
+    let world = view.world().clone();
+    let (table, _, _) = BlockTable::build(&registry, &pack);
+    let mesh = mesh_section(&Volume::gather(&world, 0, 3, 0).unwrap(), &table, &BiomeColors::default());
+    let faces: Vec<u32> = mesh.translucent.iter().map(|q| (q.0[0] >> 27) & 15).collect();
+    let per_face: Vec<usize> = (0..6).map(|f| faces.iter().filter(|&&x| x == f).count()).collect();
+    assert_eq!(per_face, [0, 0, 256, 256, 0, 0], "only the top surface and its underside");
+}
+
+#[test]
+fn translucent_quads_blend_far_plane_first_per_direction() {
+    let Some(pack) = pack() else { return };
+    let registry = BlockRegistry::vanilla_arc();
+    let water = registry.find("minecraft:water", "liquid_depth=0").unwrap();
+    let ice = registry.find("minecraft:ice", "").unwrap();
+    let mut view = ChunkView::new(World::new(registry.clone(), 0, BlockIds::Runtime));
+    view.insert_level_chunk(0, 0, 1, &uniform_section(2, water)).unwrap();
+    for (x, z) in [(3, 3), (3, 4)] {
+        view.set_block(x, 47, z, 0, ice);
+    }
+    let (table, _, _) = BlockTable::build(&registry, &pack);
+    let mesh = mesh_section(&Volume::gather(view.world(), 0, 2, 0).unwrap(), &table, &BiomeColors::default());
+    let heights = |face: u32| -> Vec<u32> {
+        mesh.translucent.iter().filter(|q| q.0[0] >> 27 == face).map(|q| (q.0[0] >> 9) & 511).collect()
+    };
+    let (up, down) = (heights(2), heights(3));
+    assert!(up.is_sorted() && up.first() < up.last(), "water under the ice, then the ice top: {up:?}");
+    assert!(down.is_sorted_by(|a, b| a >= b) && down.contains(&240), "the water surface has an underside: {down:?}");
+}
+
+#[test]
+fn water_faces_wait_for_unknown_neighbour_sections_but_not_known_air() {
+    let Some(pack) = pack() else { return };
+    let registry = BlockRegistry::vanilla_arc();
+    let water = registry.find("minecraft:water", "liquid_depth=0").unwrap();
+    let mut view = ChunkView::new(World::new(registry.clone(), 0, BlockIds::Runtime));
+    for (x, z) in [(0, 0), (-1, 0), (0, 1), (0, -1)] {
+        let mut payload = uniform_section(2, water);
+        payload.extend(uniform_section(3, water));
+        view.insert_level_chunk(x, z, 2, &payload).unwrap();
+    }
+    // Request mode: the +x neighbour exists, but none of its sub-chunks have arrived.
+    view.insert_biomes(1, 0, &[0xff]);
+    let world = view.world().clone();
+    let (table, _, _) = BlockTable::build(&registry, &pack);
+    let east_faces = |world: &World| {
+        let mesh = mesh_section(&Volume::gather(world, 0, 3, 0).unwrap(), &table, &BiomeColors::default());
+        mesh.translucent.iter().filter(|q| (q.0[0] >> 27) & 15 == 0).count()
+    };
+    assert_eq!(east_faces(&world), 0, "unknown neighbour section hides the wall");
+    view.insert_sub_chunk_air(1, 3, 0);
+    assert_eq!(east_faces(&world), 256, "known air next door shows the whole 16×16 wall");
+}
+
+#[test]
+fn geyser_chunks_light_on_the_light_thread() {
+    let view = geyser_view();
+    let world = view.world().clone();
+    let columns = world.chunk_positions();
+    let start = Instant::now();
+    let lighting = Lighting::new(world.clone());
+    let (mut lit, mut touched) = (0, 0);
+    // A batch's world changes come before its light changes; stop once both go quiet.
+    let mut wait = Duration::from_secs(10);
+    while let Ok(event) = lighting.events.recv_timeout(wait) {
+        match event {
+            LightEvent::World(ChunkChange::Column { .. }) => lit += 1,
+            LightEvent::World(_) => {}
+            LightEvent::Light(_) => touched += 1,
+        }
+        if lit == columns.len() {
+            wait = Duration::from_millis(200);
+        }
+    }
+    assert_eq!(lit, columns.len());
+    assert!(touched >= lit * 24, "every section of a lit column is touched");
+    eprintln!("{lit} columns lit in {:?}, {touched} sections touched", start.elapsed());
+    let data = lighting.data.read();
+    let (x, z) = (columns[0].0 * 16 + 8, columns[0].1 * 16 + 8);
+    let sky = |y| data.light(x, y, z).unwrap() & 15;
+    assert_eq!(sky(300), 15);
+    let floor = (-64..300).rev().find(|&y| sky(y) < 15).unwrap();
+    eprintln!("first sky light below 15 at y {floor}");
+    assert!(floor < 0, "superflat surface is below y 0");
 }
 
 #[test]

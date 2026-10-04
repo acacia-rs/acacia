@@ -1,21 +1,13 @@
 // Terrain quads by vertex pulling: 6 vertices per quad, no vertex or index buffers.
 // Quad layout: see src/mesh/quad.rs. The instance index is the section slot.
+// Follows globals.wgsl; light.wgsl follows.
 
-struct Globals {
-    view_proj: mat4x4<f32>,
-    cam_block: vec4<i32>,
-    cam_frac: vec4<f32>,
-    // x: water surface opacity (biomes_client.json water_surface_transparency)
-    water: vec4<f32>,
-    // rgb: fog/sky colour, w: distance where fog is opaque
-    fog: vec4<f32>,
-};
-
-@group(0) @binding(0) var<uniform> g: Globals;
 @group(0) @binding(1) var<storage, read> quads: array<u32>;
 @group(0) @binding(2) var<storage, read> origins: array<vec4<i32>>;
 @group(0) @binding(3) var atlas: texture_2d_array<f32>;
 @group(0) @binding(4) var atlas_sampler: sampler;
+// Per slot, 18^3 light bytes; see light.wgsl.
+@group(0) @binding(5) var<storage, read> light_cells: array<u32>;
 
 var<private> U_AXIS: array<vec3<f32>, 6> = array(
     vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0),
@@ -46,6 +38,10 @@ struct VsOut {
     @location(3) @interpolate(flat) tint_material: u32,
     @location(4) dist: f32,
     @location(5) @interpolate(flat) tint: vec3<f32>,
+    // Section-local position in blocks.
+    @location(6) local: vec3<f32>,
+    // x: face, y: slot
+    @location(7) @interpolate(flat) face_slot: vec2<u32>,
 };
 
 @vertex
@@ -84,6 +80,8 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     out.layer = (w1 >> 18u) & 4095u;
     out.tint_material = ((w1 >> 30u) & 3u) | (((w2 >> 9u) & 3u) << 2u);
     out.dist = length(rel);
+    out.local = pos / 16.0;
+    out.face_slot = vec2(face, slot);
     // 7-bit sRGB per channel; texels are linear after sampling, so the tint is too.
     let srgb = vec3<f32>(f32((w2 >> 11u) & 127u), f32((w2 >> 18u) & 127u), f32((w2 >> 25u) & 127u)) / 127.0;
     out.tint = pow(srgb, vec3(2.2));
@@ -99,11 +97,10 @@ fn shade_texel(in: VsOut) -> vec4<f32> {
         // Overlay: alpha marks the tinted part (the grass strip on grass block sides).
         rgb = select(rgb * in.tint, mix(rgb, rgb * in.tint, texel.a), material == 3u);
     }
-    rgb = rgb * in.shade;
-    let fog = smoothstep(g.fog.w * 0.7, g.fog.w, in.dist);
+    rgb = rgb * in.shade * brightness(in.face_slot.y, in.face_slot.x, in.local);
     // Water opacity is the biome's water_surface_transparency, not the texture's alpha.
     let alpha = select(texel.a, g.water.x, tint == 3u);
-    return vec4(mix(rgb, g.fog.rgb, fog), alpha);
+    return vec4(fogged(rgb, in.dist), alpha);
 }
 
 @fragment

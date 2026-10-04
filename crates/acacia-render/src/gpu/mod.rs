@@ -1,3 +1,5 @@
+mod entities;
+mod entity_textures;
 mod pipeline;
 mod screenshot;
 mod store;
@@ -6,6 +8,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use acacia_world::World;
+use glam::DVec3;
+
+use crate::entity::{EntityInstance, EntityModels};
+use entities::EntityPass;
 
 use crate::Error;
 use crate::assets::image::Texture;
@@ -13,12 +19,16 @@ use crate::blocks::BlockTable;
 use crate::biome::BiomeColors;
 use crate::blocks::tint::WATER_ALPHA;
 use crate::camera::{Camera, Frustum};
+use crate::cull;
+use crate::light::Lighting;
 use crate::scene::{Scene, Update};
 use pipeline::Pipelines;
 use store::Store;
 
 /// Sky and fog colour (sRGB).
 const SKY: [f32; 3] = [0.62, 0.76, 1.0];
+/// Brightness of unlit blocks, with and without sky light (Java's nether ambient is 0.1).
+const AMBIENT: (f32, f32) = (0.02, 0.1);
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -28,6 +38,8 @@ struct Globals {
     cam_frac: [f32; 4],
     water: [f32; 4],
     fog: [f32; 4],
+    /// x: ambient brightness.
+    light: [f32; 4],
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -52,11 +64,15 @@ pub struct Renderer {
     sampler: wgpu::Sampler,
     bind_group: wgpu::BindGroup,
     store: Store,
+    entities: EntityPass,
+    entity_list: Vec<EntityInstance>,
     scene: Option<Scene>,
     biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
     /// Blocks from the camera where fog turns opaque.
     pub fog_distance: f32,
+    /// Skip sections no open path from the camera reaches ([`crate::cull`]).
+    pub cave_culling: bool,
     screenshot: Option<PathBuf>,
 }
 
@@ -104,7 +120,8 @@ impl Renderer {
         let texture_view = pipeline::texture_array(&device, &queue, &[Texture::missing()]);
         let sampler = pipeline::sampler(&device);
         let store = Store::new(&device);
-        let bind_group = bind_group(&device, &pipelines.layout, &globals, &store, &texture_view, &sampler);
+        let entities = EntityPass::new(&device, config.format, &globals);
+        let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &texture_view, &sampler);
         Ok(Renderer {
             depth: pipeline::depth_view(&device, config.width, config.height),
             surface,
@@ -117,10 +134,13 @@ impl Renderer {
             sampler,
             bind_group,
             store,
+            entities,
+            entity_list: Vec::new(),
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
             fog_distance: 160.0,
+            cave_culling: true,
             screenshot: None,
         })
     }
@@ -153,22 +173,32 @@ impl Renderer {
     pub fn set_world(&mut self, world: Arc<World>, table: Arc<BlockTable>, textures: &[Texture]) {
         self.textures = pipeline::texture_array(&self.device, &self.queue, textures);
         self.store.replaced = true;
-        self.rebuild_scene(world, table);
+        let lighting = Lighting::new(world.clone());
+        self.rebuild_scene(world, table, lighting);
     }
 
     /// Replaces the biome colours (from the server's `BiomeDefinitionList`) and remeshes.
     pub fn set_biomes(&mut self, biomes: Arc<BiomeColors>) {
         self.biomes = biomes;
         if let Some(scene) = self.scene.take() {
-            let (world, table) = scene.into_parts();
-            self.rebuild_scene(world, table);
+            let (world, table, lighting) = scene.into_parts();
+            self.rebuild_scene(world, table, lighting);
         }
     }
 
-    fn rebuild_scene(&mut self, world: Arc<World>, table: Arc<BlockTable>) {
+    fn rebuild_scene(&mut self, world: Arc<World>, table: Arc<BlockTable>, lighting: Lighting) {
         self.store.clear();
         self.updates.clear();
-        self.scene = Some(Scene::new(world, table, self.biomes.clone()));
+        self.scene = Some(Scene::new(world, table, self.biomes.clone(), lighting));
+    }
+
+    pub fn set_entity_models(&mut self, models: Arc<EntityModels>) {
+        self.entities.set_models(&self.device, models);
+    }
+
+    /// The entities to draw from now on; ids come from the models set last.
+    pub fn set_entities(&mut self, entities: Vec<EntityInstance>) {
+        self.entity_list = entities;
     }
 
     pub fn world(&self) -> Option<&Arc<World>> {
@@ -183,11 +213,12 @@ impl Renderer {
         for update in self.updates.drain(..) {
             match update {
                 Update::Mesh(key, mesh) => self.store.upload(&self.device, &self.queue, key, mesh),
+                Update::Light(key, light) => self.store.upload_light(&self.queue, key, &light),
                 Update::Remove(key) => self.store.remove(key),
             }
         }
         if std::mem::take(&mut self.store.replaced) {
-            self.bind_group = bind_group(&self.device, &self.pipelines.layout, &self.globals, &self.store, &self.textures, &self.sampler);
+            self.bind_group = pipeline::bind_group(&self.device, &self.pipelines.layout, &self.globals, &self.store, &self.textures, &self.sampler);
         }
 
         let view_proj = camera.view_proj();
@@ -197,9 +228,25 @@ impl Renderer {
             cam_frac: [cam_frac.x, cam_frac.y, cam_frac.z, 0.0],
             water: [WATER_ALPHA, 0.0, 0.0, 0.0],
             fog: { let s = srgb_to_linear(SKY); [s[0], s[1], s[2], self.fog_distance] },
+            light: [if self.world().is_none_or(|w| w.dimension().sky) { AMBIENT.0 } else { AMBIENT.1 }, 0.0, 0.0, 0.0],
         };
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
-        let (solid, translucent) = self.store.draws(&Frustum::new(view_proj), cam_block, cam_frac);
+        let light = self.scene.as_ref().map(|s| s.light().read());
+        // Outside lit columns an entity is as bright as open sky.
+        let light_at = |p: DVec3| {
+            let p = p.floor().as_ivec3();
+            let byte = light.as_ref().and_then(|l| l.light(p.x, p.y, p.z)).unwrap_or(15);
+            [f32::from(byte >> 4), f32::from(byte & 15)]
+        };
+        self.entities.prepare(&self.device, &self.queue, &self.globals, &self.entity_list, camera.position, light_at);
+        drop(light);
+        let frustum = Frustum::new(view_proj);
+        let reachable = self
+            .scene
+            .as_ref()
+            .filter(|_| self.cave_culling)
+            .map(|s| cull::visible_sections(&frustum, cam_block, cam_frac, s.sections(), |k| s.visibility(k)));
+        let (solid, translucent) = self.store.draws(&frustum, cam_block, cam_frac, reachable.as_ref());
         let stats = FrameStats {
             sections: self.store.sections(),
             drawn: solid.len().max(translucent.len()),
@@ -223,32 +270,15 @@ impl Renderer {
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         {
-            let sky = srgb_to_linear(SKY).map(f64::from);
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("terrain"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color { r: sky[0], g: sky[1], b: sky[2], a: 1.0 }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth,
-                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Discard }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_bind_group(0, &self.bind_group, &[]);
+            let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, srgb_to_linear(SKY));
             for (pipeline, draws) in [(&self.pipelines.solid, &solid), (&self.pipelines.translucent, &translucent)] {
                 pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, &self.bind_group, &[]);
                 for d in draws {
                     pass.draw(d.first * 6..(d.first + d.count) * 6, d.slot..d.slot + 1);
+                }
+                if std::ptr::eq(pipeline, &self.pipelines.solid) {
+                    self.entities.draw(&mut pass);
                 }
             }
         }
@@ -262,27 +292,6 @@ impl Renderer {
         self.queue.present(frame);
         stats
     }
-}
-
-fn bind_group(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    globals: &wgpu::Buffer,
-    store: &Store,
-    textures: &wgpu::TextureView,
-    sampler: &wgpu::Sampler,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("terrain"),
-        layout,
-        entries: &[
-            wgpu::BindGroupEntry { binding: 0, resource: globals.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 1, resource: store.quads.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 2, resource: store.origins.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(textures) },
-            wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::Sampler(sampler) },
-        ],
-    })
 }
 
 fn srgb_to_linear(c: [f32; 3]) -> [f32; 3] {

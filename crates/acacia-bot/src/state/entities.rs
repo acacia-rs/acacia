@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use acacia_client::proto::packets::{
     AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MoveEntity, MoveEntityDelta, MovePlayer, RemoveEntity,
-    SetEntityMotion,
+    SetEntityData, SetEntityMotion,
 };
+use acacia_client::proto::manual::Uuid;
 use acacia_client::proto::types::Vec3f;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
-use super::Me;
+use super::{EntityMeta, Me};
 
 pub const PLAYER_KIND: &str = "minecraft:player";
 pub const ITEM_KIND: &str = "minecraft:item";
@@ -32,6 +33,9 @@ pub struct Entity {
     /// Last velocity from spawn or SetEntityMotion; not derived from movement.
     pub velocity: Vec3f,
     pub on_ground: bool,
+    /// Players only; the key into [`super::PlayerList`] and [`super::Skins`].
+    pub uuid: Option<Uuid>,
+    pub meta: EntityMeta,
 }
 
 impl Entity {
@@ -68,6 +72,7 @@ impl Entities {
         MoveEntityDelta::ID,
         MovePlayer::ID,
         SetEntityMotion::ID,
+        SetEntityData::ID,
         ChangeDimension::ID,
     ];
 
@@ -124,6 +129,8 @@ impl Entities {
                     head_yaw: p.head_yaw,
                     velocity: p.velocity,
                     on_ground: false,
+                    uuid: Some(p.uuid),
+                    meta: EntityMeta::from_items(p.metadata),
                 });
             }
             AddEntity::ID => {
@@ -139,6 +146,8 @@ impl Entities {
                     head_yaw: p.head_yaw,
                     velocity: p.velocity,
                     on_ground: false,
+                    uuid: None,
+                    meta: EntityMeta::from_items(p.metadata),
                 });
             }
             AddItemEntity::ID => {
@@ -154,7 +163,16 @@ impl Entities {
                     head_yaw: 0.0,
                     velocity: p.velocity,
                     on_ground: false,
+                    uuid: None,
+                    meta: EntityMeta::default(),
                 });
+            }
+            SetEntityData::ID => {
+                // Peek the leading runtime id: most metadata is for entities out of view.
+                let id = acacia_client::proto::codec::read_varint64(&mut &packet.body[..])?;
+                if let Some(e) = self.by_runtime.get_mut(&id) {
+                    e.meta.apply(packet.decode::<SetEntityData>()?.metadata);
+                }
             }
             RemoveEntity::ID => {
                 let unique = packet.decode::<RemoveEntity>()?.entity_id_self;

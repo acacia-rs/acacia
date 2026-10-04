@@ -221,6 +221,41 @@ impl World {
         Ok(c)
     }
 
+    /// Records a request-mode `LevelChunk`'s sub-chunk limit: sections from index `count` up are air
+    /// ([`Chunk::set_air_from`]). Creates an empty chunk if needed.
+    pub fn insert_sub_chunk_limit(&self, x: i32, z: i32, count: usize) -> Arc<SharedChunk> {
+        self.insert_sub_chunk_limit_by(NO_OWNER, x, z, count)
+    }
+
+    pub(crate) fn insert_sub_chunk_limit_by(&self, view: u64, x: i32, z: i32, count: usize) -> Arc<SharedChunk> {
+        let c = self.get_or_create(x, z);
+        if c.claim(view) {
+            let mut slot = c.slot.write();
+            slot.chunk.set_air_from(count);
+            slot.payload_hash = None;
+            drop(slot);
+            self.changes.send(ChunkChange::Column { x, z });
+        }
+        c
+    }
+
+    /// Records a `SuccessAllAir` sub-chunk: the section is known to be air ([`Chunk::section_known`]).
+    pub fn insert_sub_chunk_air(&self, x: i32, section_y: i32, z: i32) -> Arc<SharedChunk> {
+        self.insert_sub_chunk_air_by(NO_OWNER, x, section_y, z)
+    }
+
+    pub(crate) fn insert_sub_chunk_air_by(&self, view: u64, x: i32, section_y: i32, z: i32) -> Arc<SharedChunk> {
+        let c = self.get_or_create(x, z);
+        if c.claim(view) {
+            let mut slot = c.slot.write();
+            slot.chunk.set_sub_chunk_air(section_y);
+            slot.payload_hash = None;
+            drop(slot);
+            self.changes.send(ChunkChange::Section { x, section_y, z });
+        }
+        c
+    }
+
     /// Stores biomes from a biomes-only payload (request mode, or the cache-mode biome blob),
     /// creating an empty chunk if needed (they arrive before the sub-chunks).
     pub fn insert_biomes(&self, x: i32, z: i32, payload: &[u8]) -> Arc<SharedChunk> {

@@ -77,6 +77,30 @@ fn spawns_are_tracked_without_local_player() {
 }
 
 #[test]
+fn metadata_updates_reach_tracked_entities_only() {
+    use acacia_client::proto::types::{
+        MetadataDictionaryItem, MetadataDictionaryItemKey, MetadataDictionaryItemType, MetadataDictionaryItemValue as Value,
+        MetadataFlags1,
+    };
+    let mut es = world();
+    assert!(es.get(2).unwrap().uuid.is_some() && es.get(3).unwrap().uuid.is_none());
+    let mut p: SetEntityData = fixture();
+    p.metadata = vec![MetadataDictionaryItem {
+        key: MetadataDictionaryItemKey::Flags,
+        r#type: MetadataDictionaryItemType::Long,
+        legacy_type: 7,
+        value: Value::Flags(MetadataFlags1::BABY),
+    }];
+    p.runtime_entity_id = 3;
+    es.apply(&raw(&p), &ME).unwrap();
+    assert!(es.get(3).unwrap().meta.is_baby());
+    assert_eq!(es.get(3).unwrap().meta.scale, 1.0);
+    p.runtime_entity_id = 99;
+    es.apply(&raw(&p), &ME).unwrap();
+    assert!(!es.get(2).unwrap().meta.is_baby());
+}
+
+#[test]
 fn remove_uses_unique_id() {
     let mut es = world();
     es.apply(&raw(&RemoveEntity { entity_id_self: -3 }), &ME).unwrap();

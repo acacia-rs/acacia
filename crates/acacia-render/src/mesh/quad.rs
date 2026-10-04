@@ -48,4 +48,14 @@ impl Quad {
             ao_bits | u32::from(flip) << 8 | (surface.material as u32) << 9 | r << 11 | g << 18 | b << 25,
         ])
     }
+
+    /// Sort key for a section's translucent quads: per face direction, far plane first as seen
+    /// from the side the face points to. Back faces are culled, so every direction that draws
+    /// blends back to front; quads of different directions still blend in key order.
+    pub fn blend_order(&self) -> (u32, u32) {
+        let face = self.0[0] >> 27;
+        let Some(&(axis, ..)) = AXES.get(face as usize) else { return (face, 0) };
+        let plane = (self.0[0] >> (axis * 9)) & 511;
+        (face, if face.is_multiple_of(2) { plane } else { 511 - plane })
+    }
 }
