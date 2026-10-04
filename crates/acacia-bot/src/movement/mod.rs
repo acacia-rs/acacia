@@ -315,7 +315,7 @@ impl Movement {
                     // boost (multiplying) and freezing (adding), which the simulation applies itself.
                     for a in p.attributes.iter().filter(|a| a.name == "minecraft:movement") {
                         let amount = |name: &str| a.modifiers.iter().find(|m| m.name == name).map_or(0.0, |m| m.amount);
-                        let value = a.current as f32 / (1.0 + amount("Sprinting speed boost")) - amount("Freeze effect");
+                        let value = a.current /(1.0 + amount("Sprinting speed boost")) - amount("Freeze effect");
                         let freeze = amount("Freeze effect") / FREEZE_SPEED_MODIFIER;
                         tracing::debug!(our_tick = self.tick, server_tick = p.tick, value, freeze, "movement attribute");
                         st.set_movement_attribute(value);
