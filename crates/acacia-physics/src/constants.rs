@@ -14,10 +14,8 @@ pub const BED_BOUNCE_MULTIPLIER: f32 = -0.75;
 pub const CLIMB_SPEED: f32 = 0.2;
 pub const MAX_CONSUMING_IMPULSE: f32 = 0.1225;
 pub const MAX_SNEAK_IMPULSE: f32 = 0.3;
-/// A sneak leaving at least this share of the input does not block a sprint (seen with Swift Sneak 3, 0.75;
-/// not with none, 0.3).
-// TODO: narrow with Swift Sneak 1 and 2 (0.45, 0.6).
-pub const SPRINT_MIN_SNEAK_IMPULSE: f32 = 0.75;
+/// The forward input a sprint start needs and the input length keeping one needs (BDS 0x3F3504F3).
+pub const SPRINT_MIN_IMPULSE: f32 = std::f32::consts::FRAC_1_SQRT_2;
 pub const DEFAULT_UNDERWATER_MOVEMENT_SPEED: f32 = 0.02;
 pub const DEFAULT_LAVA_MOVEMENT_SPEED: f32 = 0.02;
 pub const DEFAULT_SWIM_SPEED_MULTIPLIER: f32 = 1.0;

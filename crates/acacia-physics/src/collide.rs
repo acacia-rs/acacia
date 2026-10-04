@@ -133,7 +133,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// Limits sneaking movement to supported ground.
     pub(crate) fn avoid_edge(&self, st: &mut PlayerState) -> bool {
         // Only a held sneak: a crouch forced by a low ceiling walks off edges (strict BDS fuzz).
-        if !st.sneaking || !st.pressing_sneak || !st.on_ground || st.vel[1] > 0.0 {
+        if !st.sneaking || !st.pressing_sneak || !st.on_ground {
             return true;
         }
         const DROP: f32 = -STEP_HEIGHT * 1.01;

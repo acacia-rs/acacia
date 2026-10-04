@@ -73,13 +73,19 @@ impl Input {
     /// Mirrors `toInputState` in tools/diffharness/main.go.
     pub(crate) fn frame(&self, st: &PlayerState, env: &Surroundings) -> Frame {
         let Surroundings { in_water, swim_start_submerged: eyes_in_water, swim_surfacing, stand_fits } = *env;
-        // Out of water sneaking blocks a sprint start (also on its release tick, see `apply_input`) and ends a
-        // sprint, unless Swift Sneak leaves enough of the input; in water, where it means sink, it does
-        // neither (strict BDS fuzz).
-        let sneak = (self.sneak || st.sneaking) && sneak_impulse(st, st.ticks_since_can_slowdown + 1) < SPRINT_MIN_SNEAK_IMPULSE;
+        // BDS `IntentSprintTriggerSystem` tests the move input after normalising and the sneak slowdown
+        // (also on the sneak's release tick, see `apply_input`; not in water, where sneak means sink).
+        let slowed = (self.sneak || st.sneaking) && !in_water;
+        let scale = if slowed { sneak_impulse(st, st.ticks_since_can_slowdown + 1) } else { 1.0 };
+        let len = self.move_vector[0].hypot(self.move_vector[1]);
+        let [strafe, forward] = self.move_vector.map(|c| c / len.max(1.0) * scale);
+        let enough = if st.sprinting {
+            forward > 0.0 && strafe.abs() <= SPRINT_MIN_IMPULSE && strafe.hypot(forward) >= SPRINT_MIN_IMPULSE
+        } else {
+            forward >= SPRINT_MIN_IMPULSE
+        };
         // The sprint before the jump-in-water rule: it decides a swim start (vanilla capture 6-1).
-        let wants = self.sprint && self.move_vector[1] > 0.0 && !st.sprint_movement_blocked;
-        let wanted = wants && (!sneak || in_water);
+        let wanted = self.sprint && enough && !st.sprint_movement_blocked;
         // A jump held last tick in water then ends that sprint or cancels its start (StartSprinting and
         // StopSprinting on one tick).
         let jump_in_water = in_water && !st.swimming && st.pressing_jump;
@@ -205,11 +211,14 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         // BDS keeps the sneak slowdown on the tick sneaking stops (bedsim drops it at once), and skips
         // it in water, where sneak means sink.
         let in_water = !self.touching_liquid_blocks(st, crate::world::LiquidKind::Water).is_empty();
-        let sneak_slowed = (was_sneaking || st.sneaking) && !in_water;
-        // A crawl slows from the tick after it starts (vanilla capture).
-        if sneak_slowed || was_crawling || st.gliding {
+        let sneak_held = was_sneaking || st.sneaking;
+        // A crawl slows from the tick after it starts (vanilla capture). Sneak ticks in water still count
+        // towards Swift Sneak (strict BDS fuzz).
+        if sneak_held || was_crawling || st.gliding {
             st.ticks_since_can_slowdown += 1;
-            max_impulse *= sneak_impulse(st, st.ticks_since_can_slowdown);
+            if !in_water || was_crawling || st.gliding {
+                max_impulse *= sneak_impulse(st, st.ticks_since_can_slowdown);
+            }
         } else {
             st.ticks_since_can_slowdown = 0;
         }
