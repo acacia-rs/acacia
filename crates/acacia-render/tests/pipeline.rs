@@ -151,9 +151,27 @@ fn water_draws_no_faces_between_sections() {
     let world = view.world().clone();
     let (table, _, _) = BlockTable::build(&registry, &pack);
     let mesh = mesh_section(&Volume::gather(&world, 0, 3, 0).unwrap(), &table, &BiomeColors::default());
-    let faces: Vec<u32> = mesh.translucent.iter().map(|q| (q.0[0] >> 27) & 15).collect();
+    let faces: Vec<u32> = mesh.translucent.iter().map(|q| q.face()).collect();
     let per_face: Vec<usize> = (0..6).map(|f| faces.iter().filter(|&&x| x == f).count()).collect();
     assert_eq!(per_face, [0, 0, 256, 256, 0, 0], "only the top surface and its underside");
+}
+
+#[test]
+fn flowing_water_slopes_and_turns_downstream() {
+    let Some(pack) = pack() else { return };
+    let registry = BlockRegistry::vanilla_arc();
+    let mut view = ChunkView::new(World::new(registry.clone(), 0, BlockIds::Runtime));
+    view.insert_level_chunk(0, 0, 1, &uniform_section(2, registry.find("minecraft:air", "").unwrap())).unwrap();
+    view.set_block(4, 40, 4, 0, registry.find("minecraft:water", "liquid_depth=0").unwrap());
+    for (x, depth) in [(5, "liquid_depth=1"), (6, "liquid_depth=2")] {
+        view.set_block(x, 40, 4, 0, registry.find("minecraft:flowing_water", depth).unwrap());
+    }
+    let (table, _, _) = BlockTable::build(&registry, &pack);
+    let mesh = mesh_section(&Volume::gather(view.world(), 0, 2, 0).unwrap(), &table, &BiomeColors::default());
+    let top = mesh.translucent.iter().find(|q| q.0[0] >> 27 == 12 && q.0[0] & 511 == 5 * 16).expect("a surface at x = 5");
+    let [west, east, east2, west2] = [0, 4, 8, 12].map(|shift| (top.0[1] >> shift) & 15);
+    assert!(west > east && (west, east) == (west2, east2), "lower downstream: {west} {east}");
+    assert_eq!(top.0[2] & 255, 192, "flowing east is three quarters of a turn");
 }
 
 #[test]
@@ -170,7 +188,7 @@ fn translucent_quads_blend_far_plane_first_per_direction() {
     let (table, _, _) = BlockTable::build(&registry, &pack);
     let mesh = mesh_section(&Volume::gather(view.world(), 0, 2, 0).unwrap(), &table, &BiomeColors::default());
     let heights = |face: u32| -> Vec<u32> {
-        mesh.translucent.iter().filter(|q| q.0[0] >> 27 == face).map(|q| (q.0[0] >> 9) & 511).collect()
+        mesh.translucent.iter().filter(|q| q.face() == face).map(|q| (q.0[0] >> 9) & 511).collect()
     };
     let (up, down) = (heights(2), heights(3));
     assert!(up.is_sorted() && up.first() < up.last(), "water under the ice, then the ice top: {up:?}");
@@ -194,7 +212,7 @@ fn water_faces_wait_for_unknown_neighbour_sections_but_not_known_air() {
     let (table, _, _) = BlockTable::build(&registry, &pack);
     let east_faces = |world: &World| {
         let mesh = mesh_section(&Volume::gather(world, 0, 3, 0).unwrap(), &table, &BiomeColors::default());
-        mesh.translucent.iter().filter(|q| (q.0[0] >> 27) & 15 == 0).count()
+        mesh.translucent.iter().filter(|q| q.face() == 0).count()
     };
     assert_eq!(east_faces(&world), 0, "unknown neighbour section hides the wall");
     view.insert_sub_chunk_air(1, 3, 0);

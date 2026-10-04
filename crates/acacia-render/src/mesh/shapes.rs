@@ -1,10 +1,11 @@
 //! Non-cube blocks, one quad per visible face: collision boxes, crossed planes, liquids.
 
+use super::liquid::liquid;
 use super::quad::{AXES, DIRS, Quad, Surface};
 use super::{Ctx, SectionMesh};
-use crate::blocks::{Box16, Fluid, Layer, Material, RenderBlock, Shape};
+use crate::blocks::{Box16, Layer, Material, RenderBlock, Shape};
 
-const NO_AO: [u8; 4] = [3; 4];
+pub(super) const NO_AO: [u8; 4] = [3; 4];
 
 pub(super) fn others(ctx: &Ctx, out: &mut SectionMesh) {
     for x in 0..16 {
@@ -23,11 +24,11 @@ pub(super) fn others(ctx: &Ctx, out: &mut SectionMesh) {
     }
 }
 
-fn push(out: &mut SectionMesh, b: &RenderBlock, quad: Quad) {
+pub(super) fn push(out: &mut SectionMesh, b: &RenderBlock, quad: Quad) {
     if b.layer == Layer::Translucent { out.translucent.push(quad) } else { out.solid.push(quad) }
 }
 
-fn neighbour(p: [i32; 3], face: usize) -> [i32; 3] {
+pub(super) fn neighbour(p: [i32; 3], face: usize) -> [i32; 3] {
     let d = DIRS[face];
     [p[0] + d[0], p[1] + d[1], p[2] + d[2]]
 }
@@ -61,40 +62,3 @@ fn emit_cross(ctx: &Ctx, p: [i32; 3], b: &RenderBlock, out: &mut SectionMesh) {
     }
 }
 
-/// Water or lava in the block layer, or water in the liquid layer of a waterlogged block.
-fn liquid(ctx: &Ctx, p: [i32; 3], out: &mut SectionMesh) {
-    let [x, y, z] = p;
-    let fluid = |q: [i32; 3]| {
-        let block = ctx.block(q);
-        if block.fluid != Fluid::None { block } else { ctx.table.get(ctx.v.liquid(q[0], q[1], q[2])) }
-    };
-    let b = fluid(p);
-    if b.fluid == Fluid::None {
-        return;
-    }
-    let height = if fluid([x, y + 1, z]).fluid == b.fluid { 16 } else { b.fluid_height.max(1) };
-    for (face, &(axis, ua, va)) in AXES.iter().enumerate() {
-        let n = neighbour(p, face);
-        if fluid(n).fluid == b.fluid {
-            continue;
-        }
-        let surface_below_top = face == 2 && height < 16;
-        let against = ctx.block(n);
-        // Ice and stained glass hide the liquid's sides too, or they show through as dark panes.
-        let see_through_cube = face != 2 && against.shape == Shape::Cube && against.layer == Layer::Translucent;
-        if !surface_below_top && (against.occludes || see_through_cube) {
-            continue;
-        }
-        let max = [16, height, 16];
-        let mut pos = [0u32; 3];
-        pos[axis] = (p[axis] * 16) as u32 + if face.is_multiple_of(2) { u32::from(max[axis]) } else { 0 };
-        pos[ua] = (p[ua] * 16) as u32;
-        pos[va] = (p[va] * 16) as u32;
-        let size = [u32::from(max[ua]), u32::from(max[va])];
-        push(out, b, Quad::new(pos, face as u8, size, ctx.surface(p, b, face), NO_AO));
-        if face == 2 && b.layer == Layer::Translucent {
-            // Back faces are culled, so the surface needs its own underside to show from below.
-            push(out, b, Quad::new(pos, 3, size, ctx.surface(p, b, 3), NO_AO));
-        }
-    }
-}

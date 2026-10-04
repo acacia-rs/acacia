@@ -51,9 +51,12 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     let w1 = quads[q * 3u + 1u];
     let w2 = quads[q * 3u + 2u];
     let local = vec3<f32>(f32(w0 & 511u), f32((w0 >> 9u) & 511u), f32((w0 >> 18u) & 511u));
-    let face = (w0 >> 27u) & 15u;
-    let size = vec2<f32>(f32(w1 & 511u), f32((w1 >> 9u) & 511u));
-    let flip = (w2 >> 8u) & 1u;
+    let kind = (w0 >> 27u) & 15u;
+    // Liquid faces span a block and keep corner heights and a texture turn instead of size and AO.
+    let liquid = kind >= 10u;
+    let face = select(kind, kind - 10u, liquid);
+    let size = select(vec2<f32>(f32(w1 & 511u), f32((w1 >> 9u) & 511u)), vec2(16.0), liquid);
+    let flip = select((w2 >> 8u) & 1u, 0u, liquid);
     let corner = TRIANGLES[flip * 2u + REVERSED[face]][vi % 6u];
     let c = CORNERS[corner];
 
@@ -62,10 +65,28 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     if face < 6u {
         let u = U_AXIS[face];
         let v = V_AXIS[face];
+        let level = face == 2u || face == 3u;
         pos = local + u * (c.x * size.x) + v * (c.y * size.y);
+        if liquid {
+            // The block corner (x, z) this vertex stands on; heights are stored x0z0, x1z0, x1z1, x0z1.
+            var at = vec2<u32>(c);
+            if face < 2u {
+                at = vec2(1u - face, u32(c.x));
+            } else if face >= 4u {
+                at = vec2(u32(c.x), 5u - face);
+            }
+            let h = f32((w1 >> (select(at.x, 3u - at.x, at.y == 1u) * 4u)) & 15u) * (16.0 / 15.0);
+            pos.y = local.y + select(c.y * h, h, level);
+        }
         let pv = dot(pos, v);
         // Side textures run top-down; the repeat sampler tiles them per block.
-        uv = vec2(dot(pos, u), select(-pv, pv, face == 2u || face == 3u)) / 16.0;
+        uv = vec2(dot(pos, u), select(-pv, pv, level)) / 16.0;
+        let turn = w2 & 255u;
+        if liquid && level && turn != 0u {
+            let a = f32(turn - 1u) * (6.2831853 / 255.0);
+            let d = c - 0.5;
+            uv = vec2(cos(a) * d.x + sin(a) * d.y, cos(a) * d.y - sin(a) * d.x) + 0.5;
+        }
     } else {
         let t = c.x * size.x;
         pos = local + vec3(select(t, size.x - t, face >= 8u), c.y * size.y, t);
@@ -76,7 +97,7 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     var out: VsOut;
     out.clip = g.view_proj * vec4(rel, 1.0);
     out.uv = uv;
-    out.shade = SHADE[face] * AO[(w2 >> (corner * 2u)) & 3u];
+    out.shade = SHADE[face] * select(AO[(w2 >> (corner * 2u)) & 3u], 1.0, liquid);
     out.layer = (w1 >> 18u) & 4095u;
     out.tint_material = ((w1 >> 30u) & 3u) | (((w2 >> 9u) & 3u) << 2u);
     out.dist = length(rel);
