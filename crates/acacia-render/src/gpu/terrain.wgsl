@@ -100,7 +100,7 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     out.shade = SHADE[face] * select(AO[(w2 >> (corner * 2u)) & 3u], 1.0, liquid);
     out.layer = (w1 >> 18u) & 4095u;
     out.tint_material = ((w1 >> 30u) & 3u) | (((w2 >> 9u) & 3u) << 2u);
-    out.dist = length(rel);
+    out.dist = fog_dist(rel);
     out.local = pos / 16.0;
     out.face_slot = vec2(face, slot);
     // 7-bit sRGB per channel; texels are linear after sampling, so the tint is too.
@@ -119,8 +119,7 @@ fn shade_texel(in: VsOut) -> vec4<f32> {
         rgb = select(rgb * in.tint, mix(rgb, rgb * in.tint, texel.a), material == 3u);
     }
     rgb = rgb * in.shade * brightness(in.face_slot.y, in.face_slot.x, in.local);
-    // Water opacity is the biome's water_surface_transparency, not the texture's alpha.
-    let alpha = select(texel.a, g.water.x, tint == 3u);
+    let alpha = select(texel.a, g.water.x, tint == 3u && g.water.x >= 0.0);
     return vec4(fogged(rgb, in.dist), alpha);
 }
 

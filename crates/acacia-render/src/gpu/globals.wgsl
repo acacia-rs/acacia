@@ -4,10 +4,12 @@ struct Globals {
     view_proj: mat4x4<f32>,
     cam_block: vec4<i32>,
     cam_frac: vec4<f32>,
-    // x: water surface opacity (biomes_client.json water_surface_transparency)
+    // x: water surface opacity, negative for the texture's alpha
     water: vec4<f32>,
     // rgb: fog/sky colour, w: distance where fog is opaque
     fog: vec4<f32>,
+    // x: distance where fog begins, y: 1 for a cylinder around the camera, z: 1 for a linear ramp
+    fog_shape: vec4<f32>,
     // x: ambient brightness, y: sky light levels lost to the time of day
     light: vec4<f32>,
 };
@@ -25,6 +27,12 @@ fn curve(l: vec2<f32>) -> f32 {
     return b + g.light.x * (1.0 - b);
 }
 
+// Distance the fog measures to a point `rel` from the camera.
+fn fog_dist(rel: vec3<f32>) -> f32 {
+    return select(length(rel), max(length(rel.xz), abs(rel.y)), g.fog_shape.y != 0.0);
+}
+
 fn fogged(rgb: vec3<f32>, dist: f32) -> vec3<f32> {
-    return mix(rgb, g.fog.rgb, smoothstep(g.fog.w * 0.7, g.fog.w, dist));
+    let ramp = saturate((dist - g.fog_shape.x) / (g.fog.w - g.fog_shape.x));
+    return mix(rgb, g.fog.rgb, select(smoothstep(0.0, 1.0, ramp), ramp, g.fog_shape.z != 0.0));
 }

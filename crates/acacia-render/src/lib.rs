@@ -10,6 +10,7 @@ mod cull;
 pub mod entity;
 mod gpu;
 pub mod light;
+pub mod look;
 pub mod mesh;
 mod scene;
 pub mod sky;
@@ -17,6 +18,7 @@ mod workers;
 
 pub use camera::Camera;
 pub use gpu::{FrameStats, Renderer};
+pub use look::Look;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

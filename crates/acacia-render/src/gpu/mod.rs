@@ -30,6 +30,7 @@ use crate::biome::BiomeColors;
 use crate::camera::{Camera, Frustum};
 use crate::cull;
 use crate::light::Lighting;
+use crate::look::Look;
 use crate::scene::{Scene, Update};
 use crate::sky::{NOON, Sky};
 use globals::{Globals, srgb_to_linear};
@@ -76,6 +77,7 @@ pub struct Renderer {
     pub time: f32,
     /// [`crate::sky::moon_phase`]; full until set.
     pub moon_phase: u8,
+    pub look: Look,
     screenshot: Option<PathBuf>,
 }
 
@@ -118,6 +120,7 @@ impl Renderer {
             cave_culling: true,
             time: NOON,
             moon_phase: 0,
+            look: Look::default(),
             screenshot: None,
         })
     }
@@ -225,8 +228,7 @@ impl Renderer {
             pass.prepare(&self.queue, &sky, self.moon_phase);
         }
         let sky_color = srgb_to_linear(sky.color);
-        let fog = [sky_color[0], sky_color[1], sky_color[2], self.fog_distance];
-        let globals = Globals::new(view_proj, (cam_block, cam_frac), fog, has_sky, sky.darken);
+        let globals = Globals::new(view_proj, (cam_block, cam_frac), sky_color, self.fog_distance, &self.look, has_sky, sky.darken);
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
         let light = self.scene.as_ref().map(|s| s.light().read());
         // Outside lit columns an entity is as bright as open sky.

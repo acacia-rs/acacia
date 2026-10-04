@@ -14,9 +14,6 @@ pub enum Tint {
     Spruce,
 }
 
-/// `biomes_client.json` default water_surface_transparency, used as the water surface's alpha.
-pub const WATER_ALPHA: f32 = 0.65;
-
 const GRASS: &[&str] = &["short_grass", "tall_grass", "fern", "large_fern", "tallgrass", "double_plant", "reeds", "sugar_cane", "bush"];
 const UNTINTED_LEAVES: &[&str] = &["cherry", "azalea", "pale_oak"];
 

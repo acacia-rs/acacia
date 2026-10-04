@@ -29,7 +29,7 @@ material per face. Build it from the **world's** registry: custom blocks shift r
   signs and heads are models (see "Block models"). Hanging signs, banners and vines draw nothing yet.
 - **Orientation**: `pillar_axis` and `minecraft:cardinal_direction` (blocks.json fronts face south).
 - **Tint**: which faces take grass, foliage or water colour is by name (birch and spruce leaves are
-  fixed colours). Water opacity is `water_surface_transparency` (0.65), not texture alpha.
+  fixed colours). Water opacity comes from the look.
 
 ## Biomes (`biome.rs`)
 
@@ -191,6 +191,17 @@ axis and added onto the sky colour without depth writes, so terrain covers them.
 textures have black backgrounds, which adding leaves invisible. `Renderer::moon_phase` picks the
 cell of `moon_phases.png` (`sky::moon_phase` of the world time). Stars fade in as the sun sets.
 There is no sunrise glow.
+
+## Look (`look.rs`)
+
+`Renderer::look` holds what differs between the editions at draw time; it reaches the shaders through
+the `Globals` uniform and can change between frames. Plan for the rest: docs/java-look.md.
+
+| | `Look::BEDROCK` (default) | `Look::JAVA` |
+|---|---|---|
+| Fog distance | From the camera | From the vertical axis through the camera |
+| Fog ramp | Smoothstep over the last 30% | Linear over the last 10%, 4 to 64 blocks |
+| Water opacity | 0.65 (`water_surface_transparency`) | The texture's alpha |
 
 ## Not yet
 

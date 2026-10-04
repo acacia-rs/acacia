@@ -238,6 +238,8 @@ dependencies = [
  "acacia-world",
  "glam",
  "memory-stats",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",

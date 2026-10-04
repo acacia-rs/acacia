@@ -50,7 +50,7 @@ fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
     }
     out.uv = in.uv;
     out.shade = directional * curve(instance.light.xy);
-    out.dist = length(rel);
+    out.dist = fog_dist(rel);
     out.tint = instance.tint;
     return out;
 }

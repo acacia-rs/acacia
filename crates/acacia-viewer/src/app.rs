@@ -15,6 +15,7 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 use crate::smooth::Smoother;
 use crate::input::FlyInput;
 use crate::net::{Net, NetEvent};
+use crate::settings::Settings;
 use crate::shot::Shot;
 
 const TITLE_EVERY: Duration = Duration::from_millis(500);
@@ -26,10 +27,8 @@ pub struct App {
     camera: Camera,
     input: FlyInput,
     grabbed: bool,
-    vsync: bool,
+    settings: Settings,
     fog_distance: f32,
-    /// C toggles; `ACACIA_NO_CULL` starts with it off.
-    cave_culling: bool,
     player: Option<DVec3>,
     entities: Smoother,
     /// The server's world time, once it sent one.
@@ -58,7 +57,7 @@ const TIME_EASE: f32 = 3.0;
 const LOG_EVERY_TITLES: u32 = 10;
 
 impl App {
-    pub fn new(net: Net, radius: i32, sky: Option<SkyTextures>) -> Self {
+    pub fn new(net: Net, radius: i32, sky: Option<SkyTextures>, settings: Settings) -> Self {
         App {
             net,
             window: None,
@@ -66,9 +65,8 @@ impl App {
             camera: Camera::new(DVec3::new(0.0, 100.0, 0.0)),
             input: FlyInput::new(),
             grabbed: false,
-            vsync: true,
+            settings,
             fog_distance: (radius * 16) as f32,
-            cave_culling: std::env::var_os("ACACIA_NO_CULL").is_none(),
             player: None,
             entities: Smoother::default(),
             time: None,
@@ -158,7 +156,8 @@ impl App {
         self.input.step(&mut self.camera, dt);
         let Some(r) = &mut self.renderer else { return };
         r.fog_distance = self.fog_distance;
-        r.cave_culling = self.cave_culling;
+        r.cave_culling = self.settings.cave_culling;
+        r.look = self.settings.look.look();
         if let Some(time) = self.time {
             // The server sends the time every few seconds: ease towards it, the short way round the day.
             let ahead = (time as f32 - r.time + DAY_TICKS / 2.0).rem_euclid(DAY_TICKS) - DAY_TICKS / 2.0;
@@ -203,11 +202,12 @@ impl App {
                     self.camera.position = p;
                 }
             }
-            (KeyCode::KeyC, true) => self.cave_culling = !self.cave_culling,
+            (KeyCode::KeyC, true) => self.settings.change_and_save(|s| s.cave_culling = !s.cave_culling),
+            (KeyCode::KeyL, true) => self.settings.change_and_save(|s| s.look = s.look.next()),
             (KeyCode::KeyV, true) => {
-                self.vsync = !self.vsync;
+                self.settings.change_and_save(|s| s.vsync = !s.vsync);
                 if let Some(r) = &mut self.renderer {
-                    r.set_vsync(self.vsync);
+                    r.set_vsync(self.settings.vsync);
                 }
             }
             _ => self.input.key(code, pressed),
@@ -225,6 +225,9 @@ impl ApplicationHandler for App {
         let size = window.inner_size();
         match Renderer::new(window.clone(), (size.width, size.height)) {
             Ok(mut r) => {
+                if !self.settings.vsync {
+                    r.set_vsync(false);
+                }
                 if let Some(sky) = &self.sky {
                     r.set_sky_textures(sky);
                 }
