@@ -53,6 +53,9 @@ impl PlayerState {
 
 const CONTACT_NOISE: f32 = 1e-5;
 
+/// How far a taller pose may reach under a ceiling's edge; the sweep then moves the box out (see README).
+pub(crate) const HEADROOM_MARGIN: f32 = 0.01;
+
 /// Restores horizontal contact faces only when the box's f32 centre still equals `pos`.
 fn recover_rounded_contacts(bb: Aabb, pos: Vec3, boxes: &[Aabb]) -> Aabb {
     let (omin, omax) = (bb.min, bb.max);
@@ -150,7 +153,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// Whether a standing box of `height` is free, and whether that could be determined.
     pub(crate) fn can_fit_height_known(&self, st: &PlayerState, height: f32) -> (bool, bool) {
         let scale = st.size[2];
-        let bb = st.box_with_dims(st.pos, [(st.size[0] * 0.5) * scale, height * scale]);
+        let bb = st.box_with_dims(st.pos, [(st.size[0] * 0.5) * scale - HEADROOM_MARGIN, height * scale]);
         if !self.loaded(&bb) {
             return (false, false);
         }

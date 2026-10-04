@@ -116,7 +116,10 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   the shallowest axis it may move out but not further in, and BDS `MoveTowardsClosestSpaceSystem` pins the x/z
   velocity at 0.1 away from the mean centre of the overlapped boxes (+x+z when centred; an axis whose next block
   is taken turns round, or drops out if both sides are). Seen after a teleport into snow layers or a block
-  placed on the player.
+  placed on the player. The exception is an overlap of at most 0.01, which the sweep does move out along that
+  axis (zeroing its velocity as a collision), because:
+- A crouch ends, and any taller pose fits, with the box still up to 0.01 under a ceiling's edge (the fit test's
+  box is 0.01 narrower each side): BDS stood up at 0.0083 and not at 0.0103 (drills `duck*`).
 - The honey wall slowdown (x/z × 0.4) applies on the ground and rising too, up to the block's full height
   (bedsim and Java: its 15/16 top), and in lava, but never while the box touches water. It
   is an inside-block effect, once per honey cell the box is in (see the cells above): honey's box is inset
