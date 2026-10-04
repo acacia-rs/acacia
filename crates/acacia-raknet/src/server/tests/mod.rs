@@ -73,7 +73,7 @@ impl Net {
             }
             while let Some((to, d)) = self.server.poll_transmit(self.now) {
                 self.sent += 1;
-                if self.lose_every.is_some_and(|n| self.sent % n == 0) {
+                if self.lose_every.is_some_and(|n| self.sent.is_multiple_of(n)) {
                     continue;
                 }
                 if let Some((_, client)) = self.clients.iter_mut().find(|(a, _)| *a == to) {
