@@ -76,8 +76,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         }
         let mut old_vel = st.vel;
         let old_on_ground = st.on_ground;
+        let still = st.vel[0] == 0.0 && st.vel[2] == 0.0;
         if !self.try_collisions(st) {
             return false;
+        }
+        // At rest in liquid a wall's sprint block stays (see README).
+        if still {
+            st.sprint_movement_blocked = st.was_sprint_movement_blocked;
         }
         let moved = st.vel;
         if stuck {

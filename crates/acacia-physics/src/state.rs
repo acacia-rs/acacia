@@ -130,6 +130,7 @@ pub struct PlayerState {
 
     /// Sprint stalled against a wall during the last tick (stops sprinting next tick).
     pub sprint_movement_blocked: bool,
+    pub(crate) was_sprint_movement_blocked: bool,
     pub(crate) jumped: bool,
     pub(crate) shape: Option<CollisionShape>,
 }
@@ -205,6 +206,7 @@ impl PlayerState {
             effects: Effects::default(),
             equipment: Equipment::default(),
             sprint_movement_blocked: false,
+            was_sprint_movement_blocked: false,
             jumped: false,
             shape: None,
         }
