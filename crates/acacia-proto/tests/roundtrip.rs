@@ -95,6 +95,57 @@ fn switches_and_options() {
     });
 }
 
+/// The body BDS 1.26.52.3 sends for a wither's bar; see docs/proto.md on `boss_event`.
+const BDS_SHOW_BAR: &str = "8bffffffdf010012656e746974792e7769746865722e6e616d65008c25bf3c0600";
+
+#[test]
+fn boss_event_is_bds_show_bar_for_every_type() {
+    let body: Vec<u8> = (0..BDS_SHOW_BAR.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&BDS_SHOW_BAR[i..i + 2], 16).unwrap())
+        .collect();
+    let mut rest = &body[..];
+    let shown = BossEvent::read(&mut rest).unwrap();
+    assert!(rest.is_empty(), "{} bytes left over", rest.len());
+    let expected = BossEvent {
+        target_entity_id: -30064771014,
+        r#type: BossEventType::ShowBar,
+        title: "entity.wither.name".into(),
+        filtered_title: String::new(),
+        progress: f32::from_le_bytes([0x8c, 0x25, 0xbf, 0x3c]),
+        color: BossEventColor::RebeccaPurple,
+        overlay: BossEventOverlay::Progress,
+    };
+    assert_eq!(shown, expected);
+    let mut out = BytesMut::new();
+    shown.write(&mut out);
+    assert_eq!(&out[..], &body[..]);
+
+    let types = [
+        BossEventType::RegisterPlayer,
+        BossEventType::HideBar,
+        BossEventType::UnregisterPlayer,
+        BossEventType::SetBarProgress,
+        BossEventType::SetBarTitle,
+        BossEventType::UpdateProperties,
+        BossEventType::Texture,
+        BossEventType::Query,
+    ];
+    for (i, r#type) in types.into_iter().enumerate() {
+        let event = BossEvent {
+            r#type,
+            color: BossEventColor::Green,
+            overlay: BossEventOverlay::Notched10,
+            ..expected.clone()
+        };
+        let bytes = roundtrip(&event);
+        // The packet id, then the ShowBar body with only the type, colour and overlay changed.
+        let mut same = body.clone();
+        (same[6], same[31], same[32]) = (i as u8 + 1, 3, 2);
+        assert_eq!(&bytes[1..], &same[..], "{type:?}");
+    }
+}
+
 #[test]
 fn unknown_mapper_values_survive() {
     roundtrip(&PlayStatus {
