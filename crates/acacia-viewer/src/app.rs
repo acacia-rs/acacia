@@ -3,8 +3,8 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use acacia_render::sky::DAY_TICKS;
-use acacia_render::{Camera, FrameStats, Renderer};
+use acacia_render::sky::{DAY_TICKS, SkyTextures, moon_phase};
+use acacia_render::{Camera, Renderer};
 use glam::DVec3;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
@@ -32,8 +32,9 @@ pub struct App {
     cave_culling: bool,
     player: Option<DVec3>,
     entities: Smoother,
-    /// The server's time of day, once it sent one.
-    time: Option<f32>,
+    /// The server's world time, once it sent one.
+    time: Option<i32>,
+    sky: Option<SkyTextures>,
     camera_placed: bool,
     status: String,
     last_frame: Instant,
@@ -57,7 +58,7 @@ const TIME_EASE: f32 = 3.0;
 const LOG_EVERY_TITLES: u32 = 10;
 
 impl App {
-    pub fn new(net: Net, radius: i32) -> Self {
+    pub fn new(net: Net, radius: i32, sky: Option<SkyTextures>) -> Self {
         App {
             net,
             window: None,
@@ -71,6 +72,7 @@ impl App {
             player: None,
             entities: Smoother::default(),
             time: None,
+            sky,
             camera_placed: false,
             status: "starting".into(),
             last_frame: Instant::now(),
@@ -127,7 +129,7 @@ impl App {
                     }
                 }
                 NetEvent::Entities(snapshot) => self.entities.push(snapshot),
-                NetEvent::Time(time) => self.time = Some(time as f32),
+                NetEvent::Time(time) => self.time = Some(time),
                 NetEvent::Status(s) => {
                     tracing::info!("{s}");
                     self.status = s;
@@ -154,8 +156,9 @@ impl App {
         r.cave_culling = self.cave_culling;
         if let Some(time) = self.time {
             // The server sends the time every few seconds: ease towards it, the short way round the day.
-            let ahead = (time - r.time + DAY_TICKS / 2.0).rem_euclid(DAY_TICKS) - DAY_TICKS / 2.0;
+            let ahead = (time as f32 - r.time + DAY_TICKS / 2.0).rem_euclid(DAY_TICKS) - DAY_TICKS / 2.0;
             r.time += ahead * (dt * TIME_EASE).min(1.0);
+            r.moon_phase = moon_phase(i64::from(time));
         }
         self.camera.aspect = r.aspect();
         r.set_entities(self.entities.instances(self.camera.position));
@@ -164,7 +167,7 @@ impl App {
         let elapsed = self.overlay.since.elapsed();
         if elapsed >= TITLE_EVERY {
             let fps = self.overlay.frames as f32 / elapsed.as_secs_f32();
-            let line = title(fps, &stats, &self.status);
+            let line = crate::overlay::title(fps, &stats, &self.status);
             if let Some(w) = &self.window {
                 w.set_title(&line);
             }
@@ -207,30 +210,6 @@ impl App {
     }
 }
 
-fn title(fps: f32, s: &FrameStats, status: &str) -> String {
-    format!(
-        "Acacia | {fps:.0} fps | {} | {} MB GPU buffers | {} sections ({} drawn), {}k quads | {} meshing | {status}",
-        memory(),
-        s.gpu_bytes >> 20,
-        s.sections,
-        s.drawn,
-        s.quads / 1000,
-        s.pending,
-    )
-}
-
-/// Working set (what Windows keeps resident; it trims this freely) and committed private memory.
-fn memory() -> String {
-    let (ws, commit) = memory_stats::memory_stats().map_or((0, 0), |m| (m.physical_mem >> 20, m.virtual_mem >> 20));
-    #[cfg(feature = "profile")]
-    {
-        let heap: Vec<String> = crate::heap::live().iter().zip(crate::heap::ROLES).map(|(b, r)| format!("{r} {:.1}", *b as f64 / 1048576.0)).collect();
-        format!("{ws} MB resident, {commit} MB committed, heap MB: {}", heap.join(" "))
-    }
-    #[cfg(not(feature = "profile"))]
-    format!("{ws} MB resident, {commit} MB committed")
-}
-
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_some() {
@@ -240,7 +219,12 @@ impl ApplicationHandler for App {
         let window = Arc::new(event_loop.create_window(attrs).expect("create window"));
         let size = window.inner_size();
         match Renderer::new(window.clone(), (size.width, size.height)) {
-            Ok(r) => self.renderer = Some(r),
+            Ok(mut r) => {
+                if let Some(sky) = &self.sky {
+                    r.set_sky_textures(sky);
+                }
+                self.renderer = Some(r);
+            }
             Err(e) => {
                 tracing::error!(%e, "renderer");
                 event_loop.exit();

@@ -11,6 +11,7 @@ mod entities;
 mod heap;
 mod input;
 mod net;
+mod overlay;
 mod shot;
 mod smooth;
 
@@ -28,9 +29,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let radius: i32 = args.next().map_or(Ok(8), |s| s.parse())?;
 
     let pack = acacia_render::assets::Pack::load(&acacia_render::assets::Pack::default_dir())?;
+    let sky = acacia_render::sky::SkyTextures::load(&pack);
     let net = net::spawn(net::Options { server, name, radius }, pack);
     let event_loop = EventLoop::new()?;
-    let mut app = app::App::new(net, radius);
+    let mut app = app::App::new(net, radius, sky);
     event_loop.run_app(&mut app)?;
     // Unattended screenshots exit non-zero when the session ends first (kicked, e.g. ServerIdConflict).
     match app.failed {

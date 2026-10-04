@@ -1,9 +1,11 @@
 mod atlas;
+mod device;
 mod entities;
 mod entity_textures;
 mod globals;
 mod pipeline;
 mod screenshot;
+mod sky;
 mod store;
 
 use std::path::PathBuf;
@@ -14,7 +16,9 @@ use acacia_world::World;
 use glam::DVec3;
 
 use crate::entity::{EntityInstance, EntityModels};
+use crate::sky::SkyTextures;
 use entities::EntityPass;
+use sky::SkyPass;
 
 use crate::Error;
 use crate::assets::flipbook::Atlas;
@@ -26,7 +30,7 @@ use crate::camera::{Camera, Frustum};
 use crate::cull;
 use crate::light::Lighting;
 use crate::scene::{Scene, Update};
-use crate::sky::{self, Sky};
+use crate::sky::{NOON, Sky};
 use globals::{Globals, srgb_to_linear};
 use pipeline::Pipelines;
 use store::Store;
@@ -57,6 +61,8 @@ pub struct Renderer {
     store: Store,
     entities: EntityPass,
     entity_list: Vec<EntityInstance>,
+    /// `None` until [`Renderer::set_sky_textures`]: the sky is then a plain colour.
+    sky: Option<SkyPass>,
     scene: Option<Scene>,
     biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
@@ -66,43 +72,14 @@ pub struct Renderer {
     pub cave_culling: bool,
     /// Time of day in ticks ([`crate::sky`]); noon until set.
     pub time: f32,
+    /// [`crate::sky::moon_phase`]; full until set.
+    pub moon_phase: u8,
     screenshot: Option<PathBuf>,
 }
 
 impl Renderer {
-    pub fn new(target: impl Into<wgpu::SurfaceTarget<'static>>, (width, height): (u32, u32)) -> Result<Renderer, Error> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
-        let surface = instance.create_surface(target).map_err(|e| Error::Surface(e.to_string()))?;
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
-            ..Default::default()
-        }))
-        .map_err(|e| Error::Adapter(e.to_string()))?;
-        tracing::info!(adapter = ?adapter.get_info().name, backend = ?adapter.get_info().backend, "gpu");
-        let limits = adapter.limits();
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("acacia"),
-            required_limits: wgpu::Limits {
-                max_storage_buffer_binding_size: limits.max_storage_buffer_binding_size,
-                max_buffer_size: limits.max_buffer_size,
-                max_texture_array_layers: limits.max_texture_array_layers,
-                ..wgpu::Limits::default()
-            },
-            memory_hints: wgpu::MemoryHints::MemoryUsage,
-            ..Default::default()
-        }))
-        .map_err(|e| Error::Device(e.to_string()))?;
-        let mut config = surface
-            .get_default_config(&adapter, width.max(1), height.max(1))
-            .ok_or_else(|| Error::Surface("surface unsupported by adapter".into()))?;
-        config.format = config.format.add_srgb_suffix();
-        if surface.get_capabilities(&adapter).usages.contains(wgpu::TextureUsages::COPY_SRC) {
-            config.usage |= wgpu::TextureUsages::COPY_SRC;
-        }
-        config.present_mode = wgpu::PresentMode::AutoVsync;
-        surface.configure(&device, &config);
-
+    pub fn new(target: impl Into<wgpu::SurfaceTarget<'static>>, size: (u32, u32)) -> Result<Renderer, Error> {
+        let device::Gpu { surface, device, queue, config } = device::open(target, size)?;
         let pipelines = Pipelines::new(&device, config.format);
         let globals = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("globals"),
@@ -130,12 +107,14 @@ impl Renderer {
             store,
             entities,
             entity_list: Vec::new(),
+            sky: None,
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
             fog_distance: 160.0,
             cave_culling: true,
-            time: sky::NOON,
+            time: NOON,
+            moon_phase: 0,
             screenshot: None,
         })
     }
@@ -191,6 +170,11 @@ impl Renderer {
         self.entities.set_models(&self.device, models);
     }
 
+    /// Draws the sun, moon and stars from now on.
+    pub fn set_sky_textures(&mut self, textures: &SkyTextures) {
+        self.sky = Some(SkyPass::new(&self.device, &self.queue, self.config.format, &self.globals, textures));
+    }
+
     /// The entities to draw from now on; ids come from the models set last.
     pub fn set_entities(&mut self, entities: Vec<EntityInstance>) {
         self.entity_list = entities;
@@ -219,7 +203,11 @@ impl Renderer {
 
         let view_proj = camera.view_proj();
         let has_sky = self.world().is_none_or(|w| w.dimension().sky);
-        let sky = Sky::at(if has_sky { self.time } else { sky::NOON });
+        let sky = Sky::at(if has_sky { self.time } else { NOON });
+        let sky_pass = self.sky.as_ref().filter(|_| has_sky);
+        if let Some(pass) = sky_pass {
+            pass.prepare(&self.queue, &sky, self.moon_phase);
+        }
         let sky_color = srgb_to_linear(sky.color);
         let fog = [sky_color[0], sky_color[1], sky_color[2], self.fog_distance];
         let globals = Globals::new(view_proj, (cam_block, cam_frac), fog, has_sky, sky.darken);
@@ -264,6 +252,9 @@ impl Renderer {
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         {
             let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, sky_color);
+            if let Some(sky) = sky_pass {
+                sky.draw(&mut pass);
+            }
             for (pipeline, draws) in [(&self.pipelines.solid, &solid), (&self.pipelines.translucent, &translucent)] {
                 pass.set_pipeline(pipeline);
                 pass.set_bind_group(0, &self.bind_group, &[]);
