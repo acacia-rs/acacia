@@ -2015,6 +2015,7 @@ name = "lookbake"
 version = "0.1.0"
 dependencies = [
  "acacia-render",
+ "acacia-world",
  "serde_json",
  "sha1 0.10.7",
  "ureq",

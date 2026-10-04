@@ -119,6 +119,10 @@ GeyserMC's MIT `blocks.nbt` was the first candidate and is kept as a cross-check
 to Bedrock, and its inverse reaches 72% of the palette, misses real states (water depths, partial
 redstone signals, most hanging signs) and gets 156 hanging-sign rotations wrong.
 
+`lookbake java-report` measures the coverage: 22,058 of the 22,091 states reach a Java model
+(2,437 distinct models) through the table and the jar's blockstate files. The other 33 are walls with
+no post and no sides, which Java draws as nothing.
+
 A Bedrock state whose Java target has no model is baked from the Bedrock pack into the same look
 pack. Bed and banner colour, pot contents, skull rotation and chest pairing are in block entities
 under either mapping; the renderer already reads those for beds, chests and heads.

@@ -28,7 +28,7 @@ pub struct LookPack {
 }
 
 /// A block state's name in a pack: `minecraft:oak_log[pillar_axis=y]`, or the bare name.
-fn state_key(state: &BlockState) -> String {
+pub fn state_key(state: &BlockState) -> String {
     if state.properties.is_empty() { state.name.to_owned() } else { format!("{}[{}]", state.name, state.properties) }
 }
 
