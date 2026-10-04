@@ -1,14 +1,17 @@
 //! The vanilla resource pack subset fetched by `tools/fetch-vanilla-pack.sh`: `blocks.json` maps block
 //! names to texture names per face, `textures/terrain_texture.json` maps texture names to image paths.
 
+pub mod flipbook;
 pub mod image;
 pub mod json;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
 
 use crate::Error;
+use flipbook::Flipbook;
 
 /// Face order used everywhere in this crate: +X east, -X west, +Y up, -Y down, +Z south, -Z north.
 pub const FACE_NAMES: [&str; 6] = ["east", "west", "up", "down", "south", "north"];
@@ -17,6 +20,7 @@ pub struct Pack {
     root: PathBuf,
     blocks: Map<String, Value>,
     terrain: Map<String, Value>,
+    flipbooks: HashMap<String, Flipbook>,
 }
 
 /// One resolved texture: the image path without extension.
@@ -43,7 +47,12 @@ impl Pack {
         let blocks = object(json::read(&root.join("blocks.json"))?);
         let mut terrain = object(json::read(&root.join("textures/terrain_texture.json"))?);
         let terrain = object(terrain.remove("texture_data").unwrap_or_default());
-        Ok(Pack { root: root.to_owned(), blocks, terrain })
+        Ok(Pack { root: root.to_owned(), blocks, terrain, flipbooks: flipbook::load(root) })
+    }
+
+    /// How a terrain texture animates, if it does.
+    pub fn flipbook(&self, texture_name: &str) -> Option<&Flipbook> {
+        self.flipbooks.get(texture_name)
     }
 
     pub fn root(&self) -> &Path {

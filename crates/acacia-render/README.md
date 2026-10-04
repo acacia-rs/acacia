@@ -13,7 +13,10 @@ to the block palette version (`acacia-world/src/registry/mod.rs`).
 - `terrain_texture.json`: texture name → image path. Arrays hold variants; the first is used (leaves list
   `[fancy, opaque]`). `overlay_color` marks a tint mask in alpha (grass block sides: alpha 255 = tinted).
   `quad: 1` frames hold 2×2 tiles (flowing water, lava).
-- Images are normalized to 16×16 (first flipbook frame) in one `Rgba8UnormSrgb` texture array with mips.
+- Images are normalized to 16×16 in one `Rgba8UnormSrgb` texture array with mips.
+- Flipbooks (`textures/flipbook_textures.json`) keep every frame of their strip. Each game tick the
+  renderer rewrites the animated layers in place, cross-fading unless `blend_frames` is false. Only a
+  texture's first variant is drawn, so only its flipbook plays; flowing liquids show one tile of their 2×2.
 
 ## Block table (`blocks/`)
 
@@ -145,7 +148,7 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
 
 ## Not yet
 
-Day/night (sky light is always full), GPU occlusion culling (Hi-Z), texture animation,
+Day/night (sky light is always full), GPU occlusion culling (Hi-Z),
 flow-direction water and sloped liquid surfaces, block entities, UI. Entities: animation (limbs,
 setup poses some old models rely on), blended overlay layers and controller colours (slime shell,
 creeper flash, collar and armour dyes), queries that need untracked state (equipment, synced

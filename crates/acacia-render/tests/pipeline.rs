@@ -70,7 +70,7 @@ fn vanilla_blocks_resolve_to_textures_and_shapes() {
     let Some(pack) = pack() else { return };
     let registry = BlockRegistry::vanilla();
     let (table, textures, report) = BlockTable::build(registry, &pack);
-    eprintln!("{} layers, {} untextured blocks", textures.len(), report.blocks_without_textures.len());
+    eprintln!("{} layers, {} animated, {} untextured blocks", textures.layers.len(), textures.animations.len(), report.blocks_without_textures.len());
     assert!(report.missing_images.is_empty(), "{:?}", report.missing_images);
     let get = |name: &str, props: &str| table.get(registry.find(name, props).unwrap_or_else(|| panic!("{name} {props}")));
 
@@ -90,6 +90,8 @@ fn vanilla_blocks_resolve_to_textures_and_shapes() {
     assert!(matches!(first("minecraft:oak_stairs").shape, Shape::Boxes(_)));
     assert_eq!(first("minecraft:oak_leaves").material[0], Material::Cutout);
     assert_ne!(first("minecraft:sea_lantern").textures[0], 0);
+    let water = first("minecraft:water").textures[2];
+    assert!(textures.animations.iter().any(|a| a.layer == water), "still water animates");
     // Education Edition blocks (elements, hard glass, lab tables) aren't in the vanilla pack.
     let untextured: Vec<_> = report
         .blocks_without_textures

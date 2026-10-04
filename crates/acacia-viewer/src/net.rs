@@ -10,7 +10,7 @@ use acacia_bot::proto::packets::BiomeDefinitionList;
 use acacia_bot::{Bot, BotConfig, BotEvent};
 use acacia_render::assets::Pack;
 use acacia_render::biome::{BiomeColors, BiomeDef};
-use acacia_render::assets::image::Texture;
+use acacia_render::assets::flipbook::Atlas;
 use acacia_bot::state::Trackers;
 use acacia_render::blocks::BlockTable;
 use acacia_render::entity::EntityModels;
@@ -28,7 +28,7 @@ pub struct Options {
 
 pub enum NetEvent {
     /// A new world (join or dimension change) with render data built from its registry.
-    World { world: Arc<World>, table: Arc<BlockTable>, textures: Vec<Texture> },
+    World { world: Arc<World>, table: Arc<BlockTable>, textures: Atlas },
     /// Biome colours from the server's `BiomeDefinitionList`.
     Biomes(Arc<BiomeColors>),
     /// The bot's eye position.
@@ -135,7 +135,8 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
         if let Some(world) = world.filter(|w| current.as_ref().is_none_or(|c| !Arc::ptr_eq(c, w))) {
             let (table, textures, built) = BlockTable::build(world.registry(), &pack);
             tracing::info!(
-                textures = textures.len(),
+                textures = textures.layers.len(),
+                animated = textures.animations.len(),
                 untextured = built.blocks_without_textures.len(),
                 missing_images = built.missing_images.len(),
                 "block table"

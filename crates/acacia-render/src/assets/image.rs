@@ -21,22 +21,38 @@ pub enum Alpha {
     Blended,
 }
 
+fn open(path: &Path) -> Result<image::RgbaImage, Error> {
+    Ok(image::open(path).map_err(|source| Error::Image { path: path.display().to_string(), source })?.into_rgba8())
+}
+
 impl Texture {
     /// Loads and normalizes to 16×16: flipbook strips keep their first frame (its top-left tile
     /// when `quad`), other sizes are nearest-sampled.
     pub fn load(path: &Path, quad: bool) -> Result<Texture, Error> {
-        let img = image::open(path).map_err(|source| Error::Image { path: path.display().to_string(), source })?.into_rgba8();
+        let img = open(path)?;
+        Ok(Texture::tile(&img, 0, quad))
+    }
+
+    /// Every frame of a flipbook strip, top to bottom, each normalized as [`Texture::load`] does.
+    pub fn load_frames(path: &Path, quad: bool) -> Result<Vec<Texture>, Error> {
+        let img = open(path)?;
         let (w, h) = img.dimensions();
-        let frame = w.min(h) / if quad { 2 } else { 1 };
+        Ok((0..(h / w.min(h)).max(1)).map(|i| Texture::tile(&img, i, quad)).collect())
+    }
+
+    fn tile(img: &image::RgbaImage, index: u32, quad: bool) -> Texture {
+        let (w, h) = img.dimensions();
+        let side = w.min(h);
+        let frame = side / if quad { 2 } else { 1 };
         let mut rgba = Box::new([0; TEXEL_BYTES]);
         for y in 0..TEXTURE_SIZE {
             for x in 0..TEXTURE_SIZE {
-                let p = img.get_pixel(x * frame / TEXTURE_SIZE, y * frame / TEXTURE_SIZE);
+                let p = img.get_pixel(x * frame / TEXTURE_SIZE, index * side + y * frame / TEXTURE_SIZE);
                 let i = ((y * TEXTURE_SIZE + x) * 4) as usize;
                 rgba[i..i + 4].copy_from_slice(&p.0);
             }
         }
-        Ok(Texture { rgba })
+        Texture { rgba }
     }
 
     /// Magenta/black checkerboard for textures the pack lacks.

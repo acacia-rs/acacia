@@ -1,3 +1,4 @@
+mod atlas;
 mod entities;
 mod entity_textures;
 mod pipeline;
@@ -6,6 +7,7 @@ mod store;
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use acacia_world::World;
 use glam::DVec3;
@@ -14,8 +16,10 @@ use crate::entity::{EntityInstance, EntityModels};
 use entities::EntityPass;
 
 use crate::Error;
+use crate::assets::flipbook::Atlas;
 use crate::assets::image::Texture;
 use crate::blocks::BlockTable;
+use atlas::BlockTextures;
 use crate::biome::BiomeColors;
 use crate::blocks::tint::WATER_ALPHA;
 use crate::camera::{Camera, Frustum};
@@ -60,7 +64,9 @@ pub struct Renderer {
     depth: wgpu::TextureView,
     pipelines: Pipelines,
     globals: wgpu::Buffer,
-    textures: wgpu::TextureView,
+    textures: BlockTextures,
+    /// Texture animations run on game ticks counted from here.
+    started: Instant,
     sampler: wgpu::Sampler,
     bind_group: wgpu::BindGroup,
     store: Store,
@@ -117,11 +123,11 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let texture_view = pipeline::texture_array(&device, &queue, &[Texture::missing()]);
+        let textures = BlockTextures::new(&device, &queue, &Atlas { layers: vec![Texture::missing()], animations: Vec::new() });
         let sampler = pipeline::sampler(&device);
         let store = Store::new(&device);
         let entities = EntityPass::new(&device, config.format, &globals);
-        let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &texture_view, &sampler);
+        let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
             depth: pipeline::depth_view(&device, config.width, config.height),
             surface,
@@ -130,7 +136,8 @@ impl Renderer {
             config,
             pipelines,
             globals,
-            textures: texture_view,
+            textures,
+            started: Instant::now(),
             sampler,
             bind_group,
             store,
@@ -168,10 +175,10 @@ impl Renderer {
         self.config.width as f32 / self.config.height as f32
     }
 
-    /// Starts drawing a world, dropping the previous one's meshes. `table` and `textures` come from
+    /// Starts drawing a world, dropping the previous one's meshes. `table` and `atlas` come from
     /// [`BlockTable::build`] over the world's registry (custom blocks shift runtime ids).
-    pub fn set_world(&mut self, world: Arc<World>, table: Arc<BlockTable>, textures: &[Texture]) {
-        self.textures = pipeline::texture_array(&self.device, &self.queue, textures);
+    pub fn set_world(&mut self, world: Arc<World>, table: Arc<BlockTable>, atlas: &Atlas) {
+        self.textures = BlockTextures::new(&self.device, &self.queue, atlas);
         self.store.replaced = true;
         let lighting = Lighting::new(world.clone());
         self.rebuild_scene(world, table, lighting);
@@ -218,8 +225,9 @@ impl Renderer {
             }
         }
         if std::mem::take(&mut self.store.replaced) {
-            self.bind_group = pipeline::bind_group(&self.device, &self.pipelines.layout, &self.globals, &self.store, &self.textures, &self.sampler);
+            self.bind_group = pipeline::bind_group(&self.device, &self.pipelines.layout, &self.globals, &self.store, &self.textures.view, &self.sampler);
         }
+        self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
 
         let view_proj = camera.view_proj();
         let globals = Globals {

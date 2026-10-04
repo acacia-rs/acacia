@@ -1,7 +1,6 @@
-//! Terrain pipelines, bind group layout and the block texture array.
+//! Terrain pipelines and bind group layout.
 
 use super::store::Store;
-use crate::assets::image::{TEXTURE_SIZE, Texture};
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
@@ -102,40 +101,6 @@ pub fn bind_group(
             wgpu::BindGroupEntry { binding: 5, resource: store.light.as_entire_binding() },
         ],
     })
-}
-
-/// Uploads block textures as a 16×16 array with a full mip chain.
-pub fn texture_array(device: &wgpu::Device, queue: &wgpu::Queue, textures: &[Texture]) -> wgpu::TextureView {
-    let mip_level_count = TEXTURE_SIZE.ilog2() + 1;
-    let size = wgpu::Extent3d { width: TEXTURE_SIZE, height: TEXTURE_SIZE, depth_or_array_layers: textures.len() as u32 };
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("blocks"),
-        size,
-        mip_level_count,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
-    for (layer, tex) in textures.iter().enumerate() {
-        let levels = std::iter::once(tex.rgba.to_vec()).chain(tex.mips());
-        for (mip, data) in levels.enumerate() {
-            let side = TEXTURE_SIZE >> mip;
-            queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
-                    mip_level: mip as u32,
-                    origin: wgpu::Origin3d { x: 0, y: 0, z: layer as u32 },
-                    aspect: wgpu::TextureAspect::All,
-                },
-                &data,
-                wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(side * 4), rows_per_image: Some(side) },
-                wgpu::Extent3d { width: side, height: side, depth_or_array_layers: 1 },
-            );
-        }
-    }
-    texture.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2Array), ..Default::default() })
 }
 
 pub fn sampler(device: &wgpu::Device) -> wgpu::Sampler {

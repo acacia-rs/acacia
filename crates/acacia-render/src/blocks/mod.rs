@@ -7,6 +7,7 @@ use acacia_world::{BlockRegistry, BlockState};
 use rustc_hash::FxHashMap;
 
 use crate::assets::Pack;
+use crate::assets::flipbook::{Animation, Atlas};
 use crate::assets::image::{Alpha, Texture};
 pub use shape::{Box16, Shape, short_name};
 pub use tint::Tint;
@@ -73,8 +74,8 @@ const CUTOUT_CUBES: &[&str] = &["leaves", "glass", "spawner", "ice", "roots", "s
 const TRANSLUCENT: &[&str] = &["stained_glass", "slime", "honey_block"];
 
 impl BlockTable {
-    /// Returns the table and the texture-array layers it indexes (layer 0 is the missing texture).
-    pub fn build(registry: &BlockRegistry, pack: &Pack) -> (BlockTable, Vec<Texture>, BuildReport) {
+    /// Returns the table and the texture array it indexes.
+    pub fn build(registry: &BlockRegistry, pack: &Pack) -> (BlockTable, Atlas, BuildReport) {
         let mut textures = Textures::new(pack);
         let mut report = BuildReport::default();
         let blocks = (0..registry.len() as u32)
@@ -90,7 +91,7 @@ impl BlockTable {
         report.blocks_without_textures.dedup();
         report.missing_images = textures.missing;
         let fallback = BlockTable::cube(0);
-        (BlockTable { blocks, fallback }, textures.layers, report)
+        (BlockTable { blocks, fallback }, textures.atlas, report)
     }
 
     /// Runtime ids past the registry (unknown custom blocks) render as a missing-texture cube.
@@ -208,14 +209,15 @@ impl Resolved {
 /// Loads each distinct image once into the texture-array layer list.
 struct Textures<'a> {
     pack: &'a Pack,
-    layers: Vec<Texture>,
+    atlas: Atlas,
     by_name: FxHashMap<String, Resolved>,
     missing: Vec<String>,
 }
 
 impl<'a> Textures<'a> {
     fn new(pack: &'a Pack) -> Self {
-        Textures { pack, layers: vec![Texture::missing()], by_name: FxHashMap::default(), missing: Vec::new() }
+        let atlas = Atlas { layers: vec![Texture::missing()], animations: Vec::new() };
+        Textures { pack, atlas, by_name: FxHashMap::default(), missing: Vec::new() }
     }
 
     fn resolve(&mut self, texture_name: &str) -> Resolved {
@@ -233,9 +235,21 @@ impl<'a> Textures<'a> {
     fn load(&mut self, texture_name: &str) -> Option<Resolved> {
         let tex = self.pack.texture(texture_name)?;
         let file = self.pack.image_file(&tex.path)?;
-        let image = Texture::load(&file, tex.quad).inspect_err(|e| tracing::warn!(%e, "texture")).ok()?;
-        let r = Resolved { layer: self.layers.len() as u16, alpha: image.alpha(), overlay: tex.overlay };
-        self.layers.push(image);
+        let layer = self.atlas.layers.len() as u16;
+        let warn = |e: &crate::Error| tracing::warn!(%e, "texture");
+        let image = match self.pack.flipbook(texture_name) {
+            Some(book) => {
+                let strip = Texture::load_frames(&file, tex.quad).inspect_err(warn).ok()?;
+                let still = strip.first()?.clone();
+                let animation = Animation::new(layer, strip, book);
+                let first = animation.as_ref().map_or(still, |a| a.at(0));
+                self.atlas.animations.extend(animation);
+                first
+            }
+            None => Texture::load(&file, tex.quad).inspect_err(warn).ok()?,
+        };
+        let r = Resolved { layer, alpha: image.alpha(), overlay: tex.overlay };
+        self.atlas.layers.push(image);
         Some(r)
     }
 }
