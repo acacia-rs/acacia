@@ -203,6 +203,24 @@ the `Globals` uniform and can change between frames. Plan for the rest: docs/jav
 | Fog ramp | Smoothstep over the last 30% | Linear over the last 10%, 4 to 64 blocks |
 | Water opacity | 0.65 (`water_surface_transparency`) | The texture's alpha |
 
+## Look pack (`lookpack/`)
+
+A `LookPack` is what the renderer draws blocks with: a `Look`, the distinct `RenderBlock`s, which
+block state uses which (keyed `minecraft:oak_log[pillar_axis=y]`), and the texture array with its
+animations. `LookPack::block_table(registry)` gives the `BlockTable` for a world; states the pack
+lacks (custom blocks) are missing-texture cubes. Block models are not stored: they follow from the state.
+
+`LookPack::bake_bedrock` builds one from the Bedrock pack over the vanilla registry. `tools/lookbake`
+saves it (`cargo run --release -p lookbake -- bedrock`), by default to `assets/looks/bedrock`
+(`$ACACIA_LOOKS` moves `assets/looks`):
+
+- `pack.json`: version, look, blocks, states, animation timing. Another version is refused.
+- `textures.png`: the array layers stacked top to bottom.
+- `frames.png`: every animation's frames, in `pack.json`'s order.
+
+The viewer loads a baked pack when there is one and bakes in memory otherwise. Entities, biome
+colours and the sky textures still come from the Bedrock pack directly.
+
 ## Not yet
 
 Weather, GPU occlusion culling (Hi-Z), UI. Block models: hanging signs, banners, sign text, bells,

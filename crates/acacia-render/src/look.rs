@@ -1,7 +1,9 @@
 //! What differs between the editions' looks at draw time. Design: docs/java-look.md.
 
+use serde::{Deserialize, Serialize};
+
 /// How distance fog closes in on the far edge of the loaded terrain.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Fog {
     /// Measured from the vertical axis through the camera, not from the camera.
     pub cylinder: bool,
@@ -20,7 +22,7 @@ impl Fog {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Look {
     pub fog: Fog,
     /// Water surface opacity; `None` keeps the texture's alpha.
@@ -30,7 +32,8 @@ pub struct Look {
 impl Look {
     /// Water opacity is `biomes_client.json`'s default water_surface_transparency.
     pub const BEDROCK: Look = Look {
-        fog: Fog { cylinder: false, linear: false, band: 0.3, band_limits: (0.0, f32::INFINITY) },
+        // Not infinity: JSON has none, and a look pack stores this.
+        fog: Fog { cylinder: false, linear: false, band: 0.3, band_limits: (0.0, f32::MAX) },
         water_alpha: Some(0.65),
     };
     // TODO: Java's second fog band (the spherical biome haze) is not drawn.

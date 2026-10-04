@@ -137,6 +137,12 @@ The same applies to entity identifiers and items.
 | J4 | Java entities | Geometry and Molang animations per mob, most-seen first; Bedrock geometry as the fallback | Side-by-side screenshots per mob; a list of mobs still on the fallback |
 | J5 | Bedrock theme | Bedrock-style HUD and menus as the second `Theme` | As J2 and J3 |
 
+J0 so far: `Look` (fog shape, water opacity) and the viewer's settings, `--look` and `L`; the pack
+format for blocks and textures, `tools/lookbake bedrock`, and the viewer drawing from a pack
+(crates/acacia-render/README.md "Look" and "Look pack"). Left in J0: tints, entities, block models
+and sky textures still load from the Bedrock pack at run time, and the Bedrock block loader still
+lives in `acacia-render` (`lookbake` calls it) instead of in the tool.
+
 J0 is a refactor of `acacia-render`'s loaders with no visible change, and is the step that proves the
 format. J0 and J1 touch `acacia-render`; under the one-agent-per-area rule they are done by, or
 handed over from, whoever holds the render area. J2 onward are new areas (`ui`, `entities`).
@@ -145,6 +151,7 @@ handed over from, whoever holds the render area. J2 onward are new areas (`ui`, 
 
 - The Java release to pin for the Bedrock version the viewer targets.
 - GeyserMC mappings: licence, format and coverage are unverified.
-- Pack encoding (one binary file or a directory of images plus tables) and its expected size.
+- Pack encoding: JSON plus PNG strips for now (about 5 MB for Bedrock, 4 MB of it `pack.json`).
+  Revisit if loading is slow or once baked quads make the table much larger.
 - README "Non-goals" still lists graphics and Java Edition; DESIGN.md milestone 10 is out of date.
 - Whether the Java look becomes the default once J3 is done.

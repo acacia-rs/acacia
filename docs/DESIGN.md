@@ -42,6 +42,7 @@ acacia-viewer             (app) world viewer: a bot on a tokio thread, winit win
 acacia-mitm               proxy library (record, drop, rewrite, inject) and recording CLI for vanilla-client
                           captures over RakNet or NetherNet direct connect, local BDS or (`--online`) real servers
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
+tools/lookbake            bakes a look pack for acacia-render from a resource pack (docs/java-look.md)
 tools/capdiff             compares what two clients sent in captures (vanilla vs bot): order, delays, cadence, fields
 acacia-testserver         (dev) FakeServer replays a recorded BDS join over loopback RakNet, then takes send/recv/kick
                           from the test; capture reader

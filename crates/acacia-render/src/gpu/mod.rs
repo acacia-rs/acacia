@@ -148,8 +148,8 @@ impl Renderer {
         self.config.width as f32 / self.config.height as f32
     }
 
-    /// Starts drawing a world, dropping the previous one's meshes. `table` and `atlas` come from
-    /// [`BlockTable::build`] over the world's registry (custom blocks shift runtime ids).
+    /// Starts drawing a world, dropping the previous one's meshes. `table` and `atlas` come from a
+    /// [`crate::LookPack`] over the world's registry (custom blocks shift runtime ids).
     pub fn set_world(&mut self, world: Arc<World>, table: Arc<BlockTable>, atlas: &Atlas) {
         self.textures = BlockTextures::new(&self.device, &self.queue, atlas);
         self.store.replaced = true;

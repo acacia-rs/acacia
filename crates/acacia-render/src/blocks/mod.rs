@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use acacia_world::{BlockRegistry, BlockState};
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 
 use crate::assets::Pack;
 use crate::assets::flipbook::{Animation, Atlas};
@@ -16,7 +17,7 @@ pub use shape::{Box16, Shape, short_name};
 pub use tint::Tint;
 
 /// How a face's texture alpha is used; the value is the shader's material index.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Material {
     /// Alpha ignored.
@@ -28,7 +29,7 @@ pub enum Material {
     Overlay = 3,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Layer {
     Invisible,
     /// Opaque and cutout, depth-written.
@@ -36,14 +37,14 @@ pub enum Layer {
     Translucent,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Fluid {
     None,
     Water,
     Lava,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenderBlock {
     pub shape: Shape,
     pub layer: Layer,
@@ -58,7 +59,9 @@ pub struct RenderBlock {
     pub fluid: Fluid,
     /// Liquid surface height in 1/16 block.
     pub fluid_height: u8,
-    /// Drawn as an entity model; the shape is then [`Shape::None`].
+    /// Drawn as an entity model; the shape is then [`Shape::None`]. Follows from the state, so a
+    /// look pack does not store it.
+    #[serde(skip)]
     pub model: Option<Arc<model::BlockModel>>,
 }
 
@@ -99,12 +102,17 @@ impl BlockTable {
         (BlockTable { blocks, fallback }, textures.atlas, report)
     }
 
+    /// One block per runtime id.
+    pub(crate) fn from_blocks(blocks: Vec<RenderBlock>) -> BlockTable {
+        BlockTable { blocks, fallback: BlockTable::cube(0) }
+    }
+
     /// Runtime ids past the registry (unknown custom blocks) render as a missing-texture cube.
     pub fn get(&self, id: u32) -> &RenderBlock {
         self.blocks.get(id as usize).unwrap_or(&self.fallback)
     }
 
-    fn cube(texture: u16) -> RenderBlock {
+    pub(crate) fn cube(texture: u16) -> RenderBlock {
         RenderBlock {
             shape: Shape::Cube,
             layer: Layer::Solid,

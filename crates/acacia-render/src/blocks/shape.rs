@@ -6,7 +6,7 @@ use acacia_world::BlockState;
 /// Box in 1/16 block units: min xyz, max xyz.
 pub type Box16 = [u8; 6];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Shape {
     None,
     Cube,

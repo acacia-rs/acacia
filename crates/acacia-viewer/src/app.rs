@@ -1,19 +1,20 @@
-//! Window, event handling and the title-bar overlay.
+//! The viewer's state, its frame loop and the title-bar overlay. Window events: app/window.rs.
+
+mod window;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acacia_render::sky::{DAY_TICKS, SkyTextures, moon_phase};
 use acacia_render::{Camera, Renderer};
+use acacia_world::World;
 use glam::DVec3;
-use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{CursorGrabMode, Window, WindowId};
+use winit::keyboard::KeyCode;
+use winit::window::{CursorGrabMode, Window};
 
 use crate::smooth::Smoother;
 use crate::input::FlyInput;
+use crate::looks::Looks;
 use crate::net::{Net, NetEvent};
 use crate::settings::Settings;
 use crate::shot::Shot;
@@ -28,6 +29,7 @@ pub struct App {
     input: FlyInput,
     grabbed: bool,
     settings: Settings,
+    looks: Looks,
     fog_distance: f32,
     player: Option<DVec3>,
     entities: Smoother,
@@ -57,7 +59,7 @@ const TIME_EASE: f32 = 3.0;
 const LOG_EVERY_TITLES: u32 = 10;
 
 impl App {
-    pub fn new(net: Net, radius: i32, sky: Option<SkyTextures>, settings: Settings) -> Self {
+    pub fn new(net: Net, radius: i32, sky: Option<SkyTextures>, settings: Settings, looks: Looks) -> Self {
         App {
             net,
             window: None,
@@ -66,6 +68,7 @@ impl App {
             input: FlyInput::new(),
             grabbed: false,
             settings,
+            looks,
             fog_distance: (radius * 16) as f32,
             player: None,
             entities: Smoother::default(),
@@ -97,13 +100,20 @@ impl App {
         false
     }
 
+    /// Draws `world` with the chosen look, meshing it anew.
+    fn show_world(&mut self, world: Arc<World>) {
+        let Some(r) = &mut self.renderer else { return };
+        let pack = self.looks.get(self.settings.look);
+        r.look = pack.look;
+        let table = Arc::new(pack.block_table(world.registry()));
+        r.set_world(world, table, &pack.atlas);
+    }
+
     fn poll_net(&mut self) {
         while let Ok(event) = self.net.events.try_recv() {
             match event {
-                NetEvent::World { world, table, textures } => {
-                    if let Some(r) = &mut self.renderer {
-                        r.set_world(world, table, &textures);
-                    }
+                NetEvent::World(world) => {
+                    self.show_world(world);
                     if let Some(shot) = &mut self.shot {
                         shot.world_at.get_or_insert_with(Instant::now);
                     }
@@ -157,7 +167,6 @@ impl App {
         let Some(r) = &mut self.renderer else { return };
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.settings.cave_culling;
-        r.look = self.settings.look.look();
         if let Some(time) = self.time {
             // The server sends the time every few seconds: ease towards it, the short way round the day.
             let ahead = (time as f32 - r.time + DAY_TICKS / 2.0).rem_euclid(DAY_TICKS) - DAY_TICKS / 2.0;
@@ -203,7 +212,12 @@ impl App {
                 }
             }
             (KeyCode::KeyC, true) => self.settings.change_and_save(|s| s.cave_culling = !s.cave_culling),
-            (KeyCode::KeyL, true) => self.settings.change_and_save(|s| s.look = s.look.next()),
+            (KeyCode::KeyL, true) => {
+                self.settings.change_and_save(|s| s.look = s.look.next());
+                if let Some(world) = self.renderer.as_ref().and_then(|r| r.world().cloned()) {
+                    self.show_world(world);
+                }
+            }
             (KeyCode::KeyV, true) => {
                 self.settings.change_and_save(|s| s.vsync = !s.vsync);
                 if let Some(r) = &mut self.renderer {
@@ -211,81 +225,6 @@ impl App {
                 }
             }
             _ => self.input.key(code, pressed),
-        }
-    }
-}
-
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_some() {
-            return;
-        }
-        let attrs = Window::default_attributes().with_title("Acacia").with_inner_size(winit::dpi::LogicalSize::new(1280, 720));
-        let window = Arc::new(event_loop.create_window(attrs).expect("create window"));
-        let size = window.inner_size();
-        match Renderer::new(window.clone(), (size.width, size.height)) {
-            Ok(mut r) => {
-                if !self.settings.vsync {
-                    r.set_vsync(false);
-                }
-                if let Some(sky) = &self.sky {
-                    r.set_sky_textures(sky);
-                }
-                self.renderer = Some(r);
-            }
-            Err(e) => {
-                tracing::error!(%e, "renderer");
-                event_loop.exit();
-            }
-        }
-        self.window = Some(window);
-    }
-
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
-        match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => {
-                if let Some(r) = &mut self.renderer {
-                    r.resize(size.width, size.height);
-                }
-            }
-            WindowEvent::RedrawRequested => {
-                if self.drive_shot() {
-                    event_loop.exit();
-                }
-                self.frame();
-                if self.failed.is_some() {
-                    event_loop.exit();
-                }
-            }
-            WindowEvent::Focused(false) => self.grab(false),
-            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if !self.grabbed => self.grab(true),
-            WindowEvent::MouseWheel { delta, .. } => self.input.scroll(match delta {
-                MouseScrollDelta::LineDelta(_, y) => y,
-                MouseScrollDelta::PixelDelta(p) => p.y as f32 / 40.0,
-            }),
-            WindowEvent::KeyboardInput { event, .. } => {
-                if let PhysicalKey::Code(code) = event.physical_key {
-                    self.key(code, event.state == ElementState::Pressed);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
-        if let (DeviceEvent::MouseMotion { delta: (dx, dy) }, true) = (event, self.grabbed) {
-            self.input.mouse(&mut self.camera, dx, dy);
-        }
-    }
-
-    fn exiting(&mut self, _: &ActiveEventLoop) {
-        self.net.shutdown();
-    }
-
-    fn about_to_wait(&mut self, _: &ActiveEventLoop) {
-        if let Some(w) = &self.window {
-            w.request_redraw();
         }
     }
 }

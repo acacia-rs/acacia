@@ -1,7 +1,8 @@
 //! World viewer: joins a server with an Acacia bot and renders its terrain with a free camera.
 //! `cargo run --release -p acacia-viewer -- <server> <name|@account> [chunk radius] [--look bedrock|java]`
 //! - `@account` signs in online with tokens cached in ./.tokens (see acacia-auth's device_login).
-//! - Textures: run tools/fetch-vanilla-pack.sh first, or point ACACIA_ASSETS at a pack.
+//! - Textures: run tools/fetch-vanilla-pack.sh first, or point ACACIA_ASSETS at a pack. A look
+//!   baked by tools/lookbake (assets/looks/<name>) is used in place of baking at start (looks.rs).
 //! - Controls: click to grab the mouse, WASD/Space/Shift to fly, Ctrl faster, wheel changes speed,
 //!   F jumps to the bot, V toggles vsync, C toggles cave culling, L switches the look, Esc releases
 //!   the mouse. V, C and L are remembered (settings.rs).
@@ -12,6 +13,7 @@ mod entities;
 #[cfg(feature = "profile")]
 mod heap;
 mod input;
+mod looks;
 mod net;
 mod overlay;
 mod settings;
@@ -42,9 +44,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pack = acacia_render::assets::Pack::load(&acacia_render::assets::Pack::default_dir())?;
     let sky = acacia_render::sky::SkyTextures::load(&pack);
+    let looks = looks::Looks::load(&pack);
     let net = net::spawn(net::Options { server, name, radius }, pack);
     let event_loop = EventLoop::new()?;
-    let mut app = app::App::new(net, radius, sky, settings);
+    let mut app = app::App::new(net, radius, sky, settings, looks);
     event_loop.run_app(&mut app)?;
     // Unattended screenshots exit non-zero when the session ends first (kicked, e.g. ServerIdConflict).
     match app.failed {

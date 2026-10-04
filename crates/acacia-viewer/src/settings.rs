@@ -3,7 +3,6 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use acacia_render::Look;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -15,13 +14,6 @@ pub enum LookChoice {
 }
 
 impl LookChoice {
-    pub fn look(self) -> Look {
-        match self {
-            LookChoice::Bedrock => Look::BEDROCK,
-            LookChoice::Java => Look::JAVA,
-        }
-    }
-
     pub fn next(self) -> LookChoice {
         match self {
             LookChoice::Bedrock => LookChoice::Java,

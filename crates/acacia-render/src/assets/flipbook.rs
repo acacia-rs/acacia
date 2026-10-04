@@ -51,9 +51,9 @@ pub fn load(root: &Path) -> HashMap<String, Flipbook> {
 #[derive(Clone)]
 pub struct Animation {
     pub layer: u16,
-    frames: Vec<Texture>,
-    ticks_per_frame: u32,
-    blend: bool,
+    pub(crate) frames: Vec<Texture>,
+    pub(crate) ticks_per_frame: u32,
+    pub(crate) blend: bool,
 }
 
 impl Animation {

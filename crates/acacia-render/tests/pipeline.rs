@@ -9,7 +9,9 @@ use acacia_proto::nbt::Value;
 use acacia_proto::packets::{LevelChunk, StartGame};
 use acacia_proto::{Packet, RawPacket};
 use acacia_render::assets::Pack;
+use acacia_render::assets::flipbook::Atlas;
 use acacia_render::assets::image::{Alpha, Texture};
+use acacia_render::{Look, LookPack};
 use acacia_render::biome::{BiomeColors, BiomeDef};
 use acacia_render::blocks::{BlockTable, Layer, Material, Shape, Tint};
 use acacia_render::light::{LightEvent, Lighting};
@@ -24,6 +26,27 @@ fn pack() -> Option<Pack> {
         return None;
     }
     Some(Pack::load(&dir).unwrap())
+}
+
+#[test]
+fn a_baked_look_pack_gives_the_table_built_from_the_pack() {
+    let Some(pack) = pack() else { return };
+    let registry = BlockRegistry::vanilla();
+    let (direct, atlas, _) = BlockTable::build(registry, &pack);
+    let dir = std::env::temp_dir().join(format!("acacia-lookpack-{}-pipeline", std::process::id()));
+    LookPack::bake_bedrock(&pack, Look::BEDROCK).0.save(&dir).unwrap();
+    let loaded = LookPack::load(&dir).unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+    let table = loaded.block_table(registry);
+    for id in 0..registry.len() as u32 {
+        assert_eq!(table.get(id), direct.get(id), "{:?}", registry.get(id));
+    }
+    let texels = |a: &Atlas| a.layers.iter().map(|t| t.rgba.to_vec()).collect::<Vec<_>>();
+    assert_eq!(texels(&loaded.atlas), texels(&atlas));
+    assert_eq!(loaded.atlas.animations.len(), atlas.animations.len());
+    for (a, b) in loaded.atlas.animations.iter().zip(&atlas.animations) {
+        assert_eq!((a.layer, a.at(7).rgba), (b.layer, b.at(7).rgba));
+    }
 }
 
 fn fixture(name: &str) -> PathBuf {
