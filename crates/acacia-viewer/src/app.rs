@@ -130,6 +130,11 @@ impl App {
                 }
                 NetEvent::Entities(snapshot) => self.entities.push(snapshot),
                 NetEvent::Time(time) => self.time = Some(time),
+                NetEvent::BlockData(data) => {
+                    if let Some(r) = &mut self.renderer {
+                        r.set_block_data(data);
+                    }
+                }
                 NetEvent::Status(s) => {
                     tracing::info!("{s}");
                     self.status = s;

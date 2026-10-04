@@ -18,6 +18,7 @@ pub(super) fn others(ctx: &Ctx, out: &mut SectionMesh) {
                     Shape::Cross => emit_cross(ctx, p, b, out),
                     _ => {}
                 }
+                out.models.extend(b.model.iter().map(|m| (p.map(|c| c as u8), m.clone())));
                 liquid(ctx, p, out);
             }
         }

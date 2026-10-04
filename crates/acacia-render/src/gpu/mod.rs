@@ -15,6 +15,7 @@ use std::time::Instant;
 use acacia_world::World;
 use glam::DVec3;
 
+use crate::block_models::{BlockDataMap, BlockModels};
 use crate::entity::{EntityInstance, EntityModels};
 use crate::sky::SkyTextures;
 use entities::EntityPass;
@@ -61,6 +62,7 @@ pub struct Renderer {
     store: Store,
     entities: EntityPass,
     entity_list: Vec<EntityInstance>,
+    block_models: BlockModels,
     /// `None` until [`Renderer::set_sky_textures`]: the sky is then a plain colour.
     sky: Option<SkyPass>,
     scene: Option<Scene>,
@@ -107,6 +109,7 @@ impl Renderer {
             store,
             entities,
             entity_list: Vec::new(),
+            block_models: BlockModels::default(),
             sky: None,
             scene: None,
             biomes: Arc::default(),
@@ -162,12 +165,19 @@ impl Renderer {
 
     fn rebuild_scene(&mut self, world: Arc<World>, table: Arc<BlockTable>, lighting: Lighting) {
         self.store.clear();
+        self.block_models.clear();
         self.updates.clear();
         self.scene = Some(Scene::new(world, table, self.biomes.clone(), lighting));
     }
 
     pub fn set_entity_models(&mut self, models: Arc<EntityModels>) {
+        self.block_models.set_models(models.clone());
         self.entities.set_models(&self.device, models);
+    }
+
+    /// What the block entities add to their blocks' models (bed colours, chest pairs).
+    pub fn set_block_data(&mut self, data: Arc<BlockDataMap>) {
+        self.block_models.set_data(data);
     }
 
     /// Draws the sun, moon and stars from now on.
@@ -191,9 +201,15 @@ impl Renderer {
         }
         for update in self.updates.drain(..) {
             match update {
-                Update::Mesh(key, mesh) => self.store.upload(&self.device, &self.queue, key, mesh),
+                Update::Mesh(key, mut mesh) => {
+                    self.block_models.set_section(key, std::mem::take(&mut mesh.models));
+                    self.store.upload(&self.device, &self.queue, key, mesh);
+                }
                 Update::Light(key, light) => self.store.upload_light(&self.queue, key, &light),
-                Update::Remove(key) => self.store.remove(key),
+                Update::Remove(key) => {
+                    self.block_models.set_section(key, Vec::new());
+                    self.store.remove(key);
+                }
             }
         }
         if std::mem::take(&mut self.store.replaced) {
@@ -219,7 +235,8 @@ impl Renderer {
             let byte = light.as_ref().and_then(|l| l.light(p.x, p.y, p.z)).unwrap_or(15);
             [f32::from(byte >> 4), f32::from(byte & 15)]
         };
-        self.entities.prepare(&self.device, &self.queue, &self.globals, &self.entity_list, camera.position, light_at);
+        let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance));
+        self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), camera.position, light_at);
         drop(light);
         let frustum = Frustum::new(view_proj);
         let reachable = self

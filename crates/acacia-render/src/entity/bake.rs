@@ -40,6 +40,20 @@ pub struct Mesh {
     pub joints: Vec<Joint>,
 }
 
+impl Mesh {
+    /// The rest pose moved by `matrix` (in blocks) on a single bone, for models that never animate.
+    pub fn fixed(&self, matrix: Mat4) -> Mesh {
+        let moved = |v: &Vertex| Vertex {
+            position: matrix.transform_point3(Vec3::from(v.position)).to_array(),
+            bone: 0,
+            normal: matrix.transform_vector3(Vec3::from(v.normal)).normalize_or_zero().to_array(),
+            uv: v.uv,
+        };
+        let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
+        Mesh { vertices: self.vertices.iter().map(moved).collect(), bones: vec!["root".into()], joints: vec![joint] }
+    }
+}
+
 /// Degrees as written in geometry files to a matrix; the file's x and z angles run clockwise.
 pub(super) fn rotation(deg: [f32; 3]) -> Mat4 {
     let [x, y, z] = deg.map(f32::to_radians);

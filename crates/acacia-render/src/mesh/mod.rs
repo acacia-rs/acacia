@@ -11,7 +11,10 @@ pub mod volume;
 pub use quad::Quad;
 pub use volume::Volume;
 
+use std::sync::Arc;
+
 use crate::biome::BiomeColors;
+use crate::blocks::model::BlockModel;
 use crate::blocks::{BlockTable, RenderBlock, Tint};
 use crate::light::LightVolume;
 use quad::{Surface, quantize};
@@ -24,6 +27,8 @@ pub struct SectionMesh {
     pub light: Option<LightVolume>,
     /// Face pairs that see each other through the section ([`visibility`]).
     pub visibility: u16,
+    /// Blocks drawn as entity models, by section-local position.
+    pub models: Vec<([u8; 3], Arc<BlockModel>)>,
 }
 
 impl SectionMesh {

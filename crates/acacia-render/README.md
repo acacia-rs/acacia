@@ -5,8 +5,8 @@ wgpu terrain renderer for `acacia-world`. Depends only on `acacia-world`, never 
 
 ## Assets
 
-`tools/fetch-vanilla-pack.sh` copies `blocks.json`, `terrain_texture.json`, `biomes_client.json` and the block
-textures from Mojang/bedrock-samples into the git-ignored `assets/vanilla`. BDS ships no textures. Pin the tag
+`tools/fetch-vanilla-pack.sh` copies `blocks.json`, `terrain_texture.json`, `biomes_client.json`, the block,
+entity and environment textures and the entity files from Mojang/bedrock-samples into the git-ignored `assets/vanilla`. BDS ships no textures. Pin the tag
 to the block palette version (`acacia-world/src/registry/mod.rs`).
 
 - `blocks.json`: block name → texture name per face (`side` fills the horizontal faces).
@@ -25,8 +25,8 @@ material per face. Build it from the **world's** registry: custom blocks shift r
 
 - **Shape**: vanilla shapes are hard-coded in the game, so full cubes use `Cube`, other solid blocks use
   their collision boxes (clamped to the block, rounded to 1/16), and collisionless blocks use a small table
-  (carpets, rails, torches, buttons, snow layers, open fence gates) or crossed planes. Signs, banners,
-  vines and heads draw nothing yet.
+  (carpets, rails, torches, buttons, snow layers, open fence gates) or crossed planes. Chests, beds,
+  signs and heads are models (see "Block models"). Hanging signs, banners and vines draw nothing yet.
 - **Orientation**: `pillar_axis` and `minecraft:cardinal_direction` (blocks.json fronts face south).
 - **Tint**: which faces take grass, foliage or water colour is by name (birch and spruce leaves are
   fixed colours). Water opacity is `water_surface_transparency` (0.65), not texture alpha.
@@ -162,16 +162,40 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
 - **Light**: block and sky level at the entity's position from `LightData`, through the terrain's
   curve (`gpu/globals.wgsl`), times a directional shade from the normal.
 
-## Day and night (`sky.rs`)
+## Block models (`blocks/model.rs`, `entity/block_models.rs`, `block_models.rs`)
+
+Chests, beds, signs and heads have no quads: their `RenderBlock` carries a `BlockModel` (geometry,
+texture, yaw from the block state) and the shape `None`. The mesher lists a section's models, and the
+renderer draws those within the fog distance through the entity pass, lit like entities.
+
+- **Meshes**: the game hard-codes chests and signs, so `entity/block_models.json` holds them (after
+  Java's `ChestModel` and `SignModel`; signs at 2/3 scale). Beds and heads come from the pack's
+  `geometry.bed` and `geometry.*_head`, moved into the block: the pack's bed stands upright and the
+  heads sit at neck height. All bake to one bone (`Mesh::fixed`).
+- **Block entity data** (`BlockData`, `Renderer::set_block_data`): the caller reads it from the NBT.
+  `color` picks the bed texture (red without it). `pairx`/`pairz`/`pairlead` join two chests: the
+  lead draws the double model between both blocks, the other half nothing. `Rotation` turns a floor
+  head; that 0 faces north is assumed from Java.
+- A bed's head piece draws both halves. Lids never open. Signs show no text.
+
+## Day and night (`sky.rs`, `gpu/sky.rs`)
 
 `Renderer::time` is the time of day in ticks (noon until set). `Sky::at` turns it into the sky and fog
 colour and the sky light levels lost (up to 11 at midnight), with Java's sun-angle formulas; the
 shaders subtract those levels from every cell's sky light, so block light is untouched. Dimensions
 without a sky ignore the time.
 
+After `Renderer::set_sky_textures` the frame starts with the sun, the moon and 1500 stars (after
+Java's `SkyRenderer`): quads 100 blocks from the camera, turned with the time around the north-south
+axis and added onto the sky colour without depth writes, so terrain covers them. The sun and moon
+textures have black backgrounds, which adding leaves invisible. `Renderer::moon_phase` picks the
+cell of `moon_phases.png` (`sky::moon_phase` of the world time). Stars fade in as the sun sets.
+There is no sunrise glow.
+
 ## Not yet
 
-Sun, moon, stars and weather, GPU occlusion culling (Hi-Z), block entities, UI. Entities: animation
+Weather, GPU occlusion culling (Hi-Z), UI. Block models: hanging signs, banners, sign text, bells,
+open lids, piglin heads. Entities: animation
 state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller colours (slime shell,
 creeper flash, collar and armour dyes), queries that need untracked state (equipment, synced
 properties such as the climate variant), babies' own proportions where the pack has no baby

@@ -12,6 +12,7 @@ use acacia_render::assets::Pack;
 use acacia_render::biome::{BiomeColors, BiomeDef};
 use acacia_render::assets::flipbook::Atlas;
 use acacia_bot::state::Trackers;
+use acacia_render::block_models::BlockDataMap;
 use acacia_render::blocks::BlockTable;
 use acacia_render::entity::EntityModels;
 use acacia_world::World;
@@ -19,6 +20,9 @@ use acacia_world::World;
 use crate::entities::{Feed, SNAPSHOT_SECS, Tracked};
 use glam::DVec3;
 use tokio::sync::oneshot;
+
+/// Reports between looks at the block entities for changed model data.
+const BLOCK_DATA_EVERY: u32 = 10;
 
 pub struct Options {
     pub server: String,
@@ -36,8 +40,10 @@ pub enum NetEvent {
     /// Sent once, before any [`NetEvent::Entities`].
     EntityModels(Arc<EntityModels>),
     Entities(Vec<Tracked>),
-    /// The time of day in ticks, when the server sends a new one.
+    /// The world time in ticks, when the server sends a new one.
     Time(i32),
+    /// What the block entities add to block models, when it changes.
+    BlockData(Arc<BlockDataMap>),
     Status(String),
     /// The bot thread stopped: kicked, disconnected, or failed to join. Last event sent.
     Ended(String),
@@ -111,6 +117,8 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
     let mut current: Option<Arc<World>> = None;
     let mut biome_logged = false;
     let mut time = None;
+    let mut block_data = Arc::new(BlockDataMap::new());
+    let mut reports = 0u32;
     // `next` only returns for caller-facing events, which a viewer barely subscribes to; the
     // timer reports world and position changes in between (`next` is cancel-safe).
     let mut report = tokio::time::interval(Duration::from_secs_f32(SNAPSHOT_SECS));
@@ -156,6 +164,14 @@ async fn run(options: Options, pack: Pack, tx: &Sender<NetEvent>, mut quit: ones
             if time.replace(now) != Some(now) {
                 tracing::debug!(time = now, "time of day");
                 send(NetEvent::Time(now))?;
+            }
+            reports += 1;
+            if reports % BLOCK_DATA_EVERY == 0 {
+                let data = crate::block_data::snapshot(&bot.state().block_entities);
+                if data != *block_data {
+                    block_data = Arc::new(data);
+                    send(NetEvent::BlockData(block_data.clone()))?;
+                }
             }
             if !biome_logged {
                 let (x, y, z) = (p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);

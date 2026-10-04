@@ -4,6 +4,7 @@
 
 mod animation;
 pub mod bake;
+mod block_models;
 mod controller;
 pub mod geometry;
 pub mod molang;
@@ -113,7 +114,12 @@ impl EntityModels {
                 out.models.push(Model { mesh: bake::bake(geometry) });
             }
         }
-        for path in out.kinds.values().flat_map(|d| d.textures.values()) {
+        for (id, mesh) in block_models::meshes(&geometries) {
+            out.by_geometry.insert(id.to_owned(), out.models.len() as ModelId);
+            out.models.push(Model { mesh });
+        }
+        let block_textures = block_models::textures(root);
+        for path in out.kinds.values().flat_map(|d| d.textures.values()).chain(&block_textures) {
             if let Some(file) = pack.image_file(path).filter(|_| !out.texture_ids.contains_key(path)) {
                 out.texture_ids.insert(path.clone(), out.textures.len() as TextureId);
                 out.textures.push(file);
@@ -205,6 +211,12 @@ impl EntityModels {
         let model = *self.by_geometry.get(&pick(&definition.geometry)?)?;
         let texture = *self.texture_ids.get(&pick(&definition.textures)?)?;
         Some(Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4] })
+    }
+
+    /// The one layer of a block model ([`crate::blocks::model`]), if its geometry and texture loaded.
+    pub fn block_layers(&self, geometry: &str, texture: &str) -> Option<Arc<[Layer]>> {
+        let (model, texture) = (*self.by_geometry.get(geometry)?, *self.texture_ids.get(texture)?);
+        Some([Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4] }].into())
     }
 
     /// The humanoid for a skin: slim or wide arms, or the old layout when the skin is half height.

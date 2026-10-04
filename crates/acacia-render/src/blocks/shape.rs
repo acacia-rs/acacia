@@ -21,8 +21,8 @@ const INVISIBLE: &[&str] = &[
     "air", "light_block", "structure_void", "barrier", "bubble_column", "tripwire", "lever", "end_portal", "portal",
     "frame", "moving_block", "piston_arm_collision", "sticky_piston_arm_collision",
 ];
-/// Rendered as nothing for now: they need block-entity data or attachment faces.
-const UNSUPPORTED: &[&str] = &["sign", "banner", "vine", "glow_lichen", "sculk_vein", "resin_clump", "skull", "head"];
+/// Rendered as nothing for now: they need a model of their own or attachment faces.
+const UNSUPPORTED: &[&str] = &["hanging_sign", "banner", "vine", "glow_lichen", "sculk_vein", "resin_clump", "piglin_head"];
 
 pub fn classify(state: &BlockState) -> Shape {
     let name = short_name(state.name);

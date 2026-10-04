@@ -112,6 +112,27 @@ fn render_controllers_follow_the_entity_state() {
 }
 
 #[test]
+fn block_models_fill_their_blocks() {
+    use acacia_render::blocks::model::{BED, CHEST, DOUBLE_CHEST, MOB_HEAD, SIGN, WALL_SIGN};
+    let Some(models) = models() else { return };
+    // Model space before the z mirror: the front is at -z, the origin at the block's bottom centre.
+    let extent = |geometry: &str, texture: &str| {
+        let layers = models.block_layers(geometry, &format!("textures/entity/{texture}")).unwrap_or_else(|| panic!("{geometry} in {texture}"));
+        let (lo, hi) = bounds(&models, layers[0].model);
+        (lo.to_array().map(|v| (v * 16.0).round()), hi.to_array().map(|v| (v * 16.0).round()))
+    };
+    assert_eq!(extent(CHEST, "chest/normal"), ([-7.0, 0.0, -8.0], [7.0, 14.0, 7.0]));
+    assert_eq!(extent(DOUBLE_CHEST, "chest/double_normal"), ([-15.0, 0.0, -8.0], [15.0, 14.0, 7.0]));
+    // The bed lies on its legs, its head end at the front of the head block.
+    assert_eq!(extent(BED, "bed/red"), ([-8.0, 0.0, -8.0], [8.0, 9.0, 24.0]));
+    assert_eq!(extent(SIGN, "sign_spruce"), ([-8.0, 0.0, -1.0], [8.0, 17.0, 1.0]));
+    assert_eq!(extent(WALL_SIGN, "cherry_sign"), ([-8.0, 4.0, 6.0], [8.0, 12.0, 8.0]));
+    assert_eq!(extent(MOB_HEAD[0], "skulls/creeper"), ([-4.0, 0.0, -4.0], [4.0, 8.0, 4.0]));
+    assert_eq!(extent(MOB_HEAD[1], "skulls/creeper"), ([-4.0, 4.0, 0.0], [4.0, 12.0, 8.0]));
+    assert!(models.block_layers(CHEST, "textures/entity/chest/missing").is_none());
+}
+
+#[test]
 fn animations_swing_legs_and_turn_heads() {
     let Some(models) = models() else { return };
     let pose = |kind: &str, state: &[(&str, f32)]| {

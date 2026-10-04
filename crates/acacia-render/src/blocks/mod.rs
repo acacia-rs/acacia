@@ -1,7 +1,10 @@
 //! Per-runtime-id render data: shape, render layer, texture-array layer and tint per face.
 
+pub mod model;
 pub mod shape;
 pub mod tint;
+
+use std::sync::Arc;
 
 use acacia_world::{BlockRegistry, BlockState};
 use rustc_hash::FxHashMap;
@@ -55,6 +58,8 @@ pub struct RenderBlock {
     pub fluid: Fluid,
     /// Liquid surface height in 1/16 block.
     pub fluid_height: u8,
+    /// Drawn as an entity model; the shape is then [`Shape::None`].
+    pub model: Option<Arc<model::BlockModel>>,
 }
 
 pub struct BlockTable {
@@ -110,12 +115,13 @@ impl BlockTable {
             cull_same: true,
             fluid: Fluid::None,
             fluid_height: 0,
+            model: None,
         }
     }
 }
 
 fn classify_needs_texture(state: &BlockState) -> bool {
-    shape::classify(state) != Shape::None
+    model::classify(state).is_none() && shape::classify(state) != Shape::None
 }
 
 fn face_names(pack: &Pack, state: &BlockState) -> Option<[String; 6]> {
@@ -157,7 +163,8 @@ fn orient(mut f: [String; 6], state: &BlockState) -> [String; 6] {
 
 fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Textures) -> RenderBlock {
     let name = short_name(state.name);
-    let shape = shape::classify(state);
+    let model = model::classify(state).map(Arc::new);
+    let shape = if model.is_some() { Shape::None } else { shape::classify(state) };
     let resolved = match faces {
         Some(f) if shape != Shape::None => f.map(|t| textures.resolve(&t)),
         _ => [Resolved::MISSING; 6],
@@ -192,6 +199,7 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
         cull_same: !name.ends_with("leaves"),
         fluid,
         fluid_height: (state.fluid_height() * 16.0).round() as u8,
+        model,
     }
 }
 

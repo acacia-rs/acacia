@@ -3,6 +3,7 @@
 
 pub mod assets;
 pub mod biome;
+pub mod block_models;
 pub mod blocks;
 pub mod camera;
 mod cull;

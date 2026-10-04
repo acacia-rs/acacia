@@ -6,6 +6,7 @@
 //!   F jumps to the bot, V toggles vsync, C toggles cave culling, Esc releases the mouse.
 
 mod app;
+mod block_data;
 mod entities;
 #[cfg(feature = "profile")]
 mod heap;

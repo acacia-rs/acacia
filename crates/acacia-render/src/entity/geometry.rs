@@ -84,6 +84,13 @@ pub fn from_skin(resource_patch: &str, geometry_data: &str, key: &str) -> Option
     resolve(name, &raw, LEGACY_TEXTURE)
 }
 
+/// Every geometry of one file's text; nothing from a file that does not parse.
+pub fn parse(data: &str) -> HashMap<String, Geometry> {
+    let mut raw = HashMap::new();
+    collect(serde_json::from_str(data).unwrap_or_default(), &mut raw);
+    raw.keys().filter_map(|id| Some((id.clone(), resolve(id, &raw, LEGACY_TEXTURE)?))).collect()
+}
+
 fn collect(file: Value, raw: &mut HashMap<String, (Option<String>, Value)>) {
     let Value::Object(mut top) = file else { return };
     let mut add = |key: &str, body: Value| {

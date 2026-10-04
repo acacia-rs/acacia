@@ -198,20 +198,20 @@ impl EntityPass {
     }
 
     /// Uploads this frame's instances. `light` gives the (block, sky) levels at a world position.
-    pub fn prepare(
+    pub fn prepare<'a>(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         globals: &wgpu::Buffer,
-        entities: &[EntityInstance],
+        entities: impl Iterator<Item = &'a EntityInstance>,
         camera: DVec3,
         light: impl Fn(DVec3) -> [f32; 2],
     ) {
         self.draws.clear();
         self.looks.retain(|_, look| look.skin.as_ref().is_none_or(|s| Arc::strong_count(s) > 1));
-        let mut records = Vec::with_capacity(entities.len());
+        let mut records = Vec::new();
         let mut bones: Vec<BoneMatrix> = Vec::new();
-        for (e, layer) in entities.iter().flat_map(|e| e.layers.iter().map(move |l| (e, l))) {
+        for (e, layer) in entities.flat_map(|e| e.layers.iter().map(move |l| (e, l))) {
             let (Some(model), Some(range)) = (self.models.models().get(layer.model as usize), self.ranges.get(layer.model as usize)) else { continue };
             let key = match &e.skin {
                 Some(skin) => TextureKey::Skin(Arc::as_ptr(skin) as usize),
