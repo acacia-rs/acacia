@@ -73,7 +73,9 @@ fn players_have_the_three_skin_layouts() {
     for layers in [wide, slim, legacy] {
         let (lo, hi) = bounds(&models, layers[0].model);
         assert!((hi.y - 2.0).abs() < 0.1 && lo.y.abs() < 0.1 && (hi.x - lo.x - 1.0).abs() < 0.1, "{layers:?}: {lo}..{hi}");
-        assert_eq!(models.models()[layers[0].model as usize].mesh.head_pivot, Vec3::new(0.0, 1.5, 0.0));
+        let mesh = &models.models()[layers[0].model as usize].mesh;
+        let head = mesh.bones.iter().position(|b| b == "head").unwrap();
+        assert_eq!(mesh.joints[head].pivot, Vec3::new(0.0, 1.5, 0.0));
     }
 }
 
@@ -107,4 +109,32 @@ fn render_controllers_follow_the_entity_state() {
     for kind in ["minecraft:iron_golem", "minecraft:ender_dragon"] {
         assert_eq!(look(&models, kind, &[]).0.len(), 1, "{kind}");
     }
+}
+
+#[test]
+fn animations_swing_legs_and_turn_heads() {
+    let Some(models) = models() else { return };
+    let pose = |kind: &str, state: &[(&str, f32)]| {
+        let query = |name: &str| Value::Num(state.iter().find(|(n, _)| *n == name).map_or(0.0, |(_, v)| *v));
+        let model = look(&models, kind, &[]).0[0].model;
+        let pose = models.pose(kind, model, &query);
+        (models.models()[model as usize].mesh.skin(&pose), pose)
+    };
+    let turn = |pose: &acacia_render::entity::Pose, bone: &str| pose.get(bone).unwrap_or_else(|| panic!("{bone} is not posed")).rotation;
+
+    // Standing still, looking ahead: every bone stays in its rest pose.
+    let (skin, _) = pose("minecraft:cow", &[]);
+    assert!(skin.iter().all(|m| m.abs_diff_eq(glam::Mat4::IDENTITY, 1e-4)), "{skin:?}");
+
+    // A full stride (cos = 1) at speed 0.5: opposite legs 40° apart from rest, head on its target.
+    let walking = [("modified_move_speed", 0.5), ("target_x_rotation", 10.0), ("target_y_rotation", -30.0)];
+    let (skin, cow) = pose("minecraft:cow", &walking);
+    assert_eq!((turn(&cow, "leg0"), turn(&cow, "leg1")), ([40.0, 0.0, 0.0], [-40.0, 0.0, 0.0]));
+    assert_eq!(turn(&cow, "head"), [10.0, -30.0, 0.0]);
+    assert!(!skin.iter().all(|m| m.abs_diff_eq(glam::Mat4::IDENTITY, 1e-4)));
+
+    // Players go through nested controllers and the script variable `tcos0`.
+    let (_, player) = pose("minecraft:player", &walking);
+    assert!((turn(&player, "rightarm")[0] + 0.5 * 57.3).abs() < 0.01, "{:?}", turn(&player, "rightarm"));
+    assert_eq!(turn(&player, "head"), [10.0, -30.0, 0.0]);
 }

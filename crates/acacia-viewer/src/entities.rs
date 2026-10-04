@@ -1,59 +1,87 @@
-//! Entities from the bot's trackers to the renderer: [`Feed`] snapshots them on the bot thread,
-//! [`Smoother`] blends between snapshots on the window thread.
+//! Entities from the bot's trackers to the renderer: [`Feed`] snapshots them on the bot thread;
+//! [`crate::smooth`] blends between snapshots on the window thread.
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
 
 use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
 use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 as Flags};
 use acacia_bot::state::{Entity, Metadata, PlayerSkin};
-use acacia_render::entity::{EntityInstance, EntityModels, Skin, SkinSource, Value};
+use acacia_render::entity::{EntityInstance, EntityModels, Pose, Skin, SkinSource, Value};
 use glam::DVec3;
 
-/// Seconds between snapshots (the bot thread's report interval).
+/// Seconds between snapshots (the bot thread's report interval): one game tick.
 pub const SNAPSHOT_SECS: f32 = 0.05;
-/// The bot's own body is hidden while the camera is this close to its eyes.
-const OWN_HEAD_RADIUS: f64 = 0.6;
+const PLAYER: &str = "minecraft:player";
 
 pub struct Tracked {
     pub runtime_id: u64,
     /// Eye position when this is the bot itself.
     pub own_eyes: Option<DVec3>,
+    pub kind: String,
+    pub facts: Facts,
+    /// Degrees, like the instance's body yaw.
+    pub head_yaw: f32,
+    pub pitch: f32,
+    /// Its pose is filled in per frame.
     pub instance: EntityInstance,
 }
 
-/// Molang queries (without the `query.` prefix) the bot's entity data can answer; the rest are 0.
-fn query(meta: &Metadata, name: &str) -> Value {
-    Value::Num(match name {
-        // TODO: track synced entity properties; until then every cow, pig and chicken is temperate.
-        "property:minecraft:climate_variant" => return Value::Text("temperate".into()),
-        "variant" => meta.int(Key::Variant) as f32,
-        "mark_variant" => meta.int(Key::MarkVariant) as f32,
-        "skin_id" => meta.int(Key::SkinId) as f32,
-        "trade_tier" => meta.int(Key::TradeTier) as f32,
-        "color" => f32::from(meta.color()),
-        _ => f32::from(u8::from(flag(name).is_some_and(|f| meta.flags().contains(f)))),
-    })
+/// The entity data Molang queries read, copied out of the bot's metadata so the window thread
+/// can answer them every frame.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Facts {
+    /// Bit per entry of [`FLAGS`].
+    flags: u16,
+    variant: i32,
+    mark_variant: i32,
+    skin_id: i32,
+    trade_tier: i32,
+    color: i8,
 }
 
-fn flag(query: &str) -> Option<Flags> {
-    Some(match query {
-        "is_baby" => Flags::BABY,
-        "is_sheared" => Flags::SHEARED,
-        "is_saddled" => Flags::SADDLED,
-        "is_tamed" => Flags::TAMED,
-        "is_angry" => Flags::ANGRY,
-        "is_chested" => Flags::CHESTED,
-        "is_powered" => Flags::POWERED,
-        "is_elder" => Flags::ELDER,
-        "is_charging" => Flags::CHARGE_ATTACK,
-        "is_casting" => Flags::EVOKER_SPELL,
-        "is_sitting" => Flags::SITTING,
-        "is_invisible" => Flags::INVISIBLE,
-        _ => return None,
-    })
+const FLAGS: [(&str, Flags); 12] = [
+    ("is_baby", Flags::BABY),
+    ("is_sheared", Flags::SHEARED),
+    ("is_saddled", Flags::SADDLED),
+    ("is_tamed", Flags::TAMED),
+    ("is_angry", Flags::ANGRY),
+    ("is_chested", Flags::CHESTED),
+    ("is_powered", Flags::POWERED),
+    ("is_elder", Flags::ELDER),
+    ("is_charging", Flags::CHARGE_ATTACK),
+    ("is_casting", Flags::EVOKER_SPELL),
+    ("is_sitting", Flags::SITTING),
+    ("is_invisible", Flags::INVISIBLE),
+];
+
+impl Facts {
+    fn of(meta: &Metadata) -> Facts {
+        let set = meta.flags();
+        Facts {
+            flags: FLAGS.iter().enumerate().fold(0, |bits, (i, (_, flag))| bits | u16::from(set.contains(*flag)) << i),
+            variant: meta.int(Key::Variant),
+            mark_variant: meta.int(Key::MarkVariant),
+            skin_id: meta.int(Key::SkinId),
+            trade_tier: meta.int(Key::TradeTier),
+            color: meta.color(),
+        }
+    }
+
+    /// Answers a Molang query (without the `query.` prefix); the ones it does not know are 0.
+    pub fn query(&self, name: &str) -> Value {
+        Value::Num(match name {
+            // TODO: track synced entity properties; until then every cow, pig and chicken is temperate.
+            "property:minecraft:climate_variant" => return Value::Text("temperate".into()),
+            "variant" => self.variant as f32,
+            "mark_variant" => self.mark_variant as f32,
+            "skin_id" => self.skin_id as f32,
+            "trade_tier" => self.trade_tier as f32,
+            "color" => f32::from(self.color),
+            _ => FLAGS.iter().position(|(flag, _)| *flag == name).map_or(0.0, |i| f32::from(self.flags >> i & 1)),
+        })
+    }
 }
 
 pub struct Feed {
@@ -70,7 +98,7 @@ const BODY_TURN: f32 = 0.3;
 const MAX_HEAD_TURN: f32 = 75.0;
 const MOVED_SQUARED: f64 = 0.0025 * 0.0025;
 
-fn wrap_degrees(angle: f32) -> f32 {
+pub fn wrap_degrees(angle: f32) -> f32 {
     (angle + 540.0).rem_euclid(360.0) - 180.0
 }
 
@@ -96,16 +124,17 @@ impl Feed {
         let uuid = state.player_list.iter().find(|p| p.entity_unique_id == me.unique_entity_id).map(|p| p.uuid);
         let eyes = me.eye_position();
         let feet = DVec3::new(me.position.x.into(), me.position.y.into(), me.position.z.into());
-        if let Some(instance) = self.player(bot, uuid, feet, [me.yaw, me.yaw, me.pitch], 1.0) {
+        if let Some(instance) = self.player(bot, uuid, feet, me.yaw, 1.0) {
             let own_eyes = Some(DVec3::new(eyes.x.into(), eyes.y.into(), eyes.z.into()));
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, instance });
+            let (kind, facts) = (PLAYER.to_owned(), Facts::default());
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
         for tracked in &mut out {
             let i = &mut tracked.instance;
             if let Some(&(body, at)) = self.bodies.get(&tracked.runtime_id) {
-                i.yaw = turn_body(body, at.distance_squared(i.position) > MOVED_SQUARED, i.yaw, i.head_yaw);
+                i.yaw = turn_body(body, at.distance_squared(i.position) > MOVED_SQUARED, i.yaw, tracked.head_yaw);
             }
             bodies.insert(tracked.runtime_id, (i.yaw, i.position));
         }
@@ -117,17 +146,20 @@ impl Feed {
         if e.metadata.flags().contains(Flags::INVISIBLE) {
             return None;
         }
-        let feet = e.feet();        let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
-        let instance = if e.is_player() {
-            self.player(bot, e.uuid, position, [e.yaw, e.head_yaw, e.pitch], e.metadata.scale())?
+        let feet = e.feet();
+        let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
+        let facts = Facts::of(&e.metadata);
+        let (kind, instance) = if e.is_player() {
+            (PLAYER.to_owned(), self.player(bot, e.uuid, position, e.yaw, e.metadata.scale())?)
         } else {
-            let (layers, scale) = self.models.appearance(&e.kind, &|name| query(&e.metadata, name))?;
-            EntityInstance { layers, skin: None, position, yaw: e.yaw, head_yaw: e.head_yaw, pitch: e.pitch, scale: scale * e.metadata.scale() }
+            let (layers, scale) = self.models.appearance(&e.kind, &|name| facts.query(name))?;
+            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default() };
+            (e.kind.clone(), instance)
         };
-        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, instance })
+        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance })
     }
 
-    fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, [yaw, head_yaw, pitch]: [f32; 3], scale: f32) -> Option<EntityInstance> {
+    fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, yaw: f32, scale: f32) -> Option<EntityInstance> {
         let skin = uuid.and_then(|uuid| {
             let source = bot.state().skins.get(&uuid)?;
             if !self.skins.get(&uuid).is_some_and(|(from, ..)| Arc::ptr_eq(from, source)) {
@@ -144,49 +176,7 @@ impl Feed {
             Some((skin.clone(), *slim))
         });
         let layers = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
-        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, head_yaw, pitch, scale })
-    }
-}
-
-/// Blends each entity from where it was drawn at the previous snapshot towards the newest one.
-#[derive(Default)]
-pub struct Smoother {
-    from: HashMap<u64, EntityInstance>,
-    to: Vec<Tracked>,
-    since: Option<Instant>,
-}
-
-fn lerp_angle(a: f32, b: f32, t: f32) -> f32 {
-    a + wrap_degrees(b - a) * t
-}
-
-impl Smoother {
-    pub fn push(&mut self, camera: DVec3, snapshot: Vec<Tracked>) {
-        self.from = self.to.iter().zip(self.frame(camera, true)).map(|(t, shown)| (t.runtime_id, shown)).collect();
-        self.to = snapshot;
-        self.since = Some(Instant::now());
-    }
-
-    pub fn instances(&self, camera: DVec3) -> Vec<EntityInstance> {
-        self.frame(camera, false)
-    }
-
-    /// `keep_hidden` keeps the bot's own body in the list, so the result lines up with `to`.
-    fn frame(&self, camera: DVec3, keep_hidden: bool) -> Vec<EntityInstance> {
-        let t = self.since.map_or(1.0, |s| (s.elapsed().as_secs_f32() / SNAPSHOT_SECS).min(1.0));
-        let visible = |e: &&Tracked| keep_hidden || e.own_eyes.is_none_or(|eyes| eyes.distance(camera) > OWN_HEAD_RADIUS);
-        let blend = |e: &Tracked| {
-            let to = &e.instance;
-            let Some(from) = self.from.get(&e.runtime_id) else { return to.clone() };
-            EntityInstance {
-                position: from.position.lerp(to.position, f64::from(t)),
-                yaw: lerp_angle(from.yaw, to.yaw, t),
-                head_yaw: lerp_angle(from.head_yaw, to.head_yaw, t),
-                pitch: lerp_angle(from.pitch, to.pitch, t),
-                ..to.clone()
-            }
-        };
-        self.to.iter().filter(visible).map(blend).collect()
+        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default() })
     }
 }
 

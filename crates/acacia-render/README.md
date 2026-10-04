@@ -48,8 +48,12 @@ quads merge only within a uniform colour.
   borders.
 - Full cubes are greedy-meshed per face and slice; faces merge only with identical texture, tint,
   material and AO. AO looks at the 3 neighbours of each corner; quads split along the brighter diagonal.
-- Other shapes emit one quad per visible face. Liquids draw their surface at `fluid_height`, full height
-  under the same liquid.
+- Other shapes emit one quad per visible face.
+- Liquids (`mesh/liquid.rs`, after Java's `LiquidBlockRenderer`): each block corner's height is the
+  mean of the four cells sharing it (nearly full cells weigh 10×, open cells pull it down, solid ones
+  don't count, full under the same liquid), so neighbouring surfaces meet. Liquid quads store the four
+  heights and a texture turn instead of size and AO. A surface with a flow (the height drop towards
+  each side, `FlowingFluid::getFlow`) shows the flowing texture turned downstream; at rest, the still one.
 - Quads are 12 bytes (`mesh/quad.rs`, tint colour as 7-bit sRGB per channel), pulled by vertex index in
   `gpu/terrain.wgsl`: no vertex or index buffers. UVs are world-aligned and tile per block through the repeat sampler, so merged quads need no
   atlas math.
@@ -133,8 +137,20 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
   against the world). Angles in files are degrees, x and z clockwise: `Rz(-z) · Ry(y) · Rx(-x)`.
   Placement mirrors z, then turns by the yaw.
 - **Box UV** (`bake.rs`): the unfolded box of Java's `ModelBox`; `mirror` flips u and swaps the sides.
-- **Pose**: none but the head, which turns around the head bone's pivot by head yaw and pitch
-  (vertices under a bone named `head` carry a part flag; two matrices per instance).
+- **Animation** (`animation.rs`, `pose.rs`): `EntityModels::pose` plays what the definition's
+  `scripts.animate` lists (animations, and animation controllers nested up to 4 deep) into a `Pose`:
+  per bone, a rotation, position and scale on top of the rest pose, each animation scaled by its blend
+  weight. `this` in a channel is the bone's value so far, rest rotation included, so `target - this`
+  sets an absolute angle. The caller answers the moving state (`life_time`, `modified_distance_moved`,
+  `modified_move_speed`, `target_x_rotation`, `target_y_rotation`); kinds whose animations never touch
+  `head` get the look angles on it directly. `Mesh::skin` turns a pose into one matrix per bone,
+  uploaded per instance; vertices carry their bone index.
+  - Nothing is remembered between frames. A controller is walked from its initial state through at
+    most 4 transitions, so states entered by one-off events and `query.all_animations_finished`, blend
+    times between states, and variables scripts accumulate are lost. `anim_time` is the entity's age
+    unless `anim_time_update` gives it (walk cycles use the distance moved).
+  - Keyframes interpolate linearly (`pre`/`post` honoured, no catmull-rom). `relative_to` is ignored.
+    Molang outside the supported slice reads 0.
 - **Textures**: one GPU texture per distinct set of layer textures or skin, composed on first use.
   TGA alpha marks tinted or overlaid texels, so those load opaque unless the layer is tinted;
   otherwise texels under 10% alpha are cut out.
@@ -146,11 +162,17 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
 - **Light**: block and sky level at the entity's position from `LightData`, through the terrain's
   curve (`gpu/globals.wgsl`), times a directional shade from the normal.
 
+## Day and night (`sky.rs`)
+
+`Renderer::time` is the time of day in ticks (noon until set). `Sky::at` turns it into the sky and fog
+colour and the sky light levels lost (up to 11 at midnight), with Java's sun-angle formulas; the
+shaders subtract those levels from every cell's sky light, so block light is untouched. Dimensions
+without a sky ignore the time.
+
 ## Not yet
 
-Day/night (sky light is always full), GPU occlusion culling (Hi-Z),
-flow-direction water and sloped liquid surfaces, block entities, UI. Entities: animation (limbs,
-setup poses some old models rely on), blended overlay layers and controller colours (slime shell,
+Sun, moon, stars and weather, GPU occlusion culling (Hi-Z), block entities, UI. Entities: animation
+state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller colours (slime shell,
 creeper flash, collar and armour dyes), queries that need untracked state (equipment, synced
 properties such as the climate variant), babies' own proportions where the pack has no baby
 geometry, dropped items, name tags, armour and held items, capes.

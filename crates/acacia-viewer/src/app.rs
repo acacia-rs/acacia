@@ -12,7 +12,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
-use crate::entities::Smoother;
+use crate::smooth::Smoother;
 use crate::input::FlyInput;
 use crate::net::{Net, NetEvent};
 use crate::shot::Shot;
@@ -121,11 +121,12 @@ impl App {
                     }
                 }
                 NetEvent::EntityModels(models) => {
+                    self.entities.set_models(models.clone());
                     if let Some(r) = &mut self.renderer {
                         r.set_entity_models(models);
                     }
                 }
-                NetEvent::Entities(snapshot) => self.entities.push(self.camera.position, snapshot),
+                NetEvent::Entities(snapshot) => self.entities.push(snapshot),
                 NetEvent::Time(time) => self.time = Some(time as f32),
                 NetEvent::Status(s) => {
                     tracing::info!("{s}");

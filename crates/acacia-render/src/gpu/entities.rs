@@ -16,14 +16,17 @@ use crate::entity::{EntityInstance, EntityModels, Skin, TextureId, Vertex};
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
-    body: [[f32; 4]; 4],
-    head: [[f32; 4]; 4],
     /// x: block light, y: sky light (0..=15).
     light: [f32; 4],
     /// rgb: the layer's tint, a: 1 when the texture's alpha is a tint mask and not a cutout.
     tint: [f32; 4],
     hidden: [u32; 4],
+    /// x: index of the layer's first matrix in the bone buffer.
+    bones: [u32; 4],
 }
+
+/// Model space to camera-relative world space, one per bone of each instance.
+type BoneMatrix = [[f32; 4]; 4];
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum TextureKey {
@@ -39,7 +42,7 @@ pub struct EntityPass {
     texture_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     instances: wgpu::Buffer,
-    capacity: usize,
+    bones: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     models: Arc<EntityModels>,
     vertices: Option<wgpu::Buffer>,
@@ -63,13 +66,28 @@ fn vertex_buffer(device: &wgpu::Device, vertices: &[Vertex]) -> wgpu::Buffer {
     })
 }
 
-fn instance_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
+const INSTANCES: &str = "entity instances";
+const BONES: &str = "entity bones";
+
+fn storage_buffer(device: &wgpu::Device, label: &str, size: u64) -> wgpu::Buffer {
     device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("entity instances"),
-        size: (capacity * size_of::<Instance>()) as u64,
+        label: Some(label),
+        size,
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     })
+}
+
+/// Writes `records` to `buffer`, replacing it with a larger one first when they do not fit.
+/// Returns whether it was replaced.
+fn upload<T: bytemuck::Pod>(device: &wgpu::Device, queue: &wgpu::Queue, buffer: &mut wgpu::Buffer, label: &str, records: &[T]) -> bool {
+    let bytes: &[u8] = bytemuck::cast_slice(records);
+    let grown = bytes.len() as u64 > buffer.size();
+    if grown {
+        *buffer = storage_buffer(device, label, (bytes.len() as u64).next_power_of_two());
+    }
+    queue.write_buffer(buffer, 0, bytes);
+    grown
 }
 
 impl EntityPass {
@@ -86,7 +104,11 @@ impl EntityPass {
         };
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("entity"),
-            entries: &[buffer(0, wgpu::BufferBindingType::Uniform), buffer(1, wgpu::BufferBindingType::Storage { read_only: true })],
+            entries: &[
+                buffer(0, wgpu::BufferBindingType::Uniform),
+                buffer(1, wgpu::BufferBindingType::Storage { read_only: true }),
+                buffer(2, wgpu::BufferBindingType::Storage { read_only: true }),
+            ],
         });
         let texture_layout = entity_textures::layout(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -128,16 +150,16 @@ impl EntityPass {
             multiview_mask: None,
             cache: None,
         });
-        let capacity = 64;
-        let instances = instance_buffer(device, capacity);
-        let bind_group = Self::bind_group(device, &layout, globals, &instances);
+        let instances = storage_buffer(device, INSTANCES, 64 * size_of::<Instance>() as u64);
+        let bones = storage_buffer(device, BONES, 1024 * size_of::<BoneMatrix>() as u64);
+        let bind_group = Self::bind_group(device, &layout, globals, &instances, &bones);
         EntityPass {
             pipeline,
             layout,
             texture_layout,
             sampler: entity_textures::sampler(device),
             instances,
-            capacity,
+            bones,
             bind_group,
             models: Arc::default(),
             vertices: None,
@@ -147,15 +169,16 @@ impl EntityPass {
         }
     }
 
-    fn bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, globals: &wgpu::Buffer, instances: &wgpu::Buffer) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("entity"),
-            layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: globals.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: instances.as_entire_binding() },
-            ],
-        })
+    fn bind_group(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        globals: &wgpu::Buffer,
+        instances: &wgpu::Buffer,
+        bones: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        let buffers = [globals, instances, bones];
+        let entries: Vec<_> = (0..).zip(buffers).map(|(binding, b)| wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() }).collect();
+        device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("entity"), layout, entries: &entries })
     }
 
     pub fn set_models(&mut self, device: &wgpu::Device, models: Arc<EntityModels>) {
@@ -187,6 +210,7 @@ impl EntityPass {
         self.draws.clear();
         self.looks.retain(|_, look| look.skin.as_ref().is_none_or(|s| Arc::strong_count(s) > 1));
         let mut records = Vec::with_capacity(entities.len());
+        let mut bones: Vec<BoneMatrix> = Vec::new();
         for (e, layer) in entities.iter().flat_map(|e| e.layers.iter().map(move |l| (e, l))) {
             let (Some(model), Some(range)) = (self.models.models().get(layer.model as usize), self.ranges.get(layer.model as usize)) else { continue };
             let key = match &e.skin {
@@ -205,24 +229,22 @@ impl EntityPass {
                 Look { skin: e.skin.clone(), texture: entity_textures::bind_group(device, &self.texture_layout, &view, &self.sampler), own_mesh }
             });
             let own = e.skin.as_ref().and_then(|s| s.mesh.as_ref()).filter(|_| look.own_mesh.is_some());
-            let (range, pivot) = own.map_or((range.clone(), model.mesh.head_pivot), |m| (0..m.vertices.len() as u32, m.head_pivot));
+            let (range, mesh) = own.map_or((range.clone(), &model.mesh), |m| (0..m.vertices.len() as u32, m));
             // Model space has the entity facing -z with its right at -x: mirror z, then turn.
             let body = Mat4::from_translation((e.position - camera).as_vec3())
                 * Mat4::from_rotation_y(-e.yaw.to_radians())
                 * Mat4::from_scale(Vec3::new(e.scale, e.scale, -e.scale));
-            let turn = Mat4::from_rotation_y((e.head_yaw - e.yaw).to_radians()) * Mat4::from_rotation_x(-e.pitch.to_radians());
-            let head = body * Mat4::from_translation(pivot) * turn * Mat4::from_translation(-pivot);
+            let first_bone = bones.len() as u32;
+            bones.extend(mesh.skin(&e.pose).iter().map(|posed| (body * *posed).to_cols_array_2d()));
             let [block, sky] = light(e.position + DVec3::Y * 0.5);
             let tint = layer.tint.map_or([0.0; 4], |[r, g, b]| [r, g, b, 1.0]);
-            records.push(Instance { body: body.to_cols_array_2d(), head: head.to_cols_array_2d(), light: [block, sky, 0.0, 0.0], tint, hidden: layer.hidden });
+            records.push(Instance { light: [block, sky, 0.0, 0.0], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0] });
             self.draws.push((range, key));
         }
-        if records.len() > self.capacity {
-            self.capacity = records.len().next_power_of_two();
-            self.instances = instance_buffer(device, self.capacity);
-            self.bind_group = Self::bind_group(device, &self.layout, globals, &self.instances);
+        let grown = upload(device, queue, &mut self.instances, INSTANCES, &records) | upload(device, queue, &mut self.bones, BONES, &bones);
+        if grown {
+            self.bind_group = Self::bind_group(device, &self.layout, globals, &self.instances, &self.bones);
         }
-        queue.write_buffer(&self.instances, 0, bytemuck::cast_slice(&records));
     }
 
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {

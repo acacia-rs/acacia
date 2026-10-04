@@ -2,11 +2,13 @@
 //! render controllers pick the meshes, textures and visible bones for an entity's state.
 //! See README "Entities".
 
+mod animation;
 pub mod bake;
 mod controller;
 pub mod geometry;
 pub mod molang;
 mod molang_parse;
+mod pose;
 mod skin;
 
 use std::collections::HashMap;
@@ -20,6 +22,7 @@ pub use bake::{Mesh, Vertex};
 use controller::{Controller, Definition};
 use molang::Scope;
 pub use molang::Value;
+pub use pose::{BonePose, Pose};
 pub use skin::{Skin, SkinSource};
 
 pub type ModelId = u32;
@@ -67,11 +70,12 @@ pub struct EntityModels {
     /// By kind identifier (`minecraft:cow`).
     kinds: HashMap<String, Definition>,
     controllers: HashMap<String, Controller>,
+    animations: animation::Library,
     /// Wide arms, slim arms, 64×32 skin layout; drawn with Steve when the player has no skin.
     players: Option<[Arc<[Layer]>; 3]>,
 }
 
-/// One entity to draw this frame. Angles in degrees, as the server sends them.
+/// One entity to draw this frame.
 #[derive(Clone)]
 pub struct EntityInstance {
     pub layers: Arc<[Layer]>,
@@ -79,15 +83,22 @@ pub struct EntityInstance {
     pub skin: Option<Arc<Skin>>,
     /// Feet.
     pub position: DVec3,
+    /// Of the body, in degrees as the server sends it.
     pub yaw: f32,
-    pub head_yaw: f32,
-    pub pitch: f32,
     pub scale: f32,
+    /// From [`EntityModels::pose`]; the head's turn is part of it.
+    pub pose: Pose,
 }
 
 impl EntityModels {
     pub fn load(pack: &Pack) -> EntityModels {
-        let mut out = EntityModels { kinds: controller::definitions(pack.root()), controllers: controller::controllers(pack.root()), ..Default::default() };
+        let root = pack.root();
+        let mut out = EntityModels {
+            kinds: controller::definitions(root),
+            controllers: controller::controllers(root),
+            animations: animation::load(root),
+            ..Default::default()
+        };
         let mut texture_sizes = HashMap::new();
         for d in out.kinds.values() {
             let texture = d.textures.get("default").or_else(|| d.textures.values().min());
@@ -115,7 +126,8 @@ impl EntityModels {
         };
         let players = PLAYER_GEOMETRIES.map(player);
         out.players = players.iter().all(Option::is_some).then(|| players.map(Option::unwrap));
-        tracing::info!(kinds = out.kinds.len(), models = out.models.len(), controllers = out.controllers.len(), "entity models");
+        let animations = out.animations.animations.len();
+        tracing::info!(kinds = out.kinds.len(), models = out.models.len(), controllers = out.controllers.len(), animations, "entity models");
         out
     }
 
@@ -132,7 +144,7 @@ impl EntityModels {
     /// [`molang::Scope::query`].
     pub fn appearance(&self, kind: &str, query: &dyn Fn(&str) -> Value) -> Option<(Arc<[Layer]>, f32)> {
         let definition = self.kinds.get(kind)?;
-        let mut scope = Scope { query, variables: HashMap::new(), arrays: None };
+        let mut scope = Scope { query, variables: HashMap::new(), arrays: None, this: 0.0 };
         for script in &definition.scripts {
             script.run(&mut scope);
         }

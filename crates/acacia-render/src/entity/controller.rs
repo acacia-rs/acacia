@@ -25,6 +25,10 @@ pub struct Definition {
     pub scale: Option<Program>,
     /// Controller identifiers with the condition they draw under.
     pub controllers: Vec<(String, Option<Program>)>,
+    /// Short name to animation or animation controller identifier.
+    pub animations: HashMap<String, String>,
+    /// What plays, in order (`scripts.animate`, or the old `animation_controllers` list).
+    pub animate: Vec<Playing>,
 }
 
 pub struct Controller {
@@ -36,7 +40,7 @@ pub struct Controller {
     pub part_visibility: Vec<(String, Program)>,
 }
 
-fn program(v: &Value) -> Option<Program> {
+pub(super) fn program(v: &Value) -> Option<Program> {
     match v {
         Value::String(s) => Program::parse(s),
         Value::Bool(b) => Some(Program::constant(f32::from(u8::from(*b)))),
@@ -45,7 +49,25 @@ fn program(v: &Value) -> Option<Program> {
     }
 }
 
-fn files(dir: &Path) -> impl Iterator<Item = Value> {
+/// Unsupported Molang reads as 0, which leaves a bone alone or an animation off.
+pub(super) fn program_or_zero(v: &Value) -> Program {
+    program(v).unwrap_or_else(|| Program::constant(0.0))
+}
+
+/// The short name of an animation with its blend weight (1 when absent).
+pub type Playing = (String, Option<Program>);
+
+/// `["setup", {"walk": "query.modified_move_speed"}]`
+pub(super) fn playing(v: Option<&Value>) -> Vec<Playing> {
+    let entry = |e: &Value| match e {
+        Value::String(name) => Some((name.to_lowercase(), None)),
+        Value::Object(o) => o.iter().next().map(|(name, weight)| (name.to_lowercase(), Some(program_or_zero(weight)))),
+        _ => None,
+    };
+    v.and_then(Value::as_array).into_iter().flatten().filter_map(entry).collect()
+}
+
+pub(super) fn files(dir: &Path) -> impl Iterator<Item = Value> {
     let entries = std::fs::read_dir(dir).into_iter().flatten().flatten();
     entries.filter_map(|e| json::read(&e.path()).ok())
 }
@@ -73,7 +95,18 @@ pub fn definitions(root: &Path) -> HashMap<String, Definition> {
             Value::Object(o) => o.iter().next().map(|(id, condition)| (id.clone(), program(condition))),
             _ => None,
         });
+        let mut animations = map("animations");
+        let mut animate = playing(d.pointer("/scripts/animate"));
+        if animate.is_empty() {
+            // The old layout lists controllers by identifier and plays them all.
+            for (name, id) in pairs(d.get("animation_controllers")) {
+                animations.insert(name.to_lowercase(), id.as_str().unwrap_or_default().to_owned());
+                animate.push((name.to_lowercase(), None));
+            }
+        }
         let definition = Definition {
+            animations,
+            animate,
             version: (version(d.get("min_engine_version")), version(file.get("format_version"))),
             geometry: map("geometry"),
             textures: map("textures"),

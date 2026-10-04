@@ -12,6 +12,7 @@ mod heap;
 mod input;
 mod net;
 mod shot;
+mod smooth;
 
 #[cfg(feature = "profile")]
 #[global_allocator]

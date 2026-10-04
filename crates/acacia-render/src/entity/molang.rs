@@ -90,6 +90,8 @@ pub struct Scope<'a> {
     /// `variable.` and `temp.` values by the name after the prefix.
     pub variables: HashMap<String, Value>,
     pub arrays: Option<&'a Arrays>,
+    /// What `this` reads: the current value of the animation channel being evaluated.
+    pub this: f32,
 }
 
 fn split(name: &str) -> (&str, &str) {
@@ -106,8 +108,7 @@ fn eval(expr: &Expr, scope: &mut Scope) -> Value {
     let flag = |b: bool| Value::Num(f32::from(u8::from(b)));
     match expr {
         Expr::Value(v) => v.clone(),
-        // Only colour channels use `this` (the current value); they are not evaluated.
-        Expr::This => Value::Num(0.0),
+        Expr::This => Value::Num(scope.this),
         Expr::Not(e) => flag(!eval(e, scope).truthy()),
         Expr::Neg(e) => Value::Num(-eval(e, scope).num()),
         Expr::Ternary(c, a, b) => {
@@ -200,7 +201,7 @@ mod tests {
     use super::*;
 
     fn run(source: &str, query: &dyn Fn(&str) -> Value, arrays: &Arrays) -> Value {
-        let mut scope = Scope { query, variables: HashMap::new(), arrays: Some(arrays) };
+        let mut scope = Scope { query, variables: HashMap::new(), arrays: Some(arrays), this: 0.0 };
         Program::parse(source).unwrap_or_else(|| panic!("parse {source}")).run(&mut scope)
     }
 
@@ -237,7 +238,7 @@ mod tests {
         let villager = |name: &str| Value::Num(if name == "variant" { 5.0 } else { 0.0 });
         let script = "variable.num_professions = 15; variable.profession_index = (query.variant < variable.num_professions ? query.variant : 0);";
         let visible = "!query.is_baby && v.profession_index != 0 && variable.profession_index != 14";
-        let mut scope = Scope { query: &villager, variables: HashMap::new(), arrays: None };
+        let mut scope = Scope { query: &villager, variables: HashMap::new(), arrays: None, this: 0.0 };
         Program::parse(script).unwrap().run(&mut scope);
         assert_eq!(scope.variables["profession_index"], Value::Num(5.0));
         assert_eq!(Program::parse(visible).unwrap().run(&mut scope), Value::Num(1.0));

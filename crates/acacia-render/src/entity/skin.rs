@@ -29,10 +29,7 @@ impl Skin {
         let (width, height) = source.size;
         let own = |key: &str| {
             let geometry = geometry::from_skin(source.resource_patch, source.geometry_data, key)?;
-            let mut mesh = bake::bake(&geometry);
-            // The two meshes merge below, so bone indices would clash; skins hide no bones.
-            mesh.vertices.iter_mut().for_each(|v| v.part &= bake::PART_HEAD);
-            Some(mesh).filter(|m| !m.vertices.is_empty())
+            Some(bake::bake(&geometry)).filter(|m| !m.vertices.is_empty())
         };
         let plain = |mesh| Skin { width, height, rgba: source.rgba.to_vec(), mesh };
         let Some(mut body) = own("default") else { return plain(None) };
@@ -57,8 +54,15 @@ impl Skin {
         };
         fit(&mut body, (width, height), 0);
         fit(&mut face, (face_width, face_height), height);
+        // The face's skeleton goes after the body's; its bones pose by the same names.
+        let shift = body.joints.len();
+        for v in &mut face.vertices {
+            v.bone = (v.bone as usize + shift).min(bake::MAX_BONES - 1) as u32;
+        }
+        face.joints.iter_mut().for_each(|j| j.parent = j.parent.map(|p| p + shift));
         body.vertices.append(&mut face.vertices);
-        body.head_pivot = face.head_pivot;
+        body.bones.append(&mut face.bones);
+        body.joints.append(&mut face.joints);
         Skin { width: atlas_width, height: atlas_height, rgba, mesh: Some(body) }
     }
 }
@@ -87,7 +91,8 @@ mod tests {
         assert_eq!(mesh.vertices.len(), 6 + 36);
         // The quad's first corner: bottom-left of the skin, which is the middle row of the atlas.
         assert_eq!((mesh.vertices[0].position, mesh.vertices[0].uv), ([-0.25, 0.75, 0.0], [0.0, 0.5]));
-        assert!(mesh.vertices[6..].iter().all(|v| v.uv[1] >= 0.5 && v.uv[0] <= 0.5 && v.part == bake::PART_HEAD));
+        assert!(mesh.vertices[6..].iter().all(|v| v.uv[1] >= 0.5 && v.uv[0] <= 0.5 && v.bone == 1));
+        assert_eq!(mesh.bones, ["body", "head"]);
     }
 
     #[test]
