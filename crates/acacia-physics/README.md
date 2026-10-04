@@ -136,7 +136,8 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   repeated (a world tick without input) moves only the next input (`acacia-bot` `movement/rewind.rs`).
 - StopSprinting always drops the sprint modifier, also while the server streams movement attributes.
 - Scaffolding's climb replaces the jump outright, sprint boost included.
-- A sneak edge stop shortens the move but keeps the velocity of an axis it did not stop outright.
+- A sneak edge stop shortens the move but keeps the velocity of an axis it did not stop outright, on land
+  and in liquid.
 
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,
