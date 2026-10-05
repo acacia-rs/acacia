@@ -4,6 +4,7 @@ use super::greedy::corner_ao;
 use super::liquid::liquid;
 use super::quad::{AXES, DIRS, Quad, Surface, quantize};
 use super::{Ctx, SectionMesh, model};
+use crate::blocks::placed::Random;
 use crate::blocks::{Box16, Layer, Material, ModelFace, RenderBlock, Shape};
 
 pub(super) const NO_AO: [u8; 4] = [3; 4];
@@ -13,14 +14,19 @@ pub(super) fn others(ctx: &Ctx, out: &mut SectionMesh) {
         for z in 0..16 {
             for y in 0..16 {
                 let p = [x, y, z];
-                let b = ctx.block(p);
+                let base = ctx.block(p);
+                let b = ctx.drawn(p, base);
                 match &b.shape {
                     Shape::Boxes(boxes) => boxes.iter().for_each(|bx| emit_box(ctx, p, bx, b, out)),
                     Shape::Cross => emit_cross(ctx, p, b, out),
                     Shape::Model(faces) => emit_model(ctx, p, faces, b, out),
                     _ => {}
                 }
-                out.models.extend(b.model.iter().map(|m| (p.map(|c| c as u8), m.clone())));
+                if let Some(Random::Parts(parts)) = b.random.as_deref() {
+                    let draw = ctx.draw(p).again();
+                    parts.iter().filter_map(|part| part.pick(draw)).for_each(|faces| emit_model(ctx, p, faces, b, out));
+                }
+                out.models.extend(base.model.iter().map(|m| (p.map(|c| c as u8), m.clone())));
                 liquid(ctx, p, out);
             }
         }
@@ -58,13 +64,16 @@ fn emit_box(ctx: &Ctx, p: [i32; 3], bx: &Box16, b: &RenderBlock, out: &mut Secti
 }
 
 fn emit_model(ctx: &Ctx, p: [i32; 3], faces: &[ModelFace], b: &RenderBlock, out: &mut SectionMesh) {
-    let origin = p.map(|c| (c * 16) as f32);
+    let [wx, _, wz] = ctx.world(p);
+    let shift = b.offset.map_or([0.0; 3], |o| o.at(wx, wz));
+    let origin = [0, 1, 2].map(|i| (p[i] as f32 + shift[i]) * 16.0);
     for f in faces {
         if f.cull.is_some_and(|side| ctx.block(neighbour(p, usize::from(side))).occludes) {
             continue;
         }
         let corners = f.corners.map(|c| [c[0] + origin[0], c[1] + origin[1], c[2] + origin[2]]);
-        let surface = Surface { texture: f.texture, tint_kind: f.tint.shader_kind(), material: f.material, color: quantize(ctx.tint(p, f.tint)) };
+        let surface =
+            Surface { texture: f.texture, tint_kind: f.tint.shader_kind(), material: f.material, color: quantize(ctx.tint(p, f.tint)), turn: 0 };
         let ao = match f.shade {
             Some(side) if f.ambient_occlusion && b.layer == Layer::Solid => model_ao(ctx, p, f, side),
             _ => NO_AO,
@@ -114,7 +123,7 @@ mod tests {
         let slab = RenderBlock { shape: Shape::Model([face].into()), occludes: false, ..BlockTable::cube(0) };
         let table = BlockTable::from_blocks(vec![air, BlockTable::cube(0), slab]);
         let cells = || vec![0u32; SIDE * SIDE * SIDE].into_boxed_slice().try_into().unwrap();
-        let mut v = Volume { blocks: cells(), liquid: cells(), biomes: cells() };
+        let mut v = Volume { origin: [0; 3], blocks: cells(), liquid: cells(), biomes: cells() };
         v.blocks[cell(5, 5, 5)] = 2;
         stone.iter().for_each(|&[x, y, z]| v.blocks[cell(x, y, z)] = 1);
         let mut out = SectionMesh::default();

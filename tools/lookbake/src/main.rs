@@ -10,6 +10,7 @@
 //!   dump of the game's own (check.rs).
 
 mod biomes;
+mod block;
 mod blockstate;
 mod check;
 mod download;
@@ -17,6 +18,7 @@ mod jar;
 mod java;
 mod mapping;
 mod model;
+mod offset;
 mod report;
 mod textures;
 mod tint;

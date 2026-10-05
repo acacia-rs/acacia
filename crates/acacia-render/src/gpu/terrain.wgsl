@@ -58,8 +58,10 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     // Liquid faces span a block and keep corner heights and a texture turn instead of size and AO.
     let liquid = kind >= 10u;
     let face = select(kind, kind - 10u, liquid);
-    let size = select(vec2<f32>(f32(w1 & 511u), f32((w1 >> 9u) & 511u)), vec2(16.0), liquid);
-    let flip = select((w2 >> 8u) & 1u, 0u, liquid);
+    let size = select(vec2<f32>(f32(w1 & 255u), f32((w1 >> 8u) & 255u)) + 1.0, vec2(16.0), liquid);
+    // Split along the brighter diagonal so AO gradients don't crease.
+    let crease = ((w2 & 3u) + ((w2 >> 4u) & 3u)) < (((w2 >> 2u) & 3u) + ((w2 >> 6u) & 3u));
+    let flip = select(u32(crease), 0u, liquid);
     let corner = TRIANGLES[flip * 2u + REVERSED[face]][vi % 6u];
     let c = CORNERS[corner];
 
@@ -92,6 +94,12 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
             let a = f32(turn - 1u) * (6.2831853 / 255.0);
             let d = c - 0.5;
             uv = vec2(cos(a) * d.x + sin(a) * d.y, cos(a) * d.y - sin(a) * d.x) + 0.5;
+        } else if !liquid {
+            // The face's turn (`quad::turned`); whole blocks off, which the sampler repeats away.
+            uv.x = select(uv.x, -uv.x, ((w2 >> 8u) & 1u) == 1u);
+            for (var i = 0u; i < ((w1 >> 16u) & 3u); i++) {
+                uv = vec2(uv.y, -uv.x);
+            }
         }
     } else {
         let t = c.x * size.x;

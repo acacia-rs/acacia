@@ -1,6 +1,8 @@
 //! `lookbake java-check`: our bake of every Java block state against the game's own, from a dump
 //! of its baked quads (the workspace's `research/java-truth`, whose README has the format).
 
+mod placed;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
 use std::path::Path;
@@ -29,6 +31,23 @@ struct Truth {
 struct State {
     /// Indices into `parts`: the first alternative of each slot.
     parts: Vec<usize>,
+    /// Only when a slot has alternatives.
+    slots: Option<Vec<Slot>>,
+}
+
+/// One model of it is drawn.
+type Slot = Vec<Alternative>;
+
+#[derive(Deserialize, Clone)]
+struct Alternative {
+    weight: u32,
+    part: usize,
+}
+
+impl State {
+    fn slots(&self) -> Vec<Slot> {
+        self.slots.clone().unwrap_or_else(|| self.parts.iter().map(|&part| vec![Alternative { weight: 1, part }]).collect())
+    }
 }
 
 #[derive(Deserialize)]
@@ -50,8 +69,10 @@ struct Quad {
     cullface: Option<String>,
 }
 
-/// `assets` is the jar's `assets/minecraft`, `truth` the dump's `quads.json.gz`.
+/// `assets` is the jar's `assets/minecraft`, `truth` the dump's `quads.json.gz`; its
+/// `placement.json` is beside it.
 pub fn print(assets: &Path, truth: &Path) -> Result<(), Error> {
+    let placement: placed::Placement = serde_json::from_slice(&std::fs::read(truth.with_file_name("placement.json"))?)?;
     let truth: Truth = serde_json::from_reader(flate2::read::GzDecoder::new(File::open(truth)?))?;
     let mut models = Models::new(assets.to_owned());
     let mut blockstates: HashMap<String, Option<Value>> = HashMap::new();
@@ -63,11 +84,28 @@ pub fn print(assets: &Path, truth: &Path) -> Result<(), Error> {
         let file = blockstates.entry(java.name.clone()).or_insert_with(|| {
             serde_json::from_slice(&std::fs::read(assets.join(format!("blockstates/{}.json", java.name))).ok()?).ok()
         });
-        let placed = file.as_ref().map(|f| blockstate::models(f, &java)).unwrap_or_default();
-        let ours: Vec<BakedFace> = placed.iter().flat_map(|p| bake(&models.resolve(&p.model), p)).collect();
-        let theirs: Vec<&Quad> = state.parts.iter().flat_map(|&i| &truth.parts[i].quads).collect();
-        let ambient_occlusion = state.parts.first().map(|&i| truth.parts[i].ambient_occlusion);
-        let found = compare(&ours, &theirs, ambient_occlusion);
+        let ours = file.as_ref().map(|f| blockstate::drawn(f, &java)).unwrap_or_default();
+        let theirs = state.slots();
+        let our_weights: Vec<Vec<u32>> = ours.parts.iter().map(|p| p.iter().map(|(weight, _)| *weight).collect()).collect();
+        let their_weights: Vec<Vec<u32>> = theirs.iter().map(|s| s.iter().map(|a| a.weight).collect()).collect();
+        let mut found = BTreeSet::new();
+        if our_weights != their_weights {
+            found.insert("alternatives or their weights");
+        } else {
+            let pairs = ours.parts.iter().flatten().zip(theirs.iter().flatten());
+            let mut first = true;
+            for ((_, model), alternative) in pairs {
+                let (faces, part) = (bake(&models.resolve(&model.model), model), &truth.parts[alternative.part]);
+                found.extend(compare(&faces, &part.quads));
+                if first && faces.first().is_some_and(|f| f.ambient_occlusion != part.ambient_occlusion) {
+                    found.insert("ambient occlusion");
+                }
+                first = false;
+            }
+            if !placement.picks_agree(key, &ours, &theirs) {
+                found.insert("the alternative picked at a position");
+            }
+        }
         same += usize::from(found.is_empty());
         for difference in found {
             blocks.entry(difference).or_default().insert(key.split('[').next().unwrap_or(key));
@@ -78,16 +116,20 @@ pub fn print(assets: &Path, truth: &Path) -> Result<(), Error> {
             }
         }
     }
-    println!("{same} of {} Java block states bake as the game bakes them", truth.states.len());
+    println!("{same} of {} Java block states bake as the game bakes them, {} with alternatives picked by position", truth.states.len(), placement.picks.len());
     for (difference, (count, examples)) in differences {
         println!("  {difference}: {count} states, e.g. {}", examples.join(" "));
         println!("    blocks: {}", blocks[difference].iter().copied().collect::<Vec<_>>().join(" "));
     }
+    match placement.offsets_differing() {
+        differing if differing.is_empty() => println!("blocks stand off the grid as the game shifts them"),
+        differing => println!("blocks shifted otherwise than the game shifts them: {}", differing.join(" ")),
+    }
     Ok(())
 }
 
-/// How `ours` differs from the game's quads, as kinds of difference.
-fn compare(ours: &[BakedFace], theirs: &[&Quad], ambient_occlusion: Option<bool>) -> BTreeSet<&'static str> {
+/// How `ours` differs from the game's quads of the same model, as kinds of difference.
+fn compare(ours: &[BakedFace], theirs: &[Quad]) -> BTreeSet<&'static str> {
     let mut found = BTreeSet::new();
     let mut left: Vec<&BakedFace> = ours.iter().collect();
     for quad in theirs {
@@ -120,9 +162,6 @@ fn compare(ours: &[BakedFace], theirs: &[&Quad], ambient_occlusion: Option<bool>
     }
     if !left.is_empty() {
         found.insert("a quad the game does not have");
-    }
-    if ours.first().zip(ambient_occlusion).is_some_and(|(face, theirs)| face.ambient_occlusion != theirs) {
-        found.insert("ambient occlusion");
     }
     found
 }
@@ -162,19 +201,19 @@ mod tests {
 
     #[test]
     fn the_same_quad_matches_from_any_first_vertex() {
-        assert!(compare(&[ours()], &[&theirs(0)], Some(true)).is_empty());
-        assert!(compare(&[ours()], &[&theirs(3)], Some(true)).is_empty());
+        assert!(compare(&[ours()], &[theirs(0)]).is_empty());
+        assert!(compare(&[ours()], &[theirs(3)]).is_empty());
     }
 
     #[test]
     fn differences_are_named() {
         let mut quad = theirs(0);
         (quad.uvs[0], quad.tint_index, quad.cullface) = ([1.0, 0.0], 0, None);
-        let found = compare(&[ours()], &[&quad], Some(false));
-        assert_eq!(found.into_iter().collect::<Vec<_>>(), ["ambient occlusion", "cull side", "texture coordinates", "tint index"]);
+        let found = compare(&[ours()], &[quad]);
+        assert_eq!(found.into_iter().collect::<Vec<_>>(), ["cull side", "texture coordinates", "tint index"]);
         let mut reversed = theirs(0);
         reversed.positions.reverse();
-        let found = compare(&[ours()], &[&reversed], Some(true));
+        let found = compare(&[ours()], &[reversed]);
         assert_eq!(found.into_iter().collect::<Vec<_>>(), ["a quad of the game's is missing", "a quad the game does not have"]);
     }
 }

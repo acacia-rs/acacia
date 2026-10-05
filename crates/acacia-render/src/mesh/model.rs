@@ -63,7 +63,7 @@ mod tests {
     use super::*;
     use crate::blocks::Material;
 
-    const SURFACE: Surface = Surface { texture: 300, tint_kind: 1, material: Material::Cutout, color: [1, 2, 3] };
+    const SURFACE: Surface = Surface { texture: 300, tint_kind: 1, material: Material::Cutout, color: [1, 2, 3], turn: 0 };
 
     #[test]
     fn records_hold_what_the_shader_reads() {

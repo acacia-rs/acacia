@@ -1,6 +1,7 @@
 //! Per-runtime-id render data: shape, render layer, texture-array layer and tint per face.
 
 pub mod model;
+pub mod placed;
 pub mod shape;
 pub mod tint;
 
@@ -52,6 +53,14 @@ pub struct RenderBlock {
     pub textures: [u16; 6],
     pub tint: [Tint; 6],
     pub material: [Material; 6],
+    /// How each face's texture lies ([`crate::mesh::quad::turned`]).
+    pub turns: [u8; 6],
+    /// Alternatives chosen by where the block is. Neighbours see this block, whichever is drawn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub random: Option<Arc<placed::Random>>,
+    /// Model faces are shifted by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<placed::Offset>,
     /// Full opaque cube: hides neighbour faces and darkens ambient occlusion.
     pub occludes: bool,
     /// Faces against the same block are hidden (glass seams); leaves keep them like fancy leaves.
@@ -119,6 +128,9 @@ impl BlockTable {
             textures: [texture; 6],
             tint: [Tint::None; 6],
             material: [Material::Opaque; 6],
+            turns: [0; 6],
+            random: None,
+            offset: None,
             occludes: true,
             cull_same: true,
             fluid: Fluid::None,
@@ -203,6 +215,9 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
         textures: resolved.map(|r| r.layer),
         tint: tint::faces(name),
         material,
+        turns: [0; 6],
+        random: None,
+        offset: None,
         occludes,
         cull_same: !name.ends_with("leaves"),
         fluid,

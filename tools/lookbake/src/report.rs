@@ -50,7 +50,7 @@ pub fn print(assets: &Path, mapping: &Mapping) -> Result<(), Error> {
             no_blockstate.add(&java.name);
             continue;
         };
-        let refs = blockstate::models(file, java);
+        let refs: Vec<_> = blockstate::drawn(file, java).parts.into_iter().flatten().map(|(_, model)| model).collect();
         if refs.is_empty() {
             no_model.add(&key);
             continue;

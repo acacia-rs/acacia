@@ -8,19 +8,20 @@ use std::sync::Arc;
 
 use acacia_render::assets::Pack;
 use acacia_render::assets::flipbook::Atlas;
-use acacia_render::assets::image::Alpha;
-use acacia_render::blocks::{self, Fluid, Layer, Material, ModelFace, RenderBlock, Shape, Tint};
+use acacia_render::blocks::placed::{Random, Weighted};
+use acacia_render::blocks::{self, Fluid, RenderBlock, Shape};
 use acacia_render::lookpack::state_key;
 use acacia_render::{Look, LookPack};
 use acacia_world::BlockRegistry;
 use serde_json::Value;
 
-use crate::blockstate;
-use crate::mapping::Mapping;
+use crate::block::{model_faces, overlaid, render_block, side_turns};
+use crate::blockstate::{self, Drawn, ModelRef};
+use crate::mapping::{JavaState, Mapping};
 use crate::model::Models;
 use crate::model::bake::{BakedFace, bake};
 use crate::textures::Textures;
-use crate::tint;
+use crate::{offset, tint};
 
 /// What became of the vanilla registry's states.
 #[derive(Default)]
@@ -40,16 +41,15 @@ pub struct Report {
 pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Report) {
     let (mut look, _) = LookPack::bake_bedrock(pack, Look::JAVA);
     let registry = BlockRegistry::vanilla();
-    let (mut models, mut textures) = (Models::new(assets.to_owned()), Textures::new(assets.to_owned()));
+    let mut baker = Baker { models: Models::new(assets.to_owned()), textures: Textures::new(assets.to_owned()), dry_foliage: tint::dry_foliage(assets) };
     let mut blockstates: HashMap<String, Option<Value>> = HashMap::new();
     let mut report = Report::default();
-    let dry_foliage = tint::dry_foliage(assets);
     for id in 0..registry.len() as u32 {
         let state = registry.get(id).expect("id below len");
         let key = state_key(state);
         let base = look.block(&key).expect("the Bedrock bake covers the registry").clone();
         if base.fluid != Fluid::None {
-            match liquid(&base, &mut textures, &mut look.atlas) {
+            match liquid(&base, &mut baker.textures, &mut look.atlas) {
                 Some(block) => {
                     report.liquids += 1;
                     look.set_block(key, block);
@@ -58,25 +58,16 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Re
             }
             continue;
         }
-        let faces = match () {
+        let block = match () {
             _ if blocks::model::classify(state).is_some() => Err("drawn as a block entity"),
             _ => mapping.get(&key).ok_or("not in the mapping").and_then(|java| {
                 let file = blockstates.entry(java.name.clone()).or_insert_with(|| {
                     serde_json::from_slice(&std::fs::read(assets.join(format!("blockstates/{}.json", java.name))).ok()?).ok()
                 });
-                let placed = blockstate::models(file.as_ref().ok_or("no blockstate file")?, java);
-                let faces: Vec<BakedFace> = placed.iter().flat_map(|p| bake(&models.resolve(&p.model), p)).collect();
-                match () {
-                    _ if faces.is_empty() => Err("no Java geometry"),
-                    _ if overlaid(&faces) => Err("overlaid faces"),
-                    _ => Ok((faces, java)),
-                }
+                let drawn = blockstate::drawn(file.as_ref().ok_or("no blockstate file")?, java);
+                baker.block(&base, &drawn, java, state.light_emission > 0, &mut look.atlas)
             }),
         };
-        let block = faces.and_then(|(f, java)| {
-            let tint = |index| tint::of(java, index, dry_foliage);
-            render_block(&base, &f, &tint, state.light_emission > 0, &mut textures, &mut look.atlas).ok_or("texture missing")
-        });
         match block {
             Ok(block) => {
                 if block.shape == Shape::Cube { report.cubes += 1 } else { report.models += 1 }
@@ -86,26 +77,9 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Re
         }
     }
     look.compact();
-    report.missing_textures = textures.missing.into_iter().collect();
-    report.invalid_models = models.invalid;
+    report.missing_textures = baker.textures.missing.into_iter().collect();
+    report.invalid_models = baker.models.invalid;
     (look, report)
-}
-
-/// Two faces on the same quad facing the same way (grass block sides under their overlay): they
-/// would fight for depth. The two sides of a plane share corners but face opposite ways.
-fn overlaid(faces: &[BakedFace]) -> bool {
-    let corners = |f: &BakedFace| {
-        let fixed = f.positions.map(|p| p.map(|v| (v * 64.0).round() as i32));
-        let (a, b, c) = (fixed[0], fixed[1], fixed[3]);
-        let (e1, e2) = ([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
-        let normal = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]].map(i32::signum);
-        let mut c = fixed;
-        c.sort_unstable();
-        (c, normal)
-    };
-    let mut seen: Vec<_> = faces.iter().map(corners).collect();
-    seen.sort_unstable();
-    seen.windows(2).any(|pair| pair[0] == pair[1])
 }
 
 /// A liquid keeps the renderer's liquid geometry and takes Java's textures: still on top and
@@ -117,89 +91,72 @@ fn liquid(base: &RenderBlock, textures: &mut Textures, atlas: &mut Atlas) -> Opt
     Some(RenderBlock { textures: [flow, flow, still, still, flow, flow], ..base.clone() })
 }
 
-/// `tint` is the colour of a tint index; `gives_light` is of the block. `None` when a face's
-/// texture has no image.
-fn render_block(base: &RenderBlock, faces: &[BakedFace], tint: &dyn Fn(i32) -> Tint, gives_light: bool, textures: &mut Textures, atlas: &mut Atlas) -> Option<RenderBlock> {
-    // ModelBlockRenderer.tesselateBlock: the first part's model decides, and never for a light.
-    let ambient_occlusion = !gives_light && faces.first().is_some_and(|f| f.ambient_occlusion);
-    let mut model = Vec::with_capacity(faces.len());
-    for f in faces {
-        let (texture, alpha) = textures.layer(&f.texture, atlas)?;
-        let material = match alpha {
-            Alpha::Opaque => Material::Opaque,
-            Alpha::Cutout => Material::Cutout,
-            Alpha::Blended => Material::Blend,
-        };
-        model.push(ModelFace {
-            corners: [f.positions[0], f.positions[1], f.positions[3]],
-            uv: [f.uvs[0], f.uvs[1], f.uvs[3]],
-            texture,
-            tint: f.tint_index.map_or(Tint::None, tint),
-            material,
-            shade: f.shade.map(|d| d.face()),
-            ambient_occlusion,
-            cull: f.cull.map(|d| d.face()),
-        });
+struct Baker {
+    models: Models,
+    textures: Textures,
+    dry_foliage: [u8; 3],
+}
+
+impl Baker {
+    fn faces(&mut self, model: &ModelRef) -> Vec<BakedFace> {
+        bake(&self.models.resolve(&model.model), model)
     }
-    let translucent = model.iter().any(|f| f.material == Material::Blend);
-    let opaque = model.iter().all(|f| f.material == Material::Opaque);
-    let full = (0..6).all(|side| faces.iter().any(|f| f.cull.map(|d| d.face()) == Some(side) && covers_side(f)));
-    let mut block = RenderBlock {
-        shape: Shape::None,
-        layer: if translucent { Layer::Translucent } else { Layer::Solid },
-        textures: [0; 6],
-        tint: [Tint::None; 6],
-        material: [Material::Opaque; 6],
-        occludes: full && opaque,
-        cull_same: base.cull_same,
-        fluid: Fluid::None,
-        fluid_height: 0,
-        model: None,
-    };
-    if full && faces.len() == 6 && faces.iter().all(plain) {
-        for (f, baked) in model.iter().zip(faces) {
-            let side = usize::from(baked.cull.expect("a full block's faces cull").face());
-            (block.textures[side], block.tint[side], block.material[side]) = (f.texture, f.tint, f.material);
+
+    /// What `java` draws as, or why it keeps `base`, its Bedrock rendering. `gives_light` is of the block.
+    fn block(&mut self, base: &RenderBlock, drawn: &Drawn, java: &JavaState, gives_light: bool, atlas: &mut Atlas) -> Result<RenderBlock, &'static str> {
+        let first: Vec<BakedFace> = drawn.first().cloned().collect::<Vec<_>>().iter().flat_map(|m| self.faces(m)).collect();
+        if first.is_empty() {
+            return Err("no Java geometry");
         }
-        block.shape = Shape::Cube;
-    } else {
-        block.shape = Shape::Model(Arc::from(model));
-    }
-    Some(block)
-}
-
-const EPSILON: f32 = 1e-3;
-
-/// The face fills its side of the block.
-fn covers_side(f: &BakedFace) -> bool {
-    let on_corner = |v: f32| v.abs() < EPSILON || (v - 16.0).abs() < EPSILON;
-    f.positions.iter().all(|p| p.iter().all(|v| on_corner(*v))) && f.shade == f.cull
-}
-
-/// Textured as the renderer textures a cube face: by position, unrotated.
-fn plain(f: &BakedFace) -> bool {
-    let Some(side) = f.cull else { return false };
-    f.positions.iter().zip(&f.uvs).all(|(p, uv)| {
-        let [u, v] = side.project(*p);
-        (u - uv[0]).abs() < EPSILON && (v - uv[1]).abs() < EPSILON
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::model::bake::Direction;
-
-    fn face(positions: [[f32; 3]; 4]) -> BakedFace {
-        let uvs = positions.map(|p| Direction::South.project(p));
-        BakedFace { positions, uvs, texture: "block/poppy".into(), cull: None, tint_index: None, shade: None, ambient_occlusion: true }
-    }
-
-    #[test]
-    fn a_plane_drawn_from_both_sides_is_not_overlaid() {
-        let front = face([[0.0, 16.0, 8.0], [0.0, 0.0, 8.0], [16.0, 0.0, 8.0], [16.0, 16.0, 8.0]]);
-        let back = face([[16.0, 16.0, 8.0], [16.0, 0.0, 8.0], [0.0, 0.0, 8.0], [0.0, 16.0, 8.0]]);
-        assert!(!overlaid(&[front.clone(), back]));
-        assert!(overlaid(&[front.clone(), front]));
+        // ModelBlockRenderer.tesselateBlock: the first part's model decides, and never for a light.
+        let ambient_occlusion = !gives_light && first[0].ambient_occlusion;
+        let dry_foliage = self.dry_foliage;
+        let tint = |index| tint::of(java, index, dry_foliage);
+        let offset = offset::of(&java.name);
+        let mut whole = |baker: &mut Baker, faces: &[BakedFace], cube: bool| -> Result<RenderBlock, &'static str> {
+            if overlaid(faces) {
+                // Bedrock's cube draws the overlay; only how the faces lie is Java's.
+                let turns = side_turns(faces).filter(|_| base.shape == Shape::Cube).ok_or("overlaid faces")?;
+                return Ok(RenderBlock { turns, ..base.clone() });
+            }
+            let model = model_faces(faces, &tint, ambient_occlusion, &mut baker.textures, atlas).ok_or("texture missing")?;
+            Ok(RenderBlock { offset, ..render_block(base, faces, model, cube) })
+        };
+        if drawn.parts.iter().all(|part| part.len() == 1) {
+            return whole(self, &first, true);
+        }
+        if !drawn.multipart {
+            let alternatives: Vec<(u32, Vec<BakedFace>)> = drawn.parts[0].iter().map(|(weight, model)| (*weight, self.faces(model))).collect();
+            let mut blocks = |baker: &mut Baker, cube: bool| -> Result<Vec<(u32, RenderBlock)>, &'static str> {
+                alternatives.iter().map(|(weight, faces)| Ok((*weight, whole(baker, faces, cube)?))).collect()
+            };
+            let mut baked = blocks(self, true)?;
+            // The mesher takes cubes and models down different paths; one block goes down one.
+            if baked.iter().any(|(_, b)| b.shape != baked[0].1.shape) {
+                baked = blocks(self, false)?;
+            }
+            let first = baked[0].1.clone();
+            return Ok(RenderBlock { random: Some(Arc::new(Random::Whole(Weighted(baked.into())))), ..first });
+        }
+        if overlaid(&first) {
+            return Err("overlaid faces");
+        }
+        let (mut fixed, mut random) = (Vec::new(), Vec::new());
+        for part in &drawn.parts {
+            let mut alternatives = Vec::with_capacity(part.len());
+            for (weight, model) in part {
+                let faces = self.faces(model);
+                let faces = model_faces(&faces, &tint, ambient_occlusion, &mut self.textures, atlas).ok_or("texture missing")?;
+                alternatives.push((*weight, faces));
+            }
+            match alternatives.len() {
+                1 => fixed.extend(alternatives.pop().expect("one alternative").1),
+                _ => random.push(Weighted(alternatives.into_iter().map(|(weight, faces)| (weight, Arc::from(faces))).collect())),
+            }
+        }
+        // What the block is to its neighbours comes from the first alternatives.
+        let model = model_faces(&first, &tint, ambient_occlusion, &mut self.textures, atlas).ok_or("texture missing")?;
+        let block = render_block(base, &first, model, false);
+        Ok(RenderBlock { shape: Shape::Model(fixed.into()), random: Some(Arc::new(Random::Parts(random.into()))), offset, ..block })
     }
 }

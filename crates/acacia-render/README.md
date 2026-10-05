@@ -65,6 +65,15 @@ quads merge only within a uniform colour.
   UVs to 1/32 texel. A shaded face whose model allows it takes AO as Java does: the corner values
   of the cell in front (a face on the block's side) or of the block's own cell (a face inside it),
   interpolated to where the face's corners are.
+- A cube face's texture can lie turned (`quad::turned`: a mirror, then quarter turns), three bits of
+  the quad. Faces merge only with the same turn.
+- What depends on where a block is (`blocks/placed.rs`): a block can have weighted alternatives
+  (`Random::Whole`, or lists of extra model faces, `Random::Parts`) and a shift off the grid
+  (`Offset`, model faces only). The mesher picks by Java's position hash and random numbers
+  (`Mth.getSeed`, its 48-bit generator, a multipart's re-seed), so a world shows the variant that
+  game shows at the same block. Neighbours cull and occlude by the block's first entry, whichever is
+  drawn. Blocks with alternatives rarely merge: a look that randomises stone pays one quad per
+  visible face for it.
 
 ## Lighting (`light/`)
 

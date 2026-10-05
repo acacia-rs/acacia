@@ -13,6 +13,8 @@ pub const OCCLUDER: u32 = u32::MAX;
 pub const NO_BIOME: u32 = u32::MAX;
 
 pub struct Volume {
+    /// World position of the section's first block.
+    pub origin: [i32; 3],
     pub blocks: Box<[u32; CELLS]>,
     pub liquid: Box<[u32; CELLS]>,
     pub biomes: Box<[u32; CELLS]>,
@@ -45,7 +47,12 @@ impl Volume {
     pub fn gather(world: &World, cx: i32, section_y: i32, cz: i32) -> Option<Volume> {
         world.get(cx, cz)?;
         let dim = world.dimension();
-        let mut v = Volume { blocks: Box::new([OCCLUDER; CELLS]), liquid: Box::new([dim.air; CELLS]), biomes: Box::new([NO_BIOME; CELLS]) };
+        let mut v = Volume {
+            origin: [cx * 16, section_y * 16, cz * 16],
+            blocks: Box::new([OCCLUDER; CELLS]),
+            liquid: Box::new([dim.air; CELLS]),
+            biomes: Box::new([NO_BIOME; CELLS]),
+        };
         let (mut blocks, mut liquid, mut biomes) =
             (Box::new([0; SECTION_VOLUME]), Box::new([0; SECTION_VOLUME]), Box::new([0; SECTION_VOLUME]));
         for dx in -1..=1 {

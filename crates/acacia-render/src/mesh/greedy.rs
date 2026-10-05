@@ -6,7 +6,7 @@ use super::{Ctx, SectionMesh};
 use crate::blocks::{Layer, Material, Shape};
 
 /// Mask entry: 0 = no face. Bits: texture 0..12, tint kind 12..14, material 14..16, AO 16..24,
-/// colour 24..45, translucent 45, present 46.
+/// colour 24..45, translucent 45, present 46, turn 47..50.
 const PRESENT: u64 = 1 << 46;
 const TRANSLUCENT: u64 = 1 << 45;
 
@@ -29,14 +29,18 @@ pub(super) fn cubes(ctx: &Ctx, out: &mut SectionMesh) {
 
 fn face_key(ctx: &Ctx, p: [i32; 3], face: u8) -> u64 {
     let id = ctx.v.block(p[0], p[1], p[2]);
-    let b = ctx.table.get(id);
-    if b.shape != Shape::Cube || b.layer == Layer::Invisible {
+    let base = ctx.table.get(id);
+    if (base.shape != Shape::Cube && base.random.is_none()) || base.layer == Layer::Invisible {
         return 0;
     }
     let dir = DIRS[face as usize];
     let n = [p[0] + dir[0], p[1] + dir[1], p[2] + dir[2]];
     let nid = ctx.v.block(n[0], n[1], n[2]);
-    if ctx.table.get(nid).occludes || (nid == id && b.cull_same) {
+    if ctx.table.get(nid).occludes || (nid == id && base.cull_same) {
+        return 0;
+    }
+    let b = ctx.drawn(p, base);
+    if b.shape != Shape::Cube {
         return 0;
     }
     let ao = if b.layer == Layer::Solid { corner_ao(ctx, n, face) } else { [3; 4] };
@@ -47,7 +51,8 @@ fn face_key(ctx: &Ctx, p: [i32; 3], face: u8) -> u64 {
 fn pack(s: Surface, ao: [u8; 4]) -> u64 {
     let ao_bits = ao.iter().enumerate().fold(0u64, |a, (i, &x)| a | (u64::from(x) << (i * 2)));
     let [r, g, b] = s.color.map(u64::from);
-    u64::from(s.texture) | u64::from(s.tint_kind) << 12 | (s.material as u64) << 14 | ao_bits << 16 | (r | g << 7 | b << 14) << 24
+    let look = u64::from(s.texture) | u64::from(s.tint_kind) << 12 | (s.material as u64) << 14 | ao_bits << 16 | (r | g << 7 | b << 14) << 24;
+    look | u64::from(s.turn) << 47
 }
 
 fn unpack(key: u64) -> (Surface, [u8; 4]) {
@@ -58,6 +63,7 @@ fn unpack(key: u64) -> (Surface, [u8; 4]) {
         tint_kind: bits(12, 2) as u32,
         material,
         color: [bits(24, 7) as u8, bits(31, 7) as u8, bits(38, 7) as u8],
+        turn: bits(47, 3) as u8,
     };
     (surface, [0, 1, 2, 3].map(|i| bits(16 + i * 2, 2) as u8))
 }
@@ -76,6 +82,41 @@ pub(super) fn corner_ao(ctx: &Ctx, n: [i32; 3], face: u8) -> [u8; 4] {
         let (s1, s2, c) = (occ(du, 0), occ(0, dv), occ(du, dv));
         if s1 == 1 && s2 == 1 { 0 } else { 3 - s1 - s2 - c }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::super::volume::{SIDE, Volume, cell};
+    use super::*;
+    use crate::biome::BiomeColors;
+    use crate::blocks::placed::{Random, Weighted};
+    use crate::blocks::{BlockTable, RenderBlock};
+
+    #[test]
+    fn a_block_with_alternatives_draws_the_one_its_position_picks() {
+        let air = RenderBlock { shape: Shape::None, occludes: false, ..BlockTable::cube(0) };
+        let turned = RenderBlock { turns: [0, 0, 3, 0, 0, 0], ..BlockTable::cube(2) };
+        let either = Random::Whole(Weighted(Box::new([(1, BlockTable::cube(1)), (1, turned)])));
+        let stone = RenderBlock { random: Some(Arc::new(either)), ..BlockTable::cube(1) };
+        let table = BlockTable::from_blocks(vec![air, stone]);
+        let cells = || vec![0u32; SIDE * SIDE * SIDE].into_boxed_slice().try_into().unwrap();
+        let mut v = Volume { origin: [160, 64, -48], blocks: cells(), liquid: cells(), biomes: cells() };
+        (0..16).for_each(|x| (0..16).for_each(|z| v.blocks[cell(x, 0, z)] = 1));
+        let mut out = SectionMesh::default();
+        cubes(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default() }, &mut out);
+
+        // Blocks of floor per texture, from the faces looking up.
+        let mut area = [0; 3];
+        for [_, w1, _] in out.solid.iter().filter(|q| q.face() == 2).map(|q| q.0) {
+            let texture = (w1 >> 18 & 4095) as usize;
+            assert_eq!(w1 >> 16 & 3, if texture == 2 { 3 } else { 0 }, "only the second alternative is turned");
+            area[texture] += ((w1 & 255) + 1) * ((w1 >> 8 & 255) + 1) / 256;
+        }
+        assert_eq!(area[1] + area[2], 256);
+        assert!(area[1] > 64 && area[2] > 64, "{area:?}");
+    }
 }
 
 fn emit(mask: &mut [u64; 256], face: u8, s: i32, out: &mut SectionMesh) {
