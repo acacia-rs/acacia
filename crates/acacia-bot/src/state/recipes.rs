@@ -10,6 +10,7 @@ use acacia_client::proto::{Packet, RawPacket};
 use super::ItemStack;
 
 mod decode;
+mod molang;
 mod tags;
 
 /// What a recipe is crafted at and how its inputs are laid out.
@@ -71,14 +72,15 @@ impl Ingredient {
         }
     }
 
-    /// Whether an item with identifier `name` and aux `metadata` fills this ingredient. Tags and
-    /// MoLang `query.any_tag` are resolved from a built-in table of vanilla tags (`tags.rs`).
+    /// Whether an item with identifier `name` and aux `metadata` fills this ingredient. Tags, also
+    /// those a MoLang expression asks about, are resolved from a built-in table of vanilla tags
+    /// (`tags.rs`).
     pub fn accepts(&self, name: &str, metadata: u32) -> bool {
         match self {
             Ingredient::Empty => false,
             Ingredient::Item { name: want, metadata: meta, .. } => want == name && meta.is_none_or(|m| m as u32 == metadata),
             Ingredient::Tag { tag, .. } => tags::has_tag(name, tag),
-            Ingredient::Molang { expression, .. } => tags::molang_tags(expression).any(|tag| tags::has_tag(name, tag)),
+            Ingredient::Molang { expression, .. } => molang::accepts(expression, name),
         }
     }
 }

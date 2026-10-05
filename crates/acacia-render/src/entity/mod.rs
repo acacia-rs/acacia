@@ -8,7 +8,6 @@ mod block_models;
 mod controller;
 pub mod geometry;
 pub mod molang;
-mod molang_parse;
 mod pose;
 mod skin;
 
@@ -16,12 +15,13 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use acacia_molang::{Compiler, Variable};
 use glam::DVec3;
 
 use crate::assets::image_file;
 pub use bake::{Mesh, Vertex};
 use controller::{Controller, Definition};
-use molang::Scope;
+use molang::{Loading, Scope};
 pub use molang::Value;
 pub use pose::{BonePose, Pose};
 pub use skin::{Skin, SkinSource};
@@ -72,6 +72,10 @@ pub struct EntityModels {
     kinds: HashMap<String, Definition>,
     controllers: HashMap<String, Controller>,
     animations: animation::Library,
+    /// Owns the names the pack's compiled Molang shares.
+    compiler: Compiler,
+    /// [`pose::BUILT_IN`], by variable.
+    built_in: Vec<(Variable, f32)>,
     /// Wide arms, slim arms, 64×32 skin layout; drawn with Steve when the player has no skin.
     players: Option<[Arc<[Layer]>; 3]>,
 }
@@ -94,12 +98,18 @@ pub struct EntityInstance {
 impl EntityModels {
     /// `root` holds the Bedrock pack's entity files: a resource pack or a look pack's files.
     pub fn load(root: &Path) -> EntityModels {
+        // Packs newer than acacia-molang's query list still load: an unknown query reads 0.
+        let mut compiler = Compiler::new();
+        compiler.documented_queries_only = false;
+        let loading = Loading::new(compiler);
         let mut out = EntityModels {
-            kinds: controller::definitions(root),
-            controllers: controller::controllers(root),
-            animations: animation::load(root),
+            kinds: controller::definitions(&loading, root),
+            controllers: controller::controllers(&loading, root),
+            animations: animation::load(&loading, root),
             ..Default::default()
         };
+        out.compiler = loading.into_inner();
+        out.built_in = pose::BUILT_IN.iter().map(|&(name, value)| (out.compiler.variable(name), value)).collect();
         let mut texture_sizes = HashMap::new();
         for d in out.kinds.values() {
             let texture = d.textures.get("default").or_else(|| d.textures.values().min());
@@ -150,19 +160,17 @@ impl EntityModels {
     /// [`molang::Scope::query`].
     pub fn appearance(&self, kind: &str, query: &dyn Fn(&str) -> Value) -> Option<(Arc<[Layer]>, f32)> {
         let definition = self.kinds.get(kind)?;
-        let mut scope = Scope { query, variables: HashMap::new(), arrays: None, this: 0.0 };
+        let mut scope = Scope::new(&self.compiler, query);
         for script in &definition.scripts {
-            script.run(&mut scope);
+            scope.run(script);
         }
-        let scale = definition.scale.as_ref().map_or(1.0, |s| s.run(&mut scope).num());
+        let scale = definition.scale.as_ref().map_or(1.0, |s| scope.num(s));
         let mut layers = Vec::new();
         for (id, condition) in &definition.controllers {
-            scope.arrays = None;
-            if condition.as_ref().is_some_and(|c| !c.run(&mut scope).truthy()) {
+            if condition.as_ref().is_some_and(|c| !scope.truthy(c)) {
                 continue;
             }
             let Some(controller) = self.controllers.get(id) else { continue };
-            scope.arrays = Some(&controller.arrays);
             layers.extend(self.layer(definition, controller, &mut scope));
         }
         if layers.is_empty() {
@@ -173,21 +181,18 @@ impl EntityModels {
 
     fn layer(&self, definition: &Definition, controller: &Controller, scope: &mut Scope) -> Option<Layer> {
         // `texture.default` to what the definition's `default` texture names.
-        let named = |value: Value, table: &HashMap<String, String>| match value {
-            Value::Text(name) => table.get(name.split_once('.')?.1).cloned(),
-            Value::Num(_) => None,
-        };
-        let model = *self.by_geometry.get(&named(controller.geometry.run(scope), &definition.geometry)?)?;
-        let material = controller.material.as_ref().and_then(|m| named(m.run(scope), &definition.materials)).unwrap_or_default();
+        let named = |resource: Option<&str>, table: &HashMap<String, String>| table.get(resource?.split_once('.')?.1).cloned();
+        let model = *self.by_geometry.get(&named(scope.resource(&controller.geometry), &definition.geometry)?)?;
+        let material = controller.material.as_ref().and_then(|m| named(scope.resource(m), &definition.materials)).unwrap_or_default();
         if OVERLAY_MATERIALS.iter().any(|m| material.contains(m)) {
             return None;
         }
         let mut textures = [NO_TEXTURE; 3];
         for (slot, texture) in textures.iter_mut().zip(&controller.textures) {
-            let path = named(texture.run(scope), &definition.textures);
+            let path = named(scope.resource(texture), &definition.textures);
             *slot = path.and_then(|p| self.texture_ids.get(&p).copied()).unwrap_or(NO_TEXTURE);
         }
-        let rules: Vec<(&str, bool)> = controller.part_visibility.iter().map(|(bone, v)| (bone.as_str(), v.run(scope).truthy())).collect();
+        let rules: Vec<(&str, bool)> = controller.part_visibility.iter().map(|(bone, v)| (bone.as_str(), scope.truthy(v))).collect();
         let bones = &self.models[model as usize].mesh.bones;
         let mut hidden = [0u32; 4];
         let mut shown = bones.len();

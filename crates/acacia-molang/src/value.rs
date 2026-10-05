@@ -4,6 +4,8 @@ pub struct Symbol(pub(crate) u32);
 
 impl Symbol {
     pub const EMPTY: Symbol = Symbol(0);
+    /// A string no compiled source spells; see [`crate::Compiler::find`].
+    pub const OTHER: Symbol = Symbol(u32::MAX);
 }
 
 /// A struct in [`crate::Variables`] or, when it was just produced by an evaluation, in its [`crate::Scratch`].

@@ -49,6 +49,7 @@ name = "acacia-bot"
 version = "0.1.0"
 dependencies = [
  "acacia-client",
+ "acacia-molang",
  "acacia-physics",
  "acacia-testserver",
  "acacia-world",
@@ -181,6 +182,7 @@ dependencies = [
 name = "acacia-render"
 version = "0.1.0"
 dependencies = [
+ "acacia-molang",
  "acacia-proto",
  "acacia-world",
  "bytemuck",

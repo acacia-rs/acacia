@@ -68,7 +68,7 @@ const MAX_NESTING: usize = 4;
 /// Transitions followed from a controller's initial state.
 const MAX_HOPS: usize = 4;
 /// Variables the game sets itself and scripts divide by.
-const BUILT_IN: [(&str, f32); 1] = [("gliding_speed_value", 1.0)];
+pub(super) const BUILT_IN: [(&str, f32); 1] = [("gliding_speed_value", 1.0)];
 
 impl Track {
     /// The channel at `time`; `this` is its value so far, and `lerp` receives how far `time` is
@@ -77,7 +77,7 @@ impl Track {
         let mut eval = |programs: &[Program; 3]| {
             from_fn(|i| {
                 scope.this = this[i];
-                programs[i].run(scope).num()
+                scope.num(&programs[i])
             })
         };
         let keys = match self {
@@ -118,7 +118,7 @@ impl<'a> Play<'a, '_> {
             self.apply(animation, weight);
         } else if let Some(state) = models.animations.controllers.get(id).and_then(|c| self.state(c)) {
             for (name, condition) in &state.animations {
-                let share = condition.as_ref().map_or(1.0, |c| c.run(&mut self.scope).num());
+                let share = condition.as_ref().map_or(1.0, |c| self.scope.num(c));
                 self.play(name, weight * share, depth + 1);
             }
         }
@@ -129,7 +129,7 @@ impl<'a> Play<'a, '_> {
     fn state(&mut self, controller: &'a AnimationController) -> Option<&'a State> {
         let mut state = controller.states.get(&controller.initial)?;
         for _ in 0..MAX_HOPS {
-            let taken = state.transitions.iter().find(|(_, condition)| condition.run(&mut self.scope).truthy());
+            let taken = state.transitions.iter().find(|(_, condition)| self.scope.truthy(condition));
             match taken.and_then(|(to, _)| controller.states.get(to)) {
                 Some(next) => state = next,
                 None => break,
@@ -142,7 +142,7 @@ impl<'a> Play<'a, '_> {
         let life = (self.scope.query)("life_time").num();
         // So the default update, `anim_time + delta_time`, lands on the entity's age.
         self.time.set(life - (self.scope.query)("delta_time").num());
-        let mut time = animation.time.as_ref().map_or(life, |p| p.run(&mut self.scope).num());
+        let mut time = animation.time.as_ref().map_or(life, |p| self.scope.num(p));
         if let Some(length) = animation.length.filter(|l| *l > 0.0) {
             time = if animation.looped { time.rem_euclid(length) } else { time.min(length) };
         }
@@ -183,15 +183,17 @@ impl EntityModels {
         };
         let mut pose = Pose::default();
         if let Some(definition) = self.kinds.get(kind) {
-            let variables = BUILT_IN.iter().map(|&(name, value)| (name.to_owned(), Value::Num(value))).collect();
-            let scope = Scope { query: &ask, variables, arrays: None, this: 0.0 };
+            let mut scope = Scope::new(&self.compiler, &ask);
+            for &(variable, value) in &self.built_in {
+                scope.set(variable, value);
+            }
             let rest = self.models.get(model as usize).map(|m| &m.mesh);
             let mut play = Play { models: self, definition, rest, scope, time: &time, lerp: &lerp, pose };
             for script in &definition.scripts {
-                script.run(&mut play.scope);
+                play.scope.run(script);
             }
             for (name, weight) in &definition.animate {
-                let weight = weight.as_ref().map_or(1.0, |w| w.run(&mut play.scope).num());
+                let weight = weight.as_ref().map_or(1.0, |w| play.scope.num(w));
                 play.play(name, weight, 0);
             }
             pose = play.pose;

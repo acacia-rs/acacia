@@ -30,6 +30,8 @@ let value = program.eval(&mut Env { host: &game, variables: &mut entity_variable
 - `Variables` is one entity's `variable.` storage; hosts write engine variables with `set` and
   `set_member`. `Scratch` holds temp variables, call arguments and the structs an evaluation makes; share
   one across evaluations.
+- A host answering with a string looks its symbol up with `Compiler::find`; for a string no source
+  spells it answers `Symbol::OTHER`, which no literal equals.
 - `Value` is `Num(f32)`, `Str(Symbol)`, `Struct(..)`, `Array(..)` (entities, for `for_each`) or
   `Entity(u32)`. Resource names (`texture.default`) are strings, lowercased with their prefix.
 - `Error` has a kind and the byte offset in the source.

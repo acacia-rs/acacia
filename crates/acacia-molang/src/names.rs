@@ -18,6 +18,10 @@ impl Names {
         id
     }
 
+    pub(crate) fn find(&self, name: &str) -> Option<u32> {
+        self.ids.get(name).copied()
+    }
+
     pub(crate) fn name(&self, id: u32) -> &str {
         &self.names[id as usize]
     }

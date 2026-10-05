@@ -13,6 +13,7 @@ rust-version = "1.98"
 [workspace.dependencies]
 acacia-auth = { version = "0.1.0", path = "crates/acacia-auth", default-features = false }
 acacia-client = { version = "0.1.0", path = "crates/acacia-client" }
+acacia-molang = { version = "0.1.0", path = "crates/acacia-molang" }
 acacia-nethernet = { version = "0.1.0", path = "crates/acacia-nethernet" }
 acacia-physics = { version = "0.1.0", path = "crates/acacia-physics" }
 acacia-proto = { version = "0.1.0", path = "crates/acacia-proto" }

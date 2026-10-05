@@ -78,8 +78,15 @@ impl Compiler {
         Symbol(self.strings.intern(text))
     }
 
+    /// The symbol of a string some compiled source spells. A host holding a string that none does
+    /// answers with [`Symbol::OTHER`]: no literal can equal it.
+    pub fn find(&self, text: &str) -> Option<Symbol> {
+        self.strings.find(text).map(Symbol)
+    }
+
+    /// Empty for [`Symbol::OTHER`].
     pub fn text(&self, symbol: Symbol) -> &str {
-        self.strings.name(symbol.0)
+        if symbol == Symbol::OTHER { "" } else { self.strings.name(symbol.0) }
     }
 
     pub fn variable(&mut self, name: &str) -> Variable {

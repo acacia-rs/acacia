@@ -148,10 +148,12 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
   expressions and the definition's `initialize`/`pre_animation`/`scale` scripts run per entity
   against the queries the caller answers (`is_baby`, `variant`, `mark_variant`...; unknown ones are 0).
   A kind whose controllers yield nothing draws its default geometry and texture.
-- **Molang** (`molang.rs`): numbers, strings, resource names, operators, ternaries, `array.x[i]`
-  (indices wrap), assignments, `math.*`. Loops, structs and `->` do not parse; such a script is
-  skipped and its variables read 0. Colour expressions (`color`, `overlay_color`) and `uv_anim` are
-  not evaluated.
+- **Molang**: compiled and evaluated by `acacia-molang`; `molang.rs` is the glue. Queries are still
+  answered by name through the caller's closure, with a string argument appended after a colon, so
+  nothing is held, worn or named (`get_equipped_item_name` is empty) and `->` finds no other entity.
+  A source that does not compile is skipped, and what it would have set reads 0; a script that does
+  not compile as a whole is compiled line by line. Query names outside acacia-molang's list are let
+  through and read 0. Colour expressions (`color`, `overlay_color`) and `uv_anim` are not evaluated.
 - **Materials**: no material file is read. Layers whose material is a blended overlay (slime shell,
   charged creeper, enchantment glint: `OVERLAY_MATERIALS`) are dropped, since the pass is opaque. The
   `sheep` material tints by the `color` query where the texture's alpha is 0.
@@ -178,7 +180,7 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
     times between states, and variables scripts accumulate are lost. `anim_time` is the entity's age
     unless `anim_time_update` gives it (walk cycles use the distance moved).
   - Keyframes interpolate linearly (`pre`/`post` honoured, no catmull-rom). `relative_to` is ignored.
-    Molang outside the supported slice reads 0.
+    Molang that does not compile reads 0.
 - **Textures**: one GPU texture per distinct set of layer textures or skin, composed on first use.
   TGA alpha marks tinted or overlaid texels, so those load opaque unless the layer is tinted;
   otherwise texels under 10% alpha are cut out.

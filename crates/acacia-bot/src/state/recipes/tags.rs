@@ -30,12 +30,6 @@ fn is_log(item: &str) -> bool {
     ["_log", "_wood", "_stem", "_hyphae"].iter().any(|s| item.ends_with(s)) || item == "bamboo_block"
 }
 
-/// Tags named by a MoLang ingredient such as `query.any_tag('minecraft:planks', 'minecraft:logs')`.
-pub(super) fn molang_tags(expression: &str) -> impl Iterator<Item = &str> {
-    let args = expression.split_once("any_tag(").map_or("", |(_, rest)| rest.split(')').next().unwrap_or(""));
-    args.split(',').map(|a| a.trim().trim_matches(|c| c == '\'' || c == '"')).filter(|a| !a.is_empty())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,12 +44,5 @@ mod tests {
         assert!(has_tag("minecraft:charcoal", "minecraft:coals"));
         assert!(has_tag("minecraft:cobbled_deepslate", "minecraft:stone_tool_materials"));
         assert!(!has_tag("minecraft:stone", "minecraft:unknown_tag"));
-    }
-
-    #[test]
-    fn molang_any_tag() {
-        let tags: Vec<_> = molang_tags("query.any_tag('minecraft:planks', \"minecraft:logs\")").collect();
-        assert_eq!(tags, ["minecraft:planks", "minecraft:logs"]);
-        assert_eq!(molang_tags("query.is_item_name_any('x')").count(), 0);
     }
 }
