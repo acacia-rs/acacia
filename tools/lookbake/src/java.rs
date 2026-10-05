@@ -69,11 +69,14 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Re
                 match () {
                     _ if faces.is_empty() => Err("no Java geometry"),
                     _ if overlaid(&faces) => Err("overlaid faces"),
-                    _ => Ok((faces, tint::of(java, dry_foliage))),
+                    _ => Ok((faces, java)),
                 }
             }),
         };
-        let block = faces.and_then(|(f, tint)| render_block(&base, &f, tint, &mut textures, &mut look.atlas).ok_or("texture missing"));
+        let block = faces.and_then(|(f, java)| {
+            let tint = |index| tint::of(java, index, dry_foliage);
+            render_block(&base, &f, &tint, state.light_emission > 0, &mut textures, &mut look.atlas).ok_or("texture missing")
+        });
         match block {
             Ok(block) => {
                 if block.shape == Shape::Cube { report.cubes += 1 } else { report.models += 1 }
@@ -114,8 +117,11 @@ fn liquid(base: &RenderBlock, textures: &mut Textures, atlas: &mut Atlas) -> Opt
     Some(RenderBlock { textures: [flow, flow, still, still, flow, flow], ..base.clone() })
 }
 
-/// `tint` colours the faces the model marks; `None` when a face's texture has no image.
-fn render_block(base: &RenderBlock, faces: &[BakedFace], tint: Tint, textures: &mut Textures, atlas: &mut Atlas) -> Option<RenderBlock> {
+/// `tint` is the colour of a tint index; `gives_light` is of the block. `None` when a face's
+/// texture has no image.
+fn render_block(base: &RenderBlock, faces: &[BakedFace], tint: &dyn Fn(i32) -> Tint, gives_light: bool, textures: &mut Textures, atlas: &mut Atlas) -> Option<RenderBlock> {
+    // ModelBlockRenderer.tesselateBlock: the first part's model decides, and never for a light.
+    let ambient_occlusion = !gives_light && faces.first().is_some_and(|f| f.ambient_occlusion);
     let mut model = Vec::with_capacity(faces.len());
     for f in faces {
         let (texture, alpha) = textures.layer(&f.texture, atlas)?;
@@ -128,10 +134,10 @@ fn render_block(base: &RenderBlock, faces: &[BakedFace], tint: Tint, textures: &
             corners: [f.positions[0], f.positions[1], f.positions[3]],
             uv: [f.uvs[0], f.uvs[1], f.uvs[3]],
             texture,
-            tint: if f.tinted { tint } else { Tint::None },
+            tint: f.tint_index.map_or(Tint::None, tint),
             material,
             shade: f.shade.map(|d| d.face()),
-            ambient_occlusion: f.ambient_occlusion,
+            ambient_occlusion,
             cull: f.cull.map(|d| d.face()),
         });
     }
@@ -186,7 +192,7 @@ mod tests {
 
     fn face(positions: [[f32; 3]; 4]) -> BakedFace {
         let uvs = positions.map(|p| Direction::South.project(p));
-        BakedFace { positions, uvs, texture: "block/poppy".into(), cull: None, tinted: false, shade: None, ambient_occlusion: true }
+        BakedFace { positions, uvs, texture: "block/poppy".into(), cull: None, tint_index: None, shade: None, ambient_occlusion: true }
     }
 
     #[test]

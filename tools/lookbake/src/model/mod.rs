@@ -4,6 +4,7 @@
 //! Java block model files (`models/<id>.json`): elements and texture slots, inherited from parents.
 
 pub mod bake;
+mod turn;
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;

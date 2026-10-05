@@ -110,8 +110,8 @@ fn compare(ours: &[BakedFace], theirs: &[&Quad], ambient_occlusion: Option<bool>
         if face.cull != quad.cullface.as_deref().and_then(Direction::named) {
             found.insert("cull side");
         }
-        if face.tinted != (quad.tint_index >= 0) {
-            found.insert("tinted or not");
+        if face.tint_index.unwrap_or(-1) != quad.tint_index {
+            found.insert("tint index");
         }
         let shaded_as = quad.shade_direction_override.as_deref().unwrap_or(&quad.direction);
         if face.shade != Direction::named(shaded_as).filter(|d| quad.shade_direction_override.is_none() || *d != Direction::Up) {
@@ -145,7 +145,7 @@ mod tests {
 
     fn ours() -> BakedFace {
         let (cull, shade) = (Some(Direction::Up), Some(Direction::Up));
-        BakedFace { positions: SQUARE, uvs: UVS, texture: "block/stone".into(), cull, tinted: false, shade, ambient_occlusion: true }
+        BakedFace { positions: SQUARE, uvs: UVS, texture: "block/stone".into(), cull, tint_index: None, shade, ambient_occlusion: true }
     }
 
     fn theirs(start: usize) -> Quad {
@@ -171,7 +171,7 @@ mod tests {
         let mut quad = theirs(0);
         (quad.uvs[0], quad.tint_index, quad.cullface) = ([1.0, 0.0], 0, None);
         let found = compare(&[ours()], &[&quad], Some(false));
-        assert_eq!(found.into_iter().collect::<Vec<_>>(), ["ambient occlusion", "cull side", "texture coordinates", "tinted or not"]);
+        assert_eq!(found.into_iter().collect::<Vec<_>>(), ["ambient occlusion", "cull side", "texture coordinates", "tint index"]);
         let mut reversed = theirs(0);
         reversed.positions.reverse();
         let found = compare(&[ours()], &[&reversed], Some(true));

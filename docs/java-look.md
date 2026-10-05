@@ -169,8 +169,6 @@ rendering: 382 states drawn as block entities, 193 with no Java geometry, and 18
 one face over another (grass block sides under their overlay). Left in J1:
 
 - Weighted variants take the first.
-- Tints are per block, where Java's are per tint index; ambient occlusion is not yet turned off
-  for blocks that give light, as Java does.
 - Leaf litter takes one dry-foliage colour for every biome; swamp grass has no noise.
 - Biome blend radius, cutout threshold and the second fog band from "Parameters". The mip cap
   needs nothing: a 16-pixel texture has four levels below it.
