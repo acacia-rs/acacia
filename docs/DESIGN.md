@@ -64,7 +64,8 @@ made before 2026-10-02 used gophertunnel's names. As a library (`Proxy`), per-pl
 packet as a lazy `RawPacket` and forward, drop or replace it; an `Injector` adds packets either way. Changed
 batches are re-encoded with acacia-session's codecs for that side. Recording stays a built-in layer ahead of the
 interceptors: it must see the codec-switching packets the proxy owns, and logs packets as they arrived
-(`crates/acacia-mitm/src/intercept.rs`).
+(`crates/acacia-mitm/src/intercept.rs`). Over RakNet a server's Transfer is followed, so the game stays on
+the proxy (`crates/acacia-mitm/src/transfer.rs`). What is left: [mitm-next.md](mitm-next.md).
 
 ## Reference implementations
 
