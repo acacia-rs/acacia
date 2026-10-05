@@ -228,7 +228,10 @@ impl Renderer {
             pass.prepare(&self.queue, &sky, self.moon_phase);
         }
         let sky_color = srgb_to_linear(sky.color);
-        let globals = Globals::new(view_proj, (cam_block, cam_frac), sky_color, self.fog_distance, &self.look, has_sky, sky.darken);
+        // Only the Nether is that low; the End hazes as the overworld does.
+        let nether = self.world().is_some_and(|w| !w.dimension().sky && w.dimension().height <= 128);
+        let haze = self.look.fog.haze.map(|h| if nether { h.nether } else { h.overworld });
+        let globals = Globals::new(view_proj, (cam_block, cam_frac), sky_color, self.fog_distance, &self.look, haze, has_sky, sky.darken);
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
         let light = self.scene.as_ref().map(|s| s.light().read());
         // Outside lit columns an entity is as bright as open sky.

@@ -36,7 +36,7 @@ struct VsOut {
     @location(1) shade: f32,
     @location(2) @interpolate(flat) layer: u32,
     @location(3) @interpolate(flat) tint_material: u32,
-    @location(4) dist: f32,
+    @location(4) dist: vec2<f32>,
     @location(5) @interpolate(flat) tint: vec3<f32>,
     // Section-local position in blocks.
     @location(6) local: vec3<f32>,

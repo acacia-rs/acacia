@@ -18,14 +18,28 @@ pub(super) struct Globals {
     fog: [f32; 4],
     /// x: distance where fog begins, y: cylinder, z: linear ([`crate::look::Fog`]).
     fog_shape: [f32; 4],
+    /// x, y: the [`crate::look::Haze`] of the dimension, zero for none.
+    haze: [f32; 4],
     /// x: ambient brightness, y: [`crate::sky::Sky::darken`].
     light: [f32; 4],
 }
 
 impl Globals {
-    /// `fog_color` is linear rgb; fog turns opaque at `fog_end` blocks.
-    pub fn new(view_proj: Mat4, (block, frac): (IVec3, Vec3), fog_color: [f32; 3], fog_end: f32, look: &Look, has_sky: bool, darken: f32) -> Globals {
+    /// `fog_color` is linear rgb; fog turns opaque at `fog_end` blocks. `haze` is where the look's
+    /// haze starts and ends here.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        view_proj: Mat4,
+        (block, frac): (IVec3, Vec3),
+        fog_color: [f32; 3],
+        fog_end: f32,
+        look: &Look,
+        haze: Option<(f32, f32)>,
+        has_sky: bool,
+        darken: f32,
+    ) -> Globals {
         let flag = |on: bool| f32::from(u8::from(on));
+        let (haze_start, haze_end) = haze.unwrap_or_default();
         Globals {
             view_proj: view_proj.to_cols_array_2d(),
             cam_block: [block.x, block.y, block.z, 0],
@@ -33,6 +47,7 @@ impl Globals {
             water: [look.water_alpha.unwrap_or(-1.0), 0.0, 0.0, 0.0],
             fog: [fog_color[0], fog_color[1], fog_color[2], fog_end],
             fog_shape: [look.fog.start(fog_end), flag(look.fog.cylinder), flag(look.fog.linear), 0.0],
+            haze: [haze_start, haze_end, 0.0, 0.0],
             light: [if has_sky { AMBIENT.0 } else { AMBIENT.1 }, darken, 0.0, 0.0],
         }
     }

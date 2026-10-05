@@ -56,10 +56,8 @@ pub struct RenderBlock {
     /// How each face's texture lies ([`crate::mesh::quad::turned`]).
     pub turns: [u8; 6],
     /// Alternatives chosen by where the block is. Neighbours see this block, whichever is drawn.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub random: Option<Arc<placed::Random>>,
     /// Model faces are shifted by it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offset: Option<placed::Offset>,
     /// Full opaque cube: hides neighbour faces and darkens ambient occlusion.
     pub occludes: bool,
