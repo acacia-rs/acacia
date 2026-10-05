@@ -127,8 +127,8 @@ mod tests {
             ambient_occlusion: true,
             cull: None,
         };
-        let air = RenderBlock { shape: Shape::None, occludes: false, ..BlockTable::cube(0) };
-        let slab = RenderBlock { shape: Shape::Model([face].into()), occludes: false, ..BlockTable::cube(0) };
+        let air = RenderBlock { shape: Shape::None, occludes: false, shades: false, ..BlockTable::cube(0) };
+        let slab = RenderBlock { shape: Shape::Model([face].into()), occludes: false, shades: false, ..BlockTable::cube(0) };
         let table = BlockTable::from_blocks(vec![air, BlockTable::cube(0), slab]);
         let mut v = Volume::filled(0);
         v.blocks[cell(5, 5, 5)] = 2;

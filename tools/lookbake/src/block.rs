@@ -57,6 +57,7 @@ pub fn render_block(base: &RenderBlock, faces: &[BakedFace], model: Vec<ModelFac
         random: None,
         offset: None,
         occludes: full && opaque,
+        shades: full && opaque,
         cull_same: base.cull_same,
         fluid: Fluid::None,
         fluid_height: 0,

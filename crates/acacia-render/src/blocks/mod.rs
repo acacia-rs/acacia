@@ -61,6 +61,8 @@ pub struct RenderBlock {
     pub offset: Option<placed::Offset>,
     /// Full opaque cube: hides neighbour faces and darkens ambient occlusion.
     pub occludes: bool,
+    /// Darkens the ambient occlusion of faces around it. Java's leaves do without occluding.
+    pub shades: bool,
     /// Faces against the same block are hidden (glass seams); leaves keep them like fancy leaves.
     pub cull_same: bool,
     pub fluid: Fluid,
@@ -132,6 +134,7 @@ impl BlockTable {
             random: None,
             offset: None,
             occludes: true,
+            shades: true,
             cull_same: true,
             fluid: Fluid::None,
             fluid_height: 0,
@@ -219,6 +222,7 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
         random: None,
         offset: None,
         occludes,
+        shades: occludes,
         cull_same: !name.ends_with("leaves"),
         fluid,
         fluid_height: (state.fluid_height() * 16.0).round() as u8,

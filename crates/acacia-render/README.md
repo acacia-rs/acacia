@@ -232,6 +232,11 @@ the `Globals` uniform and can change between frames. Plan for the rest: docs/jav
 | Haze | None | A second fog, the stronger of the two drawn: linear from the camera over 0 to 1024 blocks, 10 to 96 in the Nether (Java's environmental fog, without rain) |
 | Water opacity | 0.65 (`water_surface_transparency`) | The texture's alpha |
 | Biome blend | 3×3 columns | 5×5 (takes a remesh) |
+| Ambient occlusion | 0.45, 0.62, 0.8, 1 | 0.4, 0.6, 0.8, 1: the mean of four cells at 0.2 or 1 (`BlockModelLighter`) |
+
+Which blocks darken ambient occlusion is the block's `shades`, apart from `occludes`: a Bedrock
+bake sets both alike, a Java bake has leaves, ice and pistons darken and glass not
+(`getShadeBrightness`).
 
 ## Look pack (`lookpack/`)
 

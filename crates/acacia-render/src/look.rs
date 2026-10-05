@@ -40,6 +40,9 @@ pub struct Look {
     /// Columns to each side whose biome colours a tint averages; baked into the block table, so
     /// changing it takes a remesh.
     pub biome_blend: u8,
+    /// Brightness of a face corner by how open it is: from three darkening blocks around it
+    /// (or one on each side) to none.
+    pub ambient_occlusion: [f32; 4],
 }
 
 impl Look {
@@ -49,6 +52,7 @@ impl Look {
         fog: Fog { cylinder: false, linear: false, band: 0.3, band_limits: (0.0, f32::MAX), haze: None },
         water_alpha: Some(0.65),
         biome_blend: 1,
+        ambient_occlusion: [0.45, 0.62, 0.8, 1.0],
     };
     /// The blend is Java's default `biomeBlendRadius`; the haze its environmental fog
     /// (`fog_start_distance` and `fog_end_distance`: the defaults, and the Nether's), without
@@ -63,6 +67,8 @@ impl Look {
         },
         water_alpha: None,
         biome_blend: 2,
+        // BlockModelLighter: the mean of four cells, each 0.2 when it darkens and 1 when not.
+        ambient_occlusion: [0.4, 0.6, 0.8, 1.0],
     };
 }
 

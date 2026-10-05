@@ -43,7 +43,7 @@ fn model_vertex(q: u32, vi: u32, slot: u32) -> VsOut {
     let rel = vec3<f32>(origins[slot].xyz - g.cam_block.xyz) + pos / 16.0 - g.cam_frac.xyz;
     out.clip = g.view_proj * vec4(rel, 1.0);
     out.uv = (t0 + (t1 - t0) * c.x + (t3 - t0) * c.y) / 16.0;
-    out.shade = select(1.0, SHADE[min(kind, 5u)], kind < 6u) * AO[(look >> (4u + corner * 2u)) & 3u];
+    out.shade = select(1.0, SHADE[min(kind, 5u)], kind < 6u) * g.ao[(look >> (4u + corner * 2u)) & 3u];
     out.layer = (look >> 16u) & 4095u;
     out.tint_material = ((look >> 14u) & 3u) | (((look >> 12u) & 3u) << 2u);
     out.dist = fog_dist(rel);

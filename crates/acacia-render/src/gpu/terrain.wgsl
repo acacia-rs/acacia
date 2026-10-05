@@ -28,7 +28,6 @@ var<private> TRIANGLES: array<array<u32, 6>, 4> = array(
     array(1u, 3u, 2u, 1u, 0u, 3u),
 );
 var<private> CORNERS: array<vec2<f32>, 4> = array(vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0));
-var<private> AO: array<f32, 4> = array(0.45, 0.62, 0.8, 1.0);
 
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
@@ -111,7 +110,7 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     var out: VsOut;
     out.clip = g.view_proj * vec4(rel, 1.0);
     out.uv = uv;
-    out.shade = SHADE[face] * select(AO[(w2 >> (corner * 2u)) & 3u], 1.0, liquid);
+    out.shade = SHADE[face] * select(g.ao[(w2 >> (corner * 2u)) & 3u], 1.0, liquid);
     out.layer = (w1 >> 18u) & 4095u;
     out.tint_material = ((w1 >> 30u) & 3u) | (((w2 >> 9u) & 3u) << 2u);
     out.dist = fog_dist(rel);

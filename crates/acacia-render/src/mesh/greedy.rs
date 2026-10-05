@@ -76,7 +76,7 @@ pub(super) fn corner_ao(ctx: &Ctx, n: [i32; 3], face: u8) -> [u8; 4] {
         let mut q = n;
         q[ua] += du;
         q[va] += dv;
-        u8::from(ctx.block(q).occludes)
+        u8::from(ctx.block(q).shades)
     };
     [(-1, -1), (1, -1), (1, 1), (-1, 1)].map(|(du, dv)| {
         let (s1, s2, c) = (occ(du, 0), occ(0, dv), occ(du, dv));
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn a_block_with_alternatives_draws_the_one_its_position_picks() {
-        let air = RenderBlock { shape: Shape::None, occludes: false, ..BlockTable::cube(0) };
+        let air = RenderBlock { shape: Shape::None, occludes: false, shades: false, ..BlockTable::cube(0) };
         let turned = RenderBlock { turns: [0, 0, 3, 0, 0, 0], ..BlockTable::cube(2) };
         let either = Random::Whole(Weighted(Box::new([(1, BlockTable::cube(1)), (1, turned)])));
         let stone = RenderBlock { random: Some(Arc::new(either)), ..BlockTable::cube(1) };
