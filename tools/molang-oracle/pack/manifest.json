@@ -1,0 +1,21 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "molang oracle",
+    "description": "Evaluates Molang expressions into an entity property and logs the values",
+    "uuid": "5e0c1a7e-0a1b-4c2d-8e3f-6d2b9c4a1f01",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 26, 0]
+  },
+  "modules": [
+    { "type": "data", "uuid": "5e0c1a7e-0a1b-4c2d-8e3f-6d2b9c4a1f02", "version": [1, 0, 0] },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "5e0c1a7e-0a1b-4c2d-8e3f-6d2b9c4a1f03",
+      "version": [1, 0, 0],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [{ "module_name": "@minecraft/server", "version": "2.0.0" }]
+}

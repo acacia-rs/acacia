@@ -44,6 +44,9 @@ acacia-viewer             (app) world viewer: a bot on a tokio thread, winit win
  └─ acacia-render         wgpu terrain renderer over acacia-world (no network): pack loading, meshing, drawing
 acacia-mitm               proxy library (record, drop, rewrite, inject) and recording CLI for vanilla-client
                           captures over RakNet or NetherNet direct connect, local BDS or (`--online`) real servers
+acacia-molang             Molang compiler and evaluator, no dependencies; expected values come from BDS
+                          (tools/molang-oracle). Used by acacia-render (entity looks and animations)
+                          and acacia-bot (MoLang recipe ingredients)
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
 tools/lookbake            bakes a look pack for acacia-render from a resource pack (docs/java-look.md)
 tools/capdiff             compares what two clients sent in captures (vanilla vs bot): order, delays, cadence, fields
