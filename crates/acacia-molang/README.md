@@ -105,8 +105,14 @@ expression and for the vanilla corpus. What made the difference, in case it is u
   a literal costs.
 - A plain assignment skips the struct bookkeeping (`Store::set_plain`).
 
-What is left is the cost of walking a tree, about 2-3 ns per node. A flat bytecode would be the next
-step if that ever matters.
+What is left is the cost of walking a tree, about 2-3 ns per node, plus the host's queries and the
+C library's trigonometry, which dominate real expressions.
+
+A flat bytecode was tried (2026-10-05) and dropped: a stack machine over tagged values, falling back
+to the walk for rare nodes, agreed with BDS everywhere but ran between 0.75 and 1.17 times the walk's
+speed. The walk already keeps numbers in registers from node to node; a value stack puts each one
+through memory and a tag check. Only a statically typed number-only instruction set could beat the
+walk, for an estimated 15-25% on arithmetic-heavy expressions.
 
 ## Testing
 
