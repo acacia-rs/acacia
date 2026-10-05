@@ -30,7 +30,8 @@ pub enum TransportKind {
     #[default]
     Auto,
     RakNet,
-    /// WebRTC direct connect; needs an online login.
+    /// WebRTC direct connect. An offline login offers a self-signed identity, which BDS refuses
+    /// (error 37) and a host without online auth may accept.
     NetherNet,
 }
 
@@ -64,6 +65,7 @@ pub struct ClientBuilder {
     chunk_radius: i32,
     auto_respawn: bool,
     initialize_on_spawn: bool,
+    strict: bool,
     filter: PacketFilter,
     event_capacity: usize,
     login_timeout: Duration,
@@ -85,6 +87,7 @@ impl ClientBuilder {
             chunk_radius: 2,
             auto_respawn: false,
             initialize_on_spawn: true,
+            strict: false,
             filter: PacketFilter::all(),
             event_capacity: 256,
             login_timeout: Duration::from_secs(30),
@@ -150,6 +153,13 @@ impl ClientBuilder {
         self
     }
 
+    /// Strict mode: every server packet is fully decoded, and what a strict peer would reject
+    /// arrives as [`crate::Event::Violation`] whatever the packet filter (docs/testing.md).
+    pub fn strict(mut self, enabled: bool) -> Self {
+        self.strict = enabled;
+        self
+    }
+
     /// Requested view distance in chunks; small values cut most of an idle bot's inbound traffic.
     pub fn chunk_radius(mut self, radius: i32) -> Self {
         self.chunk_radius = radius;
@@ -210,18 +220,24 @@ impl ClientBuilder {
 
     /// Connects, logs in and resolves once the player has spawned.
     pub async fn connect(self) -> Result<Client, ConnectError> {
+        // Made here, not with the Login: a NetherNet offer is signed by the same key.
+        let offline_key = SigningKey::random(&mut rand_core::OsRng);
         let net_identity = match &self.login {
             Login::Online { credentials, key } => {
                 credentials.multiplayer_token.clone().map(|token| NetIdentity::multiplayer(key.clone(), token))
             }
-            Login::Offline { .. } => None,
+            Login::Offline { .. } => Some(NetIdentity::self_signed(offline_key.clone())),
+        };
+        let transport = match (&self.login, self.transport) {
+            (Login::Offline { .. }, TransportKind::Auto) => TransportKind::RakNet,
+            (_, kind) => kind,
         };
         let route = match &self.via {
             Via::Signaling(target) => route::open_signaling(target, self.proxy.as_ref(), net_identity.as_ref()).await?,
             Via::Lan(server) => route::open_lan(server, net_identity.as_ref()).await?,
             Via::Address => {
                 let addr = resolve(&self.server).await?;
-                route::open(&self.server, addr, self.proxy.as_ref(), self.transport, net_identity.as_ref()).await?
+                route::open(&self.server, addr, self.proxy.as_ref(), transport, net_identity.as_ref()).await?
             }
         };
         let addr = route.remote;
@@ -230,7 +246,7 @@ impl ClientBuilder {
             Login::Online { credentials, .. } => format!("xbox:{}", credentials.xuid),
         };
         let blob_store = self.blob_cache.open(&account, self.blob_payloads);
-        let (key, login_request, identity) = build_login(self.login, &route.server_address, self.nonce);
+        let (key, login_request, identity) = build_login(self.login, offline_key, &route.server_address, self.nonce);
         let cfg = SessionConfig {
             link: route.link,
             key,
@@ -240,6 +256,7 @@ impl ClientBuilder {
             initialize_on_spawn: self.initialize_on_spawn,
             blob_store: blob_store.clone(),
             pack_store: pack_cache::open(self.pack_cache_dir.as_deref(), &account),
+            strict: self.strict,
         };
         let session = Session::new(cfg, addr, Instant::now());
 
@@ -255,6 +272,7 @@ impl ClientBuilder {
             spawned: Some(spawn_tx),
             filter: self.filter,
             capacity: self.event_capacity,
+            proxy: self.proxy.clone(),
             _signaling: route.keepalive,
             _friend_session: self.friend_session,
         };

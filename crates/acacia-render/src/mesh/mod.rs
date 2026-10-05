@@ -2,21 +2,34 @@
 //! translucent passes.
 
 mod greedy;
+mod liquid;
+pub mod model;
 pub mod quad;
 mod shapes;
+pub mod visibility;
 pub mod volume;
 
 pub use quad::Quad;
 pub use volume::Volume;
 
+use std::sync::Arc;
+
 use crate::biome::BiomeColors;
+use crate::blocks::model::BlockModel;
 use crate::blocks::{BlockTable, RenderBlock, Tint};
+use crate::light::LightVolume;
 use quad::{Surface, quantize};
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct SectionMesh {
     pub solid: Vec<Quad>,
     pub translucent: Vec<Quad>,
+    /// Gathered with the mesh by the workers; `None` for empty meshes.
+    pub light: Option<LightVolume>,
+    /// Face pairs that see each other through the section ([`visibility`]).
+    pub visibility: u16,
+    /// Blocks drawn as entity models, by section-local position.
+    pub models: Vec<([u8; 3], Arc<BlockModel>)>,
 }
 
 impl SectionMesh {
@@ -27,9 +40,10 @@ impl SectionMesh {
 
 pub fn mesh_section(volume: &Volume, table: &BlockTable, biomes: &BiomeColors) -> SectionMesh {
     let ctx = Ctx { v: volume, table, biomes };
-    let mut out = SectionMesh::default();
+    let mut out = SectionMesh { visibility: visibility::section_visibility(volume, table), ..Default::default() };
     greedy::cubes(&ctx, &mut out);
     shapes::others(&ctx, &mut out);
+    model::sort_for_blending(&mut out.translucent);
     out
 }
 

@@ -6,6 +6,505 @@ use crate::types;
 use bytes::{Bytes, BytesMut};
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct UpdateSubchunkBlocks {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub blocks: Vec<types::BlockUpdate>,
+    pub extra: Vec<types::BlockUpdate>,
+}
+impl UpdateSubchunkBlocks {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_x = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
+            .map_err(|e| e.at("UpdateSubchunkBlocks.x"))?;
+        let f_y = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
+            .map_err(|e| e.at("UpdateSubchunkBlocks.y"))?;
+        let f_z = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
+            .map_err(|e| e.at("UpdateSubchunkBlocks.z"))?;
+        let f_blocks = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                let mut v = Vec::with_capacity(cap(n, r));
+                for _ in 0..n {
+                    v.push(types::BlockUpdate::read(r)?);
+                }
+                v
+            })
+        })()
+        .map_err(|e| e.at("UpdateSubchunkBlocks.blocks"))?;
+        let f_extra = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                let mut v = Vec::with_capacity(cap(n, r));
+                for _ in 0..n {
+                    v.push(types::BlockUpdate::read(r)?);
+                }
+                v
+            })
+        })()
+        .map_err(|e| e.at("UpdateSubchunkBlocks.extra"))?;
+        Ok(Self {
+            x: f_x,
+            y: f_y,
+            z: f_z,
+            blocks: f_blocks,
+            extra: f_extra,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_zigzag32(w, self.x);
+        write_zigzag32(w, self.y);
+        write_zigzag32(w, self.z);
+        write_varint(w, self.blocks.len() as u32);
+        for x0 in self.blocks.iter() {
+            x0.write(w);
+        }
+        write_varint(w, self.extra.len() as u32);
+        for x0 in self.extra.iter() {
+            x0.write(w);
+        }
+    }
+}
+impl crate::Packet for UpdateSubchunkBlocks {
+    const ID: u32 = 172;
+    const NAME: &'static str = "update_subchunk_blocks";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PhotoInfoRequest {
+    pub photo_id: i64,
+}
+impl PhotoInfoRequest {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_photo_id = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
+            .map_err(|e| e.at("PhotoInfoRequest.photo_id"))?;
+        Ok(Self {
+            photo_id: f_photo_id,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_zigzag64(w, self.photo_id);
+    }
+}
+impl crate::Packet for PhotoInfoRequest {
+    const ID: u32 = 173;
+    const NAME: &'static str = "photo_info_request";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Subchunk {
+    pub cache_enabled: bool,
+    pub dimension: i32,
+    pub origin: types::Vec3li,
+    pub entries: types::SubChunkEntry,
+}
+impl Subchunk {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_cache_enabled = (|| -> Result<_> { Ok(read_bool(r)?) })()
+            .map_err(|e| e.at("Subchunk.cache_enabled"))?;
+        let f_dimension = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
+            .map_err(|e| e.at("Subchunk.dimension"))?;
+        let f_origin = (|| -> Result<_> { Ok(types::Vec3li::read(r)?) })()
+            .map_err(|e| e.at("Subchunk.origin"))?;
+        let f_entries = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                let mut v = Vec::with_capacity(cap(n, r));
+                for _ in 0..n {
+                    v.push({
+                        let f_dx = read_i8(r)?;
+                        let f_dy = read_i8(r)?;
+                        let f_dz = read_i8(r)?;
+                        let f_result = types::SubChunkEntryItemResult::read(r)?;
+                        let f_payload = if read_bool(r)? {
+                            Some({
+                                let n = to_len(read_varint(r)?)?;
+                                read_bytes(r, n)?
+                            })
+                        } else {
+                            None
+                        };
+                        let f_heightmap_type = types::HeightMapDataType::read(r)?;
+                        let f_heightmap = if read_bool(r)? {
+                            Some([
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                            ])
+                        } else {
+                            None
+                        };
+                        let f_render_heightmap_type = types::HeightMapDataType::read(r)?;
+                        let f_render_heightmap = if read_bool(r)? {
+                            Some([
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                                {
+                                    let n = to_len(read_varint(r)?)?;
+                                    let mut v = Vec::with_capacity(cap(n, r));
+                                    for _ in 0..n {
+                                        v.push(read_i8(r)?);
+                                    }
+                                    v
+                                },
+                            ])
+                        } else {
+                            None
+                        };
+                        let f_blob_id = if read_bool(r)? {
+                            Some(read_lu64(r)?)
+                        } else {
+                            None
+                        };
+                        types::SubChunkEntryItem {
+                            dx: f_dx,
+                            dy: f_dy,
+                            dz: f_dz,
+                            result: f_result,
+                            payload: f_payload,
+                            heightmap_type: f_heightmap_type,
+                            heightmap: f_heightmap,
+                            render_heightmap_type: f_render_heightmap_type,
+                            render_heightmap: f_render_heightmap,
+                            blob_id: f_blob_id,
+                        }
+                    });
+                }
+                v
+            })
+        })()
+        .map_err(|e| e.at("Subchunk.entries"))?;
+        Ok(Self {
+            cache_enabled: f_cache_enabled,
+            dimension: f_dimension,
+            origin: f_origin,
+            entries: f_entries,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_bool(w, self.cache_enabled);
+        write_zigzag32(w, self.dimension);
+        self.origin.write(w);
+        write_varint(w, self.entries.len() as u32);
+        for x0 in self.entries.iter() {
+            {
+                let x1 = x0;
+                write_i8(w, x1.dx);
+                write_i8(w, x1.dy);
+                write_i8(w, x1.dz);
+                x1.result.write(w);
+                match &x1.payload {
+                    Some(x2) => {
+                        write_bool(w, true);
+                        write_varint(w, x2.len() as u32);
+                        write_slice(w, &x2[..]);
+                    }
+                    None => write_bool(w, false),
+                }
+                x1.heightmap_type.write(w);
+                match &x1.heightmap {
+                    Some(x2) => {
+                        write_bool(w, true);
+                        for x3 in x2.iter() {
+                            write_varint(w, x3.len() as u32);
+                            for x4 in x3.iter() {
+                                write_i8(w, *x4);
+                            }
+                        }
+                    }
+                    None => write_bool(w, false),
+                }
+                x1.render_heightmap_type.write(w);
+                match &x1.render_heightmap {
+                    Some(x2) => {
+                        write_bool(w, true);
+                        for x3 in x2.iter() {
+                            write_varint(w, x3.len() as u32);
+                            for x4 in x3.iter() {
+                                write_i8(w, *x4);
+                            }
+                        }
+                    }
+                    None => write_bool(w, false),
+                }
+                match &x1.blob_id {
+                    Some(x2) => {
+                        write_bool(w, true);
+                        write_lu64(w, *x2);
+                    }
+                    None => write_bool(w, false),
+                }
+            }
+        }
+    }
+}
+impl crate::Packet for Subchunk {
+    const ID: u32 = 174;
+    const NAME: &'static str = "subchunk";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct SubchunkRequest {
     pub dimension: i32,
     pub requests: Vec<types::Vec3i8>,
@@ -210,7 +709,14 @@ impl CodeBuilderSourceOperation {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "CodeBuilderSourceOperation",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -242,7 +748,14 @@ impl CodeBuilderSourceCategory {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "CodeBuilderSourceCategory",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -283,7 +796,14 @@ impl CodeBuilderSourceCodeStatus {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "CodeBuilderSourceCodeStatus",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -439,7 +959,14 @@ impl DimensionDataDefinitionsItemGenerator {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "DimensionDataDefinitionsItemGenerator",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -574,7 +1101,14 @@ impl AgentActionActionType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "AgentActionActionType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -812,7 +1346,14 @@ impl RequestAbilityAbility {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "RequestAbilityAbility",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -841,7 +1382,14 @@ impl RequestAbilityValueType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "RequestAbilityValueType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1356,7 +1904,14 @@ impl GameTestRequestRotation {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "GameTestRequestRotation",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1617,7 +2172,14 @@ impl UnlockedRecipesUnlockType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_lu32(r)? as i64))
+        let v = Self::from_raw(read_lu32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "UnlockedRecipesUnlockType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_lu32(w, self.to_raw() as u32)
@@ -2256,480 +2818,16 @@ impl AgentAnimationAnimation {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "AgentAnimationAnimation",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RefreshEntitlements {}
-impl RefreshEntitlements {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self {})
-    }
-    pub fn write(&self, w: &mut BytesMut) {}
-}
-impl crate::Packet for RefreshEntitlements {
-    const ID: u32 = 305;
-    const NAME: &'static str = "refresh_entitlements";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ToggleCrafterSlotRequest {
-    pub position: types::Vec3li,
-    pub slot: u8,
-    pub disabled: bool,
-}
-impl ToggleCrafterSlotRequest {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_position = (|| -> Result<_> { Ok(types::Vec3li::read(r)?) })()
-            .map_err(|e| e.at("ToggleCrafterSlotRequest.position"))?;
-        let f_slot = (|| -> Result<_> { Ok(read_u8(r)?) })()
-            .map_err(|e| e.at("ToggleCrafterSlotRequest.slot"))?;
-        let f_disabled = (|| -> Result<_> { Ok(read_bool(r)?) })()
-            .map_err(|e| e.at("ToggleCrafterSlotRequest.disabled"))?;
-        Ok(Self {
-            position: f_position,
-            slot: f_slot,
-            disabled: f_disabled,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        self.position.write(w);
-        write_u8(w, self.slot);
-        write_bool(w, self.disabled);
-    }
-}
-impl crate::Packet for ToggleCrafterSlotRequest {
-    const ID: u32 = 306;
-    const NAME: &'static str = "toggle_crafter_slot_request";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SetPlayerInventoryOptions {
-    pub left_tab: SetPlayerInventoryOptionsLeftTab,
-    pub right_tab: SetPlayerInventoryOptionsRightTab,
-    pub filtering: bool,
-    pub layout: SetPlayerInventoryOptionsLayout,
-    pub crafting_layout: SetPlayerInventoryOptionsCraftingLayout,
-}
-impl SetPlayerInventoryOptions {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_left_tab = (|| -> Result<_> { Ok(SetPlayerInventoryOptionsLeftTab::read(r)?) })()
-            .map_err(|e| e.at("SetPlayerInventoryOptions.left_tab"))?;
-        let f_right_tab = (|| -> Result<_> { Ok(SetPlayerInventoryOptionsRightTab::read(r)?) })()
-            .map_err(|e| e.at("SetPlayerInventoryOptions.right_tab"))?;
-        let f_filtering = (|| -> Result<_> { Ok(read_bool(r)?) })()
-            .map_err(|e| e.at("SetPlayerInventoryOptions.filtering"))?;
-        let f_layout = (|| -> Result<_> { Ok(SetPlayerInventoryOptionsLayout::read(r)?) })()
-            .map_err(|e| e.at("SetPlayerInventoryOptions.layout"))?;
-        let f_crafting_layout =
-            (|| -> Result<_> { Ok(SetPlayerInventoryOptionsCraftingLayout::read(r)?) })()
-                .map_err(|e| e.at("SetPlayerInventoryOptions.crafting_layout"))?;
-        Ok(Self {
-            left_tab: f_left_tab,
-            right_tab: f_right_tab,
-            filtering: f_filtering,
-            layout: f_layout,
-            crafting_layout: f_crafting_layout,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        self.left_tab.write(w);
-        self.right_tab.write(w);
-        write_bool(w, self.filtering);
-        self.layout.write(w);
-        self.crafting_layout.write(w);
-    }
-}
-impl crate::Packet for SetPlayerInventoryOptions {
-    const ID: u32 = 307;
-    const NAME: &'static str = "set_player_inventory_options";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SetPlayerInventoryOptionsLeftTab {
-    None,
-    Construction,
-    Equipment,
-    Items,
-    Nature,
-    Search,
-    Survival,
-    Unknown(i64),
-}
-impl SetPlayerInventoryOptionsLeftTab {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::None,
-            1 => Self::Construction,
-            2 => Self::Equipment,
-            3 => Self::Items,
-            4 => Self::Nature,
-            5 => Self::Search,
-            6 => Self::Survival,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::None => 0,
-            Self::Construction => 1,
-            Self::Equipment => 2,
-            Self::Items => 3,
-            Self::Nature => 4,
-            Self::Search => 5,
-            Self::Survival => 6,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag32(w, self.to_raw() as i32)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SetPlayerInventoryOptionsRightTab {
-    None,
-    Fullscreen,
-    Crafting,
-    Armor,
-    Unknown(i64),
-}
-impl SetPlayerInventoryOptionsRightTab {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::None,
-            1 => Self::Fullscreen,
-            2 => Self::Crafting,
-            3 => Self::Armor,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::None => 0,
-            Self::Fullscreen => 1,
-            Self::Crafting => 2,
-            Self::Armor => 3,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag32(w, self.to_raw() as i32)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SetPlayerInventoryOptionsLayout {
-    None,
-    InventoryOnly,
-    Default,
-    RecipeBookOnly,
-    Unknown(i64),
-}
-impl SetPlayerInventoryOptionsLayout {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::None,
-            1 => Self::InventoryOnly,
-            2 => Self::Default,
-            3 => Self::RecipeBookOnly,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::None => 0,
-            Self::InventoryOnly => 1,
-            Self::Default => 2,
-            Self::RecipeBookOnly => 3,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag32(w, self.to_raw() as i32)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SetPlayerInventoryOptionsCraftingLayout {
-    None,
-    InventoryOnly,
-    Default,
-    RecipeBookOnly,
-    Unknown(i64),
-}
-impl SetPlayerInventoryOptionsCraftingLayout {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::None,
-            1 => Self::InventoryOnly,
-            2 => Self::Default,
-            3 => Self::RecipeBookOnly,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::None => 0,
-            Self::InventoryOnly => 1,
-            Self::Default => 2,
-            Self::RecipeBookOnly => 3,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag32(w, self.to_raw() as i32)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SetHud {
-    pub elements: Vec<types::Element>,
-    pub visibility: SetHudVisibility,
-}
-impl SetHud {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_elements = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                let mut v = Vec::with_capacity(cap(n, r));
-                for _ in 0..n {
-                    v.push(types::Element::read(r)?);
-                }
-                v
-            })
-        })()
-        .map_err(|e| e.at("SetHud.elements"))?;
-        let f_visibility = (|| -> Result<_> { Ok(SetHudVisibility::read(r)?) })()
-            .map_err(|e| e.at("SetHud.visibility"))?;
-        Ok(Self {
-            elements: f_elements,
-            visibility: f_visibility,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_varint(w, self.elements.len() as u32);
-        for x0 in self.elements.iter() {
-            x0.write(w);
-        }
-        self.visibility.write(w);
-    }
-}
-impl crate::Packet for SetHud {
-    const ID: u32 = 308;
-    const NAME: &'static str = "set_hud";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SetHudVisibility {
-    Hide,
-    Reset,
-    Unknown(i64),
-}
-impl SetHudVisibility {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::Hide,
-            1 => Self::Reset,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::Hide => 0,
-            Self::Reset => 1,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_varint(w, self.to_raw() as u32)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AwardAchievement {
-    pub achievement_id: i32,
-}
-impl AwardAchievement {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_achievement_id = (|| -> Result<_> { Ok(read_li32(r)?) })()
-            .map_err(|e| e.at("AwardAchievement.achievement_id"))?;
-        Ok(Self {
-            achievement_id: f_achievement_id,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_li32(w, self.achievement_id);
-    }
-}
-impl crate::Packet for AwardAchievement {
-    const ID: u32 = 309;
-    const NAME: &'static str = "award_achievement";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ServerPostMove {
-    pub position: types::Vec3f,
-}
-impl ServerPostMove {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_position = (|| -> Result<_> { Ok(types::Vec3f::read(r)?) })()
-            .map_err(|e| e.at("ServerPostMove.position"))?;
-        Ok(Self {
-            position: f_position,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        self.position.write(w);
-    }
-}
-impl crate::Packet for ServerPostMove {
-    const ID: u32 = 16;
-    const NAME: &'static str = "server_post_move";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ClientboundCloseForm {}
-impl ClientboundCloseForm {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self {})
-    }
-    pub fn write(&self, w: &mut BytesMut) {}
-}
-impl crate::Packet for ClientboundCloseForm {
-    const ID: u32 = 310;
-    const NAME: &'static str = "clientbound_close_form";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ServerboundLoadingScreen {
-    pub r#type: i32,
-    pub loading_screen_id: Option<u32>,
-}
-impl ServerboundLoadingScreen {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_type = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
-            .map_err(|e| e.at("ServerboundLoadingScreen.type"))?;
-        let f_loading_screen_id = (|| -> Result<_> {
-            Ok(if read_bool(r)? {
-                Some(read_lu32(r)?)
-            } else {
-                None
-            })
-        })()
-        .map_err(|e| e.at("ServerboundLoadingScreen.loading_screen_id"))?;
-        Ok(Self {
-            r#type: f_type,
-            loading_screen_id: f_loading_screen_id,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag32(w, self.r#type);
-        match &self.loading_screen_id {
-            Some(x0) => {
-                write_bool(w, true);
-                write_lu32(w, *x0);
-            }
-            None => write_bool(w, false),
-        }
-    }
-}
-impl crate::Packet for ServerboundLoadingScreen {
-    const ID: u32 = 312;
-    const NAME: &'static str = "serverbound_loading_screen";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct JigsawStructureData {
-    pub structure_data: crate::nbt::Nbt,
-}
-impl JigsawStructureData {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_structure_data =
-            (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
-                .map_err(|e| e.at("JigsawStructureData.structure_data"))?;
-        Ok(Self {
-            structure_data: f_structure_data,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        crate::nbt::write::<crate::nbt::Network>(w, &self.structure_data);
-    }
-}
-impl crate::Packet for JigsawStructureData {
-    const ID: u32 = 313;
-    const NAME: &'static str = "jigsaw_structure_data";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
     }
 }

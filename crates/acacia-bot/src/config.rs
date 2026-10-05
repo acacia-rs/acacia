@@ -11,6 +11,7 @@ use crate::world::SharedWorlds;
 pub struct BotConfig {
     /// Which trackers run. Entity tracking is off by default: on busy servers it is most of the
     /// decode work (a busy Geyser server sends ~300 entity moves/s), and AFK bots rarely need it.
+    /// Skins are off too: they are only worth their memory to something that draws players.
     pub trackers: Trackers,
     /// Typed events [`crate::Bot::next`] returns (default: none).
     pub events: Events,
@@ -29,6 +30,9 @@ pub struct BotConfig {
     pub record: Option<PathBuf>,
     /// Eat when hungry (default off), moving food into the hotbar if needed; also [`crate::Bot::set_auto_eat`].
     pub auto_eat: Option<AutoEat>,
+    /// Strict mode (default off): [`crate::BotEvent::Violation`] for every server packet a strict
+    /// peer would reject and every chunk that does not decode (docs/testing.md).
+    pub strict: bool,
 }
 
 impl Default for BotConfig {
@@ -43,6 +47,7 @@ impl Default for BotConfig {
             auto_respawn: true,
             record: None,
             auto_eat: None,
+            strict: false,
         }
     }
 }

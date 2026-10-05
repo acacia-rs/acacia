@@ -6,6 +6,318 @@ use crate::types;
 use bytes::{Bytes, BytesMut};
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct MobArmorEquipment {
+    pub runtime_entity_id: u64,
+    pub helmet: types::ItemV4,
+    pub chestplate: types::ItemV4,
+    pub leggings: types::ItemV4,
+    pub boots: types::ItemV4,
+    pub body: types::ItemV4,
+}
+impl MobArmorEquipment {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_runtime_entity_id = (|| -> Result<_> { Ok(read_varint64(r)?) })()
+            .map_err(|e| e.at("MobArmorEquipment.runtime_entity_id"))?;
+        let f_helmet = (|| -> Result<_> { Ok(types::ItemV4::read(r)?) })()
+            .map_err(|e| e.at("MobArmorEquipment.helmet"))?;
+        let f_chestplate = (|| -> Result<_> { Ok(types::ItemV4::read(r)?) })()
+            .map_err(|e| e.at("MobArmorEquipment.chestplate"))?;
+        let f_leggings = (|| -> Result<_> { Ok(types::ItemV4::read(r)?) })()
+            .map_err(|e| e.at("MobArmorEquipment.leggings"))?;
+        let f_boots = (|| -> Result<_> { Ok(types::ItemV4::read(r)?) })()
+            .map_err(|e| e.at("MobArmorEquipment.boots"))?;
+        let f_body = (|| -> Result<_> { Ok(types::ItemV4::read(r)?) })()
+            .map_err(|e| e.at("MobArmorEquipment.body"))?;
+        Ok(Self {
+            runtime_entity_id: f_runtime_entity_id,
+            helmet: f_helmet,
+            chestplate: f_chestplate,
+            leggings: f_leggings,
+            boots: f_boots,
+            body: f_body,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_varint64(w, self.runtime_entity_id);
+        self.helmet.write(w);
+        self.chestplate.write(w);
+        self.leggings.write(w);
+        self.boots.write(w);
+        self.body.write(w);
+    }
+}
+impl crate::Packet for MobArmorEquipment {
+    const ID: u32 = 32;
+    const NAME: &'static str = "mob_armor_equipment";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Interact {
+    pub action_id: InteractActionId,
+    pub target_entity_id: u64,
+    pub has_position: bool,
+    pub position: Option<types::Vec3f>,
+}
+impl Interact {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_action_id = (|| -> Result<_> { Ok(InteractActionId::read(r)?) })()
+            .map_err(|e| e.at("Interact.action_id"))?;
+        let f_target_entity_id = (|| -> Result<_> { Ok(read_varint64(r)?) })()
+            .map_err(|e| e.at("Interact.target_entity_id"))?;
+        let f_has_position =
+            (|| -> Result<_> { Ok(read_bool(r)?) })().map_err(|e| e.at("Interact.has_position"))?;
+        let f_position = (|| -> Result<_> {
+            Ok(if (f_has_position == true) {
+                Some(types::Vec3f::read(r)?)
+            } else {
+                None
+            })
+        })()
+        .map_err(|e| e.at("Interact.position"))?;
+        Ok(Self {
+            action_id: f_action_id,
+            target_entity_id: f_target_entity_id,
+            has_position: f_has_position,
+            position: f_position,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        self.action_id.write(w);
+        write_varint64(w, self.target_entity_id);
+        write_bool(w, self.has_position);
+        if let Some(x0) = &self.position {
+            x0.write(w);
+        }
+    }
+}
+impl crate::Packet for Interact {
+    const ID: u32 = 33;
+    const NAME: &'static str = "interact";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InteractActionId {
+    LeaveVehicle,
+    MouseOverEntity,
+    NpcOpen,
+    OpenInventory,
+    Unknown(i64),
+}
+impl InteractActionId {
+    pub fn from_raw(v: i64) -> Self {
+        match v {
+            3 => Self::LeaveVehicle,
+            4 => Self::MouseOverEntity,
+            5 => Self::NpcOpen,
+            6 => Self::OpenInventory,
+            v => Self::Unknown(v),
+        }
+    }
+    pub fn to_raw(self) -> i64 {
+        match self {
+            Self::LeaveVehicle => 3,
+            Self::MouseOverEntity => 4,
+            Self::NpcOpen => 5,
+            Self::OpenInventory => 6,
+            Self::Unknown(v) => v,
+        }
+    }
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "InteractActionId",
+                value,
+            });
+        }
+        Ok(v)
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_u8(w, self.to_raw() as u8)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlockPickRequest {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub add_user_data: bool,
+    pub selected_slot: u8,
+}
+impl BlockPickRequest {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_x = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
+            .map_err(|e| e.at("BlockPickRequest.x"))?;
+        let f_y = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
+            .map_err(|e| e.at("BlockPickRequest.y"))?;
+        let f_z = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
+            .map_err(|e| e.at("BlockPickRequest.z"))?;
+        let f_add_user_data = (|| -> Result<_> { Ok(read_bool(r)?) })()
+            .map_err(|e| e.at("BlockPickRequest.add_user_data"))?;
+        let f_selected_slot = (|| -> Result<_> { Ok(read_u8(r)?) })()
+            .map_err(|e| e.at("BlockPickRequest.selected_slot"))?;
+        Ok(Self {
+            x: f_x,
+            y: f_y,
+            z: f_z,
+            add_user_data: f_add_user_data,
+            selected_slot: f_selected_slot,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_zigzag32(w, self.x);
+        write_zigzag32(w, self.y);
+        write_zigzag32(w, self.z);
+        write_bool(w, self.add_user_data);
+        write_u8(w, self.selected_slot);
+    }
+}
+impl crate::Packet for BlockPickRequest {
+    const ID: u32 = 34;
+    const NAME: &'static str = "block_pick_request";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntityPickRequest {
+    pub runtime_entity_id: u64,
+    pub selected_slot: u8,
+    pub with_data: bool,
+}
+impl EntityPickRequest {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_runtime_entity_id = (|| -> Result<_> { Ok(read_lu64(r)?) })()
+            .map_err(|e| e.at("EntityPickRequest.runtime_entity_id"))?;
+        let f_selected_slot = (|| -> Result<_> { Ok(read_u8(r)?) })()
+            .map_err(|e| e.at("EntityPickRequest.selected_slot"))?;
+        let f_with_data = (|| -> Result<_> { Ok(read_bool(r)?) })()
+            .map_err(|e| e.at("EntityPickRequest.with_data"))?;
+        Ok(Self {
+            runtime_entity_id: f_runtime_entity_id,
+            selected_slot: f_selected_slot,
+            with_data: f_with_data,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_lu64(w, self.runtime_entity_id);
+        write_u8(w, self.selected_slot);
+        write_bool(w, self.with_data);
+    }
+}
+impl crate::Packet for EntityPickRequest {
+    const ID: u32 = 35;
+    const NAME: &'static str = "entity_pick_request";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerAction {
+    pub runtime_entity_id: u64,
+    pub action: types::Action,
+    pub position: types::BlockCoordinates,
+    pub result_position: types::BlockCoordinates,
+    pub face: i32,
+}
+impl PlayerAction {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_runtime_entity_id = (|| -> Result<_> { Ok(read_varint64(r)?) })()
+            .map_err(|e| e.at("PlayerAction.runtime_entity_id"))?;
+        let f_action = (|| -> Result<_> { Ok(types::Action::read(r)?) })()
+            .map_err(|e| e.at("PlayerAction.action"))?;
+        let f_position = (|| -> Result<_> { Ok(types::BlockCoordinates::read(r)?) })()
+            .map_err(|e| e.at("PlayerAction.position"))?;
+        let f_result_position = (|| -> Result<_> { Ok(types::BlockCoordinates::read(r)?) })()
+            .map_err(|e| e.at("PlayerAction.result_position"))?;
+        let f_face =
+            (|| -> Result<_> { Ok(read_zigzag32(r)?) })().map_err(|e| e.at("PlayerAction.face"))?;
+        Ok(Self {
+            runtime_entity_id: f_runtime_entity_id,
+            action: f_action,
+            position: f_position,
+            result_position: f_result_position,
+            face: f_face,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_varint64(w, self.runtime_entity_id);
+        self.action.write(w);
+        self.position.write(w);
+        self.result_position.write(w);
+        write_zigzag32(w, self.face);
+    }
+}
+impl crate::Packet for PlayerAction {
+    const ID: u32 = 36;
+    const NAME: &'static str = "player_action";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HurtArmor {
+    pub cause: i32,
+    pub damage: i32,
+    pub armor_slots: i64,
+}
+impl HurtArmor {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_cause =
+            (|| -> Result<_> { Ok(read_zigzag32(r)?) })().map_err(|e| e.at("HurtArmor.cause"))?;
+        let f_damage =
+            (|| -> Result<_> { Ok(read_zigzag32(r)?) })().map_err(|e| e.at("HurtArmor.damage"))?;
+        let f_armor_slots = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
+            .map_err(|e| e.at("HurtArmor.armor_slots"))?;
+        Ok(Self {
+            cause: f_cause,
+            damage: f_damage,
+            armor_slots: f_armor_slots,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_zigzag32(w, self.cause);
+        write_zigzag32(w, self.damage);
+        write_zigzag64(w, self.armor_slots);
+    }
+}
+impl crate::Packet for HurtArmor {
+    const ID: u32 = 38;
+    const NAME: &'static str = "hurt_armor";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct SetEntityData {
     pub runtime_entity_id: u64,
     pub metadata: types::MetadataDictionary,
@@ -329,7 +641,14 @@ impl SetSpawnPositionSpawnType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "SetSpawnPositionSpawnType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -431,7 +750,14 @@ impl AnimateActionId {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "AnimateActionId",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1099,7 +1425,14 @@ impl CraftingEventRecipeType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "CraftingEventRecipeType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -1537,6 +1870,9 @@ impl PlayerList {
                         Err(e) => return Err(e),
                     }
                 }
+                if v.len() < n {
+                    crate::strict::note(crate::strict::Leniency::TruncatedList);
+                }
                 v
             })
         })()
@@ -1616,7 +1952,14 @@ impl SimpleEventEventType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_lu16(r)? as i64))
+        let v = Self::from_raw(read_lu16(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "SimpleEventEventType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_lu16(w, self.to_raw() as u16)
@@ -1777,7 +2120,14 @@ impl EventEventType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "EventEventType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -2043,437 +2393,6 @@ impl ClientboundMapItemData {
 impl crate::Packet for ClientboundMapItemData {
     const ID: u32 = 67;
     const NAME: &'static str = "clientbound_map_item_data";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MapInfoRequest {
-    pub map_id: i64,
-    pub client_pixels: Vec<MapInfoRequestClientPixelsItem>,
-}
-impl MapInfoRequest {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_map_id = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
-            .map_err(|e| e.at("MapInfoRequest.map_id"))?;
-        let f_client_pixels = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_lu32(r)?)?;
-                let mut v = Vec::with_capacity(cap(n, r));
-                for _ in 0..n {
-                    v.push({
-                        let f1_rgba = read_li32(r)?;
-                        let f1_index = read_lu16(r)?;
-                        MapInfoRequestClientPixelsItem {
-                            rgba: f1_rgba,
-                            index: f1_index,
-                        }
-                    });
-                }
-                v
-            })
-        })()
-        .map_err(|e| e.at("MapInfoRequest.client_pixels"))?;
-        Ok(Self {
-            map_id: f_map_id,
-            client_pixels: f_client_pixels,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag64(w, self.map_id);
-        write_lu32(w, self.client_pixels.len() as u32);
-        for x0 in self.client_pixels.iter() {
-            {
-                let x1 = x0;
-                write_li32(w, x1.rgba);
-                write_lu16(w, x1.index);
-            }
-        }
-    }
-}
-impl crate::Packet for MapInfoRequest {
-    const ID: u32 = 68;
-    const NAME: &'static str = "map_info_request";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MapInfoRequestClientPixelsItem {
-    pub rgba: i32,
-    pub index: u16,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RequestChunkRadius {
-    pub chunk_radius: i32,
-    pub max_radius: u8,
-}
-impl RequestChunkRadius {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_chunk_radius = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
-            .map_err(|e| e.at("RequestChunkRadius.chunk_radius"))?;
-        let f_max_radius = (|| -> Result<_> { Ok(read_u8(r)?) })()
-            .map_err(|e| e.at("RequestChunkRadius.max_radius"))?;
-        Ok(Self {
-            chunk_radius: f_chunk_radius,
-            max_radius: f_max_radius,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag32(w, self.chunk_radius);
-        write_u8(w, self.max_radius);
-    }
-}
-impl crate::Packet for RequestChunkRadius {
-    const ID: u32 = 69;
-    const NAME: &'static str = "request_chunk_radius";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChunkRadiusUpdate {
-    pub chunk_radius: i32,
-}
-impl ChunkRadiusUpdate {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_chunk_radius = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
-            .map_err(|e| e.at("ChunkRadiusUpdate.chunk_radius"))?;
-        Ok(Self {
-            chunk_radius: f_chunk_radius,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag32(w, self.chunk_radius);
-    }
-}
-impl crate::Packet for ChunkRadiusUpdate {
-    const ID: u32 = 70;
-    const NAME: &'static str = "chunk_radius_update";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct GameRulesChanged {
-    pub rules: Vec<types::GameRuleI32>,
-}
-impl GameRulesChanged {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_rules = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                let mut v = Vec::with_capacity(cap(n, r));
-                for _ in 0..n {
-                    v.push(types::GameRuleI32::read(r)?);
-                }
-                v
-            })
-        })()
-        .map_err(|e| e.at("GameRulesChanged.rules"))?;
-        Ok(Self { rules: f_rules })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_varint(w, self.rules.len() as u32);
-        for x0 in self.rules.iter() {
-            x0.write(w);
-        }
-    }
-}
-impl crate::Packet for GameRulesChanged {
-    const ID: u32 = 72;
-    const NAME: &'static str = "game_rules_changed";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Camera {
-    pub camera_entity_unique_id: i64,
-    pub target_player_unique_id: i64,
-}
-impl Camera {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_camera_entity_unique_id = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
-            .map_err(|e| e.at("Camera.camera_entity_unique_id"))?;
-        let f_target_player_unique_id = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
-            .map_err(|e| e.at("Camera.target_player_unique_id"))?;
-        Ok(Self {
-            camera_entity_unique_id: f_camera_entity_unique_id,
-            target_player_unique_id: f_target_player_unique_id,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag64(w, self.camera_entity_unique_id);
-        write_zigzag64(w, self.target_player_unique_id);
-    }
-}
-impl crate::Packet for Camera {
-    const ID: u32 = 73;
-    const NAME: &'static str = "camera";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct BossEvent {
-    pub target_entity_id: i64,
-    pub r#type: BossEventType,
-    pub title: String,
-    pub filtered_title: String,
-    pub progress: f32,
-    pub color: BossEventColor,
-    pub overlay: BossEventOverlay,
-}
-impl BossEvent {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_target_entity_id = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
-            .map_err(|e| e.at("BossEvent.target_entity_id"))?;
-        let f_type = (|| -> Result<_> { Ok(BossEventType::read(r)?) })()
-            .map_err(|e| e.at("BossEvent.type"))?;
-        let f_title = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                read_utf8(r, n)?
-            })
-        })()
-        .map_err(|e| e.at("BossEvent.title"))?;
-        let f_filtered_title = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                read_utf8(r, n)?
-            })
-        })()
-        .map_err(|e| e.at("BossEvent.filtered_title"))?;
-        let f_progress =
-            (|| -> Result<_> { Ok(read_lf32(r)?) })().map_err(|e| e.at("BossEvent.progress"))?;
-        let f_color = (|| -> Result<_> { Ok(BossEventColor::read(r)?) })()
-            .map_err(|e| e.at("BossEvent.color"))?;
-        let f_overlay = (|| -> Result<_> { Ok(BossEventOverlay::read(r)?) })()
-            .map_err(|e| e.at("BossEvent.overlay"))?;
-        Ok(Self {
-            target_entity_id: f_target_entity_id,
-            r#type: f_type,
-            title: f_title,
-            filtered_title: f_filtered_title,
-            progress: f_progress,
-            color: f_color,
-            overlay: f_overlay,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag64(w, self.target_entity_id);
-        self.r#type.write(w);
-        {
-            let b = self.title.as_bytes();
-            write_varint(w, b.len() as u32);
-            write_slice(w, b);
-        }
-        {
-            let b = self.filtered_title.as_bytes();
-            write_varint(w, b.len() as u32);
-            write_slice(w, b);
-        }
-        write_lf32(w, self.progress);
-        self.color.write(w);
-        self.overlay.write(w);
-    }
-}
-impl crate::Packet for BossEvent {
-    const ID: u32 = 74;
-    const NAME: &'static str = "boss_event";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BossEventType {
-    ShowBar,
-    RegisterPlayer,
-    HideBar,
-    UnregisterPlayer,
-    SetBarProgress,
-    SetBarTitle,
-    UpdateProperties,
-    Texture,
-    Query,
-    Unknown(i64),
-}
-impl BossEventType {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::ShowBar,
-            1 => Self::RegisterPlayer,
-            2 => Self::HideBar,
-            3 => Self::UnregisterPlayer,
-            4 => Self::SetBarProgress,
-            5 => Self::SetBarTitle,
-            6 => Self::UpdateProperties,
-            7 => Self::Texture,
-            8 => Self::Query,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::ShowBar => 0,
-            Self::RegisterPlayer => 1,
-            Self::HideBar => 2,
-            Self::UnregisterPlayer => 3,
-            Self::SetBarProgress => 4,
-            Self::SetBarTitle => 5,
-            Self::UpdateProperties => 6,
-            Self::Texture => 7,
-            Self::Query => 8,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_u8(w, self.to_raw() as u8)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BossEventColor {
-    Pink,
-    Blue,
-    Red,
-    Green,
-    Yellow,
-    Purple,
-    RebeccaPurple,
-    White,
-    Unknown(i64),
-}
-impl BossEventColor {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::Pink,
-            1 => Self::Blue,
-            2 => Self::Red,
-            3 => Self::Green,
-            4 => Self::Yellow,
-            5 => Self::Purple,
-            6 => Self::RebeccaPurple,
-            7 => Self::White,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::Pink => 0,
-            Self::Blue => 1,
-            Self::Red => 2,
-            Self::Green => 3,
-            Self::Yellow => 4,
-            Self::Purple => 5,
-            Self::RebeccaPurple => 6,
-            Self::White => 7,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_u8(w, self.to_raw() as u8)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BossEventOverlay {
-    Progress,
-    Notched6,
-    Notched10,
-    Notched12,
-    Notched20,
-    Unknown(i64),
-}
-impl BossEventOverlay {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::Progress,
-            1 => Self::Notched6,
-            2 => Self::Notched10,
-            3 => Self::Notched12,
-            4 => Self::Notched20,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::Progress => 0,
-            Self::Notched6 => 1,
-            Self::Notched10 => 2,
-            Self::Notched12 => 3,
-            Self::Notched20 => 4,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_u8(w, self.to_raw() as u8)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ShowCredits {
-    pub runtime_entity_id: u64,
-    pub status: i32,
-}
-impl ShowCredits {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_runtime_entity_id = (|| -> Result<_> { Ok(read_varint64(r)?) })()
-            .map_err(|e| e.at("ShowCredits.runtime_entity_id"))?;
-        let f_status = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
-            .map_err(|e| e.at("ShowCredits.status"))?;
-        Ok(Self {
-            runtime_entity_id: f_runtime_entity_id,
-            status: f_status,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_varint64(w, self.runtime_entity_id);
-        write_zigzag32(w, self.status);
-    }
-}
-impl crate::Packet for ShowCredits {
-    const ID: u32 = 75;
-    const NAME: &'static str = "show_credits";
     fn encode(&self, w: &mut BytesMut) {
         self.write(w)
     }

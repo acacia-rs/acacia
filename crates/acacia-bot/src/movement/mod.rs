@@ -2,31 +2,47 @@
 //! and reports the result in `PlayerAuthInput`, obeying teleports, corrections and knockback.
 
 mod auth_input;
+pub(crate) mod equipment;
+mod glide;
 mod idle;
 mod rewind;
-pub(crate) mod status;
 #[cfg(test)]
 mod tests;
 
 pub use idle::Idle;
 
 use acacia_client::proto::packets::{
-    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, PlayerAuthInput, PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion,
-    UpdateAttributes,
+    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MobEffectEventId, MovePlayer, MovementEffect, PlayerAuthInput,
+    PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion, UpdateAttributes,
 };
-use acacia_client::proto::types::InputData;
+use acacia_client::proto::types::{InputData, MovementEffectType};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
-use acacia_physics::{self as physics, Input, PlayerState, Vec3, WorldView};
+use acacia_physics::constants::FREEZE_SPEED_MODIFIER;
+use acacia_physics::{self as physics, Effects, Equipment, Input, PlayerState, Vec3, WorldView};
 
 use crate::state::Me;
 use rewind::{Correction, History};
 
 /// Players' wire positions are eye positions this far above the feet.
-pub(crate) const EYE_HEIGHT: f32 = 1.62;
+pub(crate) const EYE_HEIGHT: f32 = crate::state::PlayerState::EYE_HEIGHT;
 /// `Respawn` state carrying the position the player respawns at.
 const RESPAWN_READY: u8 = 1;
+/// `MobEffect` ids of the effects that change movement (Speed and Slowness come through the movement attribute).
+const EFFECT_JUMP_BOOST: i32 = 8;
+const EFFECT_LEVITATION: i32 = 24;
+const EFFECT_SLOW_FALLING: i32 = 27;
+const EFFECT_WEAVING: i32 = 33;
 /// Window for double-tapping forward to sprint.
 const DOUBLE_TAP_TICKS: u32 = 7;
+
+/// The server's state of a vehicle the bot drives (`CorrectPlayerMovePrediction` type Vehicle).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct VehicleCorrection {
+    pub feet: Vec3,
+    pub delta: Vec3,
+    pub on_ground: bool,
+    pub pitch_yaw: [f32; 2],
+}
 
 /// What the bot is trying to do this tick; persists until changed.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -39,6 +55,9 @@ pub struct Controls {
     pub jump: bool,
     pub sneak: bool,
     pub sprint: bool,
+    /// Keep an elytra open. Set in the air to start a glide; the simulation clears it when the glide ends
+    /// (landing, water) or cannot start.
+    pub glide: bool,
     /// Degrees; 0 faces +Z, wrapped to -180..=180 when sent.
     pub yaw: f32,
     /// Degrees; -90 looks up, clamped to -90..=90 when sent.
@@ -74,10 +93,18 @@ pub struct Movement {
     pub corrections: u32,
     /// Server teleports received (including setbacks).
     pub teleports: u32,
+    /// Corrections of a vehicle the bot drives: each one means the vehicle simulation disagreed.
+    pub vehicle_corrections: u32,
+    /// The latest vehicle correction, for the vehicle simulation to take.
+    pub(crate) vehicle_correction: Option<VehicleCorrection>,
+    /// The server's vehicle motion in the latest vehicle correction.
+    pub last_vehicle_delta: Option<Vec3>,
     /// Ticks spent with the spawn chunk loaded but movement not yet started.
     pub(crate) spawn_wait: u32,
     /// Holding "use" on an item (eating, drinking), which slows movement.
     pub(crate) using_item: bool,
+    /// An elytra is worn (set by the bot every tick).
+    pub(crate) elytra: bool,
     physics: Option<PlayerState>,
     tick: u64,
     prev_jump: bool,
@@ -88,14 +115,25 @@ pub struct Movement {
     /// Ticks left in which pressing forward again starts a sprint (double tap).
     sprint_trigger: u32,
     prev_impulse: bool,
+    /// The sprint was started by a double tap, so it outlives the (unheld) sprint key.
+    tapped_sprint: bool,
+    effects: Effects,
+    equipment: Equipment,
     history: History,
     /// Replay only: the recorded `WantDown` (bot traces before 2026-10-02 never sent it), else it follows sneak.
     pub(crate) recorded_want_down: Option<bool>,
 }
 
 impl Movement {
-    pub const PACKETS: &'static [u32] =
-        &[MovePlayer::ID, CorrectPlayerMovePrediction::ID, SetEntityMotion::ID, Respawn::ID, UpdateAttributes::ID];
+    pub const PACKETS: &'static [u32] = &[
+        MovePlayer::ID,
+        CorrectPlayerMovePrediction::ID,
+        SetEntityMotion::ID,
+        Respawn::ID,
+        MobEffect::ID,
+        UpdateAttributes::ID,
+        MovementEffect::ID,
+    ];
 
     pub fn new() -> Self {
         Self {
@@ -103,8 +141,12 @@ impl Movement {
             pending_actions: Vec::new(),
             corrections: 0,
             teleports: 0,
+            vehicle_corrections: 0,
+            vehicle_correction: None,
+            last_vehicle_delta: None,
             spawn_wait: 0,
             using_item: false,
+            elytra: false,
             physics: None,
             tick: 0,
             prev_jump: false,
@@ -113,13 +155,18 @@ impl Movement {
             sprint_trigger: 0,
             recorded_want_down: None,
             prev_impulse: false,
+            tapped_sprint: false,
+            effects: Effects::default(),
+            equipment: Equipment::default(),
             history: History::default(),
         }
     }
 
     /// Starts simulating from the spawn position (feet).
     pub fn start(&mut self, feet: Vec3, yaw: f32, pitch: f32) {
-        self.physics = Some(PlayerState::new(feet));
+        let mut st = PlayerState::new(feet);
+        st.effects = self.effects;
+        self.physics = Some(st);
         (self.controls.yaw, self.controls.pitch) = (yaw, pitch);
     }
 
@@ -131,6 +178,21 @@ impl Movement {
         }
     }
 
+    /// The worn armour for the ticks from here on (see `equipment::worn`); true when it changed.
+    pub(crate) fn set_equipment(&mut self, equipment: Equipment) -> bool {
+        let changed = equipment != self.equipment;
+        if changed {
+            tracing::debug!(our_tick = self.tick, ?equipment, "equipment");
+            self.equipment = equipment;
+        }
+        changed
+    }
+
+    /// The worn armour the simulation uses.
+    pub fn equipment(&self) -> Equipment {
+        self.equipment
+    }
+
     /// Numbers the next simulated tick `tick`: a real client's tick counter can skip (replay only).
     pub(crate) fn align_tick(&mut self, tick: u64) {
         self.tick = tick.saturating_sub(1);
@@ -139,6 +201,11 @@ impl Movement {
     /// Tick of the last `PlayerAuthInput` built.
     pub(crate) fn input_tick(&self) -> u64 {
         self.tick
+    }
+
+    /// The freeze the simulation holds, and the one the server has reported for input `tick`.
+    pub(crate) fn freeze_at(&self, tick: u64) -> (f32, Option<f32>) {
+        (self.physics.as_ref().map_or(0.0, |p| p.freeze), self.history.server_freeze(tick))
     }
 
     pub fn is_started(&self) -> bool {
@@ -159,14 +226,32 @@ impl Movement {
         self.physics.as_ref().map(PlayerState::eye_position)
     }
 
-    /// Effects and armor as the server last reported them (see status.rs); call before each tick.
-    pub(crate) fn set_status(&mut self, effects: physics::Effects, equipment: physics::Equipment) {
+    /// Tracks the effects that change movement; they also arrive at login, before movement starts.
+    fn apply_effect(&mut self, p: &MobEffect) {
+        let level = (p.event_id != MobEffectEventId::Remove).then_some(p.amplifier);
+        tracing::trace!(our_tick = self.tick, server_tick = p.tick, id = p.effect_id, event = ?p.event_id, amplifier = p.amplifier, "effect");
+        match p.effect_id {
+            EFFECT_JUMP_BOOST => self.effects.jump_boost = level,
+            EFFECT_LEVITATION => self.effects.levitation = level,
+            EFFECT_SLOW_FALLING => self.effects.slow_falling = level.is_some(),
+            EFFECT_WEAVING => self.effects.weaving = level.is_some(),
+            _ => return,
+        }
+        tracing::debug!(our_tick = self.tick, server_tick = p.tick, effects = ?self.effects, "movement effects");
         if let Some(st) = &mut self.physics {
-            (st.effects, st.equipment) = (effects, equipment);
+            st.effects = self.effects;
+            self.history.effects(p.tick, self.effects);
         }
     }
 
     pub fn apply(&mut self, packet: &RawPacket, me: &Me) -> Result<(), DecodeError> {
+        if packet.id == MobEffect::ID {
+            let p: MobEffect = packet.decode()?;
+            if p.runtime_entity_id == me.runtime_entity_id {
+                self.apply_effect(&p);
+            }
+            return Ok(());
+        }
         let Some(st) = &mut self.physics else {
             // A teleport before movement starts still needs HandledTeleport, or BDS drops our inputs.
             self.ack_teleport |= packet.id == MovePlayer::ID && u64::from(packet.decode::<MovePlayer>()?.runtime_id) == me.runtime_entity_id;
@@ -199,8 +284,23 @@ impl Movement {
             }
             CorrectPlayerMovePrediction::ID => {
                 let c: CorrectPlayerMovePrediction = packet.decode()?;
-                // Corrections of a driven boat or horse; applied to the player they sank it 1.62 below the vehicle.
-                if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle { return Ok(()); }
+                // Corrections of a driven boat or horse go to the vehicle simulation (riding/horse.rs);
+                // applied to the player they sank it 1.62 below the vehicle.
+                if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle {
+                    tracing::debug!(
+                        server_tick = c.tick, server = ?[c.position.x, c.position.y, c.position.z], delta = ?[c.delta.x, c.delta.y, c.delta.z],
+                        rotation = ?[c.rotation.x, c.rotation.z], on_ground = c.on_ground, "vehicle correction"
+                    );
+                    self.vehicle_correction = Some(VehicleCorrection {
+                        feet: [c.position.x, c.position.y, c.position.z],
+                        delta: [c.delta.x, c.delta.y, c.delta.z],
+                        on_ground: c.on_ground,
+                        pitch_yaw: [c.rotation.x, c.rotation.z],
+                    });
+                    self.vehicle_corrections += 1;
+                    self.last_vehicle_delta = Some([c.delta.x, c.delta.y, c.delta.z]);
+                    return Ok(());
+                }
                 tracing::debug!(
                     our_tick = self.tick, server_tick = c.tick, ours = ?st.pos, server = ?feet(&c.position),
                     delta = ?[c.delta.x, c.delta.y, c.delta.z], on_ground = c.on_ground, "movement correction"
@@ -213,11 +313,39 @@ impl Movement {
                 }
                 self.corrections += 1;
             }
+            UpdateAttributes::ID => {
+                let p: UpdateAttributes = packet.decode()?;
+                if p.runtime_entity_id == me.runtime_entity_id {
+                    // Speed and Slowness arrive as modifiers on the movement attribute, and so do the sprint
+                    // boost (multiplying) and freezing (adding), which the simulation applies itself.
+                    for a in p.attributes.iter().filter(|a| a.name == "minecraft:movement") {
+                        let amount = |name: &str| a.modifiers.iter().find(|m| m.name == name).map_or(0.0, |m| m.amount);
+                        let value = a.current /(1.0 + amount("Sprinting speed boost")) - amount("Freeze effect");
+                        let freeze = amount("Freeze effect") / FREEZE_SPEED_MODIFIER;
+                        tracing::debug!(our_tick = self.tick, server_tick = p.tick, value, freeze, "movement attribute");
+                        st.set_movement_attribute(value);
+                        self.history.movement_attribute(p.tick, value);
+                        // Our freeze steps per input tick, the server's per world tick: follow the server's.
+                        let change = self.history.freeze(p.tick, freeze);
+                        st.set_freeze((st.freeze + change).clamp(0.0, 1.0));
+                        if p.tick >= self.tick {
+                            st.server_freeze = Some(freeze);
+                        }
+                    }
+                }
+            }
             Respawn::ID => {
                 let r: Respawn = packet.decode()?;
                 if r.state == RESPAWN_READY {
                     st.queue_teleport(feet(&r.position));
                     self.teleports += 1;
+                }
+            }
+            MovementEffect::ID => {
+                let e: MovementEffect = packet.decode()?;
+                if e.runtime_id == me.runtime_entity_id && e.effect_type == MovementEffectType::GLIDEBOOST {
+                    tracing::debug!(our_tick = self.tick, server_tick = e.tick, duration = e.effect_duration, "glide boost");
+                    self.server_glide_boost(e.effect_duration, e.tick);
                 }
             }
             SetEntityMotion::ID => {
@@ -228,21 +356,6 @@ impl Movement {
                     let velocity = [m.velocity.x, m.velocity.y, m.velocity.z];
                     if m.tick == 0 || m.tick >= self.tick || !self.history.knockback(m.tick + 1, velocity) {
                         st.queue_knockback(velocity);
-                    }
-                }
-            }
-            UpdateAttributes::ID => {
-                let u: UpdateAttributes = packet.decode()?;
-                let speed = u.attributes.iter().find(|a| a.name == "minecraft:movement");
-                if let (true, Some(a)) = (u.runtime_entity_id == me.runtime_entity_id, speed) {
-                    let without_sprint = status::movement_without_sprint(a);
-                    let default = st.default_movement_speed;
-                    // Only real changes (effects, soul sand, ...): the sprint echo would flag a server speed
-                    // update, and servers that list no modifiers echo it as default × 1.3.
-                    let sprint_echo = st.sprinting && (without_sprint - default * physics::constants::SPRINT_SPEED_MULTIPLIER).abs() < 1e-6;
-                    if (without_sprint - default).abs() > 1e-6 && !sprint_echo {
-                        tracing::debug!(our_tick = self.tick, server_tick = u.tick, without_sprint, "movement attribute");
-                        st.set_movement_attribute(without_sprint);
                     }
                 }
             }
@@ -261,11 +374,13 @@ impl Movement {
         if replayed > 0 {
             tracing::debug!(tick = self.tick, replayed, "rewound");
         }
+        st.equipment = self.equipment;
         // Pressing forward again within DOUBLE_TAP_TICKS of the last press sprints: BDS runs this client
         // rule on the raw key flags, so the simulation must too. A press is the forward impulse reaching
         // full strength: sneaking scales it down on land (not in water, where it means sink), so releasing
         // sneak there with forward held counts. Presses while sneaking never count, and only presses on
-        // the ground or in water do (vanilla client captures, strict BDS fuzz).
+        // the ground or in water do (vanilla client captures, strict BDS fuzz). A press with the sprint key
+        // held starts no tap window (as in Java's `aiStep`).
         let forward = key(c.forward) > 0.0;
         let in_water = physics::touching_water(st, world);
         let sneaking = c.sneak || st.sneaking;
@@ -276,11 +391,12 @@ impl Movement {
         if impulse && !self.prev_impulse && !sneaking && grounded {
             if self.sprint_trigger > 0 {
                 double_tap = true;
-            } else {
+            } else if !c.sprint {
                 self.sprint_trigger = DOUBLE_TAP_TICKS;
             }
         }
         self.prev_impulse = impulse;
+        self.tapped_sprint = (self.tapped_sprint && st.sprinting || double_tap) && !c.sprint;
         let input = Input {
             move_vector: keys(c.strafe, c.forward),
             yaw,
@@ -288,14 +404,20 @@ impl Movement {
             jump: c.jump,
             sneak: c.sneak,
             want_down: self.recorded_want_down.unwrap_or(c.sneak),
-            // Releasing the sprint key doesn't stop a sprint: only letting go of forward does.
-            sprint: c.sprint || double_tap || (st.sprinting && forward),
+            // Strict BDS 1.26.52 ends a key sprint when the key is released (fuzz: 94% of such ticks were
+            // corrected); a double-tap sprint has no key and lasts while forward is held.
+            sprint: c.sprint || double_tap || (self.tapped_sprint && st.sprinting && forward),
             using_item: self.using_item,
+            glide: c.glide,
             ..Input::default()
         };
-        let (was_sprinting, was_sneaking, was_swimming) = (st.sprinting, st.sneaking, st.swimming);
+        let (was_sprinting, was_sneaking, was_swimming, was_gliding) = (st.sprinting, st.sneaking, st.swimming, st.gliding);
         let knockback = st.knockback;
+        st.equipment.elytra = self.elytra;
         let mut out = physics::tick(st, &input, world);
+        if !st.gliding {
+            self.controls.glide = false;
+        }
         if out.teleported && std::mem::take(&mut self.current_on_landing) {
             physics::apply_current(st, world);
             out.delta = st.vel;
@@ -309,7 +431,9 @@ impl Movement {
             sneak: (st.sneaking && !was_sneaking, !st.sneaking && was_sneaking),
             jump: (c.jump && !self.prev_jump, !c.jump && self.prev_jump),
             swim: (st.swimming && !was_swimming, !st.swimming && was_swimming),
+            glide: (st.gliding && !was_gliding, !st.gliding && was_gliding),
             sneaking: st.sneaking,
+            sprinting: st.sprinting,
             sprint_key: c.sprint,
         };
         self.prev_jump = c.jump;
@@ -317,7 +441,7 @@ impl Movement {
         self.history.record(self.tick, input, knockback, st);
         // Movement starts only after the bot has left the loading screen (bot.rs).
         let packet = auth_input::build(&input, &out, &edges, self.tick, true);
-        tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, yaw = c.yaw, pitch = c.pitch,
+        tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, speed = st.movement_speed, freeze = st.freeze, yaw = c.yaw, pitch = c.pitch,
             pos = ?out.position, delta = ?out.delta, teleported = out.teleported, flags = ?packet.input_data, "auth input");
         Some(packet)
     }

@@ -28,14 +28,17 @@ impl Bot {
     /// One step for an action: a disconnect ends the action (and is kept for [`Bot::next`]).
     async fn progress(&mut self) -> Result<Progress, ActionError> {
         self.survival.idle = false;
-        match self.step().await {
-            None => Err(ActionError::Disconnected),
-            Some(Step::Disconnected(reason)) => {
-                self.pending.push_back(BotEvent::Disconnected(reason));
-                Err(ActionError::Disconnected)
-            }
-            Some(Step::Tick) => Ok(Progress::Tick),
-            Some(Step::Packet(packet)) => Ok(Progress::Packet(packet)),
+        loop {
+            return match self.step().await {
+                None => Err(ActionError::Disconnected),
+                Some(Step::Disconnected(reason)) => {
+                    self.pending.push_back(BotEvent::Disconnected(reason));
+                    Err(ActionError::Disconnected)
+                }
+                Some(Step::Tick) => Ok(Progress::Tick),
+                Some(Step::Idle) => continue,
+                Some(Step::Packet(packet)) => Ok(Progress::Packet(packet)),
+            };
         }
     }
 

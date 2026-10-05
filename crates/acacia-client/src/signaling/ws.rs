@@ -42,6 +42,13 @@ pub(crate) async fn connect(
         let value = HeaderValue::from_str(value).map_err(ws_error)?;
         request.headers_mut().insert(HeaderName::from_static(name), value);
     }
+    let (stream, addr) = open(host, port, tls, proxy).await?;
+    let (socket, _) = tokio_tungstenite::client_async(request, stream).await.map_err(ws_error)?;
+    Ok((socket, addr))
+}
+
+/// A TCP stream to `host:port`, through the proxy if any, wrapped in TLS (SNI `host`) if `tls`.
+pub(crate) async fn open(host: String, port: u16, tls: bool, proxy: Option<&Socks5Proxy>) -> Result<(Box<dyn Io>, SocketAddr), ConnectError> {
     let addr = resolve(&format!("{host}:{port}")).await?;
     let tcp = match proxy {
         Some(proxy) => socks5::connect_tcp(proxy, addr).await?,
@@ -53,6 +60,5 @@ pub(crate) async fn connect(
     } else {
         Box::new(tcp)
     };
-    let (socket, _) = tokio_tungstenite::client_async(request, stream).await.map_err(ws_error)?;
-    Ok((socket, addr))
+    Ok((stream, addr))
 }

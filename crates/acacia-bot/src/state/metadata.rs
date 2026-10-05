@@ -44,6 +44,29 @@ impl Metadata {
         }
     }
 
+    /// Int value of `key` (variant, mark variant, skin id, trade tier...), 0 when unset.
+    pub fn int(&self, key: Key) -> i32 {
+        match self.plain(key) {
+            Some(Plain::Int(v)) => *v,
+            _ => 0,
+        }
+    }
+
+    /// Dye colour index (sheep wool, collars, shulkers).
+    pub fn color(&self) -> i8 {
+        match self.plain(Key::Color) {
+            Some(Plain::Byte(v)) => *v,
+            _ => 0,
+        }
+    }
+
+    pub fn scale(&self) -> f32 {
+        match self.plain(Key::Scale) {
+            Some(Plain::Float(v)) => *v,
+            _ => 1.0,
+        }
+    }
+
     pub(crate) fn merge(&mut self, items: Vec<MetadataDictionaryItem>) {
         self.0.extend(items.into_iter().map(|i| (i.key, i.value)));
     }

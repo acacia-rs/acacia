@@ -70,12 +70,12 @@ fn siphash24(key: [u64; 2], data: &[u8]) -> u64 {
         sip_round(&mut v);
         v[0] ^= m;
     };
-    let mut words = data.chunks_exact(8);
-    for word in &mut words {
-        absorb(u64::from_le_bytes(word.try_into().expect("8 bytes")));
+    let (words, rest) = data.as_chunks::<8>();
+    for word in words {
+        absorb(u64::from_le_bytes(*word));
     }
     let mut last = [0u8; 8];
-    last[..words.remainder().len()].copy_from_slice(words.remainder());
+    last[..rest.len()].copy_from_slice(rest);
     last[7] = data.len() as u8;
     absorb(u64::from_le_bytes(last));
     v[2] ^= 0xff;

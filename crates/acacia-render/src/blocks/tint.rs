@@ -2,7 +2,7 @@
 
 use crate::biome::BiomeTint;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum Tint {
     #[default]
     None,
@@ -12,10 +12,9 @@ pub enum Tint {
     /// Birch and spruce leaves ignore the biome.
     Birch,
     Spruce,
+    /// One sRGB colour everywhere (lily pads, stems, redstone wire).
+    Fixed([u8; 3]),
 }
-
-/// `biomes_client.json` default water_surface_transparency, used as the water surface's alpha.
-pub const WATER_ALPHA: f32 = 0.65;
 
 const GRASS: &[&str] = &["short_grass", "tall_grass", "fern", "large_fern", "tallgrass", "double_plant", "reeds", "sugar_cane", "bush"];
 const UNTINTED_LEAVES: &[&str] = &["cherry", "azalea", "pale_oak"];
@@ -30,6 +29,7 @@ impl Tint {
             Tint::Water => Some(biome.water),
             Tint::Birch => Some([0x80, 0xA7, 0x55]),
             Tint::Spruce => Some([0x61, 0x99, 0x61]),
+            Tint::Fixed(color) => Some(color),
         }
     }
 

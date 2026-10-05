@@ -15,6 +15,12 @@ pub enum DecodeError {
     NbtTooDeep(usize),
     #[error("packet id mismatch: expected {expected}, got {actual}")]
     IdMismatch { expected: u32, actual: u32 },
+    #[error("{0} bytes after the packet body")]
+    TrailingBytes(usize),
+    #[error("{0}")]
+    Lenient(crate::strict::Leniency),
+    #[error("no packet has id {0}")]
+    UnknownPacket(u32),
     #[error("{at}: {source}")]
     Context {
         at: &'static str,

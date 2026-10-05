@@ -35,6 +35,16 @@ impl ChunkView {
         Ok(())
     }
 
+    pub fn insert_sub_chunk_limit(&mut self, x: i32, z: i32, count: usize) {
+        let c = self.world.insert_sub_chunk_limit_by(self.id, x, z, count);
+        self.chunks.insert((x, z), c);
+    }
+
+    pub fn insert_sub_chunk_air(&mut self, x: i32, section_y: i32, z: i32) {
+        let c = self.world.insert_sub_chunk_air_by(self.id, x, section_y, z);
+        self.chunks.insert((x, z), c);
+    }
+
     pub fn insert_biomes(&mut self, x: i32, z: i32, payload: &[u8]) {
         let c = self.world.insert_biomes_by(self.id, x, z, payload);
         self.chunks.insert((x, z), c);

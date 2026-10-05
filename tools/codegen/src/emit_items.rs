@@ -89,7 +89,8 @@ fn mapper(name: &str, repr: Prim, variants: &[(i64, String, String)]) -> String 
          impl {name} {{\n\
          pub fn from_raw(v: i64) -> Self {{ match v {{\n{from}v => Self::Unknown(v),\n}} }}\n\
          pub fn to_raw(self) -> i64 {{ match self {{\n{to}Self::Unknown(v) => v,\n}} }}\n\
-         pub fn read(r: &mut &[u8]) -> Result<Self> {{ Ok(Self::from_raw(read_{c}(r)? as i64)) }}\n\
+         pub fn read(r: &mut &[u8]) -> Result<Self> {{ let v = Self::from_raw(read_{c}(r)? as i64); \
+         if let Self::Unknown(value) = v {{ crate::strict::note(crate::strict::Leniency::UnknownEnum {{ ty: \"{name}\", value }}); }} Ok(v) }}\n\
          pub fn write(&self, w: &mut BytesMut) {{ write_{c}(w, self.to_raw() as {t}) }}\n}}\n"
     )
 }

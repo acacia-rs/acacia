@@ -112,6 +112,7 @@ async fn main() -> Result<()> {
                         harvest.add(wire)?;
                     }
                 }
+                Some(Event::Violation(_)) => {}
                 Some(Event::Disconnected(reason)) => { println!("disconnected: {reason:?}"); break; }
                 None => break,
             },

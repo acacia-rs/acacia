@@ -35,6 +35,30 @@ fn weather_follows_level_events_and_ignores_the_rest() {
 }
 
 #[test]
+fn the_overworld_clock_sets_the_time() {
+    use acacia_client::proto::packets::{
+        SyncWorldClocksContentInitializeRegistry as Registry, SyncWorldClocksContentSyncState as States, SyncWorldClocksPayloadType as Kind,
+    };
+    use acacia_client::proto::types::{SyncWorldClockStateData as State, WorldClockData};
+    let states = |s: &[(u64, i32, bool)]| {
+        let sync_states = s.iter().map(|&(clock_id, time, paused)| State { clock_id, time, paused }).collect();
+        raw(&SyncWorldClocks { payload_type: Kind::SyncState, content: SyncWorldClocksContent::SyncState(States { sync_states }) })
+    };
+    let clock = |id, name: &str, time| WorldClockData { id, name: name.into(), time, paused: false, time_markers: Vec::new() };
+    let registry = Registry { clocks: vec![clock(4, "other:clock", 99), clock(7, DAY_CLOCK, 13000)] };
+
+    let mut env = Environment::default();
+    env.apply(&states(&[(7, 12990, false)])).unwrap();
+    assert_eq!(env.time, 12990, "a state before the registry is taken as the day clock");
+    env.apply(&raw(&SyncWorldClocks { payload_type: Kind::InitializeRegistry, content: SyncWorldClocksContent::InitializeRegistry(registry) })).unwrap();
+    assert_eq!(env.time, 13000);
+    env.apply(&states(&[(4, 5, false), (7, 18000, true)])).unwrap();
+    assert_eq!((env.time, env.time_paused), (18000, true));
+    env.apply(&states(&[(4, 6, false)])).unwrap();
+    assert_eq!(env.time, 18000, "other clocks are ignored");
+}
+
+#[test]
 fn boss_bars_show_update_and_hide() {
     let mut env = Environment::default();
     env.apply(&boss(BossEventType::ShowBar, "Wither", 1.0)).unwrap();

@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 
 use acacia_client::proto::nbt::Value;
-use acacia_client::BlobStore;
+use acacia_client::{BlobStore, Reason, Violation};
 use acacia_client::proto::packets::{
     ChangeDimension, ClientCacheMissResponse, LevelChunk, NetworkChunkPublisherUpdate, StartGame, Subchunk, SubchunkRequest, UpdateBlock,
     UpdateBlockSynced, UpdateSubchunkBlocks,
@@ -59,6 +59,8 @@ pub struct WorldTracker {
     blobs: Blobs,
     /// Packets to send on the tracker's behalf (sub-chunk requests).
     pub(crate) outgoing: Vec<SubchunkRequest>,
+    /// Chunk data that did not decode, for the bot to drain (strict mode reports it).
+    pub(crate) rejected: Vec<Violation>,
     near: Option<Near>,
 }
 
@@ -76,7 +78,7 @@ impl WorldTracker {
     ];
 
     pub fn new(server: String, shared: SharedWorlds) -> Self {
-        Self { server, shared, registry: None, ids: BlockIds::Runtime, view: None, blobs: Blobs::default(), outgoing: Vec::new(), near: None }
+        Self { server, shared, registry: None, ids: BlockIds::Runtime, view: None, blobs: Blobs::default(), outgoing: Vec::new(), rejected: Vec::new(), near: None }
     }
 
     /// Idle bots: requests nothing (crate::subchunks does, like vanilla) and decodes only the columns
@@ -140,8 +142,12 @@ impl WorldTracker {
                     if self.near.as_ref().is_some_and(|n| !n.covers(pos.0, pos.2)) {
                         continue;
                     }
-                    if let (SubChunkEntryItemResult::SuccessAllAir, Some(near)) = (e.result, &mut self.near) {
-                        near.mark(pos.0, pos.1, pos.2);
+                    if e.result == SubChunkEntryItemResult::SuccessAllAir {
+                        view.insert_sub_chunk_air(pos.0, pos.1, pos.2);
+                        if let Some(near) = &mut self.near {
+                            near.mark(pos.0, pos.1, pos.2);
+                        }
+                        continue;
                     }
                     if e.result != SubChunkEntryItemResult::Success {
                         continue;
@@ -152,7 +158,7 @@ impl WorldTracker {
                         _ => Some(payload),
                     };
                     if let Some(section) = section {
-                        insert_section(view, self.near.as_mut(), pos, &section);
+                        insert_section(view, self.near.as_mut(), &mut self.rejected, packet.id, pos, &section);
                     }
                 }
             }
@@ -161,7 +167,7 @@ impl WorldTracker {
                 for blob in packet.decode::<ClientCacheMissResponse>()?.blobs {
                     for ready in self.blobs.delivered(blob.hash, &blob.payload) {
                         match ready {
-                            Ready::Section(pos, section) => insert_section(view, self.near.as_mut(), pos, &section),
+                            Ready::Section(pos, section) => insert_section(view, self.near.as_mut(), &mut self.rejected, packet.id, pos, &section),
                             Ready::Biomes((x, z), biomes) => view.insert_biomes(x, z, &biomes),
                         }
                     }
@@ -234,6 +240,7 @@ impl WorldTracker {
                 let lowest = dim.min_y >> 4;
                 let full = (dim.height >> 4) as i32;
                 let count = if limit < 0 { full } else { limit.min(full) };
+                view.insert_sub_chunk_limit(c.x, c.z, count as usize);
                 let requests = (0..count).map(|i| Vec3i8 { x: 0, y: (lowest + i) as i8, z: 0 }).collect();
                 self.outgoing.push(SubchunkRequest { dimension: c.dimension, requests, origin: Vec3li { x: c.x, y: 0, z: c.z } });
             }
@@ -241,13 +248,13 @@ impl WorldTracker {
             // bottom first, then the biome blob; the payload is border blocks + block entities.
             None if c.cache_enabled => {
                 let reset = view.insert_level_chunk(c.x, c.z, 0, &[]).map(drop);
-                log_err(reset);
+                note_rejected(&mut self.rejected, LevelChunk::ID, (c.x, None, c.z), reset);
                 let lowest = Dimension::from_id(c.dimension, 0).min_y >> 4;
                 let sections = c.blobs.len().min(c.sub_chunk_count as usize);
                 for (i, &id) in c.blobs[..sections].iter().enumerate() {
                     let pos = (c.x, lowest + i as i32, c.z);
                     if let Some(section) = self.blobs.section(pos, id, Bytes::new()) {
-                        insert_section(view, self.near.as_mut(), pos, &section);
+                        insert_section(view, self.near.as_mut(), &mut self.rejected, LevelChunk::ID, pos, &section);
                     }
                 }
                 if let Some(biomes) = c.blobs.get(sections).and_then(|&id| self.blobs.biomes((c.x, c.z), id)) {
@@ -260,18 +267,18 @@ impl WorldTracker {
                     let dim = Dimension::from_id(c.dimension, 0);
                     ((dim.min_y >> 4)..((dim.min_y + dim.height as i32) >> 4)).for_each(|y| near.mark(c.x, y, c.z));
                 }
-                log_err(inserted);
+                note_rejected(&mut self.rejected, LevelChunk::ID, (c.x, None, c.z), inserted);
             }
         }
     }
 }
 
-fn insert_section(view: &mut ChunkView, near: Option<&mut Near>, (x, y, z): (i32, i32, i32), section: &[u8]) {
+fn insert_section(view: &mut ChunkView, near: Option<&mut Near>, rejected: &mut Vec<Violation>, packet: u32, (x, y, z): (i32, i32, i32), section: &[u8]) {
     let inserted = view.insert_sub_chunk(x, y, z, section);
     if let (Ok(()), Some(near)) = (&inserted, near) {
         near.mark(x, y, z);
     }
-    log_err(inserted);
+    note_rejected(rejected, packet, (x, Some(y), z), inserted);
 }
 
 /// Whether the chunk at `feet` is loaded and a solid block lies within 3 blocks below it.
@@ -286,9 +293,12 @@ pub(crate) fn has_support_below(view: &ChunkView, registry: &BlockRegistry, feet
     (y - 3..=y).any(|y| registry.get(view.block(x, y, z)).is_some_and(|s| s.is_solid() || s.is_water() || s.is_lava()))
 }
 
-fn log_err(r: Result<(), acacia_world::Error>) {
+/// Keeps chunk data that does not decode for strict mode; `y` is the section, `None` for a whole column.
+fn note_rejected(rejected: &mut Vec<Violation>, packet: u32, (x, y, z): (i32, Option<i32>, i32), r: Result<(), acacia_world::Error>) {
     if let Err(e) = r {
         tracing::debug!(error = %e, "chunk data rejected");
+        let at = y.map_or(format!("column ({x}, {z})"), |y| format!("sub-chunk ({x}, {y}, {z})"));
+        rejected.push(Violation { packet, reason: Reason::Content(format!("{at}: {e}")) });
     }
 }
 

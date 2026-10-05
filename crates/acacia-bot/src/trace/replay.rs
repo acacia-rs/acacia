@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use acacia_client::proto::packets::{CorrectPlayerMovePrediction, MovePlayer, PlayerAuthInput, SetEntityData, SetEntityMotion};
+use acacia_client::proto::packets::{ClientCacheMissResponse, CorrectPlayerMovePrediction, MovePlayer, PlayerAuthInput, SetEntityData, SetEntityMotion};
+use acacia_client::{BlobStore, MemoryBlobStore};
 use acacia_client::proto::types::{InputData as F, MetadataFlags1, Vec3f};
 use acacia_client::proto::Packet;
 use acacia_physics::Vec3;
@@ -43,8 +45,9 @@ pub struct CorrectionDiff {
     pub delta_err: Option<f32>,
     /// The eye position and velocity the recorded client sent for that tick (a real client's own physics).
     pub sent: Option<(Vec3, Vec3)>,
-    /// Explained by a teleport or knockback rather than a disagreement: a correction to a teleport's
-    /// target, or one for a tick the server moved us on before we heard of it.
+    /// Explained by what the client had not been sent yet rather than a disagreement: a correction to a
+    /// teleport's target, or one for a tick the server moved us on before we heard of it, froze us by an
+    /// amount it reported later, or simulated in a chunk we had not received.
     pub explained: bool,
     /// Non-air blocks around the server's position (both layers), for triage.
     pub blocks: String,
@@ -62,6 +65,13 @@ impl CorrectionDiff {
     }
 }
 
+/// Server corrections within this of our position are periodic resyncs, not mismatches.
+pub const CORRECTION_TOLERANCE: f32 = 0.001;
+/// Farther than any tick of movement: BDS applied a `/tp` it has not sent us yet (it can lag many ticks).
+const TELEPORT_LAG_DISTANCE: f32 = 4.0;
+/// Ticks a freeze reported late keeps the position off by more than the tolerance.
+const FREEZE_CARRY: u64 = 2;
+
 #[derive(Debug, Default)]
 pub struct Report {
     pub ticks: usize,
@@ -70,16 +80,33 @@ pub struct Report {
     pub corrections: Vec<CorrectionDiff>,
 }
 
+impl Report {
+    /// Corrections we disagree with beyond `tolerance`, and those skipped as teleport lags.
+    pub fn correction_mismatches(&self, tolerance: f32) -> (Vec<&CorrectionDiff>, Vec<&CorrectionDiff>) {
+        let (lagged, mismatches) = self
+            .corrections
+            .iter()
+            .filter(|c| c.mismatch(tolerance))
+            .partition(|c| c.error().is_some_and(|e| e > TELEPORT_LAG_DISTANCE));
+        (mismatches, lagged)
+    }
+}
+
 /// Replays a trace through [`Movement`] with the recorded controls. With `resync`, the state is reset
 /// to the recorded position and velocity after every diverging tick, so each divergence is reported
 /// once instead of cascading (use for traces of real clients).
 pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     let mut state = GameState::default();
     let mut world = WorldTracker::new("replay".into(), SharedWorlds::new());
+    // The recording client held every blob it was sent; later sections name them by id only.
+    let blobs = Arc::new(MemoryBlobStore::with_payloads());
+    world.set_blob_store(blobs.clone());
     let mut movement = Movement::new();
     // Our eye position and velocity per input tick.
     let mut ours: HashMap<u64, (Vec3, Vec3)> = HashMap::new();
     let mut sent: HashMap<u64, (Vec3, Vec3)> = HashMap::new();
+    // The freeze each input tick was simulated with; `None` in a chunk not received yet.
+    let mut frozen: HashMap<u64, Option<f32>> = HashMap::new();
     let mut mark: Option<String> = None;
     // (input tick it takes effect on, teleport target, our tick when it arrived)
     let mut moves: Vec<(u64, Option<Vec3>, u64)> = Vec::new();
@@ -88,8 +115,18 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     for event in events {
         match event {
             Event::Mark(label) => mark = Some(label.clone()),
+            Event::Equipment(worn) => {
+                movement.set_equipment(*worn);
+            }
             Event::Start { feet, yaw, pitch } => movement.start(*feet, *yaw, *pitch),
             Event::Packet(p) => {
+                if p.id == ClientCacheMissResponse::ID
+                    && let Ok(r) = p.decode::<ClientCacheMissResponse>()
+                {
+                    for blob in &r.blobs {
+                        blobs.insert(blob.hash, &blob.payload);
+                    }
+                }
                 let _ = state.apply(p);
                 let _ = world.apply(p);
                 world.outgoing.clear();
@@ -123,7 +160,13 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                     let (pos, delta) = ours.get(&tick).map_or((None, None), |&(p, d)| (Some(p), Some(dist(d, vec3(&c.delta)))));
                     let sent = sent.get(&tick).copied();
                     tracing::trace!(tick, ours = ?ours.get(&tick).map(|&(_, d)| d), server = ?vec3(&c.delta), "correction delta");
-                    report.corrections.push(CorrectionDiff { tick, mark: mark.clone(), ours: pos, server, delta_err: delta, sent, explained: false, blocks });
+                    // A late freeze still shows in the position two ticks on.
+                    let explained = (tick.saturating_sub(FREEZE_CARRY)..=tick).any(|t| match frozen.get(&t) {
+                        Some(Some(used)) => movement.freeze_at(t).1.is_some_and(|f| (f - used).abs() > 1e-6),
+                        Some(None) => true,
+                        None => false,
+                    });
+                    report.corrections.push(CorrectionDiff { tick, mark: mark.clone(), ours: pos, server, delta_err: delta, sent, explained, blocks });
                 }
                 let _ = movement.apply(p, &state.me());
             }
@@ -138,13 +181,17 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                     continue;
                 }
                 movement.align_tick(rec.tick);
-                movement.controls = controls_of(&rec);
+                movement.controls = controls_of(&rec, movement.controls.glide);
+                // Traces don't record armour; a glide start means an elytra was worn.
+                movement.elytra |= rec.input_data.contains(&F::StartGliding);
                 movement.recorded_want_down = Some(rec.input_data.contains(&F::WantDown));
                 let (Some(view), Some(registry)) = (world.view(), world.registry()) else { continue };
                 let Some(out) = movement.tick(&PhysicsWorld { view, registry }) else { continue };
                 let pos = vec3(&out.position);
                 ours.insert(out.tick, (pos, vec3(&out.delta)));
                 sent.insert(out.tick, (recorded, vec3(&rec.delta)));
+                let received = view.chunk((pos[0].floor() as i32) >> 4, (pos[2].floor() as i32) >> 4).is_some();
+                frozen.insert(out.tick, received.then(|| movement.freeze_at(out.tick).0));
                 last_tick = out.tick;
                 report.ticks += 1;
                 let delta_err = dist(vec3(&out.delta), vec3(&rec.delta));
@@ -164,7 +211,7 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
         });
     }
     for c in &mut report.corrections {
-        c.explained = moves.iter().any(|&(effect, target, arrived)| {
+        c.explained |= moves.iter().any(|&(effect, target, arrived)| {
             let at_target = target.is_some_and(|t| dist(t, c.server) < 1e-3);
             effect.abs_diff(c.tick) <= EVENT_WINDOW && (at_target || (effect <= c.tick && arrived >= c.tick))
         });
@@ -273,8 +320,9 @@ fn block_map(view: &impl acacia_world::BlockAccess, registry: &acacia_world::Blo
     out
 }
 
-/// The held controls a `PlayerAuthInput` reports.
-fn controls_of(p: &PlayerAuthInput) -> Controls {
+/// The held controls a `PlayerAuthInput` reports. Gliding shows only as Start/StopGliding edges, so it
+/// carries over from `gliding`, the previous input's state.
+fn controls_of(p: &PlayerAuthInput, gliding: bool) -> Controls {
     let has = |f: F| p.input_data.contains(&f);
     let axis = |pos: bool, neg: bool| f32::from(u8::from(pos)) - f32::from(u8::from(neg));
     Controls {
@@ -282,7 +330,9 @@ fn controls_of(p: &PlayerAuthInput) -> Controls {
         strafe: axis(has(F::Left), has(F::Right)),
         jump: has(F::JumpDown),
         sneak: has(F::SneakDown),
-        sprint: has(F::SprintDown),
+        // BDS reads `Sprinting`, not `SprintDown`, as the sprint intent: a bot may send its sprint state there.
+        sprint: has(F::Sprinting),
+        glide: (gliding || has(F::StartGliding)) && !has(F::StopGliding),
         yaw: p.yaw,
         pitch: p.pitch,
     }

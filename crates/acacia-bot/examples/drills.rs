@@ -123,6 +123,74 @@ const fn waterfall(name: &'static str, x: f32) -> Drill {
     Drill { name, fills: WATERFALL, start: [x, 8.0, 0.5], settle: 80, steps: FALL, pitch: 0.0 }
 }
 
+/// A 2-deep pit from x+4: the sneak edge stop at its rim.
+const PIT: &[Fill] = &[([4, -2, -12], [24, -1, 12], "air")];
+
+/// A honey column at x+2, alone or with a 2-deep pool at its foot.
+const HONEY: &[Fill] = &[([2, 0, 0], [2, 4, 0], "honey_block")];
+const HONEY_POOL: &[Fill] = &[([2, 0, 0], [2, 4, 0], "honey_block"), ([0, 0, -1], [1, 1, 1], "water")];
+/// One floating honey block: in a column the block above keeps the slide going, hiding the top threshold.
+const HONEY_ONE: &[Fill] = &[([2, 3, 0], [2, 3, 0], "honey_block")];
+
+/// Dropped from `y` beside the honey column while pressing into it, sliding down its side (fuzz 154827 tick
+/// 4752: BDS slides up to the block's full height, and not while touching water). Start heights vary where
+/// tick ends fall relative to each block's top.
+const fn honey(name: &'static str, fills: &'static [Fill], y: f32) -> Drill {
+    let steps: &[Step] = &[(50, 1.0, false, false, 0.0, false), STOP];
+    Drill { name, fills, start: [1.5, y, 0.5], settle: 10, steps, pitch: 0.0 }
+}
+
+/// Powder snow over the open pad, ankle deep: freezing slows the walk every tick (fuzz 145851 ticks 5575/5625/
+/// 5631, each after two `minecraft:movement` updates stamped with the same input tick).
+const POWDER: &[Fill] = &[([0, 0, -6], [20, 0, 6], "powder_snow")];
+const POWDER_WALK: &[Step] = &[
+    (30, 1.0, false, false, 0.0, false), (30, 1.0, true, false, 20.0, false), (30, -1.0, false, false, -20.0, false),
+    (30, 1.0, true, false, -30.0, false), (40, 1.0, false, false, 0.0, false), STOP,
+];
+
+/// A 1.5-high tunnel over slabs from x+3 to x+5, as the fuzz builds its low ceilings.
+const TUNNEL: &[Fill] = &[([1, 0, -1], [9, 0, 1], "smooth_stone_slab"), ([3, 2, -1], [5, 2, 1], "stone")];
+
+/// Sneak into the tunnel, release the sneak inside and walk on: the crouch ends on the tick standing fits. `x`
+/// shifts the start, so each drill leaves the ceiling with a different overlap (fuzz 104210 tick 3951: BDS stood
+/// up with the box still 0.0077 under the ceiling's edge). Timed for Swift Sneak III leggings: the box is
+/// 0.0083 under the edge in `duck0`, 0.002 more per drill from `duck2` on.
+const fn duck(name: &'static str, x: f32) -> Drill {
+    let steps: &[Step] = &[(22, 1.0, false, false, 0.0, true), (110, 0.25, false, false, 0.0, false), STOP];
+    Drill { name, fills: TUNNEL, start: [1.5 + x, 0.5, 0.5], settle: 20, steps, pitch: 0.0 }
+}
+
+/// Water 3 deep, alone or over magma (a downward bubble column).
+const POOL3: &[Fill] = &[([1, -3, -3], [20, -1, 3], "water")];
+const BUBBLES: &[Fill] = &[([1, -3, -3], [20, -1, 3], "water"), ([1, -4, -3], [20, -4, 3], "magma")];
+
+/// Sprint-swim along the pool floor, stop for `gap` ticks, then press forward and sprint again, with or
+/// without jump (fuzz 101523 tick 3023: BDS started that swim a tick late and its sprint two late, after
+/// swimming into a corner; in open water these all match, so the wall is what matters).
+const fn reswim(name: &'static str, fills: &'static [Fill], steps: &'static [Step]) -> Drill {
+    Drill { name, fills, start: [2.5, -3.0, 0.5], settle: 40, steps, pitch: 0.0 }
+}
+
+const fn reswim_steps(gap: u32, jump: bool) -> [Step; 4] {
+    [(15, 1.0, true, false, 0.0, false), (gap, 0.0, false, false, 0.0, false), (15, 1.0, true, jump, 0.0, false), STOP]
+}
+
+/// The 3-deep pool, plain or bubbling, with a glass wall across it at x+8.
+const POOL_WALL: &[Fill] = &[([1, -3, -3], [20, -1, 3], "water"), ([8, -3, -3], [8, 1, 3], "glass")];
+const BUBBLES_WALL: &[Fill] =
+    &[([1, -3, -3], [20, -1, 3], "water"), ([1, -4, -3], [20, -4, 3], "magma"), ([8, -3, -3], [8, 1, 3], "glass")];
+
+/// Sprint into a wall until pinned, stand still for `gap` ticks, then sprint off at `yaw` (fuzz 101523 tick
+/// 3023: after a swim pinned in a corner, BDS started the next sprint and swim late).
+const fn pinned_steps(gap: u32, jump: bool, yaw: f32) -> [Step; 4] {
+    [(40, 1.0, true, false, 0.0, false), (gap, 0.0, false, false, 0.0, false), (15, 1.0, true, jump, yaw, false), (20, 0.0, false, false, yaw, false)]
+}
+
+/// Sprint `ticks` at `yaw` towards the pit, then sneak on.
+const fn rush(ticks: u32, yaw: f32) -> [Step; 3] {
+    [(ticks, 1.0, true, false, yaw, false), (25, 1.0, false, false, yaw, true), STOP]
+}
+
 /// Plain walk/stop/sneak steps for the double-tap drills.
 const fn walk(ticks: u32, forward: f32, sprint: bool, sneak: bool) -> Step {
     (ticks, forward, sprint, false, 0.0, sneak)
@@ -199,6 +267,34 @@ const DRILLS: &[Drill] = &[
     plunge("pl39e", -39.0, 1.6), plunge("pl39f", -39.0, 1.75),
     plunge("pl70a", -70.0, 1.0), plunge("pl70b", -70.0, 1.15), plunge("pl70c", -70.0, 1.3), plunge("pl70d", -70.0, 1.45),
     plunge("pl70e", -70.0, 1.6), plunge("pl70f", -70.0, 1.75),
+    // The sneak edge stop meeting leftover sprint momentum, so it only shrinks the velocity (fuzz 145851 tick 281:
+    // BDS kept a partly shrunk axis's velocity but zeroes a fully stopped one).
+    drill("edge4", PIT, &rush(4, 0.0)), drill("edge6", PIT, &rush(6, 0.0)), drill("edge8", PIT, &rush(8, 0.0)),
+    drill("edge10", PIT, &rush(10, 0.0)), drill("edge12", PIT, &rush(12, 0.0)),
+    drill("edged4", PIT, &rush(4, 25.0)), drill("edged6", PIT, &rush(6, 25.0)), drill("edged8", PIT, &rush(8, 25.0)),
+    drill("edged10", PIT, &rush(10, 25.0)), drill("edged12", PIT, &rush(12, 25.0)),
+    honey("honey0", HONEY, 6.0), honey("honey1", HONEY, 6.03), honey("honey2", HONEY, 6.07), honey("honey3", HONEY, 6.12),
+    honey("honey4", HONEY, 6.18), honey("honey5", HONEY, 6.25),
+    honey("honeyw0", HONEY_POOL, 6.0), honey("honeyw1", HONEY_POOL, 6.03), honey("honeyw2", HONEY_POOL, 6.07),
+    honey("honeyw3", HONEY_POOL, 6.12), honey("honeyw4", HONEY_POOL, 6.18), honey("honeyw5", HONEY_POOL, 6.25),
+    // Start heights 0.05 apart over more than a tick's fall at the block, so some tick ends inside its top 1/16.
+    honey("honeyt0", HONEY_ONE, 6.0), honey("honeyt1", HONEY_ONE, 6.05), honey("honeyt2", HONEY_ONE, 6.1),
+    honey("honeyt3", HONEY_ONE, 6.15), honey("honeyt4", HONEY_ONE, 6.2), honey("honeyt5", HONEY_ONE, 6.25),
+    honey("honeyt6", HONEY_ONE, 6.3), honey("honeyt7", HONEY_ONE, 6.35), honey("honeyt8", HONEY_ONE, 6.4),
+    honey("honeyt9", HONEY_ONE, 6.45), honey("honeyt10", HONEY_ONE, 6.5), honey("honeyt11", HONEY_ONE, 6.55),
+    drill("powder1", POWDER, POWDER_WALK), drill("powder2", POWDER, POWDER_WALK), drill("powder3", POWDER, POWDER_WALK),
+    drill("powder4", POWDER, POWDER_WALK),
+    duck("duck0", 0.0), duck("duck1", 0.005), duck("duck2", -0.002), duck("duck3", -0.004), duck("duck4", -0.006),
+    duck("duck5", -0.008), duck("duck6", -0.01), duck("duck7", -0.012), duck("duck8", -0.016), duck("duck9", -0.02),
+    reswim("reswim5j", BUBBLES, &reswim_steps(5, true)), reswim("reswim5", BUBBLES, &reswim_steps(5, false)),
+    reswim("reswim2j", BUBBLES, &reswim_steps(2, true)), reswim("reswim20j", BUBBLES, &reswim_steps(20, true)),
+    reswim("reswimpool5j", POOL3, &reswim_steps(5, true)), reswim("reswimpool5", POOL3, &reswim_steps(5, false)),
+    reswim("pin5j", POOL_WALL, &pinned_steps(5, true, 180.0)), reswim("pin5", POOL_WALL, &pinned_steps(5, false, 180.0)),
+    reswim("pin5side", POOL_WALL, &pinned_steps(5, false, 80.0)), reswim("pin1", POOL_WALL, &pinned_steps(1, false, 180.0)),
+    reswim("pin20", POOL_WALL, &pinned_steps(20, false, 180.0)), reswim("pin60", POOL_WALL, &pinned_steps(60, false, 180.0)),
+    reswim("pinbub5j", BUBBLES_WALL, &pinned_steps(5, true, 180.0)), reswim("pinbub5", BUBBLES_WALL, &pinned_steps(5, false, 180.0)),
+    drill("pinland5", WALL3, &pinned_steps(5, false, 180.0)), drill("pinland1", WALL3, &pinned_steps(1, false, 180.0)),
+    drill("pinland20", WALL3, &pinned_steps(20, false, 180.0)), drill("pinland5side", WALL3, &pinned_steps(5, false, 80.0)),
 ];
 
 #[tokio::main(flavor = "current_thread")]
@@ -209,6 +305,8 @@ async fn main() -> Result<(), Error> {
     let name = args.next().unwrap_or_else(|| "@default".into());
     let only: Option<Vec<String>> = args.next().map(|l| l.split(',').map(str::to_owned).collect());
     let (mut bot, pad) = support::connect(&server, &name).await?;
+    // Magma floors burn.
+    pad.run(&bot, "/effect @s fire_resistance 3600 1 true");
 
     for drill in DRILLS {
         if only.as_ref().is_some_and(|o| !o.iter().any(|n| n == drill.name)) {

@@ -14,6 +14,10 @@ pub enum Error {
     Lan(String),
     #[error("server identity: {0}")]
     ServerIdentity(String),
+    #[error("client identity: {0}")]
+    ClientIdentity(String),
+    #[error("the host has no room for another connection")]
+    HostFull,
     #[error("message framing: {0}")]
     Framing(&'static str),
     #[error("WebRTC: {0}")]

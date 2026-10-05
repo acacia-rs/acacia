@@ -59,7 +59,7 @@ async fn next_text(client: &mut Client) -> String {
             match client.recv().await.expect("client still connected") {
                 Event::Packet(p) if p.is::<SetTime>() => panic!("SetTime got through: {p:?}"),
                 Event::Packet(p) if p.is::<Text>() => return message(&p.decode::<Text>().unwrap()).to_owned(),
-                Event::Packet(_) => {}
+                Event::Packet(_) | Event::Violation(_) => {}
                 Event::Disconnected(reason) => panic!("disconnected: {reason:?}"),
             }
         }

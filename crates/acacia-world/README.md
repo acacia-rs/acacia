@@ -40,11 +40,15 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
   `set(x, y, z, layer, id)`, `set_sub_chunk(section_y, payload)`. Keeps layers 0 and 1 packed with their palettes.
 - `World::new(registry, dimension_id, BlockIds)` holds chunks weakly; `ChunkView::new(world)` per bot holds
   strong refs: `insert_level_chunk` (skips decoding when the payload hash matches the live chunk),
-  `insert_sub_chunk`, `set_block` (UpdateBlock / UpdateSubChunkBlocks, wire ids), `retain_within`, `remove`.
+  `insert_sub_chunk`, `insert_sub_chunk_air` (`SuccessAllAir`), `insert_sub_chunk_limit`, `set_block` (UpdateBlock / UpdateSubChunkBlocks, wire ids), `retain_within`, `remove`.
   `World::wire_id(runtime_id)` gives the id to send back (hash under `BlockIds::Hashed`).
 - `World::subscribe()` yields every applied `ChunkChange` (`Column`, `Section`, `Block`); loaded chunks
   aren't replayed, so read `chunk_positions()` after subscribing. `Chunk::copy_section` unpacks a section's
   two layers in XZY order and `section_uniform` spots all-air sections (for renderers).
+- `Chunk::section_known(index)`: whether the server has told us the section's content. A full
+  `LevelChunk` makes every section known (those above the count are air). In request mode the known ones
+  are received sub-chunks, `SuccessAllAir` results, and everything from the `LevelChunk`'s sub-chunk limit
+  up (`insert_sub_chunk_limit`). An unknown section reads as air.
 - Biome ids per section: decoded after the sections of a full `LevelChunk`; `World`/`ChunkView::insert_biomes`
   takes a biomes-only payload (request-mode `LevelChunk`, or its cache-mode biome blob, which the bot's
   `Blobs` resolves). `Chunk::biome(x, y, z)`, `copy_biomes(index, out)`; ids are raw, never remapped.
@@ -68,6 +72,7 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
 - `DYNAMIC_SHAPE` blocks (scaffolding, powder snow, bamboo, pointed dripstone) need physics-side handling.
 - Fence arms use Java's post width (0.375 to 0.625, 1.5 high). Panes and bars use Boar's thin-bar boxes.
 - Custom blocks collide as full cubes, block all light, and have no properties or hash.
+- `Dimension::sky` is true for the overworld only.
 - Encoded chunks are checked against our own decoder and the bot's `WorldTracker` only, never a vanilla client.
   Open: heightmap semantics (dragonfly's: y above the highest counted block, 16 above / -1 below the
   sub-chunk, rows by z), the render heightmap (sent as a copy), the `0xff` biome marker for any section equal

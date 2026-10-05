@@ -2,13 +2,15 @@
 //! the proxy joins the server as the same player, and every packet on the game's side is logged
 //! (record.rs).
 //!
-//! `cargo run -p acacia-mitm -- [--transport raknet|nethernet] [--listen 0.0.0.0:19180] [--server <addr>] [--out .testserver/mitm] [--online <account>]`
+//! `cargo run -p acacia-mitm -- [--transport raknet|nethernet] [--listen 0.0.0.0:19180] [--server <addr>] [--out .testserver/mitm] [--online <account>] [--pack-cdn <pack.zip>]`
 //!
 //! RakNet (default) is offline by default, for the local test BDS on 19140. `--online <account>`
 //! signs in with that account (`.tokens`, device code on first use) for real servers; sign the game
 //! into the same account so the client data matches. NetherNet direct connect (nethernet/) targets
 //! the NetherNet BDS on 19160 and always needs `--online`. Login is logged as a structural summary
 //! only (login.rs): no tokens or signatures.
+
+mod cdn;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -23,10 +25,19 @@ struct Args {
     server: String,
     out: String,
     online: Option<String>,
+    /// A pack zip to serve as every pack's `cdn_url` (cdn.rs).
+    pack_cdn: Option<String>,
 }
 
 fn args() -> Result<Args, String> {
-    let mut args = Args { nethernet: false, listen: "0.0.0.0:19180".parse().unwrap(), server: String::new(), out: ".testserver/mitm".into(), online: None };
+    let mut args = Args {
+        nethernet: false,
+        listen: "0.0.0.0:19180".parse().unwrap(),
+        server: String::new(),
+        out: ".testserver/mitm".into(),
+        online: None,
+        pack_cdn: None,
+    };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
         let value = it.next().ok_or(format!("{flag} needs a value"))?;
@@ -40,6 +51,7 @@ fn args() -> Result<Args, String> {
             "--server" => args.server = value,
             "--out" => args.out = value,
             "--online" => args.online = Some(value),
+            "--pack-cdn" => args.pack_cdn = Some(value),
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -84,6 +96,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("join {} from the game; recording to {}", args.listen, rec.path().display());
     if args.nethernet {
         proxy = proxy.nethernet(acacia_mitm::host_key(args.out.as_ref())?);
+    }
+    if let Some(zip) = &args.pack_cdn {
+        let url = cdn::start(zip.as_ref(), args.listen.port() + 1, &rec.path().with_extension("cdn.log"))?;
+        proxy = proxy.intercept(move |_| cdn::PointPacks(url.clone()));
     }
     // MITM_TRACE=1 logs every datagram on the game's side (first byte and size), to debug joins and
     // compare send pacing.

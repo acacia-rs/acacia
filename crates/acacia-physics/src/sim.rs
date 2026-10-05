@@ -80,6 +80,7 @@ pub fn tick<W: WorldView + ?Sized>(st: &mut PlayerState, input: &Input, world: &
     let pose = PoseSnapshot::take(st);
     st.liquid_box = Some(st.bounding_box());
     let (known, move_vector) = sim.apply_input(st, &frame);
+    sim.update_freeze(st);
     let outcome = if known || st.pending_teleport.is_some() {
         sim.simulate_core(st)
     } else {
@@ -162,7 +163,7 @@ pub(crate) fn land_teleport(st: &mut PlayerState, pos: Vec3) {
 }
 
 pub(crate) fn effective_air_speed(st: &PlayerState) -> f32 {
-    if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED }
+    st.fixed_air_speed.unwrap_or(if st.sprinting { SPRINT_AIR_SPEED } else { WALK_AIR_SPEED })
 }
 
 fn tick_state(st: &mut PlayerState) {
@@ -181,7 +182,6 @@ fn tick_state(st: &mut PlayerState) {
         st.jump_delay -= 1;
     }
     st.swim_exit_jump_delay = st.swim_exit_jump_delay.saturating_sub(1);
-    st.stopped_swimming_this_tick = false;
 }
 
 /// Block-aligned volume containing every lookup normal movement performs.
@@ -207,7 +207,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     }
 
     fn simulate_core(&self, st: &mut PlayerState) -> Outcome {
-        st.sprint_movement_blocked = false;
+        // Only a block that began under a sprint outlasts standing still in liquid (see README).
+        let sprint_blocked = st.sprinting || st.was_sprint_movement_blocked;
+        st.was_sprint_movement_blocked = std::mem::take(&mut st.sprint_movement_blocked) && sprint_blocked;
         st.ensure_pose_heights();
         if let Some(pos) = st.pending_teleport.take() {
             land_teleport(st, pos);
@@ -234,6 +236,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             freeze(st);
             return Outcome::Unloaded;
         }
+        self.push_towards_closest_space(st);
         Outcome::Normal
     }
 

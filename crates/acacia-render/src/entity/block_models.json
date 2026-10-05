@@ -1,0 +1,45 @@
+{
+  "geometry.acacia.chest": {
+    "texturewidth": 64,
+    "textureheight": 64,
+    "bones": [
+      { "name": "base", "cubes": [ { "origin": [ -7, 0, -7 ], "size": [ 14, 10, 14 ], "uv": [ 0, 19 ] } ] },
+      {
+        "name": "lid",
+        "cubes": [
+          { "origin": [ -7, 9, -7 ], "size": [ 14, 5, 14 ], "uv": [ 0, 0 ] },
+          { "origin": [ -1, 7, -8 ], "size": [ 2, 4, 1 ], "uv": [ 0, 0 ] }
+        ]
+      }
+    ]
+  },
+  "geometry.acacia.double_chest": {
+    "texturewidth": 128,
+    "textureheight": 64,
+    "bones": [
+      { "name": "base", "cubes": [ { "origin": [ -15, 0, -7 ], "size": [ 30, 10, 14 ], "uv": [ 0, 19 ] } ] },
+      {
+        "name": "lid",
+        "cubes": [
+          { "origin": [ -15, 9, -7 ], "size": [ 30, 5, 14 ], "uv": [ 0, 0 ] },
+          { "origin": [ -1, 7, -8 ], "size": [ 2, 4, 1 ], "uv": [ 0, 0 ] }
+        ]
+      }
+    ]
+  },
+  "geometry.acacia.sign": {
+    "texturewidth": 64,
+    "textureheight": 32,
+    "bones": [
+      { "name": "board", "cubes": [ { "origin": [ -12, 14, -1 ], "size": [ 24, 12, 2 ], "uv": [ 0, 0 ] } ] },
+      { "name": "stick", "cubes": [ { "origin": [ -1, 0, -1 ], "size": [ 2, 14, 2 ], "uv": [ 0, 14 ] } ] }
+    ]
+  },
+  "geometry.acacia.wall_sign": {
+    "texturewidth": 64,
+    "textureheight": 32,
+    "bones": [
+      { "name": "board", "cubes": [ { "origin": [ -12, 6.5, 9.5 ], "size": [ 24, 12, 2 ], "uv": [ 0, 0 ] } ] }
+    ]
+  }
+}

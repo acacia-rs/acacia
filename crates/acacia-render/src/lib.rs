@@ -3,15 +3,24 @@
 
 pub mod assets;
 pub mod biome;
+pub mod block_models;
 pub mod blocks;
 pub mod camera;
+mod cull;
+pub mod entity;
 mod gpu;
+pub mod light;
+pub mod look;
+pub mod lookpack;
 pub mod mesh;
 mod scene;
+pub mod sky;
 mod workers;
 
 pub use camera::Camera;
 pub use gpu::{FrameStats, Renderer};
+pub use look::Look;
+pub use lookpack::LookPack;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -21,6 +30,8 @@ pub enum Error {
     Json { path: String, source: serde_json::Error },
     #[error("{path}: {source}")]
     Image { path: String, source: image::ImageError },
+    #[error("{path}: {reason}")]
+    LookPack { path: String, reason: String },
     #[error("no compatible GPU adapter: {0}")]
     Adapter(String),
     #[error("GPU device: {0}")]

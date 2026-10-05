@@ -24,6 +24,7 @@ mod login;
 mod net_wire;
 mod nethernet;
 mod pack_cache;
+mod pack_fetch;
 mod ping;
 #[cfg(feature = "online")]
 mod qos;
@@ -40,7 +41,7 @@ mod trickle;
 pub use acacia_auth as auth;
 pub use acacia_session::blob_store::{BlobStore, MemoryBlobStore};
 pub use acacia_session::pack_store::{MemoryPackStore, PackStore};
-pub use acacia_session::{proto, DisconnectReason};
+pub use acacia_session::{proto, DisconnectReason, Reason, Violation};
 pub use blob_cache::DiskBlobStore;
 pub use pack_cache::DiskPackStore;
 pub use client::{ClientBuilder, Login, TransportKind};
@@ -62,6 +63,8 @@ pub use socks5::{ProxyParseError, Socks5Proxy};
 #[derive(Debug)]
 pub enum Event {
     Packet(proto::RawPacket),
+    /// Strict mode only ([`ClientBuilder::strict`]); comes before the packet it is about.
+    Violation(Violation),
     /// Always the last event.
     Disconnected(DisconnectReason),
 }
@@ -78,7 +81,7 @@ pub enum ConnectError {
     Timeout,
     #[error("NetherNet: {0}")]
     NetherNet(#[from] acacia_nethernet::Error),
-    #[error("NetherNet needs an online login (its identity assertion carries the MultiplayerToken)")]
+    #[error("NetherNet needs the account's MultiplayerToken for its identity assertion; these credentials have none")]
     NetherNetNeedsOnline,
     #[error("the server does not answer NetherNet signaling (GET /v1/join)")]
     NetherNetUnsupported,

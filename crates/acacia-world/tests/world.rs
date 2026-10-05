@@ -180,6 +180,35 @@ fn biomes_only_payload_fills_sections_and_copies_below() {
 }
 
 #[test]
+fn sections_are_known_from_full_chunks_sub_chunks_and_all_air_results() {
+    let w = world();
+    let changes = w.subscribe();
+    let mut v = ChunkView::new(w.clone());
+    v.insert_level_chunk(0, 0, 1, &chunk_payload(1)).unwrap();
+    let full = v.chunk(0, 0).unwrap().read();
+    assert!((0..full.section_count()).all(|i| full.section_known(i)), "a full chunk's implicit air is known");
+    drop(full);
+
+    v.insert_biomes(1, 0, &[0xff]);
+    v.insert_sub_chunk(1, 5, 0, &section_v9(5, &[&filled(3)])).unwrap();
+    v.insert_sub_chunk_air(1, 6, 0);
+    let requested = v.chunk(1, 0).unwrap().read();
+    let known: Vec<usize> = (0..requested.section_count()).filter(|&i| requested.section_known(i)).collect();
+    assert_eq!(known, [9, 10], "section y 5 and 6 above the overworld floor at -4");
+    let (mut blocks, mut liquid) = ([0; SECTION_VOLUME], [0; SECTION_VOLUME]);
+    assert!(!requested.copy_section(10, &mut blocks, &mut liquid), "known air holds no data");
+    assert!(!requested.section_known(99));
+    drop(requested);
+    assert_eq!(changes.try_iter().last(), Some(ChunkChange::Section { x: 1, section_y: 6, z: 0 }));
+
+    v.insert_sub_chunk_limit(1, 0, 12);
+    let limited = v.chunk(1, 0).unwrap().read();
+    let known: Vec<usize> = (0..limited.section_count()).filter(|&i| limited.section_known(i)).collect();
+    assert_eq!(known, [9, 10].into_iter().chain(12..24).collect::<Vec<_>>(), "sections from the limit up are air");
+    assert_eq!(changes.try_iter().last(), Some(ChunkChange::Column { x: 1, z: 0 }));
+}
+
+#[test]
 fn copy_section_unpacks_xzy() {
     let w = world();
     let mut v = ChunkView::new(w.clone());

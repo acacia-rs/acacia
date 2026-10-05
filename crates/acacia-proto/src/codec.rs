@@ -3,6 +3,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 
 use crate::DecodeError;
+use crate::strict::{Leniency, note};
 
 pub type Result<T> = std::result::Result<T, DecodeError>;
 
@@ -60,7 +61,11 @@ fixed! {
 
 #[inline]
 pub fn read_bool(r: &mut &[u8]) -> Result<bool> {
-    Ok(read_u8(r)? != 0)
+    let b = read_u8(r)?;
+    if b > 1 {
+        note(Leniency::Bool(b));
+    }
+    Ok(b != 0)
 }
 
 #[inline]
@@ -137,7 +142,10 @@ pub fn read_utf8(r: &mut &[u8], n: usize) -> Result<String> {
     let b = take(r, n)?;
     Ok(match std::str::from_utf8(b) {
         Ok(s) => s.to_owned(),
-        Err(_) => String::from_utf8_lossy(b).into_owned(),
+        Err(_) => {
+            note(Leniency::Utf8);
+            String::from_utf8_lossy(b).into_owned()
+        }
     })
 }
 

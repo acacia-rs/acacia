@@ -4,11 +4,12 @@
 //!
 //! File: `BTRC` + version byte, then events: kind `u8`, then for a packet `id u32, len u32, body`,
 //! for an input `len u32, body`, for a start `feet [f32; 3], yaw f32, pitch f32`, for a mark
-//! `len u32, utf8`. Integers and floats are little-endian.
+//! `len u32, utf8`, for equipment five `i32` (depth strider, soul speed, swift sneak, leather boots, elytra).
+//! Integers and floats are little-endian.
 
 mod replay;
 
-pub use replay::{replay, CorrectionDiff, Report, TickDiff};
+pub use replay::{replay, CorrectionDiff, Report, TickDiff, CORRECTION_TOLERANCE};
 
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter, Read, Write};
@@ -17,7 +18,7 @@ use std::path::Path;
 use acacia_client::proto::packets::{PlayerAuthInput, SetEntityData};
 use acacia_client::proto::types::{MetadataDictionaryItemValue, MetadataFlags1};
 use acacia_client::proto::{Packet, RawPacket};
-use acacia_physics::Vec3;
+use acacia_physics::{Equipment, Vec3};
 use bytes::{Bytes, BytesMut};
 
 /// Recorded for analysis only, when about the recording player: its actor flags (the server's sprint state).
@@ -28,6 +29,7 @@ const PACKET: u8 = 0;
 const INPUT: u8 = 1;
 const START: u8 = 2;
 const MARK: u8 = 3;
+const EQUIPMENT: u8 = 4;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
@@ -39,6 +41,8 @@ pub enum Event {
     Start { feet: Vec3, yaw: f32, pitch: f32 },
     /// A label, e.g. the drill that starts here.
     Mark(String),
+    /// The worn armour from here on (the client predicts some changes the server never sends).
+    Equipment(Equipment),
 }
 
 /// Whether an [`ANALYSIS_PACKETS`] packet concerns this runtime id.
@@ -100,6 +104,13 @@ impl Recorder {
                 w.write_all(&[MARK])?;
                 write_bytes(w, label.as_bytes())
             }
+            Event::Equipment(e) => {
+                w.write_all(&[EQUIPMENT])?;
+                for level in [e.depth_strider, e.soul_speed, e.swift_sneak, i32::from(e.leather_boots), i32::from(e.elytra)] {
+                    w.write_all(&level.to_le_bytes())?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -109,9 +120,13 @@ fn write_bytes(w: &mut impl Write, b: &[u8]) -> io::Result<()> {
     w.write_all(b)
 }
 
-/// Reads a whole trace; a truncated final event (from a killed recorder) is dropped.
+/// Reads a whole trace (gzipped when the name ends in `.gz`); a truncated final event (from a killed recorder)
+/// is dropped.
 pub fn read(path: &Path) -> io::Result<Vec<Event>> {
-    let mut r = BufReader::new(File::open(path)?);
+    let file = File::open(path)?;
+    let gzipped = path.extension().is_some_and(|e| e == "gz");
+    let mut r: BufReader<Box<dyn Read>> =
+        BufReader::new(if gzipped { Box::new(flate2::read::GzDecoder::new(file)) } else { Box::new(file) });
     let mut magic = [0; 5];
     r.read_exact(&mut magic)?;
     if &magic != MAGIC {
@@ -146,6 +161,13 @@ fn read_event(r: &mut impl Read, kind: u8) -> io::Result<Event> {
             Event::Start { feet: [v[0], v[1], v[2]], yaw: v[3], pitch: v[4] }
         }
         MARK => Event::Mark(String::from_utf8_lossy(&read_bytes(r)?).into_owned()),
+        EQUIPMENT => {
+            let mut v = [0; 5];
+            for x in &mut v {
+                *x = read_u32(r)? as i32;
+            }
+            Event::Equipment(Equipment { depth_strider: v[0], soul_speed: v[1], swift_sneak: v[2], leather_boots: v[3] != 0, elytra: v[4] != 0 })
+        }
         k => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("unknown trace event {k}"))),
     })
 }

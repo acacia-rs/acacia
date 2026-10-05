@@ -87,7 +87,7 @@ impl Pad {
         Pad { commander, ..self }
     }
 
-    fn run(&self, bot: &Bot, command: &str) {
+    pub fn run(&self, bot: &Bot, command: &str) {
         match &self.commander {
             Commander::Own => {
                 bot.client().command(command);
@@ -107,7 +107,8 @@ impl Pad {
     /// Rebuilds the bare pad, places `fills` in order and waits `settle` ticks (flowing liquids).
     pub async fn build(&self, bot: &mut Bot, fills: &[Fill<'_>], settle: u32) -> Result<(), Error> {
         // Park the bot beside the pad first, so it is never inside blocks while they are refilled.
-        let mut cmds = vec![self.fill([-8, -1, 0], [-8, -1, 0], "stone")];
+        // Cleared above too: snow that fell on the parking block pushes a player teleported into it.
+        let mut cmds = vec![self.fill([-8, -1, 0], [-8, -1, 0], "stone"), self.fill([-8, 0, 0], [-8, 1, 0], "air")];
         cmds.push(self.tp_command([-7.5, 0.0, 0.5], -90.0));
         cmds.extend([self.fill([PAD_MIN[0], 0, PAD_MIN[2]], PAD_MAX, "air"), self.fill(PAD_MIN, [PAD_MAX[0], -1, PAD_MAX[2]], "stone")]);
         cmds.extend(fills.iter().map(|&(a, b, block)| self.fill(a, b, block)));

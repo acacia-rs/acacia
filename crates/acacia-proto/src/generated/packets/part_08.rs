@@ -6,6 +6,650 @@ use crate::types;
 use bytes::{Bytes, BytesMut};
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundDataStore {
+    pub updates: Vec<types::DataStoreChangeEntry>,
+}
+impl ClientboundDataStore {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_updates = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                let mut v = Vec::with_capacity(cap(n, r));
+                for _ in 0..n {
+                    v.push(types::DataStoreChangeEntry::read(r)?);
+                }
+                v
+            })
+        })()
+        .map_err(|e| e.at("ClientboundDataStore.updates"))?;
+        Ok(Self { updates: f_updates })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_varint(w, self.updates.len() as u32);
+        for x0 in self.updates.iter() {
+            x0.write(w);
+        }
+    }
+}
+impl crate::Packet for ClientboundDataStore {
+    const ID: u32 = 330;
+    const NAME: &'static str = "clientbound_data_store";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GraphicsOverrideParameter {
+    pub values: Vec<types::ParameterKeyframeValue>,
+    pub float_value: Option<f32>,
+    pub vec3_value: Option<types::Vec3f>,
+    pub biome_identifier: String,
+    pub parameter_type: types::GraphicsOverrideParameterType,
+    pub reset: bool,
+    pub player_id: Option<String>,
+}
+impl GraphicsOverrideParameter {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_values = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                let mut v = Vec::with_capacity(cap(n, r));
+                for _ in 0..n {
+                    v.push(types::ParameterKeyframeValue::read(r)?);
+                }
+                v
+            })
+        })()
+        .map_err(|e| e.at("GraphicsOverrideParameter.values"))?;
+        let f_float_value = (|| -> Result<_> {
+            Ok(if read_bool(r)? {
+                Some(read_lf32(r)?)
+            } else {
+                None
+            })
+        })()
+        .map_err(|e| e.at("GraphicsOverrideParameter.float_value"))?;
+        let f_vec3_value = (|| -> Result<_> {
+            Ok(if read_bool(r)? {
+                Some(types::Vec3f::read(r)?)
+            } else {
+                None
+            })
+        })()
+        .map_err(|e| e.at("GraphicsOverrideParameter.vec3_value"))?;
+        let f_biome_identifier = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("GraphicsOverrideParameter.biome_identifier"))?;
+        let f_parameter_type =
+            (|| -> Result<_> { Ok(types::GraphicsOverrideParameterType::read(r)?) })()
+                .map_err(|e| e.at("GraphicsOverrideParameter.parameter_type"))?;
+        let f_reset = (|| -> Result<_> { Ok(read_bool(r)?) })()
+            .map_err(|e| e.at("GraphicsOverrideParameter.reset"))?;
+        let f_player_id = (|| -> Result<_> {
+            Ok(if read_bool(r)? {
+                Some({
+                    let n = to_len(read_varint(r)?)?;
+                    read_utf8(r, n)?
+                })
+            } else {
+                None
+            })
+        })()
+        .map_err(|e| e.at("GraphicsOverrideParameter.player_id"))?;
+        Ok(Self {
+            values: f_values,
+            float_value: f_float_value,
+            vec3_value: f_vec3_value,
+            biome_identifier: f_biome_identifier,
+            parameter_type: f_parameter_type,
+            reset: f_reset,
+            player_id: f_player_id,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_varint(w, self.values.len() as u32);
+        for x0 in self.values.iter() {
+            x0.write(w);
+        }
+        match &self.float_value {
+            Some(x0) => {
+                write_bool(w, true);
+                write_lf32(w, *x0);
+            }
+            None => write_bool(w, false),
+        }
+        match &self.vec3_value {
+            Some(x0) => {
+                write_bool(w, true);
+                x0.write(w);
+            }
+            None => write_bool(w, false),
+        }
+        {
+            let b = self.biome_identifier.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        self.parameter_type.write(w);
+        write_bool(w, self.reset);
+        match &self.player_id {
+            Some(x0) => {
+                write_bool(w, true);
+                {
+                    let b = x0.as_bytes();
+                    write_varint(w, b.len() as u32);
+                    write_slice(w, b);
+                }
+            }
+            None => write_bool(w, false),
+        }
+    }
+}
+impl crate::Packet for GraphicsOverrideParameter {
+    const ID: u32 = 331;
+    const NAME: &'static str = "graphics_override_parameter";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServerboundDataStore {
+    pub name: String,
+    pub property: String,
+    pub path: String,
+    pub data_type: ServerboundDataStoreDataType,
+    pub data: ServerboundDataStoreData,
+    pub update_count: u32,
+    pub path_update_count: u32,
+}
+impl ServerboundDataStore {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_name = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("ServerboundDataStore.name"))?;
+        let f_property = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("ServerboundDataStore.property"))?;
+        let f_path = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("ServerboundDataStore.path"))?;
+        let f_data_type = (|| -> Result<_> { Ok(ServerboundDataStoreDataType::read(r)?) })()
+            .map_err(|e| e.at("ServerboundDataStore.data_type"))?;
+        let f_data = (|| -> Result<_> {
+            Ok(if f_data_type == ServerboundDataStoreDataType::Double {
+                ServerboundDataStoreData::Double(read_lf64(r)?)
+            } else if f_data_type == ServerboundDataStoreDataType::Bool {
+                ServerboundDataStoreData::Bool(read_bool(r)?)
+            } else if f_data_type == ServerboundDataStoreDataType::String {
+                ServerboundDataStoreData::String({
+                    let n = to_len(read_varint(r)?)?;
+                    read_utf8(r, n)?
+                })
+            } else {
+                ServerboundDataStoreData::Default
+            })
+        })()
+        .map_err(|e| e.at("ServerboundDataStore.data"))?;
+        let f_update_count = (|| -> Result<_> { Ok(read_lu32(r)?) })()
+            .map_err(|e| e.at("ServerboundDataStore.update_count"))?;
+        let f_path_update_count = (|| -> Result<_> { Ok(read_lu32(r)?) })()
+            .map_err(|e| e.at("ServerboundDataStore.path_update_count"))?;
+        Ok(Self {
+            name: f_name,
+            property: f_property,
+            path: f_path,
+            data_type: f_data_type,
+            data: f_data,
+            update_count: f_update_count,
+            path_update_count: f_path_update_count,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        {
+            let b = self.name.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        {
+            let b = self.property.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        {
+            let b = self.path.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        self.data_type.write(w);
+        match &self.data {
+            ServerboundDataStoreData::Double(x0) => {
+                write_lf64(w, *x0);
+            }
+            ServerboundDataStoreData::Bool(x0) => {
+                write_bool(w, *x0);
+            }
+            ServerboundDataStoreData::String(x0) => {
+                let b = x0.as_bytes();
+                write_varint(w, b.len() as u32);
+                write_slice(w, b);
+            }
+            ServerboundDataStoreData::Default => {}
+        }
+        write_lu32(w, self.update_count);
+        write_lu32(w, self.path_update_count);
+    }
+}
+impl crate::Packet for ServerboundDataStore {
+    const ID: u32 = 332;
+    const NAME: &'static str = "serverbound_data_store";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ServerboundDataStoreDataType {
+    Double,
+    Bool,
+    String,
+    Unknown(i64),
+}
+impl ServerboundDataStoreDataType {
+    pub fn from_raw(v: i64) -> Self {
+        match v {
+            0 => Self::Double,
+            1 => Self::Bool,
+            2 => Self::String,
+            v => Self::Unknown(v),
+        }
+    }
+    pub fn to_raw(self) -> i64 {
+        match self {
+            Self::Double => 0,
+            Self::Bool => 1,
+            Self::String => 2,
+            Self::Unknown(v) => v,
+        }
+    }
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let v = Self::from_raw(read_lu32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "ServerboundDataStoreDataType",
+                value,
+            });
+        }
+        Ok(v)
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_lu32(w, self.to_raw() as u32)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ServerboundDataStoreData {
+    Double(f64),
+    Bool(bool),
+    String(String),
+    Default,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundDataDrivenUiShowScreen {
+    pub screen_id: String,
+    pub form_id: u32,
+    pub data_instance_id: Option<u32>,
+}
+impl ClientboundDataDrivenUiShowScreen {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_screen_id = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("ClientboundDataDrivenUiShowScreen.screen_id"))?;
+        let f_form_id = (|| -> Result<_> { Ok(read_lu32(r)?) })()
+            .map_err(|e| e.at("ClientboundDataDrivenUiShowScreen.form_id"))?;
+        let f_data_instance_id = (|| -> Result<_> {
+            Ok(if read_bool(r)? {
+                Some(read_lu32(r)?)
+            } else {
+                None
+            })
+        })()
+        .map_err(|e| e.at("ClientboundDataDrivenUiShowScreen.data_instance_id"))?;
+        Ok(Self {
+            screen_id: f_screen_id,
+            form_id: f_form_id,
+            data_instance_id: f_data_instance_id,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        {
+            let b = self.screen_id.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        write_lu32(w, self.form_id);
+        match &self.data_instance_id {
+            Some(x0) => {
+                write_bool(w, true);
+                write_lu32(w, *x0);
+            }
+            None => write_bool(w, false),
+        }
+    }
+}
+impl crate::Packet for ClientboundDataDrivenUiShowScreen {
+    const ID: u32 = 333;
+    const NAME: &'static str = "clientbound_data_driven_ui_show_screen";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundDataDrivenUiCloseScreen {
+    pub form_id: Option<u32>,
+}
+impl ClientboundDataDrivenUiCloseScreen {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_form_id = (|| -> Result<_> {
+            Ok(if read_bool(r)? {
+                Some(read_lu32(r)?)
+            } else {
+                None
+            })
+        })()
+        .map_err(|e| e.at("ClientboundDataDrivenUiCloseScreen.form_id"))?;
+        Ok(Self { form_id: f_form_id })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        match &self.form_id {
+            Some(x0) => {
+                write_bool(w, true);
+                write_lu32(w, *x0);
+            }
+            None => write_bool(w, false),
+        }
+    }
+}
+impl crate::Packet for ClientboundDataDrivenUiCloseScreen {
+    const ID: u32 = 334;
+    const NAME: &'static str = "clientbound_data_driven_ui_close_screen";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundDataDrivenUiReload {}
+impl ClientboundDataDrivenUiReload {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        Ok(Self {})
+    }
+    pub fn write(&self, w: &mut BytesMut) {}
+}
+impl crate::Packet for ClientboundDataDrivenUiReload {
+    const ID: u32 = 335;
+    const NAME: &'static str = "clientbound_data_driven_ui_reload";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundTextureShift {
+    pub action: ClientboundTextureShiftAction,
+    pub collection_name: String,
+    pub from_step: String,
+    pub to_step: String,
+    pub all_steps: Vec<String>,
+    pub current_length_ticks: u64,
+    pub total_length_ticks: u64,
+    pub enabled: bool,
+}
+impl ClientboundTextureShift {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_action = (|| -> Result<_> { Ok(ClientboundTextureShiftAction::read(r)?) })()
+            .map_err(|e| e.at("ClientboundTextureShift.action"))?;
+        let f_collection_name = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("ClientboundTextureShift.collection_name"))?;
+        let f_from_step = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("ClientboundTextureShift.from_step"))?;
+        let f_to_step = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("ClientboundTextureShift.to_step"))?;
+        let f_all_steps = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                let mut v = Vec::with_capacity(cap(n, r));
+                for _ in 0..n {
+                    v.push({
+                        let n = to_len(read_varint(r)?)?;
+                        read_utf8(r, n)?
+                    });
+                }
+                v
+            })
+        })()
+        .map_err(|e| e.at("ClientboundTextureShift.all_steps"))?;
+        let f_current_length_ticks = (|| -> Result<_> { Ok(read_varint64(r)?) })()
+            .map_err(|e| e.at("ClientboundTextureShift.current_length_ticks"))?;
+        let f_total_length_ticks = (|| -> Result<_> { Ok(read_varint64(r)?) })()
+            .map_err(|e| e.at("ClientboundTextureShift.total_length_ticks"))?;
+        let f_enabled = (|| -> Result<_> { Ok(read_bool(r)?) })()
+            .map_err(|e| e.at("ClientboundTextureShift.enabled"))?;
+        Ok(Self {
+            action: f_action,
+            collection_name: f_collection_name,
+            from_step: f_from_step,
+            to_step: f_to_step,
+            all_steps: f_all_steps,
+            current_length_ticks: f_current_length_ticks,
+            total_length_ticks: f_total_length_ticks,
+            enabled: f_enabled,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        self.action.write(w);
+        {
+            let b = self.collection_name.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        {
+            let b = self.from_step.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        {
+            let b = self.to_step.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        write_varint(w, self.all_steps.len() as u32);
+        for x0 in self.all_steps.iter() {
+            {
+                let b = x0.as_bytes();
+                write_varint(w, b.len() as u32);
+                write_slice(w, b);
+            }
+        }
+        write_varint64(w, self.current_length_ticks);
+        write_varint64(w, self.total_length_ticks);
+        write_bool(w, self.enabled);
+    }
+}
+impl crate::Packet for ClientboundTextureShift {
+    const ID: u32 = 336;
+    const NAME: &'static str = "clientbound_texture_shift";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ClientboundTextureShiftAction {
+    Invalid,
+    Initialize,
+    Start,
+    SetEnabled,
+    Sync,
+    Unknown(i64),
+}
+impl ClientboundTextureShiftAction {
+    pub fn from_raw(v: i64) -> Self {
+        match v {
+            0 => Self::Invalid,
+            1 => Self::Initialize,
+            2 => Self::Start,
+            3 => Self::SetEnabled,
+            4 => Self::Sync,
+            v => Self::Unknown(v),
+        }
+    }
+    pub fn to_raw(self) -> i64 {
+        match self {
+            Self::Invalid => 0,
+            Self::Initialize => 1,
+            Self::Start => 2,
+            Self::SetEnabled => 3,
+            Self::Sync => 4,
+            Self::Unknown(v) => v,
+        }
+    }
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "ClientboundTextureShiftAction",
+                value,
+            });
+        }
+        Ok(v)
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_u8(w, self.to_raw() as u8)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VoxelShapes {
+    pub shapes: Vec<types::VoxelShape>,
+    pub name_map: Vec<types::VoxelShapeNameEntry>,
+    pub custom_shape_count: u16,
+}
+impl VoxelShapes {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_shapes = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                let mut v = Vec::with_capacity(cap(n, r));
+                for _ in 0..n {
+                    v.push(types::VoxelShape::read(r)?);
+                }
+                v
+            })
+        })()
+        .map_err(|e| e.at("VoxelShapes.shapes"))?;
+        let f_name_map = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                let mut v = Vec::with_capacity(cap(n, r));
+                for _ in 0..n {
+                    v.push(types::VoxelShapeNameEntry::read(r)?);
+                }
+                v
+            })
+        })()
+        .map_err(|e| e.at("VoxelShapes.name_map"))?;
+        let f_custom_shape_count = (|| -> Result<_> { Ok(read_lu16(r)?) })()
+            .map_err(|e| e.at("VoxelShapes.custom_shape_count"))?;
+        Ok(Self {
+            shapes: f_shapes,
+            name_map: f_name_map,
+            custom_shape_count: f_custom_shape_count,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_varint(w, self.shapes.len() as u32);
+        for x0 in self.shapes.iter() {
+            x0.write(w);
+        }
+        write_varint(w, self.name_map.len() as u32);
+        for x0 in self.name_map.iter() {
+            x0.write(w);
+        }
+        write_lu16(w, self.custom_shape_count);
+    }
+}
+impl crate::Packet for VoxelShapes {
+    const ID: u32 = 337;
+    const NAME: &'static str = "voxel_shapes";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct CameraSpline {
     pub splines: Vec<types::CameraSplineDefinition>,
 }
@@ -385,7 +1029,14 @@ impl SyncWorldClocksPayloadType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "SyncWorldClocksPayloadType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -615,7 +1266,14 @@ impl ClientboundAttributeLayerSyncPayloadType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "ClientboundAttributeLayerSyncPayloadType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -1152,7 +1810,14 @@ impl SetPlayerFurnaceOptionsFurnaceType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "SetPlayerFurnaceOptionsFurnaceType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)

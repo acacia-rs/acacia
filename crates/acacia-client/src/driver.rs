@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-use acacia_session::{DisconnectReason, Event as SessionEvent, Session};
+use acacia_session::{DisconnectReason, Event as SessionEvent, PackFetch, Session};
 use acacia_nethernet::{Connection, Event as NetEvent};
 
 use crate::net_wire::NetherNetWire;
@@ -11,6 +11,8 @@ use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::filter::PacketFilter;
+use crate::pack_fetch;
+use crate::socks5::Socks5Proxy;
 use crate::transport::Transport;
 use crate::Event;
 
@@ -43,6 +45,8 @@ pub(crate) struct Driver {
     pub spawned: Option<oneshot::Sender<SpawnResult>>,
     pub filter: PacketFilter,
     pub capacity: usize,
+    /// The connection's proxy, for pack downloads too.
+    pub proxy: Option<Socks5Proxy>,
     /// Held for the connection's life; dropping it closes the signaling socket.
     pub _signaling: Option<Keepalive>,
     /// Held for the connection's life; dropping it leaves a friend's Xbox session.
@@ -58,6 +62,7 @@ impl Driver {
     pub async fn run(mut self) {
         let mut buf = vec![0u8; RECV_BUFFER];
         let mut pending: VecDeque<Event> = VecDeque::new();
+        let (fetched_tx, mut fetched) = mpsc::unbounded_channel();
         loop {
             if let Err(e) = self.flush().await {
                 return self.finish(pending, DisconnectReason::Io(e.to_string())).await;
@@ -74,6 +79,7 @@ impl Driver {
                     }
                     SessionEvent::Packet(p) if self.filter.allows(p.id) => pending.push_back(Event::Packet(p)),
                     SessionEvent::Packet(_) => {}
+                    SessionEvent::Violation(v) => pending.push_back(Event::Violation(v)),
                     SessionEvent::Disconnected(reason) => {
                         let _ = self.flush().await;
                         self.close_wire();
@@ -81,6 +87,9 @@ impl Driver {
                         return self.finish(pending, reason).await;
                     }
                 }
+            }
+            while let Some(pack) = self.session.poll_pack_fetch() {
+                tokio::spawn(fetch_pack(pack, self.proxy.clone(), fetched_tx.clone()));
             }
             let can_read = self.spawned.is_some() || pending.len() < self.capacity;
             let deadline = self.poll_timeout().unwrap_or_else(|| Instant::now() + Duration::from_secs(60));
@@ -107,6 +116,10 @@ impl Driver {
                         Some(Command::RespawnDone) => self.session.send_respawn_done(),
                         Some(Command::Close) | None => self.session.close(Instant::now()),
                     }
+                    None
+                }
+                Some((id, ok)) = fetched.recv() => {
+                    self.session.pack_fetched(Instant::now(), &id, ok);
                     None
                 }
                 _ = tokio::time::sleep_until(deadline.into()) => {
@@ -182,6 +195,25 @@ impl Driver {
         }
         let _ = self.events.send(Event::Disconnected(reason)).await;
     }
+}
+
+async fn fetch_pack(pack: PackFetch, proxy: Option<Socks5Proxy>, done: mpsc::UnboundedSender<(String, bool)>) {
+    let result = tokio::time::timeout(pack_fetch::FETCH_TIMEOUT, pack_fetch::fetch(&pack.url, proxy.as_ref())).await;
+    let ok = match result {
+        Ok(Ok(size)) => {
+            tracing::debug!(pack = pack.id, size, "resource pack downloaded");
+            true
+        }
+        Ok(Err(e)) => {
+            tracing::warn!(pack = pack.id, url = pack.url, "resource pack download: {e}");
+            false
+        }
+        Err(_) => {
+            tracing::warn!(pack = pack.id, url = pack.url, "resource pack download timed out");
+            false
+        }
+    };
+    let _ = done.send((pack.id, ok));
 }
 
 // Free functions: `select!` holds `transport` borrowed while these run.

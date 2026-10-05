@@ -3,6 +3,7 @@ mod deferred;
 mod handlers;
 mod link;
 mod packs;
+mod strict;
 
 use std::collections::VecDeque;
 use std::net::SocketAddr;
@@ -24,7 +25,10 @@ use blob_cache::BlobStatus;
 use deferred::Deferred;
 use link::Link;
 use packs::Packs;
+pub use packs::PackFetch;
 pub use link::LinkConfig;
+use strict::JoinOrder;
+pub use strict::{Reason, Violation};
 
 pub struct SessionConfig {
     pub link: LinkConfig,
@@ -42,10 +46,14 @@ pub struct SessionConfig {
     pub blob_store: Option<Arc<dyn BlobStore>>,
     /// Resource packs this account already holds; the rest are downloaded (packs.rs).
     pub pack_store: Arc<dyn PackStore>,
+    /// Report every server packet a strict peer would reject as an [`Event::Violation`] (strict.rs).
+    pub strict: bool,
 }
 
 #[derive(Debug)]
 pub enum Event {
+    /// Strict mode only; comes before the packet's own [`Event::Packet`].
+    Violation(Violation),
     /// Login finished and the player is in the world.
     Spawned { runtime_entity_id: u64 },
     /// Every packet from the server, including the ones the session also handled internally.
@@ -97,6 +105,7 @@ pub struct Session {
     deferred: Deferred,
     blobs: Option<BlobStatus>,
     packs: Packs,
+    strict: Option<JoinOrder>,
     /// The time of the event being handled, for `send_later`.
     now: Instant,
     events: VecDeque<Event>,
@@ -123,6 +132,7 @@ impl Session {
             deferred: Deferred::new(),
             blobs: cfg.blob_store.map(BlobStatus::new),
             packs: Packs::new(cfg.pack_store),
+            strict: cfg.strict.then(JoinOrder::default),
             now,
             events: VecDeque::new(),
             scratch: Vec::new(),

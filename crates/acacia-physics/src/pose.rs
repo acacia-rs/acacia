@@ -1,10 +1,10 @@
 //! Bounding boxes, retained collision endpoints and pose transitions (bedsim `bbox.go` + pose helpers).
 
 use crate::aabb::Aabb;
-use crate::math::Vec3;
+use crate::math::{BlockPos, Vec3, block_pos};
 use crate::sim::Sim;
 use crate::state::{CollisionShape, PlayerState};
-use crate::world::WorldView;
+use crate::world::{Traversal, WorldView};
 
 impl PlayerState {
     /// Scaled half-width and pose height.
@@ -51,6 +51,11 @@ impl PlayerState {
     }
 }
 
+const CONTACT_NOISE: f32 = 1e-5;
+
+/// How far a taller pose may reach under a ceiling's edge; the sweep then moves the box out (see README).
+pub(crate) const HEADROOM_MARGIN: f32 = 0.01;
+
 /// Restores horizontal contact faces only when the box's f32 centre still equals `pos`.
 fn recover_rounded_contacts(bb: Aabb, pos: Vec3, boxes: &[Aabb]) -> Aabb {
     let (omin, omax) = (bb.min, bb.max);
@@ -76,6 +81,22 @@ fn recover_rounded_contacts(bb: Aabb, pos: Vec3, boxes: &[Aabb]) -> Aabb {
             high[axis] = omax[axis];
         }
     }
+    // A face the rebuilt box is inside by float noise only: the server's box touches it (see README).
+    for other in boxes {
+        for axis in [0, 2] {
+            let across = (0..3).filter(|&i| i != axis).all(|i| other.max[i] - omin[i] > CONTACT_NOISE && omax[i] - other.min[i] > CONTACT_NOISE);
+            if !across {
+                continue;
+            }
+            let (inside_low, inside_high) = (other.max[axis] - low[axis], high[axis] - other.min[axis]);
+            if inside_low > 0.0 && inside_low < CONTACT_NOISE {
+                low[axis] = other.max[axis];
+            }
+            if inside_high > 0.0 && inside_high < CONTACT_NOISE {
+                high[axis] = other.min[axis];
+            }
+        }
+    }
     Aabb::new(low[0], low[1], low[2], high[0], high[1], high[2])
 }
 
@@ -98,7 +119,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !self.loaded(&bb) {
             return;
         }
-        let boxes = self.nearby_bboxes(&bb);
+        // Wider than the box, or `Aabb::intersects` drops the faces it is inside by noise.
+        let boxes = self.nearby_bboxes(st, &bb.grow_vec([2.0 * CONTACT_NOISE, 0.0, 2.0 * CONTACT_NOISE]));
         let bb = recover_rounded_contacts(bb, st.pos, &boxes);
         st.remember_box(bb);
     }
@@ -107,15 +129,21 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         self.w.is_area_loaded(area)
     }
 
-    pub(crate) fn nearby_bboxes(&self, area: &Aabb) -> Vec<Aabb> {
+    pub(crate) fn nearby_bboxes(&self, st: &PlayerState, area: &Aabb) -> Vec<Aabb> {
         let mut out = Vec::new();
         self.w.collisions(area, &mut out);
-        out.retain(|b| !b.is_empty());
+        out.retain(|b| !b.is_empty() && self.collides_for(st, block_pos(b.min)));
         out
     }
 
-    pub(crate) fn has_nearby_bboxes(&self, area: &Aabb) -> bool {
-        !self.nearby_bboxes(area).is_empty()
+    pub(crate) fn has_nearby_bboxes(&self, st: &PlayerState, area: &Aabb) -> bool {
+        !self.nearby_bboxes(st, area).is_empty()
+    }
+
+    /// Scaffolding collides only under a player standing above it who isn't descending (Java
+    /// `ScaffoldingBlock::getCollisionShape`; its unsupported-bottom lip is not modelled).
+    pub(crate) fn collides_for(&self, st: &PlayerState, cell: BlockPos) -> bool {
+        self.w.block(cell).traversal != Traversal::Scaffolding || st.pos[1] > cell[1] as f32 + 1.0 - 1e-5 && !st.pressing_descend
     }
 
     pub(crate) fn pose_collisions_available(&self, st: &PlayerState) -> bool {
@@ -125,11 +153,11 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// Whether a standing box of `height` is free, and whether that could be determined.
     pub(crate) fn can_fit_height_known(&self, st: &PlayerState, height: f32) -> (bool, bool) {
         let scale = st.size[2];
-        let bb = st.box_with_dims(st.pos, [(st.size[0] * 0.5) * scale, height * scale]);
+        let bb = st.box_with_dims(st.pos, [(st.size[0] * 0.5) * scale - HEADROOM_MARGIN, height * scale]);
         if !self.loaded(&bb) {
             return (false, false);
         }
-        (!self.has_nearby_bboxes(&bb), true)
+        (!self.has_nearby_bboxes(st, &bb), true)
     }
 
     /// Chooses standing, sneaking or crawling without entering a ceiling.

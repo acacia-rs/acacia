@@ -13,6 +13,7 @@ pub struct ColumnHeights([i32; 256]);
 
 /// One sub-chunk's share of a [`ColumnHeights`].
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)] // 257 bytes inline beats a box per sub-chunk.
 pub enum Heightmap {
     /// Every column tops out above this sub-chunk.
     TooHigh,

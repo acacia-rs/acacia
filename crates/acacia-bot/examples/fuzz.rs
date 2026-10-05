@@ -2,12 +2,16 @@
 //! where the bot is operator. Run against BDS in strict mode (docs/DESIGN.md "Checking physics") with
 //! `BEDROCK_RECORD=<file>`, then list the disagreeing ticks with the `replay` example.
 //! `cargo run -p acacia-bot --example fuzz -- <server> <name|@account> [rounds] [seed] [ticks]`
-//! `FUZZ_OFF=pitch,web` disables features (see [`on`]); `FUZZ_BOTS=4` runs four bots at once.
+//! `FUZZ_OFF=pitch,web` disables features (see [`on`]); `FUZZ_BOTS=4` runs four bots at once;
+//! `FUZZ_CMD="/effect @s speed 9999 1;/gamerule x y"` runs commands once per bot before the first round;
+//! `FUZZ_WEAR="diamond_boots:depth_strider:3,diamond_leggings:swift_sneak:3"` puts armour on;
+//! `FUZZ_GLIDE=1` (with `FUZZ_WEAR=elytra`) adds an elytra dive after each round.
 mod support;
 
 use std::path::PathBuf;
 
 use acacia_bot::movement::Controls;
+use acacia_bot::survival::{Destination, EquipMethod};
 use acacia_bot::world::SharedWorlds;
 use acacia_bot::Bot;
 use support::{corrections, Commander, Error, Fill, Pad, PAD_MIN};
@@ -26,6 +30,19 @@ const AREA_MIN: [i32; 2] = [0, -8];
 const AREA_MAX: [i32; 2] = [20, 8];
 const FLOORS: &[&str] = &["ice", "packed_ice", "blue_ice", "slime", "honey_block", "soul_sand"];
 const OBSTACLES: &[&str] = &["stone", "glass", "smooth_stone_slab", "oak_stairs", "oak_fence", "cobblestone_wall", "white_carpet"];
+/// Climbables lean on a stone column on their -z side (ladders and vines need one to face).
+const CLIMBABLES: &[&str] = &["ladder [\"facing_direction\"=3]", "vine [\"vine_direction_bits\"=4]", "scaffolding", "twisting_vines"];
+const INSIDE: &[&str] = &["powder_snow", "sweet_berry_bush [\"growth\"=3]"];
+const SHAPES: &[&str] = &[
+    "oak_fence_gate",
+    "oak_trapdoor",
+    "iron_bars",
+    "glass_pane",
+    "snow_layer [\"height\"=1]",
+    "snow_layer [\"height\"=2]",
+    "snow_layer [\"height\"=4]",
+];
+const COLUMN_BASES: &[&str] = &["soul_sand", "magma"];
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Error> {
@@ -95,6 +112,15 @@ async fn fuzz_bot(
     }
     // Spread the seed (xorshift needs a nonzero state): `seed | 1` gave bots n and n+1 one stream.
     let mut rng = Rng(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
+    pad.run(&bot, "/effect @s fire_resistance 1000000 0 true");
+    // Snowfall lays snow on the pad a tick before the client hears of it.
+    pad.run(&bot, "/weather clear 1000000");
+    for command in std::env::var("FUZZ_CMD").iter().flat_map(|c| c.split(';')) {
+        pad.run(&bot, command.trim());
+    }
+    for piece in std::env::var("FUZZ_WEAR").iter().flat_map(|w| w.split(',')) {
+        wear(&mut bot, &pad, piece.trim()).await?;
+    }
     for round in 0..rounds {
         let terrain = terrain(&mut rng);
         bot.trace_mark(&format!("r{round} build"));
@@ -104,9 +130,48 @@ async fn fuzz_bot(
         let before = corrections(&bot);
         drive(&mut bot, &pad, &mut rng, ticks).await?;
         println!("bot {index} round {round:3} corrections {}", corrections(&bot) - before);
+        if std::env::var_os("FUZZ_GLIDE").is_some() {
+            bot.trace_mark(&format!("r{round} glide"));
+            let before = corrections(&bot);
+            glide(&mut bot, &pad, &mut rng).await?;
+            println!("bot {index} round {round:3} glide corrections {}", corrections(&bot) - before);
+        }
     }
     pad.go_home(&mut bot).await?;
     bot.disconnect().await;
+    Ok(())
+}
+
+/// Gives `item[:enchantment:level]`, enchants it in the hand and puts it on.
+async fn wear(bot: &mut Bot, pad: &Pad, piece: &str) -> Result<(), Error> {
+    let mut parts = piece.split(':');
+    let item = parts.next().unwrap_or_default();
+    let name = format!("minecraft:{item}");
+    pad.run(bot, &format!("/clear @s {item}"));
+    pad.run(bot, &format!("/give @s {item}"));
+    bot.wait_ticks(20).await?;
+    if let (Some(enchantment), Some(level)) = (parts.next(), parts.next()) {
+        let given = bot.find_item(&name).ok_or_else(|| format!("{item} was not given"))?;
+        bot.equip(given, Destination::Hand).await?;
+        bot.wait_ticks(10).await?;
+        pad.run(bot, &format!("/enchant @s {enchantment} {level}"));
+        bot.wait_ticks(20).await?;
+    }
+    let to = match item {
+        i if i.ends_with("_helmet") => Destination::Head,
+        i if i.ends_with("_leggings") => Destination::Legs,
+        i if i.ends_with("_boots") => Destination::Feet,
+        _ => Destination::Chest,
+    };
+    let from = bot.find_item(&name).ok_or_else(|| format!("{item} was not given"))?;
+    let method = if std::env::var_os("FUZZ_EQUIP_USE").is_some() { EquipMethod::Use } else { EquipMethod::Inventory };
+    bot.equip_by(from, to, method).await?;
+    bot.wait_ticks(20).await?;
+    println!("wearing {piece}: {:?}", bot.movement().map(|m| m.equipment()));
+    if std::env::var_os("FUZZ_DEBUG").is_some() {
+        let inv = &bot.state().inventory;
+        println!("  armor {:?}\n  hand {:?}", inv.armor, inv.main[usize::from(inv.selected_hotbar_slot)]);
+    }
     Ok(())
 }
 
@@ -127,23 +192,36 @@ async fn run_commands(server: &str, admin: &str, mut commands: mpsc::UnboundedRe
     Ok(())
 }
 
-/// Random features: slippery or sticky floor patches, obstacles (partial blocks included), cobwebs,
-/// still pools and flowing water. The start cell stays plain stone.
+/// Random features: slippery or sticky floor patches, obstacles (partial and state-shaped blocks included),
+/// cobwebs, climbables, honey walls, powder snow and berry bushes, still and bubbling pools, lava, low
+/// ceilings and flowing water. The start cell stays plain stone.
 fn terrain(rng: &mut Rng) -> Vec<Fill<'static>> {
     let mut fills = Vec::new();
     for _ in 0..rng.range(10, 17) {
         let (x, z) = (rng.range(AREA_MIN[0], AREA_MAX[0]), rng.range(AREA_MIN[1], AREA_MAX[1]));
         let (w, d) = (rng.range(0, 4), rng.range(0, 4));
         let (a, b) = ([x, 0, z], [(x + w).min(AREA_MAX[0]), 0, (z + d).min(AREA_MAX[1])]);
-        let (kind, floor, obstacle, top, depth) = (rng.range(0, 6), *rng.pick(FLOORS), *rng.pick(OBSTACLES), rng.range(0, 2), rng.range(1, 5));
+        let (kind, floor, obstacle, top, depth) = (rng.range(0, 13), *rng.pick(FLOORS), *rng.pick(OBSTACLES), rng.range(0, 2), rng.range(1, 5));
+        let (climbable, inside, shape, base) = (*rng.pick(CLIMBABLES), *rng.pick(INSIDE), *rng.pick(SHAPES), *rng.pick(COLUMN_BASES));
+        let pool = ([a[0], -depth, a[2]], [(b[0] + 3).min(AREA_MAX[0]), -1, (b[2] + 3).min(AREA_MAX[1])]);
         match kind {
             0 | 1 if on("floors") => fills.push(([a[0], -1, a[2]], [b[0], -1, b[2]], floor)),
             2 if on("obstacles") => fills.push((a, [b[0], top, b[2]], obstacle)),
             3 if on("web") => fills.push((a, a, "web")),
             // Wide and up to 4 deep (the floor is 5), room for a sprint to dive into a swim.
-            4 if on("pools") => fills.push(([a[0], -depth, a[2]], [(b[0] + 3).min(AREA_MAX[0]), -1, (b[2] + 3).min(AREA_MAX[1])], "water")),
+            4 if on("pools") => fills.push((pool.0, pool.1, "water")),
             // A block placed and removed above a source: BDS `/fill` schedules no liquid update.
             5 if on("flow") => fills.extend([(a, a, "water"), ([x, 1, z], [x, 1, z], "stone"), ([x, 1, z], [x, 1, z], "air")]),
+            6 if on("climb") => fills.extend([([x, 0, z - 1], [x, 2 + top, z - 1], "stone"), ([x, 0, z], [x, 2 + top, z], climbable)]),
+            7 if on("honeywall") => fills.push((a, [b[0], 1 + top, a[2]], "honey_block")),
+            8 if on("inside") => fills.push((a, b, inside)),
+            // Fire resistance is given once per bot (see `fuzz_bot`).
+            9 if on("lava") => fills.push((pool.0, pool.1, "lava")),
+            // The base under the water makes the column; placing it after the water updates the cells above.
+            10 if on("bubbles") => fills.extend([(pool.0, pool.1, "water"), ([pool.0[0], -depth - 1, pool.0[2]], [pool.1[0], -depth - 1, pool.1[2]], base)]),
+            // 1.5 blocks of headroom over a slab: sneaking fits, standing does not.
+            11 if on("ceiling") => fills.extend([(a, b, "smooth_stone_slab"), ([a[0], 2, a[2]], [b[0], 2, b[2]], "stone")]),
+            12 if on("shapes") => fills.push((a, [b[0], top, b[2]], shape)),
             _ => {}
         }
     }
@@ -203,8 +281,37 @@ async fn drive(bot: &mut Bot, pad: &Pad, rng: &mut Rng, ticks: u32) -> Result<()
     Ok(())
 }
 
+/// Drops from high above the pad and glides down in a turning dive (needs `FUZZ_WEAR=elytra`): a steady
+/// turn keeps the bot near the pad's loaded chunks.
+async fn glide(bot: &mut Bot, pad: &Pad, rng: &mut Rng) -> Result<(), Error> {
+    pad.teleport(bot, [10.5, 60.0, 0.5], rng.range(-180, 180) as f32).await?;
+    bot.wait_ticks(10).await?;
+    if let Err(e) = bot.start_gliding().await {
+        println!("glide not started: {e}");
+        return Ok(());
+    }
+    let (mut left, mut turn) = (0, 0.0);
+    for _ in 0..400 {
+        if bot.movement().is_none_or(|m| m.on_ground()) {
+            break;
+        }
+        let Some(c) = bot.controls() else { break };
+        if left == 0 {
+            left = rng.range(5, 30);
+            turn = rng.range(6, 15) as f32;
+            c.pitch = rng.range(-20, 70) as f32;
+        }
+        left -= 1;
+        c.yaw += turn;
+        bot.wait_ticks(1).await?;
+    }
+    bot.wait_ticks(10).await?;
+    Ok(())
+}
+
 /// Whether a fuzz feature is enabled: `FUZZ_OFF` lists disabled ones (turn, walk, strafe, sprint, jump, sneak,
-/// pitch, floors, obstacles, web, pools, flow), for bisecting a mismatch to its cause.
+/// pitch, floors, obstacles, web, pools, flow, climb, honeywall, inside, lava, bubbles, ceiling, shapes), for
+/// bisecting a mismatch to its cause.
 fn on(feature: &str) -> bool {
     std::env::var("FUZZ_OFF").map_or(true, |off| !off.split(',').any(|f| f == feature))
 }

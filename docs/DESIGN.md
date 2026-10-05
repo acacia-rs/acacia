@@ -24,7 +24,7 @@ Research behind these decisions: `docs/research/`.
 | Auth | Separate `acacia-auth` crate | Device code, Xbox/XSTS, PlayFab, session/start and the multiplayer token, with a pluggable `TokenCache`. Offline mode for tests. Browser or password logins stay outside and hand in tokens |
 | Proxies | SOCKS5 UDP relay per client, in v1 | Lets bots spread across IPs. The auth HTTP calls can use the same proxy |
 | Performance | Targets set after v1 works | Keep the hot path free of allocation and copying. The benchmark setup (fake server, replayed traffic, CI tracking) comes in the optimization phase |
-| License | MIT; ported code keeps its notice (`acacia-physics/LICENSE-bedsim`) | Never port from GPL/LGPL sources (Pumpkin's NetherNet, PocketMine, PowerNukkitX); citing their behaviour is fine |
+| License | MIT; ported code keeps its notice (`acacia-physics/LICENSE-bedsim`) | Never port from GPL/LGPL sources (Pumpkin's NetherNet, PocketMine, PowerNukkitX); citing their behaviour is fine. One exception: `tools/lookbake` is GPL-3.0-or-later and holds what is ported from Pomme (`LICENSE-pomme`). It is a separate program that no crate depends on (docs/java-look.md "Licensing") |
 
 ## Crates (dependencies point downward only, no cycles)
 
@@ -35,13 +35,15 @@ acacia-client             tokio sockets and timers, SOCKS5 (UDP + CONNECT), Neth
  │   ├─ acacia-raknet     network-free RakNet client and server: reliability, split packets, ACK/NACK, ordering
  │   └─ acacia-proto      generated packet structs + codec (varints, lazy Packet)
  ├─ acacia-nethernet      network-free NetherNet: signaling HTTP bytes (both sides), signal text, signaling-service
- │                        session, STUN/TURN client, a=identity, fragment framing, str0m connection (offer or BDS-style answer)
+ │                        session, STUN/TURN client, a=identity (both directions), fragment framing, str0m connection
+ │                        (offer, or BDS-style answer, embedded or trickled), `Host`: many answering connections on one socket
  └─ acacia-auth           MSA device code → Xbox → XSTS → PlayFab → session/start → multiplayer token
 acacia-viewer             (app) world viewer: a bot on a tokio thread, winit window, fly camera
  └─ acacia-render         wgpu terrain renderer over acacia-world (no network): pack loading, meshing, drawing
 acacia-mitm               proxy library (record, drop, rewrite, inject) and recording CLI for vanilla-client
                           captures over RakNet or NetherNet direct connect, local BDS or (`--online`) real servers
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
+tools/lookbake            bakes a look pack for acacia-render from a resource pack (docs/java-look.md)
 tools/capdiff             compares what two clients sent in captures (vanilla vs bot): order, delays, cadence, fields
 acacia-testserver         (dev) FakeServer replays a recorded BDS join over loopback RakNet, then takes send/recv/kick
                           from the test; capture reader

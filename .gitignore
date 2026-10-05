@@ -1,6 +1,9 @@
 /target
+/target-*
+CLAUDE.md
 /.testserver
 /.tokens
 /.blobs
 /.packs
 /assets
+/.viewer.json
