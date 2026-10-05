@@ -20,6 +20,7 @@ mod mapping;
 mod model;
 mod offset;
 mod report;
+mod shade;
 mod textures;
 mod tint;
 
@@ -63,8 +64,9 @@ fn main() -> Result<(), Error> {
         }
         Some("java-check") => {
             let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
-            let jar = jar::fetch(&dir(jar::default_dir))?;
-            check::print(&jar.assets, &biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &truth)?;
+            let java = dir(jar::default_dir);
+            let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
+            check::print(&jar.assets, &biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &mapping, &truth)?;
         }
         _ => return Err(USAGE.into()),
     }

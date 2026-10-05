@@ -21,7 +21,7 @@ use crate::mapping::{JavaState, Mapping};
 use crate::model::Models;
 use crate::model::bake::{BakedFace, bake};
 use crate::textures::Textures;
-use crate::{offset, tint};
+use crate::{offset, shade, tint};
 
 /// What became of the vanilla registry's states.
 #[derive(Default)]
@@ -68,13 +68,21 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Re
                 baker.block(&base, &drawn, java, state.light_emission > 0, &mut look.atlas)
             }),
         };
-        match block {
+        let mut block = match block {
             Ok(block) => {
                 if block.shape == Shape::Cube { report.cubes += 1 } else { report.models += 1 }
-                look.set_block(key, block);
+                block
             }
-            Err(why) => *report.kept.entry(why).or_default() += 1,
+            Err(why) => {
+                *report.kept.entry(why).or_default() += 1;
+                base
+            }
+        };
+        // Whatever draws it, a block darkens the faces around it as Java has it.
+        if let Some(java) = mapping.get(&key) {
+            block.shades = shade::darkens(java, state.is_full_cube());
         }
+        look.set_block(key, block);
     }
     look.compact();
     report.missing_textures = baker.textures.missing.into_iter().collect();

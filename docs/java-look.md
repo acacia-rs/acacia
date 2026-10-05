@@ -172,12 +172,9 @@ as the pack's `biomes_client.json`; tints blend over 5×5 columns. Weighted vari
 them; plants stand off the grid by Java's offsets (`lookbake/src/offset.rs`). Kept on Bedrock
 rendering: 382 states drawn as block entities, 193 with no Java geometry, and 182 whose model lays
 one face over another. The grass block is among those, drawn as Bedrock's overlay cube; its faces
-still turn as its Java variants do. Left in J1:
-
-- Fog: both of Java's bands are drawn (`Look::JAVA`), but its colour is still the renderer's sky
-  colour, not Java's `fog_color` mixed with the sky, and rain does not thicken it.
-- The cutout threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), nor
-  the mip cap: a 16-pixel texture has four levels below it.
+still turn as its Java variants do. Both of Java's fog bands are drawn (`Look::JAVA`). The cutout
+threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), nor the mip cap: a
+16-pixel texture has four levels below it. What is left, in order: [java-look-next.md](java-look-next.md).
 
 ### Checking against the game
 
@@ -189,7 +186,9 @@ coordinates, cull side, tint and shade direction, for every alternative of a sta
 `placement.json` has, for 48 positions, the alternatives the game picks and how far it shifts each
 block that stands off the grid; the check runs the renderer's own pick and shift against them. All
 35,723 states of Java 26.3 agree, 644 of them with alternatives. `biomes.json` has each biome's
-foliage, dry foliage and water, and its grass at 64 columns; all 67 biomes agree. Matching
+foliage, dry foliage and water, and its grass at 64 columns; all 67 biomes agree. `shade.json` has
+the states that darken ambient occlusion; all 22,091 mapped Bedrock states agree
+(`lookbake/src/shade.rs`). Matching
 needed three things Pomme's baker lacked: `uvlock` as the game does it, the three-axis element
 rotation and `shade_direction_override` of 26.1, and the sine and cosine JOML rotates with (they
 decide which way an exactly diagonal face is shaded). What draws the quads (light, ambient

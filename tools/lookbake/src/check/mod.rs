@@ -3,6 +3,7 @@
 
 mod biomes;
 mod placed;
+mod shade;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
@@ -14,7 +15,7 @@ use serde_json::Value;
 use crate::biomes::Colors;
 use crate::blockstate;
 use crate::download::Error;
-use crate::mapping::JavaState;
+use crate::mapping::{JavaState, Mapping};
 use crate::model::bake::{BakedFace, Direction, bake};
 use crate::model::{Models, strip_namespace};
 
@@ -72,8 +73,8 @@ struct Quad {
 }
 
 /// `assets` is the jar's `assets/minecraft`, `biome_colors` our colours by Java biome, `dump` the
-/// game's `quads.json.gz`; its `placement.json` and `biomes.json` are beside it.
-pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, dump: &Path) -> Result<(), Error> {
+/// game's `quads.json.gz`; its `placement.json`, `biomes.json` and `shade.json` are beside it.
+pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, mapping: &Mapping, dump: &Path) -> Result<(), Error> {
     let placement: placed::Placement = serde_json::from_slice(&std::fs::read(dump.with_file_name("placement.json"))?)?;
     let truth: Truth = serde_json::from_reader(flate2::read::GzDecoder::new(File::open(dump)?))?;
     let mut models = Models::new(assets.to_owned());
@@ -127,7 +128,8 @@ pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, dump: &Path
         differing if differing.is_empty() => println!("blocks stand off the grid as the game shifts them"),
         differing => println!("blocks shifted otherwise than the game shifts them: {}", differing.join(" ")),
     }
-    biomes::print(biome_colors, &dump.with_file_name("biomes.json"))
+    biomes::print(biome_colors, &dump.with_file_name("biomes.json"))?;
+    shade::print(mapping, &dump.with_file_name("shade.json"))
 }
 
 /// How `ours` differs from the game's quads of the same model, as kinds of difference.

@@ -20,6 +20,8 @@ pub(super) struct Globals {
     fog_shape: [f32; 4],
     /// x, y: the [`crate::look::Haze`] of the dimension, zero for none.
     haze: [f32; 4],
+    /// [`Look::ambient_occlusion`].
+    ao: [f32; 4],
     /// x: ambient brightness, y: [`crate::sky::Sky::darken`].
     light: [f32; 4],
 }
@@ -48,6 +50,7 @@ impl Globals {
             fog: [fog_color[0], fog_color[1], fog_color[2], fog_end],
             fog_shape: [look.fog.start(fog_end), flag(look.fog.cylinder), flag(look.fog.linear), 0.0],
             haze: [haze_start, haze_end, 0.0, 0.0],
+            ao: look.ambient_occlusion,
             light: [if has_sky { AMBIENT.0 } else { AMBIENT.1 }, darken, 0.0, 0.0],
         }
     }

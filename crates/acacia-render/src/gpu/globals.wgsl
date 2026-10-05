@@ -12,6 +12,8 @@ struct Globals {
     fog_shape: vec4<f32>,
     // A second, spherical linear fog. x: where it begins, y: where it is opaque, 0 for none
     haze: vec4<f32>,
+    // Brightness per ambient occlusion level, 3 unoccluded
+    ao: vec4<f32>,
     // x: ambient brightness, y: sky light levels lost to the time of day
     light: vec4<f32>,
 };
