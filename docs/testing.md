@@ -12,7 +12,8 @@
   Set `BEDROCK_PROXY`, `BEDROCK_CMD="/list;hi;!respawn"`, `BEDROCK_AUTO_RESPAWN=1` and
   `BEDROCK_TRANSPORT=raknet|nethernet` (default auto) as needed.
 - NetherNet: a second BDS copy in `.testserver/bds-nn` with `transport=nethernet` and `server-port=19160`.
-  NetherNet needs an online account even when the server is offline:
+  BDS needs an online account for NetherNet even when it is offline (an offline login offers a
+  self-signed identity, which only hosts like sapling accept):
   `BEDROCK_TRANSPORT=nethernet cargo run -p acacia-client --example afk -- 127.0.0.1:19160 @default 30`.
   In Git Bash, set `MSYS_NO_PATHCONV=1`, or it rewrites `/list` into a Windows path.
 - `cargo run -p acacia-client --example ping -- play.example.net` pings a server; set `BEDROCK_PROXY` to go through a proxy.

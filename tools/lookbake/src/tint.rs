@@ -13,9 +13,13 @@ const GRASS: &[&str] =
 const FOLIAGE: &[&str] = &["oak_leaves", "jungle_leaves", "acacia_leaves", "dark_oak_leaves", "mangrove_leaves", "vine"];
 const WATER: &[&str] = &["water", "bubble_column", "water_cauldron"];
 
-pub fn of(java: &JavaState, dry_foliage: [u8; 3]) -> Tint {
+/// The colour of tint `index` of a block; all but the flower beds have only index 0.
+pub fn of(java: &JavaState, index: i32, dry_foliage: [u8; 3]) -> Tint {
     let number = |key| java.property(key).and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
+    let flower_bed = matches!(java.name.as_str(), "pink_petals" | "wildflowers");
     match java.name.as_str() {
+        // Index 0 is the petals, uncoloured; 1 the stems.
+        _ if index != i32::from(flower_bed) => Tint::None,
         n if GRASS.contains(&n) => Tint::Grass,
         n if FOLIAGE.contains(&n) => Tint::Foliage,
         n if WATER.contains(&n) => Tint::Water,
@@ -62,7 +66,10 @@ mod tests {
 
     #[test]
     fn blocks_tint_as_java_colours_them() {
-        let of = |name: &str, properties: &[(&str, &str)]| of(&state(name, properties), [1, 2, 3]);
+        let flowers = |index| of(&state("pink_petals", &[]), index, [1, 2, 3]);
+        assert_eq!((flowers(0), flowers(1), flowers(2)), (Tint::None, Tint::Grass, Tint::None));
+        assert_eq!(of(&state("vine", &[]), 1, [1, 2, 3]), Tint::None);
+        let of = |name: &str, properties: &[(&str, &str)]| of(&state(name, properties), 0, [1, 2, 3]);
         assert_eq!(of("vine", &[]), Tint::Foliage);
         assert_eq!(of("cherry_leaves", &[]), Tint::None);
         assert_eq!(of("leaf_litter", &[]), Tint::Fixed([1, 2, 3]));

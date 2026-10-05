@@ -24,7 +24,7 @@ impl JavaState {
     }
 
     /// From `minecraft:oak_log[axis=y]` or a bare name.
-    fn parse(text: &str) -> JavaState {
+    pub fn parse(text: &str) -> JavaState {
         let (name, properties) = text.split_once('[').map_or((text, ""), |(n, p)| (n, p.trim_end_matches(']')));
         let pairs = properties.split(',').filter_map(|p| p.split_once('=')).map(|(k, v)| (k.to_owned(), v.to_owned()));
         JavaState { name: name.strip_prefix("minecraft:").unwrap_or(name).to_owned(), properties: pairs.collect() }
