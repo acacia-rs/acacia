@@ -79,7 +79,7 @@ pub enum ConnectError {
     Timeout,
     #[error("NetherNet: {0}")]
     NetherNet(#[from] acacia_nethernet::Error),
-    #[error("NetherNet needs an online login (its identity assertion carries the MultiplayerToken)")]
+    #[error("NetherNet needs the account's MultiplayerToken for its identity assertion; these credentials have none")]
     NetherNetNeedsOnline,
     #[error("the server does not answer NetherNet signaling (GET /v1/join)")]
     NetherNetUnsupported,

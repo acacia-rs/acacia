@@ -1,17 +1,21 @@
 //! Network-free NetherNet: direct-connect HTTP signaling (both sides), signal text for LAN and the
 //! signaling service, the SDP identity assertion, fragment framing and a str0m WebRTC connection
-//! that offers (client) or answers (direct-connect server).
+//! that offers (client) or answers (server), and a host holding many answering connections on one
+//! socket.
 //! Wire specs: docs/research/nethernet-wire.md, docs/research/nethernet-signaling.md.
 
+mod assertion;
 mod cert;
 mod conn;
 mod error;
 mod frame;
+pub mod host;
 pub mod http;
 mod identity;
 pub mod lan;
 #[cfg(test)]
 mod loopback_tests;
+mod offer_identity;
 mod sdp;
 mod server_identity;
 mod signal;
@@ -19,6 +23,7 @@ pub mod signaling;
 pub mod turn;
 
 pub use conn::{Connection, Event, LocalCandidate, Transmit};
+pub use offer_identity::{verify_offer, OfferIdentity};
 pub use signal::{Signal, SignalKind};
 pub use error::{signaling_error_name, Error};
 pub use identity::{Identity, AUTH_DOMAIN};
