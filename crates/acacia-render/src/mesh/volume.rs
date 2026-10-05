@@ -17,7 +17,8 @@ pub struct Volume {
     pub origin: [i32; 3],
     pub blocks: Box<[u32; CELLS]>,
     pub liquid: Box<[u32; CELLS]>,
-    pub biomes: Box<[u32; CELLS]>,
+    /// Reaches [`BLEND`] columns past the section, by [`biome_cell`].
+    pub biomes: Box<[u32; BIOME_CELLS]>,
 }
 
 /// Cell index for section-local coordinates in -1..=16.
@@ -26,7 +27,24 @@ pub fn cell(x: i32, y: i32, z: i32) -> usize {
     (((x + 1) as usize * SIDE) + (z + 1) as usize) * SIDE + (y + 1) as usize
 }
 
+/// The widest biome blend ([`crate::look::Look::biome_blend`]).
+pub const BLEND: i32 = 2;
+const BIOME_SIDE: usize = 16 + 2 * BLEND as usize;
+const BIOME_CELLS: usize = BIOME_SIDE * BIOME_SIDE * SIDE;
+
+/// Biome cell index for x and z in -BLEND..16 + BLEND, y in -1..=16.
+#[inline]
+pub(super) fn biome_cell(x: i32, y: i32, z: i32) -> usize {
+    (((x + BLEND) as usize * BIOME_SIDE) + (z + BLEND) as usize) * SIDE + (y + 1) as usize
+}
+
 impl Volume {
+    /// Every cell `block`, no liquid, biome 0.
+    #[cfg(test)]
+    pub fn filled(block: u32) -> Volume {
+        Volume { origin: [0; 3], blocks: Box::new([block; CELLS]), liquid: Box::new([0; CELLS]), biomes: Box::new([0; BIOME_CELLS]) }
+    }
+
     #[inline]
     pub fn block(&self, x: i32, y: i32, z: i32) -> u32 {
         self.blocks[cell(x, y, z)]
@@ -39,7 +57,7 @@ impl Volume {
 
     #[inline]
     pub fn biome(&self, x: i32, y: i32, z: i32) -> u32 {
-        self.biomes[cell(x, y, z)]
+        self.biomes[biome_cell(x, y, z)]
     }
 
     /// Copies section `section_y` (world y >> 4) of column `(cx, cz)` with its border. `None` when
@@ -51,7 +69,7 @@ impl Volume {
             origin: [cx * 16, section_y * 16, cz * 16],
             blocks: Box::new([OCCLUDER; CELLS]),
             liquid: Box::new([dim.air; CELLS]),
-            biomes: Box::new([NO_BIOME; CELLS]),
+            biomes: Box::new([NO_BIOME; BIOME_CELLS]),
         };
         let (mut blocks, mut liquid, mut biomes) =
             (Box::new([0; SECTION_VOLUME]), Box::new([0; SECTION_VOLUME]), Box::new([0; SECTION_VOLUME]));
@@ -82,20 +100,23 @@ impl Volume {
 
     /// Copies the part of a neighbouring section (offset -1..=1 per axis) that falls in the border.
     fn copy_part(&mut self, [blocks, liquid, biomes]: [&[u32; SECTION_VOLUME]; 3], offset: [i32; 3]) {
-        let range = |o: i32| match o {
-            -1 => 15..16,
+        let range = |o: i32, border: i32| match o {
+            -1 => 16 - border..16,
             0 => 0..16,
-            _ => 0..1,
+            _ => 0..border,
         };
         let [ox, oy, oz] = offset;
-        for x in range(ox) {
-            for z in range(oz) {
-                for y in range(oy) {
+        for x in range(ox, BLEND) {
+            for z in range(oz, BLEND) {
+                for y in range(oy, 1) {
                     let src = ((x << 8) | (z << 4) | y) as usize;
-                    let dst = cell(x + ox * 16, y + oy * 16, z + oz * 16);
-                    self.blocks[dst] = blocks[src];
-                    self.liquid[dst] = liquid[src];
-                    self.biomes[dst] = biomes[src];
+                    let at = [x + ox * 16, y + oy * 16, z + oz * 16];
+                    self.biomes[biome_cell(at[0], at[1], at[2])] = biomes[src];
+                    if range(ox, 1).contains(&x) && range(oz, 1).contains(&z) {
+                        let dst = cell(at[0], at[1], at[2]);
+                        self.blocks[dst] = blocks[src];
+                        self.liquid[dst] = liquid[src];
+                    }
                 }
             }
         }

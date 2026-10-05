@@ -1,6 +1,7 @@
 //! `lookbake java-check`: our bake of every Java block state against the game's own, from a dump
 //! of its baked quads (the workspace's `research/java-truth`, whose README has the format).
 
+mod biomes;
 mod placed;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -10,6 +11,7 @@ use std::path::Path;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::biomes::Colors;
 use crate::blockstate;
 use crate::download::Error;
 use crate::mapping::JavaState;
@@ -69,11 +71,11 @@ struct Quad {
     cullface: Option<String>,
 }
 
-/// `assets` is the jar's `assets/minecraft`, `truth` the dump's `quads.json.gz`; its
-/// `placement.json` is beside it.
-pub fn print(assets: &Path, truth: &Path) -> Result<(), Error> {
-    let placement: placed::Placement = serde_json::from_slice(&std::fs::read(truth.with_file_name("placement.json"))?)?;
-    let truth: Truth = serde_json::from_reader(flate2::read::GzDecoder::new(File::open(truth)?))?;
+/// `assets` is the jar's `assets/minecraft`, `biome_colors` our colours by Java biome, `dump` the
+/// game's `quads.json.gz`; its `placement.json` and `biomes.json` are beside it.
+pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, dump: &Path) -> Result<(), Error> {
+    let placement: placed::Placement = serde_json::from_slice(&std::fs::read(dump.with_file_name("placement.json"))?)?;
+    let truth: Truth = serde_json::from_reader(flate2::read::GzDecoder::new(File::open(dump)?))?;
     let mut models = Models::new(assets.to_owned());
     let mut blockstates: HashMap<String, Option<Value>> = HashMap::new();
     let mut differences: BTreeMap<&'static str, (usize, Vec<&str>)> = BTreeMap::new();
@@ -125,7 +127,7 @@ pub fn print(assets: &Path, truth: &Path) -> Result<(), Error> {
         differing if differing.is_empty() => println!("blocks stand off the grid as the game shifts them"),
         differing => println!("blocks shifted otherwise than the game shifts them: {}", differing.join(" ")),
     }
-    Ok(())
+    biomes::print(biome_colors, &dump.with_file_name("biomes.json"))
 }
 
 /// How `ours` differs from the game's quads of the same model, as kinds of difference.

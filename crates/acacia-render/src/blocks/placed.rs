@@ -61,13 +61,13 @@ impl Draw {
         Draw::new((i64::from(upper) << 32).wrapping_add(i64::from(lower)))
     }
 
-    fn next(&mut self, bits: u32) -> i32 {
+    pub(crate) fn next(&mut self, bits: u32) -> i32 {
         self.0 = self.0.wrapping_mul(MULTIPLIER).wrapping_add(11) & MASK;
         (self.0 >> (48 - bits)) as i32
     }
 
     /// Uniform in `0..bound`.
-    fn below(&mut self, bound: i32) -> i32 {
+    pub(crate) fn below(&mut self, bound: i32) -> i32 {
         if bound & (bound - 1) == 0 {
             return ((i64::from(bound) * i64::from(self.next(31))) >> 31) as i32;
         }

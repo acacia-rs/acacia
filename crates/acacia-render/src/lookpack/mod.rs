@@ -92,6 +92,8 @@ impl LookPack {
             let Some(&index) = self.states.get(&state_key(state)) else { return BlockTable::cube(0) };
             RenderBlock { model: blocks::model::classify(state).map(Arc::new), ..self.blocks[index as usize].clone() }
         };
-        BlockTable::from_blocks((0..registry.len() as u32).map(block).collect())
+        let mut table = BlockTable::from_blocks((0..registry.len() as u32).map(block).collect());
+        table.biome_blend = self.look.biome_blend;
+        table
     }
 }

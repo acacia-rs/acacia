@@ -48,7 +48,7 @@ fn main() -> Result<(), Error> {
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
             let (look, report) = java::bake_look(&pack, &jar.assets, &mapping);
             look.save(&out)?;
-            biomes::write(&jar.biomes, &out)?;
+            biomes::write(&biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &out)?;
             println!("{}", summary(&look, &out));
             println!("  Java: {} states as cubes, {} as models, {} liquids; kept from Bedrock: {:?}", report.cubes, report.models, report.liquids, report.kept);
             println!("  textures missing: {:?}; models invalid: {:?}", report.missing_textures, report.invalid_models);
@@ -63,7 +63,8 @@ fn main() -> Result<(), Error> {
         }
         Some("java-check") => {
             let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
-            check::print(&jar::fetch(&dir(jar::default_dir))?.assets, &truth)?;
+            let jar = jar::fetch(&dir(jar::default_dir))?;
+            check::print(&jar.assets, &biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &truth)?;
         }
         _ => return Err(USAGE.into()),
     }

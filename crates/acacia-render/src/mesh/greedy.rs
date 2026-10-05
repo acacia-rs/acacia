@@ -88,7 +88,7 @@ pub(super) fn corner_ao(ctx: &Ctx, n: [i32; 3], face: u8) -> [u8; 4] {
 mod tests {
     use std::sync::Arc;
 
-    use super::super::volume::{SIDE, Volume, cell};
+    use super::super::volume::{Volume, cell};
     use super::*;
     use crate::biome::BiomeColors;
     use crate::blocks::placed::{Random, Weighted};
@@ -101,8 +101,7 @@ mod tests {
         let either = Random::Whole(Weighted(Box::new([(1, BlockTable::cube(1)), (1, turned)])));
         let stone = RenderBlock { random: Some(Arc::new(either)), ..BlockTable::cube(1) };
         let table = BlockTable::from_blocks(vec![air, stone]);
-        let cells = || vec![0u32; SIDE * SIDE * SIDE].into_boxed_slice().try_into().unwrap();
-        let mut v = Volume { origin: [160, 64, -48], blocks: cells(), liquid: cells(), biomes: cells() };
+        let mut v = Volume { origin: [160, 64, -48], ..Volume::filled(0) };
         (0..16).for_each(|x| (0..16).for_each(|z| v.blocks[cell(x, 0, z)] = 1));
         let mut out = SectionMesh::default();
         cubes(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default() }, &mut out);

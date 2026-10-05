@@ -41,7 +41,7 @@ pub struct Report {
 pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Report) {
     let (mut look, _) = LookPack::bake_bedrock(pack, Look::JAVA);
     let registry = BlockRegistry::vanilla();
-    let mut baker = Baker { models: Models::new(assets.to_owned()), textures: Textures::new(assets.to_owned()), dry_foliage: tint::dry_foliage(assets) };
+    let mut baker = Baker { models: Models::new(assets.to_owned()), textures: Textures::new(assets.to_owned()) };
     let mut blockstates: HashMap<String, Option<Value>> = HashMap::new();
     let mut report = Report::default();
     for id in 0..registry.len() as u32 {
@@ -94,7 +94,6 @@ fn liquid(base: &RenderBlock, textures: &mut Textures, atlas: &mut Atlas) -> Opt
 struct Baker {
     models: Models,
     textures: Textures,
-    dry_foliage: [u8; 3],
 }
 
 impl Baker {
@@ -110,8 +109,7 @@ impl Baker {
         }
         // ModelBlockRenderer.tesselateBlock: the first part's model decides, and never for a light.
         let ambient_occlusion = !gives_light && first[0].ambient_occlusion;
-        let dry_foliage = self.dry_foliage;
-        let tint = |index| tint::of(java, index, dry_foliage);
+        let tint = |index| tint::of(java, index);
         let offset = offset::of(&java.name);
         let mut whole = |baker: &mut Baker, faces: &[BakedFace], cube: bool| -> Result<RenderBlock, &'static str> {
             if overlaid(faces) {

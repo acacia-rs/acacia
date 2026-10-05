@@ -27,6 +27,9 @@ pub struct Look {
     pub fog: Fog,
     /// Water surface opacity; `None` keeps the texture's alpha.
     pub water_alpha: Option<f32>,
+    /// Columns to each side whose biome colours a tint averages; baked into the block table, so
+    /// changing it takes a remesh.
+    pub biome_blend: u8,
 }
 
 impl Look {
@@ -35,11 +38,14 @@ impl Look {
         // Not infinity: JSON has none, and a look pack stores this.
         fog: Fog { cylinder: false, linear: false, band: 0.3, band_limits: (0.0, f32::MAX) },
         water_alpha: Some(0.65),
+        biome_blend: 1,
     };
     // TODO: Java's second fog band (the spherical biome haze) is not drawn.
+    /// The blend is Java's default `biomeBlendRadius`.
     pub const JAVA: Look = Look {
         fog: Fog { cylinder: true, linear: true, band: 0.1, band_limits: (4.0, 64.0) },
         water_alpha: None,
+        biome_blend: 2,
     };
 }
 

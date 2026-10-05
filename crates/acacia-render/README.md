@@ -37,8 +37,18 @@ material per face. Build it from the **world's** registry: custom blocks shift r
 foliage sample `textures/colormap/{grass,foliage}.png` at (1 − temperature, 1 − downfall·temperature),
 then vanilla's overrides (swamp, mangrove swamp, badlands, cherry grove, pale garden, dark forest);
 water comes from `biomes_client.json`. Until it arrives, and for chunks without biomes, everything
-tints like plains, with the water of that file's `default` entry. The mesher averages the tint over the 3×3 columns around each block, so greedy
-quads merge only within a uniform colour.
+tints like plains, with the water of that file's `default` entry.
+
+- The list gives every vanilla biome the id 65535: only a custom biome is sent its id. Chunks store
+  the built-in ids, which `biome/ids.rs` has by name. Seen on BDS 1.26.50: 89 definitions, one
+  distinct id, and biome 12 (`ice_plains`) under a bot standing in snow.
+- A look pack's `biomes_client.json` can also list `grass_color`, `foliage_color`,
+  `dry_foliage_color` and `grass_patch_color` per biome; those replace the colormaps and
+  overrides. The patch colour is grass where `biome/noise.rs` is low: Java's swamp grass, by its
+  `BIOME_INFO_NOISE` (simplex, seed 2345, the same in every world).
+- The mesher averages the tint over the columns around each block, `Look::biome_blend` to each
+  side (3×3 for Bedrock, Java's default 5×5), so greedy quads merge only within a uniform colour.
+  The section's volume carries biomes two columns past its border for it.
 
 ## Meshing (`mesh/`)
 

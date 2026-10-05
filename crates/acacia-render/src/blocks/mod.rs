@@ -77,6 +77,8 @@ pub struct RenderBlock {
 pub struct BlockTable {
     blocks: Vec<RenderBlock>,
     fallback: RenderBlock,
+    /// [`crate::look::Look::biome_blend`] of the look the table draws.
+    pub biome_blend: u8,
 }
 
 /// What [`BlockTable::build`] could not resolve, for diagnostics.
@@ -108,12 +110,12 @@ impl BlockTable {
         report.blocks_without_textures.dedup();
         report.missing_images = textures.missing;
         let fallback = BlockTable::cube(0);
-        (BlockTable { blocks, fallback }, textures.atlas, report)
+        (BlockTable { blocks, fallback, biome_blend: 1 }, textures.atlas, report)
     }
 
     /// One block per runtime id.
     pub(crate) fn from_blocks(blocks: Vec<RenderBlock>) -> BlockTable {
-        BlockTable { blocks, fallback: BlockTable::cube(0) }
+        BlockTable { blocks, fallback: BlockTable::cube(0), biome_blend: 1 }
     }
 
     /// Runtime ids past the registry (unknown custom blocks) render as a missing-texture cube.

@@ -2,6 +2,9 @@
 //! temperature and downfall (`BiomeDefinitionList`), with vanilla's hard-coded exceptions; water
 //! comes from `biomes_client.json`.
 
+pub mod ids;
+pub mod noise;
+
 use std::path::Path;
 
 use rustc_hash::FxHashMap;
@@ -12,6 +15,7 @@ use crate::assets::json;
 /// One entry of the server's `BiomeDefinitionList`.
 #[derive(Debug, Clone)]
 pub struct BiomeDef {
+    /// [`ids::UNSET`] for a vanilla biome.
     pub id: u16,
     /// Without namespace, e.g. `plains`.
     pub name: String,
@@ -23,11 +27,34 @@ pub struct BiomeDef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BiomeTint {
     pub grass: [u8; 3],
+    /// Grass where [`noise::grass_patch`] says, as in Java's swamps.
+    pub grass_patch: Option<[u8; 3]>,
     pub foliage: [u8; 3],
+    /// Leaf litter.
+    pub dry_foliage: [u8; 3],
     pub water: [u8; 3],
 }
 
-const PLAINS: BiomeTint = BiomeTint { grass: rgb(0x91BD59), foliage: rgb(0x77AB2F), water: rgb(0x44AFF5) };
+impl BiomeTint {
+    /// Grass in the column of world position `(x, z)`.
+    pub fn grass_at(&self, x: i32, z: i32) -> [u8; 3] {
+        self.grass_patch.filter(|_| noise::grass_patch(x, z)).unwrap_or(self.grass)
+    }
+}
+
+const PLAINS: BiomeTint =
+    BiomeTint { grass: rgb(0x91BD59), grass_patch: None, foliage: rgb(0x77AB2F), dry_foliage: rgb(0xA37546), water: rgb(0x44AFF5) };
+
+/// What `biomes_client.json` says of a biome. Bedrock's has the water; a look pack's can list the
+/// rest, which then replaces the colormaps.
+#[derive(Default, Clone, Copy)]
+struct Listed {
+    water: Option<[u8; 3]>,
+    grass: Option<[u8; 3]>,
+    grass_patch: Option<[u8; 3]>,
+    foliage: Option<[u8; 3]>,
+    dry_foliage: Option<[u8; 3]>,
+}
 
 pub struct BiomeColors {
     by_id: FxHashMap<u32, BiomeTint>,
@@ -46,18 +73,31 @@ impl BiomeColors {
     pub fn build(defs: &[BiomeDef], root: &Path) -> BiomeColors {
         let grass = Colormap::load(root, "grass");
         let foliage = Colormap::load(root, "foliage");
-        let water = water_colors(root);
-        let unknown = BiomeTint { water: water.get("default").copied().unwrap_or(PLAINS.water), ..PLAINS };
+        let listed = listed(root);
+        let unknown = BiomeTint { water: listed.get("default").and_then(|l| l.water).unwrap_or(PLAINS.water), ..PLAINS };
         let by_id = defs
             .iter()
-            .map(|d| {
+            .filter_map(|d| {
+                let id = if d.id == ids::UNSET { ids::vanilla(&d.name)? } else { d.id };
                 let (g, f) = (grass.sample(d), foliage.sample(d));
-                let (grass, foliage) = exceptions(&d.name, g, f);
-                let water = water.get(d.name.as_str()).copied().unwrap_or(unknown.water);
-                (u32::from(d.id), BiomeTint { grass, foliage, water })
+                let (g, f) = exceptions(&d.name, g, f);
+                let l = listed.get(d.name.as_str()).copied().unwrap_or_default();
+                let tint = BiomeTint {
+                    grass: l.grass.unwrap_or(g),
+                    grass_patch: l.grass_patch,
+                    foliage: l.foliage.unwrap_or(f),
+                    dry_foliage: l.dry_foliage.unwrap_or(unknown.dry_foliage),
+                    water: l.water.unwrap_or(unknown.water),
+                };
+                Some((u32::from(id), tint))
             })
             .collect();
         BiomeColors { by_id, unknown }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn of(tints: &[(u32, BiomeTint)]) -> BiomeColors {
+        BiomeColors { by_id: tints.iter().copied().collect(), unknown: PLAINS }
     }
 
     /// Unknown ids (and chunks without biomes) tint like plains, with the files' default water.
@@ -117,16 +157,20 @@ impl Colormap {
     }
 }
 
-/// `water_surface_color` by biome name (namespace stripped); `default` is for biomes not listed.
-fn water_colors(root: &Path) -> FxHashMap<String, [u8; 3]> {
+/// By biome name (namespace stripped); `default`'s water is for biomes not listed.
+fn listed(root: &Path) -> FxHashMap<String, Listed> {
     let Ok(doc) = json::read(&root.join("biomes_client.json")) else { return FxHashMap::default() };
     let Some(biomes) = doc.get("biomes").and_then(Value::as_object) else { return FxHashMap::default() };
-    biomes
-        .iter()
-        .filter_map(|(name, b)| {
-            let hex = b.get("water_surface_color")?.as_str()?.strip_prefix('#')?;
-            let short = name.strip_prefix("minecraft:").unwrap_or(name);
-            Some((short.to_owned(), rgb(u32::from_str_radix(hex, 16).ok()?)))
-        })
-        .collect()
+    let entry = |(name, b): (&String, &Value)| {
+        let color = |key: &str| Some(rgb(u32::from_str_radix(b.get(key)?.as_str()?.strip_prefix('#')?, 16).ok()?));
+        let listed = Listed {
+            water: color("water_surface_color"),
+            grass: color("grass_color"),
+            grass_patch: color("grass_patch_color"),
+            foliage: color("foliage_color"),
+            dry_foliage: color("dry_foliage_color"),
+        };
+        (name.strip_prefix("minecraft:").unwrap_or(name).to_owned(), listed)
+    };
+    biomes.iter().map(entry).collect()
 }

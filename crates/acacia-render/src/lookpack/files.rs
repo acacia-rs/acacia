@@ -15,8 +15,8 @@ use crate::entity::EntityModels;
 use crate::look::Look;
 
 /// Packs written as another version are refused; bake again. 2: model faces. 3: their ambient occlusion, fixed tints.
-/// 4: turned faces, alternatives and shifts by position.
-pub const VERSION: u64 = 4;
+/// 4: turned faces, alternatives and shifts by position. 5: the look's biome blend.
+pub const VERSION: u64 = 5;
 
 #[derive(Serialize, Deserialize)]
 struct PackFile {

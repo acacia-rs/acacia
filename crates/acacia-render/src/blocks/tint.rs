@@ -8,6 +8,7 @@ pub enum Tint {
     None,
     Grass,
     Foliage,
+    DryFoliage,
     Water,
     /// Birch and spruce leaves ignore the biome.
     Birch,
@@ -20,12 +21,14 @@ const GRASS: &[&str] = &["short_grass", "tall_grass", "fern", "large_fern", "tal
 const UNTINTED_LEAVES: &[&str] = &["cherry", "azalea", "pale_oak"];
 
 impl Tint {
-    /// sRGB multiplier, `None` for untinted faces.
+    /// sRGB multiplier, `None` for untinted faces. Grass can also depend on the column
+    /// ([`BiomeTint::grass_at`]).
     pub fn color(self, biome: &BiomeTint) -> Option<[u8; 3]> {
         match self {
             Tint::None => None,
             Tint::Grass => Some(biome.grass),
             Tint::Foliage => Some(biome.foliage),
+            Tint::DryFoliage => Some(biome.dry_foliage),
             Tint::Water => Some(biome.water),
             Tint::Birch => Some([0x80, 0xA7, 0x55]),
             Tint::Spruce => Some([0x61, 0x99, 0x61]),

@@ -101,7 +101,7 @@ fn model_ao(ctx: &Ctx, p: [i32; 3], f: &ModelFace, side: u8) -> [u8; 4] {
 
 #[cfg(test)]
 mod tests {
-    use super::super::volume::{SIDE, Volume, cell};
+    use super::super::volume::{Volume, cell};
     use super::*;
     use crate::biome::BiomeColors;
     use crate::blocks::{BlockTable, Tint};
@@ -122,8 +122,7 @@ mod tests {
         let air = RenderBlock { shape: Shape::None, occludes: false, ..BlockTable::cube(0) };
         let slab = RenderBlock { shape: Shape::Model([face].into()), occludes: false, ..BlockTable::cube(0) };
         let table = BlockTable::from_blocks(vec![air, BlockTable::cube(0), slab]);
-        let cells = || vec![0u32; SIDE * SIDE * SIDE].into_boxed_slice().try_into().unwrap();
-        let mut v = Volume { origin: [0; 3], blocks: cells(), liquid: cells(), biomes: cells() };
+        let mut v = Volume::filled(0);
         v.blocks[cell(5, 5, 5)] = 2;
         stone.iter().for_each(|&[x, y, z]| v.blocks[cell(x, y, z)] = 1);
         let mut out = SectionMesh::default();

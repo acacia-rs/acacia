@@ -164,19 +164,19 @@ every state whose Java model has geometry: 21,270 of 22,091 states (1,432 as gre
 the rest as model faces), with 1,171 texture layers after compaction. A full block whose textures
 are only turned or mirrored is still a cube. Model faces take ambient
 occlusion where the model allows it. Tints follow Java's `BlockColors` (`lookbake/src/tint.rs`); the
-64 liquid states keep the renderer's liquid geometry with Java's textures; water colour per biome
-comes from the jar's biome files, written as the pack's `biomes_client.json`. Weighted variants
+64 liquid states keep the renderer's liquid geometry with Java's textures. Biome colours are Java's
+(`lookbake/src/biomes.rs`): grass, foliage, dry foliage and water per biome from the jar's biome
+files and colormaps, with the dark forest and swamp modifiers, written under Bedrock's biome names
+as the pack's `biomes_client.json`; tints blend over 5×5 columns. Weighted variants
 (stone, dirt, netherrack, fire, 38 blocks) are all baked and picked per position as the game picks
 them; plants stand off the grid by Java's offsets (`lookbake/src/offset.rs`). Kept on Bedrock
 rendering: 382 states drawn as block entities, 193 with no Java geometry, and 182 whose model lays
 one face over another. The grass block is among those, drawn as Bedrock's overlay cube; its faces
 still turn as its Java variants do. Left in J1:
 
-- Leaf litter takes one dry-foliage colour for every biome; swamp grass has no noise.
-- Biome blend: Java's default averages 5×5 columns, the mesher 3×3 (its section border is one
-  block). The second fog band from "Parameters". The cutout threshold needs nothing (Java's
-  terrain pipeline discards below 0.5, as ours), nor the mip cap: a 16-pixel texture has four
-  levels below it.
+- The second fog band from "Parameters". The cutout threshold needs nothing (Java's terrain
+  pipeline discards below 0.5, as ours), nor the mip cap: a 16-pixel texture has four levels
+  below it.
 - `pack.json` is 38 MB for the Java look; model faces want a binary encoding.
 
 ### Checking against the game
@@ -188,7 +188,8 @@ without a window and dumps every Java block state's baked quads; `lookbake java-
 coordinates, cull side, tint and shade direction, for every alternative of a state. The dump's
 `placement.json` has, for 48 positions, the alternatives the game picks and how far it shifts each
 block that stands off the grid; the check runs the renderer's own pick and shift against them. All
-35,723 states of Java 26.3 agree, 644 of them with alternatives. Matching
+35,723 states of Java 26.3 agree, 644 of them with alternatives. `biomes.json` has each biome's
+foliage, dry foliage and water, and its grass at 64 columns; all 67 biomes agree. Matching
 needed three things Pomme's baker lacked: `uvlock` as the game does it, the three-axis element
 rotation and `shade_direction_override` of 26.1, and the sine and cosine JOML rotates with (they
 decide which way an exactly diagonal face is shaded). What draws the quads (light, ambient
