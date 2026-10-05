@@ -178,7 +178,6 @@ still turn as its Java variants do. Left in J1:
   colour, not Java's `fog_color` mixed with the sky, and rain does not thicken it.
 - The cutout threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), nor
   the mip cap: a 16-pixel texture has four levels below it.
-- `pack.json` is 38 MB for the Java look; model faces want a binary encoding.
 
 ### Checking against the game
 
@@ -202,7 +201,8 @@ handed over from, whoever holds the render area. J2 onward are new areas (`ui`, 
 ## Open items
 
 - The jar lacks sounds, other languages and the Unifont glyphs; those come from Mojang's asset index.
-- Pack encoding: JSON plus PNG strips for now (about 5 MB for Bedrock, 4 MB of it `pack.json`).
+- Pack encoding: `pack.json` (2.5 MB, nearly all of it the state names), the blocks as deflated
+  postcard (1.4 MB for the Java look, 38 MB as JSON) and PNG strips.
   Revisit if loading is slow or once baked quads make the table much larger.
 - README "Non-goals" still lists graphics and Java Edition; DESIGN.md milestone 10 is out of date.
 - Whether the Java look becomes the default once J3 is done.

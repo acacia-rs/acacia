@@ -1,8 +1,14 @@
-//! A look pack on disk: `pack.json` (version, look, blocks, states, animations), `textures.png` (the
-//! array layers stacked top to bottom) and `frames.png` (every animation's frames, in `pack.json`'s order).
+//! A look pack on disk: `pack.json` (version, look, states, animations), `blocks.bin` (the blocks:
+//! postcard, deflated; as JSON the Java look's were 38 MB), `textures.png` (the array layers
+//! stacked top to bottom) and `frames.png` (every animation's frames, in `pack.json`'s order).
 
 use std::collections::BTreeMap;
+use std::io::{Read, Write};
 use std::path::Path;
+
+use flate2::Compression;
+use flate2::read::DeflateDecoder;
+use flate2::write::DeflateEncoder;
 
 use serde::{Deserialize, Serialize};
 
@@ -16,13 +22,14 @@ use crate::look::Look;
 
 /// Packs written as another version are refused; bake again. 2: model faces. 3: their ambient occlusion, fixed tints.
 /// 4: turned faces, alternatives and shifts by position. 5: the look's biome blend. 6: its haze.
-pub const VERSION: u64 = 6;
+/// 7: `blocks.bin`.
+pub const VERSION: u64 = 7;
 
 #[derive(Serialize, Deserialize)]
 struct PackFile {
     version: u64,
     look: Look,
-    blocks: Vec<RenderBlock>,
+    /// Indices into `blocks.bin`.
     states: BTreeMap<String, u32>,
     animations: Vec<AnimationEntry>,
 }
@@ -43,12 +50,15 @@ impl LookPack {
         let file = PackFile {
             version: VERSION,
             look: self.look,
-            blocks: self.blocks.clone(),
             states: self.states.iter().map(|(k, v)| (k.clone(), *v)).collect(),
             animations: animations.iter().map(|a| AnimationEntry { layer: a.layer, frames: a.frames.len(), ticks_per_frame: a.ticks_per_frame, blend: a.blend }).collect(),
         };
         let json = dir.join("pack.json");
         std::fs::write(&json, serde_json::to_vec(&file).expect("a pack serializes")).map_err(io(&json))?;
+        let blocks = dir.join("blocks.bin");
+        let mut deflated = DeflateEncoder::new(Vec::new(), Compression::default());
+        deflated.write_all(&postcard::to_stdvec(&self.blocks).expect("blocks serialize")).expect("a vector takes bytes");
+        std::fs::write(&blocks, deflated.finish().expect("a vector takes bytes")).map_err(io(&blocks))?;
         write_strip(&dir.join("textures.png"), self.atlas.layers.iter())?;
         write_strip(&dir.join("frames.png"), animations.iter().flat_map(|a| &a.frames))?;
         if self.files == dir {
@@ -78,8 +88,9 @@ impl LookPack {
             return Err(bad(format!("look pack version {version:?}, this build reads {VERSION}")));
         }
         let file: PackFile = serde_json::from_value(value).map_err(|source| Error::Json { path: path.clone(), source })?;
-        if let Some(index) = file.states.values().find(|&&i| i as usize >= file.blocks.len()) {
-            return Err(bad(format!("state points at block {index} of {}", file.blocks.len())));
+        let blocks = read_blocks(&dir.join("blocks.bin"))?;
+        if let Some(index) = file.states.values().find(|&&i| i as usize >= blocks.len()) {
+            return Err(bad(format!("state points at block {index} of {}", blocks.len())));
         }
         let layers = read_strip(&dir.join("textures.png"))?;
         let mut frames = if file.animations.is_empty() { Vec::new() } else { read_strip(&dir.join("frames.png"))? }.into_iter();
@@ -92,8 +103,16 @@ impl LookPack {
             animations.push(Animation { layer: a.layer, frames, ticks_per_frame: a.ticks_per_frame.max(1), blend: a.blend });
         }
         let states = file.states.into_iter().collect();
-        Ok(LookPack { look: file.look, blocks: file.blocks, states, distinct: Default::default(), atlas: Atlas { layers, animations }, files: dir.to_owned() })
+        Ok(LookPack { look: file.look, blocks, states, distinct: Default::default(), atlas: Atlas { layers, animations }, files: dir.to_owned() })
     }
+}
+
+fn read_blocks(path: &Path) -> Result<Vec<RenderBlock>, Error> {
+    let shown = path.display().to_string();
+    let file = std::fs::read(path).map_err(|source| Error::Io { path: shown.clone(), source })?;
+    let mut bytes = Vec::new();
+    let inflated = DeflateDecoder::new(&file[..]).read_to_end(&mut bytes).map_err(|e| e.to_string());
+    inflated.and_then(|_| postcard::from_bytes(&bytes).map_err(|e| e.to_string())).map_err(|reason| Error::LookPack { path: shown, reason })
 }
 
 /// What [`LookPack::files`] holds, copied beside the baked data.

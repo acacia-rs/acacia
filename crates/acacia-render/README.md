@@ -244,7 +244,8 @@ lacks (custom blocks) are missing-texture cubes. Block models are not stored: th
 saves it (`cargo run --release -p lookbake -- bedrock`), by default to `assets/looks/bedrock`
 (`$ACACIA_LOOKS` moves `assets/looks`):
 
-- `pack.json`: version, look, blocks, states, animation timing. Another version is refused.
+- `pack.json`: version, look, states, animation timing. Another version is refused.
+- `blocks.bin`: the distinct blocks the states index, as postcard, deflated.
 - `textures.png`: the array layers stacked top to bottom.
 - `frames.png`: every animation's frames, in `pack.json`'s order.
 
