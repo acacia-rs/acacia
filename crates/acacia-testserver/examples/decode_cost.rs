@@ -1,12 +1,13 @@
 //! What decoding everything a server sent costs, per packet type: time and allocations (docs/proto.md, "Decode cost").
-//! `cargo run --release -p acacia-testserver --example decode_cost -- [--capture <file.jsonl[#n]>] [<PacketName>|all [seconds]]`
-//! Without `--capture` it is the bundled BDS join; with one, a session recorded by acacia-mitm or the
-//! client's capture example. A packet name (or `all`) loops on those packets for a sampling profiler
+//! `cargo run --release -p acacia-testserver --example decode_cost -- [--capture <file.jsonl[#n]|dir>] [<PacketName>|all [seconds]]`
+//! Without `--capture` it is the bundled BDS join; with one, a session recorded by acacia-mitm (a
+//! `.jsonl`) or by acacia-client's `capture` example (a directory). A packet name (or `all`) loops on those packets for a sampling profiler
 //! instead of printing the table. `--features mimalloc` measures on mimalloc.
 
 use std::alloc::{GlobalAlloc, Layout};
 use std::collections::BTreeMap;
 use std::hint::black_box;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
 use std::time::{Duration, Instant};
 
@@ -63,9 +64,22 @@ struct Cost {
     allocated: u64,
 }
 
-/// What the server sent: in a capture file's session (`file.jsonl[#n]`), or in the bundled BDS join.
+/// A directory written by acacia-client's `capture` example: one received packet per `.bin`, in name order.
+fn packet_files(dir: &Path) -> Result<Vec<RawPacket>, String> {
+    let mut paths: Vec<_> = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?.filter_map(|e| Some(e.ok()?.path())).collect();
+    paths.sort();
+    paths
+        .iter()
+        .filter(|p| p.extension().is_some_and(|x| x == "bin"))
+        .map(|p| RawPacket::parse(std::fs::read(p).map_err(|e| e.to_string())?.into()).map_err(|e| format!("{}: {e}", p.display())))
+        .collect()
+}
+
+/// What the server sent: in a capture (a mitm `file.jsonl[#n]` session or a directory of packet
+/// files), or in the bundled BDS join.
 fn received(capture: Option<&str>) -> Result<Vec<RawPacket>, String> {
     let raws: Vec<RawPacket> = match capture {
+        Some(path) if Path::new(path).is_dir() => packet_files(Path::new(path))?,
         Some(path) => acacia_testserver::capture::session(path)?
             .packets
             .into_iter()

@@ -81,6 +81,15 @@ fn have_all(packets: &[RawPacket]) -> bool {
 
 #[test]
 fn downloads_missing_packs_once_per_store() {
+    downloads_a_pack_the_server_names(ID);
+}
+
+#[test]
+fn downloads_a_pack_the_server_names_by_uuid_alone() {
+    downloads_a_pack_the_server_names(UUID);
+}
+
+fn downloads_a_pack_the_server_names(pack_id: &str) {
     let store: Arc<dyn PackStore> = Arc::new(MemoryPackStore::default());
     let mut now = Instant::now();
     let mut s = session(store.clone(), now);
@@ -93,7 +102,7 @@ fn downloads_missing_packs_once_per_store() {
     let payload = [b"abcd".as_slice(), b"ef"];
     let hash = Sha256::digest(payload.concat());
     let info = ResourcePackDataInfo {
-        pack_id: ID.into(),
+        pack_id: pack_id.into(),
         max_chunk_size: 4,
         chunk_count: 2,
         size: 6,
@@ -107,7 +116,7 @@ fn downloads_missing_packs_once_per_store() {
 
     for (index, progress) in [(1u32, 4u64), (0, 0)] {
         let data = Bytes::from_static(payload[index as usize]);
-        feed(&mut s, now, &ResourcePackChunkData { pack_id: ID.into(), chunk_index: index, progress, payload: data });
+        feed(&mut s, now, &ResourcePackChunkData { pack_id: pack_id.into(), chunk_index: index, progress, payload: data });
     }
     now += STEP;
     assert!(have_all(&sent(&mut s, now)));
