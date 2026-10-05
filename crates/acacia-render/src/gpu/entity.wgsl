@@ -29,7 +29,7 @@ struct VsOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) shade: f32,
-    @location(2) dist: f32,
+    @location(2) dist: vec2<f32>,
     @location(3) @interpolate(flat) tint: vec4<f32>,
 };
 

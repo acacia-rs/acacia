@@ -13,6 +13,16 @@ pub struct Fog {
     pub band: f32,
     /// Shortest and longest ramp in blocks.
     pub band_limits: (f32, f32),
+    /// A second fog over the first: linear over these distances from the camera, whatever the
+    /// first one's shape.
+    pub haze: Option<Haze>,
+}
+
+/// Where a haze starts and where it is opaque, in blocks.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Haze {
+    pub overworld: (f32, f32),
+    pub nether: (f32, f32),
 }
 
 impl Fog {
@@ -36,14 +46,21 @@ impl Look {
     /// Water opacity is `biomes_client.json`'s default water_surface_transparency.
     pub const BEDROCK: Look = Look {
         // Not infinity: JSON has none, and a look pack stores this.
-        fog: Fog { cylinder: false, linear: false, band: 0.3, band_limits: (0.0, f32::MAX) },
+        fog: Fog { cylinder: false, linear: false, band: 0.3, band_limits: (0.0, f32::MAX), haze: None },
         water_alpha: Some(0.65),
         biome_blend: 1,
     };
-    // TODO: Java's second fog band (the spherical biome haze) is not drawn.
-    /// The blend is Java's default `biomeBlendRadius`.
+    /// The blend is Java's default `biomeBlendRadius`; the haze its environmental fog
+    /// (`fog_start_distance` and `fog_end_distance`: the defaults, and the Nether's), without
+    /// what rain and boss fights do to it.
     pub const JAVA: Look = Look {
-        fog: Fog { cylinder: true, linear: true, band: 0.1, band_limits: (4.0, 64.0) },
+        fog: Fog {
+            cylinder: true,
+            linear: true,
+            band: 0.1,
+            band_limits: (4.0, 64.0),
+            haze: Some(Haze { overworld: (0.0, 1024.0), nether: (10.0, 96.0) }),
+        },
         water_alpha: None,
         biome_blend: 2,
     };

@@ -229,7 +229,9 @@ the `Globals` uniform and can change between frames. Plan for the rest: docs/jav
 |---|---|---|
 | Fog distance | From the camera | From the vertical axis through the camera |
 | Fog ramp | Smoothstep over the last 30% | Linear over the last 10%, 4 to 64 blocks |
+| Haze | None | A second fog, the stronger of the two drawn: linear from the camera over 0 to 1024 blocks, 10 to 96 in the Nether (Java's environmental fog, without rain) |
 | Water opacity | 0.65 (`water_surface_transparency`) | The texture's alpha |
+| Biome blend | 3×3 columns | 5×5 (takes a remesh) |
 
 ## Look pack (`lookpack/`)
 

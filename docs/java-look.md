@@ -174,9 +174,10 @@ rendering: 382 states drawn as block entities, 193 with no Java geometry, and 18
 one face over another. The grass block is among those, drawn as Bedrock's overlay cube; its faces
 still turn as its Java variants do. Left in J1:
 
-- The second fog band from "Parameters". The cutout threshold needs nothing (Java's terrain
-  pipeline discards below 0.5, as ours), nor the mip cap: a 16-pixel texture has four levels
-  below it.
+- Fog: both of Java's bands are drawn (`Look::JAVA`), but its colour is still the renderer's sky
+  colour, not Java's `fog_color` mixed with the sky, and rain does not thicken it.
+- The cutout threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), nor
+  the mip cap: a 16-pixel texture has four levels below it.
 - `pack.json` is 38 MB for the Java look; model faces want a binary encoding.
 
 ### Checking against the game

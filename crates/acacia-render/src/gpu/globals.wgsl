@@ -10,6 +10,8 @@ struct Globals {
     fog: vec4<f32>,
     // x: distance where fog begins, y: 1 for a cylinder around the camera, z: 1 for a linear ramp
     fog_shape: vec4<f32>,
+    // A second, spherical linear fog. x: where it begins, y: where it is opaque, 0 for none
+    haze: vec4<f32>,
     // x: ambient brightness, y: sky light levels lost to the time of day
     light: vec4<f32>,
 };
@@ -27,12 +29,15 @@ fn curve(l: vec2<f32>) -> f32 {
     return b + g.light.x * (1.0 - b);
 }
 
-// Distance the fog measures to a point `rel` from the camera.
-fn fog_dist(rel: vec3<f32>) -> f32 {
-    return select(length(rel), max(length(rel.xz), abs(rel.y)), g.fog_shape.y != 0.0);
+// Distances the fog measures to a point `rel` from the camera. x: for the fog, y: for the haze.
+fn fog_dist(rel: vec3<f32>) -> vec2<f32> {
+    let sphere = length(rel);
+    return vec2(select(sphere, max(length(rel.xz), abs(rel.y)), g.fog_shape.y != 0.0), sphere);
 }
 
-fn fogged(rgb: vec3<f32>, dist: f32) -> vec3<f32> {
-    let ramp = saturate((dist - g.fog_shape.x) / (g.fog.w - g.fog_shape.x));
-    return mix(rgb, g.fog.rgb, select(smoothstep(0.0, 1.0, ramp), ramp, g.fog_shape.z != 0.0));
+fn fogged(rgb: vec3<f32>, dist: vec2<f32>) -> vec3<f32> {
+    let ramp = saturate((dist.x - g.fog_shape.x) / (g.fog.w - g.fog_shape.x));
+    let fog = select(smoothstep(0.0, 1.0, ramp), ramp, g.fog_shape.z != 0.0);
+    let haze = select(0.0, saturate((dist.y - g.haze.x) / (g.haze.y - g.haze.x)), g.haze.y > 0.0);
+    return mix(rgb, g.fog.rgb, max(fog, haze));
 }
