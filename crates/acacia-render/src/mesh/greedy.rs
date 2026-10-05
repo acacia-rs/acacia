@@ -84,6 +84,32 @@ pub(super) fn corner_ao(ctx: &Ctx, n: [i32; 3], face: u8) -> [u8; 4] {
     })
 }
 
+fn emit(mask: &mut [u64; 256], face: u8, s: i32, out: &mut SectionMesh) {
+    let (axis, ua, va) = AXES[face as usize];
+    let plane = if face.is_multiple_of(2) { s + 1 } else { s };
+    for vv in 0..16usize {
+        let mut u = 0usize;
+        while u < 16 {
+            let key = mask[vv * 16 + u];
+            if key == 0 {
+                u += 1;
+                continue;
+            }
+            let w = (u..16).take_while(|&x| mask[vv * 16 + x] == key).count();
+            let h = (vv..16).take_while(|&y| (u..u + w).all(|x| mask[y * 16 + x] == key)).count();
+            for y in vv..vv + h {
+                mask[y * 16 + u..y * 16 + u + w].fill(0);
+            }
+            let mut pos = [0u32; 3];
+            (pos[axis], pos[ua], pos[va]) = (plane as u32 * 16, u as u32 * 16, vv as u32 * 16);
+            let (surface, ao) = unpack(key);
+            let quad = Quad::new(pos, face, [w as u32 * 16, h as u32 * 16], surface, ao);
+            if key & TRANSLUCENT != 0 { out.translucent.push(quad) } else { out.solid.push(quad) }
+            u += w;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -115,31 +141,5 @@ mod tests {
         }
         assert_eq!(area[1] + area[2], 256);
         assert!(area[1] > 64 && area[2] > 64, "{area:?}");
-    }
-}
-
-fn emit(mask: &mut [u64; 256], face: u8, s: i32, out: &mut SectionMesh) {
-    let (axis, ua, va) = AXES[face as usize];
-    let plane = if face.is_multiple_of(2) { s + 1 } else { s };
-    for vv in 0..16usize {
-        let mut u = 0usize;
-        while u < 16 {
-            let key = mask[vv * 16 + u];
-            if key == 0 {
-                u += 1;
-                continue;
-            }
-            let w = (u..16).take_while(|&x| mask[vv * 16 + x] == key).count();
-            let h = (vv..16).take_while(|&y| (u..u + w).all(|x| mask[y * 16 + x] == key)).count();
-            for y in vv..vv + h {
-                mask[y * 16 + u..y * 16 + u + w].fill(0);
-            }
-            let mut pos = [0u32; 3];
-            (pos[axis], pos[ua], pos[va]) = (plane as u32 * 16, u as u32 * 16, vv as u32 * 16);
-            let (surface, ao) = unpack(key);
-            let quad = Quad::new(pos, face, [w as u32 * 16, h as u32 * 16], surface, ao);
-            if key & TRANSLUCENT != 0 { out.translucent.push(quad) } else { out.solid.push(quad) }
-            u += w;
-        }
     }
 }

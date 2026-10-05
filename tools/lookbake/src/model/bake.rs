@@ -191,8 +191,11 @@ mod tests {
     use super::*;
     use crate::model::{Element, ElementRotation, FaceDef};
 
-    fn cube(faces: &[(&str, Option<[f32; 4]>, Option<&str>)]) -> Resolved {
-        let face = |(name, uv, cull): &(&str, Option<[f32; 4]>, Option<&str>)| {
+    /// A face's name, UV window and cullface.
+    type FaceSpec<'a> = (&'a str, Option<[f32; 4]>, Option<&'a str>);
+
+    fn cube(faces: &[FaceSpec]) -> Resolved {
+        let face = |(name, uv, cull): &FaceSpec| {
             (name.to_string(), FaceDef { uv: *uv, texture: "#all".into(), cullface: cull.map(str::to_owned), rotation: None, tintindex: None })
         };
         let element = Element { from: [0.0; 3], to: [16.0; 3], rotation: None, faces: faces.iter().map(face).collect(), shade: true, shade_direction_override: None };

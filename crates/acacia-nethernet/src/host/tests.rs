@@ -93,7 +93,7 @@ impl Net {
     }
 
     fn messages(&self, peer: PeerId) -> Vec<&[u8]> {
-        self.events.iter().filter_map(|e| matches!(e, HostEvent::Message(p, _) if *p == peer).then(|| e.payload())).collect()
+        self.events.iter().filter(|e| matches!(e, HostEvent::Message(p, _) if *p == peer)).map(|e| e.payload()).collect()
     }
 }
 

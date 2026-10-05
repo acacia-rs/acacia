@@ -156,7 +156,7 @@ async fn run(options: Options, files: &Path, tx: &Sender<NetEvent>, mut quit: on
                 send(NetEvent::Time(now))?;
             }
             reports += 1;
-            if reports % BLOCK_DATA_EVERY == 0 {
+            if reports.is_multiple_of(BLOCK_DATA_EVERY) {
                 let data = crate::block_data::snapshot(&bot.state().block_entities);
                 if data != *block_data {
                     block_data = Arc::new(data);
