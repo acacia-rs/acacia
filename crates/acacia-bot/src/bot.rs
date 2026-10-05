@@ -29,6 +29,8 @@ mod tick;
 pub(crate) enum Step {
     Packet(RawPacket),
     Tick,
+    /// Nothing for an action to react to (an event was queued).
+    Idle,
     Disconnected(DisconnectReason),
 }
 
@@ -60,6 +62,7 @@ pub struct Bot {
     pub(crate) bed: Bed,
     pub(crate) request_ids: RequestIds,
     pub(crate) reflexes: Reflexes,
+    strict: bool,
     closed: Option<DisconnectReason>,
 }
 
@@ -83,7 +86,7 @@ impl Bot {
             builder = builder.blob_store(Arc::new(MemoryBlobStore::with_payloads()));
         }
         // The bot sends SetLocalPlayerAsInitialized itself, when it leaves the loading screen (spawn.rs).
-        let client = builder.filter(tracked.union(&config.subscribe)).initialize_on_spawn(false).connect().await?;
+        let client = builder.filter(tracked.union(&config.subscribe)).initialize_on_spawn(false).strict(config.strict).connect().await?;
         let state = GameState::new(config.trackers, client.runtime_entity_id());
         let recorder = config.record.as_deref().filter(|_| config.physics).and_then(|path| {
             Recorder::create(path).inspect_err(|e| tracing::warn!(error = %e, "cannot record trace")).ok()
@@ -119,6 +122,7 @@ impl Bot {
             bed: Bed::default(),
             request_ids: RequestIds::default(),
             reflexes: Reflexes::default(),
+            strict: config.strict,
             closed: None,
         })
     }
@@ -180,7 +184,7 @@ impl Bot {
             self.survival.idle = true;
             match self.step().await? {
                 Step::Packet(packet) => self.keep_for_caller(packet),
-                Step::Tick => {}
+                Step::Tick | Step::Idle => {}
                 Step::Disconnected(reason) => return Some(BotEvent::Disconnected(reason)),
             }
         }
@@ -192,12 +196,18 @@ impl Bot {
             for request in world.outgoing.drain(..) {
                 self.client.send(&request);
             }
+            let rejected = world.rejected.drain(..).filter(|_| self.strict);
+            self.pending.extend(rejected.map(BotEvent::Violation));
         }
         tokio::select! {
             event = self.client.recv() => match event? {
                 Event::Packet(packet) => {
                     self.apply(&packet);
                     Some(Step::Packet(packet))
+                }
+                Event::Violation(violation) => {
+                    self.pending.push_back(BotEvent::Violation(violation));
+                    Some(Step::Idle)
                 }
                 Event::Disconnected(reason) => {
                     self.closed = Some(reason.clone());

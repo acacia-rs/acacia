@@ -6,6 +6,7 @@
 //!   `!respawn` = respawn, anything else = chat.
 //! - `BEDROCK_AUTO_RESPAWN=1` respawns automatically on death.
 //! - `BEDROCK_TRANSPORT=raknet|nethernet` forces a transport (default: auto, RakNet preferred).
+//! - `BEDROCK_STRICT=1` prints strict-mode violations (docs/testing.md).
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -28,7 +29,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok("nethernet") => TransportKind::NetherNet,
         _ => TransportKind::Auto,
     };
-    let mut builder = Client::builder(&server).auto_respawn(std::env::var("BEDROCK_AUTO_RESPAWN").is_ok()).transport(transport).blob_cache_dir(".blobs").pack_cache_dir(".packs");
+    let strict = std::env::var("BEDROCK_STRICT").is_ok();
+    let mut builder =
+        Client::builder(&server).auto_respawn(std::env::var("BEDROCK_AUTO_RESPAWN").is_ok()).transport(transport).strict(strict).blob_cache_dir(".blobs").pack_cache_dir(".packs");
     if let Some(p) = &proxy {
         println!("via proxy {}:{}", p.host, p.port);
         builder = builder.proxy(p.clone());
@@ -42,6 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut step = tokio::time::interval(Duration::from_secs(1));
 
     let mut counts: BTreeMap<u32, (usize, usize)> = BTreeMap::new();
+    let mut violations = 0;
     let deadline = tokio::time::sleep(Duration::from_secs(secs));
     tokio::pin!(deadline);
     let mut status = tokio::time::interval_at(tokio::time::Instant::now() + Duration::from_secs(60), Duration::from_secs(60));
@@ -59,6 +63,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     } else if let Ok(r) = p.decode::<Respawn>() {
                         println!("[respawn] state {} at {:?}", r.state, r.position);
                     }
+                }
+                Some(Event::Violation(v)) => {
+                    violations += 1;
+                    println!("[violation] {v}");
                 }
                 Some(Event::Disconnected(reason)) => {
                     println!("disconnected after {:?}: {reason:?}", start.elapsed());
@@ -84,6 +92,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{:>5} {:>7} {:>10}", "id", "count", "bytes");
     for (id, (n, bytes)) in counts {
         println!("{id:>5} {n:>7} {bytes:>10}");
+    }
+    if strict {
+        println!("{violations} strict-mode violations");
     }
     Ok(())
 }

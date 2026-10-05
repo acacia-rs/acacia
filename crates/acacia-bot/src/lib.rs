@@ -36,7 +36,7 @@ pub use wait::ActionError;
 pub mod text;
 pub mod trace;
 
-pub use acacia_client::{self as client, proto, ConnectError, DisconnectReason};
+pub use acacia_client::{self as client, proto, ConnectError, DisconnectReason, Reason, Violation};
 pub use bot::Bot;
 pub use config::BotConfig;
 pub use events::{BotEvent, Events};

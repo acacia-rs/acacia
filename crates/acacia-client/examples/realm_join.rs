@@ -31,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::select! {
             event = client.recv() => match event {
                 Some(Event::Packet(_)) => packets += 1,
+                Some(Event::Violation(_)) => {}
                 Some(Event::Disconnected(reason)) => {
                     println!("disconnected after {:?}: {reason:?}", start.elapsed());
                     break;

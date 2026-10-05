@@ -25,6 +25,7 @@ fn session(store: Arc<dyn PackStore>, now: Instant) -> Session {
         initialize_on_spawn: true,
         blob_store: None,
         pack_store: store,
+        strict: false,
     };
     let mut s = Session::new(cfg, "127.0.0.1:19132".parse().unwrap(), now);
     sent(&mut s, now);

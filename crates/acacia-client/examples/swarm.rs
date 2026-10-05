@@ -25,6 +25,7 @@ async fn main() {
                     tokio::select! {
                         e = client.recv() => match e {
                             Some(Event::Packet(_)) => packets += 1,
+                            Some(Event::Violation(_)) => {}
                             Some(Event::Disconnected(r)) => return Err(format!("dropped early: {r:?}").into()),
                             None => return Err("event stream ended".into()),
                         },
