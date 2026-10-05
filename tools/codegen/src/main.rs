@@ -21,11 +21,19 @@ fn read_json(path: &Path) -> Value {
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
 }
 
-/// Replaces or adds `types` entries from overrides.json (local corrections to minecraft-data).
+/// Applies overrides.json (local corrections to minecraft-data): whole `types` entries, then `patches`.
 fn apply_overrides(json: &mut Value, overrides: &Value) {
     let types = json["types"].as_object_mut().expect("protocol.json types");
     for (name, def) in overrides["types"].as_object().expect("overrides.json types") {
         types.insert(name.clone(), def.clone());
+    }
+    // A patch replaces one container field in place; its `name` must match, so a schema bump that
+    // moves the field fails here instead of patching a neighbour.
+    for patch in overrides["patches"].as_array().expect("overrides.json patches") {
+        let path = patch["path"].as_str().expect("patch path");
+        let field = json.pointer_mut(path).unwrap_or_else(|| panic!("patch path `{path}` not found"));
+        assert_eq!(field["name"], patch["field"]["name"], "patch `{path}` points at another field");
+        *field = patch["field"].clone();
     }
 }
 

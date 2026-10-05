@@ -130,14 +130,16 @@ impl Ctx<'_> {
             }
             IrTy::Switch { disc, item } => self.read_switch(disc, *item),
             IrTy::Encapsulated { len, inner } => format!(
-                "{{ let n = {}; if n == 0 {{ None }} else {{ let mut sub = take(r, n)?; let r = &mut sub; Some({}) }} }}",
+                "{{ let n = {}; if n == 0 {{ None }} else {{ let mut sub = take(r, n)?; let r = &mut sub; let v = {}; \
+                 if !r.is_empty() {{ crate::strict::note(crate::strict::Leniency::BlockRest(r.len())); }} Some(v) }} }}",
                 Self::count_read(*len),
                 self.read(inner)
             ),
             IrTy::MaybeIncomplete { count, elem } => format!(
                 "{{ let n = {}; let mut v = Vec::new(); for _ in 0..n {{ if r.is_empty() {{ break; }} let save = *r; \
                  match (|r: &mut &[u8]| -> Result<_> {{ Ok({}) }})(r) {{ Ok(x) => v.push(x), \
-                 Err(e) if matches!(e.root(), DecodeError::Eof {{ .. }}) => {{ *r = save; break; }} Err(e) => return Err(e), }} }} v }}",
+                 Err(e) if matches!(e.root(), DecodeError::Eof {{ .. }}) => {{ *r = save; break; }} Err(e) => return Err(e), }} }} \
+                 if v.len() < n {{ crate::strict::note(crate::strict::Leniency::TruncatedList); }} v }}",
                 Self::count_read(*count),
                 self.read(elem)
             ),

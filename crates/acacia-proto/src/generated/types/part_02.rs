@@ -35,7 +35,14 @@ impl ItemStackResponsesItemStatus {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "ItemStackResponsesItemStatus",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -182,7 +189,14 @@ impl TrackedObjectType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_li32(r)? as i64))
+        let v = Self::from_raw(read_li32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "TrackedObjectType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_li32(w, self.to_raw() as i32)
@@ -398,7 +412,14 @@ impl MapDecorationType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "MapDecorationType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -525,7 +546,14 @@ impl StructureBlockSettingsRotation {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "StructureBlockSettingsRotation",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -560,7 +588,14 @@ impl StructureBlockSettingsMirror {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "StructureBlockSettingsMirror",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -592,7 +627,14 @@ impl StructureBlockSettingsAnimationMode {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "StructureBlockSettingsAnimationMode",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -741,7 +783,14 @@ impl BlockUpdateTransitionType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "BlockUpdateTransitionType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -817,7 +866,14 @@ impl PermissionLevel {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "PermissionLevel",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -858,7 +914,14 @@ impl CommandPermissionLevel {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "CommandPermissionLevel",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -899,7 +962,14 @@ impl CommandPermissionLevelVarint {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "CommandPermissionLevelVarint",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1003,7 +1073,14 @@ impl WindowID {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_i8(r)? as i64))
+        let v = Self::from_raw(read_i8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "WindowID",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_i8(w, self.to_raw() as i8)
@@ -1107,7 +1184,14 @@ impl WindowIDVarint {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "WindowIDVarint",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -1211,7 +1295,14 @@ impl WindowIDZigzag32 {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "WindowIDZigzag32",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -1351,7 +1442,14 @@ impl WindowType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_i8(r)? as i64))
+        let v = Self::from_raw(read_i8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "WindowType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_i8(w, self.to_raw() as i8)
@@ -1578,7 +1676,14 @@ impl ContainerSlotType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "ContainerSlotType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -3446,7 +3551,14 @@ impl SoundType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "SoundType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)

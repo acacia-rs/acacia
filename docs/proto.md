@@ -7,8 +7,19 @@ minecraft-data `tools/codegen/data/protocol.json` + `version.json`. Never edit t
 
 `cargo run -p acacia-codegen`. The output is deterministic and is formatted with `rustfmt --edition 2024`.
 
-Local corrections to minecraft-data go in `tools/codegen/data/overrides.json`, where each `types` entry
-replaces or adds a schema type before generation. Give each one a reason here:
+Local corrections to minecraft-data go in `tools/codegen/data/overrides.json`: each `types` entry replaces or
+adds a schema type before generation, and each `patches` entry replaces one container field at a JSON pointer
+(the field name must match, so a bump that moves the field fails codegen). Give each one a reason here:
+- `available_commands` parameter `value_type` is a plain `lu16`, not a mapper. With `enum_type` `enum`,
+  `soft_enum` or `suffixed` it is an index into that list, and minecraft-data's type numbers are stale for
+  1.26.52: BDS sends 56 for string parameters (`name`), 64 block position (`begin`, `end`), 65 position
+  (`spawnPos`), 68 message, 74 json (`components`), 84 block states and 90 command, where the schema has
+  44, 52, 53, 55, 62, 71 and 75.
+- `available_commands` parameter `enum_type` gains 2064 `chained_subcommand`: BDS sends it for `/execute chainedCommand`.
+- `available_commands` enum `constraint` gains 3 `allow_aliases`: BDS sets it on every `minecraft:`-prefixed
+  value of the `Block` enum. The name is Mojang's `RequiresAllowAliases` as remembered, not checked in bdsre.
+
+  All three were found by `bundled_script_passes_the_strict_decoder` (acacia-testserver), which holds the evidence.
 - `EnchantOption`: `option_id` is an unsigned varint (gophertunnel `EnchantmentOption`, Cloudburst);
   minecraft-data has `zigzag32`. (`cost` is a varint too, but equals the `u8` below 128.) BDS answered the zigzag-misread id with status 37 (FAILED_TO_ENCHANT).
 - Not an override: `craft_grindstone_request.recipe_network_id` stays `li32` although gophertunnel writes a varint;
@@ -71,13 +82,34 @@ Keywords are escaped as `r#type`. Packets live in `packets`, shared types in `ty
 - `tests/fixtures.rs`: every packet in `tests/fixtures/packets/*.hex` must decode and re-encode byte-exactly. All 246 packets are covered, and the client-relevant ones are asserted by name. The generator `gen.mjs` draws random schema-valid values, encodes them with bedrock-protocol, and keeps only samples that JS itself round-trips.
 - `tests/semantic.rs`: decoded field values are compared with the JS-decoded `*.json`.
 - `tests/roundtrip.rs`: hand-built values, the header and subclient bits, and error context.
+- `tests/strict.rs`: each leniency below is accepted by `decode` and rejected by `decode_strict`.
+
+## Strict decoding
+
+`decode` is lenient so one odd field does not cost a bot the packet. `RawPacket::decode_strict::<T>()` and
+`strict::check(&raw)` (any packet, by id) decode the same way and then fail on:
+
+| Error | What `decode` does with it |
+|---|---|
+| `TrailingBytes(n)` | ignores bytes after the body |
+| `Lenient(UnknownEnum)` | maps the value to `Unknown(i64)` |
+| `Lenient(Bool)` | reads any non-zero byte as `true` |
+| `Lenient(Utf8)` | replaces invalid UTF-8 |
+| `Lenient(TruncatedList)` | ends a `maybeIncompleteArray` (`PlayerList` records) early |
+| `Lenient(BlockRest)` | drops bytes left inside an `encapsulated` block (item `extra`, login tokens) |
+| `UnknownPacket(id)` | nothing: no type exists for the id, so nobody decodes it (`check` only) |
+
+The decoder notes a leniency in a thread-local on the cold path, so `decode` pays nothing for it; only the
+first one of a packet is reported. Not checked: overlong varints, a `restBuffer` field (it takes whatever is
+left), and an integer switch discriminant with no matching case when the default is void (the schema cannot
+tell a payload-free value from an unknown one). Who calls this: docs/testing.md, "Strict mode".
 
 ## Known gaps / deliberate divergences
 
 - In network NBT, IntArray/LongArray elements are zigzag varints (Mojang/gophertunnel). prismarine-nbt writes fixed-width
   ints there, so the fixtures avoid those tags.
 - A root NBT `End` tag is 1 byte, as Mojang writes it. prismarine-nbt's varint flavour also writes an empty name there.
-- `encapsulated` payloads are bounded by their length prefix (JS reads past it). Trailing bytes after a packet body are ignored.
+- `encapsulated` payloads are bounded by their length prefix (JS reads past it). Trailing bytes after a packet body are ignored (see "Strict decoding").
 - The shield item id is global, not per-connection. Clients that connect to servers with different registries in the same process share it.
 - Switch keys that can never match their discriminant are dropped with a codegen warning. There are none in 1.26.51.
 - Structs don't derive `Default`, so you must spell out every field when you build a packet.

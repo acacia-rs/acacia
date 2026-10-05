@@ -10,6 +10,7 @@ mod error;
 mod generated;
 pub mod manual;
 pub mod nbt;
+pub mod strict;
 mod xxh64;
 
 pub use error::DecodeError;

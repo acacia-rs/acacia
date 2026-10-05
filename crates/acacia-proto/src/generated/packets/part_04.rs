@@ -6,6 +6,266 @@ use crate::types;
 use bytes::{Bytes, BytesMut};
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct NpcRequest {
+    pub runtime_entity_id: u64,
+    pub request_type: NpcRequestRequestType,
+    pub command: String,
+    pub action_type: NpcRequestActionType,
+    pub scene_name: String,
+}
+impl NpcRequest {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_runtime_entity_id = (|| -> Result<_> { Ok(read_varint64(r)?) })()
+            .map_err(|e| e.at("NpcRequest.runtime_entity_id"))?;
+        let f_request_type = (|| -> Result<_> { Ok(NpcRequestRequestType::read(r)?) })()
+            .map_err(|e| e.at("NpcRequest.request_type"))?;
+        let f_command = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("NpcRequest.command"))?;
+        let f_action_type = (|| -> Result<_> { Ok(NpcRequestActionType::read(r)?) })()
+            .map_err(|e| e.at("NpcRequest.action_type"))?;
+        let f_scene_name = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("NpcRequest.scene_name"))?;
+        Ok(Self {
+            runtime_entity_id: f_runtime_entity_id,
+            request_type: f_request_type,
+            command: f_command,
+            action_type: f_action_type,
+            scene_name: f_scene_name,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_varint64(w, self.runtime_entity_id);
+        self.request_type.write(w);
+        {
+            let b = self.command.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        self.action_type.write(w);
+        {
+            let b = self.scene_name.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+    }
+}
+impl crate::Packet for NpcRequest {
+    const ID: u32 = 98;
+    const NAME: &'static str = "npc_request";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NpcRequestRequestType {
+    SetActions,
+    ExecuteAction,
+    ExecuteClosingCommands,
+    SetName,
+    SetSkin,
+    SetInteractionText,
+    ExecuteOpeningCommands,
+    Unknown(i64),
+}
+impl NpcRequestRequestType {
+    pub fn from_raw(v: i64) -> Self {
+        match v {
+            0 => Self::SetActions,
+            1 => Self::ExecuteAction,
+            2 => Self::ExecuteClosingCommands,
+            3 => Self::SetName,
+            4 => Self::SetSkin,
+            5 => Self::SetInteractionText,
+            6 => Self::ExecuteOpeningCommands,
+            v => Self::Unknown(v),
+        }
+    }
+    pub fn to_raw(self) -> i64 {
+        match self {
+            Self::SetActions => 0,
+            Self::ExecuteAction => 1,
+            Self::ExecuteClosingCommands => 2,
+            Self::SetName => 3,
+            Self::SetSkin => 4,
+            Self::SetInteractionText => 5,
+            Self::ExecuteOpeningCommands => 6,
+            Self::Unknown(v) => v,
+        }
+    }
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "NpcRequestRequestType",
+                value,
+            });
+        }
+        Ok(v)
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_u8(w, self.to_raw() as u8)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NpcRequestActionType {
+    SetActions,
+    ExecuteAction,
+    ExecuteClosingCommands,
+    SetName,
+    SetSkin,
+    SetInteractText,
+    ExecuteOpeningCommands,
+    Unknown(i64),
+}
+impl NpcRequestActionType {
+    pub fn from_raw(v: i64) -> Self {
+        match v {
+            0 => Self::SetActions,
+            1 => Self::ExecuteAction,
+            2 => Self::ExecuteClosingCommands,
+            3 => Self::SetName,
+            4 => Self::SetSkin,
+            5 => Self::SetInteractText,
+            6 => Self::ExecuteOpeningCommands,
+            v => Self::Unknown(v),
+        }
+    }
+    pub fn to_raw(self) -> i64 {
+        match self {
+            Self::SetActions => 0,
+            Self::ExecuteAction => 1,
+            Self::ExecuteClosingCommands => 2,
+            Self::SetName => 3,
+            Self::SetSkin => 4,
+            Self::SetInteractText => 5,
+            Self::ExecuteOpeningCommands => 6,
+            Self::Unknown(v) => v,
+        }
+    }
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "NpcRequestActionType",
+                value,
+            });
+        }
+        Ok(v)
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        write_u8(w, self.to_raw() as u8)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PhotoTransfer {
+    pub image_name: String,
+    pub image_data: String,
+    pub book_id: String,
+    pub photo_type: u8,
+    pub source_type: u8,
+    pub owner_entity_unique_id: i64,
+    pub new_photo_name: String,
+}
+impl PhotoTransfer {
+    pub fn read(r: &mut &[u8]) -> Result<Self> {
+        let f_image_name = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("PhotoTransfer.image_name"))?;
+        let f_image_data = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("PhotoTransfer.image_data"))?;
+        let f_book_id = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("PhotoTransfer.book_id"))?;
+        let f_photo_type = (|| -> Result<_> { Ok(read_u8(r)?) })()
+            .map_err(|e| e.at("PhotoTransfer.photo_type"))?;
+        let f_source_type = (|| -> Result<_> { Ok(read_u8(r)?) })()
+            .map_err(|e| e.at("PhotoTransfer.source_type"))?;
+        let f_owner_entity_unique_id = (|| -> Result<_> { Ok(read_li64(r)?) })()
+            .map_err(|e| e.at("PhotoTransfer.owner_entity_unique_id"))?;
+        let f_new_photo_name = (|| -> Result<_> {
+            Ok({
+                let n = to_len(read_varint(r)?)?;
+                read_utf8(r, n)?
+            })
+        })()
+        .map_err(|e| e.at("PhotoTransfer.new_photo_name"))?;
+        Ok(Self {
+            image_name: f_image_name,
+            image_data: f_image_data,
+            book_id: f_book_id,
+            photo_type: f_photo_type,
+            source_type: f_source_type,
+            owner_entity_unique_id: f_owner_entity_unique_id,
+            new_photo_name: f_new_photo_name,
+        })
+    }
+    pub fn write(&self, w: &mut BytesMut) {
+        {
+            let b = self.image_name.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        {
+            let b = self.image_data.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        {
+            let b = self.book_id.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+        write_u8(w, self.photo_type);
+        write_u8(w, self.source_type);
+        write_li64(w, self.owner_entity_unique_id);
+        {
+            let b = self.new_photo_name.as_bytes();
+            write_varint(w, b.len() as u32);
+            write_slice(w, b);
+        }
+    }
+}
+impl crate::Packet for PhotoTransfer {
+    const ID: u32 = 99;
+    const NAME: &'static str = "photo_transfer";
+    fn encode(&self, w: &mut BytesMut) {
+        self.write(w)
+    }
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        Self::read(r)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModalFormRequest {
     pub form_id: u32,
     pub data: String,
@@ -151,7 +411,14 @@ impl ModalFormResponseContentCancelReason {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "ModalFormResponseContentCancelReason",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -579,7 +846,14 @@ impl SetScoreEntriesItemEntryType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "SetScoreEntriesItemEntryType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -674,7 +948,14 @@ impl LabTableActionType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "LabTableActionType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -759,7 +1040,14 @@ impl UpdateBlockSyncedTransitionType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "UpdateBlockSyncedTransitionType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -1007,7 +1295,14 @@ impl SetScoreboardIdentityAction {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_i8(r)? as i64))
+        let v = Self::from_raw(read_i8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "SetScoreboardIdentityAction",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_i8(w, self.to_raw() as i8)
@@ -1137,7 +1432,14 @@ impl UpdateSoftEnumActionType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "UpdateSoftEnumActionType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1752,7 +2054,14 @@ impl VideoStreamConnectAction {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "VideoStreamConnectAction",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1923,7 +2232,14 @@ impl StructureTemplateDataExportRequestRequestType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "StructureTemplateDataExportRequestRequestType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -2015,7 +2331,14 @@ impl StructureTemplateDataExportResponseResponseType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "StructureTemplateDataExportResponseResponseType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -2344,239 +2667,4 @@ pub struct EducationSettingsExternalLinkSettings {
     pub has: bool,
     pub url: String,
     pub display_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Emote {
-    pub entity_id: u64,
-    pub emote_id: String,
-    pub emote_length_ticks: u32,
-    pub xuid: String,
-    pub platform_id: String,
-    pub flags: EmoteFlags,
-}
-impl Emote {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_entity_id =
-            (|| -> Result<_> { Ok(read_varint64(r)?) })().map_err(|e| e.at("Emote.entity_id"))?;
-        let f_emote_id = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                read_utf8(r, n)?
-            })
-        })()
-        .map_err(|e| e.at("Emote.emote_id"))?;
-        let f_emote_length_ticks = (|| -> Result<_> { Ok(read_varint(r)?) })()
-            .map_err(|e| e.at("Emote.emote_length_ticks"))?;
-        let f_xuid = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                read_utf8(r, n)?
-            })
-        })()
-        .map_err(|e| e.at("Emote.xuid"))?;
-        let f_platform_id = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                read_utf8(r, n)?
-            })
-        })()
-        .map_err(|e| e.at("Emote.platform_id"))?;
-        let f_flags =
-            (|| -> Result<_> { Ok(EmoteFlags::read(r)?) })().map_err(|e| e.at("Emote.flags"))?;
-        Ok(Self {
-            entity_id: f_entity_id,
-            emote_id: f_emote_id,
-            emote_length_ticks: f_emote_length_ticks,
-            xuid: f_xuid,
-            platform_id: f_platform_id,
-            flags: f_flags,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_varint64(w, self.entity_id);
-        {
-            let b = self.emote_id.as_bytes();
-            write_varint(w, b.len() as u32);
-            write_slice(w, b);
-        }
-        write_varint(w, self.emote_length_ticks);
-        {
-            let b = self.xuid.as_bytes();
-            write_varint(w, b.len() as u32);
-            write_slice(w, b);
-        }
-        {
-            let b = self.platform_id.as_bytes();
-            write_varint(w, b.len() as u32);
-            write_slice(w, b);
-        }
-        self.flags.write(w);
-    }
-}
-impl crate::Packet for Emote {
-    const ID: u32 = 138;
-    const NAME: &'static str = "emote";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EmoteFlags {
-    ServerSide,
-    MuteChat,
-    Unknown(i64),
-}
-impl EmoteFlags {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            1 => Self::ServerSide,
-            2 => Self::MuteChat,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::ServerSide => 1,
-            Self::MuteChat => 2,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_u8(w, self.to_raw() as u8)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MultiplayerSettings {
-    pub action_type: MultiplayerSettingsActionType,
-}
-impl MultiplayerSettings {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_action_type = (|| -> Result<_> { Ok(MultiplayerSettingsActionType::read(r)?) })()
-            .map_err(|e| e.at("MultiplayerSettings.action_type"))?;
-        Ok(Self {
-            action_type: f_action_type,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        self.action_type.write(w);
-    }
-}
-impl crate::Packet for MultiplayerSettings {
-    const ID: u32 = 139;
-    const NAME: &'static str = "multiplayer_settings";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MultiplayerSettingsActionType {
-    EnableMultiplayer,
-    DisableMultiplayer,
-    RefreshJoinCode,
-    Unknown(i64),
-}
-impl MultiplayerSettingsActionType {
-    pub fn from_raw(v: i64) -> Self {
-        match v {
-            0 => Self::EnableMultiplayer,
-            1 => Self::DisableMultiplayer,
-            2 => Self::RefreshJoinCode,
-            v => Self::Unknown(v),
-        }
-    }
-    pub fn to_raw(self) -> i64 {
-        match self {
-            Self::EnableMultiplayer => 0,
-            Self::DisableMultiplayer => 1,
-            Self::RefreshJoinCode => 2,
-            Self::Unknown(v) => v,
-        }
-    }
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag32(w, self.to_raw() as i32)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SettingsCommand {
-    pub command_line: String,
-    pub suppress_output: bool,
-}
-impl SettingsCommand {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_command_line = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                read_utf8(r, n)?
-            })
-        })()
-        .map_err(|e| e.at("SettingsCommand.command_line"))?;
-        let f_suppress_output = (|| -> Result<_> { Ok(read_bool(r)?) })()
-            .map_err(|e| e.at("SettingsCommand.suppress_output"))?;
-        Ok(Self {
-            command_line: f_command_line,
-            suppress_output: f_suppress_output,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        {
-            let b = self.command_line.as_bytes();
-            write_varint(w, b.len() as u32);
-            write_slice(w, b);
-        }
-        write_bool(w, self.suppress_output);
-    }
-}
-impl crate::Packet for SettingsCommand {
-    const ID: u32 = 140;
-    const NAME: &'static str = "settings_command";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AnvilDamage {
-    pub position: types::BlockCoordinates,
-}
-impl AnvilDamage {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_position = (|| -> Result<_> { Ok(types::BlockCoordinates::read(r)?) })()
-            .map_err(|e| e.at("AnvilDamage.position"))?;
-        Ok(Self {
-            position: f_position,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        self.position.write(w);
-    }
-}
-impl crate::Packet for AnvilDamage {
-    const ID: u32 = 141;
-    const NAME: &'static str = "anvil_damage";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
 }

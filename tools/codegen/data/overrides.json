@@ -1,5 +1,51 @@
 {
-  "_comment": "Corrections applied over minecraft-data's protocol.json before generation; each entry replaces or adds types[name]. Rationale per entry in docs/proto.md.",
+  "_comment": "Corrections applied over minecraft-data's protocol.json before generation; each `types` entry replaces or adds types[name], each `patches` entry replaces the container field at a JSON pointer. Rationale per entry in docs/proto.md.",
+  "patches": [
+    {
+      "path": "/types/packet_available_commands/1/6/type/1/type/1/6/type/1/type/1/1/type/1/type/1/1",
+      "field": {
+        "name": "value_type",
+        "type": "lu16"
+      }
+    },
+    {
+      "path": "/types/packet_available_commands/1/6/type/1/type/1/6/type/1/type/1/1/type/1/type/1/2",
+      "field": {
+        "name": "enum_type",
+        "type": [
+          "mapper",
+          {
+            "type": "lu16",
+            "mappings": {
+              "16": "valid",
+              "48": "enum",
+              "256": "suffixed",
+              "1040": "soft_enum",
+              "2064": "chained_subcommand"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "/types/packet_available_commands/1/8/type/1/type/1/2/type/1/type/1/0",
+      "field": {
+        "name": "constraint",
+        "type": [
+          "mapper",
+          {
+            "type": "u8",
+            "mappings": {
+              "0": "cheats_enabled",
+              "1": "operator_permissions",
+              "2": "host_permissions",
+              "3": "allow_aliases"
+            }
+          }
+        ]
+      }
+    }
+  ],
   "types": {
     "EnchantOption": [
       "container",

@@ -30,6 +30,9 @@ pub struct BotConfig {
     pub record: Option<PathBuf>,
     /// Eat when hungry (default off), moving food into the hotbar if needed; also [`crate::Bot::set_auto_eat`].
     pub auto_eat: Option<AutoEat>,
+    /// Strict mode (default off): [`crate::BotEvent::Violation`] for every server packet a strict
+    /// peer would reject and every chunk that does not decode (docs/testing.md).
+    pub strict: bool,
 }
 
 impl Default for BotConfig {
@@ -44,6 +47,7 @@ impl Default for BotConfig {
             auto_respawn: true,
             record: None,
             auto_eat: None,
+            strict: false,
         }
     }
 }

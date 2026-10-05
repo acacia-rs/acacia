@@ -30,6 +30,7 @@ const LATENCY_MAGNITUDE: u64 = 1_000_000;
 impl Session {
     pub(super) fn handle_packet(&mut self, raw: RawPacket) -> Result<Option<DisconnectReason>, Error> {
         tracing::trace!(id = raw.id, len = raw.body.len(), stage = ?self.stage, "packet");
+        self.audit(&raw);
         if let Some(blobs) = &mut self.blobs
             && BlobStatus::PACKETS.contains(&raw.id)
             && let Err(e) = blobs.apply(self.now, &raw)

@@ -46,6 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::fs::write(outdir.join(format!("{n:06}_{}.bin", p.id)), bytes)?;
                     n += 1;
                 }
+                Some(Event::Violation(_)) => {}
                 Some(Event::Disconnected(r)) => { println!("disconnected: {r:?}"); break; }
                 None => break,
             },

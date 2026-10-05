@@ -59,7 +59,14 @@ impl LocatorBarWaypointAction {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "LocatorBarWaypointAction",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -300,7 +307,14 @@ impl AttributeLayerSettingsWeightType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "AttributeLayerSettingsWeightType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -475,7 +489,14 @@ impl AttributeDataType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "AttributeDataType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -1118,7 +1139,14 @@ impl PrimitiveShapeType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "PrimitiveShapeType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1809,7 +1837,14 @@ impl InputData {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "InputData",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -1869,7 +1904,14 @@ impl ArmorDamageEntryArmorSlot {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "ArmorDamageEntryArmorSlot",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1907,7 +1949,14 @@ impl HeightMapDataType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "HeightMapDataType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1967,7 +2016,14 @@ impl SubChunkEntryItemResult {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "SubChunkEntryItemResult",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -2083,7 +2139,14 @@ impl Element {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "Element",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)

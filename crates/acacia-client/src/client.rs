@@ -65,6 +65,7 @@ pub struct ClientBuilder {
     chunk_radius: i32,
     auto_respawn: bool,
     initialize_on_spawn: bool,
+    strict: bool,
     filter: PacketFilter,
     event_capacity: usize,
     login_timeout: Duration,
@@ -86,6 +87,7 @@ impl ClientBuilder {
             chunk_radius: 2,
             auto_respawn: false,
             initialize_on_spawn: true,
+            strict: false,
             filter: PacketFilter::all(),
             event_capacity: 256,
             login_timeout: Duration::from_secs(30),
@@ -148,6 +150,13 @@ impl ClientBuilder {
     /// of its loading-screen sequence, as vanilla does.
     pub fn initialize_on_spawn(mut self, enabled: bool) -> Self {
         self.initialize_on_spawn = enabled;
+        self
+    }
+
+    /// Strict mode: every server packet is fully decoded, and what a strict peer would reject
+    /// arrives as [`crate::Event::Violation`] whatever the packet filter (docs/testing.md).
+    pub fn strict(mut self, enabled: bool) -> Self {
+        self.strict = enabled;
         self
     }
 
@@ -247,6 +256,7 @@ impl ClientBuilder {
             initialize_on_spawn: self.initialize_on_spawn,
             blob_store: blob_store.clone(),
             pack_store: pack_cache::open(self.pack_cache_dir.as_deref(), &account),
+            strict: self.strict,
         };
         let session = Session::new(cfg, addr, Instant::now());
 

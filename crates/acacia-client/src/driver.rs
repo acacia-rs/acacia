@@ -79,6 +79,7 @@ impl Driver {
                     }
                     SessionEvent::Packet(p) if self.filter.allows(p.id) => pending.push_back(Event::Packet(p)),
                     SessionEvent::Packet(_) => {}
+                    SessionEvent::Violation(v) => pending.push_back(Event::Violation(v)),
                     SessionEvent::Disconnected(reason) => {
                         let _ = self.flush().await;
                         self.close_wire();

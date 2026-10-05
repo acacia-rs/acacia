@@ -152,4 +152,29 @@ mod tests {
         assert!(script.steps.iter().filter(|s| matches!(s, Step::Send { .. })).count() > 100);
         assert!(!script.blobs.is_empty());
     }
+
+    /// BDS bytes against the schema: the strict decoder must accept everything BDS sent.
+    #[test]
+    fn bundled_script_passes_the_strict_decoder() {
+        use acacia_proto::packets::ItemRegistry;
+        use acacia_proto::{RawPacket, manual, strict};
+
+        let mut failures = Vec::new();
+        for step in Script::bds_spawn().steps {
+            let Step::Send { packet, .. } = step else { continue };
+            let raw = RawPacket::parse(packet).unwrap();
+            // As the session does: item decoding branches on the server's shield id.
+            if let Ok(registry) = raw.decode::<ItemRegistry>()
+                && let Some(shield) = registry.itemstates.iter().find(|i| i.name == "minecraft:shield")
+            {
+                manual::set_shield_item_id(shield.runtime_id.into());
+            }
+            if let Err(e) = strict::check(&raw) {
+                failures.push(format!("{e} ({} bytes)", raw.body.len()));
+            }
+        }
+        failures.sort();
+        failures.dedup();
+        assert!(failures.is_empty(), "{} distinct failures:\n{}", failures.len(), failures.join("\n"));
+    }
 }

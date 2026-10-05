@@ -18,6 +18,36 @@
   In Git Bash, set `MSYS_NO_PATHCONV=1`, or it rewrites `/list` into a Windows path.
 - `cargo run -p acacia-client --example ping -- play.example.net` pings a server; set `BEDROCK_PROXY` to go through a proxy.
 
+## Strict mode
+
+For testing a server with acacia. Normally the session decodes only the packets it needs and the decoder is
+lenient, so a malformed or misplaced packet passes unseen. With strict mode on, every server packet is fully
+decoded and each problem is reported as a `Violation` (and logged at `warn`); the session keeps running, so one
+run lists everything. A test asserts that no violation arrived.
+
+- Turn it on: `BotConfig { strict: true, .. }` (`BotEvent::Violation`), `ClientBuilder::strict(true)`
+  (`Event::Violation`, not subject to the packet filter), or `BEDROCK_STRICT=1` for the `afk` example.
+- `Reason::Decode`: the strict decoder rejected the packet (docs/proto.md, "Strict decoding"), or its id has no type.
+- `Reason::Content` (bots only): a `LevelChunk`, `Subchunk` or cache blob whose chunk data does not decode.
+- `Reason::Order`: a join-order rule (`session/strict.rs`). Add a rule only once it is verified against vanilla or BDS.
+
+| Rule | Basis |
+|---|---|
+| second NetworkSettings / second ServerToClientHandshake | each is sent once per connection |
+| sent before PlayStatus(LoginSuccess) | anything but NetworkSettings, the handshake, PlayStatus and Disconnect |
+| StartGame before ResourcePackStack | the pack exchange ends with the stack |
+| StartGame without JigsawStructureData before it | a vanilla client kicks itself (observed 2026-10) |
+| PlayerSpawn before StartGame | the session has no player to spawn |
+| second StartGame | one per connection; a dimension change is ChangeDimension |
+
+The replayed BDS 1.26.52 join produces no violation (`crates/acacia-bot/tests/strict.rs`), and every packet of it
+passes the strict decoder (`bundled_script_passes_the_strict_decoder` in acacia-testserver). A violation against
+BDS itself is therefore an acacia schema bug: fix it in `tools/codegen/data/overrides.json`.
+
+Not covered: the resource-pack exchange (hash mismatches, pack contents), compression and encryption
+negotiation, unknown block ids inside a chunk that decodes, and anything a vanilla client checks that the
+schema does not express.
+
 ## Movement physics
 
 Physics is checked against BDS itself: strict server-authoritative movement sends a `CorrectPlayerMovePrediction`

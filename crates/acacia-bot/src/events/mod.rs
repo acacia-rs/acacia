@@ -8,7 +8,7 @@ use std::ops::{BitOr, BitOrAssign};
 
 use acacia_client::proto::packets::{ModalFormRequest, OpenSign, SetTitle, SetTitleType, Text};
 use acacia_client::proto::{Packet, RawPacket};
-use acacia_client::DisconnectReason;
+use acacia_client::{DisconnectReason, Violation};
 
 pub use chat::{ChatKind, ChatMatch, ChatMessage, ChatPattern};
 pub(crate) use chat::flatten as rawtext_value;
@@ -80,6 +80,8 @@ pub enum BotEvent {
     /// The server shows the player sleeping in a bed.
     Slept,
     Woke,
+    /// Strict mode only ([`crate::BotConfig::strict`]).
+    Violation(Violation),
     /// Always the last event.
     Disconnected(DisconnectReason),
 }

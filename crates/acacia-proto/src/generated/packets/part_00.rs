@@ -22,7 +22,11 @@ impl Login {
                 } else {
                     let mut sub = take(r, n)?;
                     let r = &mut sub;
-                    Some(types::LoginTokens::read(r)?)
+                    let v = types::LoginTokens::read(r)?;
+                    if !r.is_empty() {
+                        crate::strict::note(crate::strict::Leniency::BlockRest(r.len()));
+                    }
+                    Some(v)
                 }
             })
         })()
@@ -132,7 +136,14 @@ impl PlayStatusStatus {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_i32(r)? as i64))
+        let v = Self::from_raw(read_i32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "PlayStatusStatus",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_i32(w, self.to_raw() as i32)
@@ -650,7 +661,14 @@ impl ResourcePackClientResponseResponseStatus {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_varint(r)? as i64))
+        let v = Self::from_raw(read_varint(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "ResourcePackClientResponseResponseStatus",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint(w, self.to_raw() as u32)
@@ -1089,7 +1107,14 @@ impl TextCategory {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "TextCategory",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1148,7 +1173,14 @@ impl TextType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "TextType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -1895,7 +1927,14 @@ impl StartGameDimension {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "StartGameDimension",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -1930,7 +1969,14 @@ impl StartGameEditorWorldType {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_zigzag32(r)? as i64))
+        let v = Self::from_raw(read_zigzag32(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "StartGameEditorWorldType",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_zigzag32(w, self.to_raw() as i32)
@@ -1962,7 +2008,14 @@ impl StartGameChatRestrictionLevel {
         }
     }
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        Ok(Self::from_raw(read_u8(r)? as i64))
+        let v = Self::from_raw(read_u8(r)? as i64);
+        if let Self::Unknown(value) = v {
+            crate::strict::note(crate::strict::Leniency::UnknownEnum {
+                ty: "StartGameChatRestrictionLevel",
+                value,
+            });
+        }
+        Ok(v)
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_u8(w, self.to_raw() as u8)
@@ -2273,280 +2326,6 @@ impl AddPlayer {
 impl crate::Packet for AddPlayer {
     const ID: u32 = 12;
     const NAME: &'static str = "add_player";
-    fn encode(&self, w: &mut BytesMut) {
-        self.write(w)
-    }
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Self::read(r)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AddEntity {
-    pub unique_id: i64,
-    pub runtime_id: u64,
-    pub entity_type: String,
-    pub position: types::Vec3f,
-    pub velocity: types::Vec3f,
-    pub pitch: f32,
-    pub yaw: f32,
-    pub head_yaw: f32,
-    pub body_yaw: f32,
-    pub attributes: types::EntityAttributes,
-    pub metadata: types::MetadataDictionary,
-    pub properties: types::EntityProperties,
-    pub links: types::Links,
-}
-impl AddEntity {
-    pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_unique_id = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
-            .map_err(|e| e.at("AddEntity.unique_id"))?;
-        let f_runtime_id = (|| -> Result<_> { Ok(read_varint64(r)?) })()
-            .map_err(|e| e.at("AddEntity.runtime_id"))?;
-        let f_entity_type = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                read_utf8(r, n)?
-            })
-        })()
-        .map_err(|e| e.at("AddEntity.entity_type"))?;
-        let f_position = (|| -> Result<_> { Ok(types::Vec3f::read(r)?) })()
-            .map_err(|e| e.at("AddEntity.position"))?;
-        let f_velocity = (|| -> Result<_> { Ok(types::Vec3f::read(r)?) })()
-            .map_err(|e| e.at("AddEntity.velocity"))?;
-        let f_pitch =
-            (|| -> Result<_> { Ok(read_lf32(r)?) })().map_err(|e| e.at("AddEntity.pitch"))?;
-        let f_yaw = (|| -> Result<_> { Ok(read_lf32(r)?) })().map_err(|e| e.at("AddEntity.yaw"))?;
-        let f_head_yaw =
-            (|| -> Result<_> { Ok(read_lf32(r)?) })().map_err(|e| e.at("AddEntity.head_yaw"))?;
-        let f_body_yaw =
-            (|| -> Result<_> { Ok(read_lf32(r)?) })().map_err(|e| e.at("AddEntity.body_yaw"))?;
-        let f_attributes = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                let mut v = Vec::with_capacity(cap(n, r));
-                for _ in 0..n {
-                    v.push({
-                        let f_name = {
-                            let n = to_len(read_varint(r)?)?;
-                            read_utf8(r, n)?
-                        };
-                        let f_min = read_lf32(r)?;
-                        let f_value = read_lf32(r)?;
-                        let f_max = read_lf32(r)?;
-                        types::EntityAttributesItem {
-                            name: f_name,
-                            min: f_min,
-                            value: f_value,
-                            max: f_max,
-                        }
-                    });
-                }
-                v
-            })
-        })()
-        .map_err(|e| e.at("AddEntity.attributes"))?;
-        let f_metadata = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                let mut v = Vec::with_capacity(cap(n, r));
-                for _ in 0..n {
-                    v.push({
-                        let f_key = types::MetadataDictionaryItemKey::read(r)?;
-                        let f_type = types::MetadataDictionaryItemType::read(r)?;
-                        let f_legacy_type = read_u8(r)?;
-                        let f_value = if f_key == types::MetadataDictionaryItemKey::Flags {
-                            types::MetadataDictionaryItemValue::Flags(types::MetadataFlags1::read(
-                                r,
-                            )?)
-                        } else if f_key == types::MetadataDictionaryItemKey::FlagsExtended {
-                            types::MetadataDictionaryItemValue::FlagsExtended(
-                                types::MetadataFlags2::read(r)?,
-                            )
-                        } else if f_key
-                            == types::MetadataDictionaryItemKey::SeatThirdPersonCameraRadius
-                        {
-                            types::MetadataDictionaryItemValue::SeatThirdPersonCameraRadius(
-                                read_lf32(r)?,
-                            )
-                        } else if f_key
-                            == types::MetadataDictionaryItemKey::SeatCameraRelaxDistanceSmoothing
-                        {
-                            types::MetadataDictionaryItemValue::SeatCameraRelaxDistanceSmoothing(
-                                read_lf32(r)?,
-                            )
-                        } else {
-                            types::MetadataDictionaryItemValue::Default(
-                                if f_type == types::MetadataDictionaryItemType::Byte {
-                                    types::MetadataDictionaryItemValueDefault::Byte(read_i8(r)?)
-                                } else if f_type == types::MetadataDictionaryItemType::Short {
-                                    types::MetadataDictionaryItemValueDefault::Short(read_li16(r)?)
-                                } else if f_type == types::MetadataDictionaryItemType::Int {
-                                    types::MetadataDictionaryItemValueDefault::Int(read_zigzag32(
-                                        r,
-                                    )?)
-                                } else if f_type == types::MetadataDictionaryItemType::Float {
-                                    types::MetadataDictionaryItemValueDefault::Float(read_lf32(r)?)
-                                } else if f_type == types::MetadataDictionaryItemType::String {
-                                    types::MetadataDictionaryItemValueDefault::String({
-                                        let n = to_len(read_varint(r)?)?;
-                                        read_utf8(r, n)?
-                                    })
-                                } else if f_type == types::MetadataDictionaryItemType::Compound {
-                                    types::MetadataDictionaryItemValueDefault::Compound(
-                                        crate::nbt::read::<crate::nbt::Network>(r)?,
-                                    )
-                                } else if f_type == types::MetadataDictionaryItemType::Vec3i {
-                                    types::MetadataDictionaryItemValueDefault::Vec3i(
-                                        types::Vec3i::read(r)?,
-                                    )
-                                } else if f_type == types::MetadataDictionaryItemType::Long {
-                                    types::MetadataDictionaryItemValueDefault::Long(read_zigzag64(
-                                        r,
-                                    )?)
-                                } else if f_type == types::MetadataDictionaryItemType::Vec3f {
-                                    types::MetadataDictionaryItemValueDefault::Vec3f(
-                                        types::Vec3f::read(r)?,
-                                    )
-                                } else {
-                                    types::MetadataDictionaryItemValueDefault::Default
-                                },
-                            )
-                        };
-                        types::MetadataDictionaryItem {
-                            key: f_key,
-                            r#type: f_type,
-                            legacy_type: f_legacy_type,
-                            value: f_value,
-                        }
-                    });
-                }
-                v
-            })
-        })()
-        .map_err(|e| e.at("AddEntity.metadata"))?;
-        let f_properties = (|| -> Result<_> { Ok(types::EntityProperties::read(r)?) })()
-            .map_err(|e| e.at("AddEntity.properties"))?;
-        let f_links = (|| -> Result<_> {
-            Ok({
-                let n = to_len(read_varint(r)?)?;
-                let mut v = Vec::with_capacity(cap(n, r));
-                for _ in 0..n {
-                    v.push(types::Link::read(r)?);
-                }
-                v
-            })
-        })()
-        .map_err(|e| e.at("AddEntity.links"))?;
-        Ok(Self {
-            unique_id: f_unique_id,
-            runtime_id: f_runtime_id,
-            entity_type: f_entity_type,
-            position: f_position,
-            velocity: f_velocity,
-            pitch: f_pitch,
-            yaw: f_yaw,
-            head_yaw: f_head_yaw,
-            body_yaw: f_body_yaw,
-            attributes: f_attributes,
-            metadata: f_metadata,
-            properties: f_properties,
-            links: f_links,
-        })
-    }
-    pub fn write(&self, w: &mut BytesMut) {
-        write_zigzag64(w, self.unique_id);
-        write_varint64(w, self.runtime_id);
-        {
-            let b = self.entity_type.as_bytes();
-            write_varint(w, b.len() as u32);
-            write_slice(w, b);
-        }
-        self.position.write(w);
-        self.velocity.write(w);
-        write_lf32(w, self.pitch);
-        write_lf32(w, self.yaw);
-        write_lf32(w, self.head_yaw);
-        write_lf32(w, self.body_yaw);
-        write_varint(w, self.attributes.len() as u32);
-        for x0 in self.attributes.iter() {
-            {
-                let x1 = x0;
-                {
-                    let b = x1.name.as_bytes();
-                    write_varint(w, b.len() as u32);
-                    write_slice(w, b);
-                }
-                write_lf32(w, x1.min);
-                write_lf32(w, x1.value);
-                write_lf32(w, x1.max);
-            }
-        }
-        write_varint(w, self.metadata.len() as u32);
-        for x0 in self.metadata.iter() {
-            {
-                let x1 = x0;
-                x1.key.write(w);
-                x1.r#type.write(w);
-                write_u8(w, x1.legacy_type);
-                match &x1.value {
-                    types::MetadataDictionaryItemValue::Flags(x2) => {
-                        x2.write(w);
-                    }
-                    types::MetadataDictionaryItemValue::FlagsExtended(x2) => {
-                        x2.write(w);
-                    }
-                    types::MetadataDictionaryItemValue::SeatThirdPersonCameraRadius(x2) => {
-                        write_lf32(w, *x2);
-                    }
-                    types::MetadataDictionaryItemValue::SeatCameraRelaxDistanceSmoothing(x2) => {
-                        write_lf32(w, *x2);
-                    }
-                    types::MetadataDictionaryItemValue::Default(x2) => match x2 {
-                        types::MetadataDictionaryItemValueDefault::Byte(x3) => {
-                            write_i8(w, *x3);
-                        }
-                        types::MetadataDictionaryItemValueDefault::Short(x3) => {
-                            write_li16(w, *x3);
-                        }
-                        types::MetadataDictionaryItemValueDefault::Int(x3) => {
-                            write_zigzag32(w, *x3);
-                        }
-                        types::MetadataDictionaryItemValueDefault::Float(x3) => {
-                            write_lf32(w, *x3);
-                        }
-                        types::MetadataDictionaryItemValueDefault::String(x3) => {
-                            let b = x3.as_bytes();
-                            write_varint(w, b.len() as u32);
-                            write_slice(w, b);
-                        }
-                        types::MetadataDictionaryItemValueDefault::Compound(x3) => {
-                            crate::nbt::write::<crate::nbt::Network>(w, x3);
-                        }
-                        types::MetadataDictionaryItemValueDefault::Vec3i(x3) => {
-                            x3.write(w);
-                        }
-                        types::MetadataDictionaryItemValueDefault::Long(x3) => {
-                            write_zigzag64(w, *x3);
-                        }
-                        types::MetadataDictionaryItemValueDefault::Vec3f(x3) => {
-                            x3.write(w);
-                        }
-                        types::MetadataDictionaryItemValueDefault::Default => {}
-                    },
-                }
-            }
-        }
-        self.properties.write(w);
-        write_varint(w, self.links.len() as u32);
-        for x0 in self.links.iter() {
-            x0.write(w);
-        }
-    }
-}
-impl crate::Packet for AddEntity {
-    const ID: u32 = 13;
-    const NAME: &'static str = "add_entity";
     fn encode(&self, w: &mut BytesMut) {
         self.write(w)
     }

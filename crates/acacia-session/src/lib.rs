@@ -13,4 +13,4 @@ mod session;
 pub use acacia_proto as proto;
 pub use acacia_raknet as raknet;
 pub use error::Error;
-pub use session::{DisconnectReason, Event, LinkConfig, PackFetch, Session, SessionConfig};
+pub use session::{DisconnectReason, Event, LinkConfig, PackFetch, Reason, Session, SessionConfig, Violation};
