@@ -37,7 +37,7 @@ material per face. Build it from the **world's** registry: custom blocks shift r
 foliage sample `textures/colormap/{grass,foliage}.png` at (1 − temperature, 1 − downfall·temperature),
 then vanilla's overrides (swamp, mangrove swamp, badlands, cherry grove, pale garden, dark forest);
 water comes from `biomes_client.json`. Until it arrives, and for chunks without biomes, everything
-tints like plains. The mesher averages the tint over the 3×3 columns around each block, so greedy
+tints like plains, with the water of that file's `default` entry. The mesher averages the tint over the 3×3 columns around each block, so greedy
 quads merge only within a uniform colour.
 
 ## Meshing (`mesh/`)
@@ -62,7 +62,9 @@ quads merge only within a uniform colour.
   their own texture, texel UVs, tint, material, shade direction and cull side. A face takes three
   records of the same buffer (`mesh/model.rs`, read by `gpu/model.wgsl`): bit 31 of w0 marks them,
   and the two records after the first draw nothing themselves. Corners are stored to 1/1024 block,
-  UVs to 1/32 texel. Model faces take no ambient occlusion yet, and are lit like box faces.
+  UVs to 1/32 texel. A shaded face whose model allows it takes AO as Java does: the corner values
+  of the cell in front (a face on the block's side) or of the block's own cell (a face inside it),
+  interpolated to where the face's corners are.
 
 ## Lighting (`light/`)
 
@@ -86,7 +88,8 @@ both layers).
 - **GPU**: each section slot has an 18³ light volume (5832 bytes, `OPAQUE_CELL` marks filter-15 blocks).
   `gpu/light.wgsl` smooths per fragment: each face corner averages the 4 cells in front of it (without
   opaque ones, and without the diagonal when both edges are opaque), interpolated across the face.
-  Cross planes and faces whose front cell is opaque use their own cell. Brightness is Java's curve at
+  "In front" is the next cell for a face on its block's side and the block's own cell for a model
+  face inside it. Cross planes and faces whose front cell is opaque use their own cell. Brightness is Java's curve at
   50% gamma, `max(block, sky)`, raised by the ambient. Quads keep their AO and directional shade.
 - **Light-only updates**: when a section's light changes but its blocks don't, a light job re-gathers
   the volume into its slot without remeshing. Volumes carry the light generation, and the store keeps

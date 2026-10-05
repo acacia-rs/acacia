@@ -161,15 +161,20 @@ viewer drawing from a saved pack with no resource pack present. Two things diffe
 J0 is a refactor of `acacia-render`'s loaders with no visible change, and is the step that proves the
 format. J1 so far: `lookbake java` writes `assets/looks/java`. It starts from the Bedrock look and replaces
 every state whose Java model has geometry: 21,269 of 22,091 states (934 as greedy-meshed cubes, the
-rest as model faces), with 1,171 texture layers after compaction. Kept on Bedrock rendering: 382
-states drawn as block entities, 64 liquids, 193 with no Java geometry, and 183 whose model lays one
-face over another (grass block sides under their overlay). Left in J1:
+rest as model faces), with 1,169 texture layers after compaction. Model faces take ambient
+occlusion where the model allows it. Tints follow Java's `BlockColors` (`lookbake/src/tint.rs`); the
+64 liquid states keep the renderer's liquid geometry with Java's textures; water colour per biome
+comes from the jar's biome files, written as the pack's `biomes_client.json`. Kept on Bedrock
+rendering: 382 states drawn as block entities, 193 with no Java geometry, and 183 whose model lays
+one face over another (grass block sides under their overlay). Left in J1:
 
-- Model faces take no ambient occlusion, weighted variants take the first, and `uvlock` re-projects
-  the texture (exact only for faces textured by position).
-- Tints are still the Bedrock look's, by Bedrock block name: Java-only tinted blocks (lily pads,
-  stems, redstone wire) come out untinted, and water keeps Bedrock's colours and textures.
-- Biome blend radius, mip cap, cutout threshold and the second fog band from "Parameters".
+- Checking the bake against the game's own: a dump of Mojang's baked quads per state, compared by
+  `lookbake`, instead of screenshots.
+- Weighted variants take the first, and `uvlock` re-projects the texture (exact only for faces
+  textured by position).
+- Leaf litter takes one dry-foliage colour for every biome; swamp grass has no noise.
+- Biome blend radius, cutout threshold and the second fog band from "Parameters". The mip cap
+  needs nothing: a 16-pixel texture has four levels below it.
 - `pack.json` is 36 MB for the Java look; model faces want a binary encoding.
 
 J0 and J1 touch `acacia-render`; under the one-agent-per-area rule they are done by, or

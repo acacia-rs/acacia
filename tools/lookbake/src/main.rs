@@ -7,6 +7,7 @@
 //!   (jar.rs) and downloads the Bedrock-to-Java block table (mapping.rs).
 //! - `lookbake java-report [java dir]`: the same, then how many Bedrock block states reach a Java model.
 
+mod biomes;
 mod blockstate;
 mod download;
 mod jar;
@@ -15,6 +16,7 @@ mod mapping;
 mod model;
 mod report;
 mod textures;
+mod tint;
 
 use std::path::PathBuf;
 
@@ -38,19 +40,20 @@ fn main() -> Result<(), Error> {
         }
         Some("java") => {
             let (pack, java, out) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
-            let (assets, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, report) = java::bake_look(&pack, &assets, &mapping);
+            let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
+            let (look, report) = java::bake_look(&pack, &jar.assets, &mapping);
             look.save(&out)?;
+            biomes::write(&jar.biomes, &out)?;
             println!("{}", summary(&look, &out));
-            println!("  Java: {} states as cubes, {} as models; kept from Bedrock: {:?}", report.cubes, report.models, report.kept);
+            println!("  Java: {} states as cubes, {} as models, {} liquids; kept from Bedrock: {:?}", report.cubes, report.models, report.liquids, report.kept);
             println!("  textures missing: {:?}; models invalid: {:?}", report.missing_textures, report.invalid_models);
         }
         Some(command @ ("fetch-java" | "java-report")) => {
             let java = dir(jar::default_dir);
-            let (assets, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            println!("Java {} assets: {}", jar::VERSION, assets.display());
+            let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
+            println!("Java {} assets: {}", jar::VERSION, jar.assets.display());
             if command == "java-report" {
-                report::print(&assets, &mapping)?;
+                report::print(&jar.assets, &mapping)?;
             }
         }
         _ => return Err(USAGE.into()),

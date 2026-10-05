@@ -62,7 +62,7 @@ mod tests {
     #[test]
     fn replaced_blocks_and_their_textures_go() {
         let grey = |v: u8| Texture { rgba: Box::new([v; TEXEL_BYTES]) };
-        let face = ModelFace { corners: [[0.0; 3]; 3], uv: [[0.0; 2]; 3], texture: 3, tint: Tint::None, material: Material::Opaque, shade: None, cull: None };
+        let face = ModelFace { corners: [[0.0; 3]; 3], uv: [[0.0; 2]; 3], texture: 3, tint: Tint::None, material: Material::Opaque, shade: None, ambient_occlusion: false, cull: None };
         let model = RenderBlock { shape: Shape::Model([face].into()), ..BlockTable::cube(0) };
         let animation = |layer| Animation { layer, frames: vec![grey(1), grey(2)], ticks_per_frame: 1, blend: false };
         let mut pack = LookPack {

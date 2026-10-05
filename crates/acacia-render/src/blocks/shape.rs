@@ -38,6 +38,8 @@ pub struct ModelFace {
     /// The axis face it is shaded and lit as ([`crate::assets::FACE_NAMES`] order); `None` takes
     /// no directional shade.
     pub shade: Option<u8>,
+    /// Darkens towards occluding neighbours; only a shaded face does.
+    pub ambient_occlusion: bool,
     /// Hidden when the neighbour on this side occludes.
     pub cull: Option<u8>,
 }

@@ -14,8 +14,8 @@ use crate::blocks::RenderBlock;
 use crate::entity::EntityModels;
 use crate::look::Look;
 
-/// Packs written as another version are refused; bake again. 2: model faces.
-pub const VERSION: u64 = 2;
+/// Packs written as another version are refused; bake again. 2: model faces. 3: their ambient occlusion, fixed tints.
+pub const VERSION: u64 = 3;
 
 #[derive(Serialize, Deserialize)]
 struct PackFile {

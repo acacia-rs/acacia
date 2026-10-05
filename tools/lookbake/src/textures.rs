@@ -41,16 +41,18 @@ impl Textures {
         let file = self.assets.join(format!("textures/{id}.png"));
         let layer = u16::try_from(atlas.layers.len()).ok().filter(|l| usize::from(*l) < MAX_LAYERS)?;
         let meta = std::fs::read(self.assets.join(format!("textures/{id}.png.mcmeta"))).ok();
+        // Flowing liquids are drawn from a quarter of their 32x32 frames.
+        let quad = id.ends_with("_flow");
         let image = match meta.and_then(|m| flipbook(&serde_json::from_slice(&m).ok()?)) {
             Some(book) => {
-                let strip = Texture::load_frames(&file, false).ok()?;
+                let strip = Texture::load_frames(&file, quad).ok()?;
                 let still = strip.first()?.clone();
                 let animation = Animation::new(layer, strip, &book);
                 let first = animation.as_ref().map_or(still, |a| a.at(0));
                 atlas.animations.extend(animation);
                 first
             }
-            None => Texture::load(&file, false).ok()?,
+            None => Texture::load(&file, quad).ok()?,
         };
         let alpha = image.alpha();
         atlas.layers.push(image);

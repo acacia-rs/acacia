@@ -36,7 +36,7 @@ fn model_vertex(q: u32, vi: u32, slot: u32) -> VsOut {
     let t1 = vec2(model_texel(c0w >> 20u), model_texel(c1w >> 16u));
     let t3 = vec2(model_texel(c2w), model_texel(c2w >> 10u));
 
-    let corner = TRIANGLES[0][vi % 6u];
+    let corner = TRIANGLES[((look >> 28u) & 1u) * 2u][vi % 6u];
     let c = CORNERS[corner];
     let pos = p0 + (p1 - p0) * c.x + (p3 - p0) * c.y;
     let kind = look & 15u;
