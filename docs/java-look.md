@@ -172,12 +172,9 @@ as the pack's `biomes_client.json`; tints blend over 5×5 columns. Weighted vari
 them; plants stand off the grid by Java's offsets (`lookbake/src/offset.rs`). Kept on Bedrock
 rendering: 382 states drawn as block entities, 193 with no Java geometry, and 182 whose model lays
 one face over another. The grass block is among those, drawn as Bedrock's overlay cube; its faces
-still turn as its Java variants do. Left in J1:
-
-- Fog: both of Java's bands are drawn (`Look::JAVA`), but its colour is still the renderer's sky
-  colour, not Java's `fog_color` mixed with the sky, and rain does not thicken it.
-- The cutout threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), nor
-  the mip cap: a 16-pixel texture has four levels below it.
+still turn as its Java variants do. Both of Java's fog bands are drawn (`Look::JAVA`). The cutout
+threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), nor the mip cap: a
+16-pixel texture has four levels below it. What is left, in order: [java-look-next.md](java-look-next.md).
 
 ### Checking against the game
 
