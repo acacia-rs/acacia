@@ -30,7 +30,8 @@ pub enum TransportKind {
     #[default]
     Auto,
     RakNet,
-    /// WebRTC direct connect; needs an online login.
+    /// WebRTC direct connect. An offline login offers a self-signed identity, which BDS refuses
+    /// (error 37) and a host without online auth may accept.
     NetherNet,
 }
 
@@ -210,18 +211,24 @@ impl ClientBuilder {
 
     /// Connects, logs in and resolves once the player has spawned.
     pub async fn connect(self) -> Result<Client, ConnectError> {
+        // Made here, not with the Login: a NetherNet offer is signed by the same key.
+        let offline_key = SigningKey::random(&mut rand_core::OsRng);
         let net_identity = match &self.login {
             Login::Online { credentials, key } => {
                 credentials.multiplayer_token.clone().map(|token| NetIdentity::multiplayer(key.clone(), token))
             }
-            Login::Offline { .. } => None,
+            Login::Offline { .. } => Some(NetIdentity::self_signed(offline_key.clone())),
+        };
+        let transport = match (&self.login, self.transport) {
+            (Login::Offline { .. }, TransportKind::Auto) => TransportKind::RakNet,
+            (_, kind) => kind,
         };
         let route = match &self.via {
             Via::Signaling(target) => route::open_signaling(target, self.proxy.as_ref(), net_identity.as_ref()).await?,
             Via::Lan(server) => route::open_lan(server, net_identity.as_ref()).await?,
             Via::Address => {
                 let addr = resolve(&self.server).await?;
-                route::open(&self.server, addr, self.proxy.as_ref(), self.transport, net_identity.as_ref()).await?
+                route::open(&self.server, addr, self.proxy.as_ref(), transport, net_identity.as_ref()).await?
             }
         };
         let addr = route.remote;
@@ -230,7 +237,7 @@ impl ClientBuilder {
             Login::Online { credentials, .. } => format!("xbox:{}", credentials.xuid),
         };
         let blob_store = self.blob_cache.open(&account, self.blob_payloads);
-        let (key, login_request, identity) = build_login(self.login, &route.server_address, self.nonce);
+        let (key, login_request, identity) = build_login(self.login, offline_key, &route.server_address, self.nonce);
         let cfg = SessionConfig {
             link: route.link,
             key,

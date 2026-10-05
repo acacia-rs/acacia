@@ -29,8 +29,7 @@ pub(crate) struct Route {
     pub keepalive: Option<Keepalive>,
 }
 
-/// A LAN world found by discovery; always NetherNet, and online only (the offer's identity needs the
-/// MultiplayerToken, as with BDS).
+/// A LAN world found by discovery; always NetherNet.
 pub(crate) async fn open_lan(server: &LanServer, identity: Option<&Identity>) -> Result<Route, ConnectError> {
     let identity = identity.ok_or(ConnectError::NetherNetNeedsOnline)?;
     let (transport, wire) = lan::dial(server, identity).await?;
@@ -45,7 +44,7 @@ pub(crate) async fn open_lan(server: &LanServer, identity: Option<&Identity>) ->
     })
 }
 
-/// A join through the signaling service; always NetherNet, and online only.
+/// A join through the signaling service; always NetherNet.
 pub(crate) async fn open_signaling(
     target: &SignalingTarget,
     proxy: Option<&Socks5Proxy>,
@@ -70,7 +69,7 @@ enum Choice {
     NetherNet(Option<Scheme>),
 }
 
-/// `identity` is None for offline logins, which can only use RakNet.
+/// `identity` is None for an online login that came without a MultiplayerToken; NetherNet needs one.
 pub(crate) async fn open(
     server: &str,
     addr: SocketAddr,

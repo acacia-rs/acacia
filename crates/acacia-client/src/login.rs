@@ -1,7 +1,6 @@
 use acacia_auth::ClientData;
 use acacia_session::proto::GAME_VERSION;
 use p384::ecdsa::SigningKey;
-use rand_core::OsRng;
 
 use crate::client::Login;
 
@@ -11,11 +10,12 @@ pub(crate) struct Identity {
     pub xuid: String,
 }
 
-/// `nonce` is a friend's world's per-player join nonce (ClientData `Nonce`).
-pub(crate) fn build_login(login: Login, server: &str, nonce: Option<String>) -> (SigningKey, Vec<u8>, Identity) {
+/// `nonce` is a friend's world's per-player join nonce (ClientData `Nonce`). `offline_key` signs an
+/// offline login; an online one brings its own key.
+pub(crate) fn build_login(login: Login, offline_key: SigningKey, server: &str, nonce: Option<String>) -> (SigningKey, Vec<u8>, Identity) {
     match login {
         Login::Offline { name } => {
-            let key = SigningKey::random(&mut OsRng);
+            let key = offline_key;
             let client = ClientData { nonce, ..ClientData::default_for(&name, server, GAME_VERSION) };
             let request = acacia_auth::build_offline_connection_request(&name, &key, &client);
             (key, request, Identity { display_name: name, xuid: String::new() })

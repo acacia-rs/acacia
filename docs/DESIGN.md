@@ -35,7 +35,8 @@ acacia-client             tokio sockets and timers, SOCKS5 (UDP + CONNECT), Neth
  │   ├─ acacia-raknet     network-free RakNet client and server: reliability, split packets, ACK/NACK, ordering
  │   └─ acacia-proto      generated packet structs + codec (varints, lazy Packet)
  ├─ acacia-nethernet      network-free NetherNet: signaling HTTP bytes (both sides), signal text, signaling-service
- │                        session, STUN/TURN client, a=identity, fragment framing, str0m connection (offer or BDS-style answer)
+ │                        session, STUN/TURN client, a=identity (both directions), fragment framing, str0m connection
+ │                        (offer, or BDS-style answer, embedded or trickled), `Host`: many answering connections on one socket
  └─ acacia-auth           MSA device code → Xbox → XSTS → PlayFab → session/start → multiplayer token
 acacia-viewer             (app) world viewer: a bot on a tokio thread, winit window, fly camera
  └─ acacia-render         wgpu terrain renderer over acacia-world (no network): pack loading, meshing, drawing
