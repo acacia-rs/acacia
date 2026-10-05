@@ -168,14 +168,25 @@ comes from the jar's biome files, written as the pack's `biomes_client.json`. Ke
 rendering: 382 states drawn as block entities, 193 with no Java geometry, and 183 whose model lays
 one face over another (grass block sides under their overlay). Left in J1:
 
-- Checking the bake against the game's own: a dump of Mojang's baked quads per state, compared by
-  `lookbake`, instead of screenshots.
-- Weighted variants take the first, and `uvlock` re-projects the texture (exact only for faces
-  textured by position).
+- Weighted variants take the first.
+- Tints are per block, where Java's are per tint index; ambient occlusion is not yet turned off
+  for blocks that give light, as Java does.
 - Leaf litter takes one dry-foliage colour for every biome; swamp grass has no noise.
 - Biome blend radius, cutout threshold and the second fog band from "Parameters". The mip cap
   needs nothing: a 16-pixel texture has four levels below it.
 - `pack.json` is 36 MB for the Java look; model faces want a binary encoding.
+
+### Checking against the game
+
+The bake is checked against the game's own, not by eye. The workspace's `research/java-truth`
+(outside the repo: it holds a JDK and decompiled game code) runs the client jar's model baking
+without a window and dumps every Java block state's baked quads; `lookbake java-check
+<quads.json.gz>` bakes the same states and names each difference in corners, texture, texture
+coordinates, cull side, tint and shade direction. All 35,723 states of Java 26.3 agree. Matching
+needed three things Pomme's baker lacked: `uvlock` as the game does it, the three-axis element
+rotation and `shade_direction_override` of 26.1, and the sine and cosine JOML rotates with (they
+decide which way an exactly diagonal face is shaded). What draws the quads (light, ambient
+occlusion, tint colours, liquids) is not in the dump; `colors.json` beside it has `BlockColors`.
 
 J0 and J1 touch `acacia-render`; under the one-agent-per-area rule they are done by, or
 handed over from, whoever holds the render area. J2 onward are new areas (`ui`, `entities`).

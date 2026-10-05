@@ -2016,6 +2016,7 @@ version = "0.1.0"
 dependencies = [
  "acacia-render",
  "acacia-world",
+ "flate2",
  "glam",
  "serde",
  "serde_json",

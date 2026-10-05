@@ -6,9 +6,12 @@
 //! - `lookbake fetch-java [java dir]`: downloads the pinned Java client jar, unpacks its assets
 //!   (jar.rs) and downloads the Bedrock-to-Java block table (mapping.rs).
 //! - `lookbake java-report [java dir]`: the same, then how many Bedrock block states reach a Java model.
+//! - `lookbake java-check <quads.json.gz> [java dir]`: our bake of every Java block state against a
+//!   dump of the game's own (check.rs).
 
 mod biomes;
 mod blockstate;
+mod check;
 mod download;
 mod jar;
 mod java;
@@ -25,7 +28,7 @@ use acacia_render::{Look, LookPack};
 
 use download::Error;
 
-const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-report [java dir]";
+const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-report [java dir] | java-check <quads.json.gz> [java dir]";
 
 fn main() -> Result<(), Error> {
     let mut args = std::env::args().skip(1);
@@ -55,6 +58,10 @@ fn main() -> Result<(), Error> {
             if command == "java-report" {
                 report::print(&jar.assets, &mapping)?;
             }
+        }
+        Some("java-check") => {
+            let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
+            check::print(&jar::fetch(&dir(jar::default_dir))?.assets, &truth)?;
         }
         _ => return Err(USAGE.into()),
     }

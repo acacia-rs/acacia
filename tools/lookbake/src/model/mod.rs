@@ -42,8 +42,11 @@ pub struct Element {
     /// By face name; sorted, so a bake comes out the same every time.
     #[serde(default)]
     pub faces: BTreeMap<String, FaceDef>,
+    /// Files from before 26.1.
     #[serde(default = "yes")]
     pub shade: bool,
+    #[serde(default)]
+    pub shade_direction_override: Option<String>,
 }
 
 fn yes() -> bool {
@@ -51,10 +54,18 @@ fn yes() -> bool {
 }
 
 #[derive(Deserialize, Clone)]
+/// About one `axis` by `angle`, or (26.1 on) about `x`, `y` and `z`.
 pub struct ElementRotation {
     pub origin: [f32; 3],
-    pub axis: String,
+    pub axis: Option<String>,
+    #[serde(default)]
     pub angle: f32,
+    #[serde(default)]
+    pub x: f32,
+    #[serde(default)]
+    pub y: f32,
+    #[serde(default)]
+    pub z: f32,
     #[serde(default)]
     pub rescale: bool,
 }
