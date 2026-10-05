@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if line.starts_with(r#"{"dir":"S"#) {
             trace.rec.write(&Event::Packet(RawPacket { id, sender_subclient: 0, target_subclient: 0, body: body.into() }));
             trace.packets += 1;
-        } else if id == PlayerAuthInput::ID {
+        } else if id == PlayerAuthInput::ID && line.starts_with(r#"{"dir":"C"#) {
             trace.rec.write(&Event::Input(body.into()));
             trace.inputs += 1;
         }

@@ -4,7 +4,6 @@
 use std::time::{Duration, Instant};
 
 use acacia_nethernet::{Connection, Event};
-use serde_json::json;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 
@@ -54,7 +53,7 @@ impl Link {
             }
         };
         println!("NetherNet player left: {why}");
-        self.relay.note(json!({ "event": "closed" }));
+        self.relay.close();
     }
 
     fn route(&mut self, out: Out, now: Instant) {

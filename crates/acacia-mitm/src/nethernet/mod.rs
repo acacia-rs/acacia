@@ -6,7 +6,7 @@
 mod link;
 
 use std::io;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -80,8 +80,8 @@ async fn serve(mut tcp: TcpStream, peer: SocketAddr, host: &Host) -> Result<(), 
     match req.method {
         "GET" if req.path == acacia_nethernet::PROBE_PATH => tcp.write_all(&http::response(200, "application/json", "")).await.map_err(err),
         "POST" if is_join => {
-            let local = tcp.local_addr().map_err(err)?.ip();
-            if local.is_loopback() {
+            let local = tcp.local_addr().map_err(err)?;
+            if local.ip().is_loopback() {
                 eprintln!("the game joined on a loopback address; its WebRTC may not reach it. Use this machine's LAN IP");
             }
             match join(&String::from_utf8_lossy(req.body), local, peer, host).await {
@@ -103,7 +103,7 @@ async fn serve(mut tcp: TcpStream, peer: SocketAddr, host: &Host) -> Result<(), 
 
 /// Dials the server for a game (signaling from `peer`) whose offer reached us on `local`, then
 /// answers the game.
-async fn join(offer: &str, local: IpAddr, peer: SocketAddr, host: &Host) -> Result<(String, Link), String> {
+async fn join(offer: &str, local: SocketAddr, peer: SocketAddr, host: &Host) -> Result<(String, Link), String> {
     let key = SigningKey::random(&mut OsRng);
     let credentials = host.account.credentials(&key).await.map_err(err)?;
     let token = credentials.multiplayer_token.clone().ok_or("the account has no MultiplayerToken")?;
@@ -111,11 +111,11 @@ async fn join(offer: &str, local: IpAddr, peer: SocketAddr, host: &Host) -> Resu
         .await
         .map_err(|_| "server signaling timed out")??;
     let game_udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await.map_err(err)?;
-    let game_addr = SocketAddr::new(local, game_udp.local_addr().map_err(err)?.port());
+    let game_addr = SocketAddr::new(local.ip(), game_udp.local_addr().map_err(err)?.port());
     let (game, answer) = Connection::answer(offer, game_addr, &host.key, Instant::now()).map_err(err)?;
     println!("NetherNet player joining: game side {game_addr}, server side {:?}", up.host_candidate());
     let (inject_tx, injections) = mpsc::unbounded_channel();
-    let session = Session { game: peer, injector: Injector::new(peer, inject_tx) };
+    let session = Session { game: peer, proxy: local, injector: Injector::new(peer, inject_tx) };
     let relay = host.setup.relay(Wire::NetherNet, key, Some(credentials), &session);
     relay.note(json!({ "event": "connected", "transport": "nethernet" }));
     Ok((answer, Link { game, game_udp, up, up_udp, relay, injections }))

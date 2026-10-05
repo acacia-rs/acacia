@@ -6,7 +6,6 @@ use std::time::Instant;
 
 use acacia_raknet::{self as raknet, Reliability};
 use bytes::Bytes;
-use serde_json::json;
 
 use crate::intercept::Direction;
 use crate::relay::{Out, Relay};
@@ -74,7 +73,7 @@ impl Pair {
 
     fn mark_closed(&mut self) {
         if !std::mem::replace(&mut self.closed, true) {
-            self.relay.note(json!({ "event": "closed" }));
+            self.relay.close();
         }
     }
 

@@ -101,6 +101,18 @@ impl Relay {
         }
     }
 
+    fn record_outcome(&self, from_game: bool, raw: &RawPacket, packet: &Bytes, out: &[Bytes]) {
+        if let Some(log) = &self.log {
+            log.outcome(from_game, raw, packet, out);
+        }
+    }
+
+    /// The player is gone: notes it in the capture and tells the interceptors. Call once.
+    pub fn close(&mut self) {
+        self.note(json!({ "event": "closed" }));
+        self.chain.close();
+    }
+
     /// Records a game message and re-batches what the interceptors let through for the server,
     /// Login re-signed.
     pub fn on_game_message(&mut self, msg: &[u8]) -> Result<Out, String> {
@@ -115,7 +127,9 @@ impl Relay {
             self.game_sent_disconnect |= raw.id == Disconnect::ID;
             self.server_ready |= raw.id == ClientToServerHandshake::ID;
             self.record(true, &raw);
-            self.chain.run(true, buf, &raw, &mut forward).map_err(|e| format!("intercepted packet: {e}"))?;
+            let first = forward.len();
+            self.chain.run(true, buf.clone(), &raw, &mut forward).map_err(|e| format!("intercepted packet: {e}"))?;
+            self.record_outcome(true, &raw, &buf, &forward[first..]);
         }
         let mut out = Out::default();
         if !forward.is_empty() {
@@ -127,12 +141,15 @@ impl Relay {
 
     fn login(&mut self, raw: &RawPacket) -> Result<Bytes, String> {
         let l = login::read(&raw.body, &self.key, self.credentials.as_ref()).map_err(|e| format!("game login: {e}"))?;
+        let p = &l.player;
         if let Some(log) = &self.log {
+            let identity = json!({ "DisplayName": p.name, "Identity": p.uuid, "XUID": p.xuid });
             log.login(raw.body.len(), l.summary);
-            log.write(json!({ "event": "login", "client_data": login::trimmed(&l.client_data), "identity": l.identity }));
-            log.save_skin(&l.client_data);
+            log.write(json!({ "event": "login", "client_data": login::trimmed(&p.client_data), "identity": identity }));
+            log.save_skin(&p.client_data);
         }
-        println!("{} logging in", l.identity["DisplayName"]);
+        println!("{:?} logging in", p.name);
+        self.chain.login(p);
         self.game_key = Some(l.game_key);
         Ok(l.upstream)
     }
@@ -168,7 +185,8 @@ impl Relay {
                     }
                     self.record(false, &raw);
                     let first = forward.len();
-                    self.chain.run(false, buf, &raw, &mut forward).map_err(|e| format!("intercepted packet: {e}"))?;
+                    self.chain.run(false, buf.clone(), &raw, &mut forward).map_err(|e| format!("intercepted packet: {e}"))?;
+                    self.record_outcome(false, &raw, &buf, &forward[first..]);
                     if raw.id == Transfer::ID
                         && let Some(proxy) = self.transfer_to
                     {
@@ -217,6 +235,10 @@ impl Relay {
                 Direction::ToServer if self.server_ready => server.push(packet),
                 _ => self.held.push((dir, packet)),
             }
+        }
+        if let Some(log) = &self.log {
+            game.iter().for_each(|p| log.sent(true, "inject", p));
+            server.iter().for_each(|p| log.sent(false, "inject", p));
         }
         self.flush_to_game(&mut game, &mut out.to_game);
         if !server.is_empty() {

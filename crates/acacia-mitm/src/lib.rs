@@ -12,10 +12,11 @@ mod proxy;
 mod raknet;
 mod record;
 mod relay;
+mod status;
 mod transfer;
 
 pub use acacia_proto as proto;
-pub use intercept::{encode, Direction, Injector, Interceptor, Session, Verdict};
+pub use intercept::{encode, Direction, Injector, Interceptor, Player, Session, Verdict};
 pub use nethernet::host_key;
 pub use proxy::{BoundProxy, Proxy};
 pub use record::Recorder;

@@ -6,7 +6,7 @@ use std::time::Duration;
 use acacia_client::{Client, Event, TransportKind};
 use acacia_mitm::proto::packets::{SetTime, Text, TextCategory, TextContent, TextContentRaw, TextType};
 use acacia_mitm::proto::{Packet, RawPacket};
-use acacia_mitm::{Injector, Interceptor, Proxy, Verdict};
+use acacia_mitm::{Injector, Interceptor, Player, Proxy, Recorder, Verdict};
 use acacia_testserver::{FakeServer, Script};
 use tokio::sync::mpsc;
 
@@ -52,6 +52,19 @@ impl Interceptor for Censor {
     }
 }
 
+/// Reports the session's login and end.
+struct Watch(mpsc::UnboundedSender<String>);
+
+impl Interceptor for Watch {
+    fn on_login(&mut self, player: &Player) {
+        let _ = self.0.send(format!("login {}", player.name));
+    }
+
+    fn on_close(&mut self) {
+        let _ = self.0.send("close".into());
+    }
+}
+
 /// The next Text the client gets, failing on any SetTime before it.
 async fn next_text(client: &mut Client) -> String {
     let wait = async {
@@ -71,12 +84,18 @@ async fn next_text(client: &mut Client) -> String {
 async fn proxy_rewrites_drops_and_injects_both_ways() {
     let server = FakeServer::start(Script::bds_spawn()).await.unwrap();
     let (injectors_tx, mut injectors) = mpsc::unbounded_channel::<Injector>();
+    let (watch_tx, mut watched) = mpsc::unbounded_channel::<String>();
+    let dir = std::env::temp_dir().join(format!("acacia-mitm-intercept-{}", std::process::id()));
+    let rec = Recorder::create(&dir, "capture").unwrap();
+    let capture = rec.path().to_owned();
     let proxy = Proxy::new(server.addr())
         .listen("127.0.0.1:0".parse().unwrap())
+        .record(rec)
         .intercept(move |session| {
             let _ = injectors_tx.send(session.injector.clone());
             Censor
         })
+        .intercept(move |_| Watch(watch_tx.clone()))
         .bind()
         .await
         .unwrap();
@@ -101,5 +120,18 @@ async fn proxy_rewrites_drops_and_injects_both_ways() {
     assert_eq!(message(&server.recv::<Text>().await.unwrap()), "also from the proxy");
 
     client.close();
+    let hooks = tokio::time::timeout(Duration::from_secs(10), async { [watched.recv().await, watched.recv().await] });
+    assert_eq!(hooks.await.expect("both hooks within 10 s"), [Some("login MitmTester".into()), Some("close".into())]);
     proxy.abort();
+
+    // What the interceptors and the injector changed on the wire is in the capture (record.rs).
+    let text = std::fs::read_to_string(&capture).unwrap();
+    let events = |event: &str, rest: &str| text.lines().filter(|l| l.contains(&format!(r#"{{"event":"{event}""#)) && l.contains(rest)).count();
+    // The spawn script may hold SetTime and Text of its own.
+    assert!(events("dropped", r#""name":"SetTime""#) >= 1);
+    assert!(events("dropped", r#""name":"Text""#) >= 2, "each replaced Text did not go on itself");
+    assert!(events("sent", r#""to":"game","why":"replace""#) >= 1);
+    assert_eq!(events("sent", r#""to":"server","why":"replace""#), 1);
+    assert_eq!((events("sent", r#""to":"game","why":"inject""#), events("sent", r#""to":"server","why":"inject""#)), (1, 1));
+    std::fs::remove_dir_all(&dir).unwrap();
 }

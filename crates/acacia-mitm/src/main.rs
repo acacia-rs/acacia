@@ -98,8 +98,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         proxy = proxy.nethernet(acacia_mitm::host_key(args.out.as_ref())?);
     }
     if let Some(zip) = &args.pack_cdn {
-        let url = cdn::start(zip.as_ref(), args.listen.port() + 1, &rec.path().with_extension("cdn.log"))?;
-        proxy = proxy.intercept(move |_| cdn::PointPacks(url.clone()));
+        let port = args.listen.port() + 1;
+        cdn::start(zip.as_ref(), port, &rec.path().with_extension("cdn.log"))?;
+        proxy = proxy.intercept(move |session| cdn::PointPacks(cdn::url(session.proxy, port)));
     }
     // MITM_TRACE=1 logs every datagram on the game's side (first byte and size), to debug joins and
     // compare send pacing.

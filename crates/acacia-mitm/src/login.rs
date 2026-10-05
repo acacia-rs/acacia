@@ -18,6 +18,8 @@ use p384::ecdsa::SigningKey;
 use serde::de::{IgnoredAny, MapAccess, Visitor};
 use serde_json::{Value, json};
 
+use crate::intercept::Player;
+
 /// Strings longer than this (skin images, geometry) are logged as their size.
 const MAX_LOGGED_STRING: usize = 256;
 
@@ -26,10 +28,9 @@ pub struct GameLogin {
     pub upstream: Bytes,
     /// The game's key (the client-data JWT's x5u), for the game-side ECDH.
     pub game_key: p384::PublicKey,
-    pub client_data: Value,
     /// Structure only: JWT headers, claim names and kept non-secret values. Never token bodies.
     pub summary: Value,
-    pub identity: Value,
+    pub player: Player,
 }
 
 /// `credentials` (bound to `key`) log in online; without them the login is offline.
@@ -69,8 +70,7 @@ pub fn read(body: &[u8], key: &SigningKey, credentials: Option<&LoginCredentials
         "client_data": describe(client_jwt, &[]),
         "client_data_values": trimmed(&client.claims),
     });
-    let identity = json!({ "DisplayName": name, "Identity": uuid, "XUID": xuid });
-    Ok(GameLogin { upstream: upstream.freeze(), game_key, client_data: client.claims, summary, identity })
+    Ok(GameLogin { upstream: upstream.freeze(), game_key, summary, player: Player { name, xuid, uuid, client_data: client.claims } })
 }
 
 /// The legacy `Certificate` chain, if the envelope has one.

@@ -5,6 +5,11 @@
 //! stays first for line-prefix parsers like mitm_trace). Login has a structural `summary` instead
 //! of `raw` (login.rs). Events: `connected`, `login`, `spawned`, `transfer` (`to`: where the game was
 //! sent before the proxy pointed it at itself), `closed`.
+//!
+//! Packet lines are what each side sent. Where interceptors or an injector made the wire differ,
+//! events say how: `dropped` (`to`, `id`, `name`: the packet line before it did not go on) and
+//! `sent` (`to` game|server, `why` replace|inject, then `id`, `len`, `name`, `raw`). They carry no
+//! `dir`, so readers of packet lines skip them.
 
 use std::fs::File;
 use std::io::Write;
@@ -13,6 +18,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
 
 use acacia_proto::{packets, Packet, RawPacket};
+use bytes::Bytes;
 use serde_json::{json, Value};
 
 /// Bodies above this are not test-decoded (chunks, registries, command trees).
@@ -100,11 +106,26 @@ impl SessionLog {
         lock(&self.rec).write(entry);
     }
 
-    pub fn packet(&self, from_game: bool, raw: &RawPacket) {
-        let mut entry = json!({ "dir": dir(from_game), "id": raw.id, "len": raw.body.len(), "raw": hex::encode(&raw.body) });
-        if let Some(name) = acacia_proto::packet_name(raw.id) {
-            entry["name"] = json!(name);
+    /// What the interceptors made of the packet just logged, unless they forwarded it as it was.
+    pub fn outcome(&self, from_game: bool, raw: &RawPacket, packet: &Bytes, out: &[Bytes]) {
+        if out == std::slice::from_ref(packet) {
+            return;
         }
+        if !out.contains(packet) {
+            self.write(named(json!({ "event": "dropped", "to": side(!from_game), "id": raw.id }), raw.id));
+        }
+        out.iter().filter(|p| *p != packet).for_each(|p| self.sent(!from_game, "replace", p));
+    }
+
+    /// A packet (header included) the proxy put on the wire that neither side sent.
+    pub fn sent(&self, to_game: bool, why: &str, packet: &Bytes) {
+        let Ok(raw) = RawPacket::parse(packet.clone()) else { return };
+        let entry = json!({ "event": "sent", "to": side(to_game), "why": why, "id": raw.id, "len": raw.body.len(), "raw": hex::encode(&raw.body) });
+        self.write(named(entry, raw.id));
+    }
+
+    pub fn packet(&self, from_game: bool, raw: &RawPacket) {
+        let mut entry = named(json!({ "dir": dir(from_game), "id": raw.id, "len": raw.body.len(), "raw": hex::encode(&raw.body) }), raw.id);
         if raw.body.len() <= MAX_DECODED
             && let Some(e) = decode_error(raw)
         {
@@ -140,6 +161,18 @@ impl DatagramLog {
 
 fn dir(from_game: bool) -> &'static str {
     if from_game { "C>S" } else { "S>C" }
+}
+
+fn side(game: bool) -> &'static str {
+    if game { "game" } else { "server" }
+}
+
+/// `entry` with acacia-proto's `name` for the id, if it has one.
+fn named(mut entry: Value, id: u32) -> Value {
+    if let Some(name) = acacia_proto::packet_name(id) {
+        entry["name"] = json!(name);
+    }
+    entry
 }
 
 macro_rules! by_id {

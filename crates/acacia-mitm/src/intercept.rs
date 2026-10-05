@@ -3,7 +3,7 @@
 //!
 //! The proxy owns Login, NetworkSettings and ServerToClientHandshake (it re-signs, switches codecs
 //! on, or replaces them), so those never reach interceptors. Injected packets bypass interceptors
-//! and the capture, and wait until the direction's handshake is done: to the game after our
+//! (the capture lists them as `sent`, record.rs) and wait until the direction's handshake is done: to the game after our
 //! ServerToClientHandshake, to the server after the game's ClientToServerHandshake.
 
 use std::net::SocketAddr;
@@ -37,6 +37,12 @@ impl Verdict {
 /// One proxied player's hooks, one instance per player. Decode with `packet.decode::<T>()` only
 /// for the ids you handle: the rest pass through without being parsed.
 pub trait Interceptor: Send + 'static {
+    /// The game's Login, before any packet reaches the other hooks.
+    fn on_login(&mut self, _player: &Player) {}
+
+    /// The player is gone. Not called when the proxy itself is dropped.
+    fn on_close(&mut self) {}
+
     fn on_game_packet(&mut self, _packet: &RawPacket) -> Verdict {
         Verdict::Forward
     }
@@ -57,7 +63,19 @@ pub fn encode<T: Packet>(packet: &T) -> Bytes {
 pub struct Session {
     /// The game's address as the proxy sees it.
     pub game: SocketAddr,
+    /// The proxy's address as the game reaches it, to point the game at something on this machine.
+    pub proxy: SocketAddr,
     pub injector: Injector,
+}
+
+/// Who the game logged in as, from its Login.
+pub struct Player {
+    pub name: String,
+    /// Empty when the game is not signed in.
+    pub xuid: String,
+    pub uuid: String,
+    /// The client data claims: device, language, skin.
+    pub client_data: serde_json::Value,
 }
 
 pub(crate) struct Injection {
@@ -101,6 +119,14 @@ pub(crate) struct Chain(Vec<Box<dyn Interceptor>>);
 impl Chain {
     pub fn new(interceptors: Vec<Box<dyn Interceptor>>) -> Self {
         Self(interceptors)
+    }
+
+    pub fn login(&mut self, player: &Player) {
+        self.0.iter_mut().for_each(|i| i.on_login(player));
+    }
+
+    pub fn close(&mut self) {
+        self.0.iter_mut().for_each(|i| i.on_close());
     }
 
     /// Runs `packet` (already parsed as `raw`) through the chain, appending what survives to `out`.

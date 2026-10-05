@@ -24,13 +24,17 @@ impl Interceptor for PointPacks {
     }
 }
 
-/// Serves `zip` on `port`, logging to `log`; returns the URL to hand the game.
-pub fn start(zip: &Path, port: u16, log: &Path) -> io::Result<String> {
+/// Serves `zip` on `port`, logging to `log`.
+pub fn start(zip: &Path, port: u16, log: &Path) -> io::Result<()> {
     let pack = std::fs::read(zip).map_err(|e| io::Error::new(e.kind(), format!("--pack-cdn {}: {e}", zip.display())))?;
-    serve(SocketAddr::from(([0, 0, 0, 0], port)), pack, log)?;
-    let url = format!("http://127.0.0.1:{port}/pack.zip");
+    serve(SocketAddr::from(([0, 0, 0, 0], port)), pack, log)
+}
+
+/// The pack's URL for a game that reaches this machine at `proxy`.
+pub fn url(proxy: SocketAddr, port: u16) -> String {
+    let url = format!("http://{}/pack.zip", SocketAddr::new(proxy.ip(), port));
     println!("packs point at {url}");
-    Ok(url)
+    url
 }
 
 fn serve(listen: SocketAddr, pack: Vec<u8>, log: &Path) -> io::Result<()> {
