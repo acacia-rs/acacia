@@ -1,0 +1,128 @@
+# Unary operators
+-(-5)
+- 5
+!-1
+2 - -3
+2 * -3
+-!0
+- -5
+
+# Chains
+1 ? 2 : 3 ? 4 : 5
+5 > 3 > 1
+1 == 1 == 1
+'a' == 'a' == 1
+10 - 2 * 3 + 4 / 2
+1 + 2 < 4 && 3 * 2 == 6
+1 || 0 ? 5 : 6
+0 && 1 ? 5 : 6
+1 ? 2 : 3 + 10
+0 ? 2 : 3 + 10
+
+# Number forms
+.5 + .5
+1. + 1
+1e2 + 0
+007 + 1
+1.5F + 1
+0x10 + 0
+
+# Text forms
+"double" == "double"
+'a' < 'b'
+'a' + 1
+'q.x' == 'q.x'
+'' ? 1 : 2
+'a' ? 1 : 2
+v.t = 'a'; => v.t ? 1 : 2
+v.t = ''; => v.t ? 1 : 2
+v.t = 'a'; => !v.t
+v.t = 'a'; => v.t != 'b'
+v.t = 'a'; => v.t == 1
+
+# Whitespace
+   2*3
+math.max( 1 , 2 )*math.min(3,4)
+math.sin(90)+math.cos(0)
+math . abs(-1)
+math.abs (-1)
+
+# Unknown names
+q.nonexistent_query_zz
+nonsense
+nonsense.thing
+v
+this
+
+# Coalescing: precedence against the conditional, and what counts as unset
+v.a = 1; v.b = v.a ?? 5 ? 10 : 20; => v.b
+v.b = v.none ?? 5 ? 10 : 20; => v.b
+v.b = 0 ? 1 : v.none ?? 7; => v.b
+v.b = (v.none ?? 2) + 1; => v.b
+v.b = v.none ?? v.none2 ?? 6; => v.b
+v.b = 3 ?? 4; => v.b
+v.b = q.is_alive ?? 4; => v.b
+v.b = t.none ?? 4; => v.b
+v.b = c.none ?? 4; => v.b
+v.b = v.none ?? 'text'; => v.b == 'text'
+
+# Assignment
+v.r = (v.x = 3); => v.r
+v.x = v.y = 3; => v.x
+v.x = 3 => v.x
+truthy: v.x = 3
+q.is_alive = 3; => 1
+math.pi = 3; => 1
+t.x = 4; => t.x ?? -1
+c.x = 4; => 1
+
+# Struct values
+v.s.x = 2; v.o = v.s; v.s.x = 9; => v.o.x
+v.s.x = 2; v.o = v.s; v.o.x = 9; => v.s.x
+v.s.x = 2; v.s = 5; => v.s
+v.s.x = 2; v.s = 5; => v.s.x ?? -1
+v.s = 5; v.s.x = 2; => v.s.x
+v.s.x = 2; => v.s == v.s
+v.s.x = 2; => v.s + 1
+v.s.x = 2; => v.s != v.s
+v.s.x = 2; => v.s ? 1 : 2
+v.s.x = 2; => !v.s
+v.s.x = 2; v.s.y = 3; v.o = v.s; => v.o.y
+v.s.a.b = 2; v.o = v.s; v.s.a.b = 9; => v.o.a.b
+v.s.a.b = 2; v.o = v.s.a; => v.o.b
+v.s.x = 2; v.s.x.y = 3; => v.s.x.y
+v.s.x = 2; v.s.x.y = 3; => v.s.x
+t.s.x = 2; v.r = t.s.x; => v.r
+
+# Loop counts
+v.i = 0; loop(2.4, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(2.5, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(0.4, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(0.6, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(1024, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(1025, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(5000, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(3, { v.i = v.i + 1; continue; v.i = 100; }); => v.i
+v.i = 0; loop(3, v.i = v.i + 1); => v.i
+v.i = 0; loop(3, { v.i = v.i + 1; }) => v.i
+v.i = 0; v.n = 3; loop(v.n, { v.i = v.i + 1; v.n = 1; }); => v.i
+v.i = 5; break; v.i = 6; => v.i
+v.i = 5; continue; v.i = 6; => v.i
+
+# Blocks and return
+truthy: t.x = 1; return t.x;
+truthy: { return 1; };
+truthy: 1 ? { return 1; }; return 0;
+truthy: 0 ? { return 1; }; return 0;
+truthy: 0 ? { return 0; } : { return 1; };
+truthy: v.x = 1; { v.x = 0; }; return v.x;
+truthy: return;
+truthy: return 1;;
+truthy: ;
+truthy: 1; 1
+truthy: (1; 1)
+v.x = 1; { v.x = 2; } => v.x
+v.x = 1; { v.x = 2; }; => v.x
+v.x = 1; 0 ? { v.x = 2; } : { v.x = 3; }; => v.x
+v.x = { 5; }; => v.x
+v.x = 1 ? { 5; } : 6; => v.x

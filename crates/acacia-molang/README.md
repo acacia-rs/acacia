@@ -1,0 +1,90 @@
+# acacia-molang
+
+Molang, the expression language of Bedrock packs: animations, render controllers, particles, entity
+scripts, recipes. Dependency-free. A source is compiled once into a `Program` with every name
+resolved; evaluating one allocates nothing once its `Scratch` and `Variables` have grown to fit
+(`tests/no_alloc.rs`).
+
+What an expression means is taken from a real Bedrock Dedicated Server, not from the documentation:
+`tests/oracle/*.bds` holds BDS's answers and `tests/oracle.rs` requires the same ones here. Asking
+BDS is `tools/molang-oracle`.
+
+## API
+
+```rust
+let mut compiler = Compiler::new();
+let program = compiler.compile("v.count = (v.count ?? 0) + 1; return math.sin(q.life_time * 38) * v.count;")?;
+let value = program.eval(&mut Env { host: &game, variables: &mut entity_variables, scratch: &mut scratch, this: 0.0 });
+```
+
+- `Compiler` numbers the names sources share: strings (`Symbol`), entity variables (`Variable`), queries
+  (`Query`) and context variables (`Context`). `compile_with(source, &arrays)` is for render controllers,
+  whose `array.name[i]` elements are compiled into the program. `Program::as_constant` spots plain numbers.
+  `compiler.engine` is the `min_engine_version` of the pack the next sources come from ("Older packs").
+- `Host` is the game's side: `query(query, args, structs)`, `context`, `random`, and `entity` for the
+  right side of `entity->expression`. A host keeps a table indexed by `Query.0` (`Compiler::query(name)`
+  numbers a name ahead of use). Every method defaults to the answer of a host that knows nothing.
+- `Variables` is one entity's `variable.` storage; hosts write engine variables with `set` and
+  `set_member`. `Scratch` holds temp variables, call arguments and the structs an evaluation makes; share
+  one across evaluations.
+- `Value` is `Num(f32)`, `Str(Symbol)`, `Struct(..)`, `Array(..)` (entities, for `for_each`) or
+  `Entity(u32)`. Resource names (`texture.default`) are strings, lowercased with their prefix.
+- `Error` has a kind and the byte offset in the source.
+
+An entity's `scripts.pre_animation` and `scripts.initialize` arrays are each one program: join the
+entries with a space before compiling (a block opens on one line and closes on another).
+
+## Rules BDS follows
+
+- All arithmetic is `f32`. Dividing by zero gives 0. A not-a-number or an infinity assigned to a
+  variable is stored as 0.
+- Names are case-insensitive; strings keep their case and only support `==` and `!=`.
+- A source with a `;` or an assignment is complex: it must end with `;`, and its value is 0 unless a
+  `return` runs. `return` leaves the whole program, from inside blocks and loops too.
+- `temp.` variables live for one evaluation and are separate from `variable.` ones of the same name.
+- `a ?? b` yields `b` when `a` is a variable that was never set; a variable set to 0 is set. It is the
+  loosest operator, below `?:`, and left-associative. A struct member on its left is rejected.
+- Structs are values: `v.a = v.b` copies. A struct is false, counts as 0 in arithmetic, and is neither
+  equal nor unequal to anything.
+- `loop(n, { })` runs `ceil(n)` times; the body must be a block. BDS does not enforce the documented
+  cap of 1024 and stalls on a loop of millions. Here one evaluation gets 2^20 loop passes and dice in
+  total (`REPEATS` in `eval.rs`), after which loops stop early: a pack cannot stall its reader.
+- Sources nested deeper than 128 levels, or whose tree is taller than 512 nodes, are rejected.
+- `array.name[i]` reads element `max(0, i) % length` (documented, client-side, so not observed). An
+  element that names another array stands for all of that array's elements.
+- Rejected at compile time, as BDS rejects them when a pack loads: wrong argument counts and unknown
+  functions in `math.`, statements after `return`/`break`/`continue`, `- -x`, a chained `a = b = c`,
+  assigning to anything but `variable.`/`temp.`, double-quoted strings.
+- `math.sign(0)` is 1. Trigonometry is in degrees. The elastic easings use the game's 65536-step sine
+  table. `math.random` and the die rolls take their randomness from `Host::random`.
+
+## Older packs
+
+Every expression follows the rules of its own pack's `min_engine_version`; BDS's base `vanilla`
+behaviour pack declares 1.13.0. Set `compiler.engine` before compiling a pack's sources. Each change
+below is where BDS's answers change between two neighbouring `tests/oracle/versions@*.bds` files.
+
+| Before | Rule |
+|---|---|
+| 1.18.10 | `a ? b : c ? d : e` is `(a ? b : c) ? d : e`, and a conditional cannot sit in another's middle |
+| 1.18.20 | Comparison and logic operators each have a rank of their own, tightest first: `<`, `==`, `>=`, `>`, `<=`, `!=`, `\|\|`, `&&` |
+| 1.19.60 | A computed divisor loses its sign: `6 / v.d` is 3 for a `v.d` of -2. A divisor made only of literals (`-2`, `0 - 2`) keeps it |
+| 1.20.50 | The same, still, inside complex expressions |
+
+Not reproduced: before 1.17.40 BDS evaluated some malformed sources (`1 + (2 3)`, `'a' < 'b'`) that
+it has rejected since; they are errors here at every version.
+
+## Not done
+
+- Which queries exist and how many arguments they take: unknown names compile and reach the host.
+- Assigning through `->` (`v.pig->v.x = 1`) is a compile error; the other entity's variables are read-only.
+- Which variables another entity may read ("public" variables) is left to `Host::entity`.
+
+## Testing
+
+- `tests/oracle.rs`: every case of `tests/oracle/*.cases` against BDS's answer. Add a case, rerun the
+  oracle, commit both files. The cases this crate knowingly answers differently are listed in the test.
+- `tests/corpus.rs`: every expression of the vanilla packs compiles. The corpus is Mojang's, so it is
+  fetched into the git-ignored `assets/molang/` by `tools/molang-oracle/corpus.py` and the test passes
+  vacuously without it.
+- `tests/host.rs`: what BDS cannot be asked (queries, arrays, `->`, `for_each`, `this`).

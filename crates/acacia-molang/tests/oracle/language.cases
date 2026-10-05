@@ -1,0 +1,111 @@
+# Arithmetic and precedence
+1 + 2 * 3
+(1 + 2) * 3
+10 - 4 - 3
+24 / 4 / 2
+-2 * -3
+- -5
+2 + 3 > 4 ? 10 : 20
+1 + 1 == 2
+1 < 2 == 1
+3 == 3.0
+1.0f + 1
+10 / 0
+-10 / 0
+0 / 0
+0.1 + 0.2 == 0.3
+16777216 + 1
+1000000 * 1000000
+
+# Logic
+!0 + 1
+!5
+!!5
+1 && 0 || 1
+0 || 0 && 1
+1 || 0 && 0
+2 && 3
+0 || 7
+true + true
+false + 0
+
+# Comparisons
+1 < 2
+2 <= 2
+3 > 4
+4 >= 4
+1 != 1
+
+# Conditionals
+1 ? 2
+0 ? 2
+1 ? 2 : 3
+0 ? 2 : 3
+1 ? 2 : 0 ? 3 : 4
+0 ? 2 : 0 ? 3 : 4
+0 ? 2 : 1 ? 3 : 4
+1 ? 0 ? 5 : 6 : 7
+-1 ? 8 : 9
+0.001 ? 8 : 9
+
+# Strings
+'abc' == 'abc'
+'Abc' == 'abc'
+'a' != 'b'
+'' == ''
+'a b' == 'a  b'
+'1' == 1
+
+# Names are case-insensitive
+Math.Abs(-2) + MATH.PI * 0
+v.Up = 4; => v.up
+V.down = 4; => VARIABLE.DOWN
+
+# Variables
+v.x = 3; => v.x * 2
+v.never_set
+v.never_set ?? 4
+v.z = 0; => v.z ?? 4
+v.q = 1; v.q = v.q ?? 9; v.n = v.nothing ?? 9; => v.q * 100 + v.n
+v.a = 1; v.a = v.a + 1; v.a = v.a * 10; => v.a
+variable.long = 6; => v.long
+v.txt = 'hi'; => v.txt == 'hi'
+v.txt = 'hi'; => v.txt
+
+# Temp variables live for one expression and are not entity variables
+t.a = 5; v.a = 7; v.r = t.a; => v.r
+t.b = 9; v.r = 1; => v.b ?? -1
+temp.c = 2; v.r = t.c; => v.r
+v.r = t.unset_temp ?? 3; => v.r
+
+# Structs
+v.s.x = 2; v.s.y = 5; => v.s.x + v.s.y
+v.s.x = 2; => v.s.y ?? 8
+v.s.x = 2; => v.s ?? 8
+v.s.x = 2; v.o = v.s; => v.o.x
+v.s.a.b = 3; => v.s.a.b
+
+# Blocks, loops, break, continue
+v.e = 3; (v.e > 2) ? { v.e = 50; }; => v.e
+v.e = 1; (v.e > 2) ? { v.e = 50; } : { v.e = 60; }; => v.e
+v.i = 0; loop(10, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(0, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(-3, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(2.9, { v.i = v.i + 1; }); => v.i
+v.i = 0; loop(2000, { v.i = v.i + 1; }); => v.i
+v.j = 0; loop(10, { v.j = v.j + 1; (v.j >= 3) ? break; }); => v.j
+v.j = 0; v.k = 0; loop(10, { v.j = v.j + 1; (v.j > 3) ? continue; v.k = v.k + 1; }); => v.k
+v.i = 0; loop(3, { loop(4, { v.i = v.i + 1; }); }); => v.i
+v.i = 0; loop(3, { loop(4, { v.i = v.i + 1; break; }); }); => v.i
+
+# The value of a complex expression
+truthy: 5
+truthy: 0
+truthy: v.c = 3; v.c * 2;
+truthy: v.c = 3; return v.c * 2;
+truthy: v.c = 3; return v.c * 2 == 6;
+truthy: return 0; return 1;
+truthy: return 1; return 0;
+truthy: v.c = 0; loop(5, { v.c = v.c + 1; (v.c == 2) ? { return 1; }; }); return 0;
+truthy: 5;
+truthy: return 5

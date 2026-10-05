@@ -1,0 +1,108 @@
+# BDS 1.26.52.3, engine 1.26.0; result, case, Molang errors. Written by tools/molang-oracle/oracle.py.
+5	-(-5)
+-5	- 5
+0	!-1
+5	2 - -3
+-6	2 * -3
+-1	-!0
+error	- -5	Error: binary Add '+' operator at end of expression
+2	1 ? 2 : 3 ? 4 : 5
+0	5 > 3 > 1
+1	1 == 1 == 1
+1	'a' == 'a' == 1
+6	10 - 2 * 3 + 4 / 2
+1	1 + 2 < 4 && 3 * 2 == 6
+5	1 || 0 ? 5 : 6
+6	0 && 1 ? 5 : 6
+2	1 ? 2 : 3 + 10
+13	0 ? 2 : 3 + 10
+1	.5 + .5
+2	1. + 1
+100	1e2 + 0
+8	007 + 1
+2.5	1.5F + 1
+error	0x10 + 0	Error: unknown token: x10 + 0	unrecognized token: x10 + 0
+error	"double" == "double"	unrecognized token: "double" == "double"
+error	'a' < 'b'	'Less Than '<'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	'a' + 1	'Add '+'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+1	'q.x' == 'q.x'
+2	'' ? 1 : 2
+1	'a' ? 1 : 2
+1	v.t = 'a'; => v.t ? 1 : 2
+2	v.t = ''; => v.t ? 1 : 2
+0	v.t = 'a'; => !v.t
+1	v.t = 'a'; => v.t != 'b'
+0	v.t = 'a'; => v.t == 1
+6	2*3
+6	math.max( 1 , 2 )*math.min(3,4)
+2	math.sin(90)+math.cos(0)
+error	math . abs(-1)	Error: unknown token: math . abs(-1)	unrecognized token: math . abs(-1)
+1	math.abs (-1)
+error	q.nonexistent_query_zz	Failed to resolve query query.nonexistent_query_zz.  Either the query does not exist or it is not supported in this context.	unrecognized token: q.nonexistent_query_zz
+unset	nonsense
+error	nonsense.thing	Error: unknown token: nonsense.thing	unrecognized token: nonsense.thing
+unset	v
+unset	this
+1	v.a = 1; v.b = v.a ?? 5 ? 10 : 20; => v.b
+10	v.b = v.none ?? 5 ? 10 : 20; => v.b
+7	v.b = 0 ? 1 : v.none ?? 7; => v.b	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+3	v.b = (v.none ?? 2) + 1; => v.b
+6	v.b = v.none ?? v.none2 ?? 6; => v.b	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+3	v.b = 3 ?? 4; => v.b	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+1	v.b = q.is_alive ?? 4; => v.b	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+4	v.b = t.none ?? 4; => v.b
+4	v.b = c.none ?? 4; => v.b
+1	v.b = v.none ?? 'text'; => v.b == 'text'
+3	v.r = (v.x = 3); => v.r
+0	v.x = v.y = 3; => v.x	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Assignment '='	Error: unhandled request for unknown variable 'variable.x'
+0	v.x = 3 => v.x	Error: complex expressions (contains either '=' or ';') must end with a ';'	Error: unhandled request for unknown variable 'variable.x'
+0	truthy: v.x = 3	Error: complex expressions (contains either '=' or ';') must end with a ';'
+1	q.is_alive = 3; => 1	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Query Function 'query.' or 'q.'
+1	math.pi = 3; => 1	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Pi
+1	t.x = 4; => t.x ?? -1
+1	c.x = 4; => 1	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Context Variable 'context.' or 'c.'
+2	v.s.x = 2; v.o = v.s; v.s.x = 9; => v.o.x
+2	v.s.x = 2; v.o = v.s; v.o.x = 9; => v.s.x
+5	v.s.x = 2; v.s = 5; => v.s
+error	v.s.x = 2; v.s = 5; => v.s.x ?? -1	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+2	v.s = 5; v.s.x = 2; => v.s.x
+0	v.s.x = 2; => v.s == v.s
+1	v.s.x = 2; => v.s + 1
+0	v.s.x = 2; => v.s != v.s
+2	v.s.x = 2; => v.s ? 1 : 2
+1	v.s.x = 2; => !v.s
+3	v.s.x = 2; v.s.y = 3; v.o = v.s; => v.o.y
+2	v.s.a.b = 2; v.o = v.s; v.s.a.b = 9; => v.o.a.b
+2	v.s.a.b = 2; v.o = v.s.a; => v.o.b
+3	v.s.x = 2; v.s.x.y = 3; => v.s.x.y
+unset	v.s.x = 2; v.s.x.y = 3; => v.s.x
+2	t.s.x = 2; v.r = t.s.x; => v.r	Error: left side of an assignment expression can only use temp variables if they are on their own and not part of a more complicated expression.
+3	v.i = 0; loop(2.4, { v.i = v.i + 1; }); => v.i
+3	v.i = 0; loop(2.5, { v.i = v.i + 1; }); => v.i
+1	v.i = 0; loop(0.4, { v.i = v.i + 1; }); => v.i
+1	v.i = 0; loop(0.6, { v.i = v.i + 1; }); => v.i
+1024	v.i = 0; loop(1024, { v.i = v.i + 1; }); => v.i
+1025	v.i = 0; loop(1025, { v.i = v.i + 1; }); => v.i
+5000	v.i = 0; loop(5000, { v.i = v.i + 1; }); => v.i
+3	v.i = 0; loop(3, { v.i = v.i + 1; continue; v.i = 100; }); => v.i	Error: unreachable statements after Continue 'continue'.
+0	v.i = 0; loop(3, v.i = v.i + 1); => v.i	Error: loop requires two parameters - an expression resulting in a number of times to loop, and a {}-delimited expression to loop.	Error: unhandled request for unknown variable 'variable.i'
+0	v.i = 0; loop(3, { v.i = v.i + 1; }) => v.i	Error: complex expressions (contains either '=' or ';') must end with a ';'	Error: unhandled request for unknown variable 'variable.i'
+3	v.i = 0; v.n = 3; loop(v.n, { v.i = v.i + 1; v.n = 1; }); => v.i
+0	v.i = 5; break; v.i = 6; => v.i	Error: unreachable statements after Break 'break'.	Error: unhandled request for unknown variable 'variable.i'
+0	v.i = 5; continue; v.i = 6; => v.i	Error: unreachable statements after Continue 'continue'.	Error: unhandled request for unknown variable 'variable.i'
+1	truthy: t.x = 1; return t.x;
+1	truthy: { return 1; };
+1	truthy: 1 ? { return 1; }; return 0;
+0	truthy: 0 ? { return 1; }; return 0;
+1	truthy: 0 ? { return 0; } : { return 1; };
+0	truthy: v.x = 1; { v.x = 0; }; return v.x;
+0	truthy: return;	Error: unary Return 'return' operator not followed by expression
+1	truthy: return 1;;
+0	truthy: ;	Error: expressions can't begin with a semicolon
+0	truthy: 1; 1	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	truthy: (1; 1)	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	v.x = 1; { v.x = 2; } => v.x	Error: complex expressions (contains either '=' or ';') must end with a ';'	Error: unhandled request for unknown variable 'variable.x'
+2	v.x = 1; { v.x = 2; }; => v.x
+3	v.x = 1; 0 ? { v.x = 2; } : { v.x = 3; }; => v.x
+0	v.x = { 5; }; => v.x
+0	v.x = 1 ? { 5; } : 6; => v.x

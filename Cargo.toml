@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/acacia-auth", "crates/acacia-bot", "crates/acacia-client","crates/acacia-session", "crates/acacia-nethernet", "crates/acacia-physics","crates/acacia-proto","crates/acacia-raknet", "crates/acacia-render", "crates/acacia-testserver", "crates/acacia-viewer", "crates/acacia-world", "crates/acacia-mitm", "tools/capdiff", "tools/codegen", "tools/lookbake"]
+members = ["crates/acacia-auth", "crates/acacia-bot", "crates/acacia-client","crates/acacia-session", "crates/acacia-nethernet", "crates/acacia-physics","crates/acacia-proto","crates/acacia-raknet", "crates/acacia-render", "crates/acacia-testserver", "crates/acacia-viewer", "crates/acacia-world", "crates/acacia-mitm", "crates/acacia-molang", "tools/capdiff", "tools/codegen", "tools/lookbake"]
 
 [workspace.package]
 edition = "2024"
