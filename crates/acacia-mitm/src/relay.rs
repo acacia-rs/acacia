@@ -4,9 +4,11 @@
 //! that side's compression and encryption; with no interceptors the batches carry what came in.
 //! Over NetherNet both sides still get a handshake but stay plaintext, as with BDS.
 
+use std::net::SocketAddr;
+
 use acacia_auth::LoginCredentials;
 use acacia_proto::packets::{
-    ClientToServerHandshake, Disconnect, Login, NetworkSettings, PlayStatus, PlayStatusStatus, ServerToClientHandshake,
+    ClientToServerHandshake, Disconnect, Login, NetworkSettings, PlayStatus, PlayStatusStatus, ServerToClientHandshake, Transfer,
 };
 use acacia_proto::types::DisconnectFailReason;
 use acacia_proto::{encode_packet, Packet, RawPacket};
@@ -18,9 +20,9 @@ use bytes::{Bytes, BytesMut};
 use p384::ecdsa::SigningKey;
 use serde_json::{json, Value};
 
-use crate::intercept::{Chain, Direction};
+use crate::intercept::{encode, Chain, Direction};
 use crate::login;
-use crate::record::{self, SharedRecorder};
+use crate::record::SessionLog;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wire {
@@ -33,6 +35,8 @@ pub enum Wire {
 pub struct Out {
     pub to_server: Vec<Bytes>,
     pub to_game: Vec<Bytes>,
+    /// Host and port of a Transfer the game was just redirected away from (transfer.rs).
+    pub transfer: Option<(String, u16)>,
 }
 
 pub struct Relay {
@@ -45,7 +49,9 @@ pub struct Relay {
     credentials: Option<LoginCredentials>,
     game_key: Option<p384::PublicKey>,
     game_sent_disconnect: bool,
-    rec: Option<SharedRecorder>,
+    log: Option<SessionLog>,
+    /// The proxy's address as the game reaches it, when transfers are followed.
+    transfer_to: Option<SocketAddr>,
     chain: Chain,
     game_ready: bool,
     server_ready: bool,
@@ -54,7 +60,7 @@ pub struct Relay {
 }
 
 impl Relay {
-    pub fn new(wire: Wire, key: SigningKey, credentials: Option<LoginCredentials>, rec: Option<SharedRecorder>, chain: Chain) -> Self {
+    pub fn new(wire: Wire, key: SigningKey, credentials: Option<LoginCredentials>, log: Option<SessionLog>, chain: Chain) -> Self {
         let (game, up_codec) = match wire {
             Wire::RakNet => (ServerConnection::new(key.clone()), BatchCodec::default()),
             Wire::NetherNet => (ServerConnection::nethernet(key.clone()), BatchCodec::without_header()),
@@ -67,7 +73,8 @@ impl Relay {
             credentials,
             game_key: None,
             game_sent_disconnect: false,
-            rec,
+            log,
+            transfer_to: None,
             chain,
             game_ready: false,
             server_ready: false,
@@ -75,16 +82,22 @@ impl Relay {
         }
     }
 
+    /// Sends the game back to `proxy` on a Transfer instead of to the server's target (transfer.rs).
+    pub fn follow_transfers(mut self, proxy: SocketAddr) -> Self {
+        self.transfer_to = Some(proxy);
+        self
+    }
+
     /// Writes an event line to the capture, if recording.
     pub fn note(&self, entry: Value) {
-        if let Some(rec) = &self.rec {
-            record::lock(rec).write(entry);
+        if let Some(log) = &self.log {
+            log.write(entry);
         }
     }
 
     fn record(&self, from_game: bool, raw: &RawPacket) {
-        if let Some(rec) = &self.rec {
-            record::lock(rec).packet(from_game, raw);
+        if let Some(log) = &self.log {
+            log.packet(from_game, raw);
         }
     }
 
@@ -114,11 +127,10 @@ impl Relay {
 
     fn login(&mut self, raw: &RawPacket) -> Result<Bytes, String> {
         let l = login::read(&raw.body, &self.key, self.credentials.as_ref()).map_err(|e| format!("game login: {e}"))?;
-        if let Some(rec) = &self.rec {
-            let mut rec = record::lock(rec);
-            rec.login(raw.body.len(), l.summary);
-            rec.write(json!({ "event": "login", "client_data": login::trimmed(&l.client_data), "identity": l.identity }));
-            rec.save_skin(&l.client_data);
+        if let Some(log) = &self.log {
+            log.login(raw.body.len(), l.summary);
+            log.write(json!({ "event": "login", "client_data": login::trimmed(&l.client_data), "identity": l.identity }));
+            log.save_skin(&l.client_data);
         }
         println!("{} logging in", l.identity["DisplayName"]);
         self.game_key = Some(l.game_key);
@@ -155,13 +167,34 @@ impl Relay {
                         self.note(json!({ "event": "spawned" }));
                     }
                     self.record(false, &raw);
+                    let first = forward.len();
                     self.chain.run(false, buf, &raw, &mut forward).map_err(|e| format!("intercepted packet: {e}"))?;
+                    if raw.id == Transfer::ID
+                        && let Some(proxy) = self.transfer_to
+                    {
+                        out.transfer = self.redirect(&mut forward[first..], proxy)?.or(out.transfer);
+                    }
                 }
             }
         }
         self.flush_to_game(&mut forward, &mut out.to_game);
         self.release_held(&mut out);
         Ok(out)
+    }
+
+    /// Points what the interceptors left of a Transfer at `proxy`; returns where it led.
+    fn redirect(&self, packets: &mut [Bytes], proxy: SocketAddr) -> Result<Option<(String, u16)>, String> {
+        let mut target = None;
+        for packet in packets {
+            let raw = RawPacket::parse(packet.clone()).map_err(|e| format!("intercepted packet: {e}"))?;
+            let Ok(mut transfer) = raw.decode::<Transfer>() else { continue };
+            let host = std::mem::replace(&mut transfer.server_address, proxy.ip().to_string());
+            let port = std::mem::replace(&mut transfer.port, proxy.port());
+            self.note(json!({ "event": "transfer", "to": format!("{host}:{port}") }));
+            *packet = encode(&transfer);
+            target = Some((host, port));
+        }
+        Ok(target)
     }
 
     /// Batches `packets` for their sides now, or holds those whose side's handshake is not done.

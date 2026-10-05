@@ -2,6 +2,7 @@
 
 use std::io;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use acacia_auth::{Account, LoginCredentials};
@@ -9,7 +10,7 @@ use p384::ecdsa::SigningKey;
 use tokio::net::{TcpListener, UdpSocket};
 
 use crate::intercept::{Chain, Interceptor, Session};
-use crate::record::{self, DatagramLog, Recorder, SharedRecorder};
+use crate::record::{self, DatagramLog, Recorder, SessionLog, SharedRecorder};
 use crate::relay::{Relay, Wire};
 use crate::{nethernet, raknet};
 
@@ -19,14 +20,17 @@ type Factory = Box<dyn Fn(&Session) -> Box<dyn Interceptor> + Send + Sync>;
 pub(crate) struct Setup {
     pub server: SocketAddr,
     pub rec: Option<SharedRecorder>,
+    pub follow_transfers: bool,
+    sessions: AtomicU32,
     factories: Vec<Factory>,
 }
 
 impl Setup {
-    /// The relay for a new player, with fresh interceptors.
+    /// The relay for a new player, with fresh interceptors and the capture's next session number.
     pub fn relay(&self, wire: Wire, key: SigningKey, credentials: Option<LoginCredentials>, session: &Session) -> Relay {
         let chain = Chain::new(self.factories.iter().map(|f| f(session)).collect());
-        Relay::new(wire, key, credentials, self.rec.clone(), chain)
+        let log = self.rec.clone().map(|rec| SessionLog::new(rec, self.sessions.fetch_add(1, Ordering::Relaxed)));
+        Relay::new(wire, key, credentials, log, chain)
     }
 }
 
@@ -62,15 +66,23 @@ pub struct Proxy {
 }
 
 impl Proxy {
-    /// Listens on 0.0.0.0:19180 over RakNet, offline, without recording or interceptors.
+    /// Listens on 0.0.0.0:19180 over RakNet, offline, following transfers, without recording or
+    /// interceptors.
     pub fn new(server: SocketAddr) -> Self {
         Self {
             listen: SocketAddr::from(([0, 0, 0, 0], 19180)),
             transport: Transport::RakNet,
             account: None,
             trace_datagrams: false,
-            setup: Setup { server, rec: None, factories: Vec::new() },
+            setup: Setup { server, rec: None, follow_transfers: true, sessions: AtomicU32::new(0), factories: Vec::new() },
         }
+    }
+
+    /// Over RakNet: whether a Transfer the interceptors let through is pointed back at the proxy,
+    /// which then dials its target for that game (on by default). Off, the game leaves the proxy.
+    pub fn follow_transfers(mut self, on: bool) -> Self {
+        self.setup.follow_transfers = on;
+        self
     }
 
     pub fn listen(mut self, addr: SocketAddr) -> Self {

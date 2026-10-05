@@ -11,6 +11,7 @@ use acacia_auth::Account;
 use acacia_raknet::{Reliability, Server, ServerConfig, ServerEvent};
 use bytes::{Bytes, BytesMut};
 use p384::ecdsa::SigningKey;
+use serde_json::json;
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
@@ -20,6 +21,7 @@ use crate::pair::Pair;
 use crate::proxy::Setup;
 use crate::record::DatagramLog;
 use crate::relay::Wire;
+use crate::transfer::{self, Routes};
 
 const STATUS_INTERVAL: Duration = Duration::from_secs(3);
 
@@ -34,8 +36,10 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
     let target = setup.server;
     let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng);
     let mut server = Server::new(ServerConfig::new(guid, String::new()), Instant::now());
-    let mut motd = watch_status(target, guid, listener.local_addr()?.port());
+    let port = listener.local_addr()?.port();
+    let mut motd = watch_status(target, guid, port);
     motd.mark_changed();
+    let mut routes = Routes::default();
     let (upstream_tx, mut upstream_rx) = mpsc::unbounded_channel::<(SocketAddr, Bytes)>();
     let (inject_tx, mut inject_rx) = mpsc::unbounded_channel::<Injection>();
     let mut links: HashMap<SocketAddr, Link> = HashMap::new();
@@ -60,12 +64,29 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
                         },
                         None => None,
                     };
+                    let upstream = match routes.take(game.ip(), now) {
+                        Some((host, port)) => match transfer::resolve(&host, port).await {
+                            Ok(addr) => addr,
+                            Err(e) => {
+                                eprintln!("transfer to {host}:{port}: {e}");
+                                server.close(game, now);
+                                continue;
+                            }
+                        },
+                        None => target,
+                    };
                     let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
-                    socket.connect(target).await?;
+                    socket.connect(upstream).await?;
                     let reader = tokio::spawn(read_upstream(socket.clone(), game, upstream_tx.clone()));
                     let session = Session { game, injector: Injector::new(game, inject_tx.clone()) };
-                    let relay = setup.relay(Wire::RakNet, key, credentials, &session);
-                    links.insert(game, Link { pair: Pair::new(target, now, relay), socket, reader });
+                    let mut relay = setup.relay(Wire::RakNet, key, credentials, &session);
+                    relay.note(json!({ "event": "connected", "transport": "raknet", "server": upstream.to_string() }));
+                    if setup.follow_transfers
+                        && let Ok(proxy) = transfer::proxy_addr(game, port)
+                    {
+                        relay = relay.follow_transfers(proxy);
+                    }
+                    links.insert(game, Link { pair: Pair::new(upstream, now, relay), socket, reader });
                 }
                 ServerEvent::Message(game, msg) => {
                     if let Some(link) = links.get_mut(&game) {
@@ -81,6 +102,10 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
             }
         }
         for (&game, link) in &mut links {
+            if let Some(to) = link.pair.take_transfer() {
+                println!("{game} transferred to {}:{}", to.0, to.1);
+                routes.set(game.ip(), to, now);
+            }
             for batch in link.pair.take_to_game() {
                 server.send(game, batch, Reliability::ReliableOrdered);
             }
