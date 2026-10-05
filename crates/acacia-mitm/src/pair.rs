@@ -17,6 +17,7 @@ pub struct Pair {
     /// Batches for the server that came before the upstream connection was up.
     pending: Vec<Bytes>,
     to_game: Vec<Bytes>,
+    transfer: Option<(String, u16)>,
     closed: bool,
 }
 
@@ -24,7 +25,12 @@ impl Pair {
     pub fn new(server: SocketAddr, now: Instant, relay: Relay) -> Self {
         // go-raknet servers reject positive client GUIDs (DESIGN.md).
         let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng) | 1 << 63;
-        Self { upstream: raknet::Client::new(raknet::Config::new(guid), server, now), relay, pending: Vec::new(), to_game: Vec::new(), closed: false }
+        Self { upstream: raknet::Client::new(raknet::Config::new(guid), server, now), relay, pending: Vec::new(), to_game: Vec::new(), transfer: None, closed: false }
+    }
+
+    /// Where the server just transferred the game, once.
+    pub fn take_transfer(&mut self) -> Option<(String, u16)> {
+        self.transfer.take()
     }
 
     pub fn is_closed(&self) -> bool {
@@ -91,6 +97,7 @@ impl Pair {
             }
         }
         self.to_game.extend(out.to_game);
+        self.transfer = out.transfer.or(self.transfer.take());
     }
 
     fn pump(&mut self) {

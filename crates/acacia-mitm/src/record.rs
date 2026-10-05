@@ -1,8 +1,10 @@
-//! The capture: one JSON object per line, `t` = ms since the proxy started. Packets: `dir` (`C>S` =
-//! from the game), `id`, `len`, `name` (acacia-proto's struct name), `raw` (hex body) and
-//! `proto_error` when acacia-proto can't parse a body (keys print sorted, so `dir` stays first for
-//! line-prefix parsers like mitm_trace). Login has a structural `summary` instead of
-//! `raw` (login.rs). Events: `login`, `spawned`, `closed`.
+//! The capture: one JSON object per line, `t` = ms since the proxy started, `session` = which
+//! connection of a game it belongs to (counted from 0; a followed transfer starts a new one).
+//! Packets: `dir` (`C>S` = from the game), `id`, `len`, `name` (acacia-proto's struct name), `raw`
+//! (hex body) and `proto_error` when acacia-proto can't parse a body (keys print sorted, so `dir`
+//! stays first for line-prefix parsers like mitm_trace). Login has a structural `summary` instead
+//! of `raw` (login.rs). Events: `connected`, `login`, `spawned`, `transfer` (`to`: where the game was
+//! sent before the proxy pointed it at itself), `closed`.
 
 use std::fs::File;
 use std::io::Write;
@@ -68,7 +70,37 @@ impl Recorder {
         }
     }
 
-    pub fn packet(&mut self, from_game: bool, raw: &RawPacket) {
+    /// Writes the skin claims to `<dir>/skins/<SkinId>.json` for the bots' skin pool (acacia-auth/assets/skins).
+    pub fn save_skin(&self, client_data: &Value) {
+        let skin: serde_json::Map<String, Value> = SKIN_CLAIMS.iter().map(|&k| (k.to_owned(), client_data[k].clone())).collect();
+        let id: String = client_data["SkinId"].as_str().unwrap_or("unknown").chars().map(|c| if "/\\:.".contains(c) { '_' } else { c }).collect();
+        let path = self.dir.join("skins").join(format!("{id}.json"));
+        let mut out = Vec::new();
+        let mut ser = serde_json::Serializer::with_formatter(&mut out, serde_json::ser::PrettyFormatter::with_indent(b" "));
+        serde::Serialize::serialize(&skin, &mut ser).expect("json values serialize");
+        let result = std::fs::create_dir_all(path.parent().expect("has parent")).and_then(|()| std::fs::write(&path, &out));
+        println!("skin {id} saved ({} bytes): {result:?}", out.len());
+    }
+}
+
+/// One session's lines in the shared capture.
+#[derive(Clone)]
+pub(crate) struct SessionLog {
+    rec: SharedRecorder,
+    session: u32,
+}
+
+impl SessionLog {
+    pub fn new(rec: SharedRecorder, session: u32) -> Self {
+        Self { rec, session }
+    }
+
+    pub fn write(&self, mut entry: Value) {
+        entry["session"] = json!(self.session);
+        lock(&self.rec).write(entry);
+    }
+
+    pub fn packet(&self, from_game: bool, raw: &RawPacket) {
         let mut entry = json!({ "dir": dir(from_game), "id": raw.id, "len": raw.body.len(), "raw": hex::encode(&raw.body) });
         if let Some(name) = acacia_proto::packet_name(raw.id) {
             entry["name"] = json!(name);
@@ -81,20 +113,12 @@ impl Recorder {
         self.write(entry);
     }
 
-    pub fn login(&mut self, len: usize, summary: Value) {
+    pub fn login(&self, len: usize, summary: Value) {
         self.write(json!({ "dir": dir(true), "id": packets::Login::ID, "len": len, "name": "Login", "summary": summary }));
     }
 
-    /// Writes the skin claims to `<dir>/skins/<SkinId>.json` for the bots' skin pool (acacia-auth/assets/skins).
     pub fn save_skin(&self, client_data: &Value) {
-        let skin: serde_json::Map<String, Value> = SKIN_CLAIMS.iter().map(|&k| (k.to_owned(), client_data[k].clone())).collect();
-        let id: String = client_data["SkinId"].as_str().unwrap_or("unknown").chars().map(|c| if "/\\:.".contains(c) { '_' } else { c }).collect();
-        let path = self.dir.join("skins").join(format!("{id}.json"));
-        let mut out = Vec::new();
-        let mut ser = serde_json::Serializer::with_formatter(&mut out, serde_json::ser::PrettyFormatter::with_indent(b" "));
-        serde::Serialize::serialize(&skin, &mut ser).expect("json values serialize");
-        let result = std::fs::create_dir_all(path.parent().expect("has parent")).and_then(|()| std::fs::write(&path, &out));
-        println!("skin {id} saved ({} bytes): {result:?}", out.len());
+        lock(&self.rec).save_skin(client_data);
     }
 }
 
