@@ -25,6 +25,11 @@ adds a schema type before generation, and each `patches` entry replaces one cont
 - Not an override: `craft_grindstone_request.recipe_network_id` stays `li32` although gophertunnel writes a varint;
   BDS 1.26.52 answers the varint form with PacketViolationWarning (Malformed) and drops the client. Mojang's docs
   type it `ItemStackNetIdVariant`: it carries the input stack's id, not a recipe id.
+- Not an override: `boss_event` stays flat (id, `u8` type, title, filtered title, `lf32` progress, `u8` colour, `u8` overlay
+  for every event type). Older protocols switched on the type and ShowBar had an `li16` screen darkening; BDS 1.26.52.3's
+  ShowBar for a wither is 33 bytes and the flat layout reads all of them (`tests/roundtrip.rs`), as gophertunnel now
+  writes it. BDS sends nothing but ShowBar (once a second, and none while the player is out of range), so the other
+  types have no capture behind them.
 
 Fixtures come from the same schema, so they can't catch schema errors: check against a real server
 (BDS) and the Geyser lab (`tools/lab.ps1`).
