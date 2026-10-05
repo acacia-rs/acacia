@@ -167,11 +167,16 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&mut self) -> Result<u32, Error> {
-        if !matches!((self.peek(), self.peek_after()), (Some(Token::Name(_)), Some(Token::Symbol("=")))) {
+        if !self.assigns() {
             return self.coalesce();
         }
-        let target = self.primary()?;
-        if !matches!(self.nodes[target as usize], Node::Var { .. } | Node::Temp { .. }) {
+        let target = self.arrow()?;
+        let assignable = match self.nodes[target as usize] {
+            Node::Var { .. } | Node::Temp { .. } => true,
+            Node::Arrow { of, .. } => matches!(self.nodes[of as usize], Node::Var { .. }),
+            _ => false,
+        };
+        if !assignable {
             return Err(self.fail(ErrorKind::NotAssignable));
         }
         self.at += 1;
@@ -184,8 +189,16 @@ impl<'a> Parser<'a> {
         self.tokens.get(self.at).map(|(token, _)| token)
     }
 
-    pub(crate) fn peek_after(&self) -> Option<&Token> {
-        self.tokens.get(self.at + 1).map(|(token, _)| token)
+    /// Whether an assignment comes next: `name =`, or `name->name =` for another entity's variable.
+    pub(crate) fn assigns(&self) -> bool {
+        let mut at = self.at;
+        loop {
+            match (self.tokens.get(at), self.tokens.get(at + 1)) {
+                (Some((Token::Name(_), _)), Some((Token::Symbol("="), _))) => return true,
+                (Some((Token::Name(_), _)), Some((Token::Symbol("->"), _))) => at += 2,
+                _ => return false,
+            }
+        }
     }
 
     pub(crate) fn next(&mut self) -> Result<Token, Error> {
@@ -228,7 +241,7 @@ impl<'a> Parser<'a> {
         let tallest = |parser: &Self, children: &[u32]| children.iter().map(|&child| parser.heights[child as usize]).max().unwrap_or(0);
         let below = match node {
             Node::Const(_) | Node::This | Node::Var { .. } | Node::Temp { .. } | Node::Context(_) | Node::Break | Node::Continue => 0,
-            Node::Not(a) | Node::Neg(a) | Node::Return(a) => tallest(self, &[a]),
+            Node::Not(a) | Node::Neg(a) | Node::Return(a) | Node::Member { of: a, .. } => tallest(self, &[a]),
             Node::Binary(_, a, b) | Node::Coalesce(a, b) | Node::When(a, b) => tallest(self, &[a, b]),
             Node::Assign { target: a, value: b } | Node::Loop { count: a, body: b } | Node::Arrow { entity: a, of: b } => tallest(self, &[a, b]),
             Node::Ternary(a, b, c) | Node::ForEach { variable: a, array: b, body: c } => tallest(self, &[a, b, c]),

@@ -38,6 +38,9 @@ impl Engine {
 pub struct Compiler {
     /// The rules for the sources compiled from now on: set it to the version of the pack they come from.
     pub engine: Engine,
+    /// Reject `query.` names outside [`crate::QUERY_NAMES`], as BDS rejects names it cannot resolve.
+    /// On by default; turn it off for a game newer than the list, or for queries of the host's own.
+    pub documented_queries_only: bool,
     pub(crate) strings: Names,
     pub(crate) variables: Names,
     pub(crate) queries: Names,
@@ -48,7 +51,7 @@ impl Default for Compiler {
     fn default() -> Compiler {
         let mut strings = Names::default();
         strings.intern("");
-        Compiler { engine: Engine::LATEST, strings, variables: Names::default(), queries: Names::default(), contexts: Names::default() }
+        Compiler { engine: Engine::LATEST, documented_queries_only: true, strings, variables: Names::default(), queries: Names::default(), contexts: Names::default() }
     }
 }
 

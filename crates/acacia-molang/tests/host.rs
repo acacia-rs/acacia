@@ -1,6 +1,8 @@
 //! What the BDS oracle cannot be asked: queries, context variables, arrays, `->`, `this`, randomness.
 
-use acacia_molang::{Arrays, Compiler, Context, Engine, Env, ErrorKind, Host, Query, Scratch, Structs, Symbol, Value, Variables};
+use std::cell::Cell;
+
+use acacia_molang::{Arrays, Compiler, Context, Engine, Env, ErrorKind, Host, Query, Scratch, Structs, Symbol, Value, Variable, Variables};
 
 struct Owner;
 
@@ -16,7 +18,11 @@ struct Game {
     xy: [Symbol; 2],
     owner: Variables,
     random: f32,
+    assigned: Cell<Option<Assigned>>,
 }
+
+/// Entity, variable, member path, value.
+type Assigned = (u32, Variable, Vec<Symbol>, Value);
 
 impl Host for Game {
     fn query(&self, query: Query, args: &[Value], structs: &mut Structs<'_>) -> Value {
@@ -40,6 +46,10 @@ impl Host for Game {
     fn entity(&self, entity: u32) -> Option<(&dyn Host, &Variables)> {
         (entity == 9).then_some((&Owner, &self.owner))
     }
+
+    fn assign(&self, entity: u32, variable: Variable, path: &[Symbol], value: Value) {
+        self.assigned.set(Some((entity, variable, path.to_vec(), value)));
+    }
 }
 
 struct World {
@@ -58,12 +68,13 @@ impl World {
             variant: compiler.query("variant"),
             property: compiler.query("property"),
             bone_origin: compiler.query("bone_origin"),
-            nearby: compiler.query("get_nearby_entities"),
+            nearby: compiler.query("combine_entities"),
             owning_entity: compiler.context("owning_entity"),
             warm: compiler.symbol("warm"),
             xy: [compiler.symbol("x"), compiler.symbol("y")],
             owner,
             random: 0.5,
+            assigned: Cell::new(None),
         };
         World { compiler, game, variables: Variables::new(), scratch: Scratch::new() }
     }
@@ -88,7 +99,32 @@ fn queries_answer_numbers_and_strings() {
     assert_eq!(world.num("Query.Variant + 1"), 5.0);
     assert_eq!(world.num("q.property('minecraft:climate_variant') == 'warm' ? 1 : 2"), 1.0);
     assert_eq!(world.num("q.property('minecraft:climate_variant') == 'Warm' ? 1 : 2"), 2.0);
+}
+
+#[test]
+fn undocumented_queries_are_rejected_unless_allowed() {
+    let mut world = World::new();
+    let unknown = world.compiler.compile("q.never_heard_of(1, 2) + 1").unwrap_err();
+    assert_eq!(unknown.kind, ErrorKind::UnknownQuery("never_heard_of".to_owned()));
+    // Dropped for packs above 1.20.40.
+    assert!(world.compiler.compile("q.is_scenting").is_err());
+    world.compiler.engine = Engine(1, 20, 40);
+    assert!(world.compiler.compile("q.is_scenting").is_ok());
+    world.compiler.documented_queries_only = false;
     assert_eq!(world.num("q.never_heard_of(1, 2) + 1"), 1.0);
+}
+
+#[test]
+fn assigning_through_an_arrow_reaches_the_host() {
+    let mut world = World::new();
+    world.run("c.owning_entity->v.Mood.level = 2 + 3;");
+    let mood = world.compiler.variable("mood");
+    let level = world.compiler.symbol("level");
+    assert_eq!(world.game.assigned.take(), Some((9, mood, vec![level], Value::Num(5.0))));
+    // Nothing to assign to: not an entity.
+    world.run("v.nobody->v.mood = 1;");
+    assert_eq!(world.game.assigned.take(), None);
+    assert_eq!(world.compiler.compile("c.owning_entity->q.variant = 1;").unwrap_err().kind, ErrorKind::NotAssignable);
 }
 
 #[test]
@@ -124,6 +160,11 @@ fn queries_return_structs() {
     let held = world.variables.get(origin).unwrap();
     assert_eq!(world.variables.member(held, world.game.xy[0]), Some(Value::Num(2.0)));
 
+    // As vanilla's `query.spellcolor.r`.
+    assert_eq!(world.num("Query.bone_origin.Y + q.bone_origin.x"), 7.0);
+    assert_eq!(world.num("q.bone_origin.nothing ?? 3"), 3.0);
+    assert_eq!(world.num("q.variant.x ?? 3"), 3.0);
+
     let returned = world.run("q.bone_origin");
     assert_eq!(world.scratch.member(returned, world.game.xy[1]), Some(Value::Num(7.0)));
 }
@@ -132,15 +173,15 @@ fn queries_return_structs() {
 fn for_each_walks_an_entity_array() {
     let mut world = World::new();
     // Entity 9 has speed 3; entity 4 does not exist.
-    let sum = "v.sum = 0; for_each(t.other, q.get_nearby_entities(4, 'minecraft:pig'), { v.sum = v.sum + t.other->v.speed; }); return v.sum;";
+    let sum = "v.sum = 0; for_each(t.other, q.combine_entities(4, 'minecraft:pig'), { v.sum = v.sum + t.other->v.speed; }); return v.sum;";
     assert_eq!(world.num(sum), 6.0);
-    let stop = "v.seen = 0; for_each(v.other, q.get_nearby_entities(4), { v.seen = v.seen + 1; (v.seen == 2) ? break; }); return v.seen;";
+    let stop = "v.seen = 0; for_each(v.other, q.combine_entities(4), { v.seen = v.seen + 1; (v.seen == 2) ? break; }); return v.seen;";
     assert_eq!(world.num(stop), 2.0);
     // An array kept in a variable is still there for a later program.
-    world.run("v.found = q.get_nearby_entities(4);");
+    world.run("v.found = q.combine_entities(4);");
     assert_eq!(world.num("v.n = 0; for_each(t.e, v.found, { v.n = v.n + 1; v.found = 0; }); return v.n;"), 1.0);
     assert_eq!(world.num("v.n = 0; for_each(t.e, 5, { v.n = v.n + 1; }); return v.n;"), 0.0);
-    assert_eq!(world.compiler.compile("for_each(q.x, v.found, { v.n = 1; });").unwrap_err().kind, ErrorKind::NotAssignable);
+    assert_eq!(world.compiler.compile("for_each(q.variant, v.found, { v.n = 1; });").unwrap_err().kind, ErrorKind::NotAssignable);
 }
 
 #[test]

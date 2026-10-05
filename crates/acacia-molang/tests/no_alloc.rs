@@ -41,7 +41,7 @@ fn evaluation_does_not_allocate() {
         "math.sin(q.life_time * 38.17) * 57.3 + this",
         "v.count = (v.count ?? 0) + 1; t.half = v.count / 2; v.half = t.half;",
         "v.origin = q.bone_origin('leg'); v.copy = v.origin; v.copy.y = v.origin.y + 1; v.origin = 0;",
-        "v.i = 0; loop(8, { v.i = v.i + q.pick(v.i, 2, 'a'); (v.i > 6) ? break; });",
+        "v.i = 0; loop(8, { v.i = v.i + q.position(v.i, 2, 'a'); (v.i > 6) ? break; });",
         "q.is_baby ? 'small' : 'big'",
     ];
     let programs = sources.map(|source| compiler.compile(source).unwrap());

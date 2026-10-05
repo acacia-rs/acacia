@@ -6,9 +6,8 @@ use std::path::Path;
 use acacia_molang::{Compiler, Engine, Env, Error, NoHost, Scratch, Value, Variables};
 
 /// Cases this crate knowingly answers differently, with the reason.
-const SKIPPED: [(&str, &str); 4] = [
+const SKIPPED: [(&str, &str); 3] = [
     ("t.x = 4; => t.x ?? -1", "a temp read by a later expression: BDS answers 1, which nothing explains"),
-    ("q.nonexistent_query_zz", "which queries exist is the host's to say"),
     ("v.b = q.is_alive ?? 4; => v.b", "needs a host that answers `query.is_alive`"),
     ("this", "BDS has no `this` where the oracle evaluates"),
 ];

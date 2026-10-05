@@ -19,10 +19,14 @@ pub trait Host {
         0.0
     }
 
-    /// The entity behind a [`Value::Entity`], for `entity->expression`.
+    /// The entity behind a [`Value::Entity`], for `entity->expression`. Which of its variables
+    /// others may read (the "public" ones) is the host's to decide.
     fn entity(&self, _entity: u32) -> Option<(&dyn Host, &Variables)> {
         None
     }
+
+    /// `entity->variable.path = value`. The value is never a struct or an array.
+    fn assign(&self, _entity: u32, _variable: Variable, _path: &[Symbol], _value: Value) {}
 }
 
 /// A host with no queries, context variables or entities.

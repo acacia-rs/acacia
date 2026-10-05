@@ -36,6 +36,8 @@ pub(crate) enum Node {
     Temp { slot: u32, path: List },
     Context(u32),
     Query { id: u32, args: List },
+    /// `query.name.member.member`: members of the struct a query returned.
+    Member { of: u32, path: List },
     Math { function: MathFn, args: [u32; 3], count: u8 },
     Not(u32),
     Neg(u32),

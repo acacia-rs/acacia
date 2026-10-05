@@ -58,6 +58,16 @@ existing checkout. An expression is any string holding a Molang prefix (`query.`
 ones without a prefix are missed; `scripts.pre_animation` and `scripts.initialize` arrays are joined,
 as the game runs each as one program.
 
+## Query names
+
+```
+py -3 tools/molang-oracle/queries.py           # downloads the list at the pinned bedrock-samples tag
+```
+
+rewrites `crates/acacia-molang/src/queries.rs` from Mojang's `mojang-molang-queries.json`: the query
+names, and the engine version after which each removed one is gone. Names and versions only; the
+descriptions stay with Mojang. Rerun it for a new game version.
+
 ## Limits
 
 - Values pass through a float property with the range ±1e30, so not-a-number and infinities come

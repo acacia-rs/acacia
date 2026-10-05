@@ -1,12 +1,12 @@
 //! Evaluation. Semantics are BDS's (`tests/oracle/*.bds`); nothing here allocates once the
 //! [`Scratch`](crate::Scratch) and [`Variables`](crate::Variables) have grown to fit.
 
-use crate::compiler::{Context, Query};
+use crate::compiler::{Context, Query, Variable};
 use crate::host::{Env, Host, Structs};
 use crate::math::MathFn;
 use crate::program::{Node, Op, Program};
 use crate::store::Store;
-use crate::value::Value;
+use crate::value::{StructRef, Symbol, Value};
 
 enum Flow {
     Break,
@@ -32,6 +32,14 @@ struct Machine<'a> {
     this: f32,
     /// Loop passes and dice left; see [`REPEATS`].
     repeats: u32,
+}
+
+/// BDS stores 0 rather than a not-a-number or an infinity.
+fn storable(value: Value) -> Value {
+    match value {
+        Value::Num(n) if !n.is_finite() => Value::ZERO,
+        other => other,
+    }
 }
 
 /// How many loop passes and dice one evaluation may spend in total. BDS has no such limit and
@@ -86,6 +94,15 @@ impl Machine<'_> {
                 self.stack.truncate(base);
                 value
             }
+            Node::Member { of, path } => {
+                let mut value = self.eval(of)?;
+                for &member in program.list(path) {
+                    let Some((held, _)) = value.storage() else { return Ok(None) };
+                    let Some(found) = self.store(held).member(value, Symbol(member)) else { return Ok(None) };
+                    value = found;
+                }
+                value
+            }
             Node::Math { function, args, count } => {
                 let mut values = [0.0; 3];
                 for (value, &arg) in values.iter_mut().zip(&args[..usize::from(count)]) {
@@ -115,7 +132,13 @@ impl Machine<'_> {
             }
             Node::Assign { target, value } => {
                 let value = self.eval(value)?;
-                self.assign(target, value)
+                match program.nodes[target as usize] {
+                    Node::Arrow { entity, of } => {
+                        let entity = self.eval(entity)?;
+                        self.assign_other(entity, of, value)
+                    }
+                    _ => self.assign(target, value),
+                }
             }
             Node::Block(statements) => {
                 for &statement in program.list(statements) {
@@ -165,12 +188,16 @@ impl Machine<'_> {
 
     fn item(&self, array: Value, index: usize) -> Option<Value> {
         let Value::Array(list) = array else { return None };
-        let store = match &self.vars {
-            _ if list.scratch => &*self.temps,
-            Vars::Own(store) => &**store,
-            Vars::Other(store) => *store,
-        };
-        store.members(list).get(index).map(|(_, item)| *item)
+        self.store(list).members(list).get(index).map(|(_, item)| *item)
+    }
+
+    /// The store a struct or an array lives in.
+    fn store(&self, held: StructRef) -> &Store {
+        match &self.vars {
+            _ if held.scratch => self.temps,
+            Vars::Own(store) => store,
+            Vars::Other(store) => store,
+        }
     }
 
     /// Takes up to `wanted` repeats out of what the evaluation has left.
@@ -217,11 +244,7 @@ impl Machine<'_> {
 
     /// The value of an assignment is what was stored.
     fn assign(&mut self, target: u32, value: Value) -> Value {
-        // BDS stores 0 rather than a not-a-number or an infinity.
-        let value = match value {
-            Value::Num(n) if !n.is_finite() => Value::ZERO,
-            other => other,
-        };
+        let value = storable(value);
         let program = self.program;
         match program.nodes[target as usize] {
             Node::Temp { slot, path } => {
@@ -235,6 +258,22 @@ impl Machine<'_> {
                 }
             }
             _ => unreachable!("the parser only assigns to variables"),
+        }
+        value
+    }
+
+    /// `entity->variable.path = value`, handed to the host. Structs and arrays are not handed over:
+    /// they live in this evaluation's stores.
+    fn assign_other(&self, entity: Value, target: u32, value: Value) -> Value {
+        let value = storable(value);
+        let (Value::Entity(entity), Node::Var { slot, path }) = (entity, self.program.nodes[target as usize]) else { return value };
+        let path = self.program.list(path);
+        let mut members = [Symbol::EMPTY; 8];
+        if value.storage().is_none() && path.len() <= members.len() {
+            for (member, &id) in members.iter_mut().zip(path) {
+                *member = Symbol(id);
+            }
+            self.host.assign(entity, Variable(slot), &members[..path.len()], value);
         }
         value
     }

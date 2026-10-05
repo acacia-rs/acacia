@@ -4,7 +4,8 @@ use crate::error::{Error, ErrorKind};
 use crate::lex::Token;
 use crate::math::MathFn;
 use crate::parse::Parser;
-use crate::program::{Node, Op};
+use crate::program::{List, Node, Op};
+use crate::queries;
 use crate::value::{Symbol, Value};
 
 pub(crate) type Levels = &'static [&'static [(&'static str, Op)]];
@@ -69,9 +70,9 @@ impl Parser<'_> {
 
     /// One side of a conditional: also `break`, `continue`, `return x` and assignments.
     fn branch(&mut self) -> Result<u32, Error> {
-        match (self.peek(), self.peek_after()) {
-            (Some(Token::Name(name)), _) if matches!(name.as_str(), "return" | "break" | "continue") => self.statement(),
-            (Some(Token::Name(_)), Some(Token::Symbol("="))) => self.expr(),
+        match self.peek() {
+            Some(Token::Name(name)) if matches!(name.as_str(), "return" | "break" | "continue") => self.statement(),
+            _ if self.assigns() => self.expr(),
             _ if self.rules.conditionals_chain_left => self.binary(0),
             _ => self.nested(Self::ternary),
         }
@@ -129,7 +130,7 @@ impl Parser<'_> {
     }
 
     /// `entity->expression`
-    fn arrow(&mut self) -> Result<u32, Error> {
+    pub(crate) fn arrow(&mut self) -> Result<u32, Error> {
         let mut left = self.primary()?;
         while self.eat("->") {
             let of = self.primary()?;
@@ -179,15 +180,21 @@ impl Parser<'_> {
         let arguments = if self.eat("(") { Some(self.arguments()?) } else { None };
         let node = match prefix {
             "query" | "q" => {
+                // `query.spellcolor.r`: a member of the struct the query returns.
+                let (query, members) = rest.split_once('.').unwrap_or((rest, ""));
+                if self.compiler.documented_queries_only && !queries::exists(query, self.compiler.engine) {
+                    return Err(Error { kind: ErrorKind::UnknownQuery(query.to_owned()), at: named.at });
+                }
                 let args = self.list(arguments.as_deref().unwrap_or_default());
-                let id = self.compiler.queries.intern(rest);
-                return Ok(self.push(Node::Query { id, args }));
+                let id = self.compiler.queries.intern(query);
+                let of = self.push(Node::Query { id, args });
+                let path = self.members(members);
+                return Ok(if path.len == 0 { of } else { self.push(Node::Member { of, path }) });
             }
             "math" => return self.math(rest, arguments.as_deref().unwrap_or_default(), named.at),
             "variable" | "v" | "temp" | "t" => {
                 let (root, members) = rest.split_once('.').unwrap_or((rest, ""));
-                let members: Vec<u32> = members.split('.').filter(|m| !m.is_empty()).map(|m| self.compiler.symbol(m).0).collect();
-                let path = self.list(&members);
+                let path = self.members(members);
                 if prefix.starts_with('v') {
                     Node::Var { slot: self.compiler.variables.intern(root), path }
                 } else {
@@ -207,6 +214,12 @@ impl Parser<'_> {
             return Err(named);
         }
         Ok(self.push(node))
+    }
+
+    /// The symbols of a dotted member path (`min.x`), as a list.
+    fn members(&mut self, dotted: &str) -> List {
+        let members: Vec<u32> = dotted.split('.').filter(|m| !m.is_empty()).map(|m| self.compiler.symbol(m).0).collect();
+        self.list(&members)
     }
 
     fn arguments(&mut self) -> Result<Vec<u32>, Error> {
@@ -265,34 +278,5 @@ impl Parser<'_> {
         let body = self.primary()?;
         self.expect(")")?;
         Ok(body)
-    }
-
-    /// `array.name[index]`
-    fn index(&mut self, array: &str) -> Result<u32, Error> {
-        let unknown = self.fail_last(ErrorKind::UnknownArray(array.to_owned()));
-        self.expect("[")?;
-        let index = self.expr()?;
-        self.expect("]")?;
-        let mut items = Vec::new();
-        self.elements(array, &unknown, 0, &mut items)?;
-        if items.is_empty() {
-            return Err(unknown);
-        }
-        let items = self.list(&items);
-        Ok(self.push(Node::Index { items, index }))
-    }
-
-    /// Compiles an array's elements into `out`. An element that names an array stands for all of
-    /// that array's elements.
-    fn elements(&mut self, array: &str, unknown: &Error, depth: u8, out: &mut Vec<u32>) -> Result<(), Error> {
-        let sources = self.arrays.and_then(|arrays| arrays.get(array)).filter(|_| depth < 8).ok_or_else(|| unknown.clone())?;
-        for source in sources {
-            let lower = source.trim().to_ascii_lowercase();
-            match lower.strip_prefix("array.").filter(|name| !name.contains('[')) {
-                Some(included) => self.elements(included, unknown, depth + 1, out)?,
-                None => out.push(self.inline(source)?),
-            }
-        }
-        Ok(())
     }
 }

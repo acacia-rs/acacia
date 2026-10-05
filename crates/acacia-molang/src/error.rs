@@ -18,6 +18,9 @@ pub enum ErrorKind {
     /// A name outside `query.`, `variable.`, `temp.`, `context.`, `math.`, `array.` and the resource prefixes.
     UnknownName(String),
     UnknownMath(String),
+    /// A `query.` name outside the documented ones, or one the pack's engine version has dropped;
+    /// see [`crate::Compiler::documented_queries_only`].
+    UnknownQuery(String),
     UnknownArray(String),
     ArgumentCount { name: &'static str, expected: u8, found: usize },
     /// Call arguments on something that takes none (`v.x(1)`).
@@ -52,6 +55,7 @@ impl fmt::Display for Error {
             ErrorKind::UnexpectedEnd => write!(f, "expression ends early"),
             ErrorKind::UnknownName(name) => write!(f, "unknown name `{name}`"),
             ErrorKind::UnknownMath(name) => write!(f, "unknown math function `{name}`"),
+            ErrorKind::UnknownQuery(name) => write!(f, "unknown query `{name}`"),
             ErrorKind::UnknownArray(name) => write!(f, "unknown array `{name}`"),
             ErrorKind::ArgumentCount { name, expected, found } => write!(f, "`math.{name}` takes {expected} arguments, found {found}"),
             ErrorKind::NotCallable(name) => write!(f, "`{name}` takes no arguments"),
