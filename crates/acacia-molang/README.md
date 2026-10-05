@@ -56,7 +56,8 @@ entries with a space before compiling (a block opens on one line and closes on a
 - `array.name[i]` reads element `max(0, i) % length` (documented, client-side, so not observed). An
   element that names another array stands for all of that array's elements.
 - Rejected at compile time, as BDS rejects them when a pack loads: wrong argument counts and unknown
-  functions in `math.`, statements after `return`/`break`/`continue`, `- -x`, a chained `a = b = c`,
+  functions in `math.`, statements after `return`/`break`/`continue` (a conditional on a literal that
+  picks one of them stays a conditional), `- -x`, a chained `a = b = c`,
   assigning to anything but `variable.`/`temp.`, double-quoted strings.
 - `math.sign(0)` is 1. Trigonometry is in degrees. The elastic easings use the game's 65536-step sine
   table. `math.random` and the die rolls take their randomness from `Host::random`.
@@ -90,6 +91,22 @@ it has rejected since; they are errors here at every version.
 - Which variables another entity may read ("public" variables) is left to `Host::entity`.
 - `->`, `for_each`, arrays and members of query results come from the documentation and the vanilla
   packs; BDS could not be asked about them (`tests/host.rs`).
+
+## Speed
+
+`cargo bench -p acacia-molang` prints nanoseconds per compile and per evaluation for a few shapes of
+expression and for the vanilla corpus. What made the difference, in case it is undone by accident:
+
+- Every node's result comes back in a register: `Value` is 8 bytes (asserted in `value.rs`), numbers
+  take `Machine::num` and conditions `Machine::truthy`, and `return`/`break`/`continue` are a field of
+  the machine, not part of each result. Returning a wider result through memory was 2-3 times slower.
+- `num`, `value` and `truthy` stay small: statements, queries and `math.` calls are separate functions.
+- Constants are folded while compiling (`fold.rs`), as BDS does, so `math.sin(90) * 57.3` costs what
+  a literal costs.
+- A plain assignment skips the struct bookkeeping (`Store::set_plain`).
+
+What is left is the cost of walking a tree, about 2-3 ns per node. A flat bytecode would be the next
+step if that ever matters.
 
 ## Testing
 

@@ -33,6 +33,10 @@ v.d = -2; v.r = 6 / v.d; => v.r
 v.d = -0.5; => 1 / v.d
 v.d = -2; => 6 / (v.d * 1)
 v.d = -2; => 6 * v.d
+6 / math.min(-2, 0)
+6 / (0 - math.abs(2))
+6 / (1 ? -2 : 3)
+6 / -math.pi
 v.d = -2; v.r = (6 / v.d); => v.r
 v.d = -2; v.r = 6 / v.d + 0; => v.r
 v.d = -2; t.q = 6 / v.d; v.r = t.q; => v.r

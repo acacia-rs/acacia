@@ -47,6 +47,10 @@ fn min_angle(degrees: f32) -> f32 {
 }
 
 impl MathFn {
+    pub(crate) fn is_random(self) -> bool {
+        matches!(self, MathFn::Random | MathFn::RandomInteger | MathFn::DieRoll | MathFn::DieRollInteger)
+    }
+
     /// `random` yields [0, 1) and is only called by the random functions.
     pub(crate) fn call(self, [a, b, c]: [f32; 3], random: &dyn Fn() -> f32) -> f32 {
         use MathFn::*;

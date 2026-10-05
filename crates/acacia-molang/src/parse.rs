@@ -4,6 +4,7 @@
 
 use crate::compiler::{Arrays, Compiler, Engine};
 use crate::error::{Error, ErrorKind};
+use crate::fold::{Folded, fold};
 use crate::lex::{Token, tokens};
 use crate::parse_expr::{LEVELS, Levels, OLD_LEVELS};
 use crate::program::{List, Node, Op, Program};
@@ -238,6 +239,11 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn push(&mut self, node: Node) -> u32 {
+        let node = match fold(&self.nodes, node) {
+            Some(Folded::Node(picked)) => return picked,
+            Some(Folded::Value(value)) => Node::Const(value),
+            None => node,
+        };
         let tallest = |parser: &Self, children: &[u32]| children.iter().map(|&child| parser.heights[child as usize]).max().unwrap_or(0);
         let below = match node {
             Node::Const(_) | Node::This | Node::Var { .. } | Node::Temp { .. } | Node::Context(_) | Node::Break | Node::Continue => 0,

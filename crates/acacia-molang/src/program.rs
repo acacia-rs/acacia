@@ -19,6 +19,38 @@ pub(crate) enum Op {
     DivByMagnitude,
 }
 
+impl Op {
+    /// `+ - * /`. Dividing by zero gives 0.
+    #[inline]
+    pub(crate) fn arithmetic(self, x: f32, y: f32) -> f32 {
+        match self {
+            Op::Add => x + y,
+            Op::Sub => x - y,
+            Op::Mul => x * y,
+            _ if y == 0.0 => 0.0,
+            Op::Div => x / y,
+            _ => x / y.abs(),
+        }
+    }
+
+    /// `< <= > >=`
+    #[inline]
+    pub(crate) fn orders(self, x: f32, y: f32) -> bool {
+        match self {
+            Op::Lt => x < y,
+            Op::Le => x <= y,
+            Op::Gt => x > y,
+            _ => x >= y,
+        }
+    }
+
+    /// `== !=`. A struct is neither equal nor unequal to anything, itself included.
+    #[inline]
+    pub(crate) fn equates(self, a: Value, b: Value) -> bool {
+        a.storage().is_none() && b.storage().is_none() && (a == b) == (self == Op::Eq)
+    }
+}
+
 /// A run of [`Program::lists`]: node indices, or the member symbols of a variable path.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct List {

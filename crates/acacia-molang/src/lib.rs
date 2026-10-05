@@ -3,6 +3,8 @@
 mod compiler;
 mod error;
 mod eval;
+mod exec;
+mod fold;
 mod host;
 mod lex;
 mod math;

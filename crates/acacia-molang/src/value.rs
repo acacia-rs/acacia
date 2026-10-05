@@ -8,10 +8,27 @@ impl Symbol {
 
 /// A struct in [`crate::Variables`] or, when it was just produced by an evaluation, in its [`crate::Scratch`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StructRef {
-    pub(crate) index: u32,
-    pub(crate) scratch: bool,
+pub struct StructRef(u32);
+
+impl StructRef {
+    const SCRATCH: u32 = 1 << 31;
+
+    pub(crate) fn new(index: u32, scratch: bool) -> StructRef {
+        StructRef(index | if scratch { StructRef::SCRATCH } else { 0 })
+    }
+
+    pub(crate) fn index(self) -> usize {
+        (self.0 & !StructRef::SCRATCH) as usize
+    }
+
+    pub(crate) fn scratch(self) -> bool {
+        self.0 & StructRef::SCRATCH != 0
+    }
 }
+
+// The evaluator returns these from every node; past 8 bytes Windows hands them back through memory,
+// which made evaluation several times slower.
+const _: () = assert!(size_of::<Option<Value>>() == 8);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Value {

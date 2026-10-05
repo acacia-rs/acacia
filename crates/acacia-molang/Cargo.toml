@@ -8,3 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+
+[[bench]]
+name = "eval"
+harness = false

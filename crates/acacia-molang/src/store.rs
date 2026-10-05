@@ -21,6 +21,9 @@ impl Store {
     pub(crate) fn reset(&mut self, slots: usize) {
         self.slots.clear();
         self.slots.resize(slots, None);
+        if self.free.len() == self.structs.len() {
+            return;
+        }
         self.free.clear();
         for (index, members) in self.structs.iter_mut().enumerate() {
             members.clear();
@@ -29,7 +32,7 @@ impl Store {
     }
 
     pub(crate) fn owns(&self, value: Value) -> bool {
-        value.storage().is_some_and(|(r, _)| r.scratch == self.scratch)
+        value.storage().is_some_and(|(r, _)| r.scratch() == self.scratch)
     }
 
     pub(crate) fn get(&self, slot: u32, path: &[u32]) -> Option<Value> {
@@ -42,11 +45,24 @@ impl Store {
 
     pub(crate) fn member(&self, of: Value, name: Symbol) -> Option<Value> {
         let Value::Struct(r) = of else { return None };
-        self.structs[r.index as usize].iter().find(|(n, _)| *n == name).map(|(_, v)| *v)
+        self.structs[r.index()].iter().find(|(n, _)| *n == name).map(|(_, v)| *v)
     }
 
     pub(crate) fn members(&self, of: StructRef) -> &[(Symbol, Value)] {
-        &self.structs[of.index as usize]
+        &self.structs[of.index()]
+    }
+
+    /// The common assignment, done without the general path's bookkeeping: a number or string over
+    /// a slot that exists and holds no struct. Says whether it applied.
+    #[inline]
+    pub(crate) fn set_plain(&mut self, slot: u32, value: Value) -> bool {
+        match self.slots.get_mut(slot as usize) {
+            Some(held) if value.storage().is_none() && held.and_then(Value::storage).is_none() => {
+                *held = Some(value);
+                true
+            }
+            _ => false,
+        }
     }
 
     /// `value` must not be a struct of another store: [`Store::import`] it first.
@@ -97,11 +113,11 @@ impl Store {
             self.structs.push(Vec::new());
             self.structs.len() as u32 - 1
         });
-        StructRef { index, scratch: self.scratch }
+        StructRef::new(index, self.scratch)
     }
 
     pub(crate) fn set_member(&mut self, of: StructRef, name: Symbol, value: Value) -> Option<Value> {
-        let members = &mut self.structs[of.index as usize];
+        let members = &mut self.structs[of.index()];
         match members.iter_mut().find(|(n, _)| *n == name) {
             Some((_, slot)) => Some(std::mem::replace(slot, value)),
             None => {
@@ -119,25 +135,25 @@ impl Store {
         for i in 0..count {
             let (name, member) = from.unwrap_or(self).members(source)[i];
             let member = self.import(member, from);
-            self.structs[made.index as usize].push((name, member));
+            self.structs[made.index()].push((name, member));
         }
         kind(made)
     }
 
     /// Appends without looking for the name: for array elements, whose names are their positions.
     pub(crate) fn push_member(&mut self, of: StructRef, value: Value) {
-        let members = &mut self.structs[of.index as usize];
+        let members = &mut self.structs[of.index()];
         members.push((Symbol(members.len() as u32), value));
     }
 
     fn release(&mut self, value: Option<Value>) {
         let Some((r, _)) = value.and_then(Value::storage) else { return };
-        if r.scratch != self.scratch {
+        if r.scratch() != self.scratch {
             return;
         }
-        while let Some((_, member)) = self.structs[r.index as usize].pop() {
+        while let Some((_, member)) = self.structs[r.index()].pop() {
             self.release(Some(member));
         }
-        self.free.push(r.index);
+        self.free.push(r.index() as u32);
     }
 }

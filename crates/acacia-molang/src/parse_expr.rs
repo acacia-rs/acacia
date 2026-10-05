@@ -87,7 +87,8 @@ impl Parser<'_> {
             if !matches!(op, Op::Eq | Op::Ne) && (text(self.node(left)) || text(self.node(right))) {
                 return Err(self.fail_last(ErrorKind::StringOperand));
             }
-            let old_division = op == Op::Div && !self.folds(right);
+            // BDS folds constants too (`0 - 2`, `math.min(-2, 0)`), and a folded divisor keeps its sign.
+            let old_division = op == Op::Div && !matches!(self.node(right), Node::Const(_));
             let op = if old_division && self.rules.divides_by_magnitude { Op::DivByMagnitude } else { op };
             left = self.push(Node::Binary(op, left, right));
             if old_division && self.rules.statements_divide_by_magnitude {
@@ -95,16 +96,6 @@ impl Parser<'_> {
             }
         }
         Ok(left)
-    }
-
-    /// Whether BDS computes the node while loading: operators over literals, as in `0 - 2`.
-    fn folds(&self, node: u32) -> bool {
-        match self.node(node) {
-            Node::Const(_) => true,
-            Node::Not(operand) | Node::Neg(operand) => self.folds(operand),
-            Node::Binary(_, left, right) => self.folds(left) && self.folds(right),
-            _ => false,
-        }
     }
 
     fn unary(&mut self) -> Result<u32, Error> {
@@ -123,10 +114,7 @@ impl Parser<'_> {
             return Err(self.fail(ErrorKind::DoubleNegation));
         }
         let operand = self.unary()?;
-        Ok(match self.node(operand) {
-            Node::Const(Value::Num(n)) => self.push(Node::Const(Value::Num(-n))),
-            _ => self.push(Node::Neg(operand)),
-        })
+        Ok(self.push(Node::Neg(operand)))
     }
 
     /// `entity->expression`

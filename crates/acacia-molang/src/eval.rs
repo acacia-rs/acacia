@@ -1,45 +1,44 @@
-//! Evaluation. Semantics are BDS's (`tests/oracle/*.bds`); nothing here allocates once the
-//! [`Scratch`](crate::Scratch) and [`Variables`](crate::Variables) have grown to fit.
+//! Evaluation of expressions; statements and `->` are in `exec.rs`. Semantics are BDS's
+//! (`tests/oracle/*.bds`); nothing here allocates once the [`Scratch`](crate::Scratch) and
+//! [`Variables`](crate::Variables) have grown to fit.
+//!
+//! Every node comes back in a register: an `f32` from [`Machine::num`], an 8-byte [`Value`] from
+//! [`Machine::value`]. `return`, `break` and `continue` therefore set [`Machine::flow`] and are
+//! noticed by blocks and loops, not carried in each result.
 
-use crate::compiler::{Context, Query, Variable};
+use crate::compiler::{Context, Query};
 use crate::host::{Env, Host, Structs};
 use crate::math::MathFn;
 use crate::program::{Node, Op, Program};
 use crate::store::Store;
-use crate::value::{StructRef, Symbol, Value};
+use crate::value::{Symbol, Value};
 
-enum Flow {
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum Flow {
+    Running,
     Break,
     Continue,
-    Return(Value),
+    Return,
 }
 
-/// `None` is a variable that was never set, which only `??` tells apart from 0.
-type Step = Result<Option<Value>, Flow>;
-
-enum Vars<'a> {
+pub(crate) enum Vars<'a> {
     Own(&'a mut Store),
     /// Another entity's, read through `->`.
     Other(&'a Store),
 }
 
-struct Machine<'a> {
-    program: &'a Program,
-    host: &'a dyn Host,
-    vars: Vars<'a>,
-    temps: &'a mut Store,
-    stack: &'a mut Vec<Value>,
-    this: f32,
+pub(crate) struct Machine<'a> {
+    pub(crate) program: &'a Program,
+    pub(crate) host: &'a dyn Host,
+    pub(crate) vars: Vars<'a>,
+    pub(crate) temps: &'a mut Store,
+    pub(crate) stack: &'a mut Vec<Value>,
+    pub(crate) this: f32,
     /// Loop passes and dice left; see [`REPEATS`].
-    repeats: u32,
-}
-
-/// BDS stores 0 rather than a not-a-number or an infinity.
-fn storable(value: Value) -> Value {
-    match value {
-        Value::Num(n) if !n.is_finite() => Value::ZERO,
-        other => other,
-    }
+    pub(crate) repeats: u32,
+    pub(crate) flow: Flow,
+    /// What a `return` gave, once `flow` is [`Flow::Return`].
+    pub(crate) returned: Value,
 }
 
 /// How many loop passes and dice one evaluation may spend in total. BDS has no such limit and
@@ -48,6 +47,9 @@ const REPEATS: u32 = 1 << 20;
 
 impl Program {
     pub fn eval(&self, env: &mut Env<'_>) -> Value {
+        if let (false, Node::Const(value)) = (self.complex, self.nodes[self.root as usize]) {
+            return value;
+        }
         env.scratch.temps.reset(self.temps as usize);
         env.scratch.stack.clear();
         let mut machine = Machine {
@@ -58,239 +60,142 @@ impl Program {
             stack: &mut env.scratch.stack,
             this: env.this,
             repeats: REPEATS,
+            flow: Flow::Running,
+            returned: Value::ZERO,
         };
-        match (self.complex, machine.step(self.root)) {
-            (false, Ok(value)) => value.unwrap_or(Value::ZERO),
-            (true, Err(Flow::Return(value))) => value,
+        let value = machine.value(self.root);
+        match (self.complex, machine.flow) {
+            (false, Flow::Running) => value,
+            (true, Flow::Return) => machine.returned,
             _ => Value::ZERO,
         }
     }
 }
 
 impl Machine<'_> {
-    fn eval(&mut self, node: u32) -> Result<Value, Flow> {
-        Ok(self.step(node)?.unwrap_or(Value::ZERO))
-    }
-
-    fn num(&mut self, node: u32) -> Result<f32, Flow> {
-        Ok(self.eval(node)?.num())
-    }
-
-    fn step(&mut self, node: u32) -> Step {
-        let program = self.program;
-        Ok(Some(match program.nodes[node as usize] {
-            Node::Const(value) => value,
-            Node::This => Value::Num(self.this),
-            Node::Var { slot, path } => return Ok(self.variable(slot, program.list(path))),
-            Node::Temp { slot, path } => return Ok(self.temps.get(slot, program.list(path))),
-            Node::Context(id) => return Ok(self.host.context(Context(id))),
-            Node::Query { id, args } => {
-                let base = self.stack.len();
-                for &arg in program.list(args) {
-                    let value = self.eval(arg)?;
-                    self.stack.push(value);
-                }
-                let value = self.host.query(Query(id), &self.stack[base..], &mut Structs(self.temps));
-                self.stack.truncate(base);
-                value
+    /// The node as a number; anything that is not one counts as 0.
+    pub(crate) fn num(&mut self, node: u32) -> f32 {
+        match self.program.nodes[node as usize] {
+            Node::Const(Value::Num(n)) => n,
+            Node::This => self.this,
+            Node::Neg(operand) => -self.num(operand),
+            Node::Binary(op @ (Op::Add | Op::Sub | Op::Mul | Op::Div | Op::DivByMagnitude), left, right) => {
+                let (x, y) = (self.num(left), self.num(right));
+                op.arithmetic(x, y)
             }
-            Node::Member { of, path } => {
-                let mut value = self.eval(of)?;
-                for &member in program.list(path) {
-                    let Some((held, _)) = value.storage() else { return Ok(None) };
-                    let Some(found) = self.store(held).member(value, Symbol(member)) else { return Ok(None) };
-                    value = found;
-                }
-                value
-            }
-            Node::Math { function, args, count } => {
-                let mut values = [0.0; 3];
-                for (value, &arg) in values.iter_mut().zip(&args[..usize::from(count)]) {
-                    *value = self.num(arg)?;
-                }
-                if matches!(function, MathFn::DieRoll | MathFn::DieRollInteger) {
-                    values[0] = self.spend(values[0]) as f32;
-                }
-                let host = self.host;
-                Value::Num(function.call(values, &|| host.random()))
-            }
-            Node::Not(operand) => Value::flag(!self.eval(operand)?.truthy()),
-            Node::Neg(operand) => Value::Num(-self.num(operand)?),
-            Node::Binary(op, left, right) => self.binary(op, left, right)?,
-            Node::Coalesce(left, right) => match self.step(left)? {
-                Some(value) => value,
-                None => return self.step(right),
-            },
+            Node::Math { function, args, count } => self.math(function, args, count),
+            Node::Var { slot, path } => self.variable(slot, self.program.list(path)).map_or(0.0, Value::num),
+            Node::Temp { slot, path } => self.temps.get(slot, self.program.list(path)).map_or(0.0, Value::num),
+            Node::Query { id, args } => self.query(id, self.program.list(args)).num(),
             Node::Ternary(condition, then, otherwise) => {
-                return if self.eval(condition)?.truthy() { self.step(then) } else { self.step(otherwise) };
+                if self.truthy(condition) { self.num(then) } else { self.num(otherwise) }
+            }
+            _ => self.value(node).num(),
+        }
+    }
+
+    /// The node as a condition, without making a value of a comparison first.
+    pub(crate) fn truthy(&mut self, node: u32) -> bool {
+        match self.program.nodes[node as usize] {
+            Node::Not(operand) => !self.truthy(operand),
+            Node::Binary(Op::Or, left, right) => self.truthy(left) || self.truthy(right),
+            Node::Binary(Op::And, left, right) => self.truthy(left) && self.truthy(right),
+            Node::Binary(op @ (Op::Lt | Op::Le | Op::Gt | Op::Ge), left, right) => {
+                let (x, y) = (self.num(left), self.num(right));
+                op.orders(x, y)
+            }
+            Node::Binary(op @ (Op::Eq | Op::Ne), left, right) => {
+                let (a, b) = (self.value(left), self.value(right));
+                op.equates(a, b)
+            }
+            _ => self.value(node).truthy(),
+        }
+    }
+
+    // Kept out of `num` and `value`, which every node passes through and which must stay small.
+    #[inline(never)]
+    fn math(&mut self, function: MathFn, args: [u32; 3], count: u8) -> f32 {
+        let mut values = [0.0; 3];
+        for (value, &arg) in values.iter_mut().zip(&args[..usize::from(count)]) {
+            *value = self.num(arg);
+        }
+        if matches!(function, MathFn::DieRoll | MathFn::DieRollInteger) {
+            values[0] = self.spend(values[0]) as f32;
+        }
+        let host = self.host;
+        function.call(values, &|| host.random())
+    }
+
+    #[inline(never)]
+    fn query(&mut self, id: u32, args: &[u32]) -> Value {
+        let base = self.stack.len();
+        for &arg in args {
+            let value = self.value(arg);
+            self.stack.push(value);
+        }
+        let value = self.host.query(Query(id), &self.stack[base..], &mut Structs(self.temps));
+        self.stack.truncate(base);
+        value
+    }
+
+    /// The node's value; a variable that was never set reads as 0.
+    pub(crate) fn value(&mut self, node: u32) -> Value {
+        let program = self.program;
+        match program.nodes[node as usize] {
+            Node::Const(value) => value,
+            Node::This | Node::Neg(_) | Node::Math { .. } => Value::Num(self.num(node)),
+            Node::Binary(Op::Add | Op::Sub | Op::Mul | Op::Div | Op::DivByMagnitude, ..) => Value::Num(self.num(node)),
+            Node::Not(_) | Node::Binary(..) => Value::flag(self.truthy(node)),
+            Node::Query { id, args } => self.query(id, program.list(args)),
+            Node::Var { slot, path } => self.variable(slot, program.list(path)).unwrap_or(Value::ZERO),
+            Node::Temp { slot, path } => self.temps.get(slot, program.list(path)).unwrap_or(Value::ZERO),
+            Node::Ternary(condition, then, otherwise) => {
+                if self.truthy(condition) { self.value(then) } else { self.value(otherwise) }
             }
             Node::When(condition, then) => {
-                if self.eval(condition)?.truthy() {
-                    return self.step(then);
-                }
-                Value::ZERO
+                if self.truthy(condition) { self.value(then) } else { Value::ZERO }
             }
-            Node::Assign { target, value } => {
-                let value = self.eval(value)?;
-                match program.nodes[target as usize] {
-                    Node::Arrow { entity, of } => {
-                        let entity = self.eval(entity)?;
-                        self.assign_other(entity, of, value)
-                    }
-                    _ => self.assign(target, value),
-                }
+            Node::Assign { .. } | Node::Block(_) | Node::Loop { .. } | Node::ForEach { .. } | Node::Break | Node::Continue | Node::Return(_) => {
+                self.run(node)
             }
-            Node::Block(statements) => {
-                for &statement in program.list(statements) {
-                    self.step(statement)?;
-                }
-                Value::ZERO
+            Node::Context(_) | Node::Member { .. } | Node::Coalesce(..) | Node::Index { .. } | Node::Arrow { .. } => {
+                self.maybe(node).unwrap_or(Value::ZERO)
             }
-            Node::Loop { count, body } => {
-                // A fraction of a pass is a pass.
-                let count = self.num(count)?.ceil();
-                for _ in 0..self.spend(count) {
-                    match self.step(body) {
-                        Err(Flow::Break) => break,
-                        Ok(_) | Err(Flow::Continue) => {}
-                        Err(left) => return Err(left),
-                    }
+        }
+    }
+
+    /// The nodes that can be unset, which only `??` tells apart from 0.
+    pub(crate) fn maybe(&mut self, node: u32) -> Option<Value> {
+        let program = self.program;
+        match program.nodes[node as usize] {
+            Node::Var { slot, path } => self.variable(slot, program.list(path)),
+            Node::Temp { slot, path } => self.temps.get(slot, program.list(path)),
+            Node::Context(id) => self.host.context(Context(id)),
+            Node::Member { of, path } => {
+                let mut value = self.value(of);
+                for &member in program.list(path) {
+                    let (held, _) = value.storage()?;
+                    value = self.store(held).member(value, Symbol(member))?;
                 }
-                Value::ZERO
+                Some(value)
             }
-            Node::ForEach { variable, array, body } => {
-                let array = self.eval(array)?;
-                let mut index = 0;
-                // Read by position each pass: the body may assign over the variable holding the array.
-                while let Some(item) = self.item(array, index).filter(|_| self.spend(1.0) == 1) {
-                    self.assign(variable, item);
-                    match self.step(body) {
-                        Err(Flow::Break) => break,
-                        Ok(_) | Err(Flow::Continue) => {}
-                        Err(left) => return Err(left),
-                    }
-                    index += 1;
-                }
-                Value::ZERO
+            Node::Coalesce(left, right) => match self.maybe(left) {
+                None => self.maybe(right),
+                set => set,
+            },
+            Node::Ternary(condition, then, otherwise) => {
+                if self.truthy(condition) { self.maybe(then) } else { self.maybe(otherwise) }
             }
-            Node::Break => return Err(Flow::Break),
-            Node::Continue => return Err(Flow::Continue),
-            Node::Return(value) => return Err(Flow::Return(self.eval(value)?)),
+            Node::When(condition, then) => {
+                if self.truthy(condition) { self.maybe(then) } else { Some(Value::ZERO) }
+            }
             Node::Index { items, index } => {
                 let items = program.list(items);
-                // Indices wrap; negative ones read the first element.
-                let index = self.num(index)?.max(0.0) as usize % items.len();
-                return self.step(items[index]);
+                let index = self.num(index).max(0.0) as usize % items.len();
+                self.maybe(items[index])
             }
-            Node::Arrow { entity, of } => return self.arrow(entity, of),
-        }))
-    }
-
-    fn item(&self, array: Value, index: usize) -> Option<Value> {
-        let Value::Array(list) = array else { return None };
-        self.store(list).members(list).get(index).map(|(_, item)| *item)
-    }
-
-    /// The store a struct or an array lives in.
-    fn store(&self, held: StructRef) -> &Store {
-        match &self.vars {
-            _ if held.scratch => self.temps,
-            Vars::Own(store) => store,
-            Vars::Other(store) => store,
+            Node::Arrow { entity, of } => self.arrow(entity, of),
+            _ => Some(self.value(node)),
         }
-    }
-
-    /// Takes up to `wanted` repeats out of what the evaluation has left.
-    fn spend(&mut self, wanted: f32) -> u32 {
-        let granted = (wanted.max(0.0) as u32).min(self.repeats);
-        self.repeats -= granted;
-        granted
-    }
-
-    fn binary(&mut self, op: Op, left: u32, right: u32) -> Result<Value, Flow> {
-        let a = self.eval(left)?;
-        match op {
-            Op::Or if a.truthy() => return Ok(Value::flag(true)),
-            Op::And if !a.truthy() => return Ok(Value::flag(false)),
-            _ => {}
-        }
-        let b = self.eval(right)?;
-        // A struct is neither equal nor unequal to anything, itself included.
-        let comparable = a.storage().is_none() && b.storage().is_none();
-        let (x, y) = (a.num(), b.num());
-        Ok(match op {
-            Op::Or | Op::And => Value::flag(b.truthy()),
-            Op::Eq => Value::flag(comparable && a == b),
-            Op::Ne => Value::flag(comparable && a != b),
-            Op::Lt => Value::flag(x < y),
-            Op::Le => Value::flag(x <= y),
-            Op::Gt => Value::flag(x > y),
-            Op::Ge => Value::flag(x >= y),
-            Op::Add => Value::Num(x + y),
-            Op::Sub => Value::Num(x - y),
-            Op::Mul => Value::Num(x * y),
-            Op::Div => Value::Num(if y == 0.0 { 0.0 } else { x / y }),
-            Op::DivByMagnitude => Value::Num(if y == 0.0 { 0.0 } else { x / y.abs() }),
-        })
-    }
-
-    fn variable(&mut self, slot: u32, path: &[u32]) -> Option<Value> {
-        match &self.vars {
-            Vars::Own(store) => store.get(slot, path),
-            // Its structs live in a store this evaluation cannot name, so they are copied out.
-            Vars::Other(store) => store.get(slot, path).map(|value| self.temps.import(value, Some(store))),
-        }
-    }
-
-    /// The value of an assignment is what was stored.
-    fn assign(&mut self, target: u32, value: Value) -> Value {
-        let value = storable(value);
-        let program = self.program;
-        match program.nodes[target as usize] {
-            Node::Temp { slot, path } => {
-                let value = if self.temps.owns(value) { self.temps.import(value, None) } else { self.import_temp(value) };
-                self.temps.set(slot, program.list(path), value);
-            }
-            Node::Var { slot, path } => {
-                if let Vars::Own(store) = &mut self.vars {
-                    let value = if store.owns(value) { store.import(value, None) } else { store.import(value, Some(self.temps)) };
-                    store.set(slot, program.list(path), value);
-                }
-            }
-            _ => unreachable!("the parser only assigns to variables"),
-        }
-        value
-    }
-
-    /// `entity->variable.path = value`, handed to the host. Structs and arrays are not handed over:
-    /// they live in this evaluation's stores.
-    fn assign_other(&self, entity: Value, target: u32, value: Value) -> Value {
-        let value = storable(value);
-        let (Value::Entity(entity), Node::Var { slot, path }) = (entity, self.program.nodes[target as usize]) else { return value };
-        let path = self.program.list(path);
-        let mut members = [Symbol::EMPTY; 8];
-        if value.storage().is_none() && path.len() <= members.len() {
-            for (member, &id) in members.iter_mut().zip(path) {
-                *member = Symbol(id);
-            }
-            self.host.assign(entity, Variable(slot), &members[..path.len()], value);
-        }
-        value
-    }
-
-    fn import_temp(&mut self, value: Value) -> Value {
-        match &self.vars {
-            Vars::Own(store) => self.temps.import(value, Some(store)),
-            Vars::Other(store) => self.temps.import(value, Some(store)),
-        }
-    }
-
-    fn arrow(&mut self, entity: u32, of: u32) -> Step {
-        let Value::Entity(entity) = self.eval(entity)? else { return Ok(None) };
-        let Some((host, variables)) = self.host.entity(entity) else { return Ok(None) };
-        let mut other = Machine { program: self.program, host, vars: Vars::Other(&variables.0), temps: self.temps, stack: self.stack, this: self.this, repeats: self.repeats };
-        let value = other.step(of);
-        self.repeats = other.repeats;
-        value
     }
 }
