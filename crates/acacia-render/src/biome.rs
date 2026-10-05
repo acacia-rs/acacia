@@ -31,12 +31,13 @@ const PLAINS: BiomeTint = BiomeTint { grass: rgb(0x91BD59), foliage: rgb(0x77AB2
 
 pub struct BiomeColors {
     by_id: FxHashMap<u32, BiomeTint>,
+    unknown: BiomeTint,
 }
 
 impl Default for BiomeColors {
     /// Plains everywhere, until the server's definitions arrive.
     fn default() -> Self {
-        BiomeColors { by_id: FxHashMap::default() }
+        BiomeColors { by_id: FxHashMap::default(), unknown: PLAINS }
     }
 }
 
@@ -46,21 +47,22 @@ impl BiomeColors {
         let grass = Colormap::load(root, "grass");
         let foliage = Colormap::load(root, "foliage");
         let water = water_colors(root);
+        let unknown = BiomeTint { water: water.get("default").copied().unwrap_or(PLAINS.water), ..PLAINS };
         let by_id = defs
             .iter()
             .map(|d| {
                 let (g, f) = (grass.sample(d), foliage.sample(d));
                 let (grass, foliage) = exceptions(&d.name, g, f);
-                let water = water.get(d.name.as_str()).copied().unwrap_or(PLAINS.water);
+                let water = water.get(d.name.as_str()).copied().unwrap_or(unknown.water);
                 (u32::from(d.id), BiomeTint { grass, foliage, water })
             })
             .collect();
-        BiomeColors { by_id }
+        BiomeColors { by_id, unknown }
     }
 
-    /// Unknown ids (and chunks without biomes) tint like plains.
+    /// Unknown ids (and chunks without biomes) tint like plains, with the files' default water.
     pub fn get(&self, id: u32) -> &BiomeTint {
-        self.by_id.get(&id).unwrap_or(&PLAINS)
+        self.by_id.get(&id).unwrap_or(&self.unknown)
     }
 }
 
@@ -115,7 +117,7 @@ impl Colormap {
     }
 }
 
-/// `water_surface_color` by biome name (namespace stripped).
+/// `water_surface_color` by biome name (namespace stripped); `default` is for biomes not listed.
 fn water_colors(root: &Path) -> FxHashMap<String, [u8; 3]> {
     let Ok(doc) = json::read(&root.join("biomes_client.json")) else { return FxHashMap::default() };
     let Some(biomes) = doc.get("biomes").and_then(Value::as_object) else { return FxHashMap::default() };

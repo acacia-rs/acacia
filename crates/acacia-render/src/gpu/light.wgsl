@@ -43,7 +43,9 @@ fn brightness(slot: u32, face: u32, local: vec3<f32>) -> f32 {
         return flat_light(slot, vec3<i32>(floor(local)));
     }
     let n = NORMAL[face];
-    let s = local + n * 0.5;
+    // Just in front of the face: the next cell for a face on its block's side, the block's own
+    // cell for a model face inside it.
+    let s = local + n * 0.01;
     let c = vec3<i32>(floor(s));
     let center = cell_light(slot, c);
     if center == OPAQUE {

@@ -86,6 +86,7 @@ pub struct BakedFace {
     pub tinted: bool,
     /// The direction it is shaded as; `None` for `shade: false`.
     pub shade: Option<Direction>,
+    pub ambient_occlusion: bool,
 }
 
 /// The faces of `model` as a blockstate places it.
@@ -108,7 +109,8 @@ pub fn bake(model: &Resolved, placed: &ModelRef) -> Vec<BakedFace> {
                 // by their position is the default projection of where they ended up.
                 uvs = positions.map(|p| facing.project(p));
             }
-            faces.push(BakedFace { positions, uvs, texture: texture.to_owned(), cull, tinted: face.tintindex.is_some(), shade: element.shade.then_some(facing) });
+            let (tinted, shade) = (face.tintindex.is_some(), element.shade.then_some(facing));
+            faces.push(BakedFace { positions, uvs, texture: texture.to_owned(), cull, tinted, shade, ambient_occlusion: model.ambient_occlusion });
         }
     }
     faces
@@ -197,7 +199,7 @@ mod tests {
             (name.to_string(), FaceDef { uv: *uv, texture: "#all".into(), cullface: cull.map(str::to_owned), rotation: None, tintindex: None })
         };
         let element = Element { from: [0.0; 3], to: [16.0; 3], rotation: None, faces: faces.iter().map(face).collect(), shade: true };
-        Resolved { textures: [("all".to_owned(), "block/stone".to_owned())].into(), elements: vec![element] }
+        Resolved { textures: [("all".to_owned(), "block/stone".to_owned())].into(), elements: vec![element], ambient_occlusion: true }
     }
 
     fn placed(x: u16, y: u16, uvlock: bool) -> ModelRef {
@@ -241,7 +243,7 @@ mod tests {
         let rotation = ElementRotation { origin: [8.0, 8.0, 8.0], axis: "y".into(), angle: 45.0, rescale: true };
         let face = FaceDef { uv: None, texture: "#all".into(), cullface: None, rotation: None, tintindex: Some(0) };
         let plane = Element { from: [0.0, 0.0, 8.0], to: [16.0, 16.0, 8.0], rotation: Some(rotation), faces: [("south".to_owned(), face)].into(), shade: false };
-        let model = Resolved { textures: [("all".to_owned(), "block/poppy".to_owned())].into(), elements: vec![plane] };
+        let model = Resolved { textures: [("all".to_owned(), "block/poppy".to_owned())].into(), elements: vec![plane], ambient_occlusion: false };
         let [face] = bake(&model, &placed(0, 0, false)).try_into().unwrap();
         assert!(face.tinted && face.shade.is_none());
         let xs: Vec<i32> = face.positions.iter().map(|p| p[0].round() as i32).collect();

@@ -13,8 +13,16 @@ pub const VERSION: &str = "26.3";
 /// `downloads.client.sha1` of that release.
 const CLIENT_SHA1: &str = "e877b6a07acd633fb3bb475002175cec036e7b87";
 const MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-/// The only part of the jar that is unpacked.
+/// The parts of the jar that are unpacked.
 const ASSETS: &str = "assets/minecraft/";
+const BIOMES: &str = "data/minecraft/worldgen/biome/";
+
+pub struct Jar {
+    /// `assets/minecraft`.
+    pub assets: PathBuf,
+    /// `data/minecraft/worldgen/biome`.
+    pub biomes: PathBuf,
+}
 
 /// `$ACACIA_JAVA_ASSETS`, else `assets/java` under the working directory.
 pub fn default_dir() -> PathBuf {
@@ -22,17 +30,18 @@ pub fn default_dir() -> PathBuf {
 }
 
 /// Downloads the pinned client jar into `dir` unless it is there already, and unpacks its assets
-/// to `dir/<version>`. Returns that directory's `assets/minecraft`.
-pub fn fetch(dir: &Path) -> Result<PathBuf, Error> {
+/// and biomes to `dir/<version>`.
+pub fn fetch(dir: &Path) -> Result<Jar, Error> {
     let jar = dir.join(format!("client-{VERSION}.jar"));
     let out = dir.join(VERSION);
-    if !out.join("VERSION").is_file() {
+    // An unpack from before biomes were taken has no biome directory.
+    if !out.join("VERSION").is_file() || !out.join(BIOMES).is_dir() {
         pinned(&jar, CLIENT_SHA1, download_client)?;
         let files = unpack(&jar, &out)?;
         std::fs::write(out.join("VERSION"), VERSION)?;
         println!("{}: {files} files", out.display());
     }
-    Ok(out.join(ASSETS))
+    Ok(Jar { assets: out.join(ASSETS), biomes: out.join(BIOMES) })
 }
 
 fn download_client() -> Result<Vec<u8>, Error> {
@@ -45,14 +54,14 @@ fn download_client() -> Result<Vec<u8>, Error> {
     get(url)
 }
 
-/// Unpacks the jar's `assets/minecraft` under `out`; returns the file count.
+/// Unpacks the jar's assets and biomes under `out`; returns the file count.
 fn unpack(jar: &Path, out: &Path) -> Result<usize, Error> {
     let mut archive = zip::ZipArchive::new(File::open(jar)?)?;
     let mut files = 0;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
         // `enclosed_name` drops entries that would land outside `out`.
-        let Some(path) = entry.enclosed_name().filter(|p| entry.is_file() && p.starts_with(ASSETS)) else { continue };
+        let Some(path) = entry.enclosed_name().filter(|p| entry.is_file() && (p.starts_with(ASSETS) || p.starts_with(BIOMES))) else { continue };
         let to = out.join(path);
         std::fs::create_dir_all(to.parent().expect("an assets path has a parent"))?;
         std::io::copy(&mut entry, &mut File::create(to)?)?;
@@ -68,20 +77,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_the_assets_are_unpacked() {
+    fn only_assets_and_biomes_are_unpacked() {
         let dir = std::env::temp_dir().join(format!("lookbake-jar-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let jar = dir.join("client.jar");
         let mut zip = zip::ZipWriter::new(File::create(&jar).unwrap());
-        for (name, body) in [("assets/minecraft/blockstates/stone.json", "{}"), ("net/minecraft/Main.class", "x"), ("../assets/minecraft/escape.json", "x")] {
+        let entries = [
+            ("assets/minecraft/blockstates/stone.json", "{}"),
+            ("data/minecraft/worldgen/biome/plains.json", "{}"),
+            ("data/minecraft/recipe/stick.json", "x"),
+            ("net/minecraft/Main.class", "x"),
+            ("../assets/minecraft/escape.json", "x"),
+        ];
+        for (name, body) in entries {
             zip.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
             zip.write_all(body.as_bytes()).unwrap();
         }
         zip.finish().unwrap();
 
         let out = dir.join("out");
-        assert_eq!(unpack(&jar, &out).unwrap(), 1);
+        assert_eq!(unpack(&jar, &out).unwrap(), 2);
+        assert!(out.join(BIOMES).join("plains.json").is_file() && !out.join("data/minecraft/recipe").exists());
         assert_eq!(std::fs::read_to_string(out.join("assets/minecraft/blockstates/stone.json")).unwrap(), "{}");
         assert!(!dir.join("assets").exists() && !out.join("net").exists());
         std::fs::remove_dir_all(&dir).unwrap();

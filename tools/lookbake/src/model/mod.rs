@@ -23,6 +23,7 @@ struct ModelFile {
     textures: HashMap<String, String>,
     #[serde(default)]
     elements: Vec<Element>,
+    ambientocclusion: Option<bool>,
 }
 
 /// Slots hold a texture id or, in newer files, `{"sprite": id}`.
@@ -74,6 +75,7 @@ pub struct Resolved {
     /// Slot to texture id (`block/oak_planks`), references followed.
     pub textures: HashMap<String, String>,
     pub elements: Vec<Element>,
+    pub ambient_occlusion: bool,
 }
 
 impl Resolved {
@@ -112,7 +114,7 @@ impl Models {
 
     /// `id` without namespace: `block/oak_stairs`. The child's elements and slots win over its parents'.
     pub fn resolve(&mut self, id: &str) -> Resolved {
-        let (mut slots, mut elements) = (HashMap::new(), None);
+        let (mut slots, mut elements, mut ambient_occlusion) = (HashMap::new(), None, None);
         let mut current = id.to_owned();
         for _ in 0..MAX_PARENTS {
             let Some(file) = self.file(&current) else { break };
@@ -122,13 +124,14 @@ impl Models {
             if elements.is_none() && !file.elements.is_empty() {
                 elements = Some(file.elements.clone());
             }
+            ambient_occlusion = ambient_occlusion.or(file.ambientocclusion);
             match &file.parent {
                 Some(parent) => current = strip_namespace(parent).to_owned(),
                 None => break,
             }
         }
         let textures = slots.iter().map(|(slot, value)| (slot.clone(), strip_namespace(&follow(value, &slots, 0)).to_owned())).collect();
-        Resolved { textures, elements: elements.unwrap_or_default() }
+        Resolved { textures, elements: elements.unwrap_or_default(), ambient_occlusion: ambient_occlusion.unwrap_or(true) }
     }
 }
 
@@ -149,13 +152,14 @@ mod tests {
         std::fs::create_dir_all(dir.join("models/block")).unwrap();
         let write = |name: &str, json: &str| std::fs::write(dir.join(format!("models/block/{name}.json")), json).unwrap();
         write("cube", r##"{"elements": [{"from": [0,0,0], "to": [16,16,16], "faces": {"up": {"texture": "#up", "cullface": "up"}}}]}"##);
-        write("cube_all", r##"{"parent": "minecraft:block/cube", "textures": {"up": "#all", "particle": "#all"}}"##);
+        write("cube_all", r##"{"parent": "minecraft:block/cube", "ambientocclusion": false, "textures": {"up": "#all", "particle": "#all"}}"##);
         write("stone", r##"{"parent": "minecraft:block/cube_all", "textures": {"all": "minecraft:block/stone"}}"##);
         write("broken", "{");
 
         let mut models = Models::new(dir.clone());
         let stone = models.resolve("block/stone");
         assert_eq!(stone.elements.len(), 1);
+        assert!(!stone.ambient_occlusion && models.resolve("block/cube").ambient_occlusion);
         assert_eq!((stone.texture("#up"), stone.texture("#missing")), (Some("block/stone"), None));
         assert!(models.resolve("block/broken").elements.is_empty() && models.resolve("block/absent").elements.is_empty());
         assert_eq!(models.invalid, ["block/broken"]);

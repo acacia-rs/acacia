@@ -1,5 +1,6 @@
 //! The Java look: the Bedrock look with every block the Java assets model drawn their way. Blocks
-//! the Java assets leave to code (liquids, chests, signs) keep their Bedrock rendering.
+//! the Java assets leave to code keep their Bedrock rendering (chests, signs) or only change
+//! textures (liquids).
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -19,6 +20,7 @@ use crate::mapping::Mapping;
 use crate::model::Models;
 use crate::model::bake::{BakedFace, bake};
 use crate::textures::Textures;
+use crate::tint;
 
 /// What became of the vanilla registry's states.
 #[derive(Default)]
@@ -26,6 +28,8 @@ pub struct Report {
     /// Drawn as greedy-meshed cubes and as model faces.
     pub cubes: usize,
     pub models: usize,
+    /// Liquids, drawn the renderer's way with Java's textures.
+    pub liquids: usize,
     /// States left with their Bedrock rendering, by why.
     pub kept: BTreeMap<&'static str, usize>,
     pub missing_textures: Vec<String>,
@@ -39,12 +43,22 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Re
     let (mut models, mut textures) = (Models::new(assets.to_owned()), Textures::new(assets.to_owned()));
     let mut blockstates: HashMap<String, Option<Value>> = HashMap::new();
     let mut report = Report::default();
+    let dry_foliage = tint::dry_foliage(assets);
     for id in 0..registry.len() as u32 {
         let state = registry.get(id).expect("id below len");
         let key = state_key(state);
         let base = look.block(&key).expect("the Bedrock bake covers the registry").clone();
+        if base.fluid != Fluid::None {
+            match liquid(&base, &mut textures, &mut look.atlas) {
+                Some(block) => {
+                    report.liquids += 1;
+                    look.set_block(key, block);
+                }
+                None => *report.kept.entry("texture missing").or_default() += 1,
+            }
+            continue;
+        }
         let faces = match () {
-            _ if base.fluid != Fluid::None => Err("liquid"),
             _ if blocks::model::classify(state).is_some() => Err("drawn as a block entity"),
             _ => mapping.get(&key).ok_or("not in the mapping").and_then(|java| {
                 let file = blockstates.entry(java.name.clone()).or_insert_with(|| {
@@ -55,11 +69,11 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Re
                 match () {
                     _ if faces.is_empty() => Err("no Java geometry"),
                     _ if overlaid(&faces) => Err("overlaid faces"),
-                    _ => Ok(faces),
+                    _ => Ok((faces, tint::of(java, dry_foliage))),
                 }
             }),
         };
-        let block = faces.and_then(|f| render_block(&base, &f, &mut textures, &mut look.atlas).ok_or("texture missing"));
+        let block = faces.and_then(|(f, tint)| render_block(&base, &f, tint, &mut textures, &mut look.atlas).ok_or("texture missing"));
         match block {
             Ok(block) => {
                 if block.shape == Shape::Cube { report.cubes += 1 } else { report.models += 1 }
@@ -91,10 +105,17 @@ fn overlaid(faces: &[BakedFace]) -> bool {
     seen.windows(2).any(|pair| pair[0] == pair[1])
 }
 
-/// `None` when a face's texture has no image.
-fn render_block(base: &RenderBlock, faces: &[BakedFace], textures: &mut Textures, atlas: &mut Atlas) -> Option<RenderBlock> {
-    // Which faces tint is the model's to say; with what is by Bedrock block name, as in the Bedrock look.
-    let tint = base.tint.iter().copied().find(|t| *t != Tint::None).unwrap_or(Tint::None);
+/// A liquid keeps the renderer's liquid geometry and takes Java's textures: still on top and
+/// bottom, flowing on the sides.
+fn liquid(base: &RenderBlock, textures: &mut Textures, atlas: &mut Atlas) -> Option<RenderBlock> {
+    let name = if base.fluid == Fluid::Water { "water" } else { "lava" };
+    let (still, _) = textures.layer(&format!("block/{name}_still"), atlas)?;
+    let (flow, _) = textures.layer(&format!("block/{name}_flow"), atlas)?;
+    Some(RenderBlock { textures: [flow, flow, still, still, flow, flow], ..base.clone() })
+}
+
+/// `tint` colours the faces the model marks; `None` when a face's texture has no image.
+fn render_block(base: &RenderBlock, faces: &[BakedFace], tint: Tint, textures: &mut Textures, atlas: &mut Atlas) -> Option<RenderBlock> {
     let mut model = Vec::with_capacity(faces.len());
     for f in faces {
         let (texture, alpha) = textures.layer(&f.texture, atlas)?;
@@ -110,6 +131,7 @@ fn render_block(base: &RenderBlock, faces: &[BakedFace], textures: &mut Textures
             tint: if f.tinted { tint } else { Tint::None },
             material,
             shade: f.shade.map(|d| d.face()),
+            ambient_occlusion: f.ambient_occlusion,
             cull: f.cull.map(|d| d.face()),
         });
     }
@@ -164,7 +186,7 @@ mod tests {
 
     fn face(positions: [[f32; 3]; 4]) -> BakedFace {
         let uvs = positions.map(|p| Direction::South.project(p));
-        BakedFace { positions, uvs, texture: "block/poppy".into(), cull: None, tinted: false, shade: None }
+        BakedFace { positions, uvs, texture: "block/poppy".into(), cull: None, tinted: false, shade: None, ambient_occlusion: true }
     }
 
     #[test]
