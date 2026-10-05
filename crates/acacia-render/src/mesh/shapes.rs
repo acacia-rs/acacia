@@ -99,6 +99,14 @@ fn model_ao(ctx: &Ctx, p: [i32; 3], f: &ModelFace, side: u8) -> [u8; 4] {
     })
 }
 
+fn emit_cross(ctx: &Ctx, p: [i32; 3], b: &RenderBlock, out: &mut SectionMesh) {
+    let pos = p.map(|c| (c * 16) as u32);
+    let surface = Surface { material: Material::Cutout, ..ctx.surface(p, b, 0) };
+    for face in 6..10 {
+        push(out, b, Quad::new(pos, face, [16, 16], surface, NO_AO));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::volume::{SIDE, Volume, cell};
@@ -140,14 +148,6 @@ mod tests {
         // Halfway to the darkened corners: 2.5 rounds up to unoccluded.
         assert_eq!(slab_top_ao(true, &[[6, 5, 5]]), 0xff);
         assert_eq!(slab_top_ao(true, &[[6, 5, 5], [5, 5, 4]]), 0b11_11_01_10);
-    }
-}
-
-fn emit_cross(ctx: &Ctx, p: [i32; 3], b: &RenderBlock, out: &mut SectionMesh) {
-    let pos = p.map(|c| (c * 16) as u32);
-    let surface = Surface { material: Material::Cutout, ..ctx.surface(p, b, 0) };
-    for face in 6..10 {
-        push(out, b, Quad::new(pos, face, [16, 16], surface, NO_AO));
     }
 }
 

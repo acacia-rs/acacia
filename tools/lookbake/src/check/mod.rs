@@ -136,7 +136,10 @@ fn compare(ours: &[BakedFace], theirs: &[Quad]) -> BTreeSet<&'static str> {
         let positions = quad.positions.map(|p| p.map(|v| v * 16.0));
         let sprite = strip_namespace(&quad.sprite);
         let matches = |textured: bool| {
-            left.iter().enumerate().find_map(|(i, f)| Some((i, turn(&f.positions, &positions)?)).filter(|_| !textured || f.texture == sprite))
+            left.iter()
+                .enumerate()
+                .filter(|(_, f)| !textured || f.texture == sprite)
+                .find_map(|(i, f)| Some((i, turn(&f.positions, &positions)?)))
         };
         let Some((at, turn)) = matches(true).or_else(|| matches(false)) else {
             found.insert("a quad of the game's is missing");

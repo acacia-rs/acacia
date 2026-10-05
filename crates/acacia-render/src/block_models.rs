@@ -13,9 +13,12 @@ use crate::workers::SectionKey;
 /// Block entity data by block position.
 pub type BlockDataMap = HashMap<[i32; 3], BlockData>;
 
+/// A section's block models by position within the section.
+pub type SectionModels = Vec<([u8; 3], Arc<BlockModel>)>;
+
 #[derive(Default)]
 pub struct BlockModels {
-    sections: FxHashMap<SectionKey, Vec<([u8; 3], Arc<BlockModel>)>>,
+    sections: FxHashMap<SectionKey, SectionModels>,
     data: Arc<BlockDataMap>,
     models: Arc<EntityModels>,
     instances: Vec<EntityInstance>,
@@ -24,7 +27,7 @@ pub struct BlockModels {
 
 impl BlockModels {
     /// Replaces a section's models; an empty list forgets the section.
-    pub fn set_section(&mut self, key: SectionKey, models: Vec<([u8; 3], Arc<BlockModel>)>) {
+    pub fn set_section(&mut self, key: SectionKey, models: SectionModels) {
         self.stale |= match models.is_empty() {
             true => self.sections.remove(&key).is_some(),
             false => {
