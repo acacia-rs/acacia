@@ -376,7 +376,7 @@ impl SetEntityData {
                                     })
                                 } else if f_type == types::MetadataDictionaryItemType::Compound {
                                     types::MetadataDictionaryItemValueDefault::Compound(
-                                        crate::nbt::read::<crate::nbt::Network>(r)?,
+                                        crate::nbt::read_raw::<crate::nbt::Network>(r)?,
                                     )
                                 } else if f_type == types::MetadataDictionaryItemType::Vec3i {
                                     types::MetadataDictionaryItemValueDefault::Vec3i(
@@ -459,7 +459,7 @@ impl SetEntityData {
                             write_slice(w, b);
                         }
                         types::MetadataDictionaryItemValueDefault::Compound(x3) => {
-                            crate::nbt::write::<crate::nbt::Network>(w, x3);
+                            x3.write(w);
                         }
                         types::MetadataDictionaryItemValueDefault::Vec3i(x3) => {
                             x3.write(w);
@@ -1550,13 +1550,13 @@ impl crate::Packet for AdventureSettings {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockEntityData {
     pub position: types::BlockCoordinates,
-    pub nbt: crate::nbt::Nbt,
+    pub nbt: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl BlockEntityData {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
         let f_position = (|| -> Result<_> { Ok(types::BlockCoordinates::read(r)?) })()
             .map_err(|e| e.at("BlockEntityData.position"))?;
-        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
             .map_err(|e| e.at("BlockEntityData.nbt"))?;
         Ok(Self {
             position: f_position,
@@ -1565,7 +1565,7 @@ impl BlockEntityData {
     }
     pub fn write(&self, w: &mut BytesMut) {
         self.position.write(w);
-        crate::nbt::write::<crate::nbt::Network>(w, &self.nbt);
+        self.nbt.write(w);
     }
 }
 impl crate::Packet for BlockEntityData {

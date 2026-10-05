@@ -34,6 +34,8 @@ acacia-client             tokio sockets and timers, SOCKS5 (UDP + CONNECT), Neth
  │                        `server::ServerConnection` is the server side (FakeServer, mitm)
  │   ├─ acacia-raknet     network-free RakNet client and server: reliability, split packets, ACK/NACK, ordering
  │   └─ acacia-proto      generated packet structs + codec (varints, lazy Packet)
+ │       └─ acacia-nbt    NBT value tree, network and little-endian flavours; benches, fuzz targets and a
+ │                        corpus of real documents (its README)
  ├─ acacia-nethernet      network-free NetherNet: signaling HTTP bytes (both sides), signal text, signaling-service
  │                        session, STUN/TURN client, a=identity (both directions), fragment framing, str0m connection
  │                        (offer, or BDS-style answer, embedded or trickled), `Host`: many answering connections on one socket
@@ -45,6 +47,7 @@ acacia-mitm               proxy library (record, drop, rewrite, inject) and reco
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
 tools/lookbake            bakes a look pack for acacia-render from a resource pack (docs/java-look.md)
 tools/capdiff             compares what two clients sent in captures (vanilla vs bot): order, delays, cadence, fields
+tools/nbtcorpus           extracts acacia-nbt's corpus from the recorded BDS join and the captured chunk fixtures
 acacia-testserver         (dev) FakeServer replays a recorded BDS join over loopback RakNet, then takes send/recv/kick
                           from the test; capture reader
 ```

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/acacia-auth", "crates/acacia-bot", "crates/acacia-client","crates/acacia-session", "crates/acacia-nethernet", "crates/acacia-physics","crates/acacia-proto","crates/acacia-raknet", "crates/acacia-render", "crates/acacia-testserver", "crates/acacia-viewer", "crates/acacia-world", "crates/acacia-mitm", "tools/capdiff", "tools/codegen", "tools/lookbake"]
+members = ["crates/acacia-auth", "crates/acacia-bot", "crates/acacia-client","crates/acacia-session", "crates/acacia-nethernet", "crates/acacia-physics","crates/acacia-proto","crates/acacia-raknet", "crates/acacia-render", "crates/acacia-testserver", "crates/acacia-viewer", "crates/acacia-world", "crates/acacia-mitm", "crates/acacia-nbt", "tools/capdiff", "tools/codegen", "tools/lookbake", "tools/nbtcorpus"]
 
 [workspace.package]
 edition = "2024"
@@ -13,6 +13,7 @@ rust-version = "1.98"
 [workspace.dependencies]
 acacia-auth = { version = "0.1.0", path = "crates/acacia-auth", default-features = false }
 acacia-client = { version = "0.1.0", path = "crates/acacia-client" }
+acacia-nbt = { version = "0.1.0", path = "crates/acacia-nbt" }
 acacia-nethernet = { version = "0.1.0", path = "crates/acacia-nethernet" }
 acacia-physics = { version = "0.1.0", path = "crates/acacia-physics" }
 acacia-proto = { version = "0.1.0", path = "crates/acacia-proto" }
@@ -31,3 +32,8 @@ crypto-bigint = { opt-level = 3 }
 sha2 = { opt-level = 3 }
 aes = { opt-level = 3 }
 ctr = { opt-level = 3 }
+
+# For sampling profilers: release code with symbols (crates/acacia-nbt/README.md, "Profiling").
+[profile.profiling]
+inherits = "release"
+debug = true

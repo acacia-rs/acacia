@@ -56,7 +56,7 @@ pub(crate) fn dye_color(name: &str) -> Option<i32> {
 fn with_pattern(nbt: Option<&Nbt>, pattern: &str, color: i32) -> Nbt {
     let mut root = nbt.cloned().unwrap_or_else(|| Nbt { name: String::new(), value: Value::Compound(Vec::new()) });
     let Value::Compound(entries) = &mut root.value else { return root };
-    let layer = Value::Compound(vec![("Color".into(), Value::Int(color)), ("Pattern".into(), Value::String(pattern.to_owned()))]);
+    let layer = Value::Compound(vec![("Color".into(), Value::Int(color)), ("Pattern".into(), Value::String(pattern.into()))]);
     match entries.iter_mut().find(|(k, _)| k == "Patterns") {
         Some((_, Value::List(list))) => list.items.push(layer),
         _ => {

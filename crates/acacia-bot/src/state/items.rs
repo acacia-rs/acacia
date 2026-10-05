@@ -44,7 +44,7 @@ impl ItemRegistry {
 
 #[cfg(test)]
 mod tests {
-    use acacia_client::proto::nbt::Nbt;
+    use acacia_client::proto::nbt::Raw;
     use acacia_client::proto::types::{ItemstatesItem, ItemstatesItemVersion};
 
     use super::*;
@@ -56,7 +56,7 @@ mod tests {
             runtime_id,
             component_based: false,
             version: ItemstatesItemVersion::Legacy,
-            nbt: Nbt::default(),
+            nbt: Raw::default(),
         }
     }
 

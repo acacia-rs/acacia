@@ -64,14 +64,14 @@ fn opened_and_written_books_match_vanilla_nbt() {
     let written = edited_book(&opened, &PageEdit::Replace { page: 0, text: "ass".into() });
     let Some(Value::List(pages)) = written.nbt.as_ref().unwrap().value.get("pages") else { panic!() };
     assert_eq!((pages.tag, pages.items.len()), (10, 1));
-    assert_eq!(pages.items[0].get("photoname"), Some(&Value::String(String::new())));
+    assert_eq!(pages.items[0].get("photoname"), Some(&Value::String("".into())));
 }
 
 #[test]
 fn page_edits_apply_to_the_held_book() {
     let text = |book: &ItemStack| -> Vec<String> {
         let Some(Value::List(pages)) = book.nbt.as_ref().unwrap().value.get("pages") else { panic!() };
-        pages.items.iter().map(|p| match p.get("text") { Some(Value::String(t)) => t.clone(), _ => panic!() }).collect()
+        pages.items.iter().map(|p| match p.get("text") { Some(Value::String(t)) => t.to_string(), _ => panic!() }).collect()
     };
     let mut book = ItemStack { network_id: 7, count: 1, ..ItemStack::default() };
     book = edited_book(&book, &PageEdit::Replace { page: 1, text: "two".into() });

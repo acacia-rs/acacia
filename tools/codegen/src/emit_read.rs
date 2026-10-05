@@ -25,7 +25,8 @@ impl Ctx<'_> {
             IrTy::Str { .. } => "String".to_owned(),
             IrTy::Buf { .. } | IrTy::Rest => "Bytes".to_owned(),
             IrTy::Uuid => "crate::manual::Uuid".to_owned(),
-            IrTy::Nbt { .. } => "crate::nbt::Nbt".to_owned(),
+            IrTy::Nbt { le: true } => "crate::nbt::Nbt".to_owned(),
+            IrTy::Nbt { le: false } => "crate::nbt::Raw<crate::nbt::Network>".to_owned(),
             IrTy::NbtLoop => "Vec<crate::nbt::Nbt>".to_owned(),
             IrTy::Item(id)
             | IrTy::Inline(id)
@@ -84,10 +85,10 @@ impl Ctx<'_> {
             ),
             IrTy::Rest => "read_rest(r)".to_owned(),
             IrTy::Uuid => "read_uuid(r)?".to_owned(),
-            IrTy::Nbt { le } => format!(
-                "crate::nbt::read::<crate::nbt::{}>(r)?",
-                if *le { "LittleEndian" } else { "Network" }
-            ),
+            IrTy::Nbt { le: true } => {
+                "crate::nbt::read::<crate::nbt::LittleEndian>(r)?".to_owned()
+            }
+            IrTy::Nbt { le: false } => "crate::nbt::read_raw::<crate::nbt::Network>(r)?".to_owned(),
             IrTy::NbtLoop => "crate::nbt::read_loop(r)?".to_owned(),
             IrTy::Item(id) => format!("{}::read(r)?", self.path(*id)),
             IrTy::Inline(id) => self.read_inline_struct(*id),

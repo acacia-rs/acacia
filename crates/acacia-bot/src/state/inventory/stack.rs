@@ -57,7 +57,7 @@ impl ItemStack {
     fn with_nbt(mut self, nbt: Option<Nbt>) -> Self {
         let display = nbt.as_ref().and_then(|n| n.value.get("display"));
         self.custom_name = match display.and_then(|d| d.get("Name")) {
-            Some(Value::String(name)) => Some(name.clone()),
+            Some(Value::String(name)) => Some(name.to_string()),
             _ => None,
         };
         self.lore = match display.and_then(|d| d.get("Lore")) {
@@ -65,7 +65,7 @@ impl ItemStack {
                 .items
                 .iter()
                 .filter_map(|line| match line {
-                    Value::String(s) => Some(s.clone()),
+                    Value::String(s) => Some(s.to_string()),
                     _ => None,
                 })
                 .collect(),

@@ -1426,7 +1426,7 @@ impl PositionTrackingDbRequestAction {
 pub struct PositionTrackingDbBroadcast {
     pub broadcast_action: PositionTrackingDbBroadcastBroadcastAction,
     pub tracking_id: i32,
-    pub nbt: crate::nbt::Nbt,
+    pub nbt: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl PositionTrackingDbBroadcast {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
@@ -1435,7 +1435,7 @@ impl PositionTrackingDbBroadcast {
                 .map_err(|e| e.at("PositionTrackingDbBroadcast.broadcast_action"))?;
         let f_tracking_id = (|| -> Result<_> { Ok(read_zigzag32(r)?) })()
             .map_err(|e| e.at("PositionTrackingDbBroadcast.tracking_id"))?;
-        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
             .map_err(|e| e.at("PositionTrackingDbBroadcast.nbt"))?;
         Ok(Self {
             broadcast_action: f_broadcast_action,
@@ -1446,7 +1446,7 @@ impl PositionTrackingDbBroadcast {
     pub fn write(&self, w: &mut BytesMut) {
         self.broadcast_action.write(w);
         write_zigzag32(w, self.tracking_id);
-        crate::nbt::write::<crate::nbt::Network>(w, &self.nbt);
+        self.nbt.write(w);
     }
 }
 impl crate::Packet for PositionTrackingDbBroadcast {
@@ -2050,7 +2050,7 @@ impl ItemRegistry {
                         let f_runtime_id = read_li16(r)?;
                         let f_component_based = read_bool(r)?;
                         let f_version = types::ItemstatesItemVersion::read(r)?;
-                        let f_nbt = crate::nbt::read::<crate::nbt::Network>(r)?;
+                        let f_nbt = crate::nbt::read_raw::<crate::nbt::Network>(r)?;
                         types::ItemstatesItem {
                             name: f_name,
                             runtime_id: f_runtime_id,
@@ -2081,7 +2081,7 @@ impl ItemRegistry {
                 write_li16(w, x1.runtime_id);
                 write_bool(w, x1.component_based);
                 x1.version.write(w);
-                crate::nbt::write::<crate::nbt::Network>(w, &x1.nbt);
+                x1.nbt.write(w);
             }
         }
     }
@@ -2177,16 +2177,16 @@ impl crate::Packet for PrimitiveShapes {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SyncEntityProperty {
-    pub nbt: crate::nbt::Nbt,
+    pub nbt: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl SyncEntityProperty {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
             .map_err(|e| e.at("SyncEntityProperty.nbt"))?;
         Ok(Self { nbt: f_nbt })
     }
     pub fn write(&self, w: &mut BytesMut) {
-        crate::nbt::write::<crate::nbt::Network>(w, &self.nbt);
+        self.nbt.write(w);
     }
 }
 impl crate::Packet for SyncEntityProperty {
@@ -2203,7 +2203,7 @@ impl crate::Packet for SyncEntityProperty {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AddVolumeEntity {
     pub runtime_id: u64,
-    pub nbt: crate::nbt::Nbt,
+    pub nbt: crate::nbt::Raw<crate::nbt::Network>,
     pub encoding_identifier: String,
     pub instance_name: String,
     pub bounds: AddVolumeEntityBounds,
@@ -2214,7 +2214,7 @@ impl AddVolumeEntity {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
         let f_runtime_id = (|| -> Result<_> { Ok(read_varint64(r)?) })()
             .map_err(|e| e.at("AddVolumeEntity.runtime_id"))?;
-        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
             .map_err(|e| e.at("AddVolumeEntity.nbt"))?;
         let f_encoding_identifier = (|| -> Result<_> {
             Ok({
@@ -2262,7 +2262,7 @@ impl AddVolumeEntity {
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_varint64(w, self.runtime_id);
-        crate::nbt::write::<crate::nbt::Network>(w, &self.nbt);
+        self.nbt.write(w);
         {
             let b = self.encoding_identifier.as_bytes();
             write_varint(w, b.len() as u32);

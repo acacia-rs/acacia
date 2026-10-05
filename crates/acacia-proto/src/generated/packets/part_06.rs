@@ -1649,13 +1649,13 @@ impl crate::Packet for DeathInfo {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EditorNetwork {
     pub route_to_manager: bool,
-    pub payload: crate::nbt::Nbt,
+    pub payload: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl EditorNetwork {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
         let f_route_to_manager = (|| -> Result<_> { Ok(read_bool(r)?) })()
             .map_err(|e| e.at("EditorNetwork.route_to_manager"))?;
-        let f_payload = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+        let f_payload = (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
             .map_err(|e| e.at("EditorNetwork.payload"))?;
         Ok(Self {
             route_to_manager: f_route_to_manager,
@@ -1664,7 +1664,7 @@ impl EditorNetwork {
     }
     pub fn write(&self, w: &mut BytesMut) {
         write_bool(w, self.route_to_manager);
-        crate::nbt::write::<crate::nbt::Network>(w, &self.payload);
+        self.payload.write(w);
     }
 }
 impl crate::Packet for EditorNetwork {

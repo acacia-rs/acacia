@@ -95,6 +95,32 @@ fn move_player_fields() {
 }
 
 #[test]
+fn shield_id_scan_agrees_with_the_decoder() {
+    use acacia_proto::manual::shield_item_id_in_registry;
+    use acacia_proto::nbt::{Nbt, Value};
+    use acacia_proto::types::{ItemstatesItem, ItemstatesItemVersion};
+
+    let entry = |name: &str, runtime_id, nbt: Nbt| ItemstatesItem {
+        name: name.into(),
+        runtime_id,
+        component_based: true,
+        version: ItemstatesItemVersion::DataDriven,
+        nbt: nbt.into(),
+    };
+    let components = Nbt { name: String::new(), value: Value::Compound(vec![("minecraft:shield".into(), Value::Int(1))]) };
+    let mut registries: Vec<ItemRegistry> = samples::<ItemRegistry>().into_iter().map(|(p, _)| p).collect();
+    registries.push(ItemRegistry { itemstates: vec![entry("minecraft:stone", 1, components), entry("minecraft:shield", 380, Nbt::default())] });
+    registries.push(ItemRegistry { itemstates: vec![entry("minecraft:stone", 1, Nbt::default())] });
+    for registry in &registries {
+        let mut body = bytes::BytesMut::new();
+        registry.encode(&mut body);
+        let decoded = registry.itemstates.iter().find(|i| i.name == "minecraft:shield").map(|i| i32::from(i.runtime_id));
+        assert_eq!(shield_item_id_in_registry(&body).unwrap(), decoded);
+    }
+    assert_eq!(shield_item_id_in_registry(&[]).ok(), None);
+}
+
+#[test]
 fn item_registry_entries() {
     for (p, j) in samples::<ItemRegistry>() {
         let js = j["itemstates"].as_array().unwrap();

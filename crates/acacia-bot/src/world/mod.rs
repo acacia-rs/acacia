@@ -322,7 +322,7 @@ fn custom_blocks(sg: &StartGame) -> Vec<CustomBlock> {
         .iter()
         .filter(|b| vanilla.states_of(&b.name).next().is_none())
         .map(|b| {
-            let state_count = match b.state.value.get("properties") {
+            let state_count = match b.state.decode().ok().as_ref().and_then(|s| s.value.get("properties")) {
                 Some(Value::List(l)) => l.items.iter().map(enum_len).product(),
                 _ => 1,
             };

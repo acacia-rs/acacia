@@ -77,7 +77,7 @@ impl Stations {
             }
             UpdateTrade::ID => {
                 let p: UpdateTrade = packet.decode()?;
-                let offers = match p.offers.value.get("Recipes") {
+                let offers = match p.offers.decode()?.value.get("Recipes") {
                     Some(Value::List(list)) => list.items.iter().map(trade_offer).collect(),
                     _ => Vec::new(),
                 };
@@ -133,7 +133,7 @@ fn trade_offer(offer: &Value) -> TradeOffer {
 
 fn trade_item(item: &Value) -> TradeItem {
     let name = match item.get("Name") {
-        Some(Value::String(s)) => s.clone(),
+        Some(Value::String(s)) => s.to_string(),
         _ => String::new(),
     };
     let count = match item.get("Count") {

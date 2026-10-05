@@ -365,7 +365,7 @@ pub type BlockProperties = Vec<BlockPropertiesItem>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockPropertiesItem {
     pub name: String,
-    pub state: crate::nbt::Nbt,
+    pub state: crate::nbt::Raw<crate::nbt::Network>,
 }
 
 pub type Itemstates = Vec<ItemstatesItem>;
@@ -376,7 +376,7 @@ pub struct ItemstatesItem {
     pub runtime_id: i16,
     pub component_based: bool,
     pub version: ItemstatesItemVersion,
-    pub nbt: crate::nbt::Nbt,
+    pub nbt: crate::nbt::Raw<crate::nbt::Network>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1707,7 +1707,7 @@ pub enum MetadataDictionaryItemValueDefault {
     Int(i32),
     Float(f32),
     String(String),
-    Compound(crate::nbt::Nbt),
+    Compound(crate::nbt::Raw<crate::nbt::Network>),
     Vec3i(Vec3i),
     Long(i64),
     Vec3f(Vec3f),

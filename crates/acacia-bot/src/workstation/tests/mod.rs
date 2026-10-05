@@ -6,7 +6,7 @@ mod grid;
 mod stations;
 mod trade;
 
-use acacia_client::proto::nbt::Nbt;
+use acacia_client::proto::nbt::{Nbt, Raw};
 use acacia_client::proto::packets::{ItemRegistry as ItemRegistryPacket, ItemStackRequest as ItemStackRequestPacket};
 use acacia_client::proto::types::{
     ContainerSlotType, FullContainerName, ItemStackRequest, ItemStackRequestActionsItemTypeId as TypeId, ItemstatesItem,
@@ -67,7 +67,7 @@ pub(super) fn state(main: &[(usize, ItemStack)]) -> GameState {
             runtime_id,
             component_based: false,
             version: ItemstatesItemVersion::Legacy,
-            nbt: Nbt::default(),
+            nbt: Raw::default(),
         })
         .collect();
     state.apply(&raw(&ItemRegistryPacket { itemstates })).unwrap();

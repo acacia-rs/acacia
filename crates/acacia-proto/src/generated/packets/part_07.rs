@@ -485,19 +485,19 @@ impl crate::Packet for ServerboundLoadingScreen {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct JigsawStructureData {
-    pub structure_data: crate::nbt::Nbt,
+    pub structure_data: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl JigsawStructureData {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
         let f_structure_data =
-            (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+            (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
                 .map_err(|e| e.at("JigsawStructureData.structure_data"))?;
         Ok(Self {
             structure_data: f_structure_data,
         })
     }
     pub fn write(&self, w: &mut BytesMut) {
-        crate::nbt::write::<crate::nbt::Network>(w, &self.structure_data);
+        self.structure_data.write(w);
     }
 }
 impl crate::Packet for JigsawStructureData {

@@ -13,7 +13,7 @@ use crate::ActionError;
 
 /// A stack with `(key, int)` NBT entries.
 fn tagged(name: &str, stack_id: i32, ints: &[(&str, i32)]) -> ItemStack {
-    let entries = ints.iter().map(|&(k, v)| (k.to_owned(), Value::Int(v))).collect();
+    let entries = ints.iter().map(|&(k, v)| (k.into(), Value::Int(v))).collect();
     ItemStack { nbt: Some(Nbt { name: String::new(), value: Value::Compound(entries) }), ..stack(name, 1, stack_id) }
 }
 
