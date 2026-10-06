@@ -125,7 +125,7 @@ walk, for an estimated 15-25% on arithmetic-heavy expressions.
 - `tests/oracle.rs`: every case of `tests/oracle/*.cases` against BDS's answer. Add a case, rerun the
   oracle, commit both files. The cases this crate knowingly answers differently are listed in the test.
   Numbers may differ by four float steps: the answers are a Windows BDS's, whose math library does not
-  round like Rust's. As of 2026-10-05 the test has only run on Windows.
+  round like Rust's. It passes on Windows and on CI's Linux.
 - `tests/corpus.rs`: every expression of the vanilla packs compiles and evaluates. The corpus is
   Mojang's, so it is fetched into the git-ignored `assets/molang/` by `tools/molang-oracle/corpus.py`
   and the test passes vacuously without it.
