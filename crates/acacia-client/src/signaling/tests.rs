@@ -64,8 +64,8 @@ fn friend_targets_follow_the_connection_type() {
     assert_eq!(t(&conn(K::SignalingLegacy, None, None)), None);
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn dials_through_a_fake_jsonrpc_host() {
+/// Starts the fake service with a host behind it (which echoes what it is sent) and returns how to dial it.
+async fn fake_service() -> (SignalingTarget, Identity) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let mut host = RtcHost::bind(true).await;
@@ -83,16 +83,32 @@ async fn dials_through_a_fake_jsonrpc_host() {
             }
         }
     });
-
     let target = SignalingTarget {
         host: format!("ws://127.0.0.1:{port}"),
         protocol: SignalingProtocol::JsonRpc,
         peer: HOST_ID.into(),
         mc_token: "token".into(),
     };
-    let identity = Identity::multiplayer(SigningKey::from_slice(&[5; 48]).unwrap(), "token".into());
+    (target, Identity::multiplayer(SigningKey::from_slice(&[5; 48]).unwrap(), "token".into()))
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn dials_through_a_fake_jsonrpc_host() {
+    let (target, identity) = fake_service().await;
     let dialed = tokio::time::timeout(Duration::from_secs(20), dial(&target, &identity, None)).await;
     let dialed = dialed.expect("dial timed out").expect("dial failed");
     assert!(dialed.wire.conn.is_open());
     assert!(dialed.wire.turn().is_none(), "a reachable host needs no TURN");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_raw_link_carries_batches_both_ways() {
+    let (target, identity) = fake_service().await;
+    let link = tokio::time::timeout(Duration::from_secs(20), crate::RawLink::dial(&target, &identity, None)).await;
+    let mut link = link.expect("dial timed out").expect("dial failed");
+    // Larger than one WebRTC message, so it crosses the link in segments.
+    let batch = bytes::Bytes::from(vec![0xfe; 30_000]);
+    assert!(link.send(batch.clone()));
+    let echoed = tokio::time::timeout(Duration::from_secs(10), link.recv()).await.expect("no echo within 10 s");
+    assert_eq!(echoed, Some(batch));
 }

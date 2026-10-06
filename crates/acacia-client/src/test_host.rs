@@ -83,6 +83,12 @@ impl RtcHost {
                 Output::Transmit(t) => {
                     self.udp.send_to(&t.contents, t.destination).await.unwrap();
                 }
+                // Echoes what the client sends: enough for a test to see its batches cross the link.
+                Output::Event(str0m::Event::ChannelData(data)) => {
+                    if let Some(mut channel) = rtc.channel(data.id) {
+                        channel.write(data.binary, &data.data).unwrap();
+                    }
+                }
                 Output::Event(_) => {}
             }
         }

@@ -28,6 +28,7 @@ mod pack_fetch;
 mod ping;
 #[cfg(feature = "online")]
 mod qos;
+mod raw;
 #[cfg(feature = "online")]
 mod realm;
 mod route;
@@ -56,7 +57,8 @@ pub use ping::{ping, ServerStatus};
 #[cfg(feature = "online")]
 pub use qos::measure_ping_regions;
 #[cfg(feature = "online")]
-pub use realm::{realm_builder, RealmJoinError};
+pub use realm::{realm_builder, realm_route, RealmJoinError, RealmRoute};
+pub use raw::RawLink;
 pub use signaling::{SignalingProtocol, SignalingTarget};
 pub use socks5::{ProxyParseError, Socks5Proxy};
 

@@ -21,17 +21,40 @@ pub async fn realm_builder(
     realm_id: i64,
     proxy: Option<&Socks5Proxy>,
 ) -> Result<ClientBuilder, RealmJoinError> {
+    let route = realm_route(auth, account, realm_id, proxy).await?;
+    let (key, credentials) = account.login_credentials().await?;
+    Ok(match route {
+        RealmRoute::Address(address) => Client::builder(address).online(credentials, key),
+        RealmRoute::Signaled(target) => Client::builder(target.peer.clone()).online(credentials, key).signaling(target),
+    })
+}
+
+/// How a started realm is reached.
+#[derive(Debug, Clone)]
+pub enum RealmRoute {
+    /// A RakNet realm's `host:port`.
+    Address(String),
+    /// A NetherNet realm, through the signaling service.
+    Signaled(SignalingTarget),
+}
+
+/// Asks Realms to start `realm_id` and says how to reach it, for a caller that dials it itself
+/// ([`crate::RawLink`]); [`realm_builder`] is this plus a signed-in builder.
+pub async fn realm_route(
+    auth: &AuthClient,
+    account: &Account,
+    realm_id: i64,
+    proxy: Option<&Socks5Proxy>,
+) -> Result<RealmRoute, RealmJoinError> {
     let ping_regions = measure_ping_regions(&auth.qos_beacons().await?, proxy).await?;
     let join = account.join_realm(realm_id, &ping_regions).await?;
-    let (key, credentials) = account.login_credentials().await?;
-    let mut builder = Client::builder(&join.address).online(credentials, key);
-    if join.protocol != RealmProtocol::RakNet {
-        let token = account.service_token().await?.authorization_header;
-        let host = signaling_host(auth).await?;
-        let target = SignalingTarget::from_realm(&join, token, &host).ok_or(RealmJoinError::Unsupported(join.protocol))?;
-        builder = builder.signaling(target);
+    if join.protocol == RealmProtocol::RakNet {
+        return Ok(RealmRoute::Address(join.address));
     }
-    Ok(builder)
+    let token = account.service_token().await?.authorization_header;
+    let host = signaling_host(auth).await?;
+    let target = SignalingTarget::from_realm(&join, token, &host).ok_or(RealmJoinError::Unsupported(join.protocol))?;
+    Ok(RealmRoute::Signaled(target))
 }
 
 /// Discovery's signaling service host (what vanilla dials for realms and friends' worlds).
