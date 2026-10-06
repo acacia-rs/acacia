@@ -45,7 +45,7 @@ pub(crate) fn anvil_outcome(state: &GameState, item: &ItemStack, material: Optio
         }
         Some(name) if !name.is_empty() && item.custom_name.as_deref() != Some(name) => {
             result.custom_name = Some(name.to_owned());
-            set_nbt(&mut result, "display", Value::Compound(vec![("Name".into(), Value::String(name.to_owned()))]));
+            set_nbt(&mut result, "display", Value::Compound(vec![("Name".into(), Value::String(name.into()))]));
             cost += 1;
             rename_cost = 1;
         }

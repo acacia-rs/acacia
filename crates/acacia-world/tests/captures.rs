@@ -45,7 +45,7 @@ fn custom_blocks(sg: &StartGame) -> Vec<CustomBlock> {
     sg.block_properties
         .iter()
         .map(|b| {
-            let state_count = match b.state.value.get("properties") {
+            let state_count = match b.state.decode().unwrap().value.get("properties") {
                 Some(Value::List(l)) => l.items.iter().map(enum_len).product(),
                 _ => 1,
             };

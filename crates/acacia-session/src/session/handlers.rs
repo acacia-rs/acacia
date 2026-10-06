@@ -70,9 +70,8 @@ impl Session {
             ResourcePackStack::ID => self.on_pack_stack(),
             StartGame::ID => self.runtime_entity_id = Some(read_runtime_entity_id(&raw.body)?),
             ItemRegistry::ID => {
-                let registry: ItemRegistry = raw.decode()?;
-                if let Some(shield) = registry.itemstates.iter().find(|i| i.name == "minecraft:shield") {
-                    acacia_proto::manual::set_shield_item_id(shield.runtime_id.into());
+                if let Some(shield) = acacia_proto::manual::shield_item_id_in_registry(&raw.body)? {
+                    acacia_proto::manual::set_shield_item_id(shield);
                 }
                 // Vanilla asks for its view distance after the item registry, with its device maximum.
                 let max_radius = acacia_auth::MAX_VIEW_DISTANCE as u8;

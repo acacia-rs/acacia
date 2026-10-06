@@ -147,7 +147,7 @@ pub fn crafting_data(shaped_recipes: Vec<ShapedRecipe>, shapeless_recipes: Vec<S
 }
 
 fn compound(entries: Vec<(&str, Value)>) -> Value {
-    Value::Compound(entries.into_iter().map(|(k, v)| (k.to_owned(), v)).collect())
+    Value::Compound(entries.into_iter().map(|(k, v)| (k.into(), v)).collect())
 }
 
 fn trade_item(name: &str, count: i8) -> Value {
@@ -167,7 +167,7 @@ pub fn update_trade(recipes: Vec<Value>) -> UpdateTrade {
         display_name: "entity.villager.librarian".into(),
         new_trading_ui: true,
         economic_trades: true,
-        offers,
+        offers: offers.into(),
     }
 }
 

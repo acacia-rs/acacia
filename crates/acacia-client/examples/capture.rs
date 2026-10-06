@@ -1,12 +1,24 @@
 //! Records packets (header id + body) to `<outdir>/<seq>_<id>.bin` for fixtures and replay.
 //! `cargo run -p acacia-client --example capture -- <server> <name|@account> <seconds> <outdir> [ids...]`
-//! No ids = record everything. `BEDROCK_PROXY` works as in the `afk` example.
+//! No ids = record everything. `BEDROCK_PROXY` works as in the `afk` example; `BEDROCK_SKIP_PACKS=1`
+//! joins as a player who has every resource pack cached.
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use acacia_client::auth::{Account, AuthClient, AuthConfig, FileTokenCache};
-use acacia_client::{Client, Event, PacketFilter, Socks5Proxy};
+use acacia_client::{Client, Event, PackStore, PacketFilter, Socks5Proxy};
+
+/// Answers like a returning player with every pack cached, so nothing is downloaded.
+struct EveryPack;
+
+impl PackStore for EveryPack {
+    fn has(&self, _: &str) -> bool {
+        true
+    }
+
+    fn insert(&self, _: &str) {}
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,9 +31,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let filter = if ids.is_empty() { PacketFilter::all() } else { ids.iter().map(|i| i.parse::<u32>()).collect::<Result<_, _>>()? };
     let proxy = std::env::var("BEDROCK_PROXY").ok().map(|p| Socks5Proxy::parse(&p)).transpose()?;
 
-    let mut builder = Client::builder(server.as_str()).filter(filter).event_capacity(4096);
+    // Long enough to download a network's resource packs (The Hive: several) before spawning.
+    let mut builder = Client::builder(server.as_str()).filter(filter).event_capacity(4096).login_timeout(Duration::from_secs(180));
     if let Some(p) = &proxy {
         builder = builder.proxy(p.clone());
+    }
+    if std::env::var_os("BEDROCK_SKIP_PACKS").is_some() {
+        builder = builder.pack_store(Arc::new(EveryPack));
     }
     builder = match name.strip_prefix('@') {
         Some(account) => {

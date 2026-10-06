@@ -71,6 +71,15 @@ impl Packs {
     fn is_done(&self) -> bool {
         self.downloads.is_empty() && self.fetching.is_empty()
     }
+
+    /// The download a server's `pack_id` names. BDS echoes `<uuid>_<version>`; The Hive
+    /// (2026-10-05) names the pack by its uuid alone, and ignoring that stalled the join.
+    fn download_key(&self, pack_id: &str) -> Option<String> {
+        if self.downloads.contains_key(pack_id) {
+            return Some(pack_id.to_owned());
+        }
+        self.downloads.keys().find(|key| key.split_once('_').is_some_and(|(uuid, _)| uuid == pack_id)).cloned()
+    }
 }
 
 impl Session {
@@ -120,7 +129,7 @@ impl Session {
 
     pub(super) fn on_pack_data_info(&mut self, raw: &RawPacket) -> Result<(), Error> {
         let info: ResourcePackDataInfo = raw.decode()?;
-        let Some(download) = self.packs.downloads.get_mut(&info.pack_id) else {
+        let Some(download) = self.packs.download_key(&info.pack_id).and_then(|key| self.packs.downloads.get_mut(&key)) else {
             tracing::debug!(pack = info.pack_id, "data info for a pack we did not ask for");
             return Ok(());
         };
@@ -134,20 +143,21 @@ impl Session {
 
     pub(super) fn on_pack_chunk(&mut self, raw: &RawPacket) -> Result<(), Error> {
         let chunk: ResourcePackChunkData = raw.decode()?;
-        let Some(download) = self.packs.downloads.get_mut(&chunk.pack_id) else { return Ok(()) };
+        let Some(key) = self.packs.download_key(&chunk.pack_id) else { return Ok(()) };
+        let download = self.packs.downloads.get_mut(&key).expect("key of a download");
         if let Some(slot) = download.chunks.get_mut(chunk.chunk_index as usize) {
             *slot = Some(chunk.payload);
         }
         if !download.is_complete() {
             return Ok(());
         }
-        let download = self.packs.downloads.remove(&chunk.pack_id).expect("found above");
+        let download = self.packs.downloads.remove(&key).expect("found above");
         let mut hash = Sha256::new();
         download.chunks.iter().flatten().for_each(|c| hash.update(c));
         if download.expected_hash.as_deref() == Some(&hash.finalize()[..]) {
-            self.packs.store.insert(&chunk.pack_id);
+            self.packs.store.insert(&key);
         } else {
-            tracing::warn!(pack = chunk.pack_id, "resource pack hash mismatch; not cached");
+            tracing::warn!(pack = key, "resource pack hash mismatch; not cached");
         }
         if self.packs.is_done() {
             self.respond_to_packs(delay::PACKS_DOWNLOADED, Status::HaveAllPacks, HAVE_ALL_NAME, None);

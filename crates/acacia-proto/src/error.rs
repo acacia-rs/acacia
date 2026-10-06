@@ -28,6 +28,20 @@ pub enum DecodeError {
     },
 }
 
+impl From<acacia_nbt::Error> for DecodeError {
+    fn from(e: acacia_nbt::Error) -> Self {
+        use acacia_nbt::Error;
+        match e {
+            Error::Eof { needed, remaining } => DecodeError::Eof { needed, remaining },
+            Error::VarIntTooLong => DecodeError::VarIntTooLong,
+            Error::InvalidLength(n) => DecodeError::InvalidLength(n),
+            Error::UnknownTag(_) => DecodeError::Nbt("unknown tag type"),
+            Error::EndList(_) => DecodeError::Nbt("list of End tags has a length"),
+            Error::TooDeep(max) => DecodeError::NbtTooDeep(max),
+        }
+    }
+}
+
 impl DecodeError {
     /// Wraps the error with a `Type.field` location.
     #[cold]

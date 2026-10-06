@@ -1330,7 +1330,7 @@ pub struct UpdateTrade {
     pub display_name: String,
     pub new_trading_ui: bool,
     pub economic_trades: bool,
-    pub offers: crate::nbt::Nbt,
+    pub offers: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl UpdateTrade {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
@@ -1357,7 +1357,7 @@ impl UpdateTrade {
             .map_err(|e| e.at("UpdateTrade.new_trading_ui"))?;
         let f_economic_trades = (|| -> Result<_> { Ok(read_bool(r)?) })()
             .map_err(|e| e.at("UpdateTrade.economic_trades"))?;
-        let f_offers = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+        let f_offers = (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
             .map_err(|e| e.at("UpdateTrade.offers"))?;
         Ok(Self {
             window_id: f_window_id,
@@ -1386,7 +1386,7 @@ impl UpdateTrade {
         }
         write_bool(w, self.new_trading_ui);
         write_bool(w, self.economic_trades);
-        crate::nbt::write::<crate::nbt::Network>(w, &self.offers);
+        self.offers.write(w);
     }
 }
 impl crate::Packet for UpdateTrade {
@@ -1406,7 +1406,7 @@ pub struct UpdateEquipment {
     pub window_type: types::WindowType,
     pub size: u8,
     pub entity_id: i64,
-    pub inventory: crate::nbt::Nbt,
+    pub inventory: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl UpdateEquipment {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
@@ -1418,8 +1418,9 @@ impl UpdateEquipment {
             (|| -> Result<_> { Ok(read_u8(r)?) })().map_err(|e| e.at("UpdateEquipment.size"))?;
         let f_entity_id = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
             .map_err(|e| e.at("UpdateEquipment.entity_id"))?;
-        let f_inventory = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
-            .map_err(|e| e.at("UpdateEquipment.inventory"))?;
+        let f_inventory =
+            (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
+                .map_err(|e| e.at("UpdateEquipment.inventory"))?;
         Ok(Self {
             window_id: f_window_id,
             window_type: f_window_type,
@@ -1433,7 +1434,7 @@ impl UpdateEquipment {
         self.window_type.write(w);
         write_u8(w, self.size);
         write_zigzag64(w, self.entity_id);
-        crate::nbt::write::<crate::nbt::Network>(w, &self.inventory);
+        self.inventory.write(w);
     }
 }
 impl crate::Packet for UpdateEquipment {

@@ -187,7 +187,7 @@ pub(crate) fn edited_book(book: &ItemStack, edit: &PageEdit) -> ItemStack {
         Some(Value::List(list)) => list.items.clone(),
         _ => Vec::new(),
     };
-    let page = |text: &str| Value::Compound(vec![("photoname".into(), Value::String(String::new())), ("text".into(), Value::String(text.into()))]);
+    let page = |text: &str| Value::Compound(vec![("photoname".into(), Value::String("".into())), ("text".into(), Value::String(text.into()))]);
     match *edit {
         PageEdit::Replace { page: i, ref text } => {
             let i = usize::from(i);
@@ -213,7 +213,7 @@ pub(crate) fn signed_book(book: &ItemStack, written_book: i32, title: &str, auth
     let signature =
         [("author", Value::String(author.into())), ("generation", Value::Int(0)), ("title", Value::String(title.into())), ("xuid", Value::String(xuid.into()))];
     entries.retain(|(k, _)| !signature.iter().any(|(s, _)| s == k));
-    entries.extend(signature.map(|(k, v)| (k.to_owned(), v)));
+    entries.extend(signature.map(|(k, v)| (k.into(), v)));
     entries.sort_by(|a, b| a.0.cmp(&b.0));
     ItemStack { network_id: written_book, nbt: Some(Nbt { name: String::new(), value: Value::Compound(entries) }), ..book.clone() }
 }

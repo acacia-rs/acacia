@@ -113,7 +113,7 @@ pub(crate) fn cartography_plan(state: &GameState, rename: Option<&str>) -> Resul
     }
     if let Some(name) = rename {
         result.custom_name = Some(name.to_owned());
-        set_nbt(&mut result, "display", Value::Compound(vec![("Name".into(), Value::String(name.to_owned()))]));
+        set_nbt(&mut result, "display", Value::Compound(vec![("Name".into(), Value::String(name.into()))]));
     }
     let action = CraftAction::Optional { network_id: recipe, filter_index: 0 };
     let craft = Craft::new(action, vec![named(state, &result)?]).cartography_name(rename.unwrap_or(""));

@@ -1,4 +1,4 @@
-use acacia_client::proto::nbt::Nbt;
+use acacia_client::proto::nbt::Raw;
 use acacia_client::proto::packets::{ContainerOpen, ItemRegistry as ItemRegistryPacket, PlayerHotbar};
 use acacia_client::proto::types::{BlockCoordinates, ItemstatesItem, ItemstatesItemVersion, WindowID, WindowIDVarint, WindowType};
 
@@ -11,7 +11,7 @@ fn registry() -> ItemRegistryPacket {
         runtime_id,
         component_based: false,
         version: ItemstatesItemVersion::Legacy,
-        nbt: Nbt::default(),
+        nbt: Raw::default(),
     };
     ItemRegistryPacket {
         itemstates: vec![entry("minecraft:stone", 1), entry("minecraft:diamond", 304), entry("minecraft:emerald", 500)],

@@ -28,3 +28,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # Live tests (real accounts, servers) are #[ignore]d; everything else is offline.
       - run: cargo test --workspace
+
+  # A short run per target, seeded with the real documents (crates/acacia-nbt/README.md, "Fuzzing").
+  fuzz:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/acacia-nbt/fuzz
+      - run: cargo install cargo-fuzz --locked
+      - run: crates/acacia-nbt/fuzz/run.sh decode 60
+      - run: crates/acacia-nbt/fuzz/run.sh tree 60

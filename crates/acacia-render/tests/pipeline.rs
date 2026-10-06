@@ -45,7 +45,7 @@ fn geyser_view() -> ChunkView {
         .iter()
         .map(|b| CustomBlock {
             name: b.name.clone(),
-            state_count: match b.state.value.get("properties") {
+            state_count: match b.state.decode().unwrap().value.get("properties") {
                 Some(Value::List(l)) => l.items.iter().map(enum_len).product(),
                 _ => 1,
             },

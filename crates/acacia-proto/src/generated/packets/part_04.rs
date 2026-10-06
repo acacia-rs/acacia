@@ -1605,16 +1605,16 @@ impl crate::Packet for SpawnParticleEffect {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AvailableEntityIdentifiers {
-    pub nbt: crate::nbt::Nbt,
+    pub nbt: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl AvailableEntityIdentifiers {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
             .map_err(|e| e.at("AvailableEntityIdentifiers.nbt"))?;
         Ok(Self { nbt: f_nbt })
     }
     pub fn write(&self, w: &mut BytesMut) {
-        crate::nbt::write::<crate::nbt::Network>(w, &self.nbt);
+        self.nbt.write(w);
     }
 }
 impl crate::Packet for AvailableEntityIdentifiers {
@@ -2250,7 +2250,7 @@ impl StructureTemplateDataExportRequestRequestType {
 pub struct StructureTemplateDataExportResponse {
     pub name: String,
     pub success: bool,
-    pub nbt: Option<crate::nbt::Nbt>,
+    pub nbt: Option<crate::nbt::Raw<crate::nbt::Network>>,
     pub response_type: StructureTemplateDataExportResponseResponseType,
 }
 impl StructureTemplateDataExportResponse {
@@ -2266,7 +2266,7 @@ impl StructureTemplateDataExportResponse {
             .map_err(|e| e.at("StructureTemplateDataExportResponse.success"))?;
         let f_nbt = (|| -> Result<_> {
             Ok(if (f_success == true) {
-                Some(crate::nbt::read::<crate::nbt::Network>(r)?)
+                Some(crate::nbt::read_raw::<crate::nbt::Network>(r)?)
             } else {
                 None
             })
@@ -2290,7 +2290,7 @@ impl StructureTemplateDataExportResponse {
         }
         write_bool(w, self.success);
         if let Some(x0) = &self.nbt {
-            crate::nbt::write::<crate::nbt::Network>(w, x0);
+            x0.write(w);
         }
         self.response_type.write(w);
     }
@@ -2347,16 +2347,16 @@ impl StructureTemplateDataExportResponseResponseType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UpdateBlockProperties {
-    pub nbt: crate::nbt::Nbt,
+    pub nbt: crate::nbt::Raw<crate::nbt::Network>,
 }
 impl UpdateBlockProperties {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
-        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+        let f_nbt = (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
             .map_err(|e| e.at("UpdateBlockProperties.nbt"))?;
         Ok(Self { nbt: f_nbt })
     }
     pub fn write(&self, w: &mut BytesMut) {
-        crate::nbt::write::<crate::nbt::Network>(w, &self.nbt);
+        self.nbt.write(w);
     }
 }
 impl crate::Packet for UpdateBlockProperties {

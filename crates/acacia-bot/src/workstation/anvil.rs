@@ -90,6 +90,6 @@ pub(super) fn set_nbt(stack: &mut ItemStack, key: &str, value: Value) {
     let root = stack.nbt.get_or_insert_with(|| Nbt { name: String::new(), value: Value::Compound(Vec::new()) });
     let Value::Compound(entries) = &mut root.value else { return };
     entries.retain(|(k, _)| k != key);
-    entries.push((key.to_owned(), value));
+    entries.push((key.into(), value));
     entries.sort_by(|a, b| a.0.cmp(&b.0));
 }

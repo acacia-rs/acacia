@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use acacia_client::proto::nbt::{Nbt, Value};
+use acacia_client::proto::nbt::{Nbt, Str, Value};
 use acacia_client::proto::packets::BlockEntityData;
 use acacia_client::proto::RawPacket;
 use acacia_physics::BlockPos;
@@ -76,7 +76,7 @@ impl Bot {
         let hanging = self.block_at(pos).is_some_and(|(_, s)| s.name.contains("hanging_sign"));
         let edit = SideEdit { front, text };
         let nbt = sign_nbt(self.state.block_entities.sign(pos), pos, hanging, &edit, self.state.player.unique_entity_id);
-        self.client.send(&BlockEntityData { position: block_coordinates(pos), nbt: nbt.clone() });
+        self.client.send(&BlockEntityData { position: block_coordinates(pos), nbt: (&nbt).into() });
         self.reflexes.next_legacy_id();
         self.state.signs.editor = None;
         self.state.block_entities.insert(pos, nbt);
@@ -99,23 +99,23 @@ pub(crate) fn sign_nbt(base: Option<&Nbt>, pos: BlockPos, hanging: bool, edit: &
         _ => fresh_sign(pos, hanging, editor),
     };
     let side = side_mut(&mut root, if edit.front { "FrontText" } else { "BackText" });
-    set(side, "Text", Value::String(edit.text.to_owned()));
+    set(side, "Text", Value::String(edit.text.into()));
     Nbt { name: String::new(), value: sorted(Value::Compound(root)) }
 }
 
 fn fresh_side() -> Value {
     Value::Compound(vec![
-        ("FilteredText".into(), Value::String(String::new())),
+        ("FilteredText".into(), Value::String(Str::default())),
         ("HideGlowOutline".into(), Value::Byte(0)),
         ("IgnoreLighting".into(), Value::Byte(0)),
         ("PersistFormatting".into(), Value::Byte(1)),
         ("SignTextColor".into(), Value::Int(BLACK)),
-        ("Text".into(), Value::String(String::new())),
-        ("TextOwner".into(), Value::String(String::new())),
+        ("Text".into(), Value::String(Str::default())),
+        ("TextOwner".into(), Value::String(Str::default())),
     ])
 }
 
-fn fresh_sign([x, y, z]: BlockPos, hanging: bool, editor: i64) -> Vec<(String, Value)> {
+fn fresh_sign([x, y, z]: BlockPos, hanging: bool, editor: i64) -> Vec<(Str, Value)> {
     let id = if hanging { "HangingSign" } else { "Sign" };
     vec![
         ("BackText".into(), fresh_side()),
@@ -130,7 +130,7 @@ fn fresh_sign([x, y, z]: BlockPos, hanging: bool, editor: i64) -> Vec<(String, V
     ]
 }
 
-fn side_mut<'a>(root: &'a mut Vec<(String, Value)>, key: &str) -> &'a mut Vec<(String, Value)> {
+fn side_mut<'a>(root: &'a mut Vec<(Str, Value)>, key: &str) -> &'a mut Vec<(Str, Value)> {
     let index = match root.iter().position(|(k, v)| k == key && matches!(v, Value::Compound(_))) {
         Some(i) => i,
         None => {
@@ -143,7 +143,7 @@ fn side_mut<'a>(root: &'a mut Vec<(String, Value)>, key: &str) -> &'a mut Vec<(S
     side
 }
 
-fn set(entries: &mut Vec<(String, Value)>, key: &str, value: Value) {
+fn set(entries: &mut Vec<(Str, Value)>, key: &str, value: Value) {
     match entries.iter_mut().find(|(k, _)| k == key) {
         Some(entry) => entry.1 = value,
         None => entries.push((key.into(), value)),

@@ -9,6 +9,7 @@ readme.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+acacia-nbt.workspace = true
 bytes = "1"
 thiserror = "2"
 

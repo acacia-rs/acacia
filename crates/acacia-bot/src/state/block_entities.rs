@@ -82,8 +82,9 @@ impl BlockEntities {
         match packet.id {
             BlockEntityData::ID => {
                 let p: BlockEntityData = packet.decode()?;
-                if self.keeps(&p.nbt) {
-                    self.insert(coords(p.position), p.nbt);
+                let nbt = p.nbt.decode()?;
+                if self.keeps(&nbt) {
+                    self.insert(coords(p.position), nbt);
                 }
             }
             ChangeDimension::ID => self.columns.clear(),

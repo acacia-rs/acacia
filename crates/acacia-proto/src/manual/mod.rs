@@ -59,6 +59,26 @@ pub fn set_shield_item_id(id: i32) {
     SHIELD_ITEM_ID.store(id, Ordering::Relaxed);
 }
 
+/// The id an `ItemRegistry` body gives `minecraft:shield`, found without building its entries
+/// (docs/proto.md, "Decode cost"). Follows `Itemstates`' layout; tests/semantic.rs holds it to the
+/// generated decoder.
+pub fn shield_item_id_in_registry(body: &[u8]) -> crate::codec::Result<Option<i32>> {
+    use crate::codec::*;
+    let mut r = body;
+    for _ in 0..to_len(read_varint(&mut r)?)? {
+        let n = to_len(read_varint(&mut r)?)?;
+        let name = take(&mut r, n)?;
+        let runtime_id = read_li16(&mut r)?;
+        read_bool(&mut r)?;
+        read_zigzag32(&mut r)?;
+        crate::nbt::skip::<crate::nbt::Network>(&mut r)?;
+        if name == b"minecraft:shield" {
+            return Ok(Some(runtime_id.into()));
+        }
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::Uuid;
