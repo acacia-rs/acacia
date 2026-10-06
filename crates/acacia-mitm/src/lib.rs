@@ -2,7 +2,9 @@
 //! connect: the game joins the [`Proxy`], the proxy joins the server as the same player. Only the
 //! encryption handshake is terminated (each side gets its own key) and Login re-signed; the rest
 //! can be recorded ([`Recorder`]), and dropped, rewritten or added to ([`Interceptor`],
-//! [`Injector`]). Over RakNet a Transfer is followed: the game stays on the proxy (transfer.rs). The `acacia-mitm` binary is the recording CLI on top (main.rs).
+//! [`Injector`]). Over RakNet a Transfer is followed: the game stays on the proxy (transfer.rs),
+//! and the server may be a realm ([`Proxy::realm`]), reached as Realms says. The `acacia-mitm`
+//! binary is the recording CLI on top (main.rs).
 
 mod intercept;
 mod login;
@@ -10,6 +12,7 @@ mod nethernet;
 mod pair;
 mod proxy;
 mod raknet;
+mod reach;
 mod record;
 mod relay;
 mod status;

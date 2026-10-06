@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
-use acacia_auth::{Account, LoginCredentials};
+use acacia_auth::{Account, AuthClient, LoginCredentials};
 use p384::ecdsa::SigningKey;
 use tokio::net::{TcpListener, UdpSocket};
 
@@ -16,9 +16,17 @@ use crate::{nethernet, raknet};
 
 type Factory = Box<dyn Fn(&Session) -> Box<dyn Interceptor> + Send + Sync>;
 
+/// Where a game that joins the proxy is taken.
+#[derive(Clone)]
+pub(crate) enum Target {
+    Address(SocketAddr),
+    /// Asked of Realms for each join: it answers with an address or a signaling target.
+    Realm { auth: Arc<AuthClient>, id: i64 },
+}
+
 /// What every player's relay is built from.
 pub(crate) struct Setup {
-    pub server: SocketAddr,
+    pub target: Target,
     pub rec: Option<SharedRecorder>,
     pub follow_transfers: bool,
     sessions: AtomicU32,
@@ -27,10 +35,19 @@ pub(crate) struct Setup {
 
 impl Setup {
     /// The relay for a new player, with fresh interceptors and the capture's next session number.
-    pub fn relay(&self, wire: Wire, key: SigningKey, credentials: Option<LoginCredentials>, session: &Session) -> Relay {
+    /// `wires` are the game's and the server's.
+    pub fn relay(&self, wires: (Wire, Wire), key: SigningKey, credentials: Option<LoginCredentials>, session: &Session) -> Relay {
         let chain = Chain::new(self.factories.iter().map(|f| f(session)).collect());
         let log = self.rec.clone().map(|rec| SessionLog::new(rec, self.sessions.fetch_add(1, Ordering::Relaxed)));
-        Relay::new(wire, key, credentials, log, chain)
+        Relay::new(wires, key, credentials, log, chain)
+    }
+
+    /// The server's address, when the target is one.
+    pub fn address(&self) -> Option<SocketAddr> {
+        match self.target {
+            Target::Address(server) => Some(server),
+            Target::Realm { .. } => None,
+        }
     }
 }
 
@@ -74,8 +91,17 @@ impl Proxy {
             transport: Transport::RakNet,
             account: None,
             trace_datagrams: false,
-            setup: Setup { server, rec: None, follow_transfers: true, sessions: AtomicU32::new(0), factories: Vec::new() },
+            setup: Setup { target: Target::Address(server), rec: None, follow_transfers: true, sessions: AtomicU32::new(0), factories: Vec::new() },
         }
+    }
+
+    /// Like [`new`](Self::new), for a realm `account` is a member of: every game that joins is
+    /// taken to it, over RakNet or through the signaling service as Realms says. The game still
+    /// joins the proxy by address over RakNet. `auth` is the client `account` was made with.
+    pub fn realm(auth: Arc<AuthClient>, account: Account, realm_id: i64) -> Self {
+        let mut proxy = Self::new(SocketAddr::from(([0, 0, 0, 0], 0))).online(account);
+        proxy.setup.target = Target::Realm { auth, id: realm_id };
+        proxy
     }
 
     /// Over RakNet: whether a Transfer the interceptors let through is pointed back at the proxy,
@@ -131,6 +157,10 @@ impl Proxy {
                     _ => None,
                 };
                 Listener::RakNet { socket: UdpSocket::bind(self.listen).await?, account, trace }
+            }
+            (Transport::NetherNet(_), _) if self.setup.address().is_none() => {
+                let why = "a realm is reached with the game joining the proxy over RakNet, not NetherNet";
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, why));
             }
             (Transport::NetherNet(key), Some(account)) => Listener::NetherNet { tcp: TcpListener::bind(self.listen).await?, account, key },
             (Transport::NetherNet(_), None) => {

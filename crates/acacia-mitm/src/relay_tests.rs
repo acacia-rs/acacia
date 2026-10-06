@@ -58,7 +58,7 @@ impl Interceptor for Exclaim {
 }
 
 fn relay(interceptors: Vec<Box<dyn Interceptor>>) -> Relay {
-    Relay::new(Wire::RakNet, SigningKey::random(&mut rand_core::OsRng), None, None, Chain::new(interceptors))
+    Relay::new((Wire::RakNet, Wire::RakNet), SigningKey::random(&mut rand_core::OsRng), None, None, Chain::new(interceptors))
 }
 
 fn decode(codec: &mut BatchCodec, batch: &[u8]) -> Vec<RawPacket> {
@@ -133,4 +133,22 @@ fn injections_wait_for_their_sides_handshake() {
 
     let out = relay.inject([(Direction::ToServer, encode(&text("later")))]);
     assert_eq!(decode(&mut BatchCodec::default(), &out.to_server[0]).iter().map(message).collect::<Vec<_>>(), ["later"]);
+}
+
+#[test]
+fn each_side_is_framed_for_its_own_wire() {
+    // A game on RakNet relayed to a realm over NetherNet.
+    let key = SigningKey::random(&mut rand_core::OsRng);
+    let mut relay = Relay::new((Wire::RakNet, Wire::NetherNet), key, None, None, Chain::new(Vec::new()));
+    let out = relay.on_game_message(&batch(&mut BatchCodec::default(), &[encode(&text("hello"))])).unwrap();
+    let to_server = decode(&mut BatchCodec::without_header(), &out.to_server[0]);
+    assert_eq!(to_server.iter().map(message).collect::<Vec<_>>(), ["hello"], "the server's batch has no RakNet header");
+
+    let out = relay.on_server_message(&batch(&mut BatchCodec::without_header(), &[encode(&text("welcome"))])).unwrap();
+    let to_game = decode(&mut BatchCodec::default(), &out.to_game[0]);
+    assert_eq!(to_game.iter().map(message).collect::<Vec<_>>(), ["welcome"], "the game's batch has one");
+
+    let bye = relay.goodbye().expect("a message transport is told when the game leaves");
+    assert!(decode(&mut BatchCodec::without_header(), &bye)[0].is::<Disconnect>());
+    assert!(self::relay(Vec::new()).goodbye().is_none(), "RakNet says goodbye itself");
 }

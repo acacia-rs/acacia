@@ -20,22 +20,25 @@ or a signed-in game, so one at a time:
   on the machine. Expect re-encode differences that are not bugs (non-canonical varints, trailing
   bytes) and decide per packet whether to fix the codec or list an exception.
 
-## 2. Realms and friend worlds (decision open)
+## 2. Realms and friend worlds
 
-The proxy reaches only direct-connect servers. `acacia-client` can dial a Realm or a friend's
-world (`realm_builder`, `friend_builder`), but only as a whole `Client` that logs in and runs the
-session itself; signaling, trickle ICE, TURN and keepalive live in its driver.
+**Realms: built, not yet tried against a realm.** `--realm <id>` (`Proxy::realm`) takes every game
+to that realm. The game joins the proxy by address over RakNet; per join the proxy asks Realms
+where the realm is (`acacia_client::realm_route`) and reaches it over RakNet, or over a raw link
+through the signaling service (`acacia_client::RawLink`, `reach.rs`), the relay framing each side
+for its own wire. Covered by tests only up to the seams: a raw link through the fake signaling
+service (acacia-client), and the relay's framing per side. Open:
 
-Proposed, not agreed:
+- Does a NetherNet realm send ServerToClientHandshake? The relay starts the game's encryption on
+  it; without one the game stays plaintext, which a RakNet game accepts from a server.
+- The Login's `ServerAddress` is the proxy's, as on every hop.
+- Does the goodbye leave before the link closes (one flush after `close`)?
+- The signaling socket's keepalive does not reconnect (acacia-client `keepalive.rs`).
 
-- `acacia-client` gains a raw link: dial a `SignalingTarget`, hand back undecoded batches. This
-  adds public API there and touches the driver, so it is that area's change.
-- `Relay` takes a wire per side. Today `Relay::new` builds the game side and the upstream codec
-  from one `Wire` (`relay.rs`); RakNet game side with a NetherNet upstream needs them apart.
-- The game keeps joining the proxy by IP over RakNet; `--realm <id>` or `--friend <gamertag>`
-  picks the upstream.
-
-The alternative is to leave the proxy at direct-connect servers.
+**Friends' worlds: not built.** `RawLink::dial_friend` exists; what is missing here is picking the
+world (`--friend <gamertag>`), joining its Xbox session per game, and putting the host's nonce
+into the Login the proxy re-signs (`login.rs`). The client's own friend join has not been made
+live yet (DESIGN.md), which comes first.
 
 ## 3. Transfer following: known limits
 

@@ -1,6 +1,7 @@
-//! RakNet mode: one RakNet server for every game, and per player an upstream RakNet client and
-//! socket (pair.rs). A new player's login and server address are fetched off the loop, so a slow
-//! sign-in or lookup holds up nobody else.
+//! RakNet mode: one RakNet server for every game, and per player a connection to its server
+//! (pair.rs): a RakNet client on a socket of its own, or a raw link to a realm. A new player's
+//! login and server are fetched off the loop (reach.rs), so a slow sign-in or dial holds up nobody
+//! else.
 
 use std::collections::HashMap;
 use std::io;
@@ -8,10 +9,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use acacia_auth::{Account, LoginCredentials};
+use acacia_auth::Account;
 use acacia_raknet::{Reliability, Server, ServerConfig, ServerEvent};
 use bytes::Bytes;
-use p384::ecdsa::SigningKey;
 use serde_json::json;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
@@ -20,16 +20,18 @@ use tokio::task::JoinHandle;
 use crate::intercept::{Injection, Injector, Session};
 use crate::pair::Pair;
 use crate::proxy::Setup;
+use crate::reach::{Arrived, Dialed, Reach, carry, dial};
 use crate::record::DatagramLog;
 use crate::relay::Wire;
 use crate::status::watch_status;
 use crate::transfer::{self, Arrival, Doors};
 
-/// A proxied player plus the socket and task that carry its server side.
+/// A proxied player plus what carries its server side: over RakNet a socket and the task reading
+/// it; over a raw link only [`carry`], which ends by itself.
 struct Link {
     pair: Pair,
-    socket: Arc<UdpSocket>,
-    reader: JoinHandle<()>,
+    socket: Option<Arc<UdpSocket>>,
+    reader: Option<JoinHandle<()>>,
 }
 
 enum Slot {
@@ -38,64 +40,57 @@ enum Slot {
     Up(Box<Link>),
 }
 
-/// What a new player's server side is built from.
-struct Dialed {
-    key: SigningKey,
-    credentials: Option<LoginCredentials>,
-    upstream: SocketAddr,
-}
-
-/// `route` is a transfer target to dial in place of `server`.
-async fn dial(account: Option<Account>, route: Option<(String, u16)>, server: SocketAddr) -> Result<Dialed, String> {
-    let key = SigningKey::random(&mut rand_core::OsRng);
-    let credentials = match &account {
-        Some(account) => Some(account.credentials(&key).await.map_err(|e| format!("online login: {e}"))?),
-        None => None,
-    };
-    let upstream = match route {
-        Some((host, port)) => transfer::resolve(&host, port).await.map_err(|e| format!("transfer to {host}:{port}: {e}"))?,
-        None => server,
-    };
-    Ok(Dialed { key, credentials, upstream })
-}
-
 /// What every link is opened with.
 struct Hub {
     setup: Setup,
     listen: SocketAddr,
-    upstream_tx: mpsc::UnboundedSender<(SocketAddr, Bytes)>,
+    upstream_tx: mpsc::UnboundedSender<Arrived>,
     inject_tx: mpsc::UnboundedSender<Injection>,
 }
 
 impl Hub {
     /// `door` is the port the game is to come back through if its server transfers it.
     async fn open(&self, game: SocketAddr, dialed: Dialed, door: Option<u16>, now: Instant) -> io::Result<Link> {
-        let socket = Arc::new(UdpSocket::bind(transfer::any_port(dialed.upstream)).await?);
-        socket.connect(dialed.upstream).await?;
-        let reader = tokio::spawn(read_upstream(socket.clone(), game, self.upstream_tx.clone()));
         let proxy = transfer::proxy_addr(game, self.listen.port());
         let session = Session { game, proxy: *proxy.as_ref().unwrap_or(&self.listen), injector: Injector::new(game, self.inject_tx.clone()) };
-        let mut relay = self.setup.relay(Wire::RakNet, dialed.key, dialed.credentials, &session);
-        relay.note(json!({ "event": "connected", "transport": "raknet", "server": dialed.upstream.to_string() }));
+        let server_wire = match &dialed.upstream {
+            Reach::Address(_) => Wire::RakNet,
+            Reach::Link(_) => Wire::NetherNet,
+        };
+        let mut relay = self.setup.relay((Wire::RakNet, server_wire), dialed.key, dialed.credentials, &session);
         if let (Some(port), Ok(proxy)) = (door, proxy) {
             relay = relay.follow_transfers(SocketAddr::new(proxy.ip(), port));
         }
-        Ok(Link { pair: Pair::new(dialed.upstream, now, relay), socket, reader })
+        match dialed.upstream {
+            Reach::Address(server) => {
+                let socket = Arc::new(UdpSocket::bind(transfer::any_port(server)).await?);
+                socket.connect(server).await?;
+                let reader = tokio::spawn(read_upstream(socket.clone(), game, self.upstream_tx.clone()));
+                relay.note(json!({ "event": "connected", "transport": "raknet", "server": server.to_string() }));
+                Ok(Link { pair: Pair::new(server, now, relay), socket: Some(socket), reader: Some(reader) })
+            }
+            Reach::Link(link) => {
+                let (to_link, from_pair) = mpsc::unbounded_channel();
+                tokio::spawn(carry(link, game, self.upstream_tx.clone(), from_pair));
+                relay.note(json!({ "event": "connected", "transport": "raknet", "server_transport": "nethernet" }));
+                Ok(Link { pair: Pair::raw(to_link, relay), socket: None, reader: None })
+            }
+        }
     }
 }
 
 pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Account>, mut trace: Option<DatagramLog>) -> io::Result<()> {
-    let target = setup.server;
+    let target = setup.target.clone();
     let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng);
     let mut server = Server::new(ServerConfig::new(guid, String::new()), Instant::now());
     let listen = listener.local_addr()?;
-    let mut motd = watch_status(target, guid, listen.port());
+    let mut motd = watch_status(setup.address(), guid, listen.port());
     motd.mark_changed();
     let (door_tx, mut door_rx) = mpsc::unbounded_channel::<Arrival>();
     let mut doors = Doors::new(door_tx);
     // The door each game talks through, for those that did not come in on the listener.
     let mut via: HashMap<SocketAddr, u16> = HashMap::new();
-    let (upstream_tx, mut upstream_rx) = mpsc::unbounded_channel::<(SocketAddr, Bytes)>();
+    let (upstream_tx, mut upstream_rx) = mpsc::unbounded_channel::<Arrived>();
     let (inject_tx, mut inject_rx) = mpsc::unbounded_channel::<Injection>();
     let (dialed_tx, mut dialed_rx) = mpsc::unbounded_channel::<(SocketAddr, Result<Dialed, String>)>();
     let hub = Hub { setup, listen, upstream_tx, inject_tx };
@@ -111,7 +106,7 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
                     println!("{game} connected (RakNet)");
                     slots.insert(game, Slot::Dialing(Vec::new()));
                     let route = via.get(&game).and_then(|&port| doors.target(port, now));
-                    let (account, tx) = (account.clone(), dialed_tx.clone());
+                    let (account, target, tx) = (account.clone(), target.clone(), dialed_tx.clone());
                     tokio::spawn(async move {
                         let _ = tx.send((game, dial(account, route, target).await));
                     });
@@ -140,14 +135,16 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
                 server.send(game, batch, Reliability::ReliableOrdered);
             }
             while let Some(d) = link.pair.poll_transmit(now) {
-                let _ = link.socket.send(&d).await;
+                if let Some(socket) = &link.socket {
+                    let _ = socket.send(&d).await;
+                }
             }
         }
         slots.retain(|&game, slot| {
             let Slot::Up(link) = slot else { return true };
             if link.pair.is_closed() {
                 server.close(game, now);
-                link.reader.abort();
+                link.reader.iter().for_each(JoinHandle::abort);
                 doors.left(game);
             }
             !link.pair.is_closed()
@@ -196,7 +193,10 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
             }
             Some((game, data)) = upstream_rx.recv() => {
                 if let Some(Slot::Up(link)) = slots.get_mut(&game) {
-                    link.pair.on_upstream_datagram(Instant::now(), data);
+                    match data {
+                        Some(data) => link.pair.on_upstream(Instant::now(), data),
+                        None => link.pair.on_upstream_ended(),
+                    }
                 }
             }
             Some((game, dialed)) = dialed_rx.recv() => {
@@ -254,12 +254,12 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
     }
 }
 
-async fn read_upstream(socket: Arc<UdpSocket>, game: SocketAddr, tx: mpsc::UnboundedSender<(SocketAddr, Bytes)>) {
+async fn read_upstream(socket: Arc<UdpSocket>, game: SocketAddr, tx: mpsc::UnboundedSender<Arrived>) {
     let mut buf = vec![0u8; 2048];
     loop {
         match socket.recv(&mut buf).await {
             Ok(n) => {
-                if tx.send((game, Bytes::copy_from_slice(&buf[..n]))).is_err() {
+                if tx.send((game, Some(Bytes::copy_from_slice(&buf[..n])))).is_err() {
                     return;
                 }
             }

@@ -14,6 +14,8 @@ acacia-session.workspace = true
 acacia-proto.workspace = true
 acacia-auth = { workspace = true, features = ["online"] }
 acacia-nethernet.workspace = true
+# For realms: asking Realms where one is, and the raw link to it.
+acacia-client.workspace = true
 tokio = { version = "1.53.1", features = ["rt", "net", "time", "sync", "macros", "io-util"] }
 bytes = "1.12.1"
 p384 = { version = "0.13", features = ["ecdsa"] }
@@ -31,6 +33,5 @@ default = ["mimalloc"]
 mimalloc = ["dep:mimalloc"]
 
 [dev-dependencies]
-acacia-client.workspace = true
 acacia-testserver = { path = "../acacia-testserver" }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }

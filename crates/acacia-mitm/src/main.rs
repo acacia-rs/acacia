@@ -2,7 +2,12 @@
 //! the proxy joins the server as the same player, and every packet on the game's side is logged
 //! (record.rs).
 //!
-//! `cargo run -p acacia-mitm -- [--transport raknet|nethernet] [--listen 0.0.0.0:19180] [--server <addr>] [--out .testserver/mitm] [--online <account>] [--pack-cdn <pack.zip>]`
+//! `cargo run -p acacia-mitm -- [--transport raknet|nethernet] [--listen 0.0.0.0:19180] [--server <addr> | --realm <id>] [--out .testserver/mitm] [--online <account>] [--pack-cdn <pack.zip>]`
+//!
+//! `--realm <id>` (with `--online`, an account that is a member) takes every game to that realm:
+//! the game still joins the proxy by address over RakNet, the proxy asks Realms where the realm is
+//! and reaches it over RakNet or through the signaling service. List ids with acacia-auth's
+//! `realms_list` example.
 //!
 //! RakNet (default) is offline by default, for the local test BDS on 19140. `--online <account>`
 //! signs in with that account (`.tokens`, device code on first use) for real servers; sign the game
@@ -29,6 +34,8 @@ struct Args {
     server: String,
     out: String,
     online: Option<String>,
+    /// A realm to take every game to, in place of `server`.
+    realm: Option<i64>,
     /// A pack zip to serve as every pack's `cdn_url` (cdn.rs).
     pack_cdn: Option<String>,
 }
@@ -40,6 +47,7 @@ fn args() -> Result<Args, String> {
         server: String::new(),
         out: ".testserver/mitm".into(),
         online: None,
+        realm: None,
         pack_cdn: None,
     };
     let mut it = std::env::args().skip(1);
@@ -55,6 +63,7 @@ fn args() -> Result<Args, String> {
             "--server" => args.server = value,
             "--out" => args.out = value,
             "--online" => args.online = Some(value),
+            "--realm" => args.realm = Some(value.parse().map_err(|e| format!("--realm: {e}"))?),
             "--pack-cdn" => args.pack_cdn = Some(value),
             _ => return Err(format!("unknown flag {flag}")),
         }
@@ -65,15 +74,19 @@ fn args() -> Result<Args, String> {
     if args.nethernet && args.online.is_none() {
         return Err("--transport nethernet needs --online <account>: BDS refuses NetherNet offers without a MultiplayerToken".into());
     }
+    if args.realm.is_some() && (args.online.is_none() || args.nethernet) {
+        return Err("--realm needs --online <account>, a member of the realm, and the RakNet transport".into());
+    }
     Ok(args)
 }
 
-async fn sign_in(id: &str) -> Result<Account, Box<dyn std::error::Error>> {
-    let account = Account::new(Arc::new(AuthClient::new(AuthConfig::default())?), Arc::new(FileTokenCache::new(".tokens")?), id);
+async fn sign_in(id: &str) -> Result<(Arc<AuthClient>, Account), Box<dyn std::error::Error>> {
+    let auth = Arc::new(AuthClient::new(AuthConfig::default())?);
+    let account = Account::new(auth.clone(), Arc::new(FileTokenCache::new(".tokens")?), id);
     if !account.is_signed_in().await? {
         account.sign_in(|p| println!("sign in at {} with code {}", p.verification_uri, p.user_code)).await?;
     }
-    Ok(account)
+    Ok((auth, account))
 }
 
 /// Debug-build str0m connections overflow Windows' 1 MiB main-thread stack, so the runtime gets its own.
@@ -91,11 +104,19 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = args()?;
     let stamp = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
     let name = stamp.format(time::macros::format_description!("[year][month][day]-[hour][minute][second]"))?;
-    let target = tokio::net::lookup_host(&args.server).await?.next().ok_or(format!("{}: no address", args.server))?;
-    let mut proxy = Proxy::new(target).listen(args.listen);
-    if let Some(id) = &args.online {
-        proxy = proxy.online(sign_in(id).await?);
-    }
+    let signed_in = match &args.online {
+        Some(id) => Some(sign_in(id).await?),
+        None => None,
+    };
+    let proxy = match (args.realm, signed_in) {
+        (Some(realm), Some((auth, account))) => Proxy::realm(auth, account, realm),
+        (_, signed_in) => {
+            let target = tokio::net::lookup_host(&args.server).await?.next().ok_or(format!("{}: no address", args.server))?;
+            let proxy = Proxy::new(target);
+            signed_in.into_iter().fold(proxy, |proxy, (_, account)| proxy.online(account))
+        }
+    };
+    let mut proxy = proxy.listen(args.listen);
     let rec = Recorder::create(args.out.as_ref(), &name)?;
     println!("join {} from the game; recording to {}", args.listen, rec.path().display());
     if args.nethernet {

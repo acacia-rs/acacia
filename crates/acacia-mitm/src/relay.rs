@@ -40,7 +40,9 @@ pub struct Out {
 }
 
 pub struct Relay {
-    wire: Wire,
+    /// What the game reaches the proxy over; the server's wire shows in `up_codec`.
+    game_wire: Wire,
+    server_wire: Wire,
     game: ServerConnection,
     up_codec: BatchCodec,
     /// The proxy's key on both sides: it signs the upstream login and the game-side handshake.
@@ -60,13 +62,21 @@ pub struct Relay {
 }
 
 impl Relay {
-    pub fn new(wire: Wire, key: SigningKey, credentials: Option<LoginCredentials>, log: Option<SessionLog>, chain: Chain) -> Self {
-        let (game, up_codec) = match wire {
-            Wire::RakNet => (ServerConnection::new(key.clone()), BatchCodec::default()),
-            Wire::NetherNet => (ServerConnection::nethernet(key.clone()), BatchCodec::without_header()),
+    /// `wires` are the game's and the server's: they differ when a game that joined over RakNet
+    /// is relayed to a realm or a friend's world.
+    pub fn new(wires: (Wire, Wire), key: SigningKey, credentials: Option<LoginCredentials>, log: Option<SessionLog>, chain: Chain) -> Self {
+        let (game_wire, server_wire) = wires;
+        let game = match game_wire {
+            Wire::RakNet => ServerConnection::new(key.clone()),
+            Wire::NetherNet => ServerConnection::nethernet(key.clone()),
+        };
+        let up_codec = match server_wire {
+            Wire::RakNet => BatchCodec::default(),
+            Wire::NetherNet => BatchCodec::without_header(),
         };
         Self {
-            wire,
+            game_wire,
+            server_wire,
             game,
             up_codec,
             key,
@@ -246,22 +256,26 @@ impl Relay {
         }
     }
 
-    /// Our handshake for the game in place of the server's, starting encryption where the wire has it.
+    /// Our handshake for the game in place of the server's. Each side starts encryption if its own
+    /// wire has it: RakNet does, NetherNet stays plaintext.
     fn handshake(&mut self, raw: &RawPacket) -> Result<Bytes, String> {
-        if self.wire == Wire::NetherNet {
+        if self.server_wire == Wire::RakNet {
+            let handshake: ServerToClientHandshake = raw.decode().map_err(|e| e.to_string())?;
+            let (server_key, salt) = acacia_auth::parse_server_handshake(&handshake.token).map_err(|e| e.to_string())?;
+            self.up_codec.enable_encryption(derive_key(&self.key, &server_key, &salt));
+        }
+        if self.game_wire == Wire::NetherNet {
             return Ok(self.game.plaintext_handshake());
         }
-        let handshake: ServerToClientHandshake = raw.decode().map_err(|e| e.to_string())?;
-        let (server_key, salt) = acacia_auth::parse_server_handshake(&handshake.token).map_err(|e| e.to_string())?;
-        self.up_codec.enable_encryption(derive_key(&self.key, &server_key, &salt));
         let game_key = self.game_key.as_ref().ok_or("server handshake before the game's login")?;
         Ok(self.game.start_encryption(game_key))
     }
 
     /// A message transport's goodbye for the server unless the game sent its own: without one BDS
-    /// keeps the player and kicks the rejoin with ServerIdConflict.
+    /// keeps the player and kicks the rejoin with ServerIdConflict. Nothing over RakNet, which says
+    /// goodbye itself.
     pub fn goodbye(&mut self) -> Option<Bytes> {
-        if self.game_sent_disconnect {
+        if self.game_sent_disconnect || self.server_wire == Wire::RakNet {
             return None;
         }
         let mut packet = BytesMut::new();

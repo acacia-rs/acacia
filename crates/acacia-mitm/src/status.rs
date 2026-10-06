@@ -11,10 +11,12 @@ const INTERVAL: Duration = Duration::from_secs(3);
 
 /// Mirrors the server's ping answer with our GUID and port. Until the server answers (BDS 1.26.52
 /// ignores pings), a generic one: the game won't join a blank status.
-pub fn watch_status(server: SocketAddr, guid: u64, port: u16) -> watch::Receiver<String> {
+/// A realm has no address to ping (`server` is `None`), so the generic one stays.
+pub fn watch_status(server: Option<SocketAddr>, guid: u64, port: u16) -> watch::Receiver<String> {
     let (protocol, version) = (acacia_proto::PROTOCOL_VERSION, acacia_proto::GAME_VERSION);
     let fallback = format!("MCPE;acacia-mitm;{protocol};{version};0;10;{guid};acacia-mitm;Survival;1;{port};{port};0;");
     let (tx, rx) = watch::channel(fallback);
+    let Some(server) = server else { return rx };
     tokio::spawn(async move {
         let Ok(socket) = UdpSocket::bind("0.0.0.0:0").await else { return };
         let mut buf = vec![0u8; 2048];

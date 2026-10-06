@@ -107,7 +107,8 @@ async fn join(offer: &str, local: SocketAddr, peer: SocketAddr, host: &Host) -> 
     let key = SigningKey::random(&mut OsRng);
     let credentials = host.account.credentials(&key).await.map_err(err)?;
     let token = credentials.multiplayer_token.clone().ok_or("the account has no MultiplayerToken")?;
-    let (up, up_udp) = timeout(SIGNALING_TIMEOUT, dial(host.setup.server, &Identity::multiplayer(key.clone(), token)))
+    let server = host.setup.address().expect("bind refuses NetherNet without a server address");
+    let (up, up_udp) = timeout(SIGNALING_TIMEOUT, dial(server, &Identity::multiplayer(key.clone(), token)))
         .await
         .map_err(|_| "server signaling timed out")??;
     let game_udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await.map_err(err)?;
@@ -116,7 +117,7 @@ async fn join(offer: &str, local: SocketAddr, peer: SocketAddr, host: &Host) -> 
     println!("NetherNet player joining: game side {game_addr}, server side {:?}", up.host_candidate());
     let (inject_tx, injections) = mpsc::unbounded_channel();
     let session = Session { game: peer, proxy: local, injector: Injector::new(peer, inject_tx) };
-    let relay = host.setup.relay(Wire::NetherNet, key, Some(credentials), &session);
+    let relay = host.setup.relay((Wire::NetherNet, Wire::NetherNet), key, Some(credentials), &session);
     relay.note(json!({ "event": "connected", "transport": "nethernet" }));
     Ok((answer, Link { game, game_udp, up, up_udp, relay, injections }))
 }
