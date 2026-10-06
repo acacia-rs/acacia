@@ -40,10 +40,13 @@ The alternative is to leave the proxy at direct-connect servers.
 ## 3. Transfer following: known limits
 
 - **NetherNet is not followed.** A Transfer passes through and the game leaves the proxy.
-- **Games are matched by IP.** Two games behind one address that transfer within the window can
-  swap targets. A fix needs something the reconnect carries (the Login's device id arrives too
-  late to pick the upstream socket, so it would mean dialing after Login).
-- **IPv4 upstream only** (`transfer::resolve`); the upstream sockets bind `0.0.0.0`.
+- **A door per game.** Each game is sent back to a port of its own (`transfer.rs`), so the proxy
+  must be reachable on ports beyond the one it listens on: fine on a LAN, not behind a single
+  forwarded port. A fixed port range to forward is not offered yet.
+- **Untried with the vanilla client**: whether it rejoins through the door inside the 30 s window.
+- **Every hop signs in afresh.** A new key per connection never matches the credential cache
+  (`acacia-auth/src/online/client.rs`), so each join and transfer is a full fetch from
+  rate-limited endpoints.
 - **Only a server's Transfer is followed.** One sent through the `Injector`, or made by an
   interceptor from another packet, reaches the game unchanged.
 - The proxy's own rewrite of a Transfer shows in the capture as the `transfer` event, not as

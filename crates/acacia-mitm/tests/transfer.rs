@@ -44,9 +44,11 @@ async fn a_transfer_is_followed_through_the_proxy() {
         }
     })
     .await;
-    assert_eq!(sent_to, addr.to_string(), "the game is told to rejoin the proxy");
+    let door: SocketAddr = sent_to.parse().unwrap();
+    assert_eq!(door.ip(), addr.ip(), "the game is told to rejoin the proxy");
+    assert_ne!(door.port(), addr.port(), "through a port opened for it");
 
-    let client = join(addr).await;
+    let client = join(door).await;
     soon("the second server's spawn", game.spawned()).await.unwrap();
     client.close();
     proxy.abort();

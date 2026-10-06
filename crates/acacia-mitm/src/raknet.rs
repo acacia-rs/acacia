@@ -23,7 +23,7 @@ use crate::proxy::Setup;
 use crate::record::DatagramLog;
 use crate::relay::Wire;
 use crate::status::watch_status;
-use crate::transfer::{self, Routes};
+use crate::transfer::{self, Arrival, Doors};
 
 /// A proxied player plus the socket and task that carry its server side.
 struct Link {
@@ -68,18 +68,17 @@ struct Hub {
 }
 
 impl Hub {
-    async fn open(&self, game: SocketAddr, dialed: Dialed, now: Instant) -> io::Result<Link> {
-        let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
+    /// `door` is the port the game is to come back through if its server transfers it.
+    async fn open(&self, game: SocketAddr, dialed: Dialed, door: Option<u16>, now: Instant) -> io::Result<Link> {
+        let socket = Arc::new(UdpSocket::bind(transfer::any_port(dialed.upstream)).await?);
         socket.connect(dialed.upstream).await?;
         let reader = tokio::spawn(read_upstream(socket.clone(), game, self.upstream_tx.clone()));
         let proxy = transfer::proxy_addr(game, self.listen.port());
         let session = Session { game, proxy: *proxy.as_ref().unwrap_or(&self.listen), injector: Injector::new(game, self.inject_tx.clone()) };
         let mut relay = self.setup.relay(Wire::RakNet, dialed.key, dialed.credentials, &session);
         relay.note(json!({ "event": "connected", "transport": "raknet", "server": dialed.upstream.to_string() }));
-        if self.setup.follow_transfers
-            && let Ok(proxy) = proxy
-        {
-            relay = relay.follow_transfers(proxy);
+        if let (Some(port), Ok(proxy)) = (door, proxy) {
+            relay = relay.follow_transfers(SocketAddr::new(proxy.ip(), port));
         }
         Ok(Link { pair: Pair::new(dialed.upstream, now, relay), socket, reader })
     }
@@ -92,7 +91,10 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
     let listen = listener.local_addr()?;
     let mut motd = watch_status(target, guid, listen.port());
     motd.mark_changed();
-    let mut routes = Routes::default();
+    let (door_tx, mut door_rx) = mpsc::unbounded_channel::<Arrival>();
+    let mut doors = Doors::new(door_tx);
+    // The door each game talks through, for those that did not come in on the listener.
+    let mut via: HashMap<SocketAddr, u16> = HashMap::new();
     let (upstream_tx, mut upstream_rx) = mpsc::unbounded_channel::<(SocketAddr, Bytes)>();
     let (inject_tx, mut inject_rx) = mpsc::unbounded_channel::<Injection>();
     let (dialed_tx, mut dialed_rx) = mpsc::unbounded_channel::<(SocketAddr, Result<Dialed, String>)>();
@@ -108,7 +110,8 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
                 ServerEvent::Connected { addr: game, .. } => {
                     println!("{game} connected (RakNet)");
                     slots.insert(game, Slot::Dialing(Vec::new()));
-                    let (account, route, tx) = (account.clone(), routes.take(game.ip(), now), dialed_tx.clone());
+                    let route = via.get(&game).and_then(|&port| doors.target(port, now));
+                    let (account, tx) = (account.clone(), dialed_tx.clone());
                     tokio::spawn(async move {
                         let _ = tx.send((game, dial(account, route, target).await));
                     });
@@ -131,7 +134,7 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
             let Slot::Up(link) = slot else { continue };
             if let Some(to) = link.pair.take_transfer() {
                 println!("{game} transferred to {}:{}", to.0, to.1);
-                routes.set(game.ip(), to, now);
+                doors.lead(game, to, now);
             }
             for batch in link.pair.take_to_game() {
                 server.send(game, batch, Reliability::ReliableOrdered);
@@ -145,14 +148,19 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
             if link.pair.is_closed() {
                 server.close(game, now);
                 link.reader.abort();
+                doors.left(game);
             }
             !link.pair.is_closed()
         });
+        via.retain(|game, port| slots.contains_key(game) || doors.target(*port, now).is_some());
+        doors.sweep(now, |port| via.values().any(|&used| used == port));
         while let Some((to, d)) = server.poll_transmit(now) {
             if let Some(log) = &mut trace {
                 log.write(false, to, &d);
             }
-            if let Err(e) = listener.send_to(&d, to).await {
+            // A game hears back from the port it spoke to.
+            let socket = via.get(&to).and_then(|&port| doors.socket(port)).map_or(&listener, |door| &**door);
+            if let Err(e) = socket.send_to(&d, to).await {
                 eprintln!("send to {to}: {e}");
             }
         }
@@ -174,6 +182,18 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
                 Err(e) if e.kind() == io::ErrorKind::ConnectionReset => {}
                 Err(e) => return Err(e),
             },
+            Some((port, from, data)) = door_rx.recv() => {
+                // Through a door come the game it leads somewhere, and whoever already joined through it.
+                let now = Instant::now();
+                let known = via.get(&from).copied();
+                if known == Some(port) || (known.is_none() && doors.target(port, now).is_some()) {
+                    via.insert(from, port);
+                    if let Some(log) = &mut trace {
+                        log.write(true, from, &data);
+                    }
+                    server.handle_datagram(now, from, data);
+                }
+            }
             Some((game, data)) = upstream_rx.recv() => {
                 if let Some(Slot::Up(link)) = slots.get_mut(&game) {
                     link.pair.on_upstream_datagram(Instant::now(), data);
@@ -183,15 +203,24 @@ pub(crate) async fn run(listener: UdpSocket, setup: Setup, account: Option<Accou
                 // A game that left while it was dialed has no slot; one that also rejoined is dialing again.
                 let Some(Slot::Dialing(held)) = slots.get_mut(&game) else { continue };
                 let held = std::mem::take(held);
-                match dialed {
-                    Ok(dialed) => {
-                        let mut link = hub.open(game, dialed, Instant::now()).await?;
+                let door = match hub.setup.follow_transfers {
+                    true => doors.open(listen.ip(), game).await.inspect_err(|e| eprintln!("{game}: no door for transfers: {e}")).ok(),
+                    false => None,
+                };
+                let opened = match dialed {
+                    Ok(dialed) => hub.open(game, dialed, door, Instant::now()).await.map_err(|e| format!("server socket: {e}")),
+                    Err(e) => Err(e),
+                };
+                // One player's failure is that player's: the proxy goes on for the others.
+                match opened {
+                    Ok(mut link) => {
                         held.iter().for_each(|msg| link.pair.on_game_message(msg));
                         slots.insert(game, Slot::Up(Box::new(link)));
                     }
                     Err(e) => {
                         eprintln!("{game}: {e}");
                         slots.remove(&game);
+                        doors.left(game);
                         server.close(game, Instant::now());
                     }
                 }
