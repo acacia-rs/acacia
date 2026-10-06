@@ -1,6 +1,6 @@
 //! Runs the bots listed in a JSON file (an array of `BotSpec`s, the shape a coordinator would send)
 //! and prints swarm events as JSON lines. Online logins read tokens from ./.tokens.
-//! `cargo run -p acacia-bot --example swarm_specs -- <specs.json> [seconds] [shards]`
+//! `cargo run -p acacia-bot --example swarm_specs -- <specs.json> [seconds] [shards] [shard_fill]`
 //! `[{"id":"a1","login":{"kind":"offline","name":"Afk1"},"target":{"kind":"server","address":"127.0.0.1:19132"},"state":null}]`
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,13 +13,16 @@ use acacia_bot::Bot;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).init();
     let mut args = std::env::args().skip(1);
-    let path = args.next().ok_or("usage: swarm_specs <specs.json> [seconds] [shards]")?;
+    let path = args.next().ok_or("usage: swarm_specs <specs.json> [seconds] [shards] [shard_fill]")?;
     let secs: u64 = args.next().map_or(60, |s| s.parse().expect("seconds"));
     let specs: Vec<BotSpec<()>> = serde_json::from_slice(&std::fs::read(path)?)?;
 
     let mut builder = Swarm::builder();
     if let Some(shards) = args.next() {
         builder = builder.shards(shards.parse().expect("shards"));
+    }
+    if let Some(fill) = args.next() {
+        builder = builder.shard_fill(fill.parse().expect("shard_fill"));
     }
     let swarm = builder
         .token_cache(Arc::new(FileTokenCache::new(".tokens")?))
