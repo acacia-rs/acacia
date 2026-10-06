@@ -96,7 +96,7 @@ fn full_chunks_fill_and_replace_their_column() {
 fn sign_tracking_keeps_only_signs() {
     let mut e = tracker(BlockEntityTracking::Signs);
     e.apply(&full_chunk(1, 0, &[sign([17, 64, 2], "a"), chest([18, 64, 2])])).unwrap();
-    e.apply(&raw(&BlockEntityData { position: BlockCoordinates { x: 19, y: 64, z: 2 }, nbt: chest([19, 64, 2]) })).unwrap();
+    e.apply(&raw(&BlockEntityData { position: BlockCoordinates { x: 19, y: 64, z: 2 }, nbt: chest([19, 64, 2]).into() })).unwrap();
     assert_eq!(positions(&e), [[17, 64, 2]]);
 }
 

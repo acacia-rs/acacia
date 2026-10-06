@@ -1,6 +1,7 @@
 //! Wire primitives shared by generated code and hand-written types.
 
-use bytes::{BufMut, Bytes, BytesMut};
+use acacia_nbt::{put, put_slice};
+use bytes::{Bytes, BytesMut};
 
 use crate::DecodeError;
 use crate::strict::{Leniency, note};
@@ -33,7 +34,7 @@ macro_rules! fixed {
         }
         #[inline]
         pub fn $write(w: &mut BytesMut, v: $t) {
-            w.put_slice(&v.$to());
+            put(w, v.$to());
         }
     )*};
 }
@@ -70,7 +71,7 @@ pub fn read_bool(r: &mut &[u8]) -> Result<bool> {
 
 #[inline]
 pub fn write_bool(w: &mut BytesMut, v: bool) {
-    w.put_u8(v as u8);
+    put(w, [v as u8]);
 }
 
 macro_rules! varint {
@@ -88,12 +89,19 @@ macro_rules! varint {
             Err(DecodeError::VarIntTooLong)
         }
         #[inline]
-        pub fn $write(w: &mut BytesMut, mut v: $t) {
-            while v >= 0x80 {
-                w.put_u8((v as u8) | 0x80);
-                v >>= 7;
+        pub fn $write(w: &mut BytesMut, v: $t) {
+            // Only the one-byte case is inlined (acacia-nbt README.md, "Performance").
+            fn long(w: &mut BytesMut, mut v: $t) {
+                let (mut bytes, mut n) = ([0u8; $max_bytes], 0);
+                while v >= 0x80 {
+                    bytes[n] = (v as u8) | 0x80;
+                    v >>= 7;
+                    n += 1;
+                }
+                bytes[n] = v as u8;
+                put_slice(w, &bytes[..=n]);
             }
-            w.put_u8(v as u8);
+            if v < 0x80 { put(w, [v as u8]) } else { long(w, v) }
         }
     };
 }
@@ -174,12 +182,12 @@ pub fn read_uuid(r: &mut &[u8]) -> Result<crate::manual::Uuid> {
 }
 
 pub fn write_uuid(w: &mut BytesMut, v: &crate::manual::Uuid) {
-    w.put_slice(&v.0);
+    put(w, v.0);
 }
 
 #[inline]
 pub fn write_slice(w: &mut BytesMut, b: &[u8]) {
-    w.put_slice(b);
+    put_slice(w, b);
 }
 
 /// Writes a length-prefixed sub-buffer: `body` is encoded to scratch space first, then `prefix(len)` and the bytes.
@@ -191,5 +199,5 @@ pub fn write_encapsulated(
     let mut tmp = BytesMut::new();
     body(&mut tmp);
     prefix(w, tmp.len());
-    w.put_slice(&tmp);
+    put_slice(w, &tmp);
 }

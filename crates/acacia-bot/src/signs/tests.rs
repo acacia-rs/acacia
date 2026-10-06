@@ -39,7 +39,7 @@ fn fresh_sign_shaped_like_bds_in_key_order() {
     assert_eq!(sign_nbt(None, [0, 0, 0], true, &edit, 0).value.get("id"), Some(&Value::String("HangingSign".into())));
 
     // What goes on the wire decodes back unchanged.
-    let packet = BlockEntityData { position: BlockCoordinates { x: 10, y: 64, z: -3 }, nbt };
+    let packet = BlockEntityData { position: BlockCoordinates { x: 10, y: 64, z: -3 }, nbt: nbt.into() };
     assert_eq!(raw(&packet).decode::<BlockEntityData>().unwrap(), packet);
 }
 
@@ -82,11 +82,11 @@ fn trackers_keep_signs_and_the_open_editor() {
     let mut entities = BlockEntities::new(BlockEntityTracking::Off);
     let edit = SideEdit { front: true, text: "shop" };
     let nbt = sign_nbt(None, [1, 2, 3], false, &edit, 0);
-    entities.apply(&raw(&BlockEntityData { position: BlockCoordinates { x: 1, y: 2, z: 3 }, nbt })).unwrap();
+    entities.apply(&raw(&BlockEntityData { position: BlockCoordinates { x: 1, y: 2, z: 3 }, nbt: nbt.into() })).unwrap();
     assert_eq!(entities.sign_text([1, 2, 3], true), Some("shop"));
     assert_eq!(entities.sign_text([1, 2, 3], false), Some(""));
 
     let chest = Nbt { name: String::new(), value: Value::Compound(vec![("id".into(), Value::String("Chest".into()))]) };
-    entities.apply(&raw(&BlockEntityData { position: BlockCoordinates { x: 5, y: 5, z: 5 }, nbt: chest })).unwrap();
+    entities.apply(&raw(&BlockEntityData { position: BlockCoordinates { x: 5, y: 5, z: 5 }, nbt: chest.into() })).unwrap();
     assert!(entities.get([5, 5, 5]).is_none(), "only signs without chunk tracking");
 }

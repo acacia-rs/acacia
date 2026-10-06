@@ -1367,7 +1367,7 @@ pub struct StartGame {
     pub multiplayer_correlation_id: String,
     pub server_authoritative_inventory: bool,
     pub engine: String,
-    pub property_data: crate::nbt::Nbt,
+    pub property_data: crate::nbt::Raw<crate::nbt::Network>,
     pub block_pallette_checksum: u64,
     pub world_template_id: crate::manual::Uuid,
     pub client_side_generation: bool,
@@ -1575,7 +1575,7 @@ impl StartGame {
                             let n = to_len(read_varint(r)?)?;
                             read_utf8(r, n)?
                         };
-                        let f_state = crate::nbt::read::<crate::nbt::Network>(r)?;
+                        let f_state = crate::nbt::read_raw::<crate::nbt::Network>(r)?;
                         types::BlockPropertiesItem {
                             name: f_name,
                             state: f_state,
@@ -1603,7 +1603,7 @@ impl StartGame {
         })()
         .map_err(|e| e.at("StartGame.engine"))?;
         let f_property_data =
-            (|| -> Result<_> { Ok(crate::nbt::read::<crate::nbt::Network>(r)?) })()
+            (|| -> Result<_> { Ok(crate::nbt::read_raw::<crate::nbt::Network>(r)?) })()
                 .map_err(|e| e.at("StartGame.property_data"))?;
         let f_block_pallette_checksum = (|| -> Result<_> { Ok(read_lu64(r)?) })()
             .map_err(|e| e.at("StartGame.block_pallette_checksum"))?;
@@ -1845,7 +1845,7 @@ impl StartGame {
                     write_varint(w, b.len() as u32);
                     write_slice(w, b);
                 }
-                crate::nbt::write::<crate::nbt::Network>(w, &x1.state);
+                x1.state.write(w);
             }
         }
         {
@@ -1859,7 +1859,7 @@ impl StartGame {
             write_varint(w, b.len() as u32);
             write_slice(w, b);
         }
-        crate::nbt::write::<crate::nbt::Network>(w, &self.property_data);
+        self.property_data.write(w);
         write_lu64(w, self.block_pallette_checksum);
         write_uuid(w, &self.world_template_id);
         write_bool(w, self.client_side_generation);
@@ -2126,7 +2126,7 @@ impl AddPlayer {
                                     })
                                 } else if f_type == types::MetadataDictionaryItemType::Compound {
                                     types::MetadataDictionaryItemValueDefault::Compound(
-                                        crate::nbt::read::<crate::nbt::Network>(r)?,
+                                        crate::nbt::read_raw::<crate::nbt::Network>(r)?,
                                     )
                                 } else if f_type == types::MetadataDictionaryItemType::Vec3i {
                                     types::MetadataDictionaryItemValueDefault::Vec3i(
@@ -2285,7 +2285,7 @@ impl AddPlayer {
                             write_slice(w, b);
                         }
                         types::MetadataDictionaryItemValueDefault::Compound(x3) => {
-                            crate::nbt::write::<crate::nbt::Network>(w, x3);
+                            x3.write(w);
                         }
                         types::MetadataDictionaryItemValueDefault::Vec3i(x3) => {
                             x3.write(w);

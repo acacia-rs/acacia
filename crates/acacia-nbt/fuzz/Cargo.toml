@@ -1,0 +1,31 @@
+[package]
+name = "acacia-nbt-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+acacia-nbt = { path = ".." }
+arbitrary = "1"
+bytes = "1"
+libfuzzer-sys = "0.4"
+
+# Not a member of the main workspace: it only builds with cargo-fuzz on nightly.
+[workspace]
+
+[[bin]]
+name = "decode"
+path = "fuzz_targets/decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tree"
+path = "fuzz_targets/tree.rs"
+test = false
+doc = false
+bench = false

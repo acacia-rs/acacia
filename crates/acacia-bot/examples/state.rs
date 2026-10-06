@@ -1,12 +1,14 @@
 //! Joins a server and prints the tracked game state every few seconds.
 //! `cargo run -p acacia-bot --features socks --example state -- <server> <name|@account> <seconds>`
 //! `BEDROCK_PROXY=host:port:user:pass`, `BEDROCK_ENTITIES=1` (entity tracking), `BEDROCK_CMD="/cmd;chat"`,
-//! `BEDROCK_DEBUG_SCORES=1` (print raw scoreboard packets).
+//! `BEDROCK_DEBUG_SCORES=1` (print raw scoreboard packets), `BEDROCK_SKIP_PACKS=1` (join as a player
+//! with every resource pack cached), `BEDROCK_DEBUG_PACKETS=1` (print every packet received; with
+//! `RUST_LOG=acacia_client::send=trace` every packet sent too).
 use std::sync::Arc;
 use std::time::Duration;
 
 use acacia_bot::client::auth::{Account, AuthClient, AuthConfig, FileTokenCache};
-use acacia_bot::client::{Client, PacketFilter, Socks5Proxy};
+use acacia_bot::client::{Client, EveryPack, PacketFilter, Socks5Proxy};
 use acacia_bot::proto::packets::{RemoveObjective, SetDisplayObjective, SetScore};
 use acacia_bot::proto::Packet;
 use acacia_bot::state::Trackers;
@@ -15,15 +17,19 @@ use acacia_bot::{Bot, BotConfig, BotEvent, GameState};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).init();
     let mut args = std::env::args().skip(1);
     let server = args.next().unwrap_or_else(|| "127.0.0.1:19140".into());
     let name = args.next().unwrap_or_else(|| "Bot".into());
     let secs: u64 = args.next().map_or(20, |s| s.parse().expect("seconds"));
     let proxy = std::env::var("BEDROCK_PROXY").ok().map(|p| Socks5Proxy::parse(&p)).transpose()?;
 
-    let mut builder = Client::builder(&server);
+    let mut builder = Client::builder(&server).login_timeout(Duration::from_secs(180));
     if let Some(p) = &proxy {
         builder = builder.proxy(p.clone());
+    }
+    if std::env::var_os("BEDROCK_SKIP_PACKS").is_some() {
+        builder = builder.pack_store(Arc::new(EveryPack));
     }
     builder = match name.strip_prefix('@') {
         Some(account) => {
@@ -36,7 +42,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let trackers = Trackers { entities: std::env::var("BEDROCK_ENTITIES").is_ok(), ..Trackers::default() };
     let debug_scores = std::env::var("BEDROCK_DEBUG_SCORES").is_ok();
-    let subscribe = if debug_scores { [SetScore::ID, SetDisplayObjective::ID, RemoveObjective::ID].into_iter().collect() } else { PacketFilter::none() };
+    let debug_packets = std::env::var("BEDROCK_DEBUG_PACKETS").is_ok();
+    let subscribe = if debug_packets {
+        PacketFilter::all()
+    } else if debug_scores {
+        [SetScore::ID, SetDisplayObjective::ID, RemoveObjective::ID].into_iter().collect()
+    } else {
+        PacketFilter::none()
+    };
+    let start = std::time::Instant::now();
     let mut bot = Bot::connect(builder, BotConfig { trackers, subscribe, ..BotConfig::default() }).await?;
     println!("spawned as {}", bot.client().display_name());
 
@@ -48,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::select! {
             event = bot.next() => match event {
                 Some(BotEvent::Disconnected(reason)) => { println!("disconnected: {reason:?}"); break; }
+                Some(BotEvent::Packet(p)) if debug_packets => println!("[{:>6} ms] <- {} ({} bytes){}", start.elapsed().as_millis(), p.id, p.body.len(), describe(&p)),
                 Some(BotEvent::Packet(p)) => {
                     if let Ok(s) = p.decode::<SetScore>() { println!("[SetScore] {s:?}"); }
                     if let Ok(d) = p.decode::<SetDisplayObjective>() { println!("[SetDisplayObjective] {d:?}"); }
@@ -66,6 +81,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     Ok(())
+}
+
+/// The decoded form of the small packets that say what the server is doing with the player.
+fn describe(p: &acacia_bot::proto::RawPacket) -> String {
+    use acacia_bot::proto::packets::{Animate, Emote, EmoteList, InventorySlot, MobEquipment, PlayerHotbar, Text};
+    macro_rules! first_decoded {
+        ($($t:ty),*) => {$(
+            if let Ok(packet) = p.decode::<$t>() {
+                return format!(" {packet:?}");
+            }
+        )*};
+    }
+    first_decoded!(Text, MobEquipment, Animate, Emote, EmoteList, PlayerHotbar, InventorySlot);
+    String::new()
 }
 
 fn print_state(s: &GameState) {

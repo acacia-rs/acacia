@@ -70,9 +70,8 @@ impl Session {
             ResourcePackStack::ID => self.on_pack_stack(),
             StartGame::ID => self.runtime_entity_id = Some(read_runtime_entity_id(&raw.body)?),
             ItemRegistry::ID => {
-                let registry: ItemRegistry = raw.decode()?;
-                if let Some(shield) = registry.itemstates.iter().find(|i| i.name == "minecraft:shield") {
-                    acacia_proto::manual::set_shield_item_id(shield.runtime_id.into());
+                if let Some(shield) = acacia_proto::manual::shield_item_id_in_registry(&raw.body)? {
+                    acacia_proto::manual::set_shield_item_id(shield);
                 }
                 // Vanilla asks for its view distance after the item registry, with its device maximum.
                 let max_radius = acacia_auth::MAX_VIEW_DISTANCE as u8;
@@ -127,8 +126,8 @@ impl Session {
         self.send(&Respawn { position: Vec3f { x: 0.0, y: 0.0, z: 0.0 }, state: RESPAWN_CLIENT_READY, runtime_entity_id });
     }
 
-    /// What vanilla sends when it is back in the world, after a respawn and after spawning:
-    /// `PlayerAction(Respawn)` and a cleared camera aim assist.
+    /// What vanilla sends when it is back in the world after a respawn: `PlayerAction(Respawn)` and a
+    /// cleared camera aim assist. Not for the first spawn: The Hive kicks for a `PlayerAction(Respawn)` there.
     pub fn send_respawn_done(&mut self) {
         let Some(runtime_entity_id) = self.runtime_entity_id else { return };
         let origin = BlockCoordinates { x: 0, y: 0, z: 0 };

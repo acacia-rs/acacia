@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use acacia_auth::LoginCredentials;
 use acacia_session::blob_store::BlobStore;
+use acacia_session::pack_store::PackStore;
 use acacia_session::{DisconnectReason, Session, SessionConfig};
 use acacia_nethernet::Identity as NetIdentity;
 use p384::ecdsa::SigningKey;
@@ -59,6 +60,7 @@ pub struct ClientBuilder {
     blob_cache: BlobCache,
     blob_payloads: bool,
     pack_cache_dir: Option<PathBuf>,
+    pack_store: Option<Arc<dyn PackStore>>,
     login: Login,
     proxy: Option<Socks5Proxy>,
     transport: TransportKind,
@@ -81,6 +83,7 @@ impl ClientBuilder {
             blob_cache: BlobCache::Memory,
             blob_payloads: false,
             pack_cache_dir: None,
+            pack_store: None,
             login: Login::Offline { name: "Player".into() },
             proxy: None,
             transport: TransportKind::Auto,
@@ -212,6 +215,13 @@ impl ClientBuilder {
         self
     }
 
+    /// Decide yourself which resource packs count as already downloaded; replaces
+    /// [`pack_cache_dir`](Self::pack_cache_dir). A store that has every pack never downloads.
+    pub fn pack_store(mut self, store: Arc<dyn PackStore>) -> Self {
+        self.pack_store = Some(store);
+        self
+    }
+
     /// Keep blob bytes, not just hashes: needed to read terrain ([`Client::blob_store`]).
     pub fn keep_blob_payloads(mut self, keep: bool) -> Self {
         self.blob_payloads = keep;
@@ -255,7 +265,7 @@ impl ClientBuilder {
             auto_respawn: self.auto_respawn,
             initialize_on_spawn: self.initialize_on_spawn,
             blob_store: blob_store.clone(),
-            pack_store: pack_cache::open(self.pack_cache_dir.as_deref(), &account),
+            pack_store: self.pack_store.unwrap_or_else(|| pack_cache::open(self.pack_cache_dir.as_deref(), &account)),
             strict: self.strict,
         };
         let session = Session::new(cfg, addr, Instant::now());

@@ -60,7 +60,8 @@ Fixtures come from the same schema, so they can't catch schema errors: check aga
 | buffer (`ByteArray`, …), restBuffer | `bytes::Bytes` |
 | uuid | `manual::Uuid` (16 raw wire bytes; `Display` matches bedrock-protocol's string) |
 | byterot | `f32` degrees (`byte * 360/256`) |
-| nbt / lnbt / nbtLoop | `nbt::Nbt` (Network / LittleEndian flavour) / `Vec<nbt::Nbt>` |
+| nbt | `nbt::Raw<nbt::Network>` (see "Lazy NBT") |
+| lnbt / nbtLoop | `nbt::Nbt` (LittleEndian flavour) / `Vec<nbt::Nbt>` (Network); the tree and codec are the `acacia-nbt` crate, re-exported as `acacia_proto::nbt` |
 | container (top-level or packet) | struct with `read`/`write`; packets also `impl Packet` |
 | container (inline) | hoisted struct `<Parent><Field>`, decoded in place |
 | array (countType / fixed / count field) | `Vec<T>` / `[T; N]` / `Vec<T>` (the count field stays a normal field) |
@@ -88,6 +89,43 @@ Keywords are escaped as `r#type`. Packets live in `packets`, shared types in `ty
 - `tests/semantic.rs`: decoded field values are compared with the JS-decoded `*.json`.
 - `tests/roundtrip.rs`: hand-built values, the header and subclient bits, and error context.
 - `tests/strict.rs`: each leniency below is accepted by `decode` and rejected by `decode_strict`.
+
+## Lazy NBT
+
+A packet-level `nbt` field decodes to `nbt::Raw<Network>`: the decoder finds the tag's end and keeps its
+bytes, and `.decode()` builds the tree when someone wants it. `Raw::from(nbt)` goes the other way.
+In the recorded BDS join, NBT was 74% of decoding `StartGame`, 78% of `JigsawStructureData` and 42% of
+`ItemRegistry`, and almost none of it is read; keeping the bytes made those packets 4.9, 5.9 and 1.4 times
+faster to decode. Encoding one back is a copy.
+
+Item NBT (`lnbt`, inside item extra data) stays an eager `nbt::Nbt`: the documents are small and the bot
+reads most of them.
+
+## Decode cost
+
+`cargo run --release -p acacia-testserver --example decode_cost` decodes every packet of the recorded BDS
+join and prints time and allocations per type; with a packet name it loops on that type for a profiler.
+Decoding is bound by allocation, one per string and per list. A sampled profile of `CraftingData` (62,000
+allocations for 1 MB) has 39% of its time in heap allocation and 18% in freeing, against about 20% in
+the generated readers themselves.
+
+Because the cost is the allocator, the allocator is the cheapest fix: the same tool built with
+`--features mimalloc` decodes the whole join in 5.4–5.8 ms against 12.5–13.2 ms on the Windows system heap
+(`CraftingData` 2.3×, `AvailableCommands` 2.6×, `ItemRegistry` 1.7×, `PlayerList` 6×). That is a
+choice for a binary to make with `#[global_allocator]`, never for these libraries. The `acacia-mitm` CLI
+makes it (its default `mimalloc` feature).
+
+That table is every packet, not what a client pays. A bot join decodes none of the three largest
+(`CraftingData` only on the first recipe lookup, `AvailableCommands` and `BiomeDefinitionList` never). What
+it does pay for is the same packet decoded by several readers, so a reader that wants one field should
+not build the packet:
+
+- `manual::shield_item_id_in_registry` scans an `ItemRegistry` body for the shield's id (about 25 µs
+  against 500 µs for the decode); the session uses it.
+- The session reads only `StartGame`'s runtime entity id (`read_runtime_entity_id`).
+
+Still open: the bot decodes `ItemRegistry` once and `StartGame` and each `LevelChunk` three times, once
+per state module.
 
 ## Strict decoding
 

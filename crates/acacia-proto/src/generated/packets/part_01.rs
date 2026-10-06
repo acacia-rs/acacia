@@ -118,7 +118,7 @@ impl AddEntity {
                                     })
                                 } else if f_type == types::MetadataDictionaryItemType::Compound {
                                     types::MetadataDictionaryItemValueDefault::Compound(
-                                        crate::nbt::read::<crate::nbt::Network>(r)?,
+                                        crate::nbt::read_raw::<crate::nbt::Network>(r)?,
                                     )
                                 } else if f_type == types::MetadataDictionaryItemType::Vec3i {
                                     types::MetadataDictionaryItemValueDefault::Vec3i(
@@ -245,7 +245,7 @@ impl AddEntity {
                             write_slice(w, b);
                         }
                         types::MetadataDictionaryItemValueDefault::Compound(x3) => {
-                            crate::nbt::write::<crate::nbt::Network>(w, x3);
+                            x3.write(w);
                         }
                         types::MetadataDictionaryItemValueDefault::Vec3i(x3) => {
                             x3.write(w);
@@ -376,7 +376,7 @@ impl AddItemEntity {
                                     })
                                 } else if f_type == types::MetadataDictionaryItemType::Compound {
                                     types::MetadataDictionaryItemValueDefault::Compound(
-                                        crate::nbt::read::<crate::nbt::Network>(r)?,
+                                        crate::nbt::read_raw::<crate::nbt::Network>(r)?,
                                     )
                                 } else if f_type == types::MetadataDictionaryItemType::Vec3i {
                                     types::MetadataDictionaryItemValueDefault::Vec3i(
@@ -464,7 +464,7 @@ impl AddItemEntity {
                             write_slice(w, b);
                         }
                         types::MetadataDictionaryItemValueDefault::Compound(x3) => {
-                            crate::nbt::write::<crate::nbt::Network>(w, x3);
+                            x3.write(w);
                         }
                         types::MetadataDictionaryItemValueDefault::Vec3i(x3) => {
                             x3.write(w);

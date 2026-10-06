@@ -39,12 +39,10 @@ impl Ctx<'_> {
             ),
             IrTy::Rest => format!("write_slice(w, &{recv}[..]);"),
             IrTy::Uuid => format!("write_uuid(w, {val});"),
-            IrTy::Nbt { le } => {
-                format!(
-                    "crate::nbt::write::<crate::nbt::{}>(w, {val});",
-                    if *le { "LittleEndian" } else { "Network" }
-                )
+            IrTy::Nbt { le: true } => {
+                format!("crate::nbt::write::<crate::nbt::LittleEndian>(w, {val});")
             }
+            IrTy::Nbt { le: false } => format!("{recv}.write(w);"),
             IrTy::NbtLoop => format!("crate::nbt::write_loop(w, {val});"),
             IrTy::Item(_) => format!("{recv}.write(w);"),
             IrTy::Inline(id) => {

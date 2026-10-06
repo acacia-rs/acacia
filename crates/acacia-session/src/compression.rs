@@ -1,4 +1,5 @@
-use std::io::{Read, Write};
+use std::cell::RefCell;
+use std::io::Read;
 
 use acacia_proto::packets::NetworkSettingsCompressionAlgorithm;
 use bytes::BytesMut;
@@ -7,6 +8,11 @@ use crate::Error;
 
 /// Batch header byte meaning "not compressed" (used below the server's compression threshold).
 pub const NONE_ID: u8 = 0xff;
+
+thread_local! {
+    // Setting a deflate state up costs far more than compressing one tick's batch with it, so it is reused.
+    static DEFLATE: RefCell<flate2::Compress> = RefCell::new(flate2::Compress::new(flate2::Compression::fast(), false));
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Algorithm {
@@ -47,11 +53,19 @@ impl Algorithm {
 
     pub fn compress(self, input: &[u8], out: &mut BytesMut) {
         match self {
-            Self::Deflate => {
-                let mut enc = flate2::write::DeflateEncoder::new(Vec::with_capacity(input.len() / 2), flate2::Compression::fast());
-                enc.write_all(input).expect("writing to a Vec cannot fail");
-                out.extend_from_slice(&enc.finish().expect("writing to a Vec cannot fail"));
-            }
+            Self::Deflate => DEFLATE.with_borrow_mut(|deflate| {
+                deflate.reset();
+                let start = out.len();
+                loop {
+                    let (read, written) = (deflate.total_in() as usize, deflate.total_out() as usize);
+                    out.resize(start + written + input.len() / 2 + 64, 0);
+                    let status = deflate.compress(&input[read..], &mut out[start + written..], flate2::FlushCompress::Finish);
+                    if status.expect("deflate into a buffer cannot fail") == flate2::Status::StreamEnd {
+                        break;
+                    }
+                }
+                out.truncate(start + deflate.total_out() as usize);
+            }),
             Self::Snappy => {
                 let start = out.len();
                 out.resize(start + snap::raw::max_compress_len(input.len()), 0);
@@ -107,6 +121,16 @@ mod tests {
             alg.compress(&input, &mut buf);
             assert_eq!(decompress_batch(&buf, 1 << 20).unwrap().unwrap(), input);
             assert!(matches!(decompress_batch(&buf, 100), Err(Error::BatchTooLarge)));
+        }
+    }
+
+    #[test]
+    fn the_reused_deflate_state_carries_nothing_over() {
+        let incompressible: Vec<u8> = (0..5_000u32).map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8).collect();
+        for input in [&incompressible[..], b"", b"a", &[7; 3000], &incompressible[..]] {
+            let mut buf = BytesMut::from(&[Algorithm::Deflate.batch_id()][..]);
+            Algorithm::Deflate.compress(input, &mut buf);
+            assert_eq!(decompress_batch(&buf, 1 << 20).unwrap().unwrap(), input);
         }
     }
 }

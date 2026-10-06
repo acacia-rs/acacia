@@ -19,4 +19,9 @@ flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] 
 hex = "0.4"
 serde_json = "1"
 tracing = "0.1.44"
+mimalloc = { version = "0.1.52", optional = true }
+
+[features]
+# For `--example decode_cost`: measure with mimalloc instead of the system allocator.
+mimalloc = ["dep:mimalloc"]
 
