@@ -16,6 +16,9 @@ pub use raw::Raw;
 pub use read::{read, read_lossy};
 pub use skip::skip;
 pub use wire::{Flavor, LittleEndian, Network};
+// For acacia-proto's codec, so the one `unsafe` has one home.
+#[doc(hidden)]
+pub use wire::{put, put_slice};
 pub use write::write;
 
 pub type Result<T> = std::result::Result<T, Error>;

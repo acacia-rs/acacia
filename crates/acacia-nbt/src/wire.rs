@@ -43,7 +43,7 @@ fixed! {
 }
 
 macro_rules! varint {
-    ($read:ident $write:ident $t:ty, $max_bytes:expr) => {
+    ($read:ident $t:ty, $max_bytes:expr) => {
         #[inline]
         fn $read(r: &mut &[u8]) -> Result<$t> {
             let mut value: $t = 0;
@@ -56,19 +56,44 @@ macro_rules! varint {
             }
             Err(Error::VarIntTooLong)
         }
-        #[inline]
-        fn $write(w: &mut BytesMut, mut v: $t) {
-            while v >= 0x80 {
-                w.put_u8((v as u8) | 0x80);
-                v >>= 7;
-            }
-            w.put_u8(v as u8);
-        }
     };
 }
 
-varint!(read_varint32 write_varint32 u32, 5);
-varint!(read_varint64 write_varint64 u64, 10);
+/// Lengths and small ints are nearly all one byte, so only that case is inlined.
+#[inline]
+fn write_varint(w: &mut BytesMut, v: u64) {
+    if v < 0x80 { put(w, [v as u8]) } else { write_long_varint(w, v) }
+}
+
+fn write_long_varint(w: &mut BytesMut, mut v: u64) {
+    let (mut bytes, mut n) = ([0u8; 10], 0);
+    while v >= 0x80 {
+        bytes[n] = (v as u8) | 0x80;
+        v >>= 7;
+        n += 1;
+    }
+    bytes[n] = v as u8;
+    put_slice(w, &bytes[..=n]);
+}
+
+/// Every write goes through here or [`put_slice`], not `BufMut::put_*` (README.md, "Performance").
+#[inline]
+pub fn put<const N: usize>(w: &mut BytesMut, bytes: [u8; N]) {
+    put_slice(w, &bytes);
+}
+
+#[inline]
+pub fn put_slice(w: &mut BytesMut, bytes: &[u8]) {
+    if w.capacity() - w.len() < bytes.len() {
+        w.reserve(bytes.len());
+    }
+    w.chunk_mut()[..bytes.len()].copy_from_slice(bytes);
+    // SAFETY: the line above initialised that many bytes of spare capacity.
+    unsafe { w.advance_mut(bytes.len()) }
+}
+
+varint!(read_varint32 u32, 5);
+varint!(read_varint64 u64, 10);
 
 pub trait Flavor {
     /// Longest string, in bytes, the length prefix can hold.
@@ -96,7 +121,7 @@ impl Flavor for Network {
     }
     #[inline]
     fn write_int(w: &mut BytesMut, v: i32) {
-        write_varint32(w, ((v << 1) ^ (v >> 31)) as u32)
+        write_varint(w, u64::from(((v << 1) ^ (v >> 31)) as u32))
     }
     #[inline]
     fn read_long(r: &mut &[u8]) -> Result<i64> {
@@ -105,7 +130,7 @@ impl Flavor for Network {
     }
     #[inline]
     fn write_long(w: &mut BytesMut, v: i64) {
-        write_varint64(w, ((v << 1) ^ (v >> 63)) as u64)
+        write_varint(w, ((v << 1) ^ (v >> 63)) as u64)
     }
     #[inline]
     fn read_str_len(r: &mut &[u8]) -> Result<usize> {
@@ -113,7 +138,7 @@ impl Flavor for Network {
     }
     #[inline]
     fn write_str_len(w: &mut BytesMut, n: usize) {
-        write_varint32(w, n as u32)
+        write_varint(w, u64::from(n as u32))
     }
 }
 
@@ -126,7 +151,7 @@ impl Flavor for LittleEndian {
     }
     #[inline]
     fn write_int(w: &mut BytesMut, v: i32) {
-        w.put_i32_le(v)
+        put(w, v.to_le_bytes())
     }
     #[inline]
     fn read_long(r: &mut &[u8]) -> Result<i64> {
@@ -134,7 +159,7 @@ impl Flavor for LittleEndian {
     }
     #[inline]
     fn write_long(w: &mut BytesMut, v: i64) {
-        w.put_i64_le(v)
+        put(w, v.to_le_bytes())
     }
     #[inline]
     fn read_str_len(r: &mut &[u8]) -> Result<usize> {
@@ -142,7 +167,7 @@ impl Flavor for LittleEndian {
     }
     #[inline]
     fn write_str_len(w: &mut BytesMut, n: usize) {
-        w.put_u16_le(n as u16)
+        put(w, (n as u16).to_le_bytes())
     }
 }
 

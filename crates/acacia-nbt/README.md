@@ -69,6 +69,14 @@ Reading is bound by allocation, not by parsing: `skip` walks the same bytes abou
 - `Raw` still validates strings, so strict decoding can report bad UTF-8 without a tree. Keys are nearly
   all short ASCII, so that check tries `is_ascii` before `from_utf8`.
 
+Writing allocates nothing, so its cost is per field:
+
+- `BufMut::put_*` on a `BytesMut` is an out-of-line `put_slice` and a `memcpy` call for every field,
+  one byte included; that was about half of writing. `wire::put` and `wire::put_slice` check the
+  capacity and copy inline (the crate's only `unsafe`: `advance_mut` over bytes just written).
+- A varint of one byte, which nearly every length and small int is, is written inline; longer ones
+  take a call.
+
 ## Fuzzing
 
 `fuzz/run.sh <decode|tree> [seconds]` (nightly, `cargo install cargo-fuzz`):
