@@ -22,6 +22,7 @@ use crate::{Bot, BotConfig};
 
 pub struct SwarmBuilder<S> {
     shards: usize,
+    shard_fill: usize,
     policy: Policy,
     join_delay: Duration,
     join_jitter: Duration,
@@ -40,6 +41,7 @@ impl<S: Send + 'static> Default for SwarmBuilder<S> {
     fn default() -> Self {
         Self {
             shards: std::thread::available_parallelism().map_or(1, usize::from),
+            shard_fill: 100,
             policy: Policy::default(),
             join_delay: Duration::from_millis(500),
             join_jitter: Duration::from_millis(250),
@@ -60,6 +62,13 @@ impl<S: Send + 'static> SwarmBuilder<S> {
     /// Threads to run bots on (default: one per core).
     pub fn shards(mut self, shards: usize) -> Self {
         self.shards = shards.max(1);
+        self
+    }
+
+    /// Bots a shard takes before the next one is used (default 100); past that on every shard, the
+    /// least-loaded gets the bot. See docs/swarm.md, "Shards".
+    pub fn shard_fill(mut self, bots: usize) -> Self {
+        self.shard_fill = bots.max(1);
         self
     }
 
@@ -162,6 +171,6 @@ impl<S: Send + 'static> SwarmBuilder<S> {
             Box::new(move || Box::pin(supervise(ctx, task, spec, cancel)) as Pin<Box<dyn Future<Output = ()>>>)
         });
         let shard_count = shards.len();
-        Ok(Swarm { inner: Arc::new(Inner { ctx, spawn, shards: Mutex::new(shards), shard_count }) })
+        Ok(Swarm { inner: Arc::new(Inner { ctx, spawn, shards: Mutex::new(shards), shard_count, shard_fill: self.shard_fill }) })
     }
 }

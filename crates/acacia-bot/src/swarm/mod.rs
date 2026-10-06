@@ -41,6 +41,7 @@ struct Inner<S> {
     spawn: Box<Spawn<S>>,
     shards: Mutex<Vec<Shard>>,
     shard_count: usize,
+    shard_fill: usize,
 }
 
 /// Dropping the last handle disconnects every bot rather than leaving them unreachable.
@@ -71,14 +72,15 @@ impl<S: Send + 'static> Swarm<S> {
         SwarmBuilder::default()
     }
 
-    /// Queues the bot for its first join on the least-loaded shard.
+    /// Queues the bot for its first join, on a shard chosen as [`SwarmBuilder::shard_fill`] describes.
     pub fn add(&self, spec: BotSpec<S>) -> Result<(), AddError> {
         let ctx = &self.inner.ctx;
         if ctx.draining.load(Ordering::Relaxed) {
             return Err(AddError::Draining);
         }
         let id = spec.id.clone();
-        let (shard, cancel) = ctx.registry.insert(&id, &spec.target, self.inner.shard_count).ok_or_else(|| AddError::Duplicate(id.clone()))?;
+        let placed = ctx.registry.insert(&id, &spec.target, self.inner.shard_count, self.inner.shard_fill);
+        let (shard, cancel) = placed.ok_or_else(|| AddError::Duplicate(id.clone()))?;
         let job = (self.inner.spawn)(spec, cancel);
         let shards = self.inner.shards.lock().expect("swarm shards lock poisoned");
         if !shards.get(shard).is_some_and(|s| s.submit(id.clone(), job)) {
