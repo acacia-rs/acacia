@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use acacia_bot::client::{Client, TransportKind};
 use acacia_bot::proto::packets::{
-    ClientCacheBlobStatus, ClientCacheStatus, ClientMovementPredictionSync, ClientToServerHandshake, PlayerAction, PlayerAuthInput,
+    ClientCacheBlobStatus, ClientCacheStatus, ClientCameraAimAssist, ClientMovementPredictionSync, ClientToServerHandshake, PlayerAction, PlayerAuthInput,
     RequestChunkRadius, ResourcePackClientResponse, ServerboundLoadingScreen, SetLocalPlayerAsInitialized, SubchunkRequest,
 };
 use acacia_bot::proto::types::Action;
@@ -62,12 +62,10 @@ async fn idle_bot_follows_the_vanilla_join_timeline() {
     let median = gaps[gaps.len() / 2];
     assert!((35..=65).contains(&median), "median input gap {median} ms");
 
-    // Sub-chunks requested; prediction sync ~9.9 s after the spawn PlayerAction(Respawn).
+    // Sub-chunks requested; no PlayerAction(Respawn) at spawn (docs/research/vanilla-actions-2026-10-02.md,
+    // "Join / spawn"); prediction sync ~9.9 s after the bot settles (its cleared aim assist).
     first(&got, SubchunkRequest::ID);
-    let respawn = got
-        .iter()
-        .find(|r| r.packet.decode::<PlayerAction>().is_ok_and(|a| a.action == Action::Respawn))
-        .expect("spawn PlayerAction(Respawn)");
-    let sync = ms(first(&got, ClientMovementPredictionSync::ID)) - ms(respawn);
-    assert!((9_400..=10_600).contains(&sync), "prediction sync {sync} ms after the spawn PlayerAction");
+    assert!(!got.iter().any(|r| r.packet.decode::<PlayerAction>().is_ok_and(|a| a.action == Action::Respawn)));
+    let sync = ms(first(&got, ClientMovementPredictionSync::ID)) - ms(first(&got, ClientCameraAimAssist::ID));
+    assert!((9_400..=10_600).contains(&sync), "prediction sync {sync} ms after settling");
 }
