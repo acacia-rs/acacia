@@ -10,6 +10,7 @@
 //! ```
 
 pub mod capture;
+pub mod load;
 mod peer;
 mod script;
 mod server;
