@@ -51,9 +51,13 @@ async fn a_transfer_is_followed_through_the_proxy() {
     client.close();
     proxy.abort();
 
+    // Parsed, not matched as text: the order of a line's keys follows serde_json's `preserve_order`,
+    // which tools/codegen turns on for every crate of a workspace build.
     let text = std::fs::read_to_string(&capture).unwrap();
-    assert!(text.contains(r#""event":"transfer","session":0,"t":"#), "the transfer is noted on the first session");
-    assert!(text.contains(&format!(r#""to":"127.0.0.1:{}""#, game.addr().port())), "with the server's own target");
+    let lines: Vec<serde_json::Value> = text.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    let transfer = lines.iter().find(|line| line["event"] == "transfer").expect("the transfer is noted");
+    assert_eq!(transfer["session"], 0, "on the first session");
+    assert_eq!(transfer["to"], format!("127.0.0.1:{}", game.addr().port()), "with the server's own target");
     assert_eq!(capture::read(capture.to_str().unwrap()).unwrap().len(), 2);
     std::fs::remove_dir_all(&dir).unwrap();
 }

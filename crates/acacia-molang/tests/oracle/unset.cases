@@ -1,0 +1,78 @@
+# A read of something unset, outside ??, ends the program: which reads, and what that skips
+v.none + 5
+v.r = 7; v.r = v.none + 5; => v.r
+v.r = 7; v.r = c.none + 5; => v.r
+v.s.x = 1; v.r = 7; v.r = v.s.nope + 5; => v.r
+v.s.x = 1; v.r = 7; v.r = v.s.nope ?? 4; => v.r
+v.n = 5; v.r = 7; v.r = v.n.x + 5; => v.r
+v.r = 7; v.r = v.none.x + 5; => v.r
+v.r = 7; v.r = v.none ?? v.none2; => v.r
+v.r = 7; v.r = (v.none ?? v.none2) + 5; => v.r
+v.r = 7; v.r = 0 && v.none; => v.r
+v.r = 7; v.r = 1 || v.none; => v.r
+v.r = 7; v.r = 1 ? 2 : v.none; => v.r
+v.r = 7; v.r = 0 ? 2 : v.none; => v.r
+v.r = 7; v.r = v.none == 0; => v.r
+v.r = 7; v.r = !v.none; => v.r
+v.r = 7; v.r = -v.none; => v.r
+v.r = 7; v.r = math.abs(v.none); => v.r
+v.i = 0; loop(3, { v.i = v.i + 1; v.z = v.none; }); v.done = 1; => v.i
+v.i = 0; loop(3, { v.i = v.i + 1; v.z = v.none; }); v.done = 1; => v.done ?? 9
+v.r = 7; t.x = v.none; v.r = 8; => v.r
+v.r = 7; v.none; v.r = 8; => v.r
+v.r = 7; 1 ? { v.z = v.none; }; v.r = 8; => v.r
+truthy: v.none ?? 1
+truthy: v.none + 1
+truthy: return v.none ?? 1;
+truthy: return 1 + v.none;
+truthy: t.x = 1; return t.x + t.none;
+v.r = v.none + 5; => v.r
+v.before = 1; v.after = v.none; v.later = 2; => v.before
+v.before = 1; v.after = v.none; v.later = 2; => v.later ?? 9
+v.before = 1; v.after = v.none; v.later = 2; => v.after ?? 9
+v.x = 1; v.y = v.none * 3; v.x = 3; => v.x
+v.r = 7; v.r = math.max(v.none, 4); => v.r
+v.r = 7; v.r = v.none ? 1 : 2; => v.r
+v.r = 7; v.r = t.none + 5; => v.r
+v.r = 7; v.r = (v.none ?? 0) + 5; => v.r
+truthy: v.before = 1; v.after = v.none; return 1;
+
+# What is evaluated at all: the divisor before the dividend, which a divisor of 0 skips
+v.r = 7; v.r = v.none * 0; => v.r
+v.r = 7; v.r = 0 * v.none; => v.r
+v.r = 7; v.r = (v.c == 'a') /(v.none ?? 0) * 0; => v.r
+v.r = 7; v.r = (v.c == 'a') * 0; => v.r
+v.r = 7; v.r = (v.c == 'a'); => v.r
+v.r = 7; v.r = (v.c == 1); => v.r
+v.r = 7; v.r = (v.c != 'a') + 1; => v.r
+v.r = 7; v.r = (1 == v.c); => v.r
+v.z = 0; v.r = 7; v.r = t.a / v.z; => v.r
+v.z = 0; v.r = 7; v.r = v.none / v.z; => v.r
+v.z = 2; v.r = 7; v.r = v.none / v.z; => v.r
+v.r = 7; v.r = v.none / 0; => v.r
+v.r = 7; v.r = v.none / 2; => v.r
+v.z = 0; v.r = 7; (t.a / v.z) ? { v.q = 1; }; v.r = 8; => v.r
+v.r = 7; loop(2, { v.q = 1; (v.c == 'a') + 1 ? continue; }); v.r = 8; => v.r
+v.r = 7; loop(2, { v.q = 1; (v.c == 'a') + 1 ? break; }); v.r = 8; => v.r
+v.z = 0; => math.sqrt(v.z - 4) / 0 == 0
+v.z = 0; => math.sqrt(v.z - 4) / v.z == 0
+v.z = 0; => (math.mod(v.z + 1, 0) / 0) == 0
+math.mod(1, 0) / 0 == 0
+v.z = 0; => math.sqrt(v.z - 4) * 0 == 0
+
+# A variable against itself: only a subtraction of variable. names is cancelled unread
+v.r = 7; v.r = v.none - v.none; => v.r
+v.r = 7; v.r = v.none + v.none; => v.r
+v.r = 7; v.r = v.none / v.none; => v.r
+v.r = 7; v.r = v.none * v.none; => v.r
+v.r = 7; v.r = v.none == v.none; => v.r
+v.r = 7; v.r = v.none != v.none; => v.r
+v.r = 7; v.r = v.none < v.none; => v.r
+v.r = 7; v.r = v.none <= v.none; => v.r
+v.r = 7; v.r = v.none >= v.none; => v.r
+v.r = 7; v.r = v.none && v.none; => v.r
+v.r = 7; v.r = v.none || v.none; => v.r
+v.r = 7; v.r = v.none - v.none2; => v.r
+v.r = 7; v.r = 1 + v.none - v.none; => v.r
+v.r = 7; v.r = 1 - v.none - v.none; => v.r
+v.z = 0; => math.sqrt(v.z - 4) - math.sqrt(v.z - 4) == 0

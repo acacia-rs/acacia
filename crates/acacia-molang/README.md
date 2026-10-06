@@ -9,6 +9,9 @@ What an expression means is taken from a real Bedrock Dedicated Server, not from
 `tests/oracle/*.bds` holds BDS's answers and `tests/oracle.rs` requires the same ones here. Asking
 BDS is `tools/molang-oracle`.
 
+Used by `acacia-render` (entity looks and animations; `src/entity/molang.rs` is a host that answers
+queries by name) and by `acacia-bot` and sapling (MoLang recipe ingredients; a host with two queries).
+
 ## API
 
 ```rust
@@ -25,8 +28,9 @@ let value = program.eval(&mut Env { host: &game, variables: &mut entity_variable
   `tools/molang-oracle/queries.py`), or one the pack's engine version has dropped, is an error, as in
   BDS. `compiler.documented_queries_only = false` lets any name through to the host.
 - `Host` is the game's side: `query(query, args, structs)`, `context`, `random`, `entity` for the
-  right side of `entity->expression`, and `assign` for `entity->v.x = 1`. A host keeps a table indexed by `Query.0` (`Compiler::query(name)`
-  numbers a name ahead of use). Every method defaults to the answer of a host that knows nothing.
+  right side of `entity->expression`, and `assign` for `entity->v.x = 1`. A host keeps a table
+  indexed by `Query.0` (`Compiler::query(name)` numbers a name ahead of use), or looks the name up
+  with `Compiler::query_name`. Every method defaults to the answer of a host that knows nothing.
 - `Variables` is one entity's `variable.` storage; hosts write engine variables with `set` and
   `set_member`. `Scratch` holds temp variables, call arguments and the structs an evaluation makes; share
   one across evaluations.
@@ -43,6 +47,16 @@ entries with a space before compiling (a block opens on one line and closes on a
 
 - All arithmetic is `f32`. Dividing by zero gives 0. A not-a-number or an infinity assigned to a
   variable is stored as 0.
+- A read of something unset (a `variable.`, `temp.` or `context.` name, a struct member), outside `??`,
+  ends the whole program: its value is 0, the assignment being evaluated stores nothing and no later
+  statement runs. What was stored before stays. A branch or a right side that is never reached reads
+  nothing.
+- A division asks for its divisor first and, when that is 0, never for the dividend. Dividing by a
+  constant multiplies by its reciprocal (0 for that of 0), so the last bit can differ from a division
+  and a not-a-number over a constant 0 stays one.
+- `math.mod` by a computed 0 is 0; by a constant 0 it is not a number. `math.clamp(x, low, high)` tests
+  `high` first, which shows when the bounds are crossed. `math.min` and `math.max` answer their second
+  argument when either is not a number.
 - Names are case-insensitive; strings keep their case and only support `==` and `!=`.
 - A source with a `;` or an assignment is complex: it must end with `;`, and its value is 0 unless a
   `return` runs. `return` leaves the whole program, from inside blocks and loops too.
@@ -60,7 +74,9 @@ entries with a space before compiling (a block opens on one line and closes on a
 - Rejected at compile time, as BDS rejects them when a pack loads: wrong argument counts and unknown
   functions in `math.`, statements after `return`/`break`/`continue` (a conditional on a literal that
   picks one of them stays a conditional), `- -x`, a chained `a = b = c`,
-  assigning to anything but `variable.`/`temp.`, double-quoted strings.
+  assigning to anything but `variable.`/`temp.`, double-quoted strings, a string literal under
+  arithmetic, an ordering comparison, `&&`, `||`, `!`, unary `-` or a `math.` function (a string that
+  gets there through a variable or a conditional counts as 0).
 - `math.sign(0)` is 1. Trigonometry is in degrees. The elastic easings use the game's 65536-step sine
   table. `math.random` and the die rolls take their randomness from `Host::random`.
 
@@ -74,13 +90,14 @@ below is where BDS's answers change between two neighbouring `tests/oracle/versi
 |---|---|
 | 1.18.10 | `a ? b : c ? d : e` is `(a ? b : c) ? d : e`, and a conditional cannot sit in another's middle |
 | 1.18.20 | Comparison and logic operators each have a rank of their own, tightest first: `<`, `==`, `>=`, `>`, `<=`, `!=`, `\|\|`, `&&` |
-| 1.19.60 | A computed divisor loses its sign: `6 / v.d` is 3 for a `v.d` of -2. A divisor made only of literals (`-2`, `0 - 2`) keeps it |
+| 1.19.60 | A computed divisor loses its sign: `6 / v.d` is 3 for a `v.d` of -2. A divisor BDS folds to a constant (`-2`, `0 - 2`, `math.min(-2, 0)`) keeps it |
 | 1.20.50 | The same, still, inside complex expressions |
+| 1.20.50 | An assignment is an operand like any other: `(v.x = 3) + 1`. Since then only `==`, `!=`, `??`, the conditional, `loop`'s count and `return` take one |
 
 Not reproduced: before 1.17.40 BDS evaluated some malformed sources (`1 + (2 3)`, `'a' < 'b'`) that
 it has rejected since; they are errors here at every version.
 
-## Not done
+## Limits
 
 - `query.get_nearby_entities`, the documentation's `for_each` example, exists neither in Mojang's query
   list nor in the server binary; `query.combine_entities` is the one documented query returning an array.
@@ -92,7 +109,14 @@ it has rejected since; they are errors here at every version.
   `Host::assign`.
 - Which variables another entity may read ("public" variables) is left to `Host::entity`.
 - `->`, `for_each`, arrays and members of query results come from the documentation and the vanilla
-  packs; BDS could not be asked about them (`tests/host.rs`).
+  packs; BDS could not be asked about them (`tests/host.rs`). So `entity->v.x` for a missing entity
+  or an unset `v.x` is 0 and does not end the program.
+- BDS cancels a `variable.` name against itself in a sum without reading it, by rules of its own:
+  `v.none - v.none` is 0 there and `1 + v.none - v.none` is 0 too. Here both read `v.none`, which ends
+  the program (`SKIPPED` in `tests/oracle.rs`).
+- A not-a-number made of constants alone (`math.mod(1, 0)` under more `math.` calls or divisions) can
+  come out differently from BDS, whose folding of constants does not follow its evaluator. The fuzzer
+  still reports these.
 
 ## Speed
 
@@ -120,7 +144,27 @@ walk, for an estimated 15-25% on arithmetic-heavy expressions.
 
 - `tests/oracle.rs`: every case of `tests/oracle/*.cases` against BDS's answer. Add a case, rerun the
   oracle, commit both files. The cases this crate knowingly answers differently are listed in the test.
-- `tests/corpus.rs`: every expression of the vanilla packs compiles. The corpus is Mojang's, so it is
-  fetched into the git-ignored `assets/molang/` by `tools/molang-oracle/corpus.py` and the test passes
-  vacuously without it.
-- `tests/host.rs`: what BDS cannot be asked (queries, arrays, `->`, `for_each`, `this`).
+  Numbers may differ by four float steps: the answers are a Windows BDS's, whose math library does not
+  round like Rust's. It passes on Windows and on CI's Linux.
+- `tests/corpus.rs`: every expression of the vanilla packs compiles and evaluates. The corpus is
+  Mojang's, so it is fetched into the git-ignored `assets/molang/` by `tools/molang-oracle/corpus.py`
+  and the test passes vacuously without it.
+- `tests/host.rs`: what BDS cannot be asked (queries, arrays, `->`, `for_each`, `this`, old-pack rules
+  through the public API).
+- `tests/no_alloc.rs`: a counting allocator sees no allocation once evaluation has warmed up.
+
+## Fuzzing
+
+`fuzz/` is a cargo-fuzz crate outside the workspace (nightly, `cargo install cargo-fuzz`).
+`fuzz/run.sh <target> [seconds]` runs one target:
+
+- `source`: arbitrary text, at an engine version its first byte picks, must compile or be rejected
+  and evaluate without a panic or a runaway loop. Seeded with the oracle's cases.
+- `differ`: generated programs (`fuzz/src/lib.rs`) run here and in
+  [molangx](https://github.com/bedrock-crustaceans/molangx), from the same variables; a different
+  value, a different variable left behind, or one side rejecting the source is a crash. molangx is a
+  second opinion, not the truth: put the disagreement to BDS (`tools/molang-oracle`), add the case to
+  `tests/oracle/`, and fix whichever side BDS contradicts; if that is molangx, or a rule listed under
+  "Limits", keep the generator or `differ::compare` from raising it again. The generator leaves out
+  what the two cannot agree on by construction: randomness, trigonometry, `-` between expressions,
+  strings outside comparisons.

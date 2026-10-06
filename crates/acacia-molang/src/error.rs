@@ -33,8 +33,10 @@ pub enum ErrorKind {
     Unreachable,
     /// An expression with a `;` or an assignment has to end with `;`.
     MissingSemicolon,
-    /// A string literal under an operator other than `==` and `!=`.
+    /// A string literal under arithmetic, an ordering comparison, `&&`, `||`, `!` or a `math.` function.
     StringOperand,
+    /// An assignment in one of the places [`ErrorKind::StringOperand`] lists.
+    AssignmentOperand,
     /// The second argument of `loop` is not a `{}` block.
     LoopBody,
     /// Nested more than 64 levels deep.
@@ -64,6 +66,7 @@ impl fmt::Display for Error {
             ErrorKind::Unreachable => write!(f, "statements after `return`, `break` or `continue`"),
             ErrorKind::MissingSemicolon => write!(f, "an expression with `;` or `=` must end with `;`"),
             ErrorKind::StringOperand => write!(f, "strings only support `==` and `!=`"),
+            ErrorKind::AssignmentOperand => write!(f, "an assignment where only a number fits"),
             ErrorKind::LoopBody => write!(f, "the body of `loop` must be a `{{}}` block"),
             ErrorKind::TooDeep => write!(f, "nested too deeply"),
             ErrorKind::DoubleNegation => write!(f, "negation of a negation"),

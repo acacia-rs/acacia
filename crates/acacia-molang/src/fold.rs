@@ -17,8 +17,9 @@ pub(crate) fn fold(nodes: &[Node], node: Node) -> Option<Folded> {
         _ => None,
     };
     // A `return`, `break` or `continue` stays under its conditional, where the parser looks for it.
+    // So does a string: folded, `1 + (1 ? 'a' : 2)` would read as the `1 + 'a'` BDS rejects.
     let branch = |index: u32| match nodes[index as usize] {
-        Node::Return(_) | Node::Break | Node::Continue => None,
+        Node::Return(_) | Node::Break | Node::Continue | Node::Const(Value::Str(_)) => None,
         _ => Some(Folded::Node(index)),
     };
     Some(Folded::Value(match node {

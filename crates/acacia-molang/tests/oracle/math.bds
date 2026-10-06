@@ -147,3 +147,74 @@ error	math.abs(1, 2)	Error: Unexpected Comma ',' operator not inside an argument
 error	math.min(1)	Unexpected number of parameters to Min 'math.min' function - expected 2, found 1.
 error	math.clamp(1, 2)	Unexpected number of parameters to Clamp 'math.clamp' function - expected 3, found 2.
 error	math.nonexistent(1)	Error: unknown token: math.nonexistent(1)	unrecognized token: math.nonexistent(1)
+2.5	math.clamp(1, 2.5, 1.5)
+1.5	math.clamp(-1.5, 1.5, 0)
+1.5	math.clamp(2, 2.5, 1.5)
+1.5	math.clamp(3, 2.5, 1.5)
+2.5	v.z = 0; v.lo = 2.5; v.hi = 1.5; => math.clamp(v.z + 1, v.lo, v.hi)
+1.5	v.z = 0; v.lo = 2.5; v.hi = 1.5; => math.clamp(v.z + 3, v.lo, v.hi)
+1.5	v.z = 0; v.lo = 2.5; v.hi = 1.5; => math.clamp(v.z + 2, v.lo, v.hi)
+-2	math.min(math.mod(0, 0), -2)
+-2	math.max(math.mod(0, 0), -2)
+-2	v.z = 0; => math.min(-2, math.mod(v.z, v.z))
+-2	v.z = 0; => math.min(math.mod(v.z, v.z), -2)
+0	v.z = 0; => math.max(-2, math.mod(v.z, v.z))
+0	v.z = 0; => math.max(math.mod(v.z, v.z), -2)
+0	math.mod(0, 0) == math.mod(0, 0)
+1	v.z = 0; => math.mod(v.z, v.z) == math.mod(v.z, v.z)
+0	math.mod(1, 1 / 0) == math.mod(1, 1 / 0)
+1	v.z = 0; => math.mod(1, 1 / v.z) == math.mod(1, 1 / v.z)
+0	v.z = 0; => 1 / v.z
+1	v.z = 0; => math.mod(v.z, v.z) < 1
+0	v.z = 0; => math.mod(v.z, v.z) > 1
+1	v.z = 0; => !math.mod(v.z, v.z)
+2	v.z = 0; => math.mod(v.z, v.z) ? 1 : 2
+0	v.z = 0; => math.mod(v.z, v.z) && 1
+3	v.z = 0; => math.clamp(math.mod(v.z, v.z), 3, 5)
+4	v.z = 0; => math.clamp(4, math.mod(v.z, v.z), 5)
+0	v.z = 0; => math.clamp(4, 3, math.mod(v.z, v.z))
+1	v.z = 0; => math.abs(math.mod(v.z, v.z)) == 0
+1	v.z = 0; => math.round(math.mod(v.z, v.z)) == 0
+1	v.z = 0; => math.sign(math.mod(v.z, v.z))
+0	v.z = 0; => math.lerp(1, 2, math.mod(v.z, v.z)) == 0
+1	v.z = 0; => math.mod(v.z, v.z) + 1 == 1
+1	v.z = 0; => math.mod(v.z, v.z) * 0 == 0
+0	v.z = 0; => math.sqrt(v.z - 4) == 0
+1	v.z = 0; => math.sqrt(v.z - 4) ? 1 : 2
+0	v.z = 0; => math.mod(v.z, v.z) != math.mod(v.z, v.z)
+0	math.min(-2, math.mod(0, 0)) == -2
+0	math.max(-2, math.mod(0, 0)) == -2
+0	math.min(-2, math.mod(0, 0)) < 0
+0	v.a = 1.5; v.z = 0; => math.mod(v.a, 0) == math.mod(v.a, 0)
+0	v.a = 1.5; v.z = 0; => math.mod(v.a, 0 + 0) == math.mod(v.a, 0 + 0)
+0	v.a = 1.5; v.z = 0; => math.mod(v.a, math.clamp(0, 0, 0)) == math.mod(v.a, math.clamp(0, 0, 0))
+1	v.a = 1.5; v.z = 0; => math.mod(v.a, v.z) == math.mod(v.a, v.z)
+1	v.a = 1.5; v.z = 0; => math.mod(v.a, v.z * 1) == math.mod(v.a, v.z * 1)
+1	v.a = 1.5; v.z = 0; => math.mod(3, v.z) == math.mod(3, v.z)
+1	v.a = 1.5; v.z = 0; => math.mod(v.a, 0) ? 1 : 2
+2	v.a = 1.5; v.z = 0; => math.mod(v.a, v.z) ? 1 : 2
+0	v.a = 1.5; v.z = 0; => v.a / 0
+1	v.a = 1.5; v.z = 0; => v.a / 0 == 0
+1	v.a = 1.5; v.z = 0; => v.a / v.z == 0
+0	v.a = 1.5; v.z = 0; v.r = 5; v.r = math.mod(v.a, 0); => v.r	trying to set variable 'variable.r' to #nan/#inf!  setting to zero instead
+0	v.a = 1.5; v.z = 0; v.r = 5; v.r = math.mod(v.a, v.z); => v.r
+1	v.a = 1.5; v.z = 0; => math.mod(v.a, 2) == 1.5
+0	v.a = 1.5; v.z = 0; => math.mod(v.a, -0) == math.mod(v.a, -0)
+1	v.a = 5; => v.a / 3 == v.a * (1 / 3)
+0	v.a = 5; v.c = 3; => v.a / v.c == v.a * (1 / 3)
+1	v.a = 5; => v.a / 49 == v.a * (1 / 49)
+0	v.a = 5; v.c = 49; => v.a / v.c == v.a * (1 / 49)
+1	v.a = 7; => v.a / 3 == v.a * (1 / 3)
+0	v.a = 7; v.c = 3; => v.a / v.c == v.a * (1 / 3)
+1	v.a = 7; => v.a / 49 == v.a * (1 / 49)
+0	v.a = 7; v.c = 49; => v.a / v.c == v.a * (1 / 49)
+1	v.a = 10; => v.a / 3 == v.a * (1 / 3)
+0	v.a = 10; v.c = 3; => v.a / v.c == v.a * (1 / 3)
+1	v.a = 10; => v.a / 49 == v.a * (1 / 49)
+0	v.a = 10; v.c = 49; => v.a / v.c == v.a * (1 / 49)
+1	v.a = 1.7; => v.a / 3 == v.a * (1 / 3)
+0	v.a = 1.7; v.c = 3; => v.a / v.c == v.a * (1 / 3)
+1	v.a = 1.7; => v.a / 49 == v.a * (1 / 49)
+1	v.a = 1.7; v.c = 49; => v.a / v.c == v.a * (1 / 49)
+0	(5 / 3) == 5 * (1 / 3)
+0	(7 / 49) == 7 * (1 / 49)

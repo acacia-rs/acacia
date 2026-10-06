@@ -19,6 +19,8 @@ pub(crate) enum Flow {
     Break,
     Continue,
     Return,
+    /// A read of something unset outside `??` ended the program; see [`Machine::set`].
+    Abort,
 }
 
 pub(crate) enum Vars<'a> {
@@ -79,13 +81,24 @@ impl Machine<'_> {
             Node::Const(Value::Num(n)) => n,
             Node::This => self.this,
             Node::Neg(operand) => -self.num(operand),
-            Node::Binary(op @ (Op::Add | Op::Sub | Op::Mul | Op::Div | Op::DivByMagnitude), left, right) => {
+            Node::Binary(op @ (Op::Add | Op::Sub | Op::Mul), left, right) => {
                 let (x, y) = (self.num(left), self.num(right));
                 op.arithmetic(x, y)
             }
+            // BDS asks for the divisor first and, when it is 0, never for the dividend.
+            Node::Binary(op @ (Op::Div | Op::DivByMagnitude), left, right) => match self.num(right) {
+                0.0 => 0.0,
+                y => op.arithmetic(self.num(left), y),
+            },
             Node::Math { function, args, count } => self.math(function, args, count),
-            Node::Var { slot, path } => self.variable(slot, self.program.list(path)).map_or(0.0, Value::num),
-            Node::Temp { slot, path } => self.temps.get(slot, self.program.list(path)).map_or(0.0, Value::num),
+            Node::Var { slot, path } => {
+                let read = self.variable(slot, self.program.list(path));
+                self.set(read).num()
+            }
+            Node::Temp { slot, path } => {
+                let read = self.temps.get(slot, self.program.list(path));
+                self.set(read).num()
+            }
             Node::Query { id, args } => self.query(id, self.program.list(args)).num(),
             Node::Ternary(condition, then, otherwise) => {
                 if self.truthy(condition) { self.num(then) } else { self.num(otherwise) }
@@ -138,7 +151,24 @@ impl Machine<'_> {
         value
     }
 
-    /// The node's value; a variable that was never set reads as 0.
+    /// What a read gave. As in BDS, one that found nothing, outside `??`, ends the whole program:
+    /// its value is 0, the assignment it feeds stores nothing and no later statement runs.
+    #[inline]
+    fn set(&mut self, read: Option<Value>) -> Value {
+        match read {
+            Some(value) => value,
+            None => self.abort(),
+        }
+    }
+
+    #[cold]
+    fn abort(&mut self) -> Value {
+        if self.flow == Flow::Running {
+            self.flow = Flow::Abort;
+        }
+        Value::ZERO
+    }
+
     pub(crate) fn value(&mut self, node: u32) -> Value {
         let program = self.program;
         match program.nodes[node as usize] {
@@ -147,8 +177,14 @@ impl Machine<'_> {
             Node::Binary(Op::Add | Op::Sub | Op::Mul | Op::Div | Op::DivByMagnitude, ..) => Value::Num(self.num(node)),
             Node::Not(_) | Node::Binary(..) => Value::flag(self.truthy(node)),
             Node::Query { id, args } => self.query(id, program.list(args)),
-            Node::Var { slot, path } => self.variable(slot, program.list(path)).unwrap_or(Value::ZERO),
-            Node::Temp { slot, path } => self.temps.get(slot, program.list(path)).unwrap_or(Value::ZERO),
+            Node::Var { slot, path } => {
+                let read = self.variable(slot, program.list(path));
+                self.set(read)
+            }
+            Node::Temp { slot, path } => {
+                let read = self.temps.get(slot, program.list(path));
+                self.set(read)
+            }
             Node::Ternary(condition, then, otherwise) => {
                 if self.truthy(condition) { self.value(then) } else { self.value(otherwise) }
             }
@@ -158,13 +194,16 @@ impl Machine<'_> {
             Node::Assign { .. } | Node::Block(_) | Node::Loop { .. } | Node::ForEach { .. } | Node::Break | Node::Continue | Node::Return(_) => {
                 self.run(node)
             }
-            Node::Context(_) | Node::Member { .. } | Node::Coalesce(..) | Node::Index { .. } | Node::Arrow { .. } => {
-                self.maybe(node).unwrap_or(Value::ZERO)
+            Node::Context(_) | Node::Member { .. } | Node::Coalesce(..) | Node::Index { .. } => {
+                let read = self.maybe(node);
+                self.set(read)
             }
+            // Not a read that ends the program: BDS could not be asked (README, "Limits").
+            Node::Arrow { .. } => self.maybe(node).unwrap_or(Value::ZERO),
         }
     }
 
-    /// The nodes that can be unset, which only `??` tells apart from 0.
+    /// The nodes that can be unset, for `??` to catch; `None` anywhere else is [`Machine::set`]'s.
     pub(crate) fn maybe(&mut self, node: u32) -> Option<Value> {
         let program = self.program;
         match program.nodes[node as usize] {
