@@ -12,6 +12,17 @@ pub trait PackStore: Send + Sync {
     fn insert(&self, id: &str);
 }
 
+/// Answers like a returning player with every pack cached, so nothing is downloaded.
+pub struct EveryPack;
+
+impl PackStore for EveryPack {
+    fn has(&self, _: &str) -> bool {
+        true
+    }
+
+    fn insert(&self, _: &str) {}
+}
+
 /// A store that lives as long as the connection: every join downloads, like a fresh install.
 #[derive(Default)]
 pub struct MemoryPackStore {

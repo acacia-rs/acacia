@@ -312,15 +312,14 @@ pub(crate) fn air_wire_id(sg: &StartGame) -> u32 {
 }
 
 /// Custom block state counts: the product of each property's enum length, as the client permutes them.
+/// Vanilla names are left in: the registry skips them (`BlockRegistry::with_custom_blocks`).
 fn custom_blocks(sg: &StartGame) -> Vec<CustomBlock> {
-    let vanilla = BlockRegistry::vanilla();
     let enum_len = |p: &Value| match p.get("enum") {
         Some(Value::List(e)) => e.items.len().max(1) as u32,
         _ => 1,
     };
     sg.block_properties
         .iter()
-        .filter(|b| vanilla.states_of(&b.name).next().is_none())
         .map(|b| {
             let state_count = match b.state.decode().ok().as_ref().and_then(|s| s.value.get("properties")) {
                 Some(Value::List(l)) => l.items.iter().map(enum_len).product(),

@@ -6,13 +6,14 @@
 //!   `!respawn` = respawn, anything else = chat.
 //! - `BEDROCK_AUTO_RESPAWN=1` respawns automatically on death.
 //! - `BEDROCK_TRANSPORT=raknet|nethernet` forces a transport (default: auto, RakNet preferred).
+//! - `BEDROCK_SKIP_PACKS=1` joins as a player who has every resource pack cached.
 //! - `BEDROCK_STRICT=1` prints strict-mode violations (docs/testing.md).
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acacia_client::proto::packets::{CommandOutput, Respawn, Text, TextContent};
-use acacia_client::{Client, ClientBuilder, Event, Socks5Proxy, TransportKind};
+use acacia_client::{Client, ClientBuilder, EveryPack, Event, Socks5Proxy, TransportKind};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -32,6 +33,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let strict = std::env::var("BEDROCK_STRICT").is_ok();
     let mut builder =
         Client::builder(&server).auto_respawn(std::env::var("BEDROCK_AUTO_RESPAWN").is_ok()).transport(transport).strict(strict).blob_cache_dir(".blobs").pack_cache_dir(".packs");
+    if std::env::var_os("BEDROCK_SKIP_PACKS").is_some() {
+        builder = builder.pack_store(Arc::new(EveryPack)).login_timeout(Duration::from_secs(180));
+    }
     if let Some(p) = &proxy {
         println!("via proxy {}:{}", p.host, p.port);
         builder = builder.proxy(p.clone());

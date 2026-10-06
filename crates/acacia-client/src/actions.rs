@@ -46,8 +46,8 @@ impl Client {
         self.command_raw(Command::Respawn)
     }
 
-    /// Sends what vanilla sends once it is back in the world after spawning (see
-    /// `acacia_session::Session::send_respawn_done`); respawns send it on their own.
+    /// Sends what vanilla sends once it is back in the world after a respawn (see
+    /// `acacia_session::Session::send_respawn_done`); [`Client::respawn`] sends it on its own.
     pub fn respawn_done(&self) -> bool {
         self.command_raw(Command::RespawnDone)
     }
