@@ -22,18 +22,24 @@ or a signed-in game, so one at a time:
 
 ## 2. Realms and friend worlds
 
-**Realms: built, not yet tried against a realm.** `--realm <id>` (`Proxy::realm`) takes every game
-to that realm. The game joins the proxy by address over RakNet; per join the proxy asks Realms
+**Realms: joined live on 2026-10-06** with acacia's own client as the game: the `afk` example,
+offline, through `--realm <id> --online <account>` to a NetherNet realm. It spawned 7 s after the
+proxy reached the realm (22 s after joining the proxy: Realms starting the realm, then signaling)
+and idled 25 s; the capture holds the session, 64 kinds of packet. The vanilla game has not been
+through it. `--realm <id>` (`Proxy::realm`) takes every game to that realm. The game joins the proxy by address over RakNet; per join the proxy asks Realms
 where the realm is (`acacia_client::realm_route`) and reaches it over RakNet, or over a raw link
 through the signaling service (`acacia_client::RawLink`, `reach.rs`), the relay framing each side
 for its own wire. Covered by tests only up to the seams: a raw link through the fake signaling
 service (acacia-client), and the relay's framing per side. Open:
 
-- Does a NetherNet realm send ServerToClientHandshake? The relay starts the game's encryption on
-  it; without one the game stays plaintext, which a RakNet game accepts from a server.
-- The Login's `ServerAddress` is the proxy's, as on every hop.
-- Does the goodbye leave before the link closes (one flush after `close`)?
-- The signaling socket's keepalive does not reconnect (acacia-client `keepalive.rs`).
+- A NetherNet realm does send ServerToClientHandshake (seen in that capture), so the game's side
+  is encrypted as with any server.
+- The Login's `ServerAddress` is the proxy's, as on every hop; the realm accepted it.
+- Does the goodbye leave before the link closes (one flush after `close`)? Not checked: it needs
+  a look at the realm's player list, or a rejoin right after.
+- Sessions longer than the signaling keepalive's 48 s, which does not reconnect (acacia-client
+  `keepalive.rs`); the live run was shorter.
+- A RakNet realm (`RealmRoute::Address`): the code path exists, none was at hand.
 
 **Friends' worlds: not built.** `RawLink::dial_friend` exists; what is missing here is picking the
 world (`--friend <gamertag>`), joining its Xbox session per game, and putting the host's nonce
