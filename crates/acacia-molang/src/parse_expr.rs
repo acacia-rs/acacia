@@ -82,20 +82,40 @@ impl Parser<'_> {
         let Some(ops) = self.rules.levels.get(level) else { return self.unary() };
         let mut left = self.binary(level + 1)?;
         while let Some(&(_, op)) = ops.iter().find(|(symbol, _)| self.eat(symbol)) {
-            let right = self.binary(level + 1)?;
-            let text = |node| matches!(node, Node::Const(Value::Str(_)));
-            if !matches!(op, Op::Eq | Op::Ne) && (text(self.node(left)) || text(self.node(right))) {
-                return Err(self.fail_last(ErrorKind::StringOperand));
+            let mut right = self.binary(level + 1)?;
+            if !matches!(op, Op::Eq | Op::Ne) {
+                self.numeric(&[left, right])?;
             }
             // BDS folds constants too (`0 - 2`, `math.min(-2, 0)`), and a folded divisor keeps its sign.
             let old_division = op == Op::Div && !matches!(self.node(right), Node::Const(_));
-            let op = if old_division && self.rules.divides_by_magnitude { Op::DivByMagnitude } else { op };
+            let op = match (op, self.node(left), self.node(right)) {
+                // BDS multiplies by the reciprocal of a constant divisor, 0 for that of 0: the last
+                // bit differs from a division, and a not-a-number over 0 stays one.
+                (Op::Div, left, Node::Const(Value::Num(divisor))) if !matches!(left, Node::Const(_)) => {
+                    right = self.push(Node::Const(Value::Num(if divisor == 0.0 { 0.0 } else { 1.0 / divisor })));
+                    Op::Mul
+                }
+                _ if old_division && self.rules.divides_by_magnitude => Op::DivByMagnitude,
+                _ => op,
+            };
             left = self.push(Node::Binary(op, left, right));
             if old_division && self.rules.statements_divide_by_magnitude {
                 self.statement_divisions.push(left);
             }
         }
         Ok(left)
+    }
+
+    /// Operands of an operator or function that only takes numbers.
+    fn numeric(&self, operands: &[u32]) -> Result<(), Error> {
+        for &operand in operands {
+            match self.node(operand) {
+                Node::Const(Value::Str(_)) => return Err(self.fail_last(ErrorKind::StringOperand)),
+                Node::Assign { .. } if !self.rules.assignments_are_operands => return Err(self.fail_last(ErrorKind::AssignmentOperand)),
+                _ => {}
+            }
+        }
+        Ok(())
     }
 
     fn unary(&mut self) -> Result<u32, Error> {
@@ -105,6 +125,7 @@ impl Parser<'_> {
     fn prefixed(&mut self) -> Result<u32, Error> {
         if self.eat("!") {
             let operand = self.unary()?;
+            self.numeric(&[operand])?;
             return Ok(self.push(Node::Not(operand)));
         }
         if !self.eat("-") {
@@ -114,6 +135,7 @@ impl Parser<'_> {
             return Err(self.fail(ErrorKind::DoubleNegation));
         }
         let operand = self.unary()?;
+        self.numeric(&[operand])?;
         Ok(self.push(Node::Neg(operand)))
     }
 
@@ -230,6 +252,13 @@ impl Parser<'_> {
         };
         if arguments.len() != usize::from(expected) {
             return Err(Error { kind: ErrorKind::ArgumentCount { name, expected, found: arguments.len() }, at });
+        }
+        self.numeric(arguments)?;
+        // BDS only guards a computed divisor: by a constant 0 the remainder is not a number, whatever
+        // the dividend, which still has to be evaluated.
+        if matches!(function, MathFn::Mod) && matches!(self.node(arguments[1]), Node::Const(Value::Num(n)) if n == 0.0) {
+            let nan = self.push(Node::Const(Value::Num(f32::NAN)));
+            return Ok(self.push(Node::Binary(Op::Mul, arguments[0], nan)));
         }
         let mut args = [0; 3];
         args[..arguments.len()].copy_from_slice(arguments);

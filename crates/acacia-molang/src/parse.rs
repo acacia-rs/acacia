@@ -21,6 +21,8 @@ pub(crate) struct Rules {
     pub(crate) divides_by_magnitude: bool,
     /// The same, in a complex expression only; BDS fixed those later than simple ones.
     pub(crate) statements_divide_by_magnitude: bool,
+    /// `(v.x = 3) + 1` compiles; later, only `==`, `!=`, `??` and the conditional take an assignment.
+    pub(crate) assignments_are_operands: bool,
 }
 
 impl Rules {
@@ -30,6 +32,7 @@ impl Rules {
             conditionals_chain_left: engine < Engine(1, 18, 10),
             divides_by_magnitude: engine < Engine(1, 19, 60),
             statements_divide_by_magnitude: engine < Engine(1, 20, 50),
+            assignments_are_operands: engine < Engine(1, 20, 50),
         }
     }
 }

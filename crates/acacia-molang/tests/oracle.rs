@@ -6,14 +6,16 @@ use std::path::Path;
 use acacia_molang::{Compiler, Engine, Env, Error, NoHost, Scratch, Value, Variables};
 
 /// Cases this crate knowingly answers differently, with the reason.
-const SKIPPED: [(&str, &str); 3] = [
+const SKIPPED: [(&str, &str); 5] = [
+    ("v.r = 7; v.r = v.none - v.none; => v.r", "BDS cancels a variable against itself in a sum without reading it (README, \"Limits\")"),
+    ("v.r = 7; v.r = 1 + v.none - v.none; => v.r", "the same, and BDS loses the 1"),
     ("t.x = 4; => t.x ?? -1", "a temp read by a later expression: BDS answers 1, which nothing explains"),
     ("v.b = q.is_alive ?? 4; => v.b", "needs a host that answers `query.is_alive`"),
     ("this", "BDS has no `this` where the oracle evaluates"),
 ];
 
 /// Malformed sources that engines before 1.17.40 evaluated to something; here they are errors at every version.
-const ONCE_TOLERATED: [&str; 2] = ["1 + (2 3)", "'a' < 'b'"];
+const ONCE_TOLERATED: [&str; 5] = ["1 + (2 3)", "'a' < 'b'", "math.abs('a')", "math.max(1, 'a')", "!'a'"];
 
 struct Session {
     compiler: Compiler,

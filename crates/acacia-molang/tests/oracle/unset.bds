@@ -1,0 +1,74 @@
+# BDS 1.26.52.3, engine 1.26.0; result, case, Molang errors. Written by tools/molang-oracle/oracle.py.
+0	v.none + 5	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none + 5; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = c.none + 5; => v.r	Error: unhandled request for unknown variable 'context.none'
+7	v.s.x = 1; v.r = 7; v.r = v.s.nope + 5; => v.r	Error: unhandled request for unknown variable '.nope'
+4	v.s.x = 1; v.r = 7; v.r = v.s.nope ?? 4; => v.r	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+7	v.n = 5; v.r = 7; v.r = v.n.x + 5; => v.r	Error: unable to find member variable .x	Error: unhandled request for unknown variable '.x'
+7	v.r = 7; v.r = v.none.x + 5; => v.r	Error: unable to find member variable .x	Error: unhandled request for unknown variable '.x'
+7	v.r = 7; v.r = v.none ?? v.none2; => v.r	Error: unhandled request for unknown variable 'variable.none2'
+7	v.r = 7; v.r = (v.none ?? v.none2) + 5; => v.r	Error: unhandled request for unknown variable 'variable.none2'
+0	v.r = 7; v.r = 0 && v.none; => v.r
+1	v.r = 7; v.r = 1 || v.none; => v.r
+2	v.r = 7; v.r = 1 ? 2 : v.none; => v.r
+7	v.r = 7; v.r = 0 ? 2 : v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none == 0; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = !v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = -v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = math.abs(v.none); => v.r	Error: unhandled request for unknown variable 'variable.none'
+1	v.i = 0; loop(3, { v.i = v.i + 1; v.z = v.none; }); v.done = 1; => v.i	Error: unhandled request for unknown variable 'variable.none'
+9	v.i = 0; loop(3, { v.i = v.i + 1; v.z = v.none; }); v.done = 1; => v.done ?? 9	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; t.x = v.none; v.r = 8; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.none; v.r = 8; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; 1 ? { v.z = v.none; }; v.r = 8; => v.r	Error: unhandled request for unknown variable 'variable.none'
+1	truthy: v.none ?? 1
+0	truthy: v.none + 1	Error: unhandled request for unknown variable 'variable.none'
+1	truthy: return v.none ?? 1;
+0	truthy: return 1 + v.none;	Error: unhandled request for unknown variable 'variable.none'
+0	truthy: t.x = 1; return t.x + t.none;	Error: unhandled request for unknown variable 'temp.none'
+0	v.r = v.none + 5; => v.r	Error: unhandled request for unknown variable 'variable.none'	Error: unhandled request for unknown variable 'variable.r'
+1	v.before = 1; v.after = v.none; v.later = 2; => v.before	Error: unhandled request for unknown variable 'variable.none'
+9	v.before = 1; v.after = v.none; v.later = 2; => v.later ?? 9	Error: unhandled request for unknown variable 'variable.none'
+9	v.before = 1; v.after = v.none; v.later = 2; => v.after ?? 9	Error: unhandled request for unknown variable 'variable.none'
+1	v.x = 1; v.y = v.none * 3; v.x = 3; => v.x	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = math.max(v.none, 4); => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none ? 1 : 2; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = t.none + 5; => v.r	Error: unhandled request for unknown variable 'temp.none'
+5	v.r = 7; v.r = (v.none ?? 0) + 5; => v.r
+0	truthy: v.before = 1; v.after = v.none; return 1;	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none * 0; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = 0 * v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+0	v.r = 7; v.r = (v.c == 'a') /(v.none ?? 0) * 0; => v.r
+7	v.r = 7; v.r = (v.c == 'a') * 0; => v.r	Error: unhandled request for unknown variable 'variable.c'
+7	v.r = 7; v.r = (v.c == 'a'); => v.r	Error: unhandled request for unknown variable 'variable.c'
+7	v.r = 7; v.r = (v.c == 1); => v.r	Error: unhandled request for unknown variable 'variable.c'
+7	v.r = 7; v.r = (v.c != 'a') + 1; => v.r	Error: unhandled request for unknown variable 'variable.c'
+7	v.r = 7; v.r = (1 == v.c); => v.r	Error: unhandled request for unknown variable 'variable.c'
+0	v.z = 0; v.r = 7; v.r = t.a / v.z; => v.r
+0	v.z = 0; v.r = 7; v.r = v.none / v.z; => v.r
+7	v.z = 2; v.r = 7; v.r = v.none / v.z; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none / 0; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none / 2; => v.r	Error: unhandled request for unknown variable 'variable.none'
+8	v.z = 0; v.r = 7; (t.a / v.z) ? { v.q = 1; }; v.r = 8; => v.r
+7	v.r = 7; loop(2, { v.q = 1; (v.c == 'a') + 1 ? continue; }); v.r = 8; => v.r	Error: unhandled request for unknown variable 'variable.c'
+7	v.r = 7; loop(2, { v.q = 1; (v.c == 'a') + 1 ? break; }); v.r = 8; => v.r	Error: unhandled request for unknown variable 'variable.c'
+0	v.z = 0; => math.sqrt(v.z - 4) / 0 == 0
+1	v.z = 0; => math.sqrt(v.z - 4) / v.z == 0
+0	v.z = 0; => (math.mod(v.z + 1, 0) / 0) == 0
+1	math.mod(1, 0) / 0 == 0
+0	v.z = 0; => math.sqrt(v.z - 4) * 0 == 0
+0	v.r = 7; v.r = v.none - v.none; => v.r
+7	v.r = 7; v.r = v.none + v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none / v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none * v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none == v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none != v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none < v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none <= v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none >= v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none && v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none || v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+7	v.r = 7; v.r = v.none - v.none2; => v.r	Error: unhandled request for unknown variable 'variable.none'
+0	v.r = 7; v.r = 1 + v.none - v.none; => v.r
+7	v.r = 7; v.r = 1 - v.none - v.none; => v.r	Error: unhandled request for unknown variable 'variable.none'
+0	v.z = 0; => math.sqrt(v.z - 4) - math.sqrt(v.z - 4) == 0

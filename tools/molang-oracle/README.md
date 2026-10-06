@@ -42,8 +42,9 @@ through the controller.
 - `unset`: the event ran but stored nothing (a string or a struct into the float property).
 - `missing`: the server stopped before reporting the case; the tool exits 1.
 
-A number with an error beside it was still evaluated: BDS logged the error and carried on (reading
-an unknown variable gives 0).
+A number with an error beside it was still evaluated: BDS logged the error. It did not always carry
+on: reading an unknown variable ends the program with 0, so ask for a variable the program set
+earlier or later (`v.r = 7; v.r = v.none + 5; => v.r`) to tell that from a 0.
 
 ## Vanilla corpus
 

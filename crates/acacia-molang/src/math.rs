@@ -61,7 +61,8 @@ impl MathFn {
             Atan => a.atan().to_degrees(),
             Atan2 => a.atan2(b).to_degrees(),
             Ceil => a.ceil(),
-            Clamp => a.max(b).min(c),
+            // In BDS's order, which shows when the bounds are crossed: `clamp(1, 2.5, 1.5)` is 2.5.
+            Clamp => if a > c { c } else if a < b { b } else { a },
             CopySign => a.copysign(b),
             Cos => a.to_radians().cos(),
             DieRoll => (0..a.max(0.0) as u32).map(|_| b + (c - b) * random()).sum(),
@@ -73,10 +74,12 @@ impl MathFn {
             Lerp => a + (b - a) * c,
             LerpRotate => a + min_angle(b - a) * c,
             Ln => a.ln(),
-            Max => a.max(b),
-            Min => a.min(b),
+            // Not `f32::max`: BDS answers the second argument when either is not a number.
+            Max => if a > b { a } else { b },
+            Min => if a < b { a } else { b },
             MinAngle => min_angle(a),
-            Mod => a % b,
+            // A divisor that is a constant 0 never gets here (`Parser::math`).
+            Mod => if b == 0.0 { 0.0 } else { a % b },
             Pi => PI,
             Pow => a.powf(b),
             Random => a + (b - a) * random(),

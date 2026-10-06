@@ -75,6 +75,8 @@ impl Machine<'_> {
                 }
                 Value::ZERO
             }
+            // Only while running: the condition in front of one may have ended the program.
+            Node::Break | Node::Continue if self.flow != Flow::Running => Value::ZERO,
             Node::Break => {
                 self.flow = Flow::Break;
                 Value::ZERO
@@ -91,10 +93,10 @@ impl Machine<'_> {
     /// After a loop body: takes a `break` or `continue` off, and says whether the loop ends.
     fn leaves_loop(&mut self) -> bool {
         let flow = std::mem::replace(&mut self.flow, Flow::Running);
-        if flow == Flow::Return {
+        if matches!(flow, Flow::Return | Flow::Abort) {
             self.flow = flow;
         }
-        matches!(flow, Flow::Break | Flow::Return)
+        flow != Flow::Continue && flow != Flow::Running
     }
 
     /// Takes up to `wanted` repeats out of what the evaluation has left.

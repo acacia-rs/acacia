@@ -143,3 +143,37 @@ math.ease_in_out_elastic(10, 20, 0.25)
 0 || 2 == 1
 0 || 2 != 1
 1 || 0 && 0
+
+# An assignment as an operand: only ==, !=, ?? and the conditional take one (1.20.50)
+v.r = (v.s = 3) + 1; => v.s ?? 9
+v.r = 1 - (v.s = 3); => v.s ?? 9
+v.r = (v.s = 3) * 1; => v.s ?? 9
+v.r = (v.s = 3) / 1; => v.s ?? 9
+v.r = (v.s = 3) < 1; => v.s ?? 9
+v.r = (v.s = 3) >= 1; => v.s ?? 9
+v.r = (v.s = 3) && 1; => v.s ?? 9
+v.r = 0 || (v.s = 3); => v.s ?? 9
+v.r = -(v.s = 3); => v.s ?? 9
+v.r = !(v.s = 3); => v.s ?? 9
+v.r = math.max(1, (v.s = 3)); => v.s ?? 9
+v.r = (t.s = 3) + 1; => v.r ?? 9
+v.r = (v.s = 3) == 3; => v.r ?? 9
+v.r = (v.s = 3) != 1; => v.s ?? 9
+v.r = (v.s = 3) ?? 1; => v.s ?? 9
+v.r = (v.s = 3) ? 1 : 2; => v.s ?? 9
+v.r = 1 ? (v.s = 3) : 2; => v.s ?? 9
+loop((v.s = 3), { v.r = 1; }); => v.s ?? 9
+v.r = 1; return (v.s = 3); => v.s ?? 9
+
+# A string where only a number fits: a literal is an error (1.17.40), a string that got there another way is 0
+math.abs('a')
+math.max(1, 'a')
+-'a'
+!'a'
+'a' ? 1 : 2
+1 + (1 ? 'a' : 2)
+v.x = 'a'; => math.abs(v.x) + 5
+v.x = 'a'; => v.x + 5
+v.x = 'a'; => !v.x
+v.x = 'a'; => v.x < 1
+v.i = 0; loop('a', { v.i = v.i + 1; }); => v.i

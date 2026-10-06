@@ -1,0 +1,32 @@
+[package]
+name = "acacia-molang-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+acacia-molang = { path = ".." }
+arbitrary = "1"
+libfuzzer-sys = "0.4"
+# The second opinion of the `differ` target (README, "Fuzzing").
+molangx = { git = "https://github.com/bedrock-crustaceans/molangx", rev = "9c39c0abda9711fa345181f9a11245299f2942f6", features = ["vm", "stdlib"] }
+
+# Not a member of the main workspace: it only builds with cargo-fuzz on nightly.
+[workspace]
+
+[[bin]]
+name = "source"
+path = "fuzz_targets/source.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "differ"
+path = "fuzz_targets/differ.rs"
+test = false
+doc = false
+bench = false
