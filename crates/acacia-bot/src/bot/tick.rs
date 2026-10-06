@@ -60,7 +60,7 @@ impl Bot {
         if let Some(pause) = step.stall {
             self.ticker.stall(pause);
         }
-        if step.after.contains(&SpawnPacket::RespawnDone) {
+        if step.after.contains(&SpawnPacket::Settled) {
             self.sync.spawned();
         }
         step.after.into_iter().for_each(|p| spawn::send(&self.client, me, p));

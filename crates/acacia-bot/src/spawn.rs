@@ -37,8 +37,8 @@ pub(crate) enum SpawnPacket {
     EmoteList,
     LoadingScreenEnd,
     Initialized,
-    /// `PlayerAction(Respawn)` + cleared aim assist (`Client::respawn_done`).
-    RespawnDone,
+    /// Cleared aim assist. No `PlayerAction(Respawn)`: vanilla sends none at spawn, and The Hive kicks for it.
+    Settled,
 }
 
 /// One tick of the sequence: packets before this tick's input, whether to send an input, packets after.
@@ -94,7 +94,7 @@ impl SpawnSequence {
             self.initialized_at = Some(self.ticks);
         }
         if self.initialized_at.is_some_and(|at| self.ticks == at + SETTLE_TICKS) {
-            t.after.push(RespawnDone);
+            t.after.push(Settled);
         }
         if let Some(&(_, lo, hi)) = STALLS.iter().find(|s| s.0 == self.inputs) {
             t.stall = Some(Duration::from_millis(lo + crate::cadence::splitmix(&mut self.rng) % (hi - lo + 1)));
@@ -117,7 +117,7 @@ pub(crate) fn send(client: &acacia_client::Client, runtime_entity_id: u64, packe
             emote_pieces: DEFAULT_EMOTES.iter().map(|id| id.parse::<Uuid>().expect("constant UUIDs")).collect(),
         }),
         SpawnPacket::Initialized => client.send(&SetLocalPlayerAsInitialized { runtime_entity_id }),
-        SpawnPacket::RespawnDone => client.respawn_done(),
+        SpawnPacket::Settled => client.send(&crate::reflex::clear_aim_assist()),
     };
 }
 
@@ -132,7 +132,7 @@ mod tests {
         let total = FIRST_INPUT_TICK + LOADING_INPUTS + SETTLE_TICKS + 5;
         let ticks: Vec<SpawnTick> = (0..total).map(|_| seq.tick()).collect();
         let sent: Vec<SpawnPacket> = ticks.iter().flat_map(|t| t.before.iter().chain(&t.after).copied()).collect();
-        assert_eq!(sent, [LoadingScreenStart, MouseOverNothing, EmoteList, LoadingScreenEnd, Initialized, RespawnDone]);
+        assert_eq!(sent, [LoadingScreenStart, MouseOverNothing, EmoteList, LoadingScreenEnd, Initialized, Settled]);
         let first_input = ticks.iter().position(|t| t.input).unwrap() as u32 + 1;
         assert_eq!(first_input, FIRST_INPUT_TICK);
         assert_eq!(ticks.iter().filter(|t| t.input).count() as u32, total - (FIRST_INPUT_TICK - 1), "an input every tick from the first");
