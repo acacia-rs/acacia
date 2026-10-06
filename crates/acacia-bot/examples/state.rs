@@ -1,12 +1,13 @@
 //! Joins a server and prints the tracked game state every few seconds.
 //! `cargo run -p acacia-bot --features socks --example state -- <server> <name|@account> <seconds>`
 //! `BEDROCK_PROXY=host:port:user:pass`, `BEDROCK_ENTITIES=1` (entity tracking), `BEDROCK_CMD="/cmd;chat"`,
-//! `BEDROCK_DEBUG_SCORES=1` (print raw scoreboard packets).
+//! `BEDROCK_DEBUG_SCORES=1` (print raw scoreboard packets), `BEDROCK_SKIP_PACKS=1` (join as a player
+//! with every resource pack cached).
 use std::sync::Arc;
 use std::time::Duration;
 
 use acacia_bot::client::auth::{Account, AuthClient, AuthConfig, FileTokenCache};
-use acacia_bot::client::{Client, PacketFilter, Socks5Proxy};
+use acacia_bot::client::{Client, EveryPack, PacketFilter, Socks5Proxy};
 use acacia_bot::proto::packets::{RemoveObjective, SetDisplayObjective, SetScore};
 use acacia_bot::proto::Packet;
 use acacia_bot::state::Trackers;
@@ -21,9 +22,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let secs: u64 = args.next().map_or(20, |s| s.parse().expect("seconds"));
     let proxy = std::env::var("BEDROCK_PROXY").ok().map(|p| Socks5Proxy::parse(&p)).transpose()?;
 
-    let mut builder = Client::builder(&server);
+    let mut builder = Client::builder(&server).login_timeout(Duration::from_secs(180));
     if let Some(p) = &proxy {
         builder = builder.proxy(p.clone());
+    }
+    if std::env::var_os("BEDROCK_SKIP_PACKS").is_some() {
+        builder = builder.pack_store(Arc::new(EveryPack));
     }
     builder = match name.strip_prefix('@') {
         Some(account) => {

@@ -7,18 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use acacia_client::auth::{Account, AuthClient, AuthConfig, FileTokenCache};
-use acacia_client::{Client, Event, PackStore, PacketFilter, Socks5Proxy};
-
-/// Answers like a returning player with every pack cached, so nothing is downloaded.
-struct EveryPack;
-
-impl PackStore for EveryPack {
-    fn has(&self, _: &str) -> bool {
-        true
-    }
-
-    fn insert(&self, _: &str) {}
-}
+use acacia_client::{Client, EveryPack, Event, PacketFilter, Socks5Proxy};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
