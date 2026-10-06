@@ -15,6 +15,14 @@ Example: `crates/acacia-bot/examples/swarm_specs.rs`.
 - Hooks: `bot_config(|spec| …)`, `client(|spec, builder| …)` pick per-bot settings from the spec (e.g. its role
   in `state`). Every bot shares the swarm's `SharedWorlds`, so bots on one server store each chunk once.
 
+## Shards
+A new bot goes on the first shard running fewer than `shard_fill` bots (default 100), and on the least-loaded
+one only when every shard is that full. Packing is what keeps idle bots cheap: a thread that is asleep costs a
+wake-up for every packet and timer, and a busy thread shares one wake-up between many bots. 50 idle bots
+against `load_server` (acacia-testserver) took 12.5 s of CPU per 55 s spread over 23 shards and 3.3 s on one,
+which was then about 6% busy. Bots whose task does long synchronous work delay their shard's neighbours; give
+those a lower `shard_fill`.
+
 ## Specs are data
 `BotSpec<S> { id, login, target, proxy, state }` is serde, as are `SwarmEvent` and `Snapshot`:
 - `id` is chosen by the caller, so it stays unique across nodes.

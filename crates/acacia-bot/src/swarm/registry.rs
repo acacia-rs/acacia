@@ -40,14 +40,15 @@ impl<S> Registry<S> {
         self.0.lock().expect("swarm registry lock poisoned")
     }
 
-    /// Lists a new bot on the least-loaded of `shards`; `None` if the id is taken.
-    pub fn insert(&self, id: &BotId, target: &Target, shards: usize) -> Option<(usize, watch::Receiver<bool>)> {
+    /// Lists a new bot on the first of `shards` running fewer than `fill` bots, or the least-loaded
+    /// once all are that full (docs/swarm.md, "Shards"); `None` if the id is taken.
+    pub fn insert(&self, id: &BotId, target: &Target, shards: usize, fill: usize) -> Option<(usize, watch::Receiver<bool>)> {
         let mut bots = self.lock();
         if bots.contains_key(id) {
             return None;
         }
         let load = load(&bots, shards);
-        let shard = (0..shards).min_by_key(|&s| load[s]).unwrap_or(0);
+        let shard = (0..shards).find(|&s| load[s] < fill).or_else(|| (0..shards).min_by_key(|&s| load[s])).unwrap_or(0);
         let (cancel, cancelled) = watch::channel(false);
         let entry = Entry { target: target.clone(), shard, status: BotStatus::Waiting, cancel, stopped: None, waiter: None };
         bots.insert(id.clone(), entry);

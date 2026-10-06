@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::io::Read;
 
 use acacia_proto::packets::NetworkSettingsCompressionAlgorithm;
 use bytes::BytesMut;
@@ -12,6 +11,7 @@ pub const NONE_ID: u8 = 0xff;
 thread_local! {
     // Setting a deflate state up costs far more than compressing one tick's batch with it, so it is reused.
     static DEFLATE: RefCell<flate2::Compress> = RefCell::new(flate2::Compress::new(flate2::Compression::fast(), false));
+    static INFLATE: RefCell<flate2::Decompress> = RefCell::new(flate2::Decompress::new(false));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,17 +77,26 @@ impl Algorithm {
 
     pub fn decompress(self, input: &[u8], max_len: usize) -> Result<Vec<u8>, Error> {
         match self {
-            Self::Deflate => {
-                let mut out = Vec::with_capacity((input.len() * 4).min(max_len));
-                flate2::read::DeflateDecoder::new(input)
-                    .take(max_len as u64 + 1)
-                    .read_to_end(&mut out)
-                    .map_err(|e| Error::Decompress(e.to_string()))?;
-                if out.len() > max_len {
-                    return Err(Error::BatchTooLarge);
+            Self::Deflate => INFLATE.with_borrow_mut(|inflate| {
+                inflate.reset(false);
+                let mut out = Vec::with_capacity((input.len() * 4).clamp(64, max_len.max(64)));
+                loop {
+                    let read = inflate.total_in() as usize;
+                    let status = inflate
+                        .decompress_vec(&input[read..], &mut out, flate2::FlushDecompress::None)
+                        .map_err(|e| Error::Decompress(e.to_string()))?;
+                    if out.len() > max_len {
+                        return Err(Error::BatchTooLarge);
+                    }
+                    if status == flate2::Status::StreamEnd {
+                        return Ok(out);
+                    }
+                    if out.len() < out.capacity() {
+                        return Err(Error::Decompress("incomplete deflate stream".into()));
+                    }
+                    out.reserve(out.capacity());
                 }
-                Ok(out)
-            }
+            }),
             Self::Snappy => {
                 let len = snap::raw::decompress_len(input).map_err(|e| Error::Decompress(e.to_string()))?;
                 if len > max_len {
@@ -122,6 +131,21 @@ mod tests {
             assert_eq!(decompress_batch(&buf, 1 << 20).unwrap().unwrap(), input);
             assert!(matches!(decompress_batch(&buf, 100), Err(Error::BatchTooLarge)));
         }
+    }
+
+    #[test]
+    fn deflate_refuses_a_cut_stream_and_ignores_what_follows_a_whole_one() {
+        let input: Vec<u8> = (0..10_000u32).map(|i| (i % 251) as u8).collect();
+        let mut buf = BytesMut::new();
+        Algorithm::Deflate.compress(&input, &mut buf);
+        for cut in [&buf[..buf.len() - 3], &buf[..buf.len() / 2], b""] {
+            assert!(matches!(Algorithm::Deflate.decompress(cut, 1 << 20), Err(Error::Decompress(_))));
+        }
+        let mut trailing = buf.to_vec();
+        trailing.extend_from_slice(b"junk");
+        assert_eq!(Algorithm::Deflate.decompress(&trailing, 1 << 20).unwrap(), input);
+        assert_eq!(Algorithm::Deflate.decompress(&buf, 1 << 20).unwrap(), input, "the state is clean after a failure");
+        assert!(matches!(Algorithm::Deflate.decompress(&buf, input.len() - 1), Err(Error::BatchTooLarge)));
     }
 
     #[test]

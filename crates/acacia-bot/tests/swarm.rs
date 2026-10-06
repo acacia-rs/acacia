@@ -29,6 +29,7 @@ async fn swarm_runs_bots_across_servers_and_shards() {
     let servers = [FakeServer::start(Script::bds_spawn()).await.unwrap(), FakeServer::start(Script::bds_spawn()).await.unwrap(), FakeServer::start(Script::bds_spawn()).await.unwrap()];
     let swarm = Swarm::builder()
         .shards(2)
+        .shard_fill(1)
         .join_spacing(Duration::from_millis(10), Duration::ZERO)
         .client(|_, b| b.transport(TransportKind::RakNet))
         .start(async |bot: &mut Bot, role: &mut Role| {
