@@ -8,6 +8,7 @@ mod blob;
 mod mining;
 mod state;
 
+use std::ops::Range;
 use std::sync::{Arc, LazyLock, OnceLock};
 
 use parking_lot::Mutex;
@@ -21,6 +22,8 @@ pub struct BlockRegistry {
     states: Vec<BlockState>,
     air: u32,
     by_hash: OnceLock<FxHashMap<u32, u32>>,
+    /// Each block's runtime ids: one run, as the palette is sorted by name.
+    by_name: OnceLock<FxHashMap<&'static str, Range<u32>>>,
 }
 
 /// A block from `StartGame.block_properties`. `state_count` is the product of the value counts of
@@ -48,7 +51,19 @@ impl BlockRegistry {
             .iter()
             .position(|s| s.name == "minecraft:air")
             .expect("palette has minecraft:air") as u32;
-        BlockRegistry { states, air, by_hash: OnceLock::new() }
+        BlockRegistry { states, air, by_hash: OnceLock::new(), by_name: OnceLock::new() }
+    }
+
+    /// The runtime ids of the block `name`; empty for one the registry does not have.
+    fn ids_of(&self, name: &str) -> Range<u32> {
+        let index = self.by_name.get_or_init(|| {
+            let mut index: FxHashMap<&'static str, Range<u32>> = FxHashMap::default();
+            for (id, state) in (0u32..).zip(&self.states) {
+                index.entry(state.name).and_modify(|ids| ids.end = id + 1).or_insert(id..id + 1);
+            }
+            index
+        });
+        index.get(name).cloned().unwrap_or(0..0)
     }
 
     /// Runtime id for a hashed network id (see [`BlockState::network_hash`]).
@@ -108,24 +123,17 @@ impl BlockRegistry {
         self.states.is_empty()
     }
 
-    /// Linear scan; `properties` is `k=v` pairs in any order (`""` for none).
+    /// `properties` is `k=v` pairs in any order (`""` for none).
     pub fn find(&self, name: &str, properties: &str) -> Option<u32> {
         let mut want: Vec<&str> = properties.split(',').filter(|s| !s.is_empty()).collect();
         want.sort_unstable();
         let want = want.join(",");
-        self.states
-            .iter()
-            .position(|s| s.name == name && s.properties == want)
-            .map(|i| i as u32)
+        self.states_of(name).find(|(_, s)| s.properties == want).map(|(id, _)| id)
     }
 
     /// All `(runtime_id, state)` of one block.
     pub fn states_of<'a>(&'a self, name: &'a str) -> impl Iterator<Item = (u32, &'a BlockState)> {
-        self.states
-            .iter()
-            .enumerate()
-            .filter(move |(_, s)| s.name == name)
-            .map(|(i, s)| (i as u32, s))
+        self.ids_of(name).map(|id| (id, &self.states[id as usize]))
     }
 }
 

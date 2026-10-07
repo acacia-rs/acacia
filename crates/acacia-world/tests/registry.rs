@@ -159,6 +159,21 @@ fn network_hashes_are_unique() {
 }
 
 #[test]
+fn every_block_is_found_by_name_as_by_a_scan() {
+    let r = BlockRegistry::vanilla();
+    let mut seen = std::collections::HashSet::new();
+    for id in 0..r.len() as u32 {
+        let state = r.get(id).unwrap();
+        assert_eq!(r.find(state.name, state.properties), Some(id), "{} [{}]", state.name, state.properties);
+        if seen.insert(state.name) {
+            let scanned: Vec<u32> = (0..r.len() as u32).filter(|&i| r.get(i).unwrap().name == state.name).collect();
+            assert_eq!(r.states_of(state.name).map(|(i, _)| i).collect::<Vec<_>>(), scanned, "{}", state.name);
+        }
+    }
+    assert_eq!((r.states_of("minecraft:no_such_block").count(), r.find("minecraft:no_such_block", "")), (0, None));
+}
+
+#[test]
 fn property_lookup() {
     let s = state("minecraft:oak_stairs", "weirdo_direction=2,upside_down_bit=1,minecraft:corner=none");
     assert_eq!(s.property("weirdo_direction"), Some("2"));
