@@ -2,6 +2,11 @@
 
 use std::f32::consts::PI;
 
+mod ease;
+
+/// BDS's radians-to-degrees factor, one step below `f32::to_degrees`'.
+const RAD_TO_DEG: f32 = f32::from_bits(0x4265_2ee0);
+
 macro_rules! math_functions {
     ($($name:literal $variant:ident $arity:literal,)*) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,10 +61,10 @@ impl MathFn {
         use MathFn::*;
         match self {
             Abs => a.abs(),
-            Acos => a.acos().to_degrees(),
-            Asin => a.asin().to_degrees(),
-            Atan => a.atan().to_degrees(),
-            Atan2 => a.atan2(b).to_degrees(),
+            Acos => degrees(inverse_trig_argument(a).acos()),
+            Asin => degrees(inverse_trig_argument(a).asin()),
+            Atan => degrees(f64::from(a).atan()),
+            Atan2 => degrees(f64::from(a).atan2(f64::from(b))),
             Ceil => a.ceil(),
             // In BDS's order, which shows when the bounds are crossed: `clamp(1, 2.5, 1.5)` is 2.5.
             Clamp => if a > c { c } else if a < b { b } else { a },
@@ -89,63 +94,22 @@ impl MathFn {
             Sin => a.to_radians().sin(),
             Sqrt => a.sqrt(),
             Trunc => a.trunc(),
-            _ => a + (b - a) * self.ease(c),
-        }
-    }
-
-    /// The easing curve at `t`; formulas as on easings.net, without its special cases at 0 and 1.
-    fn ease(self, t: f32) -> f32 {
-        use MathFn::*;
-        let out = |curve: fn(f32) -> f32, t: f32| 1.0 - curve(1.0 - t);
-        let in_out = |curve: fn(f32) -> f32, t: f32| if t < 0.5 { curve(2.0 * t) / 2.0 } else { 1.0 - curve(2.0 - 2.0 * t) / 2.0 };
-        let curve: fn(f32) -> f32 = match self {
-            EaseInQuad | EaseOutQuad | EaseInOutQuad => |t| t * t,
-            EaseInCubic | EaseOutCubic | EaseInOutCubic => |t| t * t * t,
-            EaseInQuart | EaseOutQuart | EaseInOutQuart => |t| t * t * t * t,
-            EaseInQuint | EaseOutQuint | EaseInOutQuint => |t| t * t * t * t * t,
-            EaseInSine | EaseOutSine | EaseInOutSine => |t| 1.0 - (t * PI / 2.0).cos(),
-            EaseInExpo | EaseOutExpo | EaseInOutExpo => |t| 2f32.powf(10.0 * t - 10.0),
-            EaseInCirc | EaseOutCirc | EaseInOutCirc => |t| 1.0 - (1.0 - t * t).sqrt(),
-            EaseInBack | EaseOutBack => |t| 2.70158 * t * t * t - 1.70158 * t * t,
-            EaseInOutBack => |t| t * t * (3.5949095 * t - 2.5949095),
-            EaseInElastic | EaseInOutElastic => |t| -(2f32.powf(10.0 * t - 10.0)) * table_sin((10.0 * t - 10.75) * (2.0 * PI / 3.0)),
-            EaseOutElastic => |t| 2f32.powf(-10.0 * t) * table_sin((10.0 * t - 0.75) * (2.0 * PI / 3.0)) + 1.0,
-            _ => |t| 1.0 - bounce(1.0 - t),
-        };
-        match self {
-            EaseOutElastic => curve(t),
-            EaseInQuad | EaseInCubic | EaseInQuart | EaseInQuint | EaseInSine | EaseInExpo | EaseInCirc | EaseInBack
-            | EaseInElastic | EaseInBounce => curve(t),
-            EaseOutQuad | EaseOutCubic | EaseOutQuart | EaseOutQuint | EaseOutSine | EaseOutExpo | EaseOutCirc
-            | EaseOutBack | EaseOutBounce => out(curve, t),
-            _ => in_out(curve, t),
+            _ => ease::ease(self, a, b, c),
         }
     }
 }
 
-/// The game's 65536-step sine table, which the elastic curves use in place of a real sine.
-fn table_sin(radians: f32) -> f32 {
-    let step = (radians * 10430.378) as i32 & 0xffff;
-    (f64::from(step) * std::f64::consts::TAU / 65536.0).sin() as f32
+/// Rounded to `f32` before the conversion.
+fn degrees(radians: f64) -> f32 {
+    radians as f32 * RAD_TO_DEG
+}
+
+/// BDS clamps an argument up to 1.0005 out into [-1, 1]; only beyond that is it NaN.
+fn inverse_trig_argument(x: f32) -> f64 {
+    const TOLERANCE: f32 = f32::from_bits(0x3f80_1062);
+    f64::from(if x.abs() > TOLERANCE { x } else { x.clamp(-1.0, 1.0) })
 }
 
 fn random_integer(low: f32, high: f32, random: &dyn Fn() -> f32) -> f32 {
     (low + (high - low + 1.0) * random()).floor().min(high.max(low))
-}
-
-fn bounce(t: f32) -> f32 {
-    const N: f32 = 7.5625;
-    const D: f32 = 2.75;
-    if t < 1.0 / D {
-        N * t * t
-    } else if t < 2.0 / D {
-        let t = t - 1.5 / D;
-        N * t * t + 0.75
-    } else if t < 2.5 / D {
-        let t = t - 2.25 / D;
-        N * t * t + 0.9375
-    } else {
-        let t = t - 2.625 / D;
-        N * t * t + 0.984375
-    }
 }

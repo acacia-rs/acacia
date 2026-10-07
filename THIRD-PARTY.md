@@ -27,5 +27,11 @@ Each is used under the MIT License:
 > IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 > USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+[bedrock-crustaceans/molangx](https://github.com/bedrock-crustaceans/molangx) (molangx contributors) is
+used under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0): the `math.ease_*`
+formulas, constants and sine-table indexing in `acacia-molang/src/math/ease.rs` are ported from its
+`src/stdlib/math/arch/x86_64/ease.rs` and `src/stdlib/math/arch/mod.rs`, with changes (rewritten as one
+function over `MathFn`, NaN-operand ordering not kept).
+
 Other projects (Geyser, Dragonfly, PocketMine, PowerNukkitX, gophertunnel) are cited in comments for
 how servers behave; no code is taken from them.

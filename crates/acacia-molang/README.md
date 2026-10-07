@@ -77,8 +77,10 @@ entries with a space before compiling (a block opens on one line and closes on a
   assigning to anything but `variable.`/`temp.`, double-quoted strings, a string literal under
   arithmetic, an ordering comparison, `&&`, `||`, `!`, unary `-` or a `math.` function (a string that
   gets there through a variable or a conditional counts as 0).
-- `math.sign(0)` is 1. Trigonometry is in degrees. The elastic easings use the game's 65536-step sine
-  table. `math.random` and the die rolls take their randomness from `Host::random`.
+- `math.sign(0)` is 1. Trigonometry is in degrees; `math.asin`/`math.acos` clamp an argument up to
+  1.0005 into [-1, 1]. The easings follow BDS's own operation order, and the sine and elastic ones use
+  the game's 65536-step sine table; the elastic ones answer the start at `t` = 0 and start + (end -
+  start) at 1. `math.random` and the die rolls take their randomness from `Host::random`.
 
 ## Older packs
 
