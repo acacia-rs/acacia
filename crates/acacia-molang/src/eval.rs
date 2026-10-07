@@ -9,6 +9,7 @@
 use crate::compiler::{Context, Query};
 use crate::host::{Env, Host, Structs};
 use crate::math::MathFn;
+use crate::post::Post;
 use crate::program::{Node, Op, Program};
 use crate::store::Store;
 use crate::value::{Symbol, Value};
@@ -77,19 +78,20 @@ impl Program {
 impl Machine<'_> {
     /// The node as a number; anything that is not one counts as 0.
     pub(crate) fn num(&mut self, node: u32) -> f32 {
-        match self.program.nodes[node as usize] {
+        let program = self.program;
+        match program.nodes[node as usize] {
             Node::Const(Value::Num(n)) => n,
             Node::This => self.this,
-            Node::Neg(operand) => -self.num(operand),
+            Node::Post { of, post } => self.posted(of, post),
+            Node::Sum(terms) => {
+                let (&first, rest) = program.list(terms).split_first().expect("a sum has terms");
+                rest.iter().fold(self.num(first), |sum, &term| sum + self.num(term))
+            }
             Node::Binary(op @ (Op::Add | Op::Sub | Op::Mul), left, right) => {
                 let (x, y) = (self.num(left), self.num(right));
                 op.arithmetic(x, y)
             }
-            // BDS asks for the divisor first and, when it is 0, never for the dividend.
-            Node::Binary(op @ (Op::Div | Op::DivByMagnitude), left, right) => match self.num(right) {
-                0.0 => 0.0,
-                y => op.arithmetic(self.num(left), y),
-            },
+            Node::Binary(op @ (Op::Div | Op::DivByMagnitude), left, right) => self.divide(op, left, right).unwrap_or(0.0),
             Node::Math { function, args, count } => self.math(function, args, count),
             Node::Var { slot, path } => {
                 let read = self.variable(slot, self.program.list(path));
@@ -109,10 +111,11 @@ impl Machine<'_> {
 
     /// The node as a condition, without making a value of a comparison first.
     pub(crate) fn truthy(&mut self, node: u32) -> bool {
-        match self.program.nodes[node as usize] {
+        let program = self.program;
+        match program.nodes[node as usize] {
             Node::Not(operand) => !self.truthy(operand),
-            Node::Binary(Op::Or, left, right) => self.truthy(left) || self.truthy(right),
-            Node::Binary(Op::And, left, right) => self.truthy(left) && self.truthy(right),
+            Node::Logic { any: true, terms } => program.list(terms).iter().any(|&term| self.truthy(term)),
+            Node::Logic { any: false, terms } => program.list(terms).iter().all(|&term| self.truthy(term)),
             Node::Binary(op @ (Op::Lt | Op::Le | Op::Gt | Op::Ge), left, right) => {
                 let (x, y) = (self.num(left), self.num(right));
                 op.orders(x, y)
@@ -122,6 +125,32 @@ impl Machine<'_> {
                 op.equates(a, b)
             }
             _ => self.value(node).truthy(),
+        }
+    }
+
+    /// `of` through a post-op. Comparisons and logic pick one of two constants, `math.sign` answers
+    /// `±(scale + offset)`, and a division by less than `f32::EPSILON` is 0, post-op and all. A
+    /// literal's post-op only counts where the parser moves it into its parent (`optimise.rs`).
+    #[inline(never)]
+    fn posted(&mut self, of: u32, post: Post) -> f32 {
+        match self.program.nodes[of as usize] {
+            Node::Const(value) => value.num(),
+            Node::Binary(op @ (Op::Div | Op::DivByMagnitude), left, right) => self.divide(op, left, right).map_or(0.0, |q| post.apply(q)),
+            Node::Not(_) | Node::Logic { .. } | Node::Binary(Op::Eq | Op::Ne | Op::Lt | Op::Le | Op::Gt | Op::Ge, ..) => post.select(self.truthy(of)),
+            Node::Math { function: MathFn::Sign, args, .. } => {
+                let k = post.scale + post.offset;
+                if self.num(args[0]) < 0.0 { -k } else { k }
+            }
+            _ => post.apply(self.num(of)),
+        }
+    }
+
+    /// BDS asks for the divisor first and, below `f32::EPSILON`, never for the dividend.
+    #[inline]
+    fn divide(&mut self, op: Op, left: u32, right: u32) -> Option<f32> {
+        match self.num(right) {
+            divisor if divisor.abs() < f32::EPSILON => None,
+            divisor => Some(op.arithmetic(self.num(left), divisor)),
         }
     }
 
@@ -136,7 +165,11 @@ impl Machine<'_> {
             values[0] = self.spend(values[0]) as f32;
         }
         let host = self.host;
-        function.call(values, &|| host.random())
+        match function.call(values, &|| host.random()) {
+            // At run time BDS adds 0 to the remainder: `math.mod(v.a, 3)` is 0 for a `v.a` of -3, not -0.
+            remainder if function == MathFn::Mod => remainder + 0.0,
+            result => result,
+        }
     }
 
     #[inline(never)]
@@ -173,9 +206,9 @@ impl Machine<'_> {
         let program = self.program;
         match program.nodes[node as usize] {
             Node::Const(value) => value,
-            Node::This | Node::Neg(_) | Node::Math { .. } => Value::Num(self.num(node)),
+            Node::This | Node::Math { .. } | Node::Post { .. } | Node::Sum(_) => Value::Num(self.num(node)),
             Node::Binary(Op::Add | Op::Sub | Op::Mul | Op::Div | Op::DivByMagnitude, ..) => Value::Num(self.num(node)),
-            Node::Not(_) | Node::Binary(..) => Value::flag(self.truthy(node)),
+            Node::Not(_) | Node::Logic { .. } | Node::Binary(..) => Value::flag(self.truthy(node)),
             Node::Query { id, args } => self.query(id, program.list(args)),
             Node::Var { slot, path } => {
                 let read = self.variable(slot, program.list(path));

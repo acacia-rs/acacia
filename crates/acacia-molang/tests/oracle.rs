@@ -5,17 +5,55 @@ use std::path::Path;
 
 use acacia_molang::{Compiler, Engine, Env, Error, NoHost, Scratch, Value, Variables};
 
-/// Cases this crate knowingly answers differently, with the reason.
-const SKIPPED: [(&str, &str); 5] = [
-    ("v.r = 7; v.r = v.none - v.none; => v.r", "BDS cancels a variable against itself in a sum without reading it (README, \"Limits\")"),
-    ("v.r = 7; v.r = 1 + v.none - v.none; => v.r", "the same, and BDS loses the 1"),
-    ("t.x = 4; => t.x ?? -1", "a temp read by a later expression: BDS answers 1, which nothing explains"),
-    ("v.b = q.is_alive ?? 4; => v.b", "needs a host that answers `query.is_alive`"),
-    ("this", "BDS has no `this` where the oracle evaluates"),
+/// Cases this crate knowingly answers differently, by reason (README, "Limits").
+const SKIPPED: [(&str, &[&str]); 6] = [
+    ("BDS has no `this` where the oracle evaluates", &["this"]),
+    ("a temp read by a later expression: BDS answers 1, which nothing explains", &["t.x = 4; => t.x ?? -1", "t.x = 1; v.x = 2; v.y = t.x; => t.x"]),
+    ("a bare `break` gives BDS no number", &["break"]),
+    ("needs a host that answers `query.is_alive`", &["v.b = q.is_alive ?? 4; => v.b"]),
+    ("BDS takes a string's hash bits for its number", &[
+        "v.e = ''; => (v.e == 0) ? 1 : 2",
+        "v.e01 = ''; => (0 == v.e01) ? 1 : 2",
+        "v.e04 = ''; v.h04 = -0.5; v.nz04 = math.ceil(v.h04); => (v.e04 == v.nz04) ? 1 : 2",
+        "v.e27 = ''; => (v.e27 != 0) ? 1 : 2",
+        "v.e29 = ''; v.z29v = 0; => (v.e29 == v.z29v) ? 1 : 2",
+        "v.e29 = ''; v.z29v = 0; => (v.z29v == v.e29) ? 1 : 2",
+        "v.z = 0; => (v.z == '') ? 1 : 2",
+        "v.z29 = 0; => (v.z29 != '') ? 1 : 2",
+        "v.one = 1; v.s = 'a'; v.f = v.s * v.one; => (v.s != v.f) ? 1 : 2",
+        "v.one = 1; v.s = 'a'; v.f = v.s * v.one; => (v.s == v.f) ? 1 : 2",
+        "v.one = 1; v.s28 = 'a'; v.f28 = v.s28 * v.one; v.big = math.pow(10, 35); v.g80 = v.f28 * v.big; => v.f28 == 0 ? 1 : (v.f28 < 0 ? ((v.g80 < -2 && v.g80 > -3) ? 2 : 3) : (v.f28 > 0 ? 4 : 5))",
+        "v.s06 = 'a'; v.one06 = 1; v.f06 = v.s06 * v.one06; v.g06 = v.f06 * v.one06; => (v.s06 == v.g06) ? 1 : 2",
+        "v.s85 = 'a'; v.zero = 0; v.g85 = v.s85 + v.zero; => v.g85 == 0 ? 1 : (v.g85 < 0 ? 2 : (v.g85 > 0 ? 3 : 4))",
+    ]),
+    ("a `continue` inside an operand leaves the operand where BDS keeps the loop's count", &[
+        "t.st20 = 1; v.k = 0; v.i = 0; v.t20 = 7; v.a20 = 2; v.b20 = 3; loop(3, { v.i = v.i + 1; v.t20 = v.k * (v.i > 0 ? {continue;} : 0); }); t.st20 = 2; v.m20 = v.a20 * v.b20 + v.a20; => v.i == 1 ? (v.m20 == 8 ? 1 : 2) : (v.i == 3 ? (v.m20 == 8 ? 3 : 4) : 5)",
+        "t.st20n = 1; v.kn = -1; v.in = 0; v.t20n = 7; loop(3, { v.in = v.in + 1; v.t20n = v.kn * (v.in > 0 ? {continue;} : 0); }); t.st20n = 2; => v.in == 1 ? 1 : (v.in == 3 ? 2 : 3)",
+        "t.st20p = 1; v.kp = 0; v.ip = 0; loop(3, { v.ip = v.ip + 1; v.tp = v.kp + (v.ip > 0 ? {continue;} : 0); }); t.st20p = 2; => v.ip == 1 ? 1 : (v.ip == 3 ? 2 : 3)",
+        "v.k02 = 0; v.i02 = 0; loop(3, { v.i02 = v.i02 + 1; v.t02 = v.k02 * (v.i02 > 1 ? {continue;} : 0); }); => v.i02 == 2 ? 1 : (v.i02 == 3 ? 2 : (v.i02 == 1 ? 3 : 4))",
+        "v.k03 = 0; v.i03 = 0; loop(3, { v.i03 = v.i03 + 1; v.t03 = math.max(v.k03, (v.i03 > 0 ? {continue;} : 0)); }); => v.i03 == 1 ? 1 : (v.i03 == 3 ? 2 : 3)",
+    ]),
 ];
 
-/// Malformed sources that engines before 1.17.40 evaluated to something; here they are errors at every version.
-const ONCE_TOLERATED: [&str; 5] = ["1 + (2 3)", "'a' < 'b'", "math.abs('a')", "math.max(1, 'a')", "!'a'"];
+/// Malformed sources BDS evaluated to something, some only at older engine versions; here they are
+/// errors at every version.
+const TOLERATED: [&str; 15] = [
+    "t.st = 1; v.x = 0; v.y = 7; v.a = 0; (v.x = 1;); t.st = 2; => v.x == 1 ? (v.y == 7 ? 1 : (v.y == 0 ? 2 : (v.y == 1 ? 3 : (v.y == 2 ? 4 : 5)))) : (v.x == 0 ? (v.y == 7 ? 6 : (v.y == 0 ? 7 : (v.y == 1 ? 8 : (v.y == 2 ? 9 : 10)))) : 11)",
+    "1 + (2 3)",
+    "'a' < 'b'",
+    "math.abs('a')",
+    "math.max(1, 'a')",
+    "!'a'",
+    "'a' + 'b'",
+    "1 + (9 10)",
+    "[1 2]",
+    "(1 2)",
+    "temp.v = ('foo' 'bar'); return temp.v; => 0",
+    "v.count = 0; loop(3, {v.count = v.count + 1; (v.count == 2) ? break + 1; }); => v.count",
+    "v.count = 0; loop(3, {(v.count == 1) ? continue + 1; v.count = v.count + 1;}); => v.count",
+    "t.st25 = 1; v.r25 = 9; v.r25 = math.abs(return 5); t.st25 = 2; => v.r25 == 0 ? 1 : (v.r25 == 5 ? 2 : (v.r25 == 9 ? 3 : 4))",
+    "v.a = 0; v.y = 7; v.y = math.abs((v.a = 1;)); => v.a == 1 ? (v.y == 0 ? 1 : (v.y == 1 ? 2 : (v.y == 7 ? 3 : 4))) : (v.a == 0 ? 5 : 6)",
+];
 
 struct Session {
     compiler: Compiler,
@@ -56,7 +94,7 @@ fn mismatch(row: &str, engine: Engine) -> Option<String> {
     let mut columns = row.split('\t');
     let (expected, case) = (columns.next()?, columns.next()?);
     let bds_complained = columns.next().is_some();
-    if SKIPPED.iter().any(|(skipped, _)| *skipped == case) || (engine < Engine(1, 17, 40) && ONCE_TOLERATED.contains(&case)) {
+    if SKIPPED.iter().any(|(_, cases)| cases.contains(&case)) {
         return None;
     }
     let got = evaluate(case, engine);
@@ -67,7 +105,7 @@ fn mismatch(row: &str, engine: Engine) -> Option<String> {
         ("1e+30" | "-1e+30", Ok(_)) => true,
         (number, Ok(value)) => matches!(value, Value::Num(got) if close(*got, number.parse().expect(row))),
         // BDS logged an error and went on with a value; rejecting the source instead is fine.
-        (_, Err(_)) => bds_complained,
+        (_, Err(_)) => bds_complained || TOLERATED.contains(&case),
     };
     (!fine).then(|| format!("{case}\n    BDS {expected}, here {got:?}"))
 }

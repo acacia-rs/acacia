@@ -12,8 +12,13 @@ pub(crate) enum Folded {
 }
 
 pub(crate) fn fold(nodes: &[Node], node: Node) -> Option<Folded> {
+    // A literal's own value: BDS's folding ignores a post-op left on it (`optimise.rs`).
     let literal = |index: u32| match nodes[index as usize] {
         Node::Const(value) => Some(value),
+        Node::Post { of, .. } => match nodes[of as usize] {
+            Node::Const(value) => Some(value),
+            _ => None,
+        },
         _ => None,
     };
     // A `return`, `break` or `continue` stays under its conditional, where the parser looks for it.
@@ -24,13 +29,12 @@ pub(crate) fn fold(nodes: &[Node], node: Node) -> Option<Folded> {
     };
     Some(Folded::Value(match node {
         Node::Not(operand) => Value::flag(!literal(operand)?.truthy()),
-        Node::Neg(operand) => Value::Num(-literal(operand)?.num()),
         Node::Binary(op, left, right) => {
             let (a, b) = (literal(left)?, literal(right)?);
             match op {
                 Op::Add | Op::Sub | Op::Mul | Op::Div | Op::DivByMagnitude => Value::Num(op.arithmetic(a.num(), b.num())),
-                Op::Or => Value::flag(a.truthy() || b.truthy()),
-                Op::And => Value::flag(a.truthy() && b.truthy()),
+                // Built as `Node::Logic`.
+                Op::Or | Op::And => return None,
                 Op::Eq | Op::Ne => Value::flag(op.equates(a, b)),
                 Op::Lt | Op::Le | Op::Gt | Op::Ge => Value::flag(op.orders(a.num(), b.num())),
             }

@@ -45,28 +45,35 @@ entries with a space before compiling (a block opens on one line and closes on a
 
 ## Rules BDS follows
 
-- All arithmetic is `f32`. Dividing by zero gives 0. A not-a-number or an infinity assigned to a
-  variable is stored as 0.
+- All arithmetic is `f32`, arranged as BDS's optimiser arranges it (`optimise.rs`): `x * c`, `x / c`,
+  `x + c` and `-x` fold into one `x·scale + offset`, `a - b` is `a + (-b)`, and a sum is flattened and
+  its terms merged. So `(v.x * 2 + 1) * 3` is computed as `v.x * 6 + 3`, `v.x - v.x` reads nothing, and
+  some sums come out as no plain reading predicts. `/` binds tighter than `*`.
+- A not-a-number or an infinity assigned to a variable is stored as 0, and a literal -0 as 0.
 - A read of something unset (a `variable.`, `temp.` or `context.` name, a struct member), outside `??`,
   ends the whole program: its value is 0, the assignment being evaluated stores nothing and no later
   statement runs. What was stored before stays. A branch or a right side that is never reached reads
   nothing.
-- A division asks for its divisor first and, when that is 0, never for the dividend. Dividing by a
-  constant multiplies by its reciprocal (0 for that of 0), so the last bit can differ from a division
-  and a not-a-number over a constant 0 stays one.
-- `math.mod` by a computed 0 is 0; by a constant 0 it is not a number. `math.clamp(x, low, high)` tests
+- A division asks for its divisor first and, when that is below `f32::EPSILON`, is 0 without asking
+  for the dividend. Dividing by a constant multiplies by its reciprocal (0 for a constant below
+  `f32::EPSILON`), so the last bit can differ from a division and a not-a-number over 0 stays one.
+- `math.mod` by a computed 0 is 0, and a computed remainder of -0 is 0; by a constant 0 it is not a
+  number. `math.clamp(x, low, high)` tests
   `high` first, which shows when the bounds are crossed. `math.min` and `math.max` answer their second
   argument when either is not a number.
 - Names are case-insensitive; strings keep their case and only support `==` and `!=`.
 - A source with a `;` or an assignment is complex: it must end with `;`, and its value is 0 unless a
-  `return` runs. `return` leaves the whole program, from inside blocks and loops too.
+  `return` runs. `return` leaves the whole program, from inside blocks and loops too. A `{}` block
+  must end with `;` as well.
 - `temp.` variables live for one evaluation and are separate from `variable.` ones of the same name.
 - `a ?? b` yields `b` when `a` is a variable that was never set; a variable set to 0 is set. It is the
-  loosest operator, below `?:`, and left-associative. A struct member on its left is rejected.
+  loosest operator, below `?:`. On its left BDS takes a plain `variable.`, `temp.` or `context.` name,
+  and a query with a logged complaint; a literal, a call, a conditional, a struct member of a variable
+  or another `??` it rejects, as this crate does.
 - Structs are values: `v.a = v.b` copies. A struct is false, counts as 0 in arithmetic, and is neither
   equal nor unequal to anything.
-- `loop(n, { })` runs `ceil(n)` times; the body must be a block. BDS does not enforce the documented
-  cap of 1024 and stalls on a loop of millions. Here one evaluation gets 2^20 loop passes and dice in
+- `loop(n, { })` runs `ceil(n)` times, and for a not-a-number until something else ends it; the body
+  must be a block. BDS does not enforce the documented cap of 1024 and stalls on a loop of millions. Here one evaluation gets 2^20 loop passes and dice in
   total (`REPEATS` in `eval.rs`), after which loops stop early: a pack cannot stall its reader.
 - Sources nested deeper than 128 levels, or whose tree is taller than 512 nodes, are rejected.
 - `array.name[i]` reads element `max(0, i) % length` (documented, client-side, so not observed). An
@@ -96,8 +103,9 @@ below is where BDS's answers change between two neighbouring `tests/oracle/versi
 | 1.20.50 | The same, still, inside complex expressions |
 | 1.20.50 | An assignment is an operand like any other: `(v.x = 3) + 1`. Since then only `==`, `!=`, `??`, the conditional, `loop`'s count and `return` take one |
 
-Not reproduced: before 1.17.40 BDS evaluated some malformed sources (`1 + (2 3)`, `'a' < 'b'`) that
-it has rejected since; they are errors here at every version.
+Not reproduced: BDS evaluates some malformed sources, at every version (`math.abs(return 5)`,
+`(v.x = 1;)`), before 1.20 (`break + 1`, `('foo' 'bar')`) or before 1.17.40 (`1 + (2 3)`,
+`'a' < 'b'`); they are errors here at every version (`TOLERATED` in `tests/oracle.rs`).
 
 ## Limits
 
@@ -113,9 +121,11 @@ it has rejected since; they are errors here at every version.
 - `->`, `for_each`, arrays and members of query results come from the documentation and the vanilla
   packs; BDS could not be asked about them (`tests/host.rs`). So `entity->v.x` for a missing entity
   or an unset `v.x` is 0 and does not end the program.
-- BDS cancels a `variable.` name against itself in a sum without reading it, by rules of its own:
-  `v.none - v.none` is 0 there and `1 + v.none - v.none` is 0 too. Here both read `v.none`, which ends
-  the program (`SKIPPED` in `tests/oracle.rs`).
+- BDS takes a string's hash bits for its number: `'' == 0` is true there and `'a' * 1` is a tiny
+  float. Here a string counts as 0 in arithmetic and equals only the same string.
+- A `continue` inside an operand (`v.t = v.k * (c ? {continue;} : 0)`) leaves that operand on BDS's
+  stack, where the loop keeps its count; with `v.k` at 0 the loop ends. Here it continues the loop.
+- These and the oracle's other unexplained answers are `SKIPPED` in `tests/oracle.rs`, with reasons.
 - A not-a-number made of constants alone (`math.mod(1, 0)` under more `math.` calls or divisions) can
   come out differently from BDS, whose folding of constants does not follow its evaluator. The fuzzer
   still reports these.
@@ -131,6 +141,9 @@ expression and for the vanilla corpus. What made the difference, in case it is u
 - `num`, `value` and `truthy` stay small: statements, queries and `math.` calls are separate functions.
 - Constants are folded while compiling (`fold.rs`), as BDS does, so `math.sin(90) * 57.3` costs what
   a literal costs.
+- Arithmetic folds as BDS's does (`optimise.rs`): `v.x * 2 + 1` is one node, and a sum one node over its
+  terms. The walk pays per node, so this was worth 1.4-2.6 times on arithmetic-heavy expressions
+  (2026-10-07); a shortcut for plain assignments, which skips dispatch instead, measured as noise.
 - A plain assignment skips the struct bookkeeping (`Store::set_plain`).
 
 What is left is the cost of walking a tree, about 2-3 ns per node, plus the host's queries and the
@@ -146,6 +159,7 @@ walk, for an estimated 15-25% on arithmetic-heavy expressions.
 
 - `tests/oracle.rs`: every case of `tests/oracle/*.cases` against BDS's answer. Add a case, rerun the
   oracle, commit both files. The cases this crate knowingly answers differently are listed in the test.
+  `sweeps*.cases` are the inputs of molangx's own BDS measurements, asked of BDS again.
   Numbers may differ by four float steps: the answers are a Windows BDS's, whose math library does not
   round like Rust's. It passes on Windows and on CI's Linux.
 - `tests/corpus.rs`: every expression of the vanilla packs compiles and evaluates. The corpus is

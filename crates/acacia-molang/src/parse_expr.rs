@@ -1,23 +1,23 @@
-//! Operators, loosest first, then values and names. See `parse.rs`.
+//! Operators, loosest first, then literals and brackets; names are in `parse_name.rs`. See `parse.rs`.
 
 use crate::error::{Error, ErrorKind};
 use crate::lex::Token;
-use crate::math::MathFn;
 use crate::parse::Parser;
-use crate::program::{List, Node, Op};
-use crate::queries;
-use crate::value::{Symbol, Value};
+use crate::program::{Node, Op};
+use crate::value::Value;
 
 pub(crate) type Levels = &'static [&'static [(&'static str, Op)]];
 
-/// Binary operators from loosest to tightest; each level is left-associative.
+/// Binary operators from loosest to tightest; each level is left-associative. `/` binds tighter than
+/// `*`, as in BDS: `a * b / c` is `a * (b / c)`.
 pub(crate) const LEVELS: Levels = &[
     &[("||", Op::Or)],
     &[("&&", Op::And)],
     &[("==", Op::Eq), ("!=", Op::Ne)],
     &[("<=", Op::Le), (">=", Op::Ge), ("<", Op::Lt), (">", Op::Gt)],
     &[("+", Op::Add), ("-", Op::Sub)],
-    &[("*", Op::Mul), ("/", Op::Div)],
+    &[("*", Op::Mul)],
+    &[("/", Op::Div)],
 ];
 
 /// The same for packs older than 1.18.20, where every comparison and logic operator had a rank of
@@ -32,7 +32,8 @@ pub(crate) const OLD_LEVELS: Levels = &[
     &[("==", Op::Eq)],
     &[("<", Op::Lt)],
     &[("+", Op::Add), ("-", Op::Sub)],
-    &[("*", Op::Mul), ("/", Op::Div)],
+    &[("*", Op::Mul)],
+    &[("/", Op::Div)],
 ];
 
 impl Parser<'_> {
@@ -40,8 +41,14 @@ impl Parser<'_> {
     pub(crate) fn coalesce(&mut self) -> Result<u32, Error> {
         let mut left = self.ternary()?;
         while self.eat("??") {
-            // BDS only promises `??` for plain variables; a member on the left it rejects outright.
-            if matches!(self.node(left), Node::Var { path, .. } | Node::Temp { path, .. } if path.len > 0) {
+            // BDS rejects a literal, a call, a conditional or another `??` on the left. A query it
+            // evaluates, logging "isn't a direct-variable reference"; `->` it could not be asked about.
+            let direct = match self.node(left) {
+                Node::Var { path, .. } | Node::Temp { path, .. } => path.len == 0,
+                Node::Context(_) | Node::Query { .. } | Node::Member { .. } | Node::Arrow { .. } => true,
+                _ => false,
+            };
+            if !direct {
                 return Err(self.fail_last(ErrorKind::CoalesceTarget));
             }
             let right = self.ternary()?;
@@ -82,32 +89,58 @@ impl Parser<'_> {
         let Some(ops) = self.rules.levels.get(level) else { return self.unary() };
         let mut left = self.binary(level + 1)?;
         while let Some(&(_, op)) = ops.iter().find(|(symbol, _)| self.eat(symbol)) {
-            let mut right = self.binary(level + 1)?;
+            let right = self.binary(level + 1)?;
             if !matches!(op, Op::Eq | Op::Ne) {
                 self.numeric(&[left, right])?;
             }
-            // BDS folds constants too (`0 - 2`, `math.min(-2, 0)`), and a folded divisor keeps its sign.
-            let old_division = op == Op::Div && !matches!(self.node(right), Node::Const(_));
-            let op = match (op, self.node(left), self.node(right)) {
-                // BDS multiplies by the reciprocal of a constant divisor, 0 for that of 0: the last
-                // bit differs from a division, and a not-a-number over 0 stays one.
-                (Op::Div, left, Node::Const(Value::Num(divisor))) if !matches!(left, Node::Const(_)) => {
-                    right = self.push(Node::Const(Value::Num(if divisor == 0.0 { 0.0 } else { 1.0 / divisor })));
-                    Op::Mul
+            left = match op {
+                Op::Add => self.sum(left, right),
+                Op::Sub => {
+                    let negated = self.negate(right);
+                    self.sum(left, negated)
                 }
-                _ if old_division && self.rules.divides_by_magnitude => Op::DivByMagnitude,
-                _ => op,
+                Op::Mul => self.product(left, right),
+                Op::Div => self.quotient(left, right),
+                Op::And | Op::Or => self.logic(op == Op::Or, left, right),
+                _ => match self.moved_operand(op, left, right) {
+                    Some(moved) if moved == left => {
+                        let left = self.moved(left);
+                        self.push(Node::Binary(op, left, right))
+                    }
+                    Some(_) => {
+                        let right = self.moved(right);
+                        self.push(Node::Binary(op, left, right))
+                    }
+                    None => self.push(Node::Binary(op, left, right)),
+                },
             };
-            left = self.push(Node::Binary(op, left, right));
-            if old_division && self.rules.statements_divide_by_magnitude {
-                self.statement_divisions.push(left);
-            }
         }
         Ok(left)
     }
 
+    /// BDS folds constants too (`0 - 2`, `math.min(-2, 0)`), and a folded divisor keeps its sign.
+    fn quotient(&mut self, left: u32, right: u32) -> u32 {
+        match (self.raw(left), self.raw(right)) {
+            (Some(a), Some(b)) => self.push(Node::Const(Value::Num(Op::Div.arithmetic(a, b)))),
+            // BDS multiplies by the reciprocal of a constant divisor, 0 for one below `f32::EPSILON`:
+            // the last bit differs from a division, and a not-a-number over 0 stays one.
+            (None, Some(divisor)) => {
+                let reciprocal = self.push(Node::Const(Value::Num(if divisor.abs() >= f32::EPSILON { 1.0 / divisor } else { 0.0 })));
+                self.push(Node::Binary(Op::Mul, left, reciprocal))
+            }
+            _ => {
+                let op = if self.rules.divides_by_magnitude { Op::DivByMagnitude } else { Op::Div };
+                let division = self.push(Node::Binary(op, left, right));
+                if self.rules.statements_divide_by_magnitude {
+                    self.statement_divisions.push(division);
+                }
+                division
+            }
+        }
+    }
+
     /// Operands of an operator or function that only takes numbers.
-    fn numeric(&self, operands: &[u32]) -> Result<(), Error> {
+    pub(crate) fn numeric(&self, operands: &[u32]) -> Result<(), Error> {
         for &operand in operands {
             match self.node(operand) {
                 Node::Const(Value::Str(_)) => return Err(self.fail_last(ErrorKind::StringOperand)),
@@ -136,7 +169,7 @@ impl Parser<'_> {
         }
         let operand = self.unary()?;
         self.numeric(&[operand])?;
-        Ok(self.push(Node::Neg(operand)))
+        Ok(self.negate(operand))
     }
 
     /// `entity->expression`
@@ -162,7 +195,10 @@ impl Parser<'_> {
                 Ok(inner)
             }
             Token::Symbol("{") => {
-                let (statements, _) = self.statements()?;
+                let (statements, terminated) = self.statements()?;
+                if !terminated && !statements.is_empty() {
+                    return Err(self.fail(ErrorKind::MissingSemicolon));
+                }
                 self.expect("}")?;
                 let list = self.list(&statements);
                 Ok(self.push(Node::Block(list)))
@@ -170,130 +206,5 @@ impl Parser<'_> {
             Token::Symbol(symbol) => Err(self.fail_last(ErrorKind::UnexpectedToken(symbol.to_owned()))),
             Token::Name(name) => self.name(&name),
         }
-    }
-
-    fn name(&mut self, name: &str) -> Result<u32, Error> {
-        match name {
-            "this" => return Ok(self.push(Node::This)),
-            "true" | "false" => return Ok(self.push(Node::Const(Value::flag(name == "true")))),
-            "loop" => return self.repeat(),
-            "for_each" => return self.for_each(),
-            "return" | "break" | "continue" => return Err(self.fail_last(ErrorKind::UnexpectedToken(name.to_owned()))),
-            _ => {}
-        }
-        let unknown = |parser: &Parser| parser.fail_last(ErrorKind::UnknownName(name.to_owned()));
-        let Some((prefix, rest)) = name.split_once('.').filter(|(_, rest)| !rest.is_empty()) else { return Err(unknown(self)) };
-        if prefix == "array" {
-            return self.index(rest);
-        }
-        let named = self.fail_last(ErrorKind::NotCallable(name.to_owned()));
-        let arguments = if self.eat("(") { Some(self.arguments()?) } else { None };
-        let node = match prefix {
-            "query" | "q" => {
-                // `query.spellcolor.r`: a member of the struct the query returns.
-                let (query, members) = rest.split_once('.').unwrap_or((rest, ""));
-                if self.compiler.documented_queries_only && !queries::exists(query, self.compiler.engine) {
-                    return Err(Error { kind: ErrorKind::UnknownQuery(query.to_owned()), at: named.at });
-                }
-                let args = self.list(arguments.as_deref().unwrap_or_default());
-                let id = self.compiler.queries.intern(query);
-                let of = self.push(Node::Query { id, args });
-                let path = self.members(members);
-                return Ok(if path.len == 0 { of } else { self.push(Node::Member { of, path }) });
-            }
-            "math" => return self.math(rest, arguments.as_deref().unwrap_or_default(), named.at),
-            "variable" | "v" | "temp" | "t" => {
-                let (root, members) = rest.split_once('.').unwrap_or((rest, ""));
-                let path = self.members(members);
-                if prefix.starts_with('v') {
-                    Node::Var { slot: self.compiler.variables.intern(root), path }
-                } else {
-                    let known = self.temps.iter().position(|t| t == root);
-                    let slot = known.unwrap_or_else(|| {
-                        self.temps.push(root.to_owned());
-                        self.temps.len() - 1
-                    });
-                    Node::Temp { slot: slot as u32, path }
-                }
-            }
-            "context" | "c" => Node::Context(self.compiler.contexts.intern(rest)),
-            "geometry" | "texture" | "material" => Node::Const(Value::Str(Symbol(self.compiler.strings.intern(name)))),
-            _ => return Err(unknown(self)),
-        };
-        if arguments.is_some() {
-            return Err(named);
-        }
-        Ok(self.push(node))
-    }
-
-    /// The symbols of a dotted member path (`min.x`), as a list.
-    fn members(&mut self, dotted: &str) -> List {
-        let members: Vec<u32> = dotted.split('.').filter(|m| !m.is_empty()).map(|m| self.compiler.symbol(m).0).collect();
-        self.list(&members)
-    }
-
-    fn arguments(&mut self) -> Result<Vec<u32>, Error> {
-        let mut out = Vec::new();
-        if self.eat(")") {
-            return Ok(out);
-        }
-        loop {
-            out.push(self.expr()?);
-            if !self.eat(",") {
-                self.expect(")")?;
-                return Ok(out);
-            }
-        }
-    }
-
-    fn math(&mut self, name: &str, arguments: &[u32], at: usize) -> Result<u32, Error> {
-        let Some((function, name, expected)) = MathFn::find(name) else {
-            return Err(Error { kind: ErrorKind::UnknownMath(name.to_owned()), at });
-        };
-        if arguments.len() != usize::from(expected) {
-            return Err(Error { kind: ErrorKind::ArgumentCount { name, expected, found: arguments.len() }, at });
-        }
-        self.numeric(arguments)?;
-        // BDS only guards a computed divisor: by a constant 0 the remainder is not a number, whatever
-        // the dividend, which still has to be evaluated.
-        if matches!(function, MathFn::Mod) && matches!(self.node(arguments[1]), Node::Const(Value::Num(n)) if n == 0.0) {
-            let nan = self.push(Node::Const(Value::Num(f32::NAN)));
-            return Ok(self.push(Node::Binary(Op::Mul, arguments[0], nan)));
-        }
-        let mut args = [0; 3];
-        args[..arguments.len()].copy_from_slice(arguments);
-        Ok(self.push(Node::Math { function, args, count: expected }))
-    }
-
-    /// `loop(count, { body })`
-    fn repeat(&mut self) -> Result<u32, Error> {
-        self.expect("(")?;
-        let count = self.expr()?;
-        let body = self.body()?;
-        Ok(self.push(Node::Loop { count, body }))
-    }
-
-    /// `for_each(variable, array, { body })`
-    fn for_each(&mut self) -> Result<u32, Error> {
-        self.expect("(")?;
-        let variable = self.primary()?;
-        if !matches!(self.node(variable), Node::Var { .. } | Node::Temp { .. }) {
-            return Err(self.fail_last(ErrorKind::NotAssignable));
-        }
-        self.expect(",")?;
-        let array = self.expr()?;
-        let body = self.body()?;
-        Ok(self.push(Node::ForEach { variable, array, body }))
-    }
-
-    /// `, { statements })`: the last argument of both loops.
-    fn body(&mut self) -> Result<u32, Error> {
-        self.expect(",")?;
-        if !matches!(self.peek(), Some(Token::Symbol("{"))) {
-            return Err(self.fail(ErrorKind::LoopBody));
-        }
-        let body = self.primary()?;
-        self.expect(")")?;
-        Ok(body)
     }
 }
