@@ -2,6 +2,13 @@
   "_comment": "Corrections applied over minecraft-data's protocol.json before generation; each `types` entry replaces or adds types[name], each `patches` entry replaces the container field at a JSON pointer. Rationale per entry in docs/proto.md.",
   "patches": [
     {
+      "path": "/types/packet_update_block_synced/1/4",
+      "field": {
+        "name": "entity_unique_id",
+        "type": "varint64"
+      }
+    },
+    {
       "path": "/types/packet_available_commands/1/6/type/1/type/1/6/type/1/type/1/1/type/1/type/1/1",
       "field": {
         "name": "value_type",

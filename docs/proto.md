@@ -22,6 +22,10 @@ adds a schema type before generation, and each `patches` entry replaces one cont
   All three were found by `bundled_script_passes_the_strict_decoder` (acacia-testserver), which holds the evidence.
 - `EnchantOption`: `option_id` is an unsigned varint (gophertunnel `EnchantmentOption`, Cloudburst);
   minecraft-data has `zigzag32`. (`cost` is a varint too, but equals the `u8` below 128.) BDS answered the zigzag-misread id with status 37 (FAILED_TO_ENCHANT).
+- `update_block_synced.entity_unique_id` is an unsigned varint of the id's two's complement; minecraft-data
+  has `zigzag64`. BDS 1.26.52 announced a falling block as unique id
+  -4294967286 and named it in UpdateBlockSynced with the varint that zigzag reads as 9223372034707292165
+  (sapling `research/captures/bds-mechanisms.txt`).
 - Not an override: `craft_grindstone_request.recipe_network_id` stays `li32` although gophertunnel writes a varint;
   BDS 1.26.52 answers the varint form with PacketViolationWarning (Malformed) and drops the client. Mojang's docs
   type it `ItemStackNetIdVariant`: it carries the input stack's id, not a recipe id.
