@@ -27,6 +27,7 @@ mod net;
 mod overlay;
 mod pick;
 mod player;
+mod scoreboard;
 mod settings;
 mod shot;
 mod smooth;

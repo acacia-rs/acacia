@@ -61,6 +61,8 @@ pub struct Ui {
     java: Skin,
     pub chat: Chat,
     titles: Titles,
+    /// The scoreboard objective in the sidebar slot.
+    pub sidebar: Option<acacia_ui::sidebar::Sidebar>,
     lang: Lang,
     quads: Vec<Quad>,
 }
@@ -81,7 +83,7 @@ impl Ui {
         tracing::info!(font = font_root.is_some(), "ui themes");
         let lang = Lang::load(&bedrock_root.join("texts/en_US.lang"));
         let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root), Skin::new(java_theme, &java_root));
-        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), lang, quads: Vec::new() }
+        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new() }
     }
 
     pub fn show_title(&mut self, title: Title) {
@@ -143,6 +145,9 @@ impl Ui {
             hud::draw(&mut list, &skin.theme, &state, gui);
             let bosses: Vec<Boss> = me.bosses.iter().map(|(title, progress, colour)| Boss { title, progress: *progress, colour: *colour }).collect();
             overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
+        }
+        if let Some(sidebar) = &self.sidebar {
+            acacia_ui::sidebar::draw(&mut list, &skin.theme, sidebar, gui);
         }
         overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
         chat::draw(&mut list, &skin.theme, &self.chat, now, gui);

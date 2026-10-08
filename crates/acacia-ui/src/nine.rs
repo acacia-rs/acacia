@@ -11,10 +11,12 @@ use crate::theme::png;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Nine {
     pub sprite: Sprite,
-    /// Left, top, right, bottom, in texels (one texel is one GUI pixel).
+    /// Left, top, right, bottom, in GUI pixels.
     pub border: [f32; 4],
     /// Edges and centre repeat instead of stretching.
     pub tile: bool,
+    /// Texels per GUI pixel: Bedrock's `cell_image` is 10×10 for a `base_size` of 5×5.
+    pub scale: f32,
 }
 
 impl Nine {
@@ -28,7 +30,8 @@ impl Nine {
             serde_json::Value::Array(a) if a.len() == 4 => std::array::from_fn(|i| a[i].as_f64().unwrap_or(0.0) as f32),
             _ => [0.0; 4],
         };
-        Some(Nine { sprite, border, tile: false })
+        let scale = json["base_size"][0].as_f64().filter(|&w| w > 0.0).map_or(1.0, |w| sprite.width as f32 / w as f32);
+        Some(Nine { sprite, border, tile: false, scale })
     }
 
     /// A Java `textures/gui/sprites` image, `name` without extension, with its `.mcmeta` border.
@@ -42,7 +45,7 @@ impl Nine {
             Some(n) => [n as f32; 4],
             None => [side("left"), side("top"), side("right"), side("bottom")],
         };
-        Some(Nine { sprite, border, tile: true })
+        Some(Nine { sprite, border, tile: true, scale: 1.0 })
     }
 }
 
@@ -51,13 +54,14 @@ impl DrawList {
     pub fn nine(&mut self, nine: Nine, rect: [f32; 4], color: [u8; 4]) {
         let [l, t, r, b] = rect;
         let (sw, sh) = (nine.sprite.width as f32, nine.sprite.height as f32);
+        let [sl, st, sr, sb] = nine.border.map(|v| v * nine.scale);
         let [bl, bt, br, bb] = nine.border;
         // Borders shrink only to fit the target; Bedrock's dialog has a 23 px top on a 33 px image.
         let (bl, br) = (bl.min((r - l) / 2.0), br.min((r - l) / 2.0));
         let (bt, bb) = (bt.min((b - t) / 2.0), bb.min((b - t) / 2.0));
-        let ([mu0, mu1], [mv0, mv1]) = (middle(bl, sw - br), middle(bt, sh - bb));
-        let cols = [(l, l + bl, 0.0, bl), (l + bl, r - br, mu0, mu1), (r - br, r, sw - br, sw)];
-        let rows = [(t, t + bt, 0.0, bt), (t + bt, b - bb, mv0, mv1), (b - bb, b, sh - bb, sh)];
+        let ([mu0, mu1], [mv0, mv1]) = (middle(sl, sw - sr), middle(st, sh - sb));
+        let cols = [(l, l + bl, 0.0, sl), (l + bl, r - br, mu0, mu1), (r - br, r, sw - sr, sw)];
+        let rows = [(t, t + bt, 0.0, st), (t + bt, b - bb, mv0, mv1), (b - bb, b, sh - sb, sh)];
         for (ci, &(x0, x1, u0, u1)) in cols.iter().enumerate() {
             for (ri, &(y0, y1, v0, v1)) in rows.iter().enumerate() {
                 if x1 <= x0 || y1 <= y0 || u1 <= u0 || v1 <= v0 {
@@ -107,7 +111,7 @@ mod tests {
     use crate::draw::WHITE;
 
     fn nine(tile: bool) -> Nine {
-        Nine { sprite: Sprite { x: 0, y: 0, width: 200, height: 20 }, border: [3.0; 4], tile }
+        Nine { sprite: Sprite { x: 0, y: 0, width: 200, height: 20 }, border: [3.0; 4], tile, scale: 1.0 }
     }
 
     #[test]
@@ -136,16 +140,22 @@ mod tests {
     #[test]
     fn borders_keep_their_size_whatever_the_image() {
         // Bedrock's dialog: 18×33 with a 23 px top; its 2×2 centre is the transparent hole.
-        let dialog = Nine { sprite: Sprite { x: 0, y: 0, width: 18, height: 33 }, border: [8.0, 23.0, 8.0, 8.0], tile: false };
+        let dialog = Nine { sprite: Sprite { x: 0, y: 0, width: 18, height: 33 }, border: [8.0, 23.0, 8.0, 8.0], tile: false, scale: 1.0 };
         let mut list = DrawList::new(1.0);
         list.nine(dialog, [0.0, 0.0, 225.0, 200.0], WHITE);
         let centre = list.quads.iter().find(|q| q.rect == [8.0, 23.0, 217.0, 192.0]).unwrap();
         assert_eq!(centre.uv, [8.0, 23.0, 10.0, 25.0]);
         // `control`: 2×2, slice 1, nothing between the borders: the centre samples a border texel.
-        let control = Nine { sprite: Sprite { x: 0, y: 0, width: 2, height: 2 }, border: [1.0; 4], tile: false };
+        let control = Nine { sprite: Sprite { x: 0, y: 0, width: 2, height: 2 }, border: [1.0; 4], tile: false, scale: 1.0 };
         let mut list = DrawList::new(1.0);
         list.nine(control, [0.0, 0.0, 20.0, 20.0], WHITE);
         let centre = list.quads.iter().find(|q| q.rect == [1.0, 1.0, 19.0, 19.0]).unwrap();
         assert_eq!(centre.uv, [0.0, 0.0, 1.0, 1.0]);
+        // `cell_image`: a 10×10 image for a 5×5 base, slice 1: two texels make one pixel of border.
+        let cell = Nine { sprite: Sprite { x: 0, y: 0, width: 10, height: 10 }, border: [1.0; 4], tile: false, scale: 2.0 };
+        let mut list = DrawList::new(1.0);
+        list.nine(cell, [0.0, 0.0, 18.0, 18.0], WHITE);
+        let centre = list.quads.iter().find(|q| q.rect == [1.0, 1.0, 17.0, 17.0]).unwrap();
+        assert_eq!(centre.uv, [2.0, 2.0, 8.0, 8.0]);
     }
 }
