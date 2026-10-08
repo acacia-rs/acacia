@@ -51,6 +51,12 @@ pub struct Kit {
     pub dialog: Option<Nine>,
     pub hole: Option<Nine>,
     pub close: [Option<Nine>; 3],
+    /// Container screens: the panel, a slot, the hovered slot (at 0.8), and the empty armour and
+    /// offhand slots' outlines (helmet, chestplate, leggings, boots, shield).
+    pub panel: Option<Nine>,
+    pub cell: Option<Nine>,
+    pub highlight: Option<Nine>,
+    pub empty_slots: [Option<Nine>; 5],
 }
 
 impl Kit {
@@ -73,6 +79,10 @@ impl Kit {
             dialog: n("dialog_background_hollow_3"),
             hole: n("control"),
             close: [n("close_button_default"), n("close_button_hover"), n("close_button_pressed")],
+            panel: n("dialog_background_opaque"),
+            cell: n("cell_image"),
+            highlight: n("highlight_slot"),
+            empty_slots: ["helmet", "chestplate", "leggings", "boots", "shield"].map(|s| n(&format!("empty_armor_slot_{s}"))),
             white: atlas.white(),
         }
     }

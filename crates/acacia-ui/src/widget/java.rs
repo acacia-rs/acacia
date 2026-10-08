@@ -34,12 +34,36 @@ pub struct Kit {
     handle: [Option<Nine>; 2],
     field: [Option<Nine>; 2],
     scroller: [Option<Nine>; 2],
+    /// `container/inventory.png`'s 176×166 screen; `generic_54.png`'s six rows and title (176×125)
+    /// and its player part (176×96, from y 126).
+    pub inventory: Option<Sprite>,
+    pub chest_top: Option<Sprite>,
+    pub chest_bottom: Option<Sprite>,
+    /// `recipe_book.png`'s 147×166 book (from 1, 1) and a craftable recipe's 25×25 button.
+    pub recipe_book: Option<Sprite>,
+    pub recipe_slot: Option<Sprite>,
 }
 
 impl Kit {
     pub fn load(root: &Path, atlas: &mut Atlas) -> Kit {
+        let sheet = |file: &str, [x, y, w, h]: [u32; 4], atlas: &mut Atlas| {
+            let image = crate::theme::png(&root.join(format!("textures/gui/{file}.png")))?;
+            // The sheets are 256×256 at any pack resolution; crop in its units.
+            let s = (image.width() / 256).max(1);
+            Some(atlas.add(&format!("{file}/{x},{y}"), &image::imageops::crop_imm(&image, x * s, y * s, w * s, h * s).to_image()))
+        };
+        let inventory = sheet("container/inventory", [0, 0, 176, 166], atlas);
+        let chest_top = sheet("container/generic_54", [0, 0, 176, 125], atlas);
+        let chest_bottom = sheet("container/generic_54", [0, 126, 176, 96], atlas);
+        let recipe_book = sheet("recipe_book", [1, 1, 147, 166], atlas);
+        let recipe_slot = crate::theme::png(&root.join("textures/gui/sprites/recipe_book/slot_craftable.png")).map(|i| atlas.add("sprites/recipe_book/slot_craftable", &i));
         let mut n = |name: &str| Nine::java(root, &format!("widget/{name}"), atlas);
         Kit {
+            inventory,
+            chest_top,
+            chest_bottom,
+            recipe_book,
+            recipe_slot,
             button: [n("button"), n("button_highlighted")],
             checkbox: [n("checkbox"), n("checkbox_highlighted"), n("checkbox_selected"), n("checkbox_selected_highlighted")],
             slider: [n("slider"), n("slider_highlighted")],

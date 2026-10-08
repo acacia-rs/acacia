@@ -24,8 +24,15 @@ player state. Layout is tested headless.
   `ChatComponent`), the input line and sent-line recall. Drawn bottom-left, 320 wide, 40 px up.
 
 - `inventory.rs`: the player's screen (Java's `InventoryScreen`, 176×166) and rows of nine above
-  the player's slots (`ChestMenu`), with hit-testing; panels and slots drawn flat in vanilla's greys.
-- `menu.rs`: a title over a column of 200×20 buttons (pause, options); hit-testing.
+  the player's slots (`ChestMenu`), with hit-testing. `inventory/art.rs` draws the panel: Java's
+  `container/inventory.png` and `generic_54.png`, Bedrock's `dialog_background_opaque` with a
+  `cell_image` per slot (its classic screen has the same 176×166 root), flat greys otherwise.
+- `recipes.rs`: the recipe book left of the player's screen, in Java's `recipe_book.png` and slot
+  buttons or Bedrock's panel and cells.
+- `menu.rs`: button menus (pause, options, death) on the widget skins: Java's 200×20 column a
+  quarter down; Bedrock's pause column under the logo over a dimmed left band
+  (`research/pause-bedrock-layout.md`).
+- `sidebar.rs`: the scoreboard sidebar in Java's `displayScoreboardSidebar` layout, for both looks.
 - `overlay.rs`: title (scale 4) and subtitle (scale 2) with Java's 10/70/20-tick fade, the action
   bar 68 px up for 3 s, boss bars 19 px apart from the top.
 - `nine.rs`: nine-slice sprites with their borders from the file beside them (`.mcmeta`, Bedrock's
@@ -60,6 +67,6 @@ Bedrock sprites (the same pixels) with the Java style.
 
 ## Not yet
 
-Workstation and other non-chest containers, the crafting grid and portrait, scoreboard, Unicode
-glyph pages, offhand and attack indicator, Java's background blur, menus and the inventory on the
-widget skins (they are drawn flat), multiselect form elements, JPEG button images.
+Workstation and other non-chest containers, the crafting grid and portrait, Unicode glyph pages,
+offhand and attack indicator, Java's background blur, Bedrock's own settings screen and sidebar
+placement, multiselect form elements, JPEG button images.
