@@ -56,11 +56,33 @@ pub fn hit(theme: &Theme, title: &str, count: usize, size: [f32; 2], mouse: [f32
     layout(theme, title, count, size).1.iter().position(|&r| contains(r, mouse))
 }
 
-pub fn draw(list: &mut DrawList, theme: &Theme, title: &str, buttons: &[String], mouse: [f32; 2], size: [f32; 2]) {
+/// What a menu is drawn over.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backdrop {
+    /// The dimmed world.
+    Dim,
+    /// Java's death screen: the world under a red gradient.
+    Death,
+}
+
+/// Java's `DeathScreen` gradient, top and bottom (RGBA).
+const DEATH: [[f32; 4]; 2] = [[0x50 as f32, 0.0, 0.0, 0x60 as f32], [0x80 as f32, 0x30 as f32, 0x30 as f32, 0xA0 as f32]];
+/// Quads have one colour each: the gradient is this many bands.
+const DEATH_BANDS: usize = 32;
+
+pub fn draw(list: &mut DrawList, theme: &Theme, title: &str, buttons: &[String], backdrop: Backdrop, mouse: [f32; 2], size: [f32; 2]) {
     let white = theme.atlas.white();
     let font = theme.font.as_ref();
     let (heading, rects) = layout(theme, title, buttons.len(), size);
     match theme.widgets {
+        Widgets::Java(_) if backdrop == Backdrop::Death => {
+            for band in 0..DEATH_BANDS {
+                let t = (band as f32 + 0.5) / DEATH_BANDS as f32;
+                let colour = std::array::from_fn(|i| (DEATH[0][i] + (DEATH[1][i] - DEATH[0][i]) * t) as u8);
+                let (top, bottom) = (size[1] * band as f32 / DEATH_BANDS as f32, size[1] * (band + 1) as f32 / DEATH_BANDS as f32);
+                list.fill(white, [0.0, top, size[0], bottom], colour);
+            }
+        }
         Widgets::Java(_) => list.fill(white, [0.0, 0.0, size[0], size[1]], [0, 0, 0, 0x40]),
         Widgets::Bedrock(_) => {
             list.fill(white, [0.0, 0.0, size[0], size[1]], [0, 0, 0, 26]);
@@ -94,6 +116,17 @@ mod tests {
         assert_eq!(layout(&theme, "Game Menu", 3, size).1[0], [60.0, 68.0, 260.0, 88.0]);
         assert_eq!(hit(&theme, "Game Menu", 3, size, [61.0, 68.0 + 24.0 * 2.0 + 1.0]), Some(2));
         assert_eq!(hit(&theme, "Game Menu", 3, size, [61.0, 89.0]), None, "between buttons");
+    }
+
+    #[test]
+    fn javas_death_screen_reddens_downwards() {
+        let theme = theme(true);
+        let mut list = DrawList::new(1.0);
+        draw(&mut list, &theme, "You Died!", &[], Backdrop::Death, [0.0; 2], [320.0, 240.0]);
+        let (top, bottom) = (list.quads[0], list.quads[DEATH_BANDS - 1]);
+        assert_eq!((top.rect[1], bottom.rect[3]), (0.0, 240.0));
+        assert!(top.color[0] < bottom.color[0] && top.color[3] < bottom.color[3], "from 0x60500000 to 0xA0803030");
+        assert_eq!(top.color[1], 0, "no green at the top");
     }
 
     #[test]

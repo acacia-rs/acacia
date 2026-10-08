@@ -33,6 +33,7 @@ use crate::settings::{LookChoice, Settings};
 use crate::shot::Shot;
 use crate::smooth::Smoother;
 use crate::ui::{Frame, Ui};
+use acacia_ui::menu::Backdrop;
 use menu::Menu;
 
 const TITLE_EVERY: Duration = Duration::from_millis(500);
@@ -261,7 +262,8 @@ impl App {
         let mouse = self.gui_mouse();
         let screen = self.screen_open.then_some((&self.inventory, self.layout()));
         let menu = self.menu.map(|m| self.menu_content(m));
-        let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice()));
+        let backdrop = if self.menu == Some(Menu::Death) { Backdrop::Death } else { Backdrop::Dim };
+        let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice(), backdrop));
         let tags = self.name_tags([(size[0] / scale) as f32, (size[1] / scale) as f32], scale as f32);
         let Some(r) = &mut self.renderer else { return };
         let form = self.form.as_ref();
