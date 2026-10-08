@@ -1,4 +1,5 @@
 mod atlas;
+mod bolts;
 mod clouds;
 mod crack;
 mod device;
@@ -86,6 +87,9 @@ pub struct Renderer {
     /// Rain, thunder and lightning: the falling streaks and the sky.
     pub weather: crate::sky::Weather,
     cloud_pass: clouds::CloudPass,
+    bolt_pass: bolts::BoltPass,
+    /// Lightning bolts: seed and where each strikes.
+    pub bolts: Vec<(u64, DVec3)>,
     /// World y of the cloud layer; `None` draws none.
     pub cloud_height: Option<f32>,
     scene: Option<Scene>,
@@ -122,6 +126,7 @@ impl Renderer {
         let particle_pass = particles::ParticlePass::new(&device, config.format);
         let weather_pass = weather::WeatherPass::new(&device, config.format, &globals);
         let cloud_pass = clouds::CloudPass::new(&device, config.format, &globals);
+        let bolt_pass = bolts::BoltPass::new(&device, config.format, &globals);
         let crack_pass = CrackPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
@@ -152,6 +157,8 @@ impl Renderer {
             weather: Default::default(),
             cloud_pass,
             cloud_height: None,
+            bolt_pass,
+            bolts: Vec::new(),
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
@@ -192,6 +199,7 @@ impl Renderer {
         self.weather_pass.prepare(&self.queue, world.as_deref(), &self.biomes, camera.position, self.weather.rain, self.started.elapsed().as_secs_f32());
         let clouds = self.cloud_height.filter(|_| world.as_ref().is_none_or(|w| w.dimension().sky));
         self.cloud_pass.prepare(&self.queue, camera.position, clouds, crate::sky::cloud_tint(self.weather), self.started.elapsed().as_secs_f64());
+        self.bolt_pass.prepare(&self.device, &self.queue, &self.bolts, camera.position);
 
         let view_proj = camera.view_proj();
         let has_sky = self.world().is_none_or(|w| w.dimension().sky);
@@ -271,6 +279,7 @@ impl Renderer {
             }
             self.particle_pass.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
             self.cloud_pass.draw(&mut pass);
+            self.bolt_pass.draw(&mut pass);
             self.weather_pass.draw(&mut pass);
             self.crack_pass.draw(&mut pass);
             self.outline_pass.draw(&mut pass);

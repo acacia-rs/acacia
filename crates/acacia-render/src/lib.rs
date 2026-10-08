@@ -11,6 +11,7 @@ pub mod entity;
 mod gpu;
 pub mod item;
 pub mod light;
+pub mod lightning;
 pub mod look;
 pub mod lookpack;
 pub mod mesh;

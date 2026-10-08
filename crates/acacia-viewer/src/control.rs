@@ -133,8 +133,8 @@ pub struct Me {
     /// How hard it rains, and thunders, 0 to 1.
     pub rain: f32,
     pub thunder: f32,
-    /// A lightning bolt is in the world (the sky flashes).
-    pub lightning: bool,
+    /// Lightning bolts in the world (the sky flashes while there are any): runtime id and position.
+    pub bolts: Vec<(u64, DVec3)>,
     pub health: f32,
     pub max_health: f32,
     pub food: f32,
@@ -238,7 +238,12 @@ pub fn me(bot: &Bot) -> Me {
         alive: p.alive,
         rain: state.environment.rain,
         thunder: state.environment.thunder,
-        lightning: state.entities.iter().any(|e| e.kind == "minecraft:lightning_bolt"),
+        bolts: state
+            .entities
+            .iter()
+            .filter(|e| e.kind == "minecraft:lightning_bolt")
+            .map(|e| (e.runtime_id, DVec3::new(e.position.x.into(), e.position.y.into(), e.position.z.into())))
+            .collect(),
         health: p.health,
         max_health: p.max_health,
         food: p.hunger,

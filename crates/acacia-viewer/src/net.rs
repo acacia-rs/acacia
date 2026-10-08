@@ -149,8 +149,9 @@ async fn run(
     let mut sidebar: Option<acacia_ui::sidebar::Sidebar> = None;
     // Sent a second after the player left the loading screen: BDS ignored them sent at once.
     let mut spawned_ticks = 0u32;
-    // `ACACIA_COMMANDS_AFTER=secs` times them (a break just before a screenshot).
-    let setup_after = std::env::var("ACACIA_COMMANDS_AFTER").ok().and_then(|s| s.parse::<f32>().ok()).map_or(SETUP_AFTER_TICKS, |s| (s * 20.0) as u32);
+    // `ACACIA_COMMANDS_AFTER=secs` times them (a break just before a screenshot); a `wait secs`
+    // among them holds the rest back that long (a bolt struck just before the shot).
+    let mut setup_after = std::env::var("ACACIA_COMMANDS_AFTER").ok().and_then(|s| s.parse::<f32>().ok()).map_or(SETUP_AFTER_TICKS, |s| (s * 20.0) as u32);
     let mut setup: Vec<String> = std::env::var("ACACIA_COMMANDS").iter().flat_map(|s| s.split(';')).map(|c| c.trim().to_owned()).collect();
 
     let mut current: Option<Arc<World>> = None;
@@ -195,9 +196,13 @@ async fn run(
                     if bot.movement().is_some_and(|m| m.is_started()) {
                         spawned_ticks += 1;
                     }
-                    if spawned_ticks >= setup_after && !setup.is_empty() {
-                        tracing::info!(commands = ?setup, "setup");
-                        setup.drain(..).for_each(|c| _ = bot.client().command(&c));
+                    while spawned_ticks >= setup_after && !setup.is_empty() {
+                        let command = setup.remove(0);
+                        tracing::info!(command, "setup");
+                        match command.strip_prefix("wait ").and_then(|s| s.trim().parse::<f32>().ok()) {
+                            Some(secs) => setup_after = spawned_ticks + (secs * 20.0) as u32,
+                            None => _ = bot.client().command(&command),
+                        }
                     }
                     send(NetEvent::Me(control::me(&bot)))?;
                     let own = own_sounds.tick(&bot);

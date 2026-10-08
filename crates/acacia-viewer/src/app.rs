@@ -6,6 +6,7 @@ mod form;
 mod keys;
 mod menu;
 mod screen;
+mod sky;
 mod view;
 mod window;
 
@@ -14,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use acacia_render::blocks::BlockTable;
 use acacia_render::item::ItemModels;
-use acacia_render::sky::{DAY_TICKS, SkyTextures, moon_phase};
+use acacia_render::sky::SkyTextures;
 use acacia_render::{Camera, FrameStats, Renderer};
 use acacia_world::World;
 use glam::DVec3;
@@ -37,7 +38,6 @@ use acacia_ui::menu::Backdrop;
 use menu::Menu;
 
 const TITLE_EVERY: Duration = Duration::from_millis(500);
-const CLOUD_HEIGHT: f32 = 192.33;
 /// A frame's work before drawing that takes longer than this is logged, by stage.
 const SLOW_FRAME: Duration = Duration::from_millis(250);
 
@@ -115,9 +115,6 @@ struct Overlay {
     frames: u32,
     reports: u32,
 }
-
-/// Share of the gap to the server's time of day closed per second.
-const TIME_EASE: f32 = 3.0;
 
 /// Title updates between stats lines in the log (5 s).
 const LOG_EVERY_TITLES: u32 = 10;
@@ -229,23 +226,11 @@ impl App {
         if held - start > SLOW_FRAME {
             tracing::warn!(net = ?(now - start), steer = ?(steered - now), hand = ?(held - steered), "slow frame");
         }
+        self.feed_sky(dt);
         let Some(r) = &mut self.renderer else { return };
         r.set_outline(outline);
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.settings.cave_culling;
-        r.weather = self.play.me.as_ref().map_or_else(Default::default, |m| acacia_render::sky::Weather {
-            rain: m.rain,
-            thunder: m.thunder,
-            flash: if m.lightning { 1.0 } else { 0.0 },
-        });
-        // Java's cloud height; Bedrock's is unmeasured, so both looks use it.
-        r.cloud_height = Some(CLOUD_HEIGHT);
-        if let Some(time) = self.time {
-            // The server sends the time every few seconds: ease towards it, the short way round the day.
-            let ahead = (time as f32 - r.time + DAY_TICKS / 2.0).rem_euclid(DAY_TICKS) - DAY_TICKS / 2.0;
-            r.time += ahead * (dt * TIME_EASE).min(1.0);
-            r.moon_phase = moon_phase(i64::from(time));
-        }
         self.camera.aspect = r.aspect();
         let mut instances = self.entities.instances(self.camera.position);
         instances.extend(hand);
