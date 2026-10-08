@@ -67,6 +67,12 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     }
 
     fn travel(&self, st: &mut PlayerState, in_water: bool, water: &[[i32; 3]], lava: &[[i32; 3]]) -> bool {
+        // BDS `TravelTypeSensingSystem` picks flying over liquid travel.
+        if st.flight.travel {
+            return (!st.gliding || self.stop_gliding(st)) && self.fly(st);
+        }
+        // A flight's first tick: its vertical input on the walking travel (strict BDS, drill `flight`).
+        let idle_friction = crate::flight::control_vertical(st);
         // Observed lava takes precedence over retained water evidence.
         let water_travel = in_water || (st.swimming && st.swim_water_grace_ticks > 0 && lava.is_empty());
         if water_travel || !lava.is_empty() {
@@ -100,6 +106,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             let ratio = (DEFAULT_AIR_FRICTION * DEFAULT_BLOCK_FRICTION) / accel_friction;
             speed = ((st.movement_speed * ratio) * ratio) * ratio;
         }
+        block_friction *= idle_friction.unwrap_or(1.0);
         if st.gliding && st.effects.levitation.is_some() && !self.stop_gliding(st) {
             return false;
         }

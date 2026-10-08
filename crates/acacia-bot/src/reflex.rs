@@ -135,7 +135,7 @@ impl Bot {
             }
             Reflex::Swing(source) => self.swing_from(Some(source)),
             Reflex::StopSleeping => {
-                self.client.send(&crate::sleep::sleep_action(me, Action::StopSleeping));
+                self.client.send(&crate::sleep::player_action(me, Action::StopSleeping));
                 self.reflexes.schedule(0, Reflex::ClearAimAssist);
             }
             Reflex::ClearAimAssist => {

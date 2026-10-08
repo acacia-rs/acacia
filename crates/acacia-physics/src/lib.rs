@@ -10,6 +10,7 @@ mod block_effects;
 mod clip;
 mod collide;
 pub mod constants;
+mod flight;
 mod input;
 mod liquid;
 mod liquid_travel;
@@ -26,6 +27,7 @@ mod world;
 
 pub use aabb::{Aabb, INTERSECT_EPSILON};
 pub use clip::clip_collide;
+pub use flight::Flight;
 pub use input::Input;
 pub use math::{BlockPos, Vec3, mc_cos, mc_sin};
 pub use motion::jump_impulse;

@@ -127,6 +127,7 @@ pub struct PlayerState {
 
     pub effects: Effects,
     pub equipment: Equipment,
+    pub flight: crate::Flight,
 
     /// Sprint stalled against a wall during the last tick (stops sprinting next tick).
     pub sprint_movement_blocked: bool,
@@ -205,6 +206,7 @@ impl PlayerState {
             ticks_since_can_slowdown: 0,
             effects: Effects::default(),
             equipment: Equipment::default(),
+            flight: crate::Flight::default(),
             sprint_movement_blocked: false,
             was_sprint_movement_blocked: false,
             jumped: false,

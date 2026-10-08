@@ -49,5 +49,20 @@ pub const JUMP_DELAY_TICKS: u64 = 10;
 pub const GLIDE_BOOST_TICKS: i64 = 20;
 pub const DEFAULT_SWIM_WATER_GRACE_TICKS: i64 = 10;
 
+/// Flight (BDS 1.26.52, README "Flight"): the default fly speed ability and the sprint's multiple of it.
+pub const DEFAULT_FLY_SPEED: f32 = 0.05;
+/// A second jump press within this many ticks of the first toggles the flight.
+pub const FLY_TRIGGER_TICKS: i32 = 7;
+pub const FLY_SPRINT_MULTIPLIER: f32 = 2.0;
+/// Vertical speed added per tick holding WantUp / WantDown, times the vertical fly speed ability.
+pub const FLY_UP_ACCELERATION: f32 = 0.15;
+pub const FLY_DOWN_ACCELERATION: f32 = -0.22;
+/// Vertical drag after the move: 1 - 0.39999998, which is 0.6 in f32.
+pub const FLY_VERTICAL_DRAG: f32 = 0.6;
+/// Friction multipliers of a flight tick without horizontal input; creative also scales the vertical speed by
+/// its value before the move when there is no vertical input either.
+pub const CREATIVE_IDLE_FLY_FRICTION: f32 = 0.375;
+pub const IDLE_FLY_FRICTION: f32 = 0.75;
+
 /// Grounded acceleration adjustment on soul sand; drag keeps the plain friction.
 pub const SOUL_SAND_ACCELERATION_FRICTION_MULTIPLIER: f32 = 1.225;

@@ -15,6 +15,7 @@ const TRACES: &[(&str, usize)] = &[
     ("drills-powder-snow.btrc.gz", 0),
     ("drills-ceiling-edge.btrc.gz", 0),
     ("drills-pinned-sprint.btrc.gz", 0),
+    ("drills-flight.btrc.gz", 0),
 ];
 
 #[test]

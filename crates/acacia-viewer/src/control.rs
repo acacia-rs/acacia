@@ -162,7 +162,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),
         Command::Controls(c) => {
             if let Some(controls) = bot.controls() {
-                *controls = Controls { glide: controls.glide, ..c };
+                *controls = Controls { glide: controls.glide, fly: controls.fly, ..c };
             }
             Ok(())
         }

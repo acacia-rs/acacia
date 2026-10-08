@@ -1,6 +1,7 @@
 //! Game state rebuilt from server packets. Each tracker owns one concern and declares the packet
 //! IDs it consumes; [`GameState::apply`] routes packets to them.
 
+mod abilities;
 mod block_entities;
 mod containers;
 mod effects;
@@ -20,6 +21,7 @@ mod signs;
 mod skins;
 mod stations;
 
+pub use abilities::Abilities;
 pub use block_entities::{BlockEntities, BlockEntityTracking};
 pub use containers::{Container, Containers};
 pub use effects::{effect, Effect, Effects};

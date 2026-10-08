@@ -46,6 +46,9 @@ pub(crate) struct Frame {
     stop_swimming: bool,
     start_gliding: bool,
     stop_gliding: bool,
+    fly_tap: bool,
+    start_flying: bool,
+    stop_flying: bool,
     using_item: bool,
 }
 
@@ -73,9 +76,14 @@ impl Input {
     /// Mirrors `toInputState` in tools/diffharness/main.go.
     pub(crate) fn frame(&self, st: &PlayerState, env: &Surroundings) -> Frame {
         let Surroundings { in_water, swim_start_submerged: eyes_in_water, swim_surfacing, stand_fits } = *env;
+        // BDS `FlyTriggerIntentSystem`: a jump press within the window a first one opened toggles the flight.
+        let fly_tap = self.jump && !st.pressing_jump && (st.flight.flying || st.flight.may_fly);
+        let flies = st.flight.flying != (fly_tap && st.flight.trigger_ticks > 0);
+        // A flyer's sneak key only descends (WantDown).
+        let sneak = self.sneak && !flies;
         // BDS `IntentSprintTriggerSystem` tests the move input after normalising and the sneak slowdown
         // (also on the sneak's release tick, see `apply_input`; not in water, where sneak means sink).
-        let slowed = (self.sneak || st.sneaking) && !in_water;
+        let slowed = (sneak || st.sneaking) && !in_water;
         let scale = if slowed { sneak_impulse(st, st.ticks_since_can_slowdown + 1) } else { 1.0 };
         let len = self.move_vector[0].hypot(self.move_vector[1]);
         let [strafe, forward] = self.move_vector.map(|c| c / len.max(1.0) * scale);
@@ -107,9 +115,9 @@ impl Input {
             start_sprinting: starts,
             stop_sprinting: if st.sprinting { !keeps } else { starts && jump_in_water },
             sprint_down: self.sprint,
-            start_sneaking: self.sneak && !st.sneaking,
-            stop_sneaking: !self.sneak && st.sneaking,
-            sneak_down: self.sneak,
+            start_sneaking: sneak && !st.sneaking,
+            stop_sneaking: !sneak && st.sneaking,
+            sneak_down: sneak,
             want_down: self.want_down,
             start_jumping: self.jump,
             jumping: self.jump,
@@ -117,6 +125,9 @@ impl Input {
             stop_swimming: !swim && st.swimming,
             start_gliding: self.glide && !st.gliding,
             stop_gliding: !self.glide && st.gliding,
+            fly_tap,
+            start_flying: flies && !st.flight.flying,
+            stop_flying: !flies && st.flight.flying,
             using_item: self.using_item,
         }
     }
@@ -151,6 +162,11 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             st.refresh_movement_speed();
         }
         st.air_speed = effective_air_speed(st);
+        if f.start_flying || f.stop_flying {
+            st.flight.flying = f.start_flying;
+        } else if f.fly_tap {
+            st.flight.trigger_ticks = FLY_TRIGGER_TICKS;
+        }
 
         // A crawl ends as soon as standing or sneaking fits (vanilla client: StopCrawling, StartSneaking).
         if st.crawling && !st.swimming && !self.restore_upright_pose(st, available) {

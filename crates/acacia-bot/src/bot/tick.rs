@@ -1,4 +1,5 @@
 use acacia_client::proto::packets::PlayerAuthInput;
+use acacia_client::proto::types::{Action, InputData};
 
 use crate::spawn::{self, SpawnPacket};
 use crate::trace;
@@ -106,6 +107,7 @@ impl Bot {
         {
             r.write(&trace::Event::Equipment(worn));
         }
+        movement.set_abilities(&self.state.player);
         let pending = std::mem::take(&mut movement.pending_actions);
         if let Some(mut input) = movement.tick(&PhysicsWorld { view, registry }) {
             if let Some(r) = &mut self.recorder {
@@ -113,6 +115,11 @@ impl Bot {
             }
             crate::movement::attach_actions(&mut input, pending);
             self.add_queued_flags(&mut input);
+            // BDS grants the input's StartFlying only after this action (its handler checks the may-fly rights).
+            if input.input_data.contains(&InputData::StartFlying) {
+                let me = self.state.player.runtime_entity_id;
+                self.client.send(&crate::sleep::player_action(me, Action::StartFlying));
+            }
             self.client.send(&input);
         }
     }

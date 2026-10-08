@@ -12,7 +12,8 @@ bedsim files (`movement.rs` = `simulateMovement`, `collide.rs` = `tryCollisions`
   `on_ground`, `vertical_collision`, `horizontal_collision`, `jumped`, `teleported`, and the processed `move_vector`.
 - `apply_current(&mut PlayerState, &impl WorldView)`: one tick of liquid current added to the velocity
   without moving (BDS pushes a player it holds after a teleport).
-- `Input`: held controls (raw move vector, yaw/pitch, jump, sneak, want_down, sprint, swim, glide, using_item).
+- `Input`: held controls (raw move vector, yaw/pitch, jump, sneak, want_down, sprint, swim, glide, using_item);
+  a flight toggles on a jump double tap (see "Flight").
   Start and stop edges are derived from the state, the same way as `toInputState` in the harness.
 - `PlayerState`: `queue_teleport(feet)` (applied on the next tick, velocity reset to zero),
   `queue_knockback(vel)`, `apply_correction(feet, delta, on_ground)`, `set_movement_attribute(v)`,
@@ -34,7 +35,7 @@ boost. Effects: jump boost, levitation, slow falling. Also ported: elytra glidin
 ticks), sneak, crawl and swim pose fitting under ceilings, teleports, knockback, and loaded-area freezing.
 
 ## Not ported
-Riptide, vehicles, creative flight and no-clip (bedsim does not simulate these either; it resets to the client),
+Riptide, vehicles and no-clip (bedsim does not simulate these either; it resets to the client),
 bedsim's client-drift correction and reconciliation, the step tie-breaker (always accepted, as with
 `IgnoreClientStepTiebreaker`), slide offset, legacy sprint timing, server-forced sprint, crawl input flags,
 the `AutoJumpingInWater` input flag, scaffolding's unsupported-bottom lip, and powder snow's player-dependent
@@ -144,6 +145,33 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   land, and not when the wall was walked into (drills `pin*`).
 - A sneak edge stop shortens the move but keeps the velocity of an axis it did not stop outright, on land
   and in liquid.
+
+## Flight
+Not in bedsim; read out of BDS 1.26.52 (Windows build, bdsre labels in brackets) and checked live: the
+`acacia-bot` example `flight` (take off, hover, forward, sprint, diagonal, strafe-descend, up+down, land, drop)
+drew 0 corrections in 3 rounds on strict BDS, recorded as `tests/traces/drills-flight.btrc.gz`.
+`PlayerState::flight` holds the abilities (`may_fly`, `fly_speed`, `vertical_fly_speed`, `creative`) and state.
+- Toggle (`FlyTriggerIntentSystem::fn0`): a jump press opens a 7-tick window; a press inside it toggles the
+  flight (and leaves the window open). Needs `may_fly`, or flying to stop. BDS ignores the input's
+  StartFlying flag, and grants the toggle only after a `PlayerAction` StartFlying (its handler adds the
+  `PermissionFlyFlagComponent` that `FlyTriggerActionSystem` checks).
+- `flying` follows the toggle at once, `travel` a tick later (the ability request is granted after the move):
+  the toggle-on tick walks with gravity and 0.98 drag but already takes the vertical input; the toggle-off tick
+  keeps the flight's speed and drag without the vertical input.
+- Vertical input before the move (`VerticalFlySpeedControlSystem::fn0`): WantUp adds 0.15, WantDown -0.22
+  (WantUpSlow 0.05 and WantDownSlow -0.15 are not sent), times `vertical_fly_speed`; WantUp and WantDown
+  together zero the vertical speed. A tick with no horizontal input (both axes under 0.01) sets a friction
+  override of 0.375 in creative, else 0.75 (`FrictionModifierOverrideComponent`), and in creative with no
+  vertical input either scales the vertical speed by 0.375.
+- Speed (`PlayerFlyingTravel::speed_flySpeed_sprintTimes2`, 141c89610): `fly_speed` x 2 sprinting.
+- After the move: horizontal x 0.91 x friction (x the override; `PostMoveFriction::frictionOverride_x091`,
+  141c72700; an axis within f32 epsilon stops), vertical x (1 - 0.39999998) = 0.6 and fall distance 0
+  (`PlayerFlyingTravel::verticalDrag06_resetFall`, 141c6e4f0). No gravity or levitation (the levitation view
+  excludes flyers). Flying takes precedence over liquid travel (`TravelTypeSensingSystem::fn0`).
+- The sneak key only descends: no sneak pose or slowdown while flying. Landing does not end a flight (live: the
+  landed and rise phases match with the flight continuing).
+- Untested live: the survival may-fly 0.75 override and flight in liquids. Not ported:
+  `FlyingPlayerStuckOnGroundWorkaroundSystem`, which turns a vertical speed of exactly 0 into the smallest f32.
 
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,

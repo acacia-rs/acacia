@@ -131,7 +131,7 @@ impl PredictionSync {
             unknown_attribute_2: self.bounciness,
             unknown_attribute_3: self.air_drag,
             entity_runtime_id: zigzag,
-            is_flying: false,
+            is_flying: player.abilities.flying,
         }
     }
 }

@@ -229,6 +229,7 @@ impl Play {
             sneak: down(KeyCode::ShiftLeft),
             sprint: down(KeyCode::ControlLeft),
             glide: false,
+            fly: false,
             yaw: camera.yaw.to_degrees(),
             pitch: camera.pitch.to_degrees(),
         }

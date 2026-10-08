@@ -59,6 +59,9 @@ for every tick our position is off by more than 0.0001, so each correction is a 
   packets plus every input we sent). It prints the seed; `FUZZ_BOTS=n` runs n offline bots in parallel.
 - `tools/physics/drill.sh <names>` runs scripted drills (`crates/acacia-bot/examples/drills.rs`), exact control
   sequences that isolate one variable.
+- `cargo run -p acacia-bot --example flight -- <server> <name> [rounds]` drills creative flight (crates/acacia-physics
+  README "Flight"); on testbox use its own strict instance (`BDS_DIR=work/bds-flight BDS_PORT=19178 tools/testbox-bds.sh`,
+  with the `-Strict` keys above set in its server.properties).
 - `cargo run -p acacia-bot --example replay -- <trace> [--verbose]` replays a trace offline through the current code
   and reports server corrections we disagree with (`--correction-tolerance`, default 0.001) and ticks that differ from
   what the live bot did. "Diverged from the recording" means the replay would send other inputs than were recorded:
