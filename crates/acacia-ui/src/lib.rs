@@ -17,6 +17,7 @@ pub mod nine;
 pub mod overlay;
 pub mod players;
 pub mod scale;
+pub mod sidebar;
 pub mod theme;
 pub mod widget;
 

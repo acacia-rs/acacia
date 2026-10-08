@@ -54,6 +54,8 @@ pub enum NetEvent {
     Inventory(control::Inventory),
     /// The server form now open, when that changed (`None`: it closed).
     Form(Option<acacia_bot::forms::Form>),
+    /// The scoreboard sidebar, when it changed (`None`: none shown).
+    Sidebar(Option<acacia_ui::sidebar::Sidebar>),
     /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
     Chat { sender: Option<String>, message: String, params: Vec<String> },
     /// Sent once, before any [`NetEvent::Entities`].
@@ -144,6 +146,7 @@ async fn run(
     let mut own_sounds = audio::Own::default();
     let mut players: Vec<String> = Vec::new();
     let mut form: Option<u32> = None;
+    let mut sidebar: Option<acacia_ui::sidebar::Sidebar> = None;
     // Sent a second after the player left the loading screen: BDS ignored them sent at once.
     let mut spawned_ticks = 0u32;
     // `ACACIA_COMMANDS_AFTER=secs` times them (a break just before a screenshot).
@@ -218,6 +221,11 @@ async fn run(
                     if open != form {
                         form = open;
                         send(NetEvent::Form(bot.state().forms.latest().cloned()))?;
+                    }
+                    let now = crate::scoreboard::sidebar(&bot);
+                    if now != sidebar {
+                        sidebar = now.clone();
+                        send(NetEvent::Sidebar(now))?;
                     }
                     continue;
                 }

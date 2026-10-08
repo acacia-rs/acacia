@@ -51,6 +51,11 @@ impl Objective {
 
     /// `(display, score)` in display order: by score per [`SortOrder`], ties by display name.
     pub fn lines(&self) -> Vec<(String, i32)> {
+        self.sorted().into_iter().map(|e| (e.display.clone(), e.score)).collect()
+    }
+
+    /// The entries in display order (see [`Objective::lines`]).
+    pub fn sorted(&self) -> Vec<&ScoreEntry> {
         let mut entries: Vec<_> = self.scores.iter().collect();
         entries.sort_by(|(ida, a), (idb, b)| {
             let by_score = match self.sort_order {
@@ -59,7 +64,7 @@ impl Objective {
             };
             by_score.then_with(|| a.display.cmp(&b.display)).then_with(|| ida.cmp(idb))
         });
-        entries.into_iter().map(|(_, e)| (e.display.clone(), e.score)).collect()
+        entries.into_iter().map(|(_, e)| e).collect()
     }
 }
 

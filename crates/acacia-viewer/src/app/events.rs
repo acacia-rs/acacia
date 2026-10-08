@@ -43,6 +43,7 @@ impl App {
                 }
                 NetEvent::Sound(cue) => self.audio.play(self.settings.look, &cue, &self.camera, self.settings.volume as f32 / 100.0),
                 NetEvent::Form(form) => self.show_form(form),
+                NetEvent::Sidebar(sidebar) => self.ui.sidebar = sidebar,
                 NetEvent::Chat { sender, message, params } => self.ui.push_chat(sender.as_deref(), &message, &params),
                 NetEvent::EntityModels(models) => {
                     self.entities.set_models(models.clone());
