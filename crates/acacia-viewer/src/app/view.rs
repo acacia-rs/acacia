@@ -8,6 +8,7 @@ use acacia_render::item::{ItemKey, hand};
 use acacia_ui::nametags::Tag;
 
 use super::{App, Mode};
+use crate::keyscript::Step;
 
 impl App {
     /// Moves the camera by the mode's input; in play, finds the targeted block.
@@ -20,8 +21,15 @@ impl App {
             Mode::Play => {
                 let world = self.renderer.as_ref().and_then(|r| r.world().cloned());
                 let entities = self.entities.hitboxes();
-                for (key, pressed) in self.key_script.as_mut().map(|s| s.due(now)).unwrap_or_default() {
-                    self.play.key(key, pressed);
+                for step in self.key_script.as_mut().map(|s| s.due(now)).unwrap_or_default() {
+                    match step {
+                        Step::Key(key, pressed) => self.key(key, pressed),
+                        Step::Click(at) => {
+                            self.mouse = at;
+                            self.button(winit::event::MouseButton::Left, true);
+                            self.button(winit::event::MouseButton::Left, false);
+                        }
+                    }
                 }
                 self.play.frame(&mut self.camera, world.as_deref(), self.table.as_deref(), &entities, now);
                 if self.auto_attack && self.play.target.is_some() && !self.play.attacking() {

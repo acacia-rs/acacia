@@ -31,6 +31,10 @@ impl App {
                     if !me.alive && self.menu.is_none() && self.mode == super::Mode::Play {
                         self.open_menu(super::menu::Menu::Death);
                     }
+                    if me.alive && self.menu == Some(super::menu::Menu::Death) {
+                        self.menu = None;
+                        self.grab(true);
+                    }
                     self.bob.tick(&me, std::time::Instant::now());
                     self.play.tick(me);
                 }

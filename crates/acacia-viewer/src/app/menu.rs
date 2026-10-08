@@ -71,10 +71,9 @@ impl App {
             (Menu::Pause, 0) => self.menu_back(),
             (Menu::Pause, 1) => self.menu = Some(Menu::Options),
             (Menu::Pause, _) | (Menu::Death, 1) => self.quit = true,
+            // The screen stays until the server has the player alive again (events.rs).
             (Menu::Death, _) => {
                 let _ = self.net.commands.send(Command::Respawn);
-                self.menu = None;
-                self.grab(true);
             }
             (Menu::Options, 0) => self.switch_look(),
             (Menu::Options, 1) => self.settings.change_and_save(|s| s.gui_scale = (s.gui_scale + 1) % (MAX_GUI_SCALE + 1)),
