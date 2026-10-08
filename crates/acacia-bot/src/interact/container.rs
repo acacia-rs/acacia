@@ -56,7 +56,7 @@ impl Bot {
     }
 
     /// The open container, unless it is the player's own inventory.
-    fn open_container(&self) -> Option<&Container> {
+    pub fn open_container(&self) -> Option<&Container> {
         self.state.containers.open.as_ref().filter(|c| !Inventory::is_player_window(c.window_id))
     }
 }

@@ -112,13 +112,15 @@ pub fn draw(list: &mut DrawList, theme: &Theme, chat: &Chat, now: Instant, size:
     let Some(font) = &theme.font else { return };
     let [w, h] = size;
     let white = theme.atlas.white();
-    for (i, (text, opacity)) in chat.visible(now).into_iter().enumerate() {
+    // Newest message lowest; a wrapped message's lines read downwards.
+    let rows = chat.visible(now).into_iter().flat_map(|(text, opacity)| font.wrap(text, WIDTH).into_iter().rev().map(move |l| (l, opacity)));
+    for (i, (line, opacity)) in rows.enumerate() {
         let bottom = h - BOTTOM - i as f32 * LINE_HEIGHT;
         if bottom < LINE_HEIGHT {
             break;
         }
         list.fill(white, [0.0, bottom - LINE_HEIGHT, WIDTH + 8.0, bottom], [0, 0, 0, (opacity * 127.0) as u8]);
-        font.draw(list, text, 4.0, bottom - LINE_HEIGHT + 1.0, 0xFFFFFF, opacity, true);
+        font.draw(list, &line, 4.0, bottom - LINE_HEIGHT + 1.0, 0xFFFFFF, opacity, true);
     }
     if let Some(input) = &chat.input {
         list.fill(white, [2.0, h - 14.0, w - 2.0, h - 2.0], [0, 0, 0, 127]);

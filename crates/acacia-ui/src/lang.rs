@@ -26,7 +26,8 @@ impl Lang {
     /// `%1$s` and `%d` filled from `params`, which are translated first.
     pub fn translate(&self, text: &str, params: &[String]) -> String {
         let params: Vec<String> = params.iter().map(|p| self.translate(p, &[])).collect();
-        let template = match self.lookup(text) {
+        // A whole message may also be a bare key (BDS command feedback: `commands.give.successRecipient`).
+        let template = match self.lookup(text).or_else(|| self.0.get(text).map(String::as_str)) {
             Some(t) => t.to_owned(),
             None => text.split(' ').map(|w| self.lookup(w).unwrap_or(w)).collect::<Vec<_>>().join(" "),
         };
@@ -79,6 +80,7 @@ mod tests {
     fn keys_and_parameters_are_filled() {
         let lang = Lang::parse("## header\ncommands.time.set=Set the time to %s\t#comment\nchat.type.announcement=[%s] %s\nmultiplayer.player.joined=§e%s joined the game\nswap=%2$s before %1$s\n");
         assert_eq!(lang.translate("%commands.time.set", &["1000".into()]), "Set the time to 1000");
+        assert_eq!(lang.translate("commands.time.set", &["1000".into()]), "Set the time to 1000", "a bare key");
         assert_eq!(lang.translate("%multiplayer.player.joined", &["Steve".into()]), "§eSteve joined the game");
         assert_eq!(lang.translate("%swap", &["a".into(), "b".into()]), "b before a");
         assert_eq!(lang.translate("§e%multiplayer.player.joined", &["X".into()]), "§e%multiplayer.player.joined", "a code glued on is not a key");

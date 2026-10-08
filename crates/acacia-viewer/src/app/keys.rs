@@ -8,13 +8,16 @@ use crate::control::Command;
 
 impl App {
     pub(super) fn key(&mut self, code: KeyCode, pressed: bool) {
-        if self.ui.chat.is_open() {
-            if pressed {
+        if self.ui.chat.is_open() || self.screen_open {
+            if pressed && self.screen_open {
+                self.screen_key(code);
+            } else if pressed {
                 self.chat_key(code);
             }
             return;
         }
         match (code, pressed) {
+            (KeyCode::KeyE, true) if self.mode == Mode::Play => self.open_inventory(),
             (KeyCode::KeyT | KeyCode::Slash, true) if self.mode == Mode::Play => {
                 self.play.release_all();
                 self.ui.chat.open(if code == KeyCode::Slash { "/" } else { "" });
@@ -81,6 +84,12 @@ impl App {
     }
 
     pub(super) fn button(&mut self, button: MouseButton, pressed: bool) {
+        if self.screen_open {
+            if pressed {
+                self.screen_click(button, self.shift);
+            }
+            return;
+        }
         if !self.grabbed {
             if pressed && button == MouseButton::Left {
                 self.grab(true);

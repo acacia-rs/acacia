@@ -166,7 +166,7 @@ impl Feed {
             (PLAYER.to_owned(), self.player(bot, e.uuid, position, e.yaw, e.metadata.scale())?)
         } else if e.kind == ITEM_KIND {
             let stack = e.item.as_ref().filter(|s| !s.is_empty())?;
-            let key = ItemKey { name: bot.state().item_name(stack)?.to_owned(), aux: stack.metadata, block: stack.block_runtime_id };
+            let key = ItemKey { name: bot.state().item_name(stack)?.to_owned(), aux: stack.metadata, block: crate::control::block_of(bot, stack) };
             dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32) });
             let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default() };
             (e.kind.clone(), instance)

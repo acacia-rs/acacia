@@ -1,7 +1,9 @@
 //! The viewer's state, its frame loop and the title-bar overlay. Window events: app/window.rs; keys
 //! and modes: app/keys.rs.
 
+mod events;
 mod keys;
+mod screen;
 mod window;
 
 use std::sync::Arc;
@@ -15,10 +17,11 @@ use acacia_world::World;
 use glam::DVec3;
 use winit::window::{CursorGrabMode, Window};
 
+use crate::control::Inventory;
 use crate::debug_lines::{self, Facts};
 use crate::input::FlyInput;
 use crate::looks::Looks;
-use crate::net::{Net, NetEvent};
+use crate::net::Net;
 use crate::player::Play;
 use crate::settings::Settings;
 use crate::shot::Shot;
@@ -47,6 +50,12 @@ pub struct App {
     ui: Ui,
     /// F3.
     show_debug: bool,
+    /// The inventory screen is open (E).
+    screen_open: bool,
+    inventory: Inventory,
+    /// Cursor position in window pixels, and Shift held.
+    mouse: [f64; 2],
+    shift: bool,
     /// The last frame's figures and the frame rate, for the debug screen.
     stats: FrameStats,
     fps: f32,
@@ -93,6 +102,11 @@ impl App {
         App {
             ui,
             show_debug: std::env::var_os("ACACIA_DEBUG").is_some(),
+            // For unattended screenshots of the inventory screen.
+            screen_open: std::env::var_os("ACACIA_SCREEN").is_some(),
+            inventory: Inventory::default(),
+            mouse: [0.0; 2],
+            shift: false,
             stats: FrameStats::default(),
             fps: 0.0,
             net,
@@ -145,58 +159,8 @@ impl App {
         let table = Arc::new(pack.block_table(world.registry()));
         self.entities.set_items(ItemModels::new(pack.clone(), table.clone()));
         self.table = Some(table.clone());
+        self.ui.set_world(self.settings.look, pack.clone(), table.clone());
         r.set_world(world, table, &pack.atlas);
-    }
-
-    fn poll_net(&mut self) {
-        while let Ok(event) = self.net.events.try_recv() {
-            match event {
-                NetEvent::World(world) => {
-                    self.show_world(world);
-                    if let Some(shot) = &mut self.shot {
-                        shot.world_at.get_or_insert_with(Instant::now);
-                    }
-                }
-                NetEvent::Biomes(colors) => {
-                    if let Some(r) = &mut self.renderer {
-                        r.set_biomes(colors);
-                    }
-                }
-                NetEvent::Player(p) => {
-                    self.player = Some(p);
-                    if !self.camera_placed {
-                        self.camera.position = p;
-                        self.camera_placed = true;
-                    }
-                }
-                NetEvent::Me(me) => self.play.tick(me),
-                NetEvent::Chat { sender, message, params } => self.ui.push_chat(sender.as_deref(), &message, &params),
-                NetEvent::EntityModels(models) => {
-                    self.entities.set_models(models.clone());
-                    if let Some(r) = &mut self.renderer {
-                        r.set_entity_models(models);
-                    }
-                }
-                NetEvent::Entities(snapshot) => self.entities.push(snapshot),
-                NetEvent::Time(time) => self.time = Some(time),
-                NetEvent::BlockData(data) => {
-                    if let Some(r) = &mut self.renderer {
-                        r.set_block_data(data);
-                    }
-                }
-                NetEvent::Status(s) => {
-                    tracing::info!("{s}");
-                    self.status = s;
-                }
-                NetEvent::Ended(reason) => {
-                    tracing::warn!("session ended: {reason}");
-                    if self.shot.as_ref().is_some_and(|s| !s.taken) {
-                        self.failed = Some(reason.clone());
-                    }
-                    self.status = reason;
-                }
-            }
-        }
     }
 
     /// Moves the camera by the mode's input; in play, finds the targeted block.
@@ -237,15 +201,17 @@ impl App {
         }
         self.camera.aspect = r.aspect();
         r.set_entities(self.entities.instances(self.camera.position));
-        let size = self.window.as_ref().map_or([1, 1], |w| w.inner_size().into());
-        let scale = acacia_ui::scale::gui_scale(size[0], size[1], self.settings.gui_scale);
         let world = r.world().cloned();
         let debug = self.show_debug.then(|| {
             let target = self.play.target.as_ref().filter(|_| self.mode == Mode::Play);
             let facts = Facts { camera: &self.camera, fps: self.fps, stats: &self.stats, look: self.settings.look, mode: self.mode, target, world: world.as_deref() };
             debug_lines::lines(&facts)
         });
-        let ui = self.ui.draw(self.settings.look, self.play.me.as_ref(), debug, size, scale, now);
+        let (size, scale) = self.gui();
+        let mouse = self.gui_mouse();
+        let screen = self.screen_open.then_some((&self.inventory, self.layout(), mouse));
+        let Some(r) = &mut self.renderer else { return };
+        let ui = self.ui.draw(self.settings.look, self.play.me.as_ref(), debug, screen, size, scale, now);
         let view = match self.mode == Mode::Play && self.play.view_turned() {
             true => Camera { yaw: self.camera.yaw + std::f32::consts::PI, pitch: -self.camera.pitch, ..self.camera },
             false => self.camera,

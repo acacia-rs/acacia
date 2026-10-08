@@ -8,6 +8,7 @@
 //! offset ([`ui`]).
 
 mod actions;
+mod click;
 pub(crate) mod craft;
 mod plan;
 mod quick;
@@ -21,6 +22,7 @@ pub(crate) use request::{beacon_payment, response_for, RequestIds};
 pub(crate) use slot::is_own_screen;
 #[cfg(test)]
 pub(crate) use slot::{BlockKind, Screen};
+pub use click::Click;
 pub use request::Op;
 pub use slot::SlotRef;
 

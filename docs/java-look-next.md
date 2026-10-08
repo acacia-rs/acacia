@@ -51,21 +51,22 @@ Each is checked against the decompiled 26.3 client, not by eye. None is started.
   cost one quad per visible face. Measure a far render distance before deciding whether it needs
   a setting.
 
-## 2. J2: UI foundation (`acacia-ui`, new area)
+## 2. J2: UI foundation — done (2026-10-08)
 
-Interview before code. The first decision is open:
+Decided: a GPU-free `acacia-ui` crate lays widgets out into draw lists that `acacia-render`'s UI
+pass draws (crates/acacia-ui/README.md). Each theme takes its own game's art; Bedrock's pack has
+no font, so it borrows the baked Java look's. HUD, chat (with translations), debug screen, GUI
+scale, block-item icons. Before it, the viewer became playable (P0): first-person control,
+targeting, mining, placing, F5. Checked by `tools/testbox-shot.sh` (Xvfb + lavapipe on testbox)
+and the live actions `mine_held`, `mine_creative` (`MOUSE=1`), `place_aimed`.
 
-- **Where the UI draws.** Either a pass inside `acacia-render`, or a crate that lays out widgets
-  and hands draw lists to whoever renders. Recommended: the second. The themes then differ in
-  data and layout only, and layout is tested without a GPU.
-
-Then, one at a time: the font (Java's bitmap font from the jar, or Bedrock's), how input reaches
-widgets, what bot state the viewer forwards through `NetEvent`, and GUI scale. Scope is in
-java-look.md "Milestones": sprites, nine-slice, text, a `Theme` trait, HUD, chat, debug overlay.
+Left from the milestone: nine-slice sprites, Unicode glyph pages, the boss bar, titles.
 
 ## 3. After that
 
-- **J3 menus:** pause and options (with the look option and the first-use bake), inventory and
+- **J3 menus:** started: the player's inventory (E) and 9-wide containers, with Java's click
+  rules (`Bot::click_slot`); the crafting grid and the portrait are not wired. Left: pause and
+  options (with the look option and the first-use bake), workstations and other
   containers, server forms, boss bar.
 - **J4 Java entities:** models and animations per mob, most seen first, Bedrock geometry as the
   fallback. Block entities from item 1 go here.

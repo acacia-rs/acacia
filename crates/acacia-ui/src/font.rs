@@ -70,6 +70,24 @@ impl Font {
         styled(text, 0xFFFFFF).map(|(c, s)| self.advance(c, s.bold)).sum()
     }
 
+    /// `text` broken at spaces into lines at most `width` wide (a longer word stands alone); each
+    /// line after the first starts with the colour code in force where it breaks.
+    pub fn wrap(&self, text: &str, width: f32) -> Vec<String> {
+        let mut lines = Vec::new();
+        let mut line = String::new();
+        for word in text.split(' ') {
+            let candidate = if line.is_empty() { word.to_owned() } else { format!("{line} {word}") };
+            if self.width(&candidate) <= width || line.is_empty() {
+                line = candidate;
+                continue;
+            }
+            let carried = last_colour(&line).map(|c| format!("§{c}")).unwrap_or_default();
+            lines.push(std::mem::replace(&mut line, format!("{carried}{word}")));
+        }
+        lines.push(line);
+        lines
+    }
+
     /// Draws `text` with its top-left at (`x`, `y`) GUI pixels in `colour` (`0xRRGGBB`), `alpha`
     /// 0 to 1. Returns the width drawn.
     pub fn draw(&self, list: &mut DrawList, text: &str, x: f32, y: f32, colour: u32, alpha: f32, shadow: bool) -> f32 {
@@ -96,6 +114,21 @@ impl Font {
         }
         pen - x
     }
+}
+
+/// The last `§0`-`§f` or `§r` in `text`.
+fn last_colour(text: &str) -> Option<char> {
+    let mut found = None;
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        if c == '§'
+            && let Some(code) = chars.next().map(|c| c.to_ascii_lowercase())
+            && (code.is_ascii_hexdigit() || code == 'r')
+        {
+            found = Some(code);
+        }
+    }
+    found
 }
 
 /// Java's shadow: each channel at a quarter.
@@ -150,6 +183,15 @@ mod tests {
         assert_eq!(f.width("Ai"), 6.0 + 2.0);
         assert_eq!(f.width("A A"), 6.0 + 4.0 + 6.0);
         assert_eq!(f.width("§cA§li"), 6.0 + 3.0, "codes take no room, bold one more");
+    }
+
+    #[test]
+    fn wrapping_breaks_at_spaces_and_carries_the_colour() {
+        let f = font();
+        // "A" is 6 wide, a space 4: "AA AA" is 12 + 4 + 12.
+        assert_eq!(f.wrap("AA AA AA", 30.0), ["AA AA", "AA"]);
+        assert_eq!(f.wrap("§aAA AA", 20.0), ["§aAA", "§aAA"]);
+        assert_eq!(f.wrap("AAAAAAAA", 10.0), ["AAAAAAAA"], "a long word stands alone");
     }
 
     #[test]

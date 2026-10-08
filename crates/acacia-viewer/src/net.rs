@@ -22,6 +22,8 @@ use tokio::sync::oneshot;
 
 use crate::control::{self, Command, Me};
 
+/// Ticks after spawning before `ACACIA_COMMANDS` go out.
+const SETUP_AFTER_TICKS: u32 = 20;
 /// Reports between looks at the block entities for changed model data.
 const BLOCK_DATA_EVERY: u32 = 10;
 
@@ -40,6 +42,8 @@ pub enum NetEvent {
     Player(DVec3),
     /// The player after each tick.
     Me(Me),
+    /// The player's slots, when they changed.
+    Inventory(control::Inventory),
     /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
     Chat { sender: Option<String>, message: String, params: Vec<String> },
     /// Sent once, before any [`NetEvent::Entities`].
@@ -125,9 +129,10 @@ async fn run(
     };
     send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
     // `ACACIA_COMMANDS="summon cow;time set day"`: setup for unattended shots (needs an operator).
-    for command in std::env::var("ACACIA_COMMANDS").iter().flat_map(|s| s.split(';')) {
-        bot.client().command(command.trim());
-    }
+    let mut inventory = control::Inventory::default();
+    // Sent a second after the player left the loading screen: BDS ignored them sent at once.
+    let mut spawned_ticks = 0u32;
+    let mut setup: Vec<String> = std::env::var("ACACIA_COMMANDS").iter().flat_map(|s| s.split(';')).map(|c| c.trim().to_owned()).collect();
 
     let mut current: Option<Arc<World>> = None;
     let mut biome_logged = false;
@@ -155,13 +160,24 @@ async fn run(
                     continue;
                 }
                 Some(BotEvent::Tick) => {
+                    if bot.movement().is_some_and(|m| m.is_started()) {
+                        spawned_ticks += 1;
+                    }
+                    if spawned_ticks >= SETUP_AFTER_TICKS && !setup.is_empty() {
+                        setup.drain(..).for_each(|c| _ = bot.client().command(&c));
+                    }
                     send(NetEvent::Me(control::me(&bot)))?;
+                    let now = control::inventory(&bot);
+                    if now != inventory {
+                        inventory = now.clone();
+                        send(NetEvent::Inventory(now))?;
+                    }
                     continue;
                 }
                 Some(_) => continue,
             },
             Some(command) = commands.recv() => {
-                control::apply(&mut bot, command);
+                control::apply(&mut bot, command).await;
                 continue;
             }
             _ = report.tick() => {}

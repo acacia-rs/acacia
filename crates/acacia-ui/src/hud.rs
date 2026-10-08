@@ -4,6 +4,7 @@
 
 use crate::atlas::{Atlas, Sprite};
 use crate::draw::{DrawList, WHITE};
+use crate::font::Font;
 use crate::theme::Theme;
 
 /// Canonical sprite names every theme loader fills.
@@ -62,12 +63,8 @@ pub fn draw(list: &mut DrawList, theme: &Theme, state: &HudState, size: [f32; 2]
         list.sprite(sel, left - 1.0 + f32::from(state.selected) * 20.0, h - 23.0, WHITE);
     }
     for (slot, item) in state.hotbar.iter().enumerate() {
-        let Some((icon, count)) = item else { continue };
-        let (x, y) = (left + 3.0 + slot as f32 * 20.0, h - 19.0);
-        list.sprite_stretched(*icon, [x, y, x + 16.0, y + 16.0], WHITE);
-        if let (true, Some(font)) = (*count > 1, &theme.font) {
-            let text = count.to_string();
-            font.draw(list, &text, x + 17.0 - font.width(&text), y + 9.0, 0xFFFFFF, 1.0, true);
+        if let Some(item) = item {
+            stack(list, theme.font.as_ref(), *item, left + 3.0 + slot as f32 * 20.0, h - 19.0);
         }
     }
     if !state.survival {
@@ -88,6 +85,15 @@ pub fn draw(list: &mut DrawList, theme: &Theme, state: &HudState, size: [f32; 2]
         for i in 0..full.min(10) {
             list.sprite(bubble, centre + 91.0 - 9.0 - i as f32 * 8.0, top - 10.0, WHITE);
         }
+    }
+}
+
+/// An item's icon in a 16×16 slot at (`x`, `y`), with the stack size bottom-right above one.
+pub(crate) fn stack(list: &mut DrawList, font: Option<&Font>, (icon, count): (Sprite, u16), x: f32, y: f32) {
+    list.sprite_stretched(icon, [x, y, x + 16.0, y + 16.0], WHITE);
+    if let (true, Some(font)) = (count > 1, font) {
+        let text = count.to_string();
+        font.draw(list, &text, x + 17.0 - font.width(&text), y + 9.0, 0xFFFFFF, 1.0, true);
     }
 }
 

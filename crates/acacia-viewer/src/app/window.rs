@@ -58,6 +58,8 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::Focused(false) => self.grab(false),
+            WindowEvent::CursorMoved { position, .. } => self.mouse = [position.x, position.y],
+            WindowEvent::ModifiersChanged(m) => self.shift = m.state().shift_key(),
             WindowEvent::MouseInput { state, button, .. } => self.button(button, state == ElementState::Pressed),
             WindowEvent::MouseWheel { delta, .. } => self.scroll(match delta {
                 MouseScrollDelta::LineDelta(_, y) => y,

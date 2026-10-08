@@ -6,14 +6,19 @@ use std::time::Instant;
 
 use acacia_bot::proto::types::GameMode;
 use acacia_render::assets::image_file;
-use acacia_render::item::ItemIcons;
+use std::sync::Arc;
+
+use acacia_render::LookPack;
+use acacia_render::blocks::BlockTable;
+use acacia_render::item::{ItemIcons, block_icon};
 use acacia_ui::chat::{self, Chat};
 use acacia_ui::hud::{self, HudState, sprite};
 use acacia_ui::lang::Lang;
 use acacia_ui::theme::{Theme, bedrock, java};
 use acacia_ui::{DrawList, Quad, Sprite};
 
-use crate::control::Me;
+use crate::control::{Inventory, Me, Stack};
+use acacia_ui::inventory::{Layout, Slot};
 use crate::looks::Looks;
 use crate::settings::LookChoice;
 
@@ -23,6 +28,10 @@ struct Skin {
     root: std::path::PathBuf,
     /// Hotbar icons added to the atlas, by item name and aux; `None` for items without one.
     added: HashMap<(String, u32), Option<Sprite>>,
+    /// The shown world's blocks in this look, for block items' icons.
+    blocks: Option<(Arc<LookPack>, Arc<BlockTable>)>,
+    /// Bumped per world: atlas names of block icons carry it, as runtime ids change meaning.
+    generation: u32,
 }
 
 pub struct Ui {
@@ -52,6 +61,21 @@ impl Ui {
         Ui { bedrock, java, chat: Chat::default(), lang, quads: Vec::new() }
     }
 
+    /// The blocks of the world now shown in `look`, for block items' icons.
+    pub fn set_world(&mut self, look: LookChoice, pack: Arc<LookPack>, table: Arc<BlockTable>) {
+        let skin = self.skin(look);
+        skin.blocks = Some((pack, table));
+        skin.generation += 1;
+        skin.added.clear();
+    }
+
+    fn skin(&mut self, look: LookChoice) -> &mut Skin {
+        match look {
+            LookChoice::Bedrock => &mut self.bedrock,
+            LookChoice::Java => &mut self.java,
+        }
+    }
+
     /// A chat message, translated; a player's is shown as `<name> text`.
     pub fn push_chat(&mut self, sender: Option<&str>, message: &str, params: &[String]) {
         let text = self.lang.translate(message, params);
@@ -60,8 +84,19 @@ impl Ui {
     }
 
     /// This frame's quads for a window `size` pixels big at GUI `scale`, and the atlas they sample.
-    /// `debug` is the debug screen's two columns, when it is shown.
-    pub fn draw(&mut self, look: LookChoice, me: Option<&Me>, debug: Option<(Vec<String>, Vec<String>)>, size: [u32; 2], scale: u32, now: Instant) -> (&acacia_ui::Atlas, &[Quad]) {
+    /// `debug` is the debug screen's two columns, when it is shown; `screen` the open inventory and
+    /// the mouse in GUI pixels.
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw(
+        &mut self,
+        look: LookChoice,
+        me: Option<&Me>,
+        debug: Option<(Vec<String>, Vec<String>)>,
+        screen: Option<(&Inventory, Layout, [f32; 2])>,
+        size: [u32; 2],
+        scale: u32,
+        now: Instant,
+    ) -> (&acacia_ui::Atlas, &[Quad]) {
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
             LookChoice::Java => &mut self.java,
@@ -76,20 +111,42 @@ impl Ui {
         if let Some((left, right)) = debug {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
+        if let Some((inventory, layout, mouse)) = screen {
+            let mut icons = HashMap::new();
+            for (slot, _) in acacia_ui::inventory::slots(layout) {
+                if let Some(item) = stack_in(inventory, slot).and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count))) {
+                    icons.insert(slot, item);
+                }
+            }
+            let cursor = inventory.cursor.as_ref().and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count)));
+            let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor };
+            let title = inventory.container.as_ref().map_or("", |c| c.title.as_str());
+            acacia_ui::inventory::draw(&mut list, &skin.theme, layout, title, &contents, mouse, gui);
+        }
         self.quads = list.quads;
         (&skin.theme.atlas, &self.quads)
     }
 }
 
+fn stack_in(inventory: &Inventory, slot: Slot) -> Option<&Stack> {
+    match slot {
+        Slot::Main(i) => inventory.main.get(usize::from(i))?.as_ref(),
+        Slot::Armor(i) => inventory.armor.get(usize::from(i))?.as_ref(),
+        Slot::Offhand => inventory.offhand.as_ref(),
+        Slot::Container(i) => inventory.container.as_ref()?.slots.get(usize::from(i))?.as_ref(),
+        Slot::Craft(_) | Slot::CraftResult => None,
+    }
+}
+
 impl Skin {
     fn new(theme: Theme, root: &Path) -> Skin {
-        Skin { theme, icons: ItemIcons::load(root), root: root.to_owned(), added: HashMap::new() }
+        Skin { theme, icons: ItemIcons::load(root), root: root.to_owned(), added: HashMap::new(), blocks: None, generation: 0 }
     }
 
     fn state(&mut self, me: &Me) -> HudState {
         let hotbar = std::array::from_fn(|slot| {
             let stack = me.items[slot].as_ref()?;
-            Some((self.icon(&stack.name, stack.aux)?, stack.count))
+            Some((self.icon(&stack.name, stack.aux, stack.block)?, stack.count))
         });
         HudState {
             health: me.health,
@@ -105,18 +162,24 @@ impl Skin {
         }
     }
 
-    /// The item's icon (its first frame) in the atlas, added on first use.
-    fn icon(&mut self, name: &str, aux: u32) -> Option<Sprite> {
+    /// The item's icon (its first frame) in the atlas, added on first use; a block item without one
+    /// shows its block.
+    fn icon(&mut self, name: &str, aux: u32, block: u32) -> Option<Sprite> {
         let key = (name.to_owned(), aux);
         if let Some(sprite) = self.added.get(&key) {
             return *sprite;
         }
         let image = self.icons.path(name, aux).and_then(|p| image_file(&self.root, p)).and_then(|f| image::open(f).ok()).map(|i| i.to_rgba8());
-        let sprite = image.map(|i| {
-            let side = i.width().min(i.height());
-            let frame = image::imageops::crop_imm(&i, 0, 0, side, side).to_image();
-            self.theme.atlas.add(&format!("item/{name}/{aux}"), &frame)
-        });
+        let sprite = match image {
+            Some(i) => {
+                let side = i.width().min(i.height());
+                let frame = image::imageops::crop_imm(&i, 0, 0, side, side).to_image();
+                Some(self.theme.atlas.add(&format!("item/{name}/{aux}"), &frame))
+            }
+            None => self.blocks.as_ref().filter(|_| block != 0).and_then(|(pack, table)| block_icon(table.get(block), &pack.atlas)).map(|icon| {
+                self.theme.atlas.add(&format!("block/{}/{block}", self.generation), &icon)
+            }),
+        };
         self.added.insert(key, sprite);
         sprite
     }
