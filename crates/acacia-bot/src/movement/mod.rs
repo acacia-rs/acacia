@@ -3,6 +3,7 @@
 
 mod auth_input;
 pub(crate) mod equipment;
+mod flight;
 mod glide;
 mod idle;
 mod rewind;
@@ -58,6 +59,9 @@ pub struct Controls {
     /// Keep an elytra open. Set in the air to start a glide; the simulation clears it when the glide ends
     /// (landing, water) or cannot start.
     pub glide: bool,
+    /// Fly when the abilities allow it: a change double-taps jump for 4 ticks, as vanilla toggles a flight.
+    /// While flying, jump rises and sneak descends. Follows the flight when it changes otherwise.
+    pub fly: bool,
     /// Degrees; 0 faces +Z, wrapped to -180..=180 when sent.
     pub yaw: f32,
     /// Degrees; -90 looks up, clamped to -90..=90 when sent.
@@ -121,6 +125,10 @@ pub struct Movement {
     tapped_sprint: bool,
     effects: Effects,
     equipment: Equipment,
+    /// The flying flag of the server's last `UpdateAbilities` (see `set_abilities`).
+    server_flying: Option<bool>,
+    /// Ticks left of the jump double tap toggling the flight (`flight::fly_jump`).
+    fly_taps: u8,
     history: History,
     /// Replay only: the recorded `WantDown` (bot traces before 2026-10-02 never sent it), else it follows sneak.
     pub(crate) recorded_want_down: Option<bool>,
@@ -161,6 +169,8 @@ impl Movement {
             tapped_sprint: false,
             effects: Effects::default(),
             equipment: Equipment::default(),
+            server_flying: None,
+            fly_taps: 0,
             history: History::default(),
         }
     }
@@ -400,11 +410,12 @@ impl Movement {
         }
         self.prev_impulse = impulse;
         self.tapped_sprint = (self.tapped_sprint && st.sprinting || double_tap) && !c.sprint;
+        let jump = flight::fly_jump(&mut self.fly_taps, &c, &st.flight);
         let input = Input {
             move_vector: keys(c.strafe, c.forward),
             yaw,
             pitch,
-            jump: c.jump,
+            jump,
             sneak: c.sneak,
             want_down: self.recorded_want_down.unwrap_or(c.sneak),
             // Strict BDS 1.26.52 ends a key sprint when the key is released (fuzz: 94% of such ticks were
@@ -415,11 +426,15 @@ impl Movement {
             ..Input::default()
         };
         let (was_sprinting, was_sneaking, was_swimming, was_gliding) = (st.sprinting, st.sneaking, st.swimming, st.gliding);
+        let was_flying = st.flight.flying;
         let knockback = st.knockback;
         st.equipment.elytra = self.elytra;
         let mut out = physics::tick(st, &input, world);
         if !st.gliding {
             self.controls.glide = false;
+        }
+        if was_flying != st.flight.flying {
+            self.controls.fly = st.flight.flying;
         }
         if out.teleported && std::mem::take(&mut self.current_on_landing) {
             physics::apply_current(st, world);
@@ -432,14 +447,15 @@ impl Movement {
                 !st.sprinting && was_sprinting || st.sprint_start_cancelled,
             ),
             sneak: (st.sneaking && !was_sneaking, !st.sneaking && was_sneaking),
-            jump: (c.jump && !self.prev_jump, !c.jump && self.prev_jump),
+            jump: (jump && !self.prev_jump, !jump && self.prev_jump),
             swim: (st.swimming && !was_swimming, !st.swimming && was_swimming),
             glide: (st.gliding && !was_gliding, !st.gliding && was_gliding),
+            fly: (st.flight.flying && !was_flying, !st.flight.flying && was_flying),
             sneaking: st.sneaking,
             sprinting: st.sprinting,
             sprint_key: c.sprint,
         };
-        self.prev_jump = c.jump;
+        self.prev_jump = jump;
         self.tick += 1;
         self.history.record(self.tick, input, knockback, st);
         // Movement starts only after the bot has left the loading screen (bot.rs).

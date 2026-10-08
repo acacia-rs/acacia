@@ -182,6 +182,8 @@ fn tick_state(st: &mut PlayerState) {
         st.jump_delay -= 1;
     }
     st.swim_exit_jump_delay = st.swim_exit_jump_delay.saturating_sub(1);
+    st.flight.trigger_ticks = (st.flight.trigger_ticks - 1).max(0);
+    st.flight.travel = st.flight.flying;
 }
 
 /// Block-aligned volume containing every lookup normal movement performs.

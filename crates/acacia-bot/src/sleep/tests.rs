@@ -8,7 +8,7 @@ use acacia_client::proto::types::{
 };
 use acacia_client::proto::RawPacket;
 
-use super::{bed_refusal, sleep_action};
+use super::{bed_refusal, player_action};
 use crate::state::queries::test_support::raw;
 use crate::state::GameState;
 
@@ -48,7 +48,7 @@ fn recognises_bed_refusals() {
 #[test]
 fn bed_actions_have_zero_fields_like_vanilla() {
     for action in [Action::StartSleeping, Action::StopSleeping] {
-        let p: PlayerAction = raw(&sleep_action(9, action)).decode().unwrap();
+        let p: PlayerAction = raw(&player_action(9, action)).decode().unwrap();
         assert_eq!((p.runtime_entity_id, p.action, p.face), (9, action, 0));
         assert_eq!((p.position.x, p.position.y, p.position.z), (0, 0, 0));
         assert_eq!((p.result_position.x, p.result_position.y, p.result_position.z), (0, 0, 0));

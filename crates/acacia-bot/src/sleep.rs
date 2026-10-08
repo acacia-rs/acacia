@@ -73,7 +73,7 @@ impl Bot {
         }
         let settle = self.human.between(START_SLEEP).saturating_sub(clicked.elapsed());
         self.pause(settle).await?;
-        self.client.send(&sleep_action(self.runtime_id(), Action::StartSleeping));
+        self.client.send(&player_action(self.runtime_id(), Action::StartSleeping));
         self.reflexes.in_bed = true;
         Ok(())
     }
@@ -84,14 +84,15 @@ impl Bot {
             return Err(ActionError::NotPossible("not sleeping".into()));
         }
         self.reflexes.in_bed = false;
-        self.client.send(&sleep_action(self.runtime_id(), Action::StopSleeping));
+        self.client.send(&player_action(self.runtime_id(), Action::StopSleeping));
         self.reflexes.schedule(0, Reflex::ClearAimAssist);
         self.wait_until(WAKE_TIMEOUT, |bot, _| (!bot.is_sleeping()).then_some(())).await
     }
 }
 
-/// `StartSleeping` / `StopSleeping`: positions zero and face 0 (capture 2026-10-02).
-pub(crate) fn sleep_action(runtime_entity_id: u64, action: Action) -> PlayerAction {
+/// A `PlayerAction` without a block (`StartSleeping`, `StopSleeping`, `StartFlying`): positions zero and face 0
+/// (capture 2026-10-02).
+pub(crate) fn player_action(runtime_entity_id: u64, action: Action) -> PlayerAction {
     let origin = BlockCoordinates { x: 0, y: 0, z: 0 };
     PlayerAction { runtime_entity_id, action, position: origin.clone(), result_position: origin, face: 0 }
 }

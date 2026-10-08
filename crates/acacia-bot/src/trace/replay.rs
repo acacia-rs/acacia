@@ -181,7 +181,8 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                     continue;
                 }
                 movement.align_tick(rec.tick);
-                movement.controls = controls_of(&rec, movement.controls.glide);
+                movement.set_abilities(&state.player);
+                movement.controls = controls_of(&rec, movement.controls.glide, movement.flying());
                 // Traces don't record armour; a glide start means an elytra was worn.
                 movement.elytra |= rec.input_data.contains(&F::StartGliding);
                 movement.recorded_want_down = Some(rec.input_data.contains(&F::WantDown));
@@ -320,9 +321,10 @@ fn block_map(view: &impl acacia_world::BlockAccess, registry: &acacia_world::Blo
     out
 }
 
-/// The held controls a `PlayerAuthInput` reports. Gliding shows only as Start/StopGliding edges, so it
-/// carries over from `gliding`, the previous input's state.
-fn controls_of(p: &PlayerAuthInput, gliding: bool) -> Controls {
+/// The held controls a `PlayerAuthInput` reports. Gliding shows only as Start/StopGliding edges, so it carries
+/// over from `gliding`, the previous input's state. `flying` is the simulation's: the recorded jump presses
+/// toggle the flight themselves.
+fn controls_of(p: &PlayerAuthInput, gliding: bool, flying: bool) -> Controls {
     let has = |f: F| p.input_data.contains(&f);
     let axis = |pos: bool, neg: bool| f32::from(u8::from(pos)) - f32::from(u8::from(neg));
     Controls {
@@ -333,6 +335,7 @@ fn controls_of(p: &PlayerAuthInput, gliding: bool) -> Controls {
         // BDS reads `Sprinting`, not `SprintDown`, as the sprint intent: a bot may send its sprint state there.
         sprint: has(F::Sprinting),
         glide: (gliding || has(F::StartGliding)) && !has(F::StopGliding),
+        fly: flying,
         yaw: p.yaw,
         pitch: p.pitch,
     }

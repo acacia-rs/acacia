@@ -1,8 +1,8 @@
-use super::Effects;
+use super::{Abilities, Effects};
 use acacia_client::proto::packets::{
     ChangeDimension, CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MovePlayer, Respawn,
-    SetEntityData, SetHealth, SetPlayerGameType, SetSpawnPosition, SetSpawnPositionSpawnType, StartGame, UpdateAttributes,
-    UpdatePlayerGameType,
+    SetEntityData, SetHealth, SetPlayerGameType, SetSpawnPosition, SetSpawnPositionSpawnType, StartGame, UpdateAbilities,
+    UpdateAttributes, UpdatePlayerGameType,
 };
 use acacia_client::proto::types::{
     BlockCoordinates, GameMode, MetadataDictionaryItemKey, MetadataDictionaryItemValue as Meta,
@@ -43,6 +43,7 @@ pub struct PlayerState {
     /// Deaths seen this session (a death and respawn can both land between two polls).
     pub deaths: u32,
     pub effects: Effects,
+    pub abilities: Abilities,
     /// `minecraft:movement` attribute: base walking speed with modifiers (sprinting, slowness, ...).
     pub movement_speed: f32,
     /// The sleeping entity flag (Geyser) and player flag (BDS, PocketMine) from `SetEntityData`.
@@ -71,6 +72,7 @@ impl Default for PlayerState {
             alive: true,
             deaths: 0,
             effects: Effects::default(),
+            abilities: Abilities::default(),
             movement_speed: 0.1,
             sleep_flags: [false; 2],
             teleports: 0,
@@ -91,6 +93,7 @@ impl PlayerState {
         SetSpawnPosition::ID,
         Respawn::ID,
         MobEffect::ID,
+        UpdateAbilities::ID,
     ];
 
     /// Standing eye height of a player; server-sent player positions are offset by it.
@@ -98,6 +101,12 @@ impl PlayerState {
 
     pub fn eye_position(&self) -> Vec3f {
         Vec3f { y: self.position.y + Self::EYE_HEIGHT, ..self.position.clone() }
+    }
+
+    /// Flight is allowed: by the may-fly ability, or in creative or spectator mode, where BDS 1.26.52's abilities
+    /// layer lacks it (`PlayerAction` StartFlying's game mode check grants the flight).
+    pub fn may_fly(&self) -> bool {
+        self.abilities.may_fly || matches!(self.game_mode, GameMode::Creative | GameMode::Spectator | GameMode::CreativeSpectator)
     }
 
     /// In a bed, as the server shows it.
@@ -152,6 +161,13 @@ impl PlayerState {
                 let p: MobEffect = packet.decode()?;
                 if p.runtime_entity_id == self.runtime_entity_id {
                     self.effects.apply(&p);
+                }
+            }
+            UpdateAbilities::ID => {
+                let p: UpdateAbilities = packet.decode()?;
+                tracing::debug!(entity = p.entity_unique_id, me = self.unique_entity_id, layers = ?p.abilities, "abilities");
+                if p.entity_unique_id == self.unique_entity_id {
+                    self.abilities.apply(&p);
                 }
             }
             SetHealth::ID => self.set_health(packet.decode::<SetHealth>()?.health as f32),
