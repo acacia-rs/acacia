@@ -44,6 +44,8 @@ pub struct HudState {
     pub hotbar: [Option<(Sprite, u16)>; 9],
     /// Creative and spectator show no health, food or experience.
     pub survival: bool,
+    /// Off while a screen, menu or form is open.
+    pub crosshair: bool,
 }
 
 /// Lays the HUD out for a window `size` GUI pixels big.
@@ -52,7 +54,7 @@ pub fn draw(list: &mut DrawList, theme: &Theme, state: &HudState, size: [f32; 2]
     let atlas = &theme.atlas;
     let sprite = |name| atlas.get(name);
     let centre = (w / 2.0).floor();
-    if let Some(cross) = sprite(sprite::CROSSHAIR) {
+    if let Some(cross) = sprite(sprite::CROSSHAIR).filter(|_| state.crosshair) {
         list.sprite(cross, ((w - cross.width as f32) / 2.0).floor(), ((h - cross.height as f32) / 2.0).floor(), WHITE);
     }
     let left = centre - 91.0;
@@ -151,7 +153,7 @@ mod tests {
     }
 
     fn state() -> HudState {
-        HudState { health: 15.0, max_health: 20.0, food: 20.0, armor: 0, air: None, xp_level: 0, xp_progress: 0.0, selected: 2, hotbar: [None; 9], survival: true }
+        HudState { health: 15.0, max_health: 20.0, food: 20.0, armor: 0, air: None, xp_level: 0, xp_progress: 0.0, selected: 2, hotbar: [None; 9], survival: true, crosshair: true }
     }
 
     #[test]

@@ -36,6 +36,8 @@ pub(super) fn open(target: impl Into<wgpu::SurfaceTarget<'static>>, (width, heig
         .get_default_config(&adapter, width.max(1), height.max(1))
         .ok_or_else(|| Error::Surface("surface unsupported by adapter".into()))?;
     config.format = config.format.add_srgb_suffix();
+    // The UI pass draws through a plain view of the same texture: both games blend UI in gamma space.
+    config.view_formats = vec![config.format.remove_srgb_suffix()];
     if surface.get_capabilities(&adapter).usages.contains(wgpu::TextureUsages::COPY_SRC) {
         config.usage |= wgpu::TextureUsages::COPY_SRC;
     }
