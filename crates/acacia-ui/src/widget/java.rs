@@ -34,12 +34,29 @@ pub struct Kit {
     handle: [Option<Nine>; 2],
     field: [Option<Nine>; 2],
     scroller: [Option<Nine>; 2],
+    /// `container/inventory.png`'s 176×166 screen; `generic_54.png`'s six rows and title (176×125)
+    /// and its player part (176×96, from y 126).
+    pub inventory: Option<Sprite>,
+    pub chest_top: Option<Sprite>,
+    pub chest_bottom: Option<Sprite>,
 }
 
 impl Kit {
     pub fn load(root: &Path, atlas: &mut Atlas) -> Kit {
+        let container = |file: &str, [x, y, w, h]: [u32; 4], atlas: &mut Atlas| {
+            let image = crate::theme::png(&root.join(format!("textures/gui/container/{file}.png")))?;
+            // The sheets are 256×256 at any pack resolution; crop in its units.
+            let s = image.width() / 256;
+            Some(atlas.add(&format!("container/{file}/{y}"), &image::imageops::crop_imm(&image, x * s, y * s, w * s, h * s).to_image()))
+        };
+        let inventory = container("inventory", [0, 0, 176, 166], atlas);
+        let chest_top = container("generic_54", [0, 0, 176, 125], atlas);
+        let chest_bottom = container("generic_54", [0, 126, 176, 96], atlas);
         let mut n = |name: &str| Nine::java(root, &format!("widget/{name}"), atlas);
         Kit {
+            inventory,
+            chest_top,
+            chest_bottom,
             button: [n("button"), n("button_highlighted")],
             checkbox: [n("checkbox"), n("checkbox_highlighted"), n("checkbox_selected"), n("checkbox_selected_highlighted")],
             slider: [n("slider"), n("slider_highlighted")],

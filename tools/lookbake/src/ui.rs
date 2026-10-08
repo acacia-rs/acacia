@@ -1,14 +1,16 @@
-//! The jar's HUD and widget sprites and ASCII font, copied into a Java look's files for acacia-ui's Java
+//! The jar's HUD and widget sprites, the inventory and chest sheets and the ASCII font, copied into a Java look's files for acacia-ui's Java
 //! theme (`acacia_ui::theme::java`), in the jar's own layout.
 
 use std::path::Path;
 
 use crate::download::Error;
 
-const COPIED: [&str; 5] = [
+const COPIED: [&str; 7] = [
     "textures/gui/sprites/hud",
     "textures/gui/sprites/boss_bar",
     "textures/gui/sprites/widget",
+    "textures/gui/container/inventory.png",
+    "textures/gui/container/generic_54.png",
     "textures/font/ascii.png",
     "font/include/default.json",
 ];

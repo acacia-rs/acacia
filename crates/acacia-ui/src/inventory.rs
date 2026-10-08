@@ -1,6 +1,8 @@
 //! Inventory screens: the player's own (Java's `InventoryScreen`, 176×166) and a container's rows
-//! above the player's slots (`ContainerScreen`/`ChestMenu`), centred. Slot positions are Java's; the
-//! panel and slots are drawn flat in vanilla's greys for either look.
+//! above the player's slots (`ContainerScreen`/`ChestMenu`), centred. Slot positions are Java's
+//! (Bedrock's classic screen has the same 176×166 root); the panel is each game's art (`art.rs`).
+
+mod art;
 
 use crate::atlas::Sprite;
 use crate::draw::DrawList;
@@ -98,64 +100,41 @@ pub struct Contents<'a> {
     pub cursor: Option<(Sprite, u16)>,
 }
 
-const PANEL: [u8; 4] = [0xC6, 0xC6, 0xC6, 0xFF];
-const LIGHT: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
-const DARK: [u8; 4] = [0x55, 0x55, 0x55, 0xFF];
-const SLOT_DARK: [u8; 4] = [0x37, 0x37, 0x37, 0xFF];
-const SLOT_FILL: [u8; 4] = [0x8B, 0x8B, 0x8B, 0xFF];
-const EDGE: [u8; 4] = [0, 0, 0, 0xFF];
 /// Java's screen background gradient, flattened.
 const SHADE: [u8; 4] = [0x10, 0x10, 0x10, 0xC8];
-const HOVER: [u8; 4] = [0xFF, 0xFF, 0xFF, 0x80];
 const TITLE: u32 = 0x404040;
 
 /// `title` names a container (the player's screen shows "Crafting").
 pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, contents: &Contents, mouse: [f32; 2], size: [f32; 2]) {
-    let white = theme.atlas.white();
     let [ox, oy] = origin(layout, size);
     let height = layout.height();
-    list.fill(white, [0.0, 0.0, size[0], size[1]], SHADE);
-    bevel(list, white, [ox, oy, ox + WIDTH, oy + height], LIGHT, DARK, PANEL);
-    for rect in [[ox, oy, ox + WIDTH, oy + 1.0], [ox, oy + height - 1.0, ox + WIDTH, oy + height], [ox, oy, ox + 1.0, oy + height], [ox + WIDTH - 1.0, oy, ox + WIDTH, oy + height]] {
-        list.fill(white, rect, EDGE);
-    }
-    match layout {
-        Layout::Player => {
-            // The player's portrait box, left of the crafting grid.
-            bevel(list, white, [ox + 25.0, oy + 7.0, ox + 76.0, oy + 79.0], SLOT_DARK, LIGHT, EDGE);
-            if let Some(font) = &theme.font {
-                font.draw(list, "Crafting", ox + 97.0, oy + 8.0, TITLE, 1.0, false);
-            }
-        }
-        Layout::Rows(_) => {
-            if let Some(font) = &theme.font {
+    list.fill(theme.atlas.white(), [0.0, 0.0, size[0], size[1]], SHADE);
+    let art = art::Art::of(theme);
+    art.panel(list, layout, [ox, oy]);
+    if let Some(font) = &theme.font {
+        match layout {
+            Layout::Player => font.draw(list, "Crafting", ox + 97.0, oy + 8.0, TITLE, 1.0, false),
+            Layout::Rows(_) => {
                 font.draw(list, title, ox + 8.0, oy + 6.0, TITLE, 1.0, false);
-                font.draw(list, "Inventory", ox + 8.0, oy + height - 94.0, TITLE, 1.0, false);
+                font.draw(list, "Inventory", ox + 8.0, oy + height - 94.0, TITLE, 1.0, false)
             }
-        }
+        };
     }
     let hovered = hit(layout, size, mouse);
     for (slot, [x, y]) in slots(layout) {
         let (x, y) = (ox + x, oy + y);
-        let big = if slot == Slot::CraftResult { 4.0 } else { 0.0 };
-        bevel(list, white, [x - 1.0 - big, y - 1.0 - big, x + 17.0 + big, y + 17.0 + big], SLOT_DARK, LIGHT, SLOT_FILL);
-        if let Some(item) = (contents.slot)(slot) {
+        let item = (contents.slot)(slot);
+        art.slot(list, slot, x, y, item.is_none());
+        if let Some(item) = item {
             stack(list, theme.font.as_ref(), item, x, y);
         }
         if hovered == Some(slot) {
-            list.fill(white, [x, y, x + 16.0, y + 16.0], HOVER);
+            art.hover(list, x, y);
         }
     }
     if let Some(item) = contents.cursor {
         stack(list, theme.font.as_ref(), item, mouse[0] - 8.0, mouse[1] - 8.0);
     }
-}
-
-/// A raised or sunken box: `top_left` on the top and left edges, `bottom_right` on the others.
-fn bevel(list: &mut DrawList, white: Sprite, [l, t, r, b]: [f32; 4], top_left: [u8; 4], bottom_right: [u8; 4], fill: [u8; 4]) {
-    list.fill(white, [l, t, r, b], bottom_right);
-    list.fill(white, [l, t, r - 1.0, b - 1.0], top_left);
-    list.fill(white, [l + 1.0, t + 1.0, r - 1.0, b - 1.0], fill);
 }
 
 #[cfg(test)]
