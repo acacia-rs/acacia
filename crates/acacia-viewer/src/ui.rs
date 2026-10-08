@@ -102,6 +102,13 @@ impl Ui {
         skin.added.clear();
     }
 
+    pub fn theme(&self, look: LookChoice) -> &Theme {
+        match look {
+            LookChoice::Bedrock => &self.bedrock.theme,
+            LookChoice::Java => &self.java.theme,
+        }
+    }
+
     pub fn theme_mut(&mut self, look: LookChoice) -> &mut Theme {
         &mut self.skin(look).theme
     }

@@ -3,6 +3,7 @@
 use acacia_ui::menu;
 
 use super::App;
+use crate::settings::LookChoice;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Menu {
@@ -34,7 +35,11 @@ impl App {
     pub(super) fn menu_content(&self, menu: Menu) -> (&'static str, Vec<String>) {
         let on = |b: bool| if b { "On" } else { "Off" };
         match menu {
-            Menu::Pause => ("Game Menu", vec!["Back to Game".into(), "Options...".into(), "Disconnect".into()]),
+            // Bedrock's pause screen has the logo for a title (an empty one, acacia_ui::menu).
+            Menu::Pause => match self.settings.look {
+                LookChoice::Java => ("Game Menu", vec!["Back to Game".into(), "Options...".into(), "Disconnect".into()]),
+                LookChoice::Bedrock => ("", vec!["Resume Game".into(), "Settings".into(), "Save & Quit".into()]),
+            },
             Menu::Options => {
                 let s = &self.settings;
                 let scale = if s.gui_scale == 0 { "Auto".to_owned() } else { s.gui_scale.to_string() };
@@ -51,10 +56,11 @@ impl App {
 
     pub(super) fn menu_click(&mut self) {
         let Some(open) = self.menu else { return };
-        let (_, buttons) = self.menu_content(open);
+        let (title, buttons) = self.menu_content(open);
         let ([w, h], scale) = self.gui();
         let size = [(w / scale) as f32, (h / scale) as f32];
-        let Some(i) = menu::hit(buttons.len(), size, self.gui_mouse()) else { return };
+        let theme = self.ui.theme(self.settings.look);
+        let Some(i) = menu::hit(theme, title, buttons.len(), size, self.gui_mouse()) else { return };
         match (open, i) {
             (Menu::Pause, 0) => self.menu_back(),
             (Menu::Pause, 1) => self.menu = Some(Menu::Options),
