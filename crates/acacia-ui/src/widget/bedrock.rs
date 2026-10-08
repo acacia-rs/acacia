@@ -57,6 +57,11 @@ pub struct Kit {
     pub cell: Option<Nine>,
     pub highlight: Option<Nine>,
     pub empty_slots: [Option<Nine>; 5],
+    /// A furnace's flame and arrow and a brewing stand's arrow and fuel bar, each empty then full.
+    pub flame: [Option<Nine>; 2],
+    pub arrow: [Option<Nine>; 2],
+    pub brew_arrow: [Option<Nine>; 2],
+    pub brew_fuel: [Option<Nine>; 2],
 }
 
 impl Kit {
@@ -82,6 +87,10 @@ impl Kit {
             panel: n("dialog_background_opaque"),
             cell: n("cell_image"),
             highlight: n("highlight_slot"),
+            flame: [n("flame_empty_image"), n("flame_full_image")],
+            arrow: [n("arrow_inactive"), n("arrow_active")],
+            brew_arrow: [n("brewing_arrow_empty"), n("brewing_arrow_full")],
+            brew_fuel: [n("brewing_fuel_bar_empty"), n("brewing_fuel_bar_full")],
             empty_slots: ["helmet", "chestplate", "leggings", "boots", "shield"].map(|s| n(&format!("empty_armor_slot_{s}"))),
             white: atlas.white(),
         }

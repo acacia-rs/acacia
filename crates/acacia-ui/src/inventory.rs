@@ -3,6 +3,9 @@
 //! (Bedrock's classic screen has the same 176×166 root); the panel is each game's art (`art.rs`).
 
 mod art;
+mod station;
+
+pub use station::{Progress, Station};
 
 use crate::atlas::Sprite;
 use crate::draw::DrawList;
@@ -19,6 +22,8 @@ pub enum Layout {
     Player,
     /// A container of this many rows of nine (chest 3, large chest 6, barrel 3, shulker box 3).
     Rows(u8),
+    /// A furnace, hopper, dispenser or brewing stand (`station.rs`).
+    Station(Station),
 }
 
 impl Layout {
@@ -26,6 +31,7 @@ impl Layout {
         match self {
             Layout::Player => 166.0,
             Layout::Rows(rows) => 114.0 + SLOT * f32::from(rows),
+            Layout::Station(station) => station.height(),
         }
     }
 
@@ -34,6 +40,7 @@ impl Layout {
         match self {
             Layout::Player => 84.0,
             Layout::Rows(rows) => 103.0 + SLOT * (f32::from(rows) - 4.0),
+            Layout::Station(station) => station.player_rows(),
         }
     }
 }
@@ -66,6 +73,7 @@ pub fn slots(layout: Layout) -> Vec<(Slot, [f32; 2])> {
             out.extend([(Slot::Offhand, [77.0, 62.0]), (Slot::CraftResult, [154.0, 28.0])]);
         }
         Layout::Rows(rows) => out.extend((0..rows * 9).map(|i| (Slot::Container(i), at(i % 9, 18.0, i / 9)))),
+        Layout::Station(station) => out.extend(station.slots().into_iter().enumerate().map(|(i, at)| (Slot::Container(i as u8), at))),
     }
     out
 }
@@ -98,6 +106,8 @@ pub fn inside(layout: Layout, size: [f32; 2], mouse: [f32; 2]) -> bool {
 pub struct Contents<'a> {
     pub slot: &'a dyn Fn(Slot) -> Option<(Sprite, u16)>,
     pub cursor: Option<(Sprite, u16)>,
+    /// A station's arrow and flame.
+    pub progress: Progress,
 }
 
 /// Java's screen background gradient, flattened.
@@ -109,13 +119,22 @@ pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, con
     let [ox, oy] = origin(layout, size);
     let height = layout.height();
     list.fill(theme.atlas.white(), [0.0, 0.0, size[0], size[1]], SHADE);
-    let art = art::Art::of(theme);
+    let art = art::Art::of(theme, layout);
     art.panel(list, layout, [ox, oy]);
+    if let Layout::Station(station) = layout {
+        art.progress(list, station, contents.progress, [ox, oy]);
+    }
     if let Some(font) = &theme.font {
         match layout {
             Layout::Player => font.draw(list, "Crafting", ox + 97.0, oy + 8.0, TITLE, 1.0, false),
             Layout::Rows(_) => {
                 font.draw(list, title, ox + 8.0, oy + 6.0, TITLE, 1.0, false);
+                font.draw(list, "Inventory", ox + 8.0, oy + height - 94.0, TITLE, 1.0, false)
+            }
+            // Java centres a furnace's title; the others' start at 8 like a chest's.
+            Layout::Station(station) => {
+                let x = if station.is_furnace() || station == Station::Brewing { ((WIDTH - font.width(title)) / 2.0).floor() } else { 8.0 };
+                font.draw(list, title, ox + x, oy + 6.0, TITLE, 1.0, false);
                 font.draw(list, "Inventory", ox + 8.0, oy + height - 94.0, TITLE, 1.0, false)
             }
         };
@@ -154,6 +173,22 @@ mod tests {
         assert_eq!(hit(p, size, [ox + 9.0, oy + 9.0 + 18.0 * 3.0]), Some(Slot::Armor(3)));
         assert_eq!(hit(p, size, [ox + 7.0, oy + 142.0]), None, "the gap between slots");
         assert!(!inside(p, size, [10.0, 10.0]));
+    }
+
+    #[test]
+    fn stations_put_their_slots_where_javas_menus_do() {
+        let at = |layout, s| slots(layout).into_iter().find(|(slot, _)| *slot == s).unwrap().1;
+        let furnace = Layout::Station(Station::Furnace);
+        assert_eq!([at(furnace, Slot::Container(0)), at(furnace, Slot::Container(1)), at(furnace, Slot::Container(2))], [[56.0, 17.0], [56.0, 53.0], [116.0, 35.0]]);
+        assert_eq!(at(furnace, Slot::Main(9)), [8.0, 84.0]);
+        let hopper = Layout::Station(Station::Hopper);
+        assert_eq!(hopper.height(), 133.0);
+        assert_eq!(at(hopper, Slot::Container(4)), [116.0, 20.0]);
+        assert_eq!(at(hopper, Slot::Main(0)), [8.0, 109.0]);
+        assert_eq!(at(Layout::Station(Station::Dropper), Slot::Container(8)), [98.0, 53.0]);
+        // Bedrock's order: ingredient, bottles, blaze powder.
+        let brewing = Layout::Station(Station::Brewing);
+        assert_eq!([at(brewing, Slot::Container(0)), at(brewing, Slot::Container(4))], [[79.0, 17.0], [17.0, 17.0]]);
     }
 
     #[test]

@@ -1,5 +1,6 @@
-//! The jar's HUD and widget sprites, the inventory, chest and recipe book sheets and the ASCII font, copied into a Java look's files for acacia-ui's Java
-//! theme (`acacia_ui::theme::java`), in the jar's own layout.
+//! The jar's HUD and widget sprites, the container and recipe book sheets with their progress
+//! sprites and the ASCII font, copied into a Java look's files for acacia-ui's Java theme
+//! (`acacia_ui::theme::java`), in the jar's own layout.
 
 use std::path::Path;
 
@@ -9,8 +10,8 @@ const COPIED: [&str; 9] = [
     "textures/gui/sprites/hud",
     "textures/gui/sprites/boss_bar",
     "textures/gui/sprites/widget",
-    "textures/gui/container/inventory.png",
-    "textures/gui/container/generic_54.png",
+    "textures/gui/container",
+    "textures/gui/sprites/container",
     "textures/gui/recipe_book.png",
     "textures/gui/sprites/recipe_book/slot_craftable.png",
     "textures/font/ascii.png",

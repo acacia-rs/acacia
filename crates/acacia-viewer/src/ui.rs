@@ -168,7 +168,7 @@ impl Ui {
                 }
             }
             let cursor = inventory.cursor.as_ref().and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count)));
-            let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor };
+            let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress };
             let title = inventory.container.as_ref().map_or("", |c| c.title.as_str());
             acacia_ui::inventory::draw(&mut list, &skin.theme, layout, title, &contents, mouse, gui);
             if layout == Layout::Player {

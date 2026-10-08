@@ -11,6 +11,22 @@ use super::App;
 use crate::control::{Command, Inventory};
 
 impl App {
+    /// `ACACIA_USE=secs`: one right-click on the targeted block, that long after the player
+    /// arrived (after the setup commands have built what is to be opened).
+    pub(super) fn drive_use(&mut self) {
+        let Some(delay) = self.auto_use else { return };
+        if self.play.me.is_none() {
+            return;
+        }
+        let at = *self.use_at.get_or_insert_with(|| std::time::Instant::now() + std::time::Duration::from_secs_f32(delay));
+        if std::time::Instant::now() >= at && self.mode == super::Mode::Play && self.play.target.is_some() {
+            self.auto_use = None;
+            tracing::info!(block = ?self.play.target.as_ref().map(|t| t.block), "ACACIA_USE");
+            self.play.button(MouseButton::Right, true);
+            self.play.button(MouseButton::Right, false);
+        }
+    }
+
     pub(super) fn open_inventory(&mut self) {
         self.show_screen();
         let _ = self.net.commands.send(Command::Inventory(true));
@@ -37,7 +53,11 @@ impl App {
     }
 
     pub(super) fn layout(&self) -> Layout {
-        self.inventory.container.as_ref().map_or(Layout::Player, |c| Layout::Rows((c.slots.len() / 9) as u8))
+        match (self.inventory.station, &self.inventory.container) {
+            (Some(station), Some(_)) => Layout::Station(station),
+            (_, Some(c)) => Layout::Rows((c.slots.len() / 9) as u8),
+            _ => Layout::Player,
+        }
     }
 
     fn close_inventory(&mut self) {
