@@ -35,6 +35,7 @@ mod scoreboard;
 mod settings;
 mod shot;
 mod smooth;
+mod stations;
 mod ui;
 
 #[cfg(feature = "profile")]

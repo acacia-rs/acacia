@@ -8,6 +8,7 @@ use acacia_bot::state::ItemStack;
 use acacia_bot::movement::Controls;
 use acacia_bot::proto::packets::BossEventColor;
 use acacia_bot::proto::types::{GameMode, WindowType};
+use acacia_ui::inventory::{Progress, Station};
 use glam::{DVec3, IVec3};
 
 /// What the player at the window does.
@@ -50,8 +51,11 @@ pub struct Inventory {
     pub armor: [Option<Stack>; 4],
     pub offhand: Option<Stack>,
     pub cursor: Option<Stack>,
-    /// The open container, when it is rows of nine (chests, barrels, shulker boxes).
+    /// The open container, when it is rows of nine (chests, barrels, shulker boxes) or a station.
     pub container: Option<Rows>,
+    /// The open container is this workstation, and how far its work has come.
+    pub station: Option<Station>,
+    pub progress: Progress,
     /// An open crafting table's position.
     pub workbench: Option<[i32; 3]>,
     /// What can be crafted now (in the 2x2 grid, or at the open table); filled by [`craftable`].
@@ -95,14 +99,18 @@ pub fn inventory(bot: &Bot) -> Inventory {
     let state = bot.state();
     let stack = |s: &ItemStack| stack_of(bot, s);
     let inv = &state.inventory;
+    let station = bot.open_container().and_then(|c| crate::stations::station(c.window_type));
     Inventory {
+        station,
+        progress: station.map_or(Progress::default(), |s| crate::stations::progress(s, &state.containers.data)),
         main: inv.main.iter().map(stack).collect(),
         armor: std::array::from_fn(|i| inv.armor.get(i).and_then(stack)),
         offhand: stack(&inv.offhand),
         cursor: stack(inv.cursor()),
-        container: bot.open_container().filter(|c| c.window_type == WindowType::Container && !c.slots.is_empty() && c.slots.len() % 9 == 0).map(|c| Rows {
-            title: if c.slots.len() > 27 { "Large Chest" } else { "Chest" }.into(),
-            slots: c.slots.iter().map(stack).collect(),
+        // A station's screen shows as soon as its window opens: its contents may come slot by slot.
+        container: bot.open_container().filter(|c| station.is_some() || c.window_type == WindowType::Container && !c.slots.is_empty() && c.slots.len() % 9 == 0).map(|c| Rows {
+            title: station.map_or(if c.slots.len() > 27 { "Large Chest" } else { "Chest" }, Station::title).into(),
+            slots: (0..c.slots.len().max(station.map_or(0, Station::slot_count))).map(|i| c.slots.get(i).and_then(stack)).collect(),
         }),
         workbench: bot.open_container().filter(|c| c.window_type == WindowType::Workbench).and_then(|c| c.position.as_ref()).map(|p| [p.x, p.y, p.z]),
         craftable: Vec::new(),

@@ -210,6 +210,9 @@ async fn run(
                     // `inventory` is compared without what is craftable, which is worked out only on a change.
                     let now = control::inventory(&bot);
                     if now != inventory {
+                        if now.station != inventory.station || now.container.is_some() != inventory.container.is_some() {
+                            tracing::debug!(open = ?bot.state().containers.open.as_ref().map(|c| (c.window_type, c.slots.len())), station = ?now.station, "screen");
+                        }
                         inventory = now.clone();
                         let craftable = control::craftable(&bot, now.workbench.is_some());
                         send(NetEvent::Inventory(control::Inventory { craftable, ..now }))?;

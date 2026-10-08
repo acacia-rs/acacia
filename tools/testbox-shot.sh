@@ -2,7 +2,7 @@
 # A viewer screenshot taken on testbox (Xvfb, Mesa's lavapipe) against a testbox BDS, copied back here.
 # usage: tools/testbox-shot.sh [out.png]   (env: BDS_PORT (19170), REMOTE_DIR, and what viewer-shot.sh and
 #        the viewer read: ACACIA_SHOT_AFTER, ACACIA_LOOK, ACACIA_COMMANDS, ACACIA_RISE, ACACIA_DEBUG (F3 shown),
-#        ACACIA_SCREEN (inventory open), ACACIA_MENU (pause menu open), ACACIA_FORM (a form JSON file shown, e.g. tools/forms/custom.json), ACACIA_PLAY (first person, not the free camera), ACACIA_KEYS (scripted keys, src/keyscript.rs), ACACIA_SETTINGS (a settings file there, e.g. {"look":"java"}), NAME, RADIUS)
+#        ACACIA_SCREEN (inventory open), ACACIA_MENU (pause menu open), ACACIA_FORM (a form JSON file shown, e.g. tools/forms/custom.json), ACACIA_PLAY (first person, not the free camera), ACACIA_KEYS (scripted keys, src/keyscript.rs), ACACIA_USE (seconds after arriving to right-click the targeted block, to open its screen), ACACIA_SETTINGS (a settings file there, e.g. {"look":"java"}), NAME, RADIUS)
 # The BDS must be running (tools/testbox-bds.sh start). lavapipe compiles each pipeline on its first
 # draw, which stalls one frame 6-8 s after joining: shoot later than that (ACACIA_SHOT_AFTER, default 15). Builds no Windows binary: this machine runs short of memory.
 set -uo pipefail
@@ -10,7 +10,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 remote=${REMOTE_DIR:-work/$(basename "$root")-shot}
 out=${1:-$root/target/testbox-shot.png}
 vars=()
-for v in ACACIA_SHOT_AFTER ACACIA_LOOK ACACIA_COMMANDS ACACIA_COMMANDS_AFTER ACACIA_RISE ACACIA_DEBUG ACACIA_SCREEN ACACIA_MENU ACACIA_FORM ACACIA_PLAY ACACIA_ATTACK ACACIA_KEYS ACACIA_SETTINGS NAME RADIUS LOG RUST_LOG; do
+for v in ACACIA_SHOT_AFTER ACACIA_LOOK ACACIA_COMMANDS ACACIA_COMMANDS_AFTER ACACIA_RISE ACACIA_DEBUG ACACIA_SCREEN ACACIA_MENU ACACIA_FORM ACACIA_PLAY ACACIA_ATTACK ACACIA_KEYS ACACIA_USE ACACIA_SETTINGS NAME RADIUS LOG RUST_LOG; do
   [ -n "${!v:-}" ] && vars+=("$(printf '%q' "$v=${!v}")")
 done
 shot="rm -f target/shot.png && cargo +stable build --release -q -p acacia-viewer && env ${vars[*]} xvfb-run -a -s '-screen 0 1280x720x24' bash tools/viewer-shot.sh 127.0.0.1:${BDS_PORT:-19170} target/shot.png"

@@ -78,6 +78,10 @@ pub struct App {
     /// `ACACIA_ATTACK`: hold attack on whatever is targeted (unattended mining).
     auto_attack: bool,
     key_script: Option<KeyScript>,
+    /// `ACACIA_USE=secs`: right-click what is targeted, once (an unattended shot of a block's
+    /// screen), and when.
+    auto_use: Option<f32>,
+    use_at: Option<Instant>,
     /// The last frame's figures and the frame rate, for the debug screen.
     stats: FrameStats,
     fps: f32,
@@ -142,6 +146,8 @@ impl App {
             shift: false,
             auto_attack: std::env::var_os("ACACIA_ATTACK").is_some(),
             key_script: KeyScript::from_env(),
+            auto_use: std::env::var("ACACIA_USE").ok().map(|s| s.parse().unwrap_or(0.0)),
+            use_at: None,
             stats: FrameStats::default(),
             fps: 0.0,
             net,
@@ -246,6 +252,7 @@ impl App {
             debug_lines::lines(&facts)
         });
         self.update_form();
+        self.drive_use();
         let (size, scale) = self.gui();
         let mouse = self.gui_mouse();
         let screen = self.screen_open.then_some((&self.inventory, self.layout()));

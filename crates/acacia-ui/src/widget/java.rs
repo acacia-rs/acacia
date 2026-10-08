@@ -2,6 +2,7 @@
 //! edit boxes, and cycle buttons for every choice. Numbers: research/forms-java-widgets.md §2.
 //! A missing sprite is drawn as a flat fill of its main colour.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use super::bedrock::rgba;
@@ -42,7 +43,24 @@ pub struct Kit {
     /// `recipe_book.png`'s 147×166 book (from 1, 1) and a craftable recipe's 25×25 button.
     pub recipe_book: Option<Sprite>,
     pub recipe_slot: Option<Sprite>,
+    /// Workstation sheets by file name (`furnace`: 176×166, `hopper`: 176×133) and their progress
+    /// sprites (`furnace/lit_progress`), as `inventory::Station::sheet` names them.
+    pub stations: HashMap<String, Sprite>,
 }
+
+/// Workstation sheets under `textures/gui/container` and the panel's height in each.
+const STATION_SHEETS: [(&str, u32); 6] = [("furnace", 166), ("blast_furnace", 166), ("smoker", 166), ("hopper", 133), ("dispenser", 166), ("brewing_stand", 166)];
+/// Progress sprites under `textures/gui/sprites/container`.
+const STATION_SPRITES: [&str; 8] = [
+    "furnace/lit_progress",
+    "furnace/burn_progress",
+    "blast_furnace/lit_progress",
+    "blast_furnace/burn_progress",
+    "smoker/lit_progress",
+    "smoker/burn_progress",
+    "brewing_stand/brew_progress",
+    "brewing_stand/fuel_length",
+];
 
 impl Kit {
     pub fn load(root: &Path, atlas: &mut Atlas) -> Kit {
@@ -57,6 +75,17 @@ impl Kit {
         let chest_bottom = sheet("container/generic_54", [0, 126, 176, 96], atlas);
         let recipe_book = sheet("recipe_book", [1, 1, 147, 166], atlas);
         let recipe_slot = crate::theme::png(&root.join("textures/gui/sprites/recipe_book/slot_craftable.png")).map(|i| atlas.add("sprites/recipe_book/slot_craftable", &i));
+        let mut stations = HashMap::new();
+        for (name, height) in STATION_SHEETS {
+            if let Some(sprite) = sheet(&format!("container/{name}"), [0, 0, 176, height], atlas) {
+                stations.insert(name.to_owned(), sprite);
+            }
+        }
+        for name in STATION_SPRITES {
+            if let Some(image) = crate::theme::png(&root.join(format!("textures/gui/sprites/container/{name}.png"))) {
+                stations.insert(name.to_owned(), atlas.add(&format!("sprites/container/{name}"), &image));
+            }
+        }
         let mut n = |name: &str| Nine::java(root, &format!("widget/{name}"), atlas);
         Kit {
             inventory,
@@ -64,6 +93,7 @@ impl Kit {
             chest_bottom,
             recipe_book,
             recipe_slot,
+            stations,
             button: [n("button"), n("button_highlighted")],
             checkbox: [n("checkbox"), n("checkbox_highlighted"), n("checkbox_selected"), n("checkbox_selected_highlighted")],
             slider: [n("slider"), n("slider_highlighted")],

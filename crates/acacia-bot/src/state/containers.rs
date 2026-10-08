@@ -1,4 +1,8 @@
-use acacia_client::proto::packets::{ContainerClose, ContainerOpen, InventoryContent, InventorySlot, ItemStackResponse, UpdateTrade};
+use std::collections::HashMap;
+
+use acacia_client::proto::packets::{
+    ContainerClose, ContainerOpen, ContainerSetData, InventoryContent, InventorySlot, ItemStackResponse, UpdateTrade,
+};
 use acacia_client::proto::types::{BlockCoordinates, ContainerSlotType, WindowType};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
@@ -34,11 +38,21 @@ impl Container {
 #[derive(Debug, Default)]
 pub struct Containers {
     pub open: Option<Container>,
+    /// The open window's `ContainerSetData` properties: a furnace's 0 cook ticks, 1 lit time,
+    /// 2 lit duration; a brewing stand's 0 brew time, 1 fuel, 2 fuel total.
+    pub data: HashMap<i32, i32>,
 }
 
 impl Containers {
-    pub const PACKETS: &'static [u32] =
-        &[ContainerOpen::ID, ContainerClose::ID, InventoryContent::ID, InventorySlot::ID, ItemStackResponse::ID, UpdateTrade::ID];
+    pub const PACKETS: &'static [u32] = &[
+        ContainerOpen::ID,
+        ContainerClose::ID,
+        ContainerSetData::ID,
+        InventoryContent::ID,
+        InventorySlot::ID,
+        ItemStackResponse::ID,
+        UpdateTrade::ID,
+    ];
 
     pub fn apply(&mut self, packet: &RawPacket, _me: &Me) -> Result<(), DecodeError> {
         match packet.id {
@@ -46,6 +60,7 @@ impl Containers {
                 let p: ContainerOpen = packet.decode()?;
                 // Named runtime_entity_id in the schema, but it is the unique id; -1 means a block container.
                 let entity = (p.runtime_entity_id != -1).then_some(p.runtime_entity_id);
+                self.data.clear();
                 self.open = Some(Container {
                     window_id: p.window_id.to_raw() as i32,
                     window_type: p.window_type,
@@ -57,6 +72,13 @@ impl Containers {
             ContainerClose::ID => {
                 packet.decode::<ContainerClose>()?;
                 self.open = None;
+                self.data.clear();
+            }
+            ContainerSetData::ID => {
+                let p: ContainerSetData = packet.decode()?;
+                if self.open_window(p.window_id.to_raw() as i32).is_some() {
+                    self.data.insert(p.property, p.value);
+                }
             }
             // The trade screen opens with UpdateTrade itself; a resend for the open window changes nothing here.
             UpdateTrade::ID => {

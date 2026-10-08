@@ -92,6 +92,7 @@ impl Bot {
     /// stack's predicted change, then the new stack in MobEquipment), StopItemUseOn a moment later.
     pub(super) fn click_block(&mut self, pos: BlockPos, face: Face, source: SwingSource) -> Result<(), ActionError> {
         let block = self.block_wire_id(pos)?;
+        tracing::debug!(?pos, ?face, block, "click block");
         let held = self.state.inventory.held().clone();
         let is_sign = self.held_name().is_some_and(|n| n.ends_with("sign"));
         let result = use_on_result(&held, is_sign, pos, face);
