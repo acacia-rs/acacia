@@ -60,6 +60,11 @@ pub fn load(root: &Path, java_root: Option<&Path>) -> Theme {
             atlas.add(&format!("boss_bar/{colour}_progress"), &fill);
         }
     }
+    // 1937×333 does not fit the atlas; drawn about 150 GUI pixels wide.
+    if let Some(logo) = ui("title") {
+        let height = logo.height() * 512 / logo.width().max(1);
+        atlas.add(crate::menu::LOGO, &imageops::resize(&logo, 512, height, imageops::FilterType::Triangle));
+    }
     let font = java_root.and_then(|r| java_font(r, &mut atlas));
     let widgets = Widgets::Bedrock(Kit::load(root, &mut atlas));
     Theme { atlas, font, style: STYLE, widgets }

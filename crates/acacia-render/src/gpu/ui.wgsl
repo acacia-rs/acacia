@@ -28,9 +28,15 @@ fn vs_main(@builtin(vertex_index) index: u32, @location(0) rect: vec4<f32>, @loc
     return out;
 }
 
+// The atlas is an sRGB texture, decoded on sampling; the target is a plain view, so encode back.
+fn to_srgb(c: vec3<f32>) -> vec3<f32> {
+    return select(1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, c * 12.92, c <= vec3(0.0031308));
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    let texel = textureSample(atlas, samp, in.uv) * in.color;
+    let sampled = textureSample(atlas, samp, in.uv);
+    let texel = vec4(to_srgb(sampled.rgb), sampled.a) * in.color;
     if texel.a <= 0.0 {
         discard;
     }

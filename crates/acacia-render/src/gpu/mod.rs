@@ -110,7 +110,7 @@ impl Renderer {
         let store = Store::new(&device);
         let entities = EntityPass::new(&device, config.format, &globals);
         let outline_pass = OutlinePass::new(&device, config.format, &globals);
-        let ui_pass = UiPass::new(&device, config.format);
+        let ui_pass = UiPass::new(&device, config.format.remove_srgb_suffix());
         let particle_pass = particles::ParticlePass::new(&device, config.format);
         let crack_pass = CrackPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
@@ -251,9 +251,9 @@ impl Renderer {
             self.particle_pass.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
             self.crack_pass.draw(&mut pass);
             self.outline_pass.draw(&mut pass);
-            if atlas.is_some() {
-                self.ui_pass.draw(&mut pass);
-            }
+        }
+        if atlas.is_some() {
+            self.ui_pass.draw(&mut encoder, &frame.texture);
         }
         self.queue.submit([encoder.finish()]);
         if let Some(path) = self.screenshot.take() {

@@ -29,6 +29,11 @@ impl Shot {
         });
         camera.position = at.unwrap_or(player + DVec3::Y * rise);
         tracing::info!(player = %player, camera = %camera.position, "shot");
+        Shot::look(camera);
+    }
+
+    /// Turns the camera as `ACACIA_LOOK=yaw,pitch` (degrees) says, if set.
+    pub fn look(camera: &mut Camera) {
         if let Some((yaw, pitch)) = std::env::var("ACACIA_LOOK").ok().and_then(|s| {
             let (y, p) = s.split_once(',')?;
             Some((y.parse::<f32>().ok()?, p.parse::<f32>().ok()?))

@@ -72,6 +72,8 @@ pub struct App {
     /// Cursor position in window pixels, and Shift held.
     mouse: [f64; 2],
     shift: bool,
+    /// `ACACIA_ATTACK`: hold attack on whatever is targeted (unattended mining).
+    auto_attack: bool,
     /// The last frame's figures and the frame rate, for the debug screen.
     stats: FrameStats,
     fps: f32,
@@ -134,12 +136,17 @@ impl App {
             inventory: Inventory::default(),
             mouse: [0.0; 2],
             shift: false,
+            auto_attack: std::env::var_os("ACACIA_ATTACK").is_some(),
             stats: FrameStats::default(),
             fps: 0.0,
             net,
             window: None,
             renderer: None,
-            camera: Camera::new(DVec3::new(0.0, 100.0, 0.0)),
+            camera: {
+                let mut camera = Camera::new(DVec3::new(0.0, 100.0, 0.0));
+                Shot::look(&mut camera);
+                camera
+            },
             mode,
             input: FlyInput::new(),
             play,

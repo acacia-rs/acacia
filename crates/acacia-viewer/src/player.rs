@@ -168,6 +168,10 @@ impl Play {
         me.items.get(usize::from(me.hotbar))?.as_ref()
     }
 
+    pub fn attacking(&self) -> bool {
+        self.attacking
+    }
+
     /// F5: first person, then behind, then in front facing back.
     pub fn next_perspective(&mut self) {
         self.perspective = (self.perspective + 1) % 3;

@@ -3,8 +3,6 @@
 
 use acacia_ui::{Atlas, Quad};
 
-use super::pipeline::DEPTH_FORMAT;
-
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
@@ -22,6 +20,8 @@ pub struct UiPass {
     atlas: Option<(wgpu::BindGroup, u64, [f32; 2])>,
     instances: wgpu::Buffer,
     count: u32,
+    /// A non-sRGB format: the UI blends in gamma space, and its colours are sRGB values.
+    format: wgpu::TextureFormat,
 }
 
 impl UiPass {
@@ -58,14 +58,7 @@ impl UiPass {
                 })],
             },
             primitive: wgpu::PrimitiveState::default(),
-            // Over everything; the pass shares the frame's depth attachment.
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: Some(false),
-                depth_compare: Some(wgpu::CompareFunction::Always),
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
+            depth_stencil: None,
             multisample: Default::default(),
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -84,7 +77,7 @@ impl UiPass {
             mapped_at_creation: false,
         });
         let instances = instance_buffer(device, 1024);
-        UiPass { pipeline, layout, sampler, screen, atlas: None, instances, count: 0 }
+        UiPass { pipeline, layout, sampler, screen, atlas: None, instances, count: 0, format: color }
     }
 
     /// Uploads the atlas when it changed and this frame's quads.
@@ -115,11 +108,26 @@ impl UiPass {
         self.count = data.len() as u32;
     }
 
-    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
+    /// A pass of its own over the finished frame, through a view of `target` in the pass's format.
+    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::Texture) {
         let Some((bind_group, _, _)) = &self.atlas else { return };
         if self.count == 0 {
             return;
         }
+        let view = target.create_view(&wgpu::TextureViewDescriptor { format: Some(self.format), ..Default::default() });
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("ui"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, bind_group, &[]);
         pass.set_vertex_buffer(0, self.instances.slice(..));

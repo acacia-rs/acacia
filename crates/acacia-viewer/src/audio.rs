@@ -56,18 +56,62 @@ const STRIDE: f32 = 1.6;
 /// Ticks between the hit sounds of a block being mined (Java's `destroyTicks % 4`).
 const HIT_EVERY: u32 = 4;
 
-/// The sounds the client makes itself, which no server sends: its own footsteps and the knocks
-/// of a block it mines.
+/// What the client makes itself, which no server sends: its own footsteps, the knocks of a block
+/// it mines, and that block's break (BDS sends the breaker no `ParticleDestroy`: the client
+/// predicted it).
 #[derive(Default)]
 pub struct Own {
     last: Option<[f32; 3]>,
     walked: f32,
     mining_ticks: u32,
+    /// The block being mined: where, its name and runtime id.
+    mined: Option<(glam::IVec3, &'static str, u32)>,
+}
+
+/// A tick's own effects.
+#[derive(Default)]
+pub struct OwnTick {
+    pub sounds: Vec<Cue>,
+    /// A block of ours broke: where and its runtime id, for the chips.
+    pub broken: Option<(glam::IVec3, u32)>,
 }
 
 impl Own {
     /// Called once a tick.
-    pub fn tick(&mut self, bot: &Bot) -> Vec<Cue> {
+    pub fn tick(&mut self, bot: &Bot) -> OwnTick {
+        let mut out = OwnTick { sounds: self.steps(bot), broken: None };
+        match bot.mining_progress() {
+            Some((pos, _)) => {
+                let p = glam::IVec3::from_array(pos);
+                if let Some((block, id)) = block_at(bot, p) {
+                    self.mined = Some((p, block, id));
+                    if self.mining_ticks % HIT_EVERY == 0 {
+                        out.sounds.push(Cue::Block { block: block.to_owned(), event: "hit".into(), at: centre(p) });
+                    }
+                }
+                self.mining_ticks += 1;
+            }
+            None => self.mining_ticks = 0,
+        }
+        // Mining ends with the prediction; the block turns to air when the server agrees.
+        if let Some((p, block, id)) = self.mined
+            && bot.mining_progress().is_none_or(|(q, _)| glam::IVec3::from_array(q) != p)
+        {
+            match block_at(bot, p) {
+                None => {
+                    out.sounds.push(Cue::Block { block: block.to_owned(), event: "break".into(), at: centre(p) });
+                    out.broken = Some((p, id));
+                    self.mined = None;
+                }
+                Some((now, _)) if now != block => self.mined = None,
+                Some(_) if bot.mining_progress().is_some() => self.mined = None,
+                Some(_) => {}
+            }
+        }
+        out
+    }
+
+    fn steps(&mut self, bot: &Bot) -> Vec<Cue> {
         let mut out = Vec::new();
         let Some(m) = bot.movement() else { return out };
         let (Some(feet), on_ground) = (m.position(), m.on_ground()) else { return out };
@@ -83,20 +127,20 @@ impl Own {
                 }
             }
         }
-        match bot.mining_progress() {
-            Some((pos, _)) => {
-                if self.mining_ticks % HIT_EVERY == 0
-                    && let Some(block) = bot.block_name(pos)
-                {
-                    let at = [0, 1, 2].map(|i| f64::from(pos[i]) + 0.5);
-                    out.push(Cue::Block { block: block.to_owned(), event: "hit".into(), at });
-                }
-                self.mining_ticks += 1;
-            }
-            None => self.mining_ticks = 0,
-        }
         out
     }
+}
+
+/// The block at `p` and its runtime id; `None` for air or an unknown place.
+fn block_at(bot: &Bot, p: glam::IVec3) -> Option<(&'static str, u32)> {
+    let view = bot.world()?.view()?;
+    let id = acacia_world::BlockAccess::block(view, p.x, p.y, p.z);
+    let state = view.world().registry().get(id).filter(|s| !s.is_air())?;
+    Some((state.name, id))
+}
+
+fn centre(p: glam::IVec3) -> [f64; 3] {
+    (p.as_dvec3() + 0.5).to_array()
 }
 
 /// A block broken (the `ParticleDestroy` level event, sent to the breaker too): where, and its

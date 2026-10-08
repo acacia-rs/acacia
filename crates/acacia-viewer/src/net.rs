@@ -197,8 +197,12 @@ async fn run(
                         setup.drain(..).for_each(|c| _ = bot.client().command(&c));
                     }
                     send(NetEvent::Me(control::me(&bot)))?;
-                    for cue in own_sounds.tick(&bot) {
+                    let own = own_sounds.tick(&bot);
+                    for cue in own.sounds {
                         send(NetEvent::Sound(cue))?;
+                    }
+                    if let Some((pos, block)) = own.broken {
+                        send(NetEvent::Broken { pos, block })?;
                     }
                     let now = control::inventory(&bot);
                     if now != inventory {

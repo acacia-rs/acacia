@@ -104,6 +104,13 @@ impl Ui {
         skin.added.clear();
     }
 
+    pub fn theme(&self, look: LookChoice) -> &Theme {
+        match look {
+            LookChoice::Bedrock => &self.bedrock.theme,
+            LookChoice::Java => &self.java.theme,
+        }
+    }
+
     pub fn theme_mut(&mut self, look: LookChoice) -> &mut Theme {
         &mut self.skin(look).theme
     }
@@ -134,7 +141,7 @@ impl Ui {
         let mut list = DrawList::new(scale as f32);
         let gui = [(size[0] / scale) as f32, (size[1] / scale) as f32];
         if let Some(me) = me {
-            let state = skin.state(me);
+            let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none(), ..skin.state(me) };
             hud::draw(&mut list, &skin.theme, &state, gui);
             let bosses: Vec<Boss> = me.bosses.iter().map(|(title, progress, colour)| Boss { title, progress: *progress, colour: *colour }).collect();
             overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
@@ -201,6 +208,7 @@ impl Skin {
             selected: me.hotbar,
             hotbar,
             survival: matches!(me.game_mode, GameMode::Survival | GameMode::Adventure),
+            crosshair: true,
         }
     }
 

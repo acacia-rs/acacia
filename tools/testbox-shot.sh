@@ -10,7 +10,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 remote=${REMOTE_DIR:-work/$(basename "$root")-shot}
 out=${1:-$root/target/testbox-shot.png}
 vars=()
-for v in ACACIA_SHOT_AFTER ACACIA_LOOK ACACIA_COMMANDS ACACIA_COMMANDS_AFTER ACACIA_RISE ACACIA_DEBUG ACACIA_SCREEN ACACIA_MENU ACACIA_FORM ACACIA_PLAY ACACIA_SETTINGS NAME RADIUS LOG RUST_LOG; do
+for v in ACACIA_SHOT_AFTER ACACIA_LOOK ACACIA_COMMANDS ACACIA_COMMANDS_AFTER ACACIA_RISE ACACIA_DEBUG ACACIA_SCREEN ACACIA_MENU ACACIA_FORM ACACIA_PLAY ACACIA_ATTACK ACACIA_SETTINGS NAME RADIUS LOG RUST_LOG; do
   [ -n "${!v:-}" ] && vars+=("$(printf '%q' "$v=${!v}")")
 done
 shot="rm -f target/shot.png && cargo +stable build --release -q -p acacia-viewer && env ${vars[*]} xvfb-run -a -s '-screen 0 1280x720x24' bash tools/viewer-shot.sh 127.0.0.1:${BDS_PORT:-19170} target/shot.png"
