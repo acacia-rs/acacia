@@ -103,6 +103,11 @@ impl Renderer {
         self.cloud_pass.set_texture(&self.device, &self.queue, image);
     }
 
+    /// The overlay drawn with the camera in water, from [`crate::fluid_view::load_underwater`].
+    pub fn set_underwater_texture(&mut self, image: &image::RgbaImage) {
+        self.screen_effect.set_texture(&self.device, &self.queue, image);
+    }
+
     /// The block outlined from now on, or none.
     pub fn set_outline(&mut self, outline: Option<Outline>) {
         self.outline = outline;

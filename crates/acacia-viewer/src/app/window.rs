@@ -37,6 +37,9 @@ impl ApplicationHandler for App {
                 if let Some(map) = acacia_render::weather::load_clouds(files) {
                     r.set_cloud_texture(&map);
                 }
+                if let Some(overlay) = acacia_render::fluid_view::load_underwater(files) {
+                    r.set_underwater_texture(&overlay);
+                }
                 self.renderer = Some(r);
             }
             Err(e) => {

@@ -45,3 +45,20 @@ pub(super) fn open(target: impl Into<wgpu::SurfaceTarget<'static>>, (width, heig
     surface.configure(&device, &config);
     Ok(Gpu { surface, device, queue, config })
 }
+
+/// The texture to draw the frame into, reconfiguring a suboptimal, outdated or lost surface;
+/// `None` when there is none this time.
+pub(super) fn acquire_or_reconfigure(surface: &wgpu::Surface, device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Option<wgpu::SurfaceTexture> {
+    match surface.get_current_texture() {
+        wgpu::CurrentSurfaceTexture::Success(f) => Some(f),
+        wgpu::CurrentSurfaceTexture::Suboptimal(f) => {
+            surface.configure(device, config);
+            Some(f)
+        }
+        wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+            surface.configure(device, config);
+            None
+        }
+        _ => None,
+    }
+}

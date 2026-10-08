@@ -11,7 +11,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 git clone -q --depth 1 --branch "$tag" --filter=blob:none --sparse https://github.com/Mojang/bedrock-samples.git "$tmp/repo"
 git -C "$tmp/repo" sparse-checkout set --no-cone \
-  resource_pack/blocks.json resource_pack/biomes_client.json \
+  resource_pack/blocks.json resource_pack/biomes_client.json resource_pack/fogs/ \
   resource_pack/textures/terrain_texture.json resource_pack/textures/flipbook_textures.json \
   resource_pack/textures/blocks/ resource_pack/textures/colormap/ resource_pack/textures/environment/ \
   resource_pack/entity/ resource_pack/models/ resource_pack/textures/entity/ \

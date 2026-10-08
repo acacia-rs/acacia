@@ -8,6 +8,7 @@ pub mod blocks;
 pub mod camera;
 mod cull;
 pub mod entity;
+pub mod fluid_view;
 mod gpu;
 pub mod item;
 pub mod light;
