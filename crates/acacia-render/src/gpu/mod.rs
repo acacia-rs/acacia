@@ -8,10 +8,12 @@ mod entity_textures;
 mod globals;
 mod inputs;
 mod outline;
+mod particle_feed;
 mod particles;
 mod pipeline;
 mod screenshot;
 mod sky;
+mod sprites;
 mod store;
 mod ui;
 mod weather;
@@ -79,10 +81,7 @@ pub struct Renderer {
     outline: Option<Outline>,
     crack_pass: CrackPass,
     ui_pass: UiPass,
-    particle_pass: particles::ParticlePass,
-    particles: crate::particles::Particles,
-    /// The game tick the particles were last advanced to.
-    particle_tick: u64,
+    particles: particle_feed::ParticleFeed,
     weather_pass: weather::WeatherPass,
     /// Rain, thunder and lightning: the falling streaks and the sky.
     pub weather: crate::sky::Weather,
@@ -123,7 +122,7 @@ impl Renderer {
         let entities = EntityPass::new(&device, config.format, &globals);
         let outline_pass = OutlinePass::new(&device, config.format, &globals);
         let ui_pass = UiPass::new(&device, config.format.remove_srgb_suffix());
-        let particle_pass = particles::ParticlePass::new(&device, config.format);
+        let particles = particle_feed::ParticleFeed::new(&device, config.format, &globals);
         let weather_pass = weather::WeatherPass::new(&device, config.format, &globals);
         let cloud_pass = clouds::CloudPass::new(&device, config.format, &globals);
         let bolt_pass = bolts::BoltPass::new(&device, config.format, &globals);
@@ -150,9 +149,7 @@ impl Renderer {
             outline: None,
             crack_pass,
             ui_pass,
-            particle_pass,
-            particles: Default::default(),
-            particle_tick: 0,
+            particles,
             weather_pass,
             weather: Default::default(),
             cloud_pass,
@@ -277,7 +274,7 @@ impl Renderer {
                     self.entities.draw(&mut pass);
                 }
             }
-            self.particle_pass.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
+            self.particles.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
             self.cloud_pass.draw(&mut pass);
             self.bolt_pass.draw(&mut pass);
             self.weather_pass.draw(&mut pass);

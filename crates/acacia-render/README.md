@@ -6,7 +6,7 @@ wgpu terrain renderer for `acacia-world`. Depends only on `acacia-world`, never 
 ## Assets
 
 `tools/fetch-vanilla-pack.sh` copies `blocks.json`, `terrain_texture.json`, `biomes_client.json`, the block,
-entity and environment textures and the entity files from Mojang/bedrock-samples into the git-ignored `assets/vanilla`. BDS ships no textures. Pin the tag
+entity, environment and particle textures and the entity files from Mojang/bedrock-samples into the git-ignored `assets/vanilla`. BDS ships no textures. Pin the tag
 to the block palette version (`acacia-world/src/registry/mod.rs`).
 
 - `blocks.json`: block name → texture name per face (`side` fills the horizontal faces).
@@ -286,14 +286,33 @@ A look is built over another by replacing blocks: `LookPack::block` and `set_blo
 (the texture array is limited to 2048 layers here). `tools/lookbake java` builds the Java look that
 way from the Bedrock one (docs/java-look.md).
 
-## Overlays on the world (`gpu/outline.rs`, `gpu/crack.rs`, `particles.rs`, `weather.rs`, `gpu/ui.rs`)
+## Overlays on the world (`gpu/outline.rs`, `gpu/crack.rs`, `particles/`, `weather.rs`, `gpu/ui.rs`)
 
 - **Outline** (`Renderer::set_outline`): the targeted block's boxes as black lines at 40%,
   inflated 0.002 like Java's. Its `crack` stage (0-9) multiplies the pack's `destroy_stage_N`
   onto the boxes (2·src·dst, Java's `crumbling`).
-- **Particles** (`Renderer::break_particles`): Java's `TerrainParticle` chips, 4×4×4 per broken
+- **Chips** (`Renderer::break_particles`): Java's `TerrainParticle`, 4×4×4 per broken
   block, a random 4×4-texel piece of its texture each, gravity 0.04 and drag 0.98 per tick, a
-  4/(0.1…1) tick life, stopped by solid blocks; camera-facing quads lit by their cell.
+  4/(0.1…1) tick life; camera-facing quads lit by their cell.
+- **Sprite particles** (`particles/`, `Renderer::spawn_particles`, `set_particle_sheet`): a
+  [`particles::Kind`] (from a Bedrock identifier, `Kind::from_identifier`, or the caller) is set up
+  the way the look's game does it: `java.rs` ports the 26.3 client's particle constructors,
+  `bedrock.rs` the pack's `particles/*.json` in ticks (`a/400` a tick², `1 - drag/20` kept).
+  Every sprite then runs Java's `Particle.tick`: velocity, `move` swept through the blocks'
+  collision boxes (y, then the larger of x and z), friction, ×0.7 on the ground, plus each kind's
+  override (smoke spreads under ceilings, drips hang then fall then splash, lava spits smoke).
+  - Each tick the blocks around the camera give off theirs (`ambient.rs`, Java's
+    `ClientLevel.animateTick`: 667 cells within 16 and 667 within 32): torches, soul and
+    redstone torches, lit furnaces, blast furnaces and smokers, candles, fire on a floor, lit
+    redstone ore, lava pops, drips under blocks holding water or lava. Lit campfires the
+    sampling finds smoke every tick (`CampfireBlockEntity.particleTick`; a hay bale below
+    makes signal smoke). Both looks use Java's rules; Bedrock's are in its client.
+  - Sprites (`particles/sheet.rs`): the Java look's files hold the jar's `textures/particle/*.png`
+    (`tools/lookbake java`), packed into one image; otherwise Bedrock's `particles.png` and
+    `campfire_smoke.png`, cut where the particle files put each sprite.
+  - Drawn in one pass (`gpu/sprites.rs`), far to near, premultiplied: Java's opaque layer and
+    Bedrock's `particles_alpha` cut out at 0.1, campfire smoke blended; lit by their cell, by
+    their own glow (flames, lava, explosions) or full, and fogged.
 - **Rain** (`Renderer::rain`, `set_weather_texture`): each column within 10 blocks gets a quad
   facing the camera from its first non-air block (or 10 below the eye) to 10 above, the rain half
   of Bedrock's `weather.png` at 16 texels a block scrolling down, 0.6 alpha fading to half at the

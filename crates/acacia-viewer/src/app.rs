@@ -206,6 +206,9 @@ impl App {
         self.entities.set_items(ItemModels::new(pack.clone(), table.clone()));
         self.table = Some(table.clone());
         self.ui.set_world(self.settings.look, pack.clone(), table.clone());
+        if let Some(sheet) = acacia_render::particles::Sheet::load(pack.files()) {
+            r.set_particle_sheet(sheet);
+        }
         r.set_world(world, table, &pack.atlas);
     }
 

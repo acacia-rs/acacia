@@ -1,15 +1,15 @@
 //! The bot's thread: connects, keeps the bot polled, and reports world changes to the window.
 
+mod packets;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::time::{Duration, Instant};
 
 use acacia_bot::client::{Client, ClientBuilder, PacketFilter};
-use acacia_bot::proto::Packet;
-use acacia_bot::proto::packets::BiomeDefinitionList;
 use acacia_bot::{Bot, BotConfig, BotEvent, Events};
-use acacia_render::biome::{BiomeColors, BiomeDef};
+use acacia_render::biome::BiomeColors;
 use acacia_bot::state::Trackers;
 use acacia_render::block_models::BlockDataMap;
 use acacia_render::entity::EntityModels;
@@ -46,6 +46,7 @@ pub enum NetEvent {
     Sound(audio::Cue),
     /// A block broke there; `block` is its runtime id, for the chips.
     Broken { pos: glam::IVec3, block: u32 },
+    Particles(crate::particles::Spawn),
     /// A title, subtitle or action bar text (or a clear).
     Title(acacia_bot::events::Title),
     /// The player list's names, sorted, when they changed.
@@ -128,7 +129,7 @@ async fn run(
     let send = |e| tx.send(e).map_err(|_| "window closed");
     send(NetEvent::Status(format!("connecting to {}", options.server)))?;
     let builder = login(Client::builder(&options.server).chunk_radius(options.radius), &options.name).await?;
-    let subscribe = audio::PACKETS.into_iter().fold(PacketFilter::none().with(BiomeDefinitionList::ID), PacketFilter::with);
+    let subscribe = packets::forwarded().fold(PacketFilter::none(), PacketFilter::with);
     let trackers = Trackers { entities: true, skins: true, ..Trackers::default() };
     let events = Events::TICKS | Events::CHAT | Events::TITLES;
     // The death screen respawns (control::Command::Respawn), as a player does.
@@ -167,20 +168,10 @@ async fn run(
             event = bot.next() => match event {
                 Some(BotEvent::Disconnected(reason)) => return Ok(format!("disconnected: {reason:?}")),
                 None => return Ok("bot stopped".into()),
-                Some(BotEvent::Packet(p)) if audio::PACKETS.contains(&p.id) => {
-                    if let Some(cue) = audio::cue(&bot, &p) {
-                        send(NetEvent::Sound(cue))?;
+                Some(BotEvent::Packet(p)) => {
+                    for event in packets::events(&bot, &p, files)? {
+                        send(event)?;
                     }
-                    if let Some((pos, block)) = audio::broken(&bot, &p) {
-                        send(NetEvent::Broken { pos, block })?;
-                    }
-                    continue;
-                }
-                Some(BotEvent::Packet(p)) if p.id == BiomeDefinitionList::ID => {
-                    let defs = biome_defs(&p.decode()?);
-                    tracing::info!(count = defs.len(), "biome definitions");
-                    let colors = BiomeColors::build(&defs, files);
-                    send(NetEvent::Biomes(Arc::new(colors)))?;
                     continue;
                 }
                 Some(BotEvent::Chat(m)) => {
@@ -282,17 +273,6 @@ async fn run(
             }
         }
     }
-}
-
-fn biome_defs(list: &BiomeDefinitionList) -> Vec<BiomeDef> {
-    list.biome_definitions
-        .iter()
-        .filter_map(|d| {
-            let name = list.string_list.get(usize::try_from(d.name_index).ok()?)?;
-            let name = name.strip_prefix("minecraft:").unwrap_or(name).to_owned();
-            Some(BiomeDef { id: d.biome_id, name, temperature: d.temperature, downfall: d.downfall })
-        })
-        .collect()
 }
 
 async fn login(builder: ClientBuilder, name: &str) -> Result<ClientBuilder, Box<dyn std::error::Error>> {

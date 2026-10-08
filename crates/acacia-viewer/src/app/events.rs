@@ -46,6 +46,11 @@ impl App {
                         r.break_particles(pos, block);
                     }
                 }
+                NetEvent::Particles(s) => {
+                    if let Some(r) = &mut self.renderer {
+                        r.spawn_particles(s.kind, s.at, s.velocity, s.count, s.spread);
+                    }
+                }
                 NetEvent::Sound(cue) => self.audio.play(self.settings.look, &cue, &self.camera, self.settings.volume as f32 / 100.0),
                 NetEvent::Form(form) => self.show_form(form),
                 NetEvent::Sidebar(sidebar) => self.ui.sidebar = sidebar,

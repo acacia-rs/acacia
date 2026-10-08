@@ -116,11 +116,11 @@ fn read_blocks(path: &Path) -> Result<Vec<RenderBlock>, Error> {
 }
 
 /// What [`LookPack::files`] holds, copied beside the baked data.
-const LOOSE: [&str; 16] = [
+const LOOSE: [&str; 17] = [
     "entity", "models", "render_controllers", "animations", "animation_controllers",
     "textures/entity", "textures/environment", "textures/colormap", "biomes_client.json",
     "textures/items", "textures/item_texture.json", "attachables", "textures/models/armor",
-    "textures/ui", "textures/gui", "texts/en_US.lang",
+    "textures/ui", "textures/gui", "texts/en_US.lang", "textures/particle",
 ];
 
 /// Copies a file or a directory's files; a source that does not exist is skipped.
