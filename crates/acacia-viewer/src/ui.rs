@@ -167,6 +167,11 @@ impl Ui {
             let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor };
             let title = inventory.container.as_ref().map_or("", |c| c.title.as_str());
             acacia_ui::inventory::draw(&mut list, &skin.theme, layout, title, &contents, mouse, gui);
+            if layout == Layout::Player {
+                // Every result keeps its cell (clicks index the same list); a missing icon draws blank.
+                let results: Vec<_> = inventory.craftable.iter().map(|s| (skin.icon(&s.name, s.aux, s.block).unwrap_or_else(|| skin.theme.atlas.white()), s.count)).collect();
+                acacia_ui::recipes::draw(&mut list, &skin.theme, layout, &results, mouse, gui);
+            }
         }
         if let Some(names) = players {
             acacia_ui::players::draw(&mut list, &skin.theme, names, gui[0]);

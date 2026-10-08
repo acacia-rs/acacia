@@ -207,10 +207,12 @@ async fn run(
                     if let Some((pos, block)) = own.broken {
                         send(NetEvent::Broken { pos, block })?;
                     }
+                    // `inventory` is compared without what is craftable, which is worked out only on a change.
                     let now = control::inventory(&bot);
                     if now != inventory {
                         inventory = now.clone();
-                        send(NetEvent::Inventory(now))?;
+                        let craftable = control::craftable(&bot, now.workbench.is_some());
+                        send(NetEvent::Inventory(control::Inventory { craftable, ..now }))?;
                     }
                     let names = control::player_names(&bot);
                     if names != players {

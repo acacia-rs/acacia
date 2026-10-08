@@ -16,6 +16,7 @@ pub mod menu;
 pub mod nine;
 pub mod overlay;
 pub mod players;
+pub mod recipes;
 pub mod scale;
 pub mod sidebar;
 pub mod theme;

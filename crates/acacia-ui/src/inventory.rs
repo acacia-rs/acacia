@@ -69,9 +69,15 @@ pub fn slots(layout: Layout) -> Vec<(Slot, [f32; 2])> {
 }
 
 /// The panel's top-left for a screen `size` GUI pixels big.
+/// The player's screen moves right to make room for the recipe book beside it, as Java's does
+/// when the book is open and the screen is at least 379 wide.
 pub fn origin(layout: Layout, size: [f32; 2]) -> [f32; 2] {
-    [((size[0] - WIDTH) / 2.0).floor(), ((size[1] - layout.height()) / 2.0).floor()]
+    let book = if layout == Layout::Player && size[0] >= BOOK_ROOM { BOOK_SHIFT } else { 0.0 };
+    [((size[0] - WIDTH) / 2.0).floor() + book, ((size[1] - layout.height()) / 2.0).floor()]
 }
+
+const BOOK_ROOM: f32 = 379.0;
+const BOOK_SHIFT: f32 = 77.0;
 
 /// The slot under `mouse` (GUI pixels), if any.
 pub fn hit(layout: Layout, size: [f32; 2], mouse: [f32; 2]) -> Option<Slot> {

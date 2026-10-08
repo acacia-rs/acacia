@@ -14,6 +14,7 @@ mod beacon;
 mod brewing;
 mod cartography;
 mod craft;
+mod craftable;
 mod enchant;
 mod enchants;
 mod furnace;

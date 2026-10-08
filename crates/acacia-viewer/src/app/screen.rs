@@ -3,6 +3,7 @@
 
 use acacia_bot::items::{Click, SlotRef};
 use acacia_ui::inventory::{self, Layout, Slot};
+use acacia_ui::recipes;
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
@@ -24,7 +25,8 @@ impl App {
     /// New slots from the bot. A container the server opened (a chest clicked) opens the screen;
     /// one it closed closes it.
     pub(super) fn set_inventory(&mut self, inventory: Inventory) {
-        let (had, has) = (self.inventory.container.is_some(), inventory.container.is_some());
+        let opened = |i: &Inventory| i.container.is_some() || i.workbench.is_some();
+        let (had, has) = (opened(&self.inventory), opened(&inventory));
         self.inventory = inventory;
         if has && !self.screen_open {
             self.show_screen();
@@ -61,6 +63,12 @@ impl App {
             _ => return,
         };
         let layout = self.layout();
+        let book = (layout == Layout::Player).then(|| recipes::hit(layout, size, self.inventory.craftable.len(), at)).flatten();
+        if let Some(i) = book {
+            let name = self.inventory.craftable[i].name.clone();
+            let _ = self.net.commands.send(Command::Craft { name, table: self.inventory.workbench });
+            return;
+        }
         let command = match inventory::hit(layout, size, at) {
             Some(slot) => match slot_ref(slot) {
                 Some(slot) => Command::Click(slot, click),

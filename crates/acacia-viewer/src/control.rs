@@ -34,6 +34,8 @@ pub enum Command {
     Inventory(bool),
     /// A click on a slot of the open screen.
     Click(SlotRef, Click),
+    /// A recipe-book click: one craft of item `name`, at the crafting table at `table` if given.
+    Craft { name: String, table: Option<[i32; 3]> },
     /// A click outside the screen: throws the held stack, or one of it.
     DropCursor { one: bool },
     /// The player's answer to open form `id`.
@@ -50,6 +52,15 @@ pub struct Inventory {
     pub cursor: Option<Stack>,
     /// The open container, when it is rows of nine (chests, barrels, shulker boxes).
     pub container: Option<Rows>,
+    /// An open crafting table's position.
+    pub workbench: Option<[i32; 3]>,
+    /// What can be crafted now (in the 2x2 grid, or at the open table); filled by [`craftable`].
+    pub craftable: Vec<Stack>,
+}
+
+/// One result stack per item [`Inventory`]'s crafting can make now.
+pub fn craftable(bot: &Bot, table: bool) -> Vec<Stack> {
+    bot.craftable(table).iter().filter_map(|s| stack_of(bot, s)).collect()
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,6 +102,8 @@ pub fn inventory(bot: &Bot) -> Inventory {
             title: if c.slots.len() > 27 { "Large Chest" } else { "Chest" }.into(),
             slots: c.slots.iter().map(stack).collect(),
         }),
+        workbench: bot.open_container().filter(|c| c.window_type == WindowType::Workbench).and_then(|c| c.position.as_ref()).map(|p| [p.x, p.y, p.z]),
+        craftable: Vec::new(),
     }
 }
 
@@ -142,6 +155,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
             },
         },
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
+        Command::Craft { name, table } => bot.craft(&name, 1, table).await.map(|_| ()),
         Command::DropCursor { one } => bot.drop_cursor(one).await,
         Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),
         Command::Controls(c) => {
