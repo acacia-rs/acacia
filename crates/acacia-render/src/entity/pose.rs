@@ -61,6 +61,14 @@ impl Mesh {
         };
         (0..self.joints.len().min(MAX_BONES)).map(world).collect()
     }
+
+    /// Where an item held in the right hand sits, posed: the `rightitem` bone (Bedrock's hand
+    /// locator) moved to its pivot, in model space. `None` for models without one.
+    pub fn right_hand(&self, pose: &Pose) -> Option<Mat4> {
+        let index = self.bones.iter().position(|b| b == "rightitem")?;
+        let posed = *self.skin(pose).get(index)?;
+        Some(posed * Mat4::from_translation(self.joints[index].pivot))
+    }
 }
 
 /// Controllers inside controllers this deep still play.

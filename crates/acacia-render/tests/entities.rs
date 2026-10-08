@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use acacia_render::entity::{EntityModels, Layer, NO_TEXTURE, Value};
+use acacia_render::entity::{EntityModels, Layer, NO_TEXTURE, Pose, Value};
 use glam::Vec3;
 
 fn models() -> Option<EntityModels> {
@@ -157,4 +157,17 @@ fn animations_swing_legs_and_turn_heads() {
     let (_, player) = pose("minecraft:player", &walking);
     assert!((turn(&player, "rightarm")[0] + 0.5 * 57.3).abs() < 0.01, "{:?}", turn(&player, "rightarm"));
     assert_eq!(turn(&player, "head"), [10.0, -30.0, 0.0]);
+}
+
+#[test]
+fn humanoids_hold_items_in_their_right_hand() {
+    let Some(models) = models() else { return };
+    for kind in ["minecraft:skeleton", "minecraft:zombie", "minecraft:vindicator"] {
+        let (layers, _) = look(&models, kind, &[]);
+        let mesh = &models.models()[layers[0].model as usize].mesh;
+        let hand = mesh.right_hand(&Pose::default()).unwrap_or_else(|| panic!("{kind} has no rightitem bone"));
+        let at = hand.transform_point3(Vec3::ZERO);
+        // Model space has the entity's right at -x; a hanging hand is a little over half a block up.
+        assert!(at.x < -0.2 && (0.4..1.2).contains(&at.y), "{kind}'s hand at {at}");
+    }
 }

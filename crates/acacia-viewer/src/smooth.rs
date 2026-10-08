@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use acacia_render::entity::{EntityInstance, EntityModels, Value};
 use acacia_render::item::drop::{self, Drop};
-use acacia_render::item::{ItemModel, ItemModels};
+use acacia_render::item::{ItemModel, ItemModels, hand};
 use glam::DVec3;
 
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
@@ -71,6 +71,8 @@ pub struct Smoother {
     items: Option<ItemModels>,
     /// This snapshot's dropped items that have a model, by runtime id.
     dropped: HashMap<u64, ItemModel>,
+    /// This snapshot's held items that have a model, by runtime id.
+    held: HashMap<u64, ItemModel>,
 }
 
 impl Smoother {
@@ -105,9 +107,12 @@ impl Smoother {
                 (e, motion)
             })
             .collect();
-        self.dropped = match &mut self.items {
-            Some(items) => self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, items.get(&e.dropped.as_ref()?.key)?))).collect(),
-            None => HashMap::new(),
+        (self.dropped, self.held) = match &mut self.items {
+            Some(items) => (
+                self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, items.get(&e.dropped.as_ref()?.key)?))).collect(),
+                self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, items.get(e.held.as_ref()?)?))).collect(),
+            ),
+            None => (HashMap::new(), HashMap::new()),
         };
         self.from = shown;
         self.since = Some(now);
@@ -145,7 +150,19 @@ impl Smoother {
                 })
             };
             let pose = e.instance.layers.first().map(|l| self.models.pose(&e.kind, l.model, &query)).unwrap_or_default();
-            vec![EntityInstance { position: m.position, yaw: m.yaw, pose, ..e.instance.clone() }]
+            let mut out = Vec::with_capacity(2);
+            if let Some(item) = self.held.get(&e.runtime_id) {
+                // The body transform the entity pass gives this instance.
+                let s = e.instance.scale;
+                let body = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
+                let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
+                let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
+                if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.right_hand(&pose)) {
+                    out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
+                }
+            }
+            out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, ..e.instance.clone() });
+            out
         };
         self.to.iter().filter(visible).flat_map(posed).collect()
     }
