@@ -10,11 +10,13 @@ pub struct Camera {
     pub pitch: f32,
     pub fov_y: f32,
     pub aspect: f32,
+    /// View-space sway after the look (Java's view bobbing); identity for none.
+    pub bob: Mat4,
 }
 
 impl Camera {
     pub fn new(position: DVec3) -> Self {
-        Camera { position, yaw: 0.0, pitch: 0.0, fov_y: 70f32.to_radians(), aspect: 16.0 / 9.0 }
+        Camera { position, yaw: 0.0, pitch: 0.0, fov_y: 70f32.to_radians(), aspect: 16.0 / 9.0, bob: Mat4::IDENTITY }
     }
 
     pub fn forward(&self) -> Vec3 {
@@ -43,7 +45,7 @@ impl Camera {
     /// Camera-relative view-projection with reverse-Z and an infinite far plane.
     pub fn view_proj(&self) -> Mat4 {
         use glam::camera::rh::{proj::directx::perspective_infinite_reverse, view::look_to_mat4};
-        perspective_infinite_reverse(self.fov_y, self.aspect, 0.05) * look_to_mat4(Vec3::ZERO, self.forward(), Vec3::Y)
+        perspective_infinite_reverse(self.fov_y, self.aspect, 0.05) * self.bob * look_to_mat4(Vec3::ZERO, self.forward(), Vec3::Y)
     }
 }
 

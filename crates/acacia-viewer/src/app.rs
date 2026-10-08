@@ -56,6 +56,7 @@ pub struct App {
     mode: Mode,
     input: FlyInput,
     play: Play,
+    bob: crate::bob::Bob,
     ui: Ui,
     audio: Audio,
     /// F3.
@@ -74,8 +75,7 @@ pub struct App {
     mouse: [f64; 2],
     shift: bool,
     /// `ACACIA_ATTACK`: hold attack on whatever is targeted (unattended mining).
-    auto_attack: bool,
-    /// The last frame's figures and the frame rate, for the debug screen.
+    auto_attack: bool,    /// The last frame's figures and the frame rate, for the debug screen.
     stats: FrameStats,
     fps: f32,
     grabbed: bool,
@@ -137,8 +137,7 @@ impl App {
             inventory: Inventory::default(),
             mouse: [0.0; 2],
             shift: false,
-            auto_attack: std::env::var_os("ACACIA_ATTACK").is_some(),
-            stats: FrameStats::default(),
+            auto_attack: std::env::var_os("ACACIA_ATTACK").is_some(),            stats: FrameStats::default(),
             fps: 0.0,
             net,
             window: None,
@@ -161,6 +160,7 @@ impl App {
             time: None,
             sky,
             camera_placed: false,
+            bob: Default::default(),
             status: "starting".into(),
             last_frame: Instant::now(),
             overlay: Overlay { since: Instant::now(), frames: 0, reports: 0 },
@@ -207,6 +207,10 @@ impl App {
         let dt = (now - self.last_frame).as_secs_f32().min(0.1);
         self.last_frame = now;
         let outline = self.steer(now, dt);
+        match self.mode {
+            Mode::Play => self.bob.apply(&mut self.camera.fov_y, &mut self.camera.bob, now),
+            _ => (self.camera.fov_y, self.camera.bob) = (crate::bob::FOV.to_radians(), glam::Mat4::IDENTITY),
+        }
         let steered = Instant::now();
         let hand = self.hand(now);
         let held = Instant::now();

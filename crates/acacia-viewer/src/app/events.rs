@@ -31,6 +31,7 @@ impl App {
                     if !me.alive && self.menu.is_none() && self.mode == super::Mode::Play {
                         self.open_menu(super::menu::Menu::Death);
                     }
+                    self.bob.tick(&me, std::time::Instant::now());
                     self.play.tick(me);
                 }
                 NetEvent::Players(names) => self.players = names,

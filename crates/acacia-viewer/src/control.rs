@@ -114,6 +114,10 @@ pub fn inventory(bot: &Bot) -> Inventory {
 pub struct Me {
     /// Simulated eye position.
     pub eye: DVec3,
+    /// The simulation's movement state, for view bobbing and the field of view.
+    pub on_ground: bool,
+    pub sprinting: bool,
+    pub flying: bool,
     pub mining: Option<(IVec3, f32)>,
     pub hotbar: u8,
     pub game_mode: GameMode,
@@ -212,6 +216,9 @@ pub fn me(bot: &Bot) -> Me {
     let items = std::array::from_fn(|slot| stack_of(bot, state.inventory.main.get(slot)?));
     Me {
         eye: DVec3::new(x.into(), y.into(), z.into()),
+        on_ground: bot.movement().is_some_and(|m| m.on_ground()),
+        sprinting: bot.movement().is_some_and(|m| m.sprinting()),
+        flying: bot.movement().is_some_and(|m| m.flying()),
         mining: bot.mining_progress().map(|(p, f)| (IVec3::from_array(p), f)),
         hotbar: state.inventory.selected_hotbar_slot,
         game_mode: p.game_mode,

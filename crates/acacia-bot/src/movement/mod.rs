@@ -239,6 +239,11 @@ impl Movement {
         self.physics.as_ref().map(PlayerState::eye_position)
     }
 
+    /// The simulation is sprinting.
+    pub fn sprinting(&self) -> bool {
+        self.physics.as_ref().is_some_and(|p| p.sprinting)
+    }
+
     /// Tracks the effects that change movement; they also arrive at login, before movement starts.
     fn apply_effect(&mut self, p: &MobEffect) {
         let level = (p.event_id != MobEffectEventId::Remove).then_some(p.amplifier);

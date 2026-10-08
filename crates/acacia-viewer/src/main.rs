@@ -16,6 +16,7 @@
 mod app;
 mod audio;
 mod block_data;
+mod bob;
 mod control;
 mod debug_lines;
 mod entities;
