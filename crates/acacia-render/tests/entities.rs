@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use acacia_render::entity::{EntityModels, Layer, NO_TEXTURE, Pose, Value};
+use acacia_render::entity::{BonePose, EntityModels, Layer, NO_TEXTURE, Pose, Value};
 use glam::Vec3;
 
 fn models() -> Option<EntityModels> {
@@ -160,14 +160,33 @@ fn animations_swing_legs_and_turn_heads() {
 }
 
 #[test]
+fn armor_is_posed_by_humanoid_bones() {
+    let Some(models) = models() else { return };
+    for (item, bone) in [("minecraft:diamond_helmet", "head"), ("minecraft:iron_chestplate", "body"), ("minecraft:golden_boots", "rightleg")] {
+        let layers = models.armor(item).unwrap_or_else(|| panic!("no armour for {item}"));
+        let mesh = &models.models()[layers[0].model as usize].mesh;
+        assert!(mesh.bones.iter().any(|b| b == bone), "{item}: {:?}", mesh.bones);
+        assert_ne!(layers[0].textures[0], NO_TEXTURE, "{item}");
+    }
+    assert!(models.armor("minecraft:diamond_sword").is_none());
+}
+
+#[test]
 fn humanoids_hold_items_in_their_right_hand() {
     let Some(models) = models() else { return };
     for kind in ["minecraft:skeleton", "minecraft:zombie", "minecraft:vindicator"] {
         let (layers, _) = look(&models, kind, &[]);
         let mesh = &models.models()[layers[0].model as usize].mesh;
-        let hand = mesh.right_hand(&Pose::default()).unwrap_or_else(|| panic!("{kind} has no rightitem bone"));
+        let hand = mesh.right_hand(&Pose::default()).unwrap_or_else(|| panic!("{kind} has no rightarm bone"));
         let at = hand.transform_point3(Vec3::ZERO);
-        // Model space has the entity's right at -x; a hanging hand is a little over half a block up.
-        assert!(at.x < -0.2 && (0.4..1.2).contains(&at.y), "{kind}'s hand at {at}");
+        // Model space has the entity's right at -x; the shoulder is 22 px up.
+        assert!(at.x < -0.2 && (1.2..1.5).contains(&at.y), "{kind}'s shoulder at {at}");
     }
+    // A zombie's raised arm (`attack_bare_hand`: -90° x): Java's chain stands the blade up at the fist.
+    let model = look(&models, "minecraft:zombie", &[]).0[0].model;
+    let raised = Pose(vec![BonePose { bone: "rightarm".into(), rotation: [-90.0, 0.0, 0.0], position: [0.0; 3], scale: [1.0; 3] }]);
+    let hand = models.models()[model as usize].mesh.right_hand(&raised).unwrap();
+    let frame = acacia_render::item::hand::held_frame(false, hand);
+    let (hilt, tip) = (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
+    assert!((tip - hilt).normalize().y > 0.8 && (hilt + tip).z < -1.0, "hilt {hilt}, tip {tip}");
 }

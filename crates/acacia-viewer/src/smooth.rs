@@ -157,10 +157,11 @@ impl Smoother {
                 let body = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
                 let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
                 let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
-                if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.right_hand(&pose)) {
-                    out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
+                if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.right_hand(&pose)) {                    out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
                 }
             }
+            let worn = e.armor.iter().map(|layers| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), ..e.instance.clone() });
+            out.extend(worn);
             out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, ..e.instance.clone() });
             out
         };

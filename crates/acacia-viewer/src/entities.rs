@@ -8,7 +8,7 @@ use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
 use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 as Flags};
 use acacia_bot::state::{Entity, ITEM_KIND, Metadata, PlayerSkin};
-use acacia_render::entity::{EntityInstance, EntityModels, Pose, Skin, SkinSource, Value};
+use acacia_render::entity::{EntityInstance, EntityModels, Layer, Pose, Skin, SkinSource, Value};
 use acacia_render::item::ItemKey;
 use glam::DVec3;
 
@@ -35,6 +35,8 @@ pub struct Tracked {
     pub name: Option<String>,
     /// What it holds in its right hand.
     pub held: Option<ItemKey>,
+    /// The armour it wears, as layers posed like its own.
+    pub armor: Vec<Arc<[Layer]>>,
 }
 
 pub struct DroppedStack {
@@ -143,7 +145,7 @@ impl Feed {
         if let Some(instance) = self.player(bot, uuid, feet, me.yaw, 1.0) {
             let own_eyes = Some(DVec3::new(eyes.x.into(), eyes.y.into(), eyes.z.into()));
             let (kind, facts) = (PLAYER.to_owned(), Facts::default());
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None, name: None, held: None });
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None, name: None, held: None, armor: Vec::new() });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
@@ -184,7 +186,9 @@ impl Feed {
         let held = e.equipment.as_ref().map(|q| &q.main_hand).filter(|s| !s.is_empty()).and_then(|s| {
             Some(ItemKey { name: bot.state().item_name(s)?.to_owned(), aux: s.metadata, block: crate::control::block_of(bot, s) })
         });
-        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held })
+        let worn = e.equipment.iter().flat_map(|q| &q.armor).filter(|s| !s.is_empty());
+        let armor = worn.filter_map(|s| self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")))).collect();
+        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor })
     }
 
     fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, yaw: f32, scale: f32) -> Option<EntityInstance> {

@@ -78,6 +78,7 @@ impl Sounds {
         let pcm = self.roots.iter().find_map(|root| {
             let ogg_file = root.join(format!("{path}.ogg"));
             if let Ok(bytes) = std::fs::read(&ogg_file) {
+                tracing::debug!(file = %ogg_file.display(), "ogg");
                 return ogg::decode(&bytes).inspect_err(|e| tracing::debug!(%e, file = %ogg_file.display(), "ogg")).ok();
             }
             let fsb_file = root.join(format!("{path}.fsb"));

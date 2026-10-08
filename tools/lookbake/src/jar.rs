@@ -44,11 +44,16 @@ pub fn fetch(dir: &Path) -> Result<Jar, Error> {
     Ok(Jar { assets: out.join(ASSETS), biomes: out.join(BIOMES) })
 }
 
-fn download_client() -> Result<Vec<u8>, Error> {
+/// The pinned version's package JSON (downloads, asset index).
+pub fn version_package() -> Result<Value, Error> {
     let manifest: Value = serde_json::from_slice(&get(MANIFEST)?)?;
     let versions = manifest["versions"].as_array().ok_or("version manifest has no versions")?;
     let version = versions.iter().find(|v| v["id"] == VERSION).ok_or_else(|| format!("no Java {VERSION} in the version manifest"))?;
-    let package: Value = serde_json::from_slice(&get(version["url"].as_str().ok_or("version has no url")?)?)?;
+    Ok(serde_json::from_slice(&get(version["url"].as_str().ok_or("version has no url")?)?)?)
+}
+
+fn download_client() -> Result<Vec<u8>, Error> {
+    let package = version_package()?;
     let url = package["downloads"]["client"]["url"].as_str().ok_or("client download has no url")?;
     println!("downloading {url}");
     get(url)

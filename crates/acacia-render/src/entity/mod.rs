@@ -3,6 +3,7 @@
 //! See README "Entities".
 
 mod animation;
+mod armor;
 pub mod bake;
 mod block_models;
 mod controller;
@@ -80,6 +81,8 @@ pub struct EntityModels {
     built_in: Vec<(Variable, f32)>,
     /// Wide arms, slim arms, 64×32 skin layout; drawn with Steve when the player has no skin.
     players: Option<[Arc<[Layer]>; 3]>,
+    /// Worn armour by item identifier ([`armor`]).
+    armor: HashMap<String, Arc<[Layer]>>,
 }
 
 /// One entity to draw this frame.
@@ -121,8 +124,15 @@ impl EntityModels {
             let Some((w, h)) = texture.and_then(|t| image::image_dimensions(image_file(root, t)?).ok()) else { continue };
             texture_sizes.extend(d.geometry.values().map(|g| (g.as_str(), [w as f32, h as f32])));
         }
+        let armor = armor::pieces(root);
+        for piece in &armor {
+            if let Some((w, h)) = image_file(root, &piece.texture).and_then(|f| image::image_dimensions(f).ok()) {
+                texture_sizes.insert(piece.geometry.as_str(), [w as f32, h as f32]);
+            }
+        }
         let geometries = geometry::load_all(root, &texture_sizes);
-        let used = out.kinds.values().flat_map(|d| d.geometry.values()).map(String::as_str).chain(PLAYER_GEOMETRIES);
+        let worn = armor.iter().map(|p| p.geometry.as_str());
+        let used = out.kinds.values().flat_map(|d| d.geometry.values()).map(String::as_str).chain(PLAYER_GEOMETRIES).chain(worn);
         for id in used {
             if let Some(geometry) = geometries.get(id).filter(|_| !out.by_geometry.contains_key(id)) {
                 out.by_geometry.insert(id.to_owned(), out.models.len() as ModelId);
@@ -134,7 +144,8 @@ impl EntityModels {
             out.models.push(Model { mesh });
         }
         let block_textures = block_models::textures(root);
-        for path in out.kinds.values().flat_map(|d| d.textures.values()).chain(&block_textures) {
+        let armor_textures = armor.iter().map(|p| &p.texture);
+        for path in out.kinds.values().flat_map(|d| d.textures.values()).chain(&block_textures).chain(armor_textures) {
             if let Some(file) = image_file(root, path).filter(|_| !out.texture_ids.contains_key(path)) {
                 out.texture_ids.insert(path.clone(), out.textures.len() as TextureId);
                 out.textures.push(file);
@@ -145,6 +156,13 @@ impl EntityModels {
             let model = *out.by_geometry.get(geometry)?;
             Some([Layer { model, textures: [steve.unwrap_or(NO_TEXTURE), NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4] }].into())
         };
+        out.armor = armor
+            .iter()
+            .filter_map(|p| {
+                let layer = Layer { model: *out.by_geometry.get(&p.geometry)?, textures: [*out.texture_ids.get(&p.texture)?, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4] };
+                Some((p.item.clone(), Arc::from([layer])))
+            })
+            .collect();
         let players = PLAYER_GEOMETRIES.map(player);
         out.players = players.iter().all(Option::is_some).then(|| players.map(Option::unwrap));
         let animations = out.animations.animations.len();
@@ -154,6 +172,11 @@ impl EntityModels {
 
     pub fn models(&self) -> &[Model] {
         &self.models
+    }
+
+    /// What armour item `item` (`minecraft:diamond_helmet`) draws when worn, posed as its wearer.
+    pub fn armor(&self, item: &str) -> Option<Arc<[Layer]>> {
+        self.armor.get(item).cloned()
     }
 
     pub fn textures(&self) -> &[PathBuf] {
