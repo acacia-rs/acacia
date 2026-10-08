@@ -4,6 +4,8 @@ struct Clouds {
     // xy: the camera's position in cloud-map texels (wrapped), z: the layer's height above the
     // camera, w: half the quad's side in blocks
     at: vec4<f32>,
+    // rgb: the weather's tint (Java's cloud colour under rain and thunder)
+    tint: vec4<f32>,
 };
 
 @group(0) @binding(1) var<uniform> clouds: Clouds;
@@ -37,5 +39,5 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
     // Fades out towards the quad's edge, as fog would.
     let fade = 1.0 - smoothstep(0.5, 1.0, length(in.offset) / clouds.at.w);
-    return vec4<f32>(vec3<f32>(curve(vec2<f32>(0.0, 15.0))), 0.8 * fade);
+    return vec4<f32>(curve(vec2<f32>(0.0, 15.0)) * clouds.tint.rgb, 0.8 * fade);
 }

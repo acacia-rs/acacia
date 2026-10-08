@@ -16,14 +16,32 @@ pub const RADIUS: i32 = 10;
 const ABOVE: i32 = 10;
 const BELOW: i32 = 10;
 
-/// The pack's rain streaks: Bedrock's `weather.png` (the streaks in its top 20 rows). Its opaque
-/// pure-white texels, a regular grid of single dots among the streaks, are not rain: cleared.
-pub fn load_texture(files: &Path) -> Option<RgbaImage> {
-    let image = image::open(image_file(files, "textures/environment/weather")?).ok()?.into_rgba8();
+/// Rain streaks, rain in the left half and snow in the right, and how they lie on a column.
+pub struct Streaks {
+    pub image: RgbaImage,
+    /// Width of a column's quad in blocks; it shows the whole rain half across it.
+    pub column_width: f32,
+    /// Blocks the texture's height covers before it repeats.
+    pub blocks_per_repeat: f32,
+}
+
+/// Java's `rain.png` and `snow.png` side by side when the look has them (a 1-block quad, 64
+/// texels a block down: Java's `WeatherEffectRenderer`), else Bedrock's `weather.png` (the
+/// streaks in its top 20 rows at 16 texels a block). Bedrock's opaque pure-white texels, a regular
+/// grid of single dots among the streaks, are not rain: cleared.
+pub fn load_texture(files: &Path) -> Option<Streaks> {
+    let open = |name: &str| Some(image::open(image_file(files, &format!("textures/environment/{name}"))?).ok()?.into_rgba8());
+    if let (Some(rain), Some(snow)) = (open("rain"), open("snow")) {
+        let mut image = RgbaImage::new(rain.width() * 2, rain.height());
+        image::imageops::overlay(&mut image, &rain, 0, 0);
+        image::imageops::overlay(&mut image, &image::imageops::resize(&snow, rain.width(), rain.height(), image::imageops::FilterType::Nearest), i64::from(rain.width()), 0);
+        return Some(Streaks { image, column_width: 1.0, blocks_per_repeat: 4.0 });
+    }
+    let image = open("weather")?;
     let rows = (image.height() * 20 / 32).max(1);
     let mut streaks = image::imageops::crop_imm(&image, 0, 0, image.width(), rows).to_image();
     streaks.pixels_mut().filter(|p| p.0 == [255; 4]).for_each(|p| p.0[3] = 0);
-    Some(streaks)
+    Some(Streaks { image: streaks, column_width: 0.5, blocks_per_repeat: 1.25 })
 }
 
 /// The cloud map, `textures/environment/clouds.png`: opaque texels are cloud.

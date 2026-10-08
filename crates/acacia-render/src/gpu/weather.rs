@@ -6,10 +6,7 @@ use glam::{DVec3, Vec3};
 use super::pipeline::DEPTH_FORMAT;
 use crate::weather::{self, Column};
 
-/// The texture at 16 texels a block like any other: a column shows the rain half (16 texels) of
-/// its 32-texel width, and its 20 rows repeat every 1.25 blocks. Blocks per second it falls; Java's rain alpha.
-const COLUMN_WIDTH: f32 = 0.5;
-const BLOCKS_PER_REPEAT: f32 = 1.25;
+/// Blocks per second it falls; Java's rain alpha.
 const FALL: f32 = 10.0;
 const ALPHA: f32 = 0.6;
 /// Frames between rescans of the columns' ground.
@@ -33,6 +30,9 @@ pub struct WeatherPass {
     count: u32,
     columns: Vec<Column>,
     frame: u32,
+    /// [`weather::Streaks`]' column width and repeat.
+    column_width: f32,
+    blocks_per_repeat: f32,
 }
 
 impl WeatherPass {
@@ -102,10 +102,12 @@ impl WeatherPass {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        WeatherPass { pipeline, layout, globals: globals.clone(), sampler, bind_group: None, vertices, count: 0, columns: Vec::new(), frame: 0 }
+        WeatherPass { pipeline, layout, globals: globals.clone(), sampler, bind_group: None, vertices, count: 0, columns: Vec::new(), frame: 0, column_width: 1.0, blocks_per_repeat: 1.0 }
     }
 
-    pub fn set_texture(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, image: &image::RgbaImage) {
+    pub fn set_texture(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, streaks: &weather::Streaks) {
+        let image = &streaks.image;
+        (self.column_width, self.blocks_per_repeat) = (streaks.column_width, streaks.blocks_per_repeat);
         let view = super::entity_textures::upload(device, queue, image.width(), image.height(), image);
         self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("weather"),
@@ -130,20 +132,19 @@ impl WeatherPass {
         for c in &self.columns {
             let centre = DVec3::new(f64::from(c.x) + 0.5, 0.0, f64::from(c.z) + 0.5);
             let to = Vec3::new((centre.x - camera.x) as f32, 0.0, (centre.z - camera.z) as f32).normalize_or(Vec3::Z);
-            let side = Vec3::new(-to.z, 0.0, to.x) * 0.5;
+            let side = Vec3::new(-to.z, 0.0, to.x) * (self.column_width / 2.0);
             let base = Vec3::new((centre.x - camera.x) as f32, 0.0, (centre.z - camera.z) as f32);
             // A different streak offset per column, so the rain does not fall in lockstep.
             let offset = ((c.x.wrapping_mul(3121) ^ c.z.wrapping_mul(45238971)) & 31) as f32 / 32.0;
             let alpha = rain * ALPHA * weather::fade(c, camera);
-            let v = |y: i32| (y as f32 + seconds * FALL) / BLOCKS_PER_REPEAT + offset;
+            let v = |y: i32| (y as f32 + seconds * FALL) / self.blocks_per_repeat + offset;
             let corner = |s: f32, y: i32, u: f32| Vertex {
                 position: (base + side * s + Vec3::Y * (y as f32 - camera.y as f32)).to_array(),
                 // The left half is rain, the right half snow (Bedrock's `weather.png`).
                 uv: [u, -v(y)],
                 alpha,
             };
-            let w = COLUMN_WIDTH;
-            let (bl, br, tr, tl) = (corner(-1.0, c.bottom, 0.0), corner(1.0, c.bottom, w), corner(1.0, c.top, w), corner(-1.0, c.top, 0.0));
+            let (bl, br, tr, tl) = (corner(-1.0, c.bottom, 0.0), corner(1.0, c.bottom, 0.5), corner(1.0, c.top, 0.5), corner(-1.0, c.top, 0.0));
             out.extend([bl, br, tr, bl, tr, tl]);
         }
         queue.write_buffer(&self.vertices, 0, bytemuck::cast_slice(&out));

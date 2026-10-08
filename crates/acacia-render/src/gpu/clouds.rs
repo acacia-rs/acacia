@@ -70,7 +70,7 @@ impl CloudPass {
         });
         let uniform = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("clouds"),
-            size: 16,
+            size: 32,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -98,13 +98,14 @@ impl CloudPass {
         self.bind_group = Some((bind_group, [f64::from(image.width()), f64::from(image.height())]));
     }
 
-    /// `height` is the layer's world y, `None` where there are no clouds (the Nether, the End).
-    pub fn prepare(&mut self, queue: &wgpu::Queue, camera: DVec3, height: Option<f32>, seconds: f64) {
+    /// `height` is the layer's world y, `None` where there are no clouds (the Nether, the End);
+    /// `tint` from [`crate::sky::cloud_tint`].
+    pub fn prepare(&mut self, queue: &wgpu::Queue, camera: DVec3, height: Option<f32>, tint: f32, seconds: f64) {
         self.visible = false;
         let (Some(height), Some((_, [w, h]))) = (height, &self.bind_group) else { return };
         // The camera in map texels, wrapped so f32 keeps its precision far out.
         let at = [((camera.x + seconds * DRIFT) / TEXEL).rem_euclid(*w), (camera.z / TEXEL).rem_euclid(*h)];
-        let uniform = [at[0] as f32, at[1] as f32, (f64::from(height) - camera.y) as f32, HALF_SIDE];
+        let uniform = [at[0] as f32, at[1] as f32, (f64::from(height) - camera.y) as f32, HALF_SIDE, tint, tint, tint, 1.0];
         queue.write_buffer(&self.uniform, 0, bytemuck::cast_slice(&uniform));
         self.visible = true;
     }

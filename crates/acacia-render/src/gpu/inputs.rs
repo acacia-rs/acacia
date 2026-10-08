@@ -94,8 +94,8 @@ impl Renderer {
     }
 
     /// The rain streaks, from [`crate::weather::load_texture`].
-    pub fn set_weather_texture(&mut self, image: &image::RgbaImage) {
-        self.weather_pass.set_texture(&self.device, &self.queue, image);
+    pub fn set_weather_texture(&mut self, streaks: &crate::weather::Streaks) {
+        self.weather_pass.set_texture(&self.device, &self.queue, streaks);
     }
 
     /// The cloud map, from [`crate::weather::load_clouds`].

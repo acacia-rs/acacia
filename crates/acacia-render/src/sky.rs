@@ -57,6 +57,13 @@ impl Sky {
     }
 }
 
+/// White clouds greyed by the weather (`ClientLevel.getCloudColor`), linear.
+pub fn cloud_tint(weather: Weather) -> f32 {
+    let toward = |c: f32, grey: f32, amount: f32| c * (1.0 - amount) + c * grey * amount;
+    let srgb = toward(toward(1.0, 0.6, weather.rain * 0.95), 0.2, weather.thunder * 0.95);
+    srgb.powf(2.2)
+}
+
 /// Rain greys the sky toward 60% of its luminance, thunder toward 20%; a flash whitens it.
 fn weathered(color: [f32; 3], weather: Weather) -> [f32; 3] {
     let toward = |c: [f32; 3], grey: f32, amount: f32| {
@@ -115,5 +122,8 @@ mod tests {
         assert_eq!((storm.stars, storm.celestial), (0.0, 0.0));
         let flash = Sky::at(18000.0, Weather { flash: 1.0, ..Weather::default() });
         assert!(flash.color[2] > 0.45, "{flash:?}");
+        // Java's storm clouds: 1 → 0.62 under rain → 0.149 under thunder (sRGB).
+        let storm = cloud_tint(Weather { rain: 1.0, thunder: 1.0, flash: 0.0 }).powf(1.0 / 2.2);
+        assert!((storm - 0.149).abs() < 0.002 && cloud_tint(Weather::default()) == 1.0, "{storm}");
     }
 }
