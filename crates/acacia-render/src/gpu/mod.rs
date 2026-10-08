@@ -12,6 +12,7 @@ mod screenshot;
 mod sky;
 mod store;
 mod ui;
+mod weather;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -80,6 +81,9 @@ pub struct Renderer {
     particles: crate::particles::Particles,
     /// The game tick the particles were last advanced to.
     particle_tick: u64,
+    weather_pass: weather::WeatherPass,
+    /// How hard it rains, 0 to 1.
+    pub rain: f32,
     scene: Option<Scene>,
     biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
@@ -112,6 +116,7 @@ impl Renderer {
         let outline_pass = OutlinePass::new(&device, config.format, &globals);
         let ui_pass = UiPass::new(&device, config.format.remove_srgb_suffix());
         let particle_pass = particles::ParticlePass::new(&device, config.format);
+        let weather_pass = weather::WeatherPass::new(&device, config.format, &globals);
         let crack_pass = CrackPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
@@ -138,6 +143,8 @@ impl Renderer {
             particle_pass,
             particles: Default::default(),
             particle_tick: 0,
+            weather_pass,
+            rain: 0.0,
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
@@ -174,6 +181,8 @@ impl Renderer {
         }
         self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
         self.prepare_particles(camera);
+        let world = self.scene.as_ref().map(|s| s.world().clone());
+        self.weather_pass.prepare(&self.queue, world.as_deref(), camera.position, self.rain, self.started.elapsed().as_secs_f32());
 
         let view_proj = camera.view_proj();
         let has_sky = self.world().is_none_or(|w| w.dimension().sky);
@@ -249,6 +258,7 @@ impl Renderer {
                 }
             }
             self.particle_pass.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
+            self.weather_pass.draw(&mut pass);
             self.crack_pass.draw(&mut pass);
             self.outline_pass.draw(&mut pass);
         }

@@ -17,6 +17,7 @@ pub mod mesh;
 pub mod particles;
 mod scene;
 pub mod sky;
+pub mod weather;
 mod workers;
 
 pub use camera::Camera;

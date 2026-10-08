@@ -27,8 +27,12 @@ impl ApplicationHandler for App {
                 if let Some(sky) = &self.sky {
                     r.set_sky_textures(sky);
                 }
-                if let Some(strip) = acacia_render::load_crack_stages(self.looks.get(self.settings.look).files()) {
+                let files = self.looks.get(self.settings.look).files();
+                if let Some(strip) = acacia_render::load_crack_stages(files) {
                     r.set_crack_stages(&strip);
+                }
+                if let Some(streaks) = acacia_render::weather::load_texture(files) {
+                    r.set_weather_texture(&streaks);
                 }
                 self.renderer = Some(r);
             }

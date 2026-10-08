@@ -254,7 +254,7 @@ async fn run(
             send(NetEvent::Entities(feed.snapshot(&bot)))?;
             let now = bot.state().environment.time;
             if time.replace(now) != Some(now) {
-                tracing::debug!(time = now, "time of day");
+                tracing::debug!(time = now, rain = bot.state().environment.rain, "time of day");
                 send(NetEvent::Time(now))?;
             }
             reports += 1;

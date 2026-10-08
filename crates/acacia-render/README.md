@@ -286,9 +286,24 @@ A look is built over another by replacing blocks: `LookPack::block` and `set_blo
 (the texture array is limited to 2048 layers here). `tools/lookbake java` builds the Java look that
 way from the Bedrock one (docs/java-look.md).
 
+## Overlays on the world (`gpu/outline.rs`, `gpu/crack.rs`, `particles.rs`, `weather.rs`, `gpu/ui.rs`)
+
+- **Outline** (`Renderer::set_outline`): the targeted block's boxes as black lines at 40%,
+  inflated 0.002 like Java's. Its `crack` stage (0-9) multiplies the pack's `destroy_stage_N`
+  onto the boxes (2·src·dst, Java's `crumbling`).
+- **Particles** (`Renderer::break_particles`): Java's `TerrainParticle` chips, 4×4×4 per broken
+  block, a random 4×4-texel piece of its texture each, gravity 0.04 and drag 0.98 per tick, a
+  4/(0.1…1) tick life, stopped by solid blocks; camera-facing quads lit by their cell.
+- **Rain** (`Renderer::rain`, `set_weather_texture`): each column within 10 blocks gets a quad
+  facing the camera from its first non-air block (or 10 below the eye) to 10 above, the rain half
+  of Bedrock's `weather.png` at 16 texels a block scrolling down, 0.6 alpha fading to half at the
+  edge, lit as open sky. Its opaque white dots are cleared on load.
+- **UI** (`render(camera, Some((atlas, quads)))`): acacia-ui's draw list in its own pass.
+- `EntityInstance::frame` carries a model with the camera (the held item, `item/hand.rs`).
+
 ## Not yet
 
-Weather, GPU occlusion culling (Hi-Z), UI. Block models: hanging signs, banners, sign text, bells,
+Snow and thunder, clouds, GPU occlusion culling (Hi-Z). Block models: hanging signs, banners, sign text, bells,
 open lids, piglin heads. Entities: animation
 state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller colours (slime shell,
 creeper flash, collar and armour dyes), queries that need untracked state (equipment, synced

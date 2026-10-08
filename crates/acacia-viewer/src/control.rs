@@ -116,6 +116,8 @@ pub struct Me {
     pub hotbar: u8,
     pub game_mode: GameMode,
     pub alive: bool,
+    /// How hard it rains, 0 to 1.
+    pub rain: f32,
     pub health: f32,
     pub max_health: f32,
     pub food: f32,
@@ -212,6 +214,7 @@ pub fn me(bot: &Bot) -> Me {
         hotbar: state.inventory.selected_hotbar_slot,
         game_mode: p.game_mode,
         alive: p.alive,
+        rain: state.environment.rain,
         health: p.health,
         max_health: p.max_health,
         food: p.hunger,

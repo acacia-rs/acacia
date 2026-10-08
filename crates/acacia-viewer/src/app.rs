@@ -216,6 +216,7 @@ impl App {
         r.set_outline(outline);
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.settings.cave_culling;
+        r.rain = self.play.me.as_ref().map_or(0.0, |m| m.rain);
         if let Some(time) = self.time {
             // The server sends the time every few seconds: ease towards it, the short way round the day.
             let ahead = (time as f32 - r.time + DAY_TICKS / 2.0).rem_euclid(DAY_TICKS) - DAY_TICKS / 2.0;

@@ -93,6 +93,11 @@ impl Renderer {
         self.crack_pass.set_stages(&self.device, &self.queue, strip);
     }
 
+    /// The rain streaks, from [`crate::weather::load_texture`].
+    pub fn set_weather_texture(&mut self, image: &image::RgbaImage) {
+        self.weather_pass.set_texture(&self.device, &self.queue, image);
+    }
+
     /// The block outlined from now on, or none.
     pub fn set_outline(&mut self, outline: Option<Outline>) {
         self.outline = outline;
