@@ -23,7 +23,8 @@ pub struct Form {
 pub enum FormKind {
     /// Pick one button (`ActionFormData`). `elements` holds the labels, headers and dividers shown
     /// between buttons on newer servers; `buttons` is what a reply indexes.
-    Simple { content: String, buttons: Vec<Button>, elements: Vec<Element> },
+    /// `positions[i]` is how many buttons come before `elements[i]`.
+    Simple { content: String, buttons: Vec<Button>, elements: Vec<Element>, positions: Vec<usize> },
     /// Two buttons (`MessageFormData`): `yes` answers true, `no` false.
     Modal { content: String, yes: String, no: String },
     /// Inputs to fill in (`ModalFormData`).
@@ -82,7 +83,7 @@ impl Form {
         };
         self.title.len()
             + match &self.kind {
-                FormKind::Simple { content, buttons, elements: e } => {
+                FormKind::Simple { content, buttons, elements: e, .. } => {
                     content.len() + buttons.iter().map(|b| b.text.len()).sum::<usize>() + elements(e)
                 }
                 FormKind::Modal { content, yes, no } => content.len() + yes.len() + no.len(),

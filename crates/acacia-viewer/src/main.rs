@@ -18,6 +18,7 @@ mod block_data;
 mod control;
 mod debug_lines;
 mod entities;
+mod forms;
 #[cfg(feature = "profile")]
 mod heap;
 mod input;

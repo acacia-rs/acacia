@@ -7,6 +7,8 @@ use super::{Style, Theme, java_font, png};
 use crate::atlas::Atlas;
 use crate::hud::sprite;
 use crate::overlay::BOSS_COLOURS;
+use crate::widget::Widgets;
+use crate::widget::java::Kit;
 
 pub const STYLE: Style = Style { xp_colour: 0x80FF20, xp_outline: true };
 
@@ -33,5 +35,6 @@ pub fn load(root: &Path) -> Theme {
         }
     }
     let font = java_font(root, &mut atlas);
-    Theme { atlas, font, style: STYLE }
+    let widgets = Widgets::Java(Kit::load(root, &mut atlas));
+    Theme { atlas, font, style: STYLE, widgets }
 }

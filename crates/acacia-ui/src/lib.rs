@@ -7,13 +7,17 @@ pub mod chat;
 pub mod debug;
 pub mod draw;
 pub mod font;
+pub mod form;
 pub mod hud;
+pub mod input;
 pub mod inventory;
 pub mod lang;
 pub mod menu;
+pub mod nine;
 pub mod overlay;
 pub mod scale;
 pub mod theme;
+pub mod widget;
 
 pub use atlas::{Atlas, Sprite};
 pub use draw::{DrawList, Quad};

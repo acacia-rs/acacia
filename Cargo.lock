@@ -283,6 +283,7 @@ dependencies = [
  "glam",
  "image",
  "memory-stats",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",

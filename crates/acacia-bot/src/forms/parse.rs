@@ -15,8 +15,16 @@ pub(super) fn form(id: u32, data: &str) -> Option<Form> {
             let is_button = |e: &&Map<String, Value>| e.get("type").and_then(Value::as_str) == Some("button");
             let mixed = list(o, "elements").iter().filter_map(Value::as_object).filter(is_button);
             let buttons = list(o, "buttons").iter().filter_map(Value::as_object).chain(mixed).map(button).collect();
-            let elements = list(o, "elements").iter().filter_map(Value::as_object).filter_map(element).collect();
-            FormKind::Simple { content: text(o, "content"), buttons, elements }
+            let (mut positions, mut elements, mut seen) = (Vec::new(), Vec::new(), list(o, "buttons").len());
+            for e in list(o, "elements").iter().filter_map(Value::as_object) {
+                if is_button(&e) {
+                    seen += 1;
+                } else if let Some(e) = element(e) {
+                    positions.push(seen);
+                    elements.push(e);
+                }
+            }
+            FormKind::Simple { content: text(o, "content"), buttons, elements, positions }
         }
         "modal" => FormKind::Modal { content: text(o, "content"), yes: text(o, "button1"), no: text(o, "button2") },
         "custom_form" => {
