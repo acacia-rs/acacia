@@ -232,7 +232,11 @@ impl App {
         r.set_outline(outline);
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.settings.cave_culling;
-        r.rain = self.play.me.as_ref().map_or(0.0, |m| m.rain);
+        r.weather = self.play.me.as_ref().map_or_else(Default::default, |m| acacia_render::sky::Weather {
+            rain: m.rain,
+            thunder: m.thunder,
+            flash: if m.lightning { 1.0 } else { 0.0 },
+        });
         // Java's cloud height; Bedrock's is unmeasured, so both looks use it.
         r.cloud_height = Some(CLOUD_HEIGHT);
         if let Some(time) = self.time {

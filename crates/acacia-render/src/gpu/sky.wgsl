@@ -3,7 +3,7 @@
 struct Celestial {
     // The sky's turn around the east-west axis.
     turn: mat4x4<f32>,
-    // x: star brightness, y: moon phase (0..8)
+    // x: star brightness, y: moon phase (0..8), z: sun and moon visibility (rain hides them)
     params: vec4<f32>,
 };
 
@@ -37,10 +37,10 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let sun_color = textureSample(sun, samp, in.uv);
     let moon_color = textureSample(moon, samp, (in.uv + cell) * vec2<f32>(0.25, 0.5));
     if in.kind == SUN {
-        return sun_color;
+        return sun_color * sky.params.z;
     }
     if in.kind == MOON {
-        return moon_color;
+        return moon_color * sky.params.z;
     }
     return vec4<f32>(vec3<f32>(sky.params.x), 1.0);
 }

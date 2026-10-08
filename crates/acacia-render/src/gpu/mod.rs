@@ -83,8 +83,8 @@ pub struct Renderer {
     /// The game tick the particles were last advanced to.
     particle_tick: u64,
     weather_pass: weather::WeatherPass,
-    /// How hard it rains, 0 to 1.
-    pub rain: f32,
+    /// Rain, thunder and lightning: the falling streaks and the sky.
+    pub weather: crate::sky::Weather,
     cloud_pass: clouds::CloudPass,
     /// World y of the cloud layer; `None` draws none.
     pub cloud_height: Option<f32>,
@@ -149,7 +149,7 @@ impl Renderer {
             particles: Default::default(),
             particle_tick: 0,
             weather_pass,
-            rain: 0.0,
+            weather: Default::default(),
             cloud_pass,
             cloud_height: None,
             scene: None,
@@ -189,13 +189,16 @@ impl Renderer {
         self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
         self.prepare_particles(camera);
         let world = self.scene.as_ref().map(|s| s.world().clone());
-        self.weather_pass.prepare(&self.queue, world.as_deref(), camera.position, self.rain, self.started.elapsed().as_secs_f32());
+        self.weather_pass.prepare(&self.queue, world.as_deref(), camera.position, self.weather.rain, self.started.elapsed().as_secs_f32());
         let clouds = self.cloud_height.filter(|_| world.as_ref().is_none_or(|w| w.dimension().sky));
         self.cloud_pass.prepare(&self.queue, camera.position, clouds, self.started.elapsed().as_secs_f64());
 
         let view_proj = camera.view_proj();
         let has_sky = self.world().is_none_or(|w| w.dimension().sky);
-        let sky = Sky::at(if has_sky { self.time } else { NOON });
+        let sky = match has_sky {
+            true => Sky::at(self.time, self.weather),
+            false => Sky::at(NOON, Default::default()),
+        };
         let sky_pass = self.sky.as_ref().filter(|_| has_sky);
         if let Some(pass) = sky_pass {
             pass.prepare(&self.queue, &sky, self.moon_phase);

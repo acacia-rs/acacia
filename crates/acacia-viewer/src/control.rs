@@ -130,8 +130,11 @@ pub struct Me {
     pub hotbar: u8,
     pub game_mode: GameMode,
     pub alive: bool,
-    /// How hard it rains, 0 to 1.
+    /// How hard it rains, and thunders, 0 to 1.
     pub rain: f32,
+    pub thunder: f32,
+    /// A lightning bolt is in the world (the sky flashes).
+    pub lightning: bool,
     pub health: f32,
     pub max_health: f32,
     pub food: f32,
@@ -234,6 +237,8 @@ pub fn me(bot: &Bot) -> Me {
         game_mode: p.game_mode,
         alive: p.alive,
         rain: state.environment.rain,
+        thunder: state.environment.thunder,
+        lightning: state.entities.iter().any(|e| e.kind == "minecraft:lightning_bolt"),
         health: p.health,
         max_health: p.max_health,
         food: p.hunger,

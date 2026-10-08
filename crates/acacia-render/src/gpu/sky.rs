@@ -173,7 +173,7 @@ impl SkyPass {
     pub fn prepare(&self, queue: &wgpu::Queue, sky: &Sky, moon_phase: u8) {
         // The sun rises in the east (+x): the sky turns around the north-south axis.
         let turn = Mat4::from_rotation_y(-FRAC_PI_2) * Mat4::from_rotation_x(sky.turn * TAU);
-        let celestial = Celestial { turn: turn.to_cols_array_2d(), params: [sky.stars, f32::from(moon_phase), 0.0, 0.0] };
+        let celestial = Celestial { turn: turn.to_cols_array_2d(), params: [sky.stars, f32::from(moon_phase), sky.celestial, 0.0] };
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&celestial));
     }
 
