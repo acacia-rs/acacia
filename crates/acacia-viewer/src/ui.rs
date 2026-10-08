@@ -21,6 +21,8 @@ use acacia_ui::{DrawList, Quad, Sprite};
 
 use crate::control::{Inventory, Me, Stack};
 use acacia_ui::inventory::{Layout, Slot};
+use acacia_ui::menu::Backdrop;
+
 use crate::forms::FormScreen;
 use crate::looks::Looks;
 use crate::settings::LookChoice;
@@ -45,8 +47,8 @@ pub struct Frame<'a> {
     pub debug: Option<(Vec<String>, Vec<String>)>,
     /// An open inventory screen.
     pub screen: Option<(&'a Inventory, Layout)>,
-    /// An open menu: its title and button labels.
-    pub menu: Option<(&'a str, &'a [String])>,
+    /// An open menu: its title, button labels and what it is drawn over.
+    pub menu: Option<(&'a str, &'a [String], Backdrop)>,
     /// An open server form.
     pub form: Option<&'a FormScreen>,
     /// The player list, while Tab is held.
@@ -183,8 +185,8 @@ impl Ui {
         if let Some(form) = form {
             form.draw(&mut list, &skin.theme, now);
         }
-        if let Some((title, buttons)) = menu {
-            acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, mouse, gui);
+        if let Some((title, buttons, backdrop)) = menu {
+            acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, backdrop, mouse, gui);
         }
         self.quads = list.quads;
         (&skin.theme.atlas, &self.quads)
