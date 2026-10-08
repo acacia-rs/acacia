@@ -83,8 +83,9 @@ impl<'a> Art<'a> {
     /// One slot's backing (none for Java, whose sheet has them); an empty armour or offhand slot
     /// shows Bedrock's outline of what goes there.
     pub(super) fn slot(&self, list: &mut DrawList, slot: Slot, x: f32, y: f32, empty: bool) {
-        let big = if slot == Slot::CraftResult { 4.0 } else { 0.0 };
-        let rect = [x - 1.0 - big, y - 1.0 - big, x + 17.0 + big, y + 17.0 + big];
+        // The player's crafting result is an ordinary 18 px slot (Java's sheet); the crafting
+        // table's 26 px one is not drawn here.
+        let rect = [x - 1.0, y - 1.0, x + 17.0, y + 17.0];
         match self.kind {
             Kind::Java { .. } => {}
             Kind::Bedrock(kit) => {
