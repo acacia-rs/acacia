@@ -5,7 +5,7 @@ wgpu terrain renderer for `acacia-world`. Depends only on `acacia-world`, never 
 
 ## Assets
 
-`tools/fetch-vanilla-pack.sh` copies `blocks.json`, `terrain_texture.json`, `biomes_client.json`, the block,
+`tools/fetch-vanilla-pack.sh` copies `blocks.json`, `terrain_texture.json`, `biomes_client.json`, `fogs/`, the block,
 entity and environment textures and the entity files from Mojang/bedrock-samples into the git-ignored `assets/vanilla`. BDS ships no textures. Pin the tag
 to the block palette version (`acacia-world/src/registry/mod.rs`).
 
@@ -239,6 +239,27 @@ axis and added onto the sky colour without depth writes, so terrain covers them.
 textures have black backgrounds, which adding leaves invisible. `Renderer::moon_phase` picks the
 cell of `moon_phases.png` (`sky::moon_phase` of the world time). Stars fade in as the sun sets.
 There is no sunrise glow.
+
+## In a fluid (`fluid_view.rs`, `biome/fog.rs`, `gpu/fog.rs`, `gpu/screen_effect.rs`)
+
+The caller sets `Renderer::in_fluid` each frame: water, lava or powder snow at the camera, the biome
+there and the seconds since it entered. Its fog then takes the haze's place in `Globals` (linear
+and spherical from the camera, the stronger of it and the distance fog drawn), its colour is the
+fog's and the clear colour, and the sun, moon, stars and clouds are not drawn.
+
+`BiomeColors::build` reads the fogs from the look's files (`FluidFogs`). The look's `fluid_fog`
+says how they apply:
+
+| | `Pack` (Bedrock) | `Java` |
+|---|---|---|
+| Water | The biome's `fog_identifier` in `biomes_client.json` → `fogs/*.json` `distance.water` (else `fog_default`'s), in blocks; closing in from `transition_fog.init_fog`: `min_percent` at once, `mid_percent` at `mid_seconds`, all at `max_seconds` | `water_fog_color` and `water_fog_distance` per biome in `biomes_client.json` (lookbake: the `minecraft:visual/water_fog_*` attributes over -8 to 96, swamps ×0.85); the reach ×max(0.25, water vision) and the colour scaled towards a full brightest channel by it (`getWaterVision`: 0.6 over 5 s, 1 at 30 s) |
+| Lava | `fog_default`'s `lava`: `#991A00`, 0 to 0.64 | `#991A00`, 0.25 to 1 (`LavaFogEnvironment`) |
+| Powder snow | `fog_powder_snow`: `#9FBBC8`, 0 to 2 | The same colour, 0 to 2 |
+| Overlay | None | `textures/misc/underwater.png` (`set_underwater_texture`, from `fluid_view::load_underwater`): Java's quad at view depth 0.5, uv 0..4, at 0.1 opacity, lit by the eye's light, scrolled 1 repeat per 64° of yaw and pitch |
+
+Without `fogs/` (a pack fetched before it was added), Bedrock's 1.26.50 values stand in. A Java
+look baked before `fluid_fog` takes `Pack`: bake it again. Not drawn: the fire overlay, the powder
+snow frost outline, fire resistance's lava fog, and the slow fade between biomes' water fogs.
 
 ## Look (`look.rs`)
 

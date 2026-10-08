@@ -5,11 +5,13 @@ mod crack;
 mod device;
 mod entities;
 mod entity_textures;
+mod fog;
 mod globals;
 mod inputs;
 mod outline;
 mod particles;
 mod pipeline;
+mod screen_effect;
 mod screenshot;
 mod sky;
 mod store;
@@ -42,7 +44,7 @@ use crate::cull;
 use crate::look::Look;
 use crate::scene::{Scene, Update};
 use crate::sky::{NOON, Sky};
-use globals::{Globals, srgb_to_linear};
+use globals::Globals;
 use pipeline::Pipelines;
 use store::Store;
 
@@ -88,6 +90,9 @@ pub struct Renderer {
     pub weather: crate::sky::Weather,
     cloud_pass: clouds::CloudPass,
     bolt_pass: bolts::BoltPass,
+    screen_effect: screen_effect::ScreenEffectPass,
+    /// What the camera is in; its fog replaces the sky's.
+    pub in_fluid: Option<crate::fluid_view::InFluid>,
     /// Lightning bolts: seed and where each strikes.
     pub bolts: Vec<(u64, DVec3)>,
     /// World y of the cloud layer; `None` draws none.
@@ -128,6 +133,7 @@ impl Renderer {
         let cloud_pass = clouds::CloudPass::new(&device, config.format, &globals);
         let bolt_pass = bolts::BoltPass::new(&device, config.format, &globals);
         let crack_pass = CrackPass::new(&device, config.format, &globals);
+        let screen_effect = screen_effect::ScreenEffectPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
             depth: pipeline::depth_view(&device, config.width, config.height),
@@ -158,6 +164,8 @@ impl Renderer {
             cloud_pass,
             cloud_height: None,
             bolt_pass,
+            screen_effect,
+            in_fluid: None,
             bolts: Vec::new(),
             scene: None,
             biomes: Arc::default(),
@@ -207,15 +215,12 @@ impl Renderer {
             true => Sky::at(self.time, self.weather),
             false => Sky::at(NOON, Default::default()),
         };
-        let sky_pass = self.sky.as_ref().filter(|_| has_sky);
+        let fog = self.frame_fog(sky.color);
+        let sky_pass = self.sky.as_ref().filter(|_| has_sky && !fog.in_fluid);
         if let Some(pass) = sky_pass {
             pass.prepare(&self.queue, &sky, self.moon_phase);
         }
-        let sky_color = srgb_to_linear(sky.color);
-        // Only the Nether is that low; the End hazes as the overworld does.
-        let nether = self.world().is_some_and(|w| !w.dimension().sky && w.dimension().height <= 128);
-        let haze = self.look.fog.haze.map(|h| if nether { h.nether } else { h.overworld });
-        let globals = Globals::new(view_proj, (cam_block, cam_frac), sky_color, self.fog_distance, &self.look, haze, has_sky, sky.darken);
+        let globals = Globals::new(view_proj, (cam_block, cam_frac), fog.color, self.fog_distance, &self.look, fog.haze, has_sky, sky.darken);
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
         let light = self.scene.as_ref().map(|s| s.light().read());
         // Outside lit columns an entity is as bright as open sky.
@@ -225,6 +230,7 @@ impl Renderer {
             [f32::from(byte >> 4), f32::from(byte & 15)]
         };
         let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance));
+        self.screen_effect.prepare(&self.queue, camera, fog.underwater, light_at(camera.position));
         self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), camera.position, light_at);
         drop(light);
         self.outline_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
@@ -248,22 +254,11 @@ impl Renderer {
             pending: self.scene.as_ref().map_or(0, Scene::pending),
         };
 
-        let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(f) => f,
-            wgpu::CurrentSurfaceTexture::Suboptimal(f) => {
-                self.surface.configure(&self.device, &self.config);
-                f
-            }
-            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                self.surface.configure(&self.device, &self.config);
-                return stats;
-            }
-            _ => return stats,
-        };
+        let Some(frame) = device::acquire_or_reconfigure(&self.surface, &self.device, &self.config) else { return stats };
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         {
-            let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, sky_color);
+            let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, fog.color);
             if let Some(sky) = sky_pass {
                 sky.draw(&mut pass);
             }
@@ -278,11 +273,14 @@ impl Renderer {
                 }
             }
             self.particle_pass.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
-            self.cloud_pass.draw(&mut pass);
+            if !fog.in_fluid {
+                self.cloud_pass.draw(&mut pass);
+            }
             self.bolt_pass.draw(&mut pass);
             self.weather_pass.draw(&mut pass);
             self.crack_pass.draw(&mut pass);
             self.outline_pass.draw(&mut pass);
+            self.screen_effect.draw(&mut pass);
         }
         if atlas.is_some() {
             self.ui_pass.draw(&mut encoder, &frame.texture);

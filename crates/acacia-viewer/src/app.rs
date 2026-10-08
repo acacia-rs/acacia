@@ -2,6 +2,7 @@
 //! and modes: app/keys.rs.
 
 mod events;
+mod fluid;
 mod form;
 mod keys;
 mod menu;
@@ -227,6 +228,7 @@ impl App {
             tracing::warn!(net = ?(now - start), steer = ?(steered - now), hand = ?(held - steered), "slow frame");
         }
         self.feed_sky(dt);
+        self.feed_fluid(dt);
         let Some(r) = &mut self.renderer else { return };
         r.set_outline(outline);
         r.fog_distance = self.fog_distance;

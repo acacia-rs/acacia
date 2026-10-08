@@ -46,6 +46,20 @@ pub struct Look {
     /// Packs baked before this field have none: they take Java's.
     #[serde(default)]
     pub dropped: Dropped,
+    /// Packs baked before this field have none: they take the pack's.
+    #[serde(default)]
+    pub fluid_fog: FluidFog,
+}
+
+/// Whose rules set the fog with the camera in water, lava or powder snow ([`crate::fluid_view`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum FluidFog {
+    /// The look's fog files, closing in as their `transition_fog` says.
+    #[default]
+    Pack,
+    /// Java's `FogRenderer`: water fog reaching further and brightening with the time underwater
+    /// (`getWaterVision`); lava and powder snow fogs from its code.
+    Java,
 }
 
 /// How a dropped item hovers, turns and shows its stack size. Bedrock's are unmeasured, so both
@@ -102,6 +116,7 @@ impl Look {
         biome_blend: 1,
         ambient_occlusion: [0.45, 0.62, 0.8, 1.0],
         dropped: Dropped::JAVA,
+        fluid_fog: FluidFog::Pack,
     };
     /// The blend is Java's default `biomeBlendRadius`; the haze its environmental fog
     /// (`fog_start_distance` and `fog_end_distance`: the defaults, and the Nether's), without
@@ -119,6 +134,7 @@ impl Look {
         // BlockModelLighter: the mean of four cells, each 0.2 when it darkens and 1 when not.
         ambient_occlusion: [0.4, 0.6, 0.8, 1.0],
         dropped: Dropped::JAVA,
+        fluid_fog: FluidFog::Java,
     };
 }
 

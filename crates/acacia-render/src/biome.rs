@@ -2,6 +2,7 @@
 //! temperature and downfall (`BiomeDefinitionList`), with vanilla's hard-coded exceptions; water
 //! comes from `biomes_client.json`.
 
+pub mod fog;
 pub mod ids;
 pub mod noise;
 
@@ -61,6 +62,7 @@ pub struct BiomeColors {
     unknown: BiomeTint,
     /// Temperature and downfall by id, for [`BiomeColors::fall`].
     climate: FxHashMap<u32, (f32, f32)>,
+    fluid_fogs: fog::FluidFogs,
 }
 
 /// What falls from the sky in a biome when it rains.
@@ -74,7 +76,7 @@ pub enum Fall {
 impl Default for BiomeColors {
     /// Plains everywhere, until the server's definitions arrive.
     fn default() -> Self {
-        BiomeColors { by_id: FxHashMap::default(), unknown: PLAINS, climate: FxHashMap::default() }
+        BiomeColors { by_id: FxHashMap::default(), unknown: PLAINS, climate: FxHashMap::default(), fluid_fogs: Default::default() }
     }
 }
 
@@ -103,12 +105,17 @@ impl BiomeColors {
             })
             .collect();
         let climate = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), (d.temperature, d.downfall)))).collect();
-        BiomeColors { by_id, unknown, climate }
+        let fluid_fogs = fog::FluidFogs::load(root, defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), d.name.as_str()))));
+        BiomeColors { by_id, unknown, climate, fluid_fogs }
     }
 
     #[cfg(test)]
     pub(crate) fn of(tints: &[(u32, BiomeTint)]) -> BiomeColors {
-        BiomeColors { by_id: tints.iter().copied().collect(), unknown: PLAINS, climate: FxHashMap::default() }
+        BiomeColors { by_id: tints.iter().copied().collect(), ..Default::default() }
+    }
+
+    pub fn fluid_fogs(&self) -> &fog::FluidFogs {
+        &self.fluid_fogs
     }
 
     /// Java's `Biome.getPrecipitationAt`: none where it never rains (no downfall: deserts,
