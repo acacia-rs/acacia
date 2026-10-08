@@ -73,6 +73,22 @@ pub struct Smoother {
     dropped: HashMap<u64, ItemModel>,
     /// This snapshot's held items that have a model, by runtime id.
     held: HashMap<u64, ItemModel>,
+    /// By runtime id: hurts seen, when the last began, and when the dying began.
+    hurt: HashMap<u64, Hurt>,
+}
+
+#[derive(Default, Clone, Copy)]
+struct Hurt {
+    count: u32,
+    at: Option<Instant>,
+    dying_since: Option<Instant>,
+}
+
+/// Java's hurt time (10 ticks) and death topple: 90° by `sqrt((ticks - 1) / 20 * 1.6)`.
+const HURT_SECS: f32 = 0.5;
+
+fn topple_degrees(dying_secs: f32) -> f32 {
+    ((dying_secs * 20.0 - 1.0) / 20.0 * 1.6).max(0.0).sqrt().min(1.0) * 90.0
 }
 
 impl Smoother {
@@ -95,10 +111,16 @@ impl Smoother {
         let shown: HashMap<u64, Motion> = self.to.iter().map(|(e, to)| (e.runtime_id, self.blend(e.runtime_id, *to, t))).collect();
         let last: HashMap<u64, Motion> = self.to.iter().map(|(e, to)| (e.runtime_id, *to)).collect();
         self.born.retain(|id, _| last.contains_key(id));
+        self.hurt.retain(|id, _| last.contains_key(id));
         self.to = snapshot
             .into_iter()
             .map(|e| {
                 self.born.entry(e.runtime_id).or_insert(now);
+                let hurt = self.hurt.entry(e.runtime_id).or_insert(Hurt { count: e.hurts, ..Hurt::default() });
+                if e.hurts > hurt.count {
+                    (hurt.count, hurt.at) = (e.hurts, Some(now));
+                }
+                hurt.dying_since = if e.dying { hurt.dying_since.or(Some(now)) } else { None };
                 let walk = last.get(&e.runtime_id).map_or(Walk::default(), |before| {
                     let moved = e.instance.position - before.position;
                     before.walk.step(moved.x.hypot(moved.z) as f32)
@@ -145,24 +167,31 @@ impl Smoother {
                     "modified_move_speed" => m.walk.speed,
                     "target_x_rotation" => m.pitch,
                     "target_y_rotation" => wrap_degrees(m.head_yaw - m.yaw),
-                    "is_on_ground" | "is_alive" => 1.0,
+                    "is_on_ground" => 1.0,
+                    "is_alive" => f32::from(u8::from(!e.dying)),
                     _ => return e.facts.query(name),
                 })
             };
             let pose = e.instance.layers.first().map(|l| self.models.pose(&e.kind, l.model, &query)).unwrap_or_default();
             let mut out = Vec::with_capacity(2);
+            let status = self.hurt.get(&e.runtime_id).copied().unwrap_or_default();
+            let dying = status.dying_since.map(|since| since.elapsed().as_secs_f32());
+            let hurt = dying.is_some() || status.at.is_some_and(|at| at.elapsed().as_secs_f32() < HURT_SECS);
+            // The body transform the entity pass gives this instance, toppled while dying.
+            let s = e.instance.scale;
+            let topple = glam::Mat4::from_rotation_z(-dying.map_or(0.0, topple_degrees).to_radians());
+            let body = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * topple * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
+            let frame = dying.map(|_| body);
             if let Some(item) = self.held.get(&e.runtime_id) {
-                // The body transform the entity pass gives this instance.
-                let s = e.instance.scale;
-                let body = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
                 let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
                 let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
-                if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.right_hand(&pose)) {                    out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
+                if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.right_hand(&pose)) {
+                    out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
                 }
             }
-            let worn = e.armor.iter().map(|layers| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), ..e.instance.clone() });
+            let worn = e.armor.iter().map(|layers| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, ..e.instance.clone() });
             out.extend(worn);
-            out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, ..e.instance.clone() });
+            out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
             out
         };
         self.to.iter().filter(visible).flat_map(posed).collect()
@@ -201,5 +230,13 @@ mod tests {
         assert!((walking.speed - 0.4).abs() < 1e-3 && walking.distance > 10.0, "{walking:?}");
         let stopped = (0..40).fold(walking, |w, _| w.step(0.0));
         assert!(stopped.speed < 1e-3 && stopped.distance - walking.distance < 1.0, "{stopped:?}");
+    }
+
+    #[test]
+    fn the_dead_topple_over_in_under_a_second() {
+        // Java: nothing on the first tick, then sqrt((ticks - 1) / 20 * 1.6), flat after 13.5 ticks.
+        assert_eq!((topple_degrees(0.0), topple_degrees(0.05)), (0.0, 0.0));
+        assert!((topple_degrees(0.3) - (5.0f32 / 20.0 * 1.6).sqrt() * 90.0).abs() < 1e-3);
+        assert_eq!(topple_degrees(0.7), 90.0);
     }
 }

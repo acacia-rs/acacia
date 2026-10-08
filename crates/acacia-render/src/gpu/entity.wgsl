@@ -2,7 +2,7 @@
 // Instance layout: src/gpu/entities.rs.
 
 struct Instance {
-    // x: block light, y: sky light
+    // x: block light, y: sky light, z: 1 while hurt or dying (Java's red overlay)
     light: vec4<f32>,
     // rgb: tint, a: 1 when the texture's alpha is a tint mask
     tint: vec4<f32>,
@@ -31,6 +31,7 @@ struct VsOut {
     @location(1) shade: f32,
     @location(2) dist: vec2<f32>,
     @location(3) @interpolate(flat) tint: vec4<f32>,
+    @location(4) @interpolate(flat) hurt: f32,
 };
 
 @vertex
@@ -52,6 +53,7 @@ fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
     out.shade = directional * curve(instance.light.xy);
     out.dist = fog_dist(rel);
     out.tint = instance.tint;
+    out.hurt = instance.light.z;
     return out;
 }
 
@@ -64,5 +66,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     } else if texel.a < 0.1 {
         discard;
     }
+    // Java's hurt overlay: 30% red, before the light.
+    rgb = mix(rgb, vec3(1.0, 0.0, 0.0), 0.3 * in.hurt);
     return vec4(fogged(rgb * in.shade, in.dist), 1.0);
 }

@@ -101,6 +101,8 @@ pub struct EntityInstance {
     /// Model space to camera-relative world space, in place of position, yaw and scale: what the
     /// camera carries (the item in the player's hand). Lit at `position`.
     pub frame: Option<glam::Mat4>,
+    /// Hurt or dying: drawn with the red overlay.
+    pub hurt: bool,
 }
 
 impl EntityModels {

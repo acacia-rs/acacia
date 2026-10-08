@@ -69,7 +69,7 @@ impl BlockModels {
                 let Some(placed) = model.place(pos, self.data.get(&pos.to_array())) else { continue };
                 let look = layers.entry((placed.geometry, placed.texture)).or_insert_with_key(|(geometry, texture)| self.models.block_layers(geometry, texture));
                 let Some(layers) = look.clone() else { continue };
-                self.instances.push(EntityInstance { layers, skin: None, position: placed.position, yaw: placed.yaw, scale: 1.0, pose: Pose::default(), frame: None });
+                self.instances.push(EntityInstance { layers, skin: None, position: placed.position, yaw: placed.yaw, scale: 1.0, pose: Pose::default(), frame: None, hurt: false });
             }
         }
     }

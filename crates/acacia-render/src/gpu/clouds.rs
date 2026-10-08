@@ -1,23 +1,26 @@
-//! The flat cloud layer (`clouds.wgsl`): the pack's `clouds.png` at 12 blocks a texel, drifting west
-//! at Java's 0.03 blocks a tick, blended after the terrain without writing depth.
+//! The cloud pass (`clouds.wgsl`): [`crate::clouds`] boxes around the camera, drifting at Java's
+//! 0.03 blocks a tick. Translucent like Java's: a depth-only pass first, then colour where the
+//! depth matches, so only the nearest cloud face shows.
 
 use glam::DVec3;
+use image::RgbaImage;
 
 use super::pipeline::DEPTH_FORMAT;
+use crate::clouds::{self, CELL, CloudMap, CloudVertex};
 
-/// Blocks a texel covers, and how fast the layer drifts (blocks per second).
-const TEXEL: f64 = 12.0;
+/// Blocks per second the clouds drift (+x).
 const DRIFT: f64 = 0.03 * 20.0;
-/// Half the layer's side in blocks.
-const HALF_SIDE: f32 = 1024.0;
+/// Cells drawn around the camera's cell.
+const RADIUS: i32 = 32;
 
 pub struct CloudPass {
-    pipeline: wgpu::RenderPipeline,
-    layout: wgpu::BindGroupLayout,
-    globals: wgpu::Buffer,
+    depth: wgpu::RenderPipeline,
+    color: wgpu::RenderPipeline,
+    bind_group: wgpu::BindGroup,
     uniform: wgpu::Buffer,
-    sampler: wgpu::Sampler,
-    bind_group: Option<(wgpu::BindGroup, [f64; 2])>,
+    map: Option<CloudMap>,
+    /// The mesh, its vertex count and the cell it is centred on.
+    mesh: Option<(wgpu::Buffer, u32, [i32; 2])>,
     visible: bool,
 }
 
@@ -27,96 +30,105 @@ impl CloudPass {
             label: Some("clouds"),
             source: wgpu::ShaderSource::Wgsl(concat!(include_str!("globals.wgsl"), include_str!("clouds.wgsl")).into()),
         });
-        let entry = |binding, ty| wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, ty, count: None };
-        let uniform = wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None };
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("clouds"),
-            entries: &[
-                entry(0, uniform),
-                entry(1, uniform),
-                entry(
-                    2,
-                    wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                ),
-                entry(3, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
-            ],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("clouds"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("clouds"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[] },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: Some(false),
-                depth_compare: Some(wgpu::CompareFunction::Greater),
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format: color, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::COLOR })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
+        let entry = |binding| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
+            count: None,
+        };
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("clouds"), entries: &[entry(0), entry(1)] });
         let uniform = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("clouds"),
             size: 32,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("clouds"),
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            ..Default::default()
-        });
-        CloudPass { pipeline, layout, globals: globals.clone(), uniform, sampler, bind_group: None, visible: false }
-    }
-
-    pub fn set_texture(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, image: &image::RgbaImage) {
-        let view = super::entity_textures::upload(device, queue, image.width(), image.height(), image);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("clouds"),
-            layout: &self.layout,
+            layout: &layout,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: self.globals.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: self.uniform.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&view) },
-                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                wgpu::BindGroupEntry { binding: 0, resource: globals.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: uniform.as_entire_binding() },
             ],
         });
-        self.bind_group = Some((bind_group, [f64::from(image.width()), f64::from(image.height())]));
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("clouds"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
+        let pipeline = |write_depth: bool, compare, blend, mask| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("clouds"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
+                    buffers: &[Some(wgpu::VertexBufferLayout {
+                        array_stride: size_of::<CloudVertex>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32],
+                    })],
+                },
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: Some(write_depth),
+                    depth_compare: Some(compare),
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: Default::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState { format: color, blend, write_mask: mask })],
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
+        let depth = pipeline(true, wgpu::CompareFunction::Greater, None, wgpu::ColorWrites::empty());
+        let color = pipeline(false, wgpu::CompareFunction::Equal, Some(wgpu::BlendState::ALPHA_BLENDING), wgpu::ColorWrites::COLOR);
+        CloudPass { depth, color, bind_group, uniform, map: None, mesh: None, visible: false }
+    }
+
+    pub fn set_texture(&mut self, image: &RgbaImage) {
+        (self.map, self.mesh) = (Some(CloudMap::new(image)), None);
     }
 
     /// `height` is the layer's world y, `None` where there are no clouds (the Nether, the End);
     /// `tint` from [`crate::sky::cloud_tint`].
-    pub fn prepare(&mut self, queue: &wgpu::Queue, camera: DVec3, height: Option<f32>, tint: f32, seconds: f64) {
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, camera: DVec3, height: Option<f32>, tint: f32, seconds: f64) {
         self.visible = false;
-        let (Some(height), Some((_, [w, h]))) = (height, &self.bind_group) else { return };
-        // The camera in map texels, wrapped so f32 keeps its precision far out.
-        let at = [((camera.x + seconds * DRIFT) / TEXEL).rem_euclid(*w), (camera.z / TEXEL).rem_euclid(*h)];
-        let uniform = [at[0] as f32, at[1] as f32, (f64::from(height) - camera.y) as f32, HALF_SIDE, tint, tint, tint, 1.0];
+        let (Some(height), Some(map)) = (height, &self.map) else { return };
+        let cells = [(camera.x + seconds * DRIFT) / f64::from(CELL), camera.z / f64::from(CELL)];
+        let centre = cells.map(|c| c.floor() as i32);
+        if self.mesh.as_ref().is_none_or(|(_, _, at)| *at != centre) {
+            let vertices: Vec<CloudVertex> = clouds::boxes(map, centre[0], centre[1], RADIUS)
+                .into_iter()
+                .map(|v| CloudVertex { position: [v.position[0] - centre[0] as f32, v.position[1], v.position[2] - centre[1] as f32], ..v })
+                .collect();
+            let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("clouds"),
+                size: (vertices.len().max(1) * size_of::<CloudVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            queue.write_buffer(&buffer, 0, bytemuck::cast_slice(&vertices));
+            self.mesh = Some((buffer, vertices.len() as u32, centre));
+        }
+        let offset = [cells[0] - f64::from(centre[0]), cells[1] - f64::from(centre[1])];
+        let reach = RADIUS as f32 * CELL;
+        let uniform = [offset[0] as f32, offset[1] as f32, (f64::from(height) - camera.y) as f32, reach, tint, tint, tint, 1.0];
         queue.write_buffer(&self.uniform, 0, bytemuck::cast_slice(&uniform));
         self.visible = true;
     }
 
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        let Some((bind_group, _)) = &self.bind_group else { return };
-        if !self.visible {
-            return;
+        let Some((buffer, count, _)) = self.mesh.as_ref().filter(|_| self.visible) else { return };
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_vertex_buffer(0, buffer.slice(..));
+        for pipeline in [&self.depth, &self.color] {
+            pass.set_pipeline(pipeline);
+            pass.draw(0..*count, 0..1);
         }
-        pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, bind_group, &[]);
-        pass.draw(0..6, 0..1);
     }
 }

@@ -100,7 +100,7 @@ impl Renderer {
 
     /// The cloud map, from [`crate::weather::load_clouds`].
     pub fn set_cloud_texture(&mut self, image: &image::RgbaImage) {
-        self.cloud_pass.set_texture(&self.device, &self.queue, image);
+        self.cloud_pass.set_texture(image);
     }
 
     /// The block outlined from now on, or none.

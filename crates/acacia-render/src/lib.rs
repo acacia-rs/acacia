@@ -6,6 +6,7 @@ pub mod biome;
 pub mod block_models;
 pub mod blocks;
 pub mod camera;
+pub mod clouds;
 mod cull;
 pub mod entity;
 mod gpu;

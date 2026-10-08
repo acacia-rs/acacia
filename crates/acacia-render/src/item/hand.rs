@@ -21,7 +21,7 @@ const ARM: Vec3 = Vec3::new(0.56, -0.52, -0.72);
 /// 0, 2.5, 0 px; 0.375.
 pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, light_at: glam::DVec3) -> EntityInstance {
     let frame = body * held_frame(model.block, hand);
-    EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame) }
+    EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false }
 }
 
 /// [`third_person`]'s item mesh to the holder's model space.
@@ -87,5 +87,6 @@ pub fn first_person(model: &ItemModel, camera: &Camera, swing: f32) -> EntityIns
         scale,
         pose: Pose::default(),
         frame: Some(frame),
+        hurt: false,
     }
 }

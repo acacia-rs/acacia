@@ -8,6 +8,7 @@ mod effects;
 mod entities;
 mod environment;
 mod fishing;
+mod hurts;
 mod inventory;
 mod items;
 mod metadata;
@@ -30,6 +31,7 @@ pub use skins::{PlayerSkin, SkinTexture, Skins};
 pub use environment::{BossBar, Environment};
 pub use metadata::Metadata;
 pub use fishing::{Fishing, FishingHook, FISHING_HOOK_KIND};
+pub use hurts::Hurts;
 pub use riding::{Pose, Riding, Vehicle};
 pub use inventory::{Inventory, ItemStack};
 pub use items::ItemRegistry;
@@ -74,6 +76,7 @@ impl Trackers {
         ids.extend_from_slice(self.block_entities.packets());
         ids.extend_from_slice(Riding::PACKETS);
         ids.extend_from_slice(Fishing::PACKETS);
+        ids.extend_from_slice(Hurts::PACKETS);
         if self.entities {
             ids.extend_from_slice(Entities::PACKETS);
         }
@@ -112,6 +115,7 @@ pub struct GameState {
     pub block_entities: BlockEntities,
     pub riding: Riding,
     pub fishing: Fishing,
+    pub hurts: Hurts,
 }
 
 impl GameState {
@@ -164,6 +168,9 @@ impl GameState {
         }
         if Fishing::PACKETS.contains(&id) {
             self.fishing.apply(packet, &me)?;
+        }
+        if Hurts::PACKETS.contains(&id) {
+            self.hurts.apply(packet)?;
         }
         if Forms::PACKETS.contains(&id) {
             self.forms.apply(packet)?;

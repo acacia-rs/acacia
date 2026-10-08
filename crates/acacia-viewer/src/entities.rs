@@ -37,6 +37,9 @@ pub struct Tracked {
     pub held: Option<ItemKey>,
     /// The armour it wears, as layers posed like its own.
     pub armor: Vec<Arc<[Layer]>>,
+    /// Hurt animations so far, and whether it is dying ([`acacia_bot::state::Hurts`]).
+    pub hurts: u32,
+    pub dying: bool,
 }
 
 pub struct DroppedStack {
@@ -145,7 +148,7 @@ impl Feed {
         if let Some(instance) = self.player(bot, uuid, feet, me.yaw, 1.0) {
             let own_eyes = Some(DVec3::new(eyes.x.into(), eyes.y.into(), eyes.z.into()));
             let (kind, facts) = (PLAYER.to_owned(), Facts::default());
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None, name: None, held: None, armor: Vec::new() });
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None, name: None, held: None, armor: Vec::new(), hurts: 0, dying: false });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
@@ -174,11 +177,11 @@ impl Feed {
             let stack = e.item.as_ref().filter(|s| !s.is_empty())?;
             let key = ItemKey { name: bot.state().item_name(stack)?.to_owned(), aux: stack.metadata, block: crate::control::block_of(bot, stack) };
             dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32) });
-            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None };
+            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None, hurt: false };
             (e.kind.clone(), instance)
         } else {
             let (layers, scale) = self.models.appearance(&e.kind, &|name| facts.query(name))?;
-            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None };
+            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false };
             (e.kind.clone(), instance)
         };
         let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none());
@@ -188,7 +191,9 @@ impl Feed {
         });
         let worn = e.equipment.iter().flat_map(|q| &q.armor).filter(|s| !s.is_empty());
         let armor = worn.filter_map(|s| self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")))).collect();
-        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor })
+        let hurts = &bot.state().hurts;
+        let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));
+        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying })
     }
 
     fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, yaw: f32, scale: f32) -> Option<EntityInstance> {
@@ -208,7 +213,7 @@ impl Feed {
             Some((skin.clone(), *slim))
         });
         let layers = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
-        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None })
+        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None, hurt: false })
     }
 }
 

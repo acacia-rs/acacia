@@ -126,6 +126,8 @@ pub struct Me {
     pub on_ground: bool,
     pub sprinting: bool,
     pub flying: bool,
+    /// Times this player has been hurt (the camera rolls on each).
+    pub hurts: u32,
     pub mining: Option<(IVec3, f32)>,
     pub hotbar: u8,
     pub game_mode: GameMode,
@@ -232,6 +234,7 @@ pub fn me(bot: &Bot) -> Me {
         on_ground: bot.movement().is_some_and(|m| m.on_ground()),
         sprinting: bot.movement().is_some_and(|m| m.sprinting()),
         flying: bot.movement().is_some_and(|m| m.flying()),
+        hurts: bot.state().hurts.count(bot.state().player.runtime_entity_id),
         mining: bot.mining_progress().map(|(p, f)| (IVec3::from_array(p), f)),
         hotbar: state.inventory.selected_hotbar_slot,
         game_mode: p.game_mode,

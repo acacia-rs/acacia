@@ -16,7 +16,7 @@ use crate::entity::{EntityInstance, EntityModels, Skin, TextureId, Vertex};
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
-    /// x: block light, y: sky light (0..=15).
+    /// x: block light, y: sky light (0..=15), z: 1 for the hurt overlay.
     light: [f32; 4],
     /// rgb: the layer's tint, a: 1 when the texture's alpha is a tint mask and not a cutout.
     tint: [f32; 4],
@@ -247,7 +247,7 @@ impl EntityPass {
             bones.extend(mesh.skin(&e.pose).iter().map(|posed| (body * *posed).to_cols_array_2d()));
             let [block, sky] = light(e.position + DVec3::Y * 0.5);
             let tint = layer.tint.map_or([0.0; 4], |[r, g, b]| [r, g, b, 1.0]);
-            records.push(Instance { light: [block, sky, 0.0, 0.0], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0] });
+            records.push(Instance { light: [block, sky, f32::from(u8::from(e.hurt)), 0.0], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0] });
             self.draws.push((range, key));
         }
         let grown = upload(device, queue, &mut self.instances, INSTANCES, &records) | upload(device, queue, &mut self.bones, BONES, &bones);

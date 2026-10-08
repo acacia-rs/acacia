@@ -66,6 +66,7 @@ pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop) -> Vec<Entity
             scale: ground.scale,
             pose: Pose::default(),
             frame: None,
+            hurt: false,
         })
         .collect()
 }
