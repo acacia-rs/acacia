@@ -28,6 +28,20 @@ player state. Layout is tested headless.
 - `menu.rs`: a title over a column of 200×20 buttons (pause, options); hit-testing.
 - `overlay.rs`: title (scale 4) and subtitle (scale 2) with Java's 10/70/20-tick fade, the action
   bar 68 px up for 3 s, boss bars 19 px apart from the top.
+- `nine.rs`: nine-slice sprites with their borders from the file beside them (`.mcmeta`, Bedrock's
+  `.json`); Java tiles edges and centre, Bedrock stretches. `DrawList::clip` cuts quads for scrolling.
+- `input.rs`: mouse, wheel, keys and typed text in GUI pixels; the viewer translates window events.
+- `widget/`: `Widget` (text, header, divider, button, toggle, slider, step slider, dropdown, text
+  input) and `Panel`, widgets at caller-given places with a scrolling viewport, focus (Tab, arrows),
+  text editing, slider drags and the open dropdown list. The theme's `Skin` draws them:
+  `widget/bedrock.rs` from `textures/ui`, `widget/java.rs` from the jar's `sprites/widget`, flat
+  fills where a sprite is missing.
+- `form/`: server forms (action, modal, custom) as a `FormView` that answers with an `Outcome`.
+  Bedrock lays them out as `server_form.json` (a 225×200 dialog, 32 px buttons, a close X); Java as
+  its own server dialogs (33 px header and footer, a 200 px column 10 apart, Esc to close; modal and
+  submit buttons in the footer). Measurements: the workspace's `research/forms-bedrock-layout.md`
+  and `research/forms-java-widgets.md`. Unverified there: Bedrock's line height (10), the open
+  dropdown's place, the slider handle's travel, its `large` header font (drawn bold).
 
 ## Themes (`theme/`)
 
@@ -46,6 +60,6 @@ Bedrock sprites (the same pixels) with the Java style.
 
 ## Not yet
 
-Workstation and other non-chest containers, the crafting grid and portrait, server forms (in
-progress on `ui/forms`), scoreboard, Unicode glyph pages, offhand and attack indicator, Java's
-widget sprites (screens are drawn flat).
+Workstation and other non-chest containers, the crafting grid and portrait, scoreboard, Unicode
+glyph pages, offhand and attack indicator, Java's background blur, menus and the inventory on the
+widget skins (they are drawn flat), multiselect form elements, JPEG button images.

@@ -67,7 +67,8 @@ Left from the milestone: nine-slice sprites, Unicode glyph pages, the boss bar, 
 - **J3 menus:** started: the player's inventory (E) and 9-wide containers, with Java's click
   rules (`Bot::click_slot`); the crafting grid and the portrait are not wired. Left: pause and
   options (with the look option and the first-use bake), workstations and other
-  containers, server forms, boss bar.
+  containers, boss bar. Server forms are done in both looks (acacia-ui `form/`, `widget/`), shown
+  live from `tools/formtest-pack`; `ACACIA_FORM=tools/forms/<kind>.json` shows one for screenshots.
 - **J4 Java entities:** models and animations per mob, most seen first, Bedrock geometry as the
   fallback. Block entities from item 1 go here.
 - **J5 Bedrock theme:** the second `Theme`.

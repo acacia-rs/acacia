@@ -2,6 +2,7 @@
 //! and modes: app/keys.rs.
 
 mod events;
+mod form;
 mod keys;
 mod menu;
 mod screen;
@@ -21,11 +22,12 @@ use winit::window::{CursorGrabMode, Window};
 
 use crate::control::Inventory;
 use crate::debug_lines::{self, Facts};
+use crate::forms::{FormScreen, Images};
 use crate::input::FlyInput;
 use crate::looks::Looks;
 use crate::net::Net;
 use crate::player::Play;
-use crate::settings::Settings;
+use crate::settings::{LookChoice, Settings};
 use crate::shot::Shot;
 use crate::smooth::Smoother;
 use crate::ui::{Frame, Ui};
@@ -86,6 +88,9 @@ pub struct App {
     shot: Option<Shot>,
     /// Why the bot's session ended before an unattended screenshot was taken; the viewer exits.
     pub failed: Option<String>,
+    /// The server form shown, and its button images.
+    form: Option<FormScreen>,
+    form_images: Images,
 }
 
 /// Frame-rate and memory figures shown in the title.
@@ -108,6 +113,8 @@ impl App {
         let shot = Shot::from_env();
         let mode = if shot.is_some() && std::env::var_os("ACACIA_PLAY").is_none() { Mode::Fly } else { Mode::Play };
         let ui = Ui::new(&looks);
+        // Form button images name textures of the Bedrock pack, whichever look is shown.
+        let bedrock_pack = looks.get(LookChoice::Bedrock).files().to_owned();
         App {
             ui,
             show_debug: std::env::var_os("ACACIA_DEBUG").is_some(),
@@ -143,6 +150,8 @@ impl App {
             overlay: Overlay { since: Instant::now(), frames: 0, reports: 0 },
             shot,
             failed: None,
+            form: App::shot_form(),
+            form_images: Images::new(&bedrock_pack),
         }
     }
 
@@ -236,13 +245,15 @@ impl App {
             let facts = Facts { camera: &self.camera, fps: self.fps, stats: &self.stats, look: self.settings.look, mode: self.mode, target, world: world.as_deref() };
             debug_lines::lines(&facts)
         });
+        self.update_form();
         let (size, scale) = self.gui();
         let mouse = self.gui_mouse();
         let screen = self.screen_open.then_some((&self.inventory, self.layout()));
         let menu = self.menu.map(|m| self.menu_content(m));
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice()));
         let Some(r) = &mut self.renderer else { return };
-        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, mouse, size, scale, now };
+        let form = self.form.as_ref();
+        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, form, mouse, size, scale, now };
         let ui = self.ui.draw(frame);
         let view = match self.mode == Mode::Play && self.play.view_turned() {
             true => Camera { yaw: self.camera.yaw + std::f32::consts::PI, pitch: -self.camera.pitch, ..self.camera },

@@ -46,6 +46,8 @@ pub enum NetEvent {
     Title(acacia_bot::events::Title),
     /// The player's slots, when they changed.
     Inventory(control::Inventory),
+    /// The server form now open, when that changed (`None`: it closed).
+    Form(Option<acacia_bot::forms::Form>),
     /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
     Chat { sender: Option<String>, message: String, params: Vec<String> },
     /// Sent once, before any [`NetEvent::Entities`].
@@ -132,6 +134,7 @@ async fn run(
     send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
     // `ACACIA_COMMANDS="summon cow;time set day"`: setup for unattended shots (needs an operator).
     let mut inventory = control::Inventory::default();
+    let mut form: Option<u32> = None;
     // Sent a second after the player left the loading screen: BDS ignored them sent at once.
     let mut spawned_ticks = 0u32;
     let mut setup: Vec<String> = std::env::var("ACACIA_COMMANDS").iter().flat_map(|s| s.split(';')).map(|c| c.trim().to_owned()).collect();
@@ -178,6 +181,11 @@ async fn run(
                     if now != inventory {
                         inventory = now.clone();
                         send(NetEvent::Inventory(now))?;
+                    }
+                    let open = bot.state().forms.latest().map(|f| f.id);
+                    if open != form {
+                        form = open;
+                        send(NetEvent::Form(bot.state().forms.latest().cloned()))?;
                     }
                     continue;
                 }

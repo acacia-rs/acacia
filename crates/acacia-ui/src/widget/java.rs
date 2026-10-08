@@ -186,7 +186,9 @@ impl Skin for Kit {
 
     fn thumb(&self, track: [f32; 4], visible: f32, content: f32, scroll: f32) -> [f32; 4] {
         let h = track[3] - track[1];
-        let thumb = (h * visible / content.max(visible)).floor().clamp(32.0_f32.min(h), (h - 8.0).max(1.0));
+        // `Mth.clamp(v, 32, h - 8)`: never panics on a short viewport, unlike `f32::clamp`.
+        let v = (h * visible / content.max(visible)).floor();
+        let thumb = if v < 32.0 { 32.0 } else { v.min(h - 8.0) }.min(h).max(1.0);
         let top = track[1] + (scroll * (h - thumb)).floor();
         [track[0], top, track[2], top + thumb]
     }

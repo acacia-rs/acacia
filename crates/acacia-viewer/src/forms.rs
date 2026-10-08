@@ -4,13 +4,18 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use acacia_bot::forms::{Element, Form, FormKind, FormReply, FormValue};
 use acacia_render::assets::image_file;
-use acacia_ui::form::{Outcome, Spec};
+use acacia_ui::DrawList;
+use acacia_ui::form::{FormView, Outcome, Spec};
+use acacia_ui::input::Input;
+use acacia_ui::theme::Theme;
 use acacia_ui::widget::{TextEdit, Value, Widget};
 use image::RgbaImage;
+
+use crate::settings::LookChoice;
 
 /// Bedrock's edit box `max_length`.
 const INPUT_MAX: usize = 100;
@@ -18,6 +23,53 @@ const INPUT_MAX: usize = 100;
 const IMAGE_SIDE: u32 = 32;
 const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
 const FETCH_MAX_BYTES: usize = 1 << 20;
+
+/// The open form on screen, laid out for the look shown.
+pub struct FormScreen {
+    pub id: u32,
+    title: String,
+    spec: Spec,
+    /// Each action-form button's image source, in button order.
+    sources: Vec<Option<String>>,
+    /// Rebuilt when the look changes, which drops what was entered.
+    view: Option<(LookChoice, FormView)>,
+    /// Buttons whose image the view has.
+    imaged: Vec<bool>,
+}
+
+impl FormScreen {
+    pub fn new(form: &Form) -> FormScreen {
+        let (spec, sources) = spec(form);
+        FormScreen { id: form.id, title: form.title.clone(), spec, imaged: vec![false; sources.len()], sources, view: None }
+    }
+
+    /// Lays the form out for `look` and the GUI `size`, and adds button images that have loaded.
+    pub fn update(&mut self, look: LookChoice, theme: &mut Theme, size: [f32; 2], images: &mut Images) {
+        if self.view.as_ref().is_none_or(|(shown, _)| *shown != look) {
+            self.view = Some((look, FormView::new(&self.title, self.spec.clone(), theme, size)));
+            self.imaged.fill(false);
+        }
+        let Some((_, view)) = &mut self.view else { return };
+        view.resize(theme, size);
+        for (i, source) in self.sources.iter().enumerate() {
+            let Some(source) = source.as_deref().filter(|_| !self.imaged[i]) else { continue };
+            if let Some(image) = images.get(source) {
+                view.set_image(i, theme.atlas.add(&format!("form/{source}"), image));
+                self.imaged[i] = true;
+            }
+        }
+    }
+
+    pub fn handle(&mut self, input: &Input, theme: &Theme) -> Option<Outcome> {
+        self.view.as_mut()?.1.handle(input, theme)
+    }
+
+    pub fn draw(&self, list: &mut DrawList, theme: &Theme, now: Instant) {
+        if let Some((_, view)) = &self.view {
+            view.draw(list, theme, now);
+        }
+    }
+}
 
 /// The form as widgets, and each action-form button's image source in button order.
 pub fn spec(form: &Form) -> (Spec, Vec<Option<String>>) {
@@ -101,11 +153,6 @@ impl Images {
             self.loaded.insert(source.to_owned(), image);
         }
         self.loaded.get(source)?.as_ref()
-    }
-
-    /// Whether a fetch is still out for one of `sources`.
-    pub fn pending(&self, sources: &[Option<String>]) -> bool {
-        sources.iter().flatten().any(|s| is_url(s) && self.loaded.get(s).is_some_and(Option::is_none))
     }
 
     fn start_fetch(&self, url: &str) {

@@ -21,6 +21,7 @@ use acacia_ui::{DrawList, Quad, Sprite};
 
 use crate::control::{Inventory, Me, Stack};
 use acacia_ui::inventory::{Layout, Slot};
+use crate::forms::FormScreen;
 use crate::looks::Looks;
 use crate::settings::LookChoice;
 
@@ -46,6 +47,8 @@ pub struct Frame<'a> {
     pub screen: Option<(&'a Inventory, Layout)>,
     /// An open menu: its title and button labels.
     pub menu: Option<(&'a str, &'a [String])>,
+    /// An open server form.
+    pub form: Option<&'a FormScreen>,
     /// GUI pixels.
     pub mouse: [f32; 2],
     pub size: [u32; 2],
@@ -99,6 +102,10 @@ impl Ui {
         skin.added.clear();
     }
 
+    pub fn theme_mut(&mut self, look: LookChoice) -> &mut Theme {
+        &mut self.skin(look).theme
+    }
+
     fn skin(&mut self, look: LookChoice) -> &mut Skin {
         match look {
             LookChoice::Bedrock => &mut self.bedrock,
@@ -117,7 +124,7 @@ impl Ui {
     /// This frame's quads for a window `size` pixels big at GUI `scale`, and the atlas they sample.
     /// This frame's quads and the atlas they sample.
     pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad]) {
-        let Frame { look, me, debug, screen, menu, mouse, size, scale, now } = frame;
+        let Frame { look, me, debug, screen, menu, form, mouse, size, scale, now } = frame;
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
             LookChoice::Java => &mut self.java,
@@ -146,6 +153,9 @@ impl Ui {
             let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor };
             let title = inventory.container.as_ref().map_or("", |c| c.title.as_str());
             acacia_ui::inventory::draw(&mut list, &skin.theme, layout, title, &contents, mouse, gui);
+        }
+        if let Some(form) = form {
+            form.draw(&mut list, &skin.theme, now);
         }
         if let Some((title, buttons)) = menu {
             acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, mouse, gui);

@@ -1,6 +1,7 @@
 //! The bot thread's side of playing: commands from the window, and the player as each tick leaves it.
 
 use acacia_bot::Bot;
+use acacia_bot::forms::FormReply;
 use acacia_bot::interact::Face;
 use acacia_bot::items::{Click, SlotRef};
 use acacia_bot::state::ItemStack;
@@ -33,6 +34,8 @@ pub enum Command {
     Click(SlotRef, Click),
     /// A click outside the screen: throws the held stack, or one of it.
     DropCursor { one: bool },
+    /// The player's answer to open form `id`.
+    AnswerForm(u32, FormReply),
 }
 
 /// The player's own slots as a screen shows them.
@@ -130,6 +133,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         },
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
         Command::DropCursor { one } => bot.drop_cursor(one).await,
+        Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),
         Command::Controls(c) => {
             if let Some(controls) = bot.controls() {
                 *controls = Controls { glide: controls.glide, ..c };

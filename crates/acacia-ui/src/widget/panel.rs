@@ -1,10 +1,11 @@
 //! Widgets at fixed places, some in a scrolling viewport: mouse and keyboard input, focus, the
-//! open dropdown list, and drawing through a [`Skin`].
+//! open dropdown list. Drawing through a [`Skin`]: `panel/draw.rs`.
+
+mod draw;
 
 use std::time::Instant;
 
-use super::{ListGeometry, Skin, State, Widget, contains};
-use crate::draw::DrawList;
+use super::{ListGeometry, Skin, Widget, contains};
 use crate::font::Font;
 use crate::input::{Input, Key, Mods};
 
@@ -120,9 +121,8 @@ impl Panel {
 
     fn press(&mut self, at: [f32; 2], skin: &dyn Skin, font: Option<&Font>) -> Response {
         self.mouse = at;
-        let track = skin.scroll_track(self.viewport);
+        let (track, thumb) = self.scrollbar(skin);
         if self.max_scroll() > 0.0 && contains(track, at) {
-            let thumb = skin.thumb(track, self.viewport[3] - self.viewport[1], self.content_bottom - self.viewport[1], self.scroll / self.max_scroll());
             let grab = if contains(thumb, at) { at[1] - thumb[1] } else { (thumb[3] - thumb[1]) / 2.0 };
             self.drag = Some(Drag::Thumb(grab));
             self.drag_thumb(at[1] - grab, skin);
@@ -284,38 +284,11 @@ impl Panel {
         Response::Consumed
     }
 
-    pub fn draw(&self, list: &mut DrawList, skin: &dyn Skin, font: Option<&Font>, now: Instant) {
-        let blink = (now.saturating_duration_since(self.focused_at).as_millis() / BLINK_MS).is_multiple_of(2);
-        let hover = if self.open.is_some() || self.drag.is_some() { None } else { self.item_at(skin, font, self.mouse) };
-        for (i, p) in self.items.iter().enumerate() {
-            let rect = self.rect(i);
-            if p.scrolls && (rect[3] <= self.viewport[1] || rect[1] >= self.viewport[3]) {
-                continue;
-            }
-            list.clip = p.scrolls.then_some(self.viewport);
-            let focus = self.focus == Some(i);
-            let state = State {
-                hover: hover == Some(i) || self.drag == Some(Drag::Slider(i)),
-                focus,
-                pressed: self.held == Some(i) && hover == Some(i),
-                open: self.open.is_some_and(|o| o.item == i),
-                caret: focus && blink,
-            };
-            skin.draw(list, font, &p.widget, rect, state);
-        }
-        list.clip = None;
-        if self.max_scroll() > 0.0 {
-            let track = skin.scroll_track(self.viewport);
-            let thumb = skin.thumb(track, self.viewport[3] - self.viewport[1], self.content_bottom - self.viewport[1], self.scroll / self.max_scroll());
-            skin.draw_scrollbar(list, track, thumb);
-        }
-        if let Some(open) = self.open
-            && let Widget::Dropdown { options, index, .. } = &self.items[open.item].widget
-        {
-            let g = skin.dropdown_list(font, self.rect(open.item), options.len());
-            let hover = list_row(g, open.scroll, options.len(), self.mouse);
-            skin.draw_dropdown_list(list, font, g, options, *index, hover, open.scroll);
-        }
+    /// The scrollbar's track and thumb where they are now.
+    fn scrollbar(&self, skin: &dyn Skin) -> ([f32; 4], [f32; 4]) {
+        let track = skin.scroll_track(self.viewport);
+        let at = if self.max_scroll() > 0.0 { self.scroll / self.max_scroll() } else { 0.0 };
+        (track, skin.thumb(track, self.viewport[3] - self.viewport[1], self.content_bottom - self.viewport[1], at))
     }
 
     /// The values of the input widgets, in order.

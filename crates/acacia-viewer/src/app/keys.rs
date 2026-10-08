@@ -15,6 +15,9 @@ impl App {
             }
             return;
         }
+        if self.form.is_some() {
+            return self.form_key(code, pressed);
+        }
         if self.ui.chat.is_open() || self.screen_open {
             if pressed && self.screen_open {
                 self.screen_key(code);
@@ -67,7 +70,9 @@ impl App {
 
     /// Text typed while the chat was already open (the key that opens it types nothing).
     pub(super) fn text(&mut self, text: &str, chat_was_open: bool) {
-        if chat_was_open {
+        if self.form.is_some() && self.menu.is_none() {
+            self.form_text(text);
+        } else if chat_was_open {
             self.ui.chat.type_text(text);
         }
     }
@@ -88,6 +93,9 @@ impl App {
             }
             return;
         }
+        if self.form.is_some() {
+            return self.form_button(button, pressed);
+        }
         if self.screen_open {
             if pressed {
                 self.screen_click(button, self.shift);
@@ -106,6 +114,9 @@ impl App {
     }
 
     pub(super) fn scroll(&mut self, lines: f32) {
+        if self.form.is_some() && self.menu.is_none() {
+            return self.form_scroll(lines);
+        }
         match self.mode {
             Mode::Fly => self.input.scroll(lines),
             Mode::Play => self.play.scroll(lines),

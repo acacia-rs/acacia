@@ -52,10 +52,12 @@ impl DrawList {
         let [l, t, r, b] = rect;
         let (sw, sh) = (nine.sprite.width as f32, nine.sprite.height as f32);
         let [bl, bt, br, bb] = nine.border;
-        let (bl, br) = (bl.min(sw / 2.0).min((r - l) / 2.0), br.min(sw / 2.0).min((r - l) / 2.0));
-        let (bt, bb) = (bt.min(sh / 2.0).min((b - t) / 2.0), bb.min(sh / 2.0).min((b - t) / 2.0));
-        let cols = [(l, l + bl, 0.0, bl), (l + bl, r - br, bl, sw - br), (r - br, r, sw - br, sw)];
-        let rows = [(t, t + bt, 0.0, bt), (t + bt, b - bb, bt, sh - bb), (b - bb, b, sh - bb, sh)];
+        // Borders shrink only to fit the target; Bedrock's dialog has a 23 px top on a 33 px image.
+        let (bl, br) = (bl.min((r - l) / 2.0), br.min((r - l) / 2.0));
+        let (bt, bb) = (bt.min((b - t) / 2.0), bb.min((b - t) / 2.0));
+        let ([mu0, mu1], [mv0, mv1]) = (middle(bl, sw - br), middle(bt, sh - bb));
+        let cols = [(l, l + bl, 0.0, bl), (l + bl, r - br, mu0, mu1), (r - br, r, sw - br, sw)];
+        let rows = [(t, t + bt, 0.0, bt), (t + bt, b - bb, mv0, mv1), (b - bb, b, sh - bb, sh)];
         for (ci, &(x0, x1, u0, u1)) in cols.iter().enumerate() {
             for (ri, &(y0, y1, v0, v1)) in rows.iter().enumerate() {
                 if x1 <= x0 || y1 <= y0 || u1 <= u0 || v1 <= v0 {
@@ -68,6 +70,14 @@ impl DrawList {
         }
     }
 
+}
+
+/// The source span between two borders; when they meet (`control`: 2×2, slice 1), the texel before.
+fn middle(from: f32, to: f32) -> [f32; 2] {
+    if to > from { [from, to] } else { [(from - 1.0).max(0.0), from.max(1.0)] }
+}
+
+impl DrawList {
     /// The `part` of `sprite` over `rect`, repeated along the axes `tile` names, else stretched.
     fn cell(&mut self, sprite: Sprite, rect: [f32; 4], part: [f32; 4], tile: [bool; 2], color: [u8; 4]) {
         let [x0, y0, x1, y1] = rect;
@@ -121,5 +131,21 @@ mod tests {
         let mut list = DrawList::new(1.0);
         list.nine(nine(false), [0.0, 0.0, 400.0, 20.0], WHITE);
         assert_eq!(list.quads.len(), 9, "Bedrock stretches each cell once");
+    }
+
+    #[test]
+    fn borders_keep_their_size_whatever_the_image() {
+        // Bedrock's dialog: 18×33 with a 23 px top; its 2×2 centre is the transparent hole.
+        let dialog = Nine { sprite: Sprite { x: 0, y: 0, width: 18, height: 33 }, border: [8.0, 23.0, 8.0, 8.0], tile: false };
+        let mut list = DrawList::new(1.0);
+        list.nine(dialog, [0.0, 0.0, 225.0, 200.0], WHITE);
+        let centre = list.quads.iter().find(|q| q.rect == [8.0, 23.0, 217.0, 192.0]).unwrap();
+        assert_eq!(centre.uv, [8.0, 23.0, 10.0, 25.0]);
+        // `control`: 2×2, slice 1, nothing between the borders: the centre samples a border texel.
+        let control = Nine { sprite: Sprite { x: 0, y: 0, width: 2, height: 2 }, border: [1.0; 4], tile: false };
+        let mut list = DrawList::new(1.0);
+        list.nine(control, [0.0, 0.0, 20.0, 20.0], WHITE);
+        let centre = list.quads.iter().find(|q| q.rect == [1.0, 1.0, 19.0, 19.0]).unwrap();
+        assert_eq!(centre.uv, [0.0, 0.0, 1.0, 1.0]);
     }
 }

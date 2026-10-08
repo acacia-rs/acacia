@@ -58,6 +58,11 @@ impl Element {
 }
 
 impl Form {
+    /// A form from `ModalFormRequest.data` JSON, as the server would send it.
+    pub fn parse(id: u32, json: &str) -> Option<Form> {
+        parse::form(id, json)
+    }
+
     /// How many fields a custom form asks for (sizes the reading delay).
     pub(crate) fn inputs(&self) -> usize {
         match &self.kind {
