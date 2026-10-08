@@ -13,6 +13,7 @@ pub mod input;
 pub mod inventory;
 pub mod lang;
 pub mod menu;
+pub mod nametags;
 pub mod nine;
 pub mod overlay;
 pub mod players;

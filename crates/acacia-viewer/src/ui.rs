@@ -51,6 +51,8 @@ pub struct Frame<'a> {
     pub form: Option<&'a FormScreen>,
     /// The player list, while Tab is held.
     pub players: Option<&'a [String]>,
+    /// Name tags, projected onto the screen.
+    pub tags: Vec<acacia_ui::nametags::Tag>,
     /// GUI pixels.
     pub mouse: [f32; 2],
     pub size: [u32; 2],
@@ -135,13 +137,15 @@ impl Ui {
     /// This frame's quads for a window `size` pixels big at GUI `scale`, and the atlas they sample.
     /// This frame's quads and the atlas they sample.
     pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad]) {
-        let Frame { look, me, debug, screen, menu, form, players, mouse, size, scale, now } = frame;
+        let Frame { look, me, debug, screen, menu, form, players, tags, mouse, size, scale, now } = frame;
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
             LookChoice::Java => &mut self.java,
         };
         let mut list = DrawList::new(scale as f32);
         let gui = [(size[0] / scale) as f32, (size[1] / scale) as f32];
+        // In the world, so under the HUD.
+        acacia_ui::nametags::draw(&mut list, &skin.theme, &tags);
         if let Some(me) = me {
             let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none(), ..skin.state(me) };
             hud::draw(&mut list, &skin.theme, &state, gui);

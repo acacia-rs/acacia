@@ -5,6 +5,7 @@ use std::time::Instant;
 use acacia_render::Outline;
 use acacia_render::entity::EntityInstance;
 use acacia_render::item::{ItemKey, hand};
+use acacia_ui::nametags::Tag;
 
 use super::{App, Mode};
 
@@ -30,6 +31,29 @@ impl App {
                 })
             }
         }
+    }
+
+    /// Name tags projected onto the screen (`gui` GUI pixels big, `scale` window pixels each):
+    /// Java draws a font pixel 0.025 blocks big in the world; tags beyond 64 blocks or behind
+    /// the camera are left out.
+    pub(super) fn name_tags(&self, gui: [f32; 2], scale: f32) -> Vec<Tag> {
+        let view_proj = self.camera.view_proj();
+        let pixels_per_block = gui[1] * scale / 2.0 / (self.camera.fov_y / 2.0).tan();
+        self.entities
+            .name_tags()
+            .into_iter()
+            .filter_map(|(text, at)| {
+                let relative = (at - self.camera.position).as_vec3();
+                let distance = relative.length();
+                let clip = view_proj * relative.extend(1.0);
+                if clip.w <= 0.1 || distance > 64.0 {
+                    return None;
+                }
+                let (x, y) = (clip.x / clip.w, clip.y / clip.w);
+                let size = 0.025 * pixels_per_block / distance / scale;
+                Some(Tag { text: text.to_owned(), x: (x + 1.0) / 2.0 * gui[0], y: (1.0 - y) / 2.0 * gui[1], scale: size })
+            })
+            .collect()
     }
 
     /// The held item in first person, swinging with clicks.

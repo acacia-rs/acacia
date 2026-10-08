@@ -31,6 +31,8 @@ pub struct Tracked {
     pub dropped: Option<DroppedStack>,
     /// Width and height of what the crosshair can hit; `None` for the bot and dropped items.
     pub hitbox: Option<(f32, f32)>,
+    /// The name tag shown over it: a player's name, or a mob's given name.
+    pub name: Option<String>,
 }
 
 pub struct DroppedStack {
@@ -139,7 +141,7 @@ impl Feed {
         if let Some(instance) = self.player(bot, uuid, feet, me.yaw, 1.0) {
             let own_eyes = Some(DVec3::new(eyes.x.into(), eyes.y.into(), eyes.z.into()));
             let (kind, facts) = (PLAYER.to_owned(), Facts::default());
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None });
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None, name: None });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
@@ -176,7 +178,8 @@ impl Feed {
             (e.kind.clone(), instance)
         };
         let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none());
-        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox })
+        let name = e.metadata.name_tag().filter(|n| !n.is_empty()).map(str::to_owned).or_else(|| e.username.clone());
+        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name })
     }
 
     fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, yaw: f32, scale: f32) -> Option<EntityInstance> {

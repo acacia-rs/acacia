@@ -239,10 +239,11 @@ impl App {
         let screen = self.screen_open.then_some((&self.inventory, self.layout()));
         let menu = self.menu.map(|m| self.menu_content(m));
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice()));
+        let tags = self.name_tags([(size[0] / scale) as f32, (size[1] / scale) as f32], scale as f32);
         let Some(r) = &mut self.renderer else { return };
         let form = self.form.as_ref();
         let players = self.show_players.then_some(self.players.as_slice());
-        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, form, players, mouse, size, scale, now };
+        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, form, players, tags, mouse, size, scale, now };
         let ui = self.ui.draw(frame);
         let view = match self.mode == Mode::Play && self.play.view_turned() {
             true => Camera { yaw: self.camera.yaw + std::f32::consts::PI, pitch: -self.camera.pitch, ..self.camera },

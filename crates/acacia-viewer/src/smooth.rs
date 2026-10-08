@@ -150,6 +150,18 @@ impl Smoother {
         self.to.iter().filter(visible).flat_map(posed).collect()
     }
 
+    /// Name tags and where they hang this frame: half a block over the entity's box.
+    pub fn name_tags(&self) -> Vec<(&str, DVec3)> {
+        let t = self.progress();
+        let mut out = Vec::new();
+        for (e, to) in &self.to {
+            let Some(name) = e.name.as_deref() else { continue };
+            let height = e.hitbox.map_or(1.8, |(_, h)| h);
+            out.push((name, self.blend(e.runtime_id, *to, t).position + DVec3::Y * f64::from(height + 0.5)));
+        }
+        out
+    }
+
     /// Where the hittable entities are drawn this frame.
     pub fn hitboxes(&self) -> Vec<EntityBox> {
         let t = self.progress();
