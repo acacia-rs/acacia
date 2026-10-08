@@ -1,0 +1,104 @@
+//! Items as the world shows them: a flat item is its icon extruded, a block item is its block.
+//! See README "Items".
+
+mod block;
+pub mod drop;
+mod extrude;
+mod icons;
+
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Arc;
+
+use crate::assets::image_file;
+use crate::blocks::{BlockTable, Shape};
+use crate::entity::{Layer, NO_MODEL, NO_TEXTURE, Skin};
+use crate::LookPack;
+use crate::look::Dropped;
+pub use icons::ItemIcons;
+
+/// An item stack as the server names it.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ItemKey {
+    /// `minecraft:apple`.
+    pub name: String,
+    /// Damage or variant.
+    pub aux: u32,
+    /// Block runtime id in the world's registry; 0 for items that are not blocks.
+    pub block: u32,
+}
+
+/// An item's mesh and texture, drawn through the entity pass like a persona skin.
+#[derive(Clone)]
+pub struct ItemModel {
+    pub skin: Arc<Skin>,
+    /// One layer that draws nothing of its own, so the skin's mesh is all there is.
+    pub layers: Arc<[Layer]>,
+    /// Drawn as a block (a unit cube's worth), not a flat sprite: they sit and stack differently.
+    pub block: bool,
+}
+
+pub struct ItemModels {
+    icons: ItemIcons,
+    pack: Arc<LookPack>,
+    table: Arc<BlockTable>,
+    layers: Arc<[Layer]>,
+    cache: HashMap<ItemKey, Option<ItemModel>>,
+}
+
+impl ItemModels {
+    /// `table` is the look pack's for the world's registry ([`LookPack::block_table`]).
+    pub fn new(pack: Arc<LookPack>, table: Arc<BlockTable>) -> ItemModels {
+        let layers = [Layer { model: NO_MODEL, textures: [NO_TEXTURE; 3], tint: None, hidden: [0; 4] }].into();
+        ItemModels { icons: ItemIcons::load(pack.files()), pack, table, layers, cache: HashMap::new() }
+    }
+
+    /// How the look's dropped items move.
+    pub fn dropped(&self) -> &Dropped {
+        &self.pack.look.dropped
+    }
+
+    /// Built on first use and kept; `None` for items with neither an icon nor a drawable block.
+    pub fn get(&mut self, key: &ItemKey) -> Option<ItemModel> {
+        if let Some(cached) = self.cache.get(key) {
+            return cached.clone();
+        }
+        let model = self.build(key);
+        if model.is_none() {
+            tracing::debug!(item = key.name, aux = key.aux, "item without a model");
+        }
+        self.cache.insert(key.clone(), model.clone());
+        model
+    }
+
+    fn build(&self, key: &ItemKey) -> Option<ItemModel> {
+        let model = |skin: Skin, block| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), block });
+        // An item with an icon of its own shows it, even when it places a block (doors, beds).
+        if let Some(skin) = self.icons.path(&key.name, key.aux).and_then(|path| icon(self.pack.files(), path)) {
+            return model(skin, false);
+        }
+        if key.block == 0 {
+            return None;
+        }
+        let block = self.table.get(key.block);
+        if block.shape == Shape::Cross {
+            let rgba = block::texels(self.pack.atlas.layers.get(block.textures[0] as usize), block::tile_of(block, 0));
+            return model(flat(16, 16, rgba), false);
+        }
+        model(block::skin(block, &self.pack.atlas)?, true)
+    }
+}
+
+/// The icon's first frame (strips stack frames downwards) as an extruded sprite.
+fn icon(root: &Path, path: &str) -> Option<Skin> {
+    let file = image_file(root, path)?;
+    let image = image::open(&file).inspect_err(|e| tracing::warn!(?file, %e, "item icon")).ok()?.to_rgba8();
+    let (width, height) = (image.width(), image.height().min(image.width()));
+    let rgba = image.into_raw()[..(width * height * 4) as usize].to_vec();
+    Some(flat(width, height, rgba))
+}
+
+fn flat(width: u32, height: u32, rgba: Vec<u8>) -> Skin {
+    let mesh = extrude::extrude(width, height, &rgba);
+    Skin { width, height, rgba, mesh: Some(mesh) }
+}

@@ -33,6 +33,10 @@ pub struct BotConfig {
     /// Strict mode (default off): [`crate::BotEvent::Violation`] for every server packet a strict
     /// peer would reject and every chunk that does not decode (docs/testing.md).
     pub strict: bool,
+    /// Report keyboard and mouse in every `PlayerAuthInput` (default off: touch, like the Android
+    /// client the bot otherwise looks like). BDS breaks a block at once in creative only for
+    /// input that is not touch, so a client played at a keyboard turns it on.
+    pub mouse_input: bool,
 }
 
 impl Default for BotConfig {
@@ -48,6 +52,7 @@ impl Default for BotConfig {
             record: None,
             auto_eat: None,
             strict: false,
+            mouse_input: false,
         }
     }
 }

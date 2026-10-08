@@ -36,7 +36,10 @@ impl Events {
     pub const TITLES: Self = Self(1 << 5);
     /// [`BotEvent::Slept`], [`BotEvent::Woke`].
     pub const SLEEP: Self = Self(1 << 6);
+    /// Every group above. Not [`Events::TICKS`], which wakes the caller 20 times a second.
     pub const ALL: Self = Self((1 << 7) - 1);
+    /// [`BotEvent::Tick`].
+    pub const TICKS: Self = Self(1 << 7);
 
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0 && other.0 != 0
@@ -80,6 +83,8 @@ pub enum BotEvent {
     /// The server shows the player sleeping in a bed.
     Slept,
     Woke,
+    /// One or more client ticks ran: the simulated player moved, for callers that draw it.
+    Tick,
     /// Strict mode only ([`crate::BotConfig::strict`]).
     Violation(Violation),
     /// Always the last event.

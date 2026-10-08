@@ -67,6 +67,14 @@ impl Metadata {
         }
     }
 
+    /// Collision box width and height in blocks, when the server sent them (every mob gets them at spawn).
+    pub fn bounding_box(&self) -> Option<(f32, f32)> {
+        match (self.plain(Key::BoundingboxWidth)?, self.plain(Key::BoundingboxHeight)?) {
+            (Plain::Float(w), Plain::Float(h)) => Some((*w, *h)),
+            _ => None,
+        }
+    }
+
     pub(crate) fn merge(&mut self, items: Vec<MetadataDictionaryItem>) {
         self.0.extend(items.into_iter().map(|i| (i.key, i.value)));
     }

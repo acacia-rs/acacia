@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 acacia-molang.workspace = true
+acacia-ui = { path = "../acacia-ui" }
 acacia-world.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 crossbeam-channel = "0.5"

@@ -15,7 +15,10 @@ git -C "$tmp/repo" sparse-checkout set --no-cone \
   resource_pack/textures/terrain_texture.json resource_pack/textures/flipbook_textures.json \
   resource_pack/textures/blocks/ resource_pack/textures/colormap/ resource_pack/textures/environment/ \
   resource_pack/entity/ resource_pack/models/ resource_pack/textures/entity/ \
-  resource_pack/render_controllers/ resource_pack/animations/ resource_pack/animation_controllers/
+  resource_pack/render_controllers/ resource_pack/animations/ resource_pack/animation_controllers/ \
+  resource_pack/textures/item_texture.json resource_pack/textures/items/ \
+  resource_pack/attachables/ resource_pack/textures/models/armor/ \
+  resource_pack/textures/ui/ resource_pack/textures/gui/ resource_pack/texts/en_US.lang
 rm -rf "$dest"
 mkdir -p "$dest"
 cp -r "$tmp/repo/resource_pack/." "$dest/"

@@ -174,6 +174,8 @@ fn player_at(feet: [f32; 3]) -> Entity {
         metadata: Default::default(),
         attributes: Default::default(),
         effects: Default::default(),
+        equipment: None,
+        item: None,
     }
 }
 

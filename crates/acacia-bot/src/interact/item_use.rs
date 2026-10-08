@@ -84,13 +84,13 @@ impl Bot {
         }
     }
 
-    fn held_name(&self) -> Option<&str> {
+    pub(super) fn held_name(&self) -> Option<&str> {
         self.state.items.name(self.state.inventory.held().network_id)
     }
 
     /// Vanilla's block click: StartItemUseOn, the swing, the ClickBlock (placing: with the held
     /// stack's predicted change, then the new stack in MobEquipment), StopItemUseOn a moment later.
-    fn click_block(&mut self, pos: BlockPos, face: Face, source: SwingSource) -> Result<(), ActionError> {
+    pub(super) fn click_block(&mut self, pos: BlockPos, face: Face, source: SwingSource) -> Result<(), ActionError> {
         let block = self.block_wire_id(pos)?;
         let held = self.state.inventory.held().clone();
         let is_sign = self.held_name().is_some_and(|n| n.ends_with("sign"));

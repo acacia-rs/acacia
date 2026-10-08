@@ -31,7 +31,17 @@ impl Bot {
             self.pause(pause).await?;
         }
         // The target may have moved while the rotation went out.
+        self.click_entity_aimed(runtime_id, attack)
+    }
+
+    /// Left- (`attack`) or right-clicks a tracked entity now, with the current aim: reports the
+    /// crosshair on it if it was elsewhere, swings and sends `UseItemOnEntity`.
+    pub fn click_entity_aimed(&mut self, runtime_id: u64, attack: bool) -> Result<(), ActionError> {
         let (_, hit) = self.entity_in_reach(runtime_id)?;
+        if self.reflexes.hovered != Some(runtime_id) {
+            self.client.send(&wire::mouse_over(runtime_id, hit));
+            self.reflexes.hovered = Some(runtime_id);
+        }
         tracing::debug!(runtime_id, attack, ?hit, eye = ?self.eye_position(), "entity click");
         if attack {
             self.swing_from(Some(SwingSource::Attack));

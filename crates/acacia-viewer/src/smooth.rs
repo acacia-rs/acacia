@@ -6,9 +6,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use acacia_render::entity::{EntityInstance, EntityModels, Value};
+use acacia_render::item::drop::{self, Drop};
+use acacia_render::item::{ItemModel, ItemModels};
 use glam::DVec3;
 
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
+use crate::pick::EntityBox;
 
 /// The bot's own body is hidden while the camera is this close to its eyes.
 const OWN_HEAD_RADIUS: f64 = 0.6;
@@ -64,11 +67,19 @@ pub struct Smoother {
     since: Option<Instant>,
     /// When each entity was first seen, for `query.life_time`.
     born: HashMap<u64, Instant>,
+    /// For the world shown; built with its look pack.
+    items: Option<ItemModels>,
+    /// This snapshot's dropped items that have a model, by runtime id.
+    dropped: HashMap<u64, ItemModel>,
 }
 
 impl Smoother {
     pub fn set_models(&mut self, models: Arc<EntityModels>) {
         self.models = models;
+    }
+
+    pub fn set_items(&mut self, items: ItemModels) {
+        self.items = Some(items);
     }
 
     pub fn push(&mut self, snapshot: Vec<Tracked>) {
@@ -89,6 +100,10 @@ impl Smoother {
                 (e, motion)
             })
             .collect();
+        self.dropped = match &mut self.items {
+            Some(items) => self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, items.get(&e.dropped.as_ref()?.key)?))).collect(),
+            None => HashMap::new(),
+        };
         self.from = shown;
         self.since = Some(now);
     }
@@ -104,9 +119,15 @@ impl Smoother {
     pub fn instances(&self, camera: DVec3) -> Vec<EntityInstance> {
         let t = self.progress();
         let visible = |(e, _): &&(Tracked, Motion)| e.own_eyes.is_none_or(|eyes| eyes.distance(camera) > OWN_HEAD_RADIUS);
-        let posed = |(e, to): &(Tracked, Motion)| {
+        let posed = |(e, to): &(Tracked, Motion)| -> Vec<EntityInstance> {
             let m = self.blend(e.runtime_id, *to, t);
             let life = self.born.get(&e.runtime_id).map_or(0.0, |b| b.elapsed().as_secs_f32());
+            if let Some(stack) = &e.dropped {
+                let (Some(model), Some(items)) = (self.dropped.get(&e.runtime_id), &self.items) else { return Vec::new() };
+                let age_ticks = life / SNAPSHOT_SECS;
+                let at = Drop { feet: m.position, count: stack.count, seed: stack.seed, age_ticks, bob_offset: drop::bob_offset(e.runtime_id) };
+                return drop::instances(model, items.dropped(), &at);
+            }
             let query = |name: &str| {
                 Value::Num(match name {
                     "life_time" => life,
@@ -119,9 +140,19 @@ impl Smoother {
                 })
             };
             let pose = e.instance.layers.first().map(|l| self.models.pose(&e.kind, l.model, &query)).unwrap_or_default();
-            EntityInstance { position: m.position, yaw: m.yaw, pose, ..e.instance.clone() }
+            vec![EntityInstance { position: m.position, yaw: m.yaw, pose, ..e.instance.clone() }]
         };
-        self.to.iter().filter(visible).map(posed).collect()
+        self.to.iter().filter(visible).flat_map(posed).collect()
+    }
+
+    /// Where the hittable entities are drawn this frame.
+    pub fn hitboxes(&self) -> Vec<EntityBox> {
+        let t = self.progress();
+        let hittable = |(e, to): &(Tracked, Motion)| {
+            let (width, height) = e.hitbox?;
+            Some(EntityBox { runtime_id: e.runtime_id, feet: self.blend(e.runtime_id, *to, t).position, width, height })
+        };
+        self.to.iter().filter_map(hittable).collect()
     }
 }
 

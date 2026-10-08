@@ -66,6 +66,11 @@ impl Draw {
         (self.0 >> (48 - bits)) as i32
     }
 
+    /// Uniform in `0..1`, as Java's `nextFloat`.
+    pub(crate) fn float(&mut self) -> f32 {
+        self.next(24) as f32 / (1 << 24) as f32
+    }
+
     /// Uniform in `0..bound`.
     pub(crate) fn below(&mut self, bound: i32) -> i32 {
         if bound & (bound - 1) == 0 {

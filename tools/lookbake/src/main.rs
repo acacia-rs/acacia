@@ -23,6 +23,7 @@ mod report;
 mod shade;
 mod textures;
 mod tint;
+mod ui;
 
 use std::path::PathBuf;
 
@@ -50,6 +51,7 @@ fn main() -> Result<(), Error> {
             let (look, report) = java::bake_look(&pack, &jar.assets, &mapping);
             look.save(&out)?;
             biomes::write(&biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &out)?;
+            ui::copy(&jar.assets, &out)?;
             println!("{}", summary(&look, &out));
             println!("  Java: {} states as cubes, {} as models, {} liquids; kept from Bedrock: {:?}", report.cubes, report.models, report.liquids, report.kept);
             println!("  textures missing: {:?}; models invalid: {:?}", report.missing_textures, report.invalid_models);

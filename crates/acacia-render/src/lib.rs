@@ -9,6 +9,7 @@ pub mod camera;
 mod cull;
 pub mod entity;
 mod gpu;
+pub mod item;
 pub mod light;
 pub mod look;
 pub mod lookpack;
@@ -18,7 +19,7 @@ pub mod sky;
 mod workers;
 
 pub use camera::Camera;
-pub use gpu::{FrameStats, Renderer};
+pub use gpu::{FrameStats, Outline, Renderer, load_crack_stages};
 pub use look::Look;
 pub use lookpack::LookPack;
 

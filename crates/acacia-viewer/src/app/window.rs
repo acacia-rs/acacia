@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use acacia_render::Renderer;
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, ElementState, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::PhysicalKey;
 use winit::window::{Window, WindowId};
@@ -26,6 +26,9 @@ impl ApplicationHandler for App {
                 }
                 if let Some(sky) = &self.sky {
                     r.set_sky_textures(sky);
+                }
+                if let Some(strip) = acacia_render::load_crack_stages(self.looks.get(self.settings.look).files()) {
+                    r.set_crack_stages(&strip);
                 }
                 self.renderer = Some(r);
             }
@@ -55,14 +58,19 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::Focused(false) => self.grab(false),
-            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if !self.grabbed => self.grab(true),
-            WindowEvent::MouseWheel { delta, .. } => self.input.scroll(match delta {
+            WindowEvent::MouseInput { state, button, .. } => self.button(button, state == ElementState::Pressed),
+            WindowEvent::MouseWheel { delta, .. } => self.scroll(match delta {
                 MouseScrollDelta::LineDelta(_, y) => y,
                 MouseScrollDelta::PixelDelta(p) => p.y as f32 / 40.0,
             }),
             WindowEvent::KeyboardInput { event, .. } => {
+                let chat_was_open = self.ui.chat.is_open();
+                let pressed = event.state == ElementState::Pressed;
                 if let PhysicalKey::Code(code) = event.physical_key {
-                    self.key(code, event.state == ElementState::Pressed);
+                    self.key(code, pressed);
+                }
+                if let (true, Some(text)) = (pressed, &event.text) {
+                    self.text(text, chat_was_open);
                 }
             }
             _ => {}
@@ -70,8 +78,8 @@ impl ApplicationHandler for App {
     }
 
     fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
-        if let (DeviceEvent::MouseMotion { delta: (dx, dy) }, true) = (event, self.grabbed) {
-            self.input.mouse(&mut self.camera, dx, dy);
+        if let DeviceEvent::MouseMotion { delta: (dx, dy) } = event {
+            self.mouse_motion(dx, dy);
         }
     }
 

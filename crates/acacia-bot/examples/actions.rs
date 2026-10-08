@@ -18,6 +18,8 @@ mod stations;
 mod survival;
 #[path = "actions/pickup.rs"]
 mod pickup;
+#[path = "actions/direct.rs"]
+mod direct;
 
 pub type Check = Result<String, Box<dyn Error>>;
 pub type Pos = [i32; 3];
@@ -148,6 +150,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let physics = args.next().as_deref() != Some("idle");
     let config = BotConfig {
         physics,
+        mouse_input: std::env::var_os("MOUSE").is_some(),
         trackers: Trackers { entities: true, ..Trackers::default() },
         events: Events::CHAT,
         chat_patterns: ["scene", "sign", "inv", "ent", "dismounted"]
@@ -194,6 +197,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     run!(bot, results, "glide", survival::glide(&mut bot));
     run!(bot, results, "glide_water", survival::glide_water(&mut bot, s));
     run!(bot, results, "ride_horse", survival::ride_horse(&mut bot, s));
+    run!(bot, results, "mine_held", direct::mine_held(&mut bot));
+    run!(bot, results, "mine_creative", direct::mine_creative(&mut bot));
+    run!(bot, results, "place_aimed", direct::place_aimed(&mut bot));
     if std::env::var_os("HORSE_SWEEP").is_some() {
         run!(bot, results, "horse_sweep", survival::horse_sweep(&mut bot, s));
     }

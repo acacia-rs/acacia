@@ -1,5 +1,5 @@
 use acacia_client::proto::packets::MovePlayerMode;
-use acacia_client::proto::types::Rotation;
+use acacia_client::proto::types::{ItemV4, Rotation, WindowID};
 
 use super::*;
 use crate::state::queries::test_support::{fixtures, raw};
@@ -214,6 +214,33 @@ fn metadata_attributes_and_effects_update_the_entity() {
     assert_eq!(z.metadata.name_tag(), Some("Bob"));
     assert_eq!(z.health(), Some(7.0));
     assert_eq!(z.effects.level(1), 2);
+}
+
+fn item(mut item: ItemV4, network_id: i16) -> ItemV4 {
+    (item.network_id, item.count) = (network_id, 1);
+    item
+}
+
+#[test]
+fn equipment_and_dropped_stacks_are_tracked() {
+    let mut es = world();
+    assert!(es.get(3).unwrap().equipment.is_none());
+    let dropped = i32::from(fixture::<AddItemEntity>().item.network_id);
+    assert!(es.get(4).unwrap().item.as_ref().is_some_and(|s| s.network_id == dropped));
+
+    let mut hand: MobEquipment = fixture();
+    (hand.runtime_entity_id, hand.window_id, hand.item) = (3, WindowID::Inventory, item(hand.item, 7));
+    es.apply(&raw(&hand), &ME).unwrap();
+    (hand.window_id, hand.item) = (WindowID::Offhand, item(hand.item, 8));
+    es.apply(&raw(&hand), &ME).unwrap();
+
+    let mut armor: MobArmorEquipment = fixture();
+    armor.runtime_entity_id = 3;
+    armor.helmet = item(armor.helmet, 9);
+    es.apply(&raw(&armor), &ME).unwrap();
+
+    let gear = es.get(3).unwrap().equipment.as_deref().unwrap();
+    assert_eq!((gear.main_hand.network_id, gear.off_hand.network_id, gear.armor[0].network_id), (7, 8, 9));
 }
 
 #[test]

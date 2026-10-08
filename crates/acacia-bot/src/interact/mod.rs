@@ -21,6 +21,7 @@
 mod break_time;
 pub(crate) mod breaking;
 mod container;
+mod direct;
 mod entity;
 pub(crate) mod equipment;
 mod geometry;
@@ -34,6 +35,8 @@ mod tests;
 mod vanilla_tests;
 
 pub use break_time::{break_ticks, BreakConditions};
+pub use direct::is_interactive;
+pub(crate) use direct::Mining;
 pub use geometry::{facing_face, Face, BLOCK_REACH, ENTITY_REACH};
 pub use wire::{to_wire, SwingSource};
 

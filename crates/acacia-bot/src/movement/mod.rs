@@ -13,7 +13,7 @@ pub use idle::Idle;
 
 use acacia_client::proto::packets::{
     CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MobEffectEventId, MovePlayer, MovementEffect, PlayerAuthInput,
-    PlayerAuthInputBlockActionItem, Respawn, SetEntityMotion, UpdateAttributes,
+    PlayerAuthInputBlockActionItem, PlayerAuthInputInputMode, PlayerAuthInputInteractionModel, Respawn, SetEntityMotion, UpdateAttributes,
 };
 use acacia_client::proto::types::{InputData, MovementEffectType};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
@@ -87,6 +87,8 @@ pub(crate) fn attach_actions(input: &mut PlayerAuthInput, actions: Vec<PlayerAut
 
 pub struct Movement {
     pub controls: Controls,
+    /// [`crate::BotConfig::mouse_input`].
+    pub(crate) mouse_input: bool,
     /// Block actions to send with the next tick's `PlayerAuthInput`.
     pub(crate) pending_actions: Vec<PlayerAuthInputBlockActionItem>,
     /// Server corrections received: each one means the simulation disagreed with the server.
@@ -138,6 +140,7 @@ impl Movement {
     pub fn new() -> Self {
         Self {
             controls: Controls::default(),
+            mouse_input: false,
             pending_actions: Vec::new(),
             corrections: 0,
             teleports: 0,
@@ -440,7 +443,11 @@ impl Movement {
         self.tick += 1;
         self.history.record(self.tick, input, knockback, st);
         // Movement starts only after the bot has left the loading screen (bot.rs).
-        let packet = auth_input::build(&input, &out, &edges, self.tick, true);
+        let mut packet = auth_input::build(&input, &out, &edges, self.tick, true);
+        if self.mouse_input {
+            packet.input_mode = PlayerAuthInputInputMode::Mouse;
+            packet.interaction_model = PlayerAuthInputInteractionModel::Crosshair;
+        }
         tracing::trace!(tick = self.tick, forward = c.forward, sprint = c.sprint, sprinting = st.sprinting, swimming = st.swimming, speed = st.movement_speed, freeze = st.freeze, yaw = c.yaw, pitch = c.pitch,
             pos = ?out.position, delta = ?out.delta, teleported = out.teleported, flags = ?packet.input_data, "auth input");
         Some(packet)

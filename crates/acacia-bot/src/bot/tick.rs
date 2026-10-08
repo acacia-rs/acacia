@@ -33,6 +33,7 @@ impl Bot {
         if self.has_physics() && self.state.player.alive && (self.ride_physics_tick() || self.bed_physics_tick()) {
             return;
         }
+        self.tick_mining();
         self.physics_tick();
     }
 

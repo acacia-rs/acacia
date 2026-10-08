@@ -7,8 +7,9 @@ use std::sync::Arc;
 use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
 use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 as Flags};
-use acacia_bot::state::{Entity, Metadata, PlayerSkin};
+use acacia_bot::state::{Entity, ITEM_KIND, Metadata, PlayerSkin};
 use acacia_render::entity::{EntityInstance, EntityModels, Pose, Skin, SkinSource, Value};
+use acacia_render::item::ItemKey;
 use glam::DVec3;
 
 /// Seconds between snapshots (the bot thread's report interval): one game tick.
@@ -26,6 +27,17 @@ pub struct Tracked {
     pub pitch: f32,
     /// Its pose is filled in per frame.
     pub instance: EntityInstance,
+    /// A dropped item: drawn from its stack, and the instance has no layers.
+    pub dropped: Option<DroppedStack>,
+    /// Width and height of what the crosshair can hit; `None` for the bot and dropped items.
+    pub hitbox: Option<(f32, f32)>,
+}
+
+pub struct DroppedStack {
+    pub key: ItemKey,
+    pub count: u16,
+    /// Network id plus aux; see [`acacia_render::item::drop::Drop::seed`].
+    pub seed: i32,
 }
 
 /// The entity data Molang queries read, copied out of the bot's metadata so the window thread
@@ -127,7 +139,7 @@ impl Feed {
         if let Some(instance) = self.player(bot, uuid, feet, me.yaw, 1.0) {
             let own_eyes = Some(DVec3::new(eyes.x.into(), eyes.y.into(), eyes.z.into()));
             let (kind, facts) = (PLAYER.to_owned(), Facts::default());
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance });
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
@@ -149,14 +161,22 @@ impl Feed {
         let feet = e.feet();
         let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
         let facts = Facts::of(&e.metadata);
+        let mut dropped = None;
         let (kind, instance) = if e.is_player() {
             (PLAYER.to_owned(), self.player(bot, e.uuid, position, e.yaw, e.metadata.scale())?)
+        } else if e.kind == ITEM_KIND {
+            let stack = e.item.as_ref().filter(|s| !s.is_empty())?;
+            let key = ItemKey { name: bot.state().item_name(stack)?.to_owned(), aux: stack.metadata, block: stack.block_runtime_id };
+            dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32) });
+            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default() };
+            (e.kind.clone(), instance)
         } else {
             let (layers, scale) = self.models.appearance(&e.kind, &|name| facts.query(name))?;
             let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default() };
             (e.kind.clone(), instance)
         };
-        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance })
+        let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none());
+        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox })
     }
 
     fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, yaw: f32, scale: f32) -> Option<EntityInstance> {

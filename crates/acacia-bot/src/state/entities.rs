@@ -1,14 +1,18 @@
 use std::collections::HashMap;
 
 use acacia_client::proto::packets::{
-    AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MobEffect, MoveEntity, MoveEntityDelta, MovePlayer, RemoveEntity,
-    SetEntityData, SetEntityMotion, UpdateAttributes,
+    AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MobArmorEquipment, MobEffect, MobEquipment, MoveEntity,
+    MoveEntityDelta, MovePlayer, RemoveEntity, SetEntityData, SetEntityMotion, UpdateAttributes,
 };
 use acacia_client::proto::manual::Uuid;
 use acacia_client::proto::types::Vec3f;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
-use super::{Effects, Me, Metadata};
+use super::{Effects, ItemStack, Me, Metadata};
+
+mod equipment;
+
+pub use equipment::Equipment;
 
 pub const PLAYER_KIND: &str = "minecraft:player";
 pub const ITEM_KIND: &str = "minecraft:item";
@@ -39,6 +43,10 @@ pub struct Entity {
     /// Current attribute values by name (`minecraft:health`, `minecraft:movement`, ...).
     pub attributes: HashMap<String, f32>,
     pub effects: Effects,
+    /// `None` until the server sends any.
+    pub equipment: Option<Box<Equipment>>,
+    /// The stack of a dropped item ([`ITEM_KIND`]).
+    pub item: Option<ItemStack>,
 }
 
 impl Entity {
@@ -58,6 +66,8 @@ impl Entity {
             metadata: Metadata::default(),
             attributes: HashMap::new(),
             effects: Effects::default(),
+            equipment: None,
+            item: None,
         }
     }
 
@@ -102,6 +112,8 @@ impl Entities {
         SetEntityMotion::ID,
         SetEntityData::ID,
         MobEffect::ID,
+        MobEquipment::ID,
+        MobArmorEquipment::ID,
         ChangeDimension::ID,
     ];
 
@@ -174,6 +186,18 @@ impl Entities {
                     e.effects.apply(&p);
                 }
             }
+            MobEquipment::ID => {
+                let p: MobEquipment = packet.decode()?;
+                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
+                    e.equipment.get_or_insert_default().apply_hand(p);
+                }
+            }
+            MobArmorEquipment::ID => {
+                let p: MobArmorEquipment = packet.decode()?;
+                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
+                    e.equipment.get_or_insert_default().apply_armor(p);
+                }
+            }
             AddPlayer::ID => {
                 let p: AddPlayer = packet.decode()?;
                 let mut e = Entity::spawned(p.runtime_id, p.unique_id, PLAYER_KIND.to_owned(), p.position, p.velocity);
@@ -181,6 +205,7 @@ impl Entities {
                 e.username = Some(p.username);
                 e.uuid = Some(p.uuid);
                 e.metadata = p.metadata.into();
+                e.equipment = Equipment::holding(p.held_item);
                 self.insert(me, e);
             }
             AddEntity::ID => {
@@ -195,6 +220,7 @@ impl Entities {
                 let p: AddItemEntity = packet.decode()?;
                 let mut e = Entity::spawned(p.runtime_entity_id, p.entity_id_self, ITEM_KIND.to_owned(), p.position, p.velocity);
                 e.metadata = p.metadata.into();
+                e.item = Some(p.item.into());
                 self.insert(me, e);
             }
             RemoveEntity::ID => {

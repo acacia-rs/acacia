@@ -40,11 +40,13 @@ pub struct Settings {
     pub look: LookChoice,
     pub vsync: bool,
     pub cave_culling: bool,
+    /// Window pixels per GUI pixel; 0 is the largest that fits ([`acacia_ui::scale::gui_scale`]).
+    pub gui_scale: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { look: LookChoice::default(), vsync: true, cave_culling: true }
+        Settings { look: LookChoice::default(), vsync: true, cave_culling: true, gui_scale: 0 }
     }
 }
 

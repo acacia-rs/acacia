@@ -42,7 +42,7 @@ impl BiomeTint {
     }
 }
 
-const PLAINS: BiomeTint =
+pub(crate) const PLAINS: BiomeTint =
     BiomeTint { grass: rgb(0x91BD59), grass_patch: None, foliage: rgb(0x77AB2F), dry_foliage: rgb(0xA37546), water: rgb(0x44AFF5) };
 
 /// What `biomes_client.json` says of a biome. Bedrock's has the water; a look pack's can list the

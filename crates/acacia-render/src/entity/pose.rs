@@ -67,8 +67,19 @@ impl Mesh {
 const MAX_NESTING: usize = 4;
 /// Transitions followed from a controller's initial state.
 const MAX_HOPS: usize = 4;
-/// Variables the game sets itself and scripts divide by.
-pub(super) const BUILT_IN: [(&str, f32); 1] = [("gliding_speed_value", 1.0)];
+/// Variables the game sets itself (or carries between frames, which nothing here does), as an
+/// entity seen by another player at rest has them. Unset, reading one ends the whole script
+/// (acacia-molang README, "Rules BDS follows"): the player's `pre_animation` stopped at
+/// `attack_time` before setting `tcos0`, and its controllers never left first person.
+pub(super) const BUILT_IN: [(&str, f32); 7] = [
+    ("gliding_speed_value", 1.0),
+    ("is_first_person", 0.0),
+    ("is_paperdoll", 0.0),
+    ("map_face_icon", 0.0),
+    ("attack_time", 0.0),
+    ("player_x_rotation", 0.0),
+    ("hand_bob", 0.0),
+];
 
 impl Track {
     /// The channel at `time`; `this` is its value so far, and `lerp` receives how far `time` is
@@ -183,10 +194,7 @@ impl EntityModels {
         };
         let mut pose = Pose::default();
         if let Some(definition) = self.kinds.get(kind) {
-            let mut scope = Scope::new(&self.compiler, &ask);
-            for &(variable, value) in &self.built_in {
-                scope.set(variable, value);
-            }
+            let scope = self.scope(&ask);
             let rest = self.models.get(model as usize).map(|m| &m.mesh);
             let mut play = Play { models: self, definition, rest, scope, time: &time, lerp: &lerp, pose };
             for script in &definition.scripts {

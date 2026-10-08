@@ -23,7 +23,7 @@ mod stations;
 pub use block_entities::{BlockEntities, BlockEntityTracking};
 pub use containers::{Container, Containers};
 pub use effects::{effect, Effect, Effects};
-pub use entities::{Entities, Entity, ITEM_KIND, PLAYER_EYE_HEIGHT, PLAYER_KIND};
+pub use entities::{Entities, Entity, Equipment, ITEM_KIND, PLAYER_EYE_HEIGHT, PLAYER_KIND};
 pub use skins::{PlayerSkin, SkinTexture, Skins};
 pub use environment::{BossBar, Environment};
 pub use metadata::Metadata;

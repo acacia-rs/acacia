@@ -1,35 +1,40 @@
 mod atlas;
+mod crack;
 mod device;
 mod entities;
 mod entity_textures;
 mod globals;
+mod inputs;
+mod outline;
 mod pipeline;
 mod screenshot;
 mod sky;
 mod store;
+mod ui;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use acacia_world::World;
 use glam::DVec3;
 
-use crate::block_models::{BlockDataMap, BlockModels};
-use crate::entity::{EntityInstance, EntityModels};
-use crate::sky::SkyTextures;
+use crate::block_models::BlockModels;
+use crate::entity::EntityInstance;
 use entities::EntityPass;
+use crack::CrackPass;
+pub use crack::load_stages as load_crack_stages;
+use outline::OutlinePass;
+use ui::UiPass;
+pub use outline::Outline;
 use sky::SkyPass;
 
 use crate::Error;
 use crate::assets::flipbook::Atlas;
 use crate::assets::image::Texture;
-use crate::blocks::BlockTable;
 use atlas::BlockTextures;
 use crate::biome::BiomeColors;
 use crate::camera::{Camera, Frustum};
 use crate::cull;
-use crate::light::Lighting;
 use crate::look::Look;
 use crate::scene::{Scene, Update};
 use crate::sky::{NOON, Sky};
@@ -66,6 +71,10 @@ pub struct Renderer {
     block_models: BlockModels,
     /// `None` until [`Renderer::set_sky_textures`]: the sky is then a plain colour.
     sky: Option<SkyPass>,
+    outline_pass: OutlinePass,
+    outline: Option<Outline>,
+    crack_pass: CrackPass,
+    ui_pass: UiPass,
     scene: Option<Scene>,
     biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
@@ -95,6 +104,9 @@ impl Renderer {
         let sampler = pipeline::sampler(&device);
         let store = Store::new(&device);
         let entities = EntityPass::new(&device, config.format, &globals);
+        let outline_pass = OutlinePass::new(&device, config.format, &globals);
+        let ui_pass = UiPass::new(&device, config.format);
+        let crack_pass = CrackPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
             depth: pipeline::depth_view(&device, config.width, config.height),
@@ -113,6 +125,10 @@ impl Renderer {
             entity_list: Vec::new(),
             block_models: BlockModels::default(),
             sky: None,
+            outline_pass,
+            outline: None,
+            crack_pass,
+            ui_pass,
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
@@ -125,79 +141,8 @@ impl Renderer {
         })
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        if width == 0 || height == 0 {
-            return;
-        }
-        (self.config.width, self.config.height) = (width, height);
-        self.surface.configure(&self.device, &self.config);
-        self.depth = pipeline::depth_view(&self.device, width, height);
-    }
-
-    pub fn set_vsync(&mut self, on: bool) {
-        self.config.present_mode = if on { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
-        self.surface.configure(&self.device, &self.config);
-    }
-
-    /// Saves the next frame as a PNG (needs a surface that allows copies; logged otherwise).
-    pub fn screenshot(&mut self, path: PathBuf) {
-        self.screenshot = Some(path);
-    }
-
-    pub fn aspect(&self) -> f32 {
-        self.config.width as f32 / self.config.height as f32
-    }
-
-    /// Starts drawing a world, dropping the previous one's meshes. `table` and `atlas` come from a
-    /// [`crate::LookPack`] over the world's registry (custom blocks shift runtime ids).
-    pub fn set_world(&mut self, world: Arc<World>, table: Arc<BlockTable>, atlas: &Atlas) {
-        self.textures = BlockTextures::new(&self.device, &self.queue, atlas);
-        self.store.replaced = true;
-        let lighting = Lighting::new(world.clone());
-        self.rebuild_scene(world, table, lighting);
-    }
-
-    /// Replaces the biome colours (from the server's `BiomeDefinitionList`) and remeshes.
-    pub fn set_biomes(&mut self, biomes: Arc<BiomeColors>) {
-        self.biomes = biomes;
-        if let Some(scene) = self.scene.take() {
-            let (world, table, lighting) = scene.into_parts();
-            self.rebuild_scene(world, table, lighting);
-        }
-    }
-
-    fn rebuild_scene(&mut self, world: Arc<World>, table: Arc<BlockTable>, lighting: Lighting) {
-        self.store.clear();
-        self.block_models.clear();
-        self.updates.clear();
-        self.scene = Some(Scene::new(world, table, self.biomes.clone(), lighting));
-    }
-
-    pub fn set_entity_models(&mut self, models: Arc<EntityModels>) {
-        self.block_models.set_models(models.clone());
-        self.entities.set_models(&self.device, models);
-    }
-
-    /// What the block entities add to their blocks' models (bed colours, chest pairs).
-    pub fn set_block_data(&mut self, data: Arc<BlockDataMap>) {
-        self.block_models.set_data(data);
-    }
-
-    /// Draws the sun, moon and stars from now on.
-    pub fn set_sky_textures(&mut self, textures: &SkyTextures) {
-        self.sky = Some(SkyPass::new(&self.device, &self.queue, self.config.format, &self.globals, textures));
-    }
-
-    /// The entities to draw from now on; ids come from the models set last.
-    pub fn set_entities(&mut self, entities: Vec<EntityInstance>) {
-        self.entity_list = entities;
-    }
-
-    pub fn world(&self) -> Option<&Arc<World>> {
-        self.scene.as_ref().map(Scene::world)
-    }
-
-    pub fn render(&mut self, camera: &Camera) -> FrameStats {
+    /// Draws a frame from `camera`, with `ui` (its atlas and this frame's quads) over it.
+    pub fn render(&mut self, camera: &Camera, ui: Option<(&acacia_ui::Atlas, &[acacia_ui::Quad])>) -> FrameStats {
         let (cam_block, cam_frac) = camera.split_position();
         if let Some(scene) = &mut self.scene {
             scene.pump(cam_block, &mut self.updates);
@@ -243,6 +188,12 @@ impl Renderer {
         let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance));
         self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), camera.position, light_at);
         drop(light);
+        self.outline_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
+        self.crack_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
+        let (atlas, quads) = ui.map_or((None, &[][..]), |(a, q)| (Some(a), q));
+        if let Some(atlas) = atlas {
+            self.ui_pass.prepare(&self.device, &self.queue, atlas, quads, [self.config.width, self.config.height]);
+        }
         let frustum = Frustum::new(view_proj);
         let reachable = self
             .scene
@@ -286,6 +237,11 @@ impl Renderer {
                 if std::ptr::eq(pipeline, &self.pipelines.solid) {
                     self.entities.draw(&mut pass);
                 }
+            }
+            self.crack_pass.draw(&mut pass);
+            self.outline_pass.draw(&mut pass);
+            if atlas.is_some() {
+                self.ui_pass.draw(&mut pass);
             }
         }
         self.queue.submit([encoder.finish()]);

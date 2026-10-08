@@ -212,7 +212,10 @@ impl EntityPass {
         let mut records = Vec::new();
         let mut bones: Vec<BoneMatrix> = Vec::new();
         for (e, layer) in entities.flat_map(|e| e.layers.iter().map(move |l| (e, l))) {
-            let (Some(model), Some(range)) = (self.models.models().get(layer.model as usize), self.ranges.get(layer.model as usize)) else { continue };
+            let shared = self.models.models().get(layer.model as usize).zip(self.ranges.get(layer.model as usize));
+            if shared.is_none() && e.skin.as_ref().is_none_or(|s| s.mesh.is_none()) {
+                continue;
+            }
             let key = match &e.skin {
                 Some(skin) => TextureKey::Skin(Arc::as_ptr(skin) as usize),
                 None => TextureKey::Layers(layer.textures, layer.tint.is_some()),
@@ -229,7 +232,11 @@ impl EntityPass {
                 Look { skin: e.skin.clone(), texture: entity_textures::bind_group(device, &self.texture_layout, &view, &self.sampler), own_mesh }
             });
             let own = e.skin.as_ref().and_then(|s| s.mesh.as_ref()).filter(|_| look.own_mesh.is_some());
-            let (range, mesh) = own.map_or((range.clone(), &model.mesh), |m| (0..m.vertices.len() as u32, m));
+            let (range, mesh) = match (own, shared) {
+                (Some(m), _) => (0..m.vertices.len() as u32, m),
+                (None, Some((model, range))) => (range.clone(), &model.mesh),
+                (None, None) => continue,
+            };
             // Model space has the entity facing -z with its right at -x: mirror z, then turn.
             let body = Mat4::from_translation((e.position - camera).as_vec3())
                 * Mat4::from_rotation_y(-e.yaw.to_radians())

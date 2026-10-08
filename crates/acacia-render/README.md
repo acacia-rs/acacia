@@ -208,6 +208,24 @@ renderer draws those within the fog distance through the entity pass, lit like e
   head; that 0 faces north is assumed from Java.
 - A bed's head piece draws both halves. Lids never open. Signs show no text.
 
+## Items (`item/`)
+
+`ItemModels::new(pack, table)` turns an item stack (`ItemKey`: name, aux, block runtime id) into an
+entity-pass mesh with its own texture, built on first use and cached.
+
+- **Icons** (`icons.rs`): vanilla's item-to-icon map is built into the client, so it is rebuilt
+  from `textures/item_texture.json` by rename rules plus a table of exceptions. An item with an icon
+  draws it, even when it places a block (doors, beds).
+- **Flat items** (`extrude.rs`, Java's `ItemModelGenerator`): the icon's first frame, front and back
+  quads over the sprite and a side face wherever an opaque texel meets a transparent one, 1/16 deep.
+  Cross-shaped blocks without an icon draw their texture this way.
+- **Block items** (`block.rs`): the block's cube, boxes or model faces, each distinct
+  texture/tint/material stacked into one texture. The entity pass has no tints, so tinted texels are
+  baked under plains colours.
+- **Dropped** (`drop.rs`, Java's `ItemEntityRenderer`): hover, bob, spin, the number of copies by
+  stack size and their scatter come from `Look::dropped` (Java's values for both looks; Bedrock's are
+  unmeasured). The bob phase follows from the runtime id, the scatter from network id plus aux.
+
 ## Day and night (`sky.rs`, `gpu/sky.rs`)
 
 `Renderer::time` is the time of day in ticks (noon until set). `Sky::at` turns it into the sky and fog
@@ -275,7 +293,7 @@ open lids, piglin heads. Entities: animation
 state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller colours (slime shell,
 creeper flash, collar and armour dyes), queries that need untracked state (equipment, synced
 properties such as the climate variant), babies' own proportions where the pack has no baby
-geometry, dropped items, name tags, armour and held items, capes.
+geometry, name tags, armour and held items (the bot tracks `Entity::equipment`; nothing draws it), capes.
 
 Approximate: water loses 2 light per block (the wiki's Bedrock opacity note; its table is ambiguous),
 so seabeds deeper than ~7 blocks go dark. Each section change relights its whole column.

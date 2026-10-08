@@ -3,12 +3,19 @@
 //! - `@account` signs in online with tokens cached in ./.tokens (see acacia-auth's device_login).
 //! - Assets: a look baked by tools/lookbake (assets/looks/<name>), or else the resource pack from
 //!   tools/fetch-vanilla-pack.sh (ACACIA_ASSETS), baked at start (looks.rs).
-//! - Controls: click to grab the mouse, WASD/Space/Shift to fly, Ctrl faster, wheel changes speed,
-//!   F jumps to the bot, V toggles vsync, C toggles cave culling, L switches the look, Esc releases
-//!   the mouse. V, C and L are remembered (settings.rs).
+//! - Controls: click to grab the mouse, Esc releases it, F6 switches between playing and a free
+//!   camera, L switches the look (remembered, settings.rs).
+//!   - Playing: WASD, Space jumps, Shift sneaks, Ctrl sprints; left button mines or hits, right
+//!     button uses or places; 1-9 and the wheel pick the hotbar slot; T or / opens the chat (Enter
+//!     sends, Up recalls); F5 changes the perspective.
+//!   - Either: F3 shows the debug screen.
+//!   - Free camera: WASD/Space/Shift fly, Ctrl faster, wheel changes speed, F jumps to the bot,
+//!     V toggles vsync, C toggles cave culling (both remembered).
 
 mod app;
 mod block_data;
+mod control;
+mod debug_lines;
 mod entities;
 #[cfg(feature = "profile")]
 mod heap;
@@ -16,9 +23,12 @@ mod input;
 mod looks;
 mod net;
 mod overlay;
+mod pick;
+mod player;
 mod settings;
 mod shot;
 mod smooth;
+mod ui;
 
 #[cfg(feature = "profile")]
 #[global_allocator]

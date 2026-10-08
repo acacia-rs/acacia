@@ -7,7 +7,7 @@ use acacia_client::proto::types::InputData;
 use acacia_client::proto::RawPacket;
 use acacia_client::{Client, ClientBuilder, ConnectError, DisconnectReason, Event, MemoryBlobStore, PacketFilter};
 use crate::cadence::Ticker;
-use crate::events::{BotEvent, EventSource};
+use crate::events::{BotEvent, EventSource, Events};
 use crate::human::Human;
 use crate::items::RequestIds;
 use crate::movement::{Controls, Idle, Movement};
@@ -62,6 +62,7 @@ pub struct Bot {
     pub(crate) bed: Bed,
     pub(crate) request_ids: RequestIds,
     pub(crate) reflexes: Reflexes,
+    pub(crate) mining: Option<crate::interact::Mining>,
     strict: bool,
     closed: Option<DisconnectReason>,
 }
@@ -96,7 +97,9 @@ impl Bot {
             world.set_blob_store(store.clone());
         }
         let (world, movement, idle) = if config.physics {
-            (world, Some(Movement::new()), None)
+            let mut movement = Movement::new();
+            movement.mouse_input = config.mouse_input;
+            (world, Some(movement), None)
         } else {
             (world.nearby(), None, Some((Idle::default(), SpawnSequence::default())))
         };
@@ -122,6 +125,7 @@ impl Bot {
             bed: Bed::default(),
             request_ids: RequestIds::default(),
             reflexes: Reflexes::default(),
+            mining: None,
             strict: config.strict,
             closed: None,
         })
@@ -184,6 +188,7 @@ impl Bot {
             self.survival.idle = true;
             match self.step().await? {
                 Step::Packet(packet) => self.keep_for_caller(packet),
+                Step::Tick if self.events.wants(Events::TICKS) => return Some(BotEvent::Tick),
                 Step::Tick | Step::Idle => {}
                 Step::Disconnected(reason) => return Some(BotEvent::Disconnected(reason)),
             }

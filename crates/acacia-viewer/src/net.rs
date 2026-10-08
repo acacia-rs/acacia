@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use acacia_bot::client::{Client, ClientBuilder, PacketFilter};
 use acacia_bot::proto::Packet;
 use acacia_bot::proto::packets::BiomeDefinitionList;
-use acacia_bot::{Bot, BotConfig, BotEvent};
+use acacia_bot::{Bot, BotConfig, BotEvent, Events};
 use acacia_render::biome::{BiomeColors, BiomeDef};
 use acacia_bot::state::Trackers;
 use acacia_render::block_models::BlockDataMap;
@@ -17,7 +17,10 @@ use acacia_world::World;
 
 use crate::entities::{Feed, SNAPSHOT_SECS, Tracked};
 use glam::DVec3;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::sync::oneshot;
+
+use crate::control::{self, Command, Me};
 
 /// Reports between looks at the block entities for changed model data.
 const BLOCK_DATA_EVERY: u32 = 10;
@@ -35,6 +38,10 @@ pub enum NetEvent {
     Biomes(Arc<BiomeColors>),
     /// The bot's eye position.
     Player(DVec3),
+    /// The player after each tick.
+    Me(Me),
+    /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
+    Chat { sender: Option<String>, message: String, params: Vec<String> },
     /// Sent once, before any [`NetEvent::Entities`].
     EntityModels(Arc<EntityModels>),
     Entities(Vec<Tracked>),
@@ -52,6 +59,7 @@ pub enum NetEvent {
 /// (`ServerIdConflict`).
 pub struct Net {
     pub events: Receiver<NetEvent>,
+    pub commands: UnboundedSender<Command>,
     quit: Option<oneshot::Sender<()>>,
 }
 
@@ -81,25 +89,33 @@ impl Net {
 pub fn spawn(options: Options, files: PathBuf) -> Net {
     let (tx, events) = channel();
     let (quit, quit_rx) = oneshot::channel();
+    let (commands, commands_rx) = unbounded_channel();
     std::thread::Builder::new()
         .name("bot".into())
         .spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("tokio runtime");
-            let reason = rt.block_on(run(options, &files, &tx, quit_rx)).unwrap_or_else(|e| format!("error: {e}"));
+            let reason = rt.block_on(run(options, &files, &tx, quit_rx, commands_rx)).unwrap_or_else(|e| format!("error: {e}"));
             let _ = tx.send(NetEvent::Ended(reason));
         })
         .expect("spawn bot thread");
-    Net { events, quit: Some(quit) }
+    Net { events, commands, quit: Some(quit) }
 }
 
 /// Returns why the session ended.
-async fn run(options: Options, files: &Path, tx: &Sender<NetEvent>, mut quit: oneshot::Receiver<()>) -> Result<String, Box<dyn std::error::Error>> {
+async fn run(
+    options: Options,
+    files: &Path,
+    tx: &Sender<NetEvent>,
+    mut quit: oneshot::Receiver<()>,
+    mut commands: UnboundedReceiver<Command>,
+) -> Result<String, Box<dyn std::error::Error>> {
     let send = |e| tx.send(e).map_err(|_| "window closed");
     send(NetEvent::Status(format!("connecting to {}", options.server)))?;
     let builder = login(Client::builder(&options.server).chunk_radius(options.radius), &options.name).await?;
     let subscribe = PacketFilter::none().with(BiomeDefinitionList::ID);
     let trackers = Trackers { entities: true, skins: true, ..Trackers::default() };
-    let config = BotConfig { physics: true, auto_respawn: true, subscribe, trackers, ..BotConfig::default() };
+    let events = Events::TICKS | Events::CHAT;
+    let config = BotConfig { physics: true, auto_respawn: true, subscribe, trackers, events, mouse_input: true, ..BotConfig::default() };
     let models = Arc::new(EntityModels::load(files));
     send(NetEvent::EntityModels(models.clone()))?;
     let mut feed = Feed::new(models);
@@ -133,8 +149,21 @@ async fn run(options: Options, files: &Path, tx: &Sender<NetEvent>, mut quit: on
                     send(NetEvent::Biomes(Arc::new(colors)))?;
                     continue;
                 }
+                Some(BotEvent::Chat(m)) => {
+                    let sender = m.sender.filter(|s| !s.is_empty());
+                    send(NetEvent::Chat { sender, message: m.message, params: m.params })?;
+                    continue;
+                }
+                Some(BotEvent::Tick) => {
+                    send(NetEvent::Me(control::me(&bot)))?;
+                    continue;
+                }
                 Some(_) => continue,
             },
+            Some(command) = commands.recv() => {
+                control::apply(&mut bot, command);
+                continue;
+            }
             _ = report.tick() => {}
             _ = &mut quit => {
                 bot.disconnect().await;

@@ -29,6 +29,8 @@ pub use skin::{Skin, SkinSource};
 pub type ModelId = u32;
 pub type TextureId = u32;
 pub const NO_TEXTURE: TextureId = u32::MAX;
+/// A layer whose instance's skin brings the only mesh (items).
+pub const NO_MODEL: ModelId = u32::MAX;
 
 pub struct Model {
     pub mesh: Mesh,
@@ -155,12 +157,21 @@ impl EntityModels {
         &self.textures
     }
 
+    /// A fresh scope for one entity, with the variables the game sets itself.
+    fn scope<'a>(&'a self, query: &'a dyn Fn(&str) -> Value) -> Scope<'a> {
+        let mut scope = Scope::new(&self.compiler, query);
+        for &(variable, value) in &self.built_in {
+            scope.set(variable, value);
+        }
+        scope
+    }
+
     /// What to draw for an entity of `kind` and the scale its definition asks for. `query`
     /// answers Molang queries about the entity by name (`is_baby`, `variant`); see
     /// [`molang::Scope::query`].
     pub fn appearance(&self, kind: &str, query: &dyn Fn(&str) -> Value) -> Option<(Arc<[Layer]>, f32)> {
         let definition = self.kinds.get(kind)?;
-        let mut scope = Scope::new(&self.compiler, query);
+        let mut scope = self.scope(query);
         for script in &definition.scripts {
             scope.run(script);
         }
