@@ -59,12 +59,22 @@ struct Listed {
 pub struct BiomeColors {
     by_id: FxHashMap<u32, BiomeTint>,
     unknown: BiomeTint,
+    /// Temperature and downfall by id, for [`BiomeColors::fall`].
+    climate: FxHashMap<u32, (f32, f32)>,
+}
+
+/// What falls from the sky in a biome when it rains.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fall {
+    Nothing,
+    Rain,
+    Snow,
 }
 
 impl Default for BiomeColors {
     /// Plains everywhere, until the server's definitions arrive.
     fn default() -> Self {
-        BiomeColors { by_id: FxHashMap::default(), unknown: PLAINS }
+        BiomeColors { by_id: FxHashMap::default(), unknown: PLAINS, climate: FxHashMap::default() }
     }
 }
 
@@ -78,7 +88,7 @@ impl BiomeColors {
         let by_id = defs
             .iter()
             .filter_map(|d| {
-                let id = if d.id == ids::UNSET { ids::vanilla(&d.name)? } else { d.id };
+                let id = id_of(d)?;
                 let (g, f) = (grass.sample(d), foliage.sample(d));
                 let (g, f) = exceptions(&d.name, g, f);
                 let l = listed.get(d.name.as_str()).copied().unwrap_or_default();
@@ -92,18 +102,37 @@ impl BiomeColors {
                 Some((u32::from(id), tint))
             })
             .collect();
-        BiomeColors { by_id, unknown }
+        let climate = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), (d.temperature, d.downfall)))).collect();
+        BiomeColors { by_id, unknown, climate }
     }
 
     #[cfg(test)]
     pub(crate) fn of(tints: &[(u32, BiomeTint)]) -> BiomeColors {
-        BiomeColors { by_id: tints.iter().copied().collect(), unknown: PLAINS }
+        BiomeColors { by_id: tints.iter().copied().collect(), unknown: PLAINS, climate: FxHashMap::default() }
+    }
+
+    /// Java's `Biome.getPrecipitationAt`: none where it never rains (no downfall: deserts,
+    /// savannas, badlands), snow where it is cold at `y` (`coldEnoughToSnow`, the temperature
+    /// falling 0.05 per 40 blocks above y 80, its noise left out), else rain. Unknown ids rain.
+    pub fn fall(&self, id: u32, y: i32) -> Fall {
+        let Some(&(temperature, downfall)) = self.climate.get(&id) else { return Fall::Rain };
+        let cooled = temperature - (y - 80).max(0) as f32 * 0.05 / 40.0;
+        match (downfall, cooled) {
+            (d, _) if d <= 0.0 => Fall::Nothing,
+            (_, t) if t < 0.15 => Fall::Snow,
+            _ => Fall::Rain,
+        }
     }
 
     /// Unknown ids (and chunks without biomes) tint like plains, with the files' default water.
     pub fn get(&self, id: u32) -> &BiomeTint {
         self.by_id.get(&id).unwrap_or(&self.unknown)
     }
+}
+
+/// A definition's numeric id: its own, or vanilla's for its name.
+fn id_of(d: &BiomeDef) -> Option<u16> {
+    if d.id == ids::UNSET { ids::vanilla(&d.name) } else { Some(d.id) }
 }
 
 /// Vanilla's per-biome overrides of the colormap.
@@ -173,4 +202,18 @@ fn listed(root: &Path) -> FxHashMap<String, Listed> {
         (name.strip_prefix("minecraft:").unwrap_or(name).to_owned(), listed)
     };
     biomes.iter().map(entry).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserts_stay_dry_and_cold_heights_snow() {
+        let def = |id, temperature, downfall| BiomeDef { id, name: String::new(), temperature, downfall };
+        let biomes = BiomeColors::build(&[def(1, 0.8, 0.4), def(2, 2.0, 0.0), def(3, 0.0, 0.5), def(4, 0.2, 0.3)], Path::new(""));
+        assert_eq!((biomes.fall(1, 64), biomes.fall(2, 64), biomes.fall(3, 64)), (Fall::Rain, Fall::Nothing, Fall::Snow));
+        // 0.2 cools below 0.15 forty blocks above y 80.
+        assert_eq!((biomes.fall(4, 100), biomes.fall(4, 121), biomes.fall(99, 64)), (Fall::Rain, Fall::Snow, Fall::Rain));
+    }
 }

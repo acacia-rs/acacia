@@ -9,6 +9,7 @@ use glam::DVec3;
 use image::RgbaImage;
 
 use crate::assets::image_file;
+use crate::biome::{BiomeColors, Fall};
 
 /// Columns this far from the camera get rain (Java's fancy radius).
 pub const RADIUS: i32 = 10;
@@ -49,17 +50,19 @@ pub fn load_clouds(files: &Path) -> Option<RgbaImage> {
     Some(image::open(image_file(files, "textures/environment/clouds")?).ok()?.into_rgba8())
 }
 
-/// One rainy column: where it is and the y range it rains over.
+/// One rainy column: where it is, the y range it rains over, and whether it snows there.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Column {
     pub x: i32,
     pub z: i32,
     pub bottom: i32,
     pub top: i32,
+    pub snow: bool,
 }
 
-/// The columns around `camera` that rain reaches, each down to its first blocking block.
-pub fn columns(world: &World, camera: DVec3) -> Vec<Column> {
+/// The columns around `camera` that rain or snow reaches, each down to its first blocking block;
+/// columns whose biome never rains are left out ([`BiomeColors::fall`] at the ground).
+pub fn columns(world: &World, biomes: &BiomeColors, camera: DVec3) -> Vec<Column> {
     let eye = camera.floor().as_ivec3();
     let (top, lowest) = (eye.y + ABOVE, eye.y - BELOW);
     let mut out = Vec::new();
@@ -73,8 +76,12 @@ pub fn columns(world: &World, camera: DVec3) -> Vec<Column> {
             let chunk = chunk.read();
             // The first block from above that stops rain: anything but air.
             let ground = (lowest..=top).rev().find(|&y| world.registry().get(chunk.block(x, y, z)).is_some_and(|s| !s.is_air())).map_or(lowest, |y| y + 1);
-            if ground < top {
-                out.push(Column { x, z, bottom: ground.max(lowest), top });
+            if ground >= top {
+                continue;
+            }
+            let fall = chunk.biome(x, ground, z).map_or(Fall::Rain, |id| biomes.fall(id, ground));
+            if fall != Fall::Nothing {
+                out.push(Column { x, z, bottom: ground.max(lowest), top, snow: fall == Fall::Snow });
             }
         }
     }
@@ -94,7 +101,7 @@ mod tests {
 
     #[test]
     fn rain_fades_towards_the_edge() {
-        let c = |x| Column { x, z: 0, bottom: 0, top: 10 };
+        let c = |x| Column { x, z: 0, bottom: 0, top: 10, snow: false };
         let camera = DVec3::new(0.5, 5.0, 0.5);
         assert!((fade(&c(0), camera) - 1.0).abs() < 1e-6);
         assert!((fade(&c(10), camera) - 0.5).abs() < 1e-6);

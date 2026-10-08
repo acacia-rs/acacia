@@ -117,7 +117,7 @@ mod tests {
         let storm = Sky::at(NOON, Weather { rain: 1.0, thunder: 1.0, flash: 0.0 });
         // Java's sky light under a thunderstorm at noon: (1 - 11/16)² of the day, 11 levels × 0.902.
         assert!((storm.darken - NIGHT_DARKEN * (1.0 - (11.0f32 / 16.0).powi(2))).abs() < 1e-4, "{storm:?}");
-        let [r, g, b] = storm.color;
+        let [r, _, b] = storm.color;
         assert!((r - b).abs() < 0.12 && b < DAY[2] * 0.5, "{storm:?}");
         assert_eq!((storm.stars, storm.celestial), (0.0, 0.0));
         let flash = Sky::at(18000.0, Weather { flash: 1.0, ..Weather::default() });

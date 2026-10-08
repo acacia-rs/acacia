@@ -189,7 +189,7 @@ impl Renderer {
         self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
         self.prepare_particles(camera);
         let world = self.scene.as_ref().map(|s| s.world().clone());
-        self.weather_pass.prepare(&self.queue, world.as_deref(), camera.position, self.weather.rain, self.started.elapsed().as_secs_f32());
+        self.weather_pass.prepare(&self.queue, world.as_deref(), &self.biomes, camera.position, self.weather.rain, self.started.elapsed().as_secs_f32());
         let clouds = self.cloud_height.filter(|_| world.as_ref().is_none_or(|w| w.dimension().sky));
         self.cloud_pass.prepare(&self.queue, camera.position, clouds, crate::sky::cloud_tint(self.weather), self.started.elapsed().as_secs_f64());
 

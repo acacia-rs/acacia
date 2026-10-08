@@ -6,8 +6,9 @@ use glam::{DVec3, Vec3};
 use super::pipeline::DEPTH_FORMAT;
 use crate::weather::{self, Column};
 
-/// Blocks per second it falls; Java's rain alpha.
+/// Blocks per second rain falls; snow drifts down one texture height per 512 ticks (Java); Java's rain alpha.
 const FALL: f32 = 10.0;
+const SNOW_REPEATS_PER_SECOND: f32 = 20.0 / 512.0;
 const ALPHA: f32 = 0.6;
 /// Frames between rescans of the columns' ground.
 const RESCAN: u32 = 4;
@@ -121,11 +122,11 @@ impl WeatherPass {
     }
 
     /// `rain` 0 to 1; `seconds` drives the fall.
-    pub fn prepare(&mut self, queue: &wgpu::Queue, world: Option<&acacia_world::World>, camera: DVec3, rain: f32, seconds: f32) {
+    pub fn prepare(&mut self, queue: &wgpu::Queue, world: Option<&acacia_world::World>, biomes: &crate::biome::BiomeColors, camera: DVec3, rain: f32, seconds: f32) {
         self.count = 0;
         let (Some(world), true) = (world, rain > 0.0 && self.bind_group.is_some()) else { return };
         if self.frame % RESCAN == 0 {
-            self.columns = weather::columns(world, camera);
+            self.columns = weather::columns(world, biomes, camera);
         }
         self.frame = self.frame.wrapping_add(1);
         let mut out = Vec::with_capacity(self.columns.len() * 6);
@@ -137,11 +138,13 @@ impl WeatherPass {
             // A different streak offset per column, so the rain does not fall in lockstep.
             let offset = ((c.x.wrapping_mul(3121) ^ c.z.wrapping_mul(45238971)) & 31) as f32 / 32.0;
             let alpha = rain * ALPHA * weather::fade(c, camera);
-            let v = |y: i32| (y as f32 + seconds * FALL) / self.blocks_per_repeat + offset;
+            let fallen = if c.snow { seconds * SNOW_REPEATS_PER_SECOND } else { seconds * FALL / self.blocks_per_repeat };
+            let v = |y: i32| y as f32 / self.blocks_per_repeat + fallen + offset;
+            // The left half is rain, the right half snow.
+            let half = if c.snow { 0.5 } else { 0.0 };
             let corner = |s: f32, y: i32, u: f32| Vertex {
                 position: (base + side * s + Vec3::Y * (y as f32 - camera.y as f32)).to_array(),
-                // The left half is rain, the right half snow (Bedrock's `weather.png`).
-                uv: [u, -v(y)],
+                uv: [u + half, -v(y)],
                 alpha,
             };
             let (bl, br, tr, tl) = (corner(-1.0, c.bottom, 0.0), corner(1.0, c.bottom, 0.5), corner(1.0, c.top, 0.5), corner(-1.0, c.top, 0.0));
