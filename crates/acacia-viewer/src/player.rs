@@ -19,6 +19,9 @@ use crate::pick::{self, EntityBox, Target};
 const MOUSE_SENSITIVITY: f32 = 0.0025;
 /// One client tick.
 const TICK: Duration = Duration::from_millis(50);
+/// A Space press is reported this long at least, so a quick tap reaches a 50 ms movement tick: BDS
+/// toggles flight on two presses it sees (README "Flight" in acacia-physics).
+const JUMP_LATCH: Duration = Duration::from_millis(70);
 /// Java's `rightClickDelay`: a held use button repeats every 4 ticks.
 const USE_REPEAT: Duration = Duration::from_millis(200);
 const HOTBAR_KEYS: [KeyCode; 9] = [
@@ -44,6 +47,8 @@ pub struct Play {
     perspective: u8,
     /// When the arm last started a swing.
     swung: Option<Instant>,
+    /// When Space was last pressed (see `JUMP_LATCH`).
+    jumped: Option<Instant>,
 }
 
 /// Java's arm swing: 6 ticks.
@@ -68,7 +73,7 @@ impl EyeTrack {
 
 impl Play {
     pub fn new(commands: UnboundedSender<Command>) -> Self {
-        Play { commands, held: Vec::new(), sent: None, eye: None, me: None, target: None, entity: None, attacking: false, using: None, using_item: false, perspective: 0, swung: None }
+        Play { commands, held: Vec::new(), sent: None, eye: None, me: None, target: None, entity: None, attacking: false, using: None, using_item: false, perspective: 0, swung: None, jumped: None }
     }
 
     fn send(&self, command: Command) {
@@ -91,6 +96,9 @@ impl Play {
         self.held.retain(|&k| k != key);
         if pressed {
             self.held.push(key);
+            if key == KeyCode::Space {
+                self.jumped = Some(Instant::now());
+            }
             if let Some(slot) = HOTBAR_KEYS.iter().position(|&k| k == key) {
                 self.send(Command::Hotbar(slot as u8));
             }
@@ -225,7 +233,7 @@ impl Play {
         Controls {
             forward: axis(KeyCode::KeyW, KeyCode::KeyS),
             strafe: axis(KeyCode::KeyA, KeyCode::KeyD),
-            jump: down(KeyCode::Space),
+            jump: down(KeyCode::Space) || self.jumped.is_some_and(|t| t.elapsed() < JUMP_LATCH),
             sneak: down(KeyCode::ShiftLeft),
             sprint: down(KeyCode::ControlLeft),
             glide: false,

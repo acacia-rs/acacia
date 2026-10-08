@@ -25,6 +25,7 @@ use crate::control::Inventory;
 use crate::debug_lines::{self, Facts};
 use crate::forms::{FormScreen, Images};
 use crate::input::FlyInput;
+use crate::keyscript::KeyScript;
 use crate::looks::Looks;
 use crate::net::Net;
 use crate::player::Play;
@@ -75,6 +76,7 @@ pub struct App {
     shift: bool,
     /// `ACACIA_ATTACK`: hold attack on whatever is targeted (unattended mining).
     auto_attack: bool,
+    key_script: Option<KeyScript>,
     /// The last frame's figures and the frame rate, for the debug screen.
     stats: FrameStats,
     fps: f32,
@@ -138,6 +140,7 @@ impl App {
             mouse: [0.0; 2],
             shift: false,
             auto_attack: std::env::var_os("ACACIA_ATTACK").is_some(),
+            key_script: KeyScript::from_env(),
             stats: FrameStats::default(),
             fps: 0.0,
             net,

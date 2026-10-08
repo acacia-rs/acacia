@@ -5,7 +5,8 @@
 //!   tools/fetch-vanilla-pack.sh (ACACIA_ASSETS), baked at start (looks.rs).
 //! - Controls: click to grab the mouse, Esc releases it, F6 switches between playing and a free
 //!   camera, L switches the look (remembered, settings.rs).
-//!   - Playing: WASD, Space jumps, Shift sneaks, Ctrl sprints; left button mines or hits, right
+//!   - Playing: WASD, Space jumps, Shift sneaks, Ctrl sprints; Space twice toggles flight where allowed
+//!     (then Space rises, Shift descends); left button mines or hits, right
 //!     button uses or places; 1-9 and the wheel pick the hotbar slot; T or / opens the chat (Enter
 //!     sends, Up recalls); F5 changes the perspective; E opens the inventory (click, right-click,
 //!     shift-click; outside drops); Esc opens the pause menu and its options.
@@ -23,6 +24,7 @@ mod forms;
 #[cfg(feature = "profile")]
 mod heap;
 mod input;
+mod keyscript;
 mod looks;
 mod net;
 mod overlay;
