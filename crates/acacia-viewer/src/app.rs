@@ -35,6 +35,7 @@ use crate::ui::{Frame, Ui};
 use menu::Menu;
 
 const TITLE_EVERY: Duration = Duration::from_millis(500);
+const CLOUD_HEIGHT: f32 = 192.33;
 /// A frame's work before drawing that takes longer than this is logged, by stage.
 const SLOW_FRAME: Duration = Duration::from_millis(250);
 
@@ -217,6 +218,8 @@ impl App {
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.settings.cave_culling;
         r.rain = self.play.me.as_ref().map_or(0.0, |m| m.rain);
+        // Java's cloud height; Bedrock's is unmeasured, so both looks use it.
+        r.cloud_height = Some(CLOUD_HEIGHT);
         if let Some(time) = self.time {
             // The server sends the time every few seconds: ease towards it, the short way round the day.
             let ahead = (time as f32 - r.time + DAY_TICKS / 2.0).rem_euclid(DAY_TICKS) - DAY_TICKS / 2.0;

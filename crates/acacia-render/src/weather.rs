@@ -26,6 +26,11 @@ pub fn load_texture(files: &Path) -> Option<RgbaImage> {
     Some(streaks)
 }
 
+/// The cloud map, `textures/environment/clouds.png`: opaque texels are cloud.
+pub fn load_clouds(files: &Path) -> Option<RgbaImage> {
+    Some(image::open(image_file(files, "textures/environment/clouds")?).ok()?.into_rgba8())
+}
+
 /// One rainy column: where it is and the y range it rains over.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Column {

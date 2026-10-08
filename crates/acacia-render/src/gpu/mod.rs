@@ -1,4 +1,5 @@
 mod atlas;
+mod clouds;
 mod crack;
 mod device;
 mod entities;
@@ -84,6 +85,9 @@ pub struct Renderer {
     weather_pass: weather::WeatherPass,
     /// How hard it rains, 0 to 1.
     pub rain: f32,
+    cloud_pass: clouds::CloudPass,
+    /// World y of the cloud layer; `None` draws none.
+    pub cloud_height: Option<f32>,
     scene: Option<Scene>,
     biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
@@ -117,6 +121,7 @@ impl Renderer {
         let ui_pass = UiPass::new(&device, config.format.remove_srgb_suffix());
         let particle_pass = particles::ParticlePass::new(&device, config.format);
         let weather_pass = weather::WeatherPass::new(&device, config.format, &globals);
+        let cloud_pass = clouds::CloudPass::new(&device, config.format, &globals);
         let crack_pass = CrackPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
@@ -145,6 +150,8 @@ impl Renderer {
             particle_tick: 0,
             weather_pass,
             rain: 0.0,
+            cloud_pass,
+            cloud_height: None,
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
@@ -183,6 +190,8 @@ impl Renderer {
         self.prepare_particles(camera);
         let world = self.scene.as_ref().map(|s| s.world().clone());
         self.weather_pass.prepare(&self.queue, world.as_deref(), camera.position, self.rain, self.started.elapsed().as_secs_f32());
+        let clouds = self.cloud_height.filter(|_| world.as_ref().is_none_or(|w| w.dimension().sky));
+        self.cloud_pass.prepare(&self.queue, camera.position, clouds, self.started.elapsed().as_secs_f64());
 
         let view_proj = camera.view_proj();
         let has_sky = self.world().is_none_or(|w| w.dimension().sky);
@@ -258,6 +267,7 @@ impl Renderer {
                 }
             }
             self.particle_pass.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
+            self.cloud_pass.draw(&mut pass);
             self.weather_pass.draw(&mut pass);
             self.crack_pass.draw(&mut pass);
             self.outline_pass.draw(&mut pass);

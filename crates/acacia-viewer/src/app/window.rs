@@ -34,6 +34,9 @@ impl ApplicationHandler for App {
                 if let Some(streaks) = acacia_render::weather::load_texture(files) {
                     r.set_weather_texture(&streaks);
                 }
+                if let Some(map) = acacia_render::weather::load_clouds(files) {
+                    r.set_cloud_texture(&map);
+                }
                 self.renderer = Some(r);
             }
             Err(e) => {
