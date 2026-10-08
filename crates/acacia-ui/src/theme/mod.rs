@@ -11,6 +11,7 @@ use image::RgbaImage;
 
 use crate::atlas::Atlas;
 use crate::font::Font;
+use crate::widget::Widgets;
 
 /// Layout choices the games make differently.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -26,6 +27,7 @@ pub struct Theme {
     /// `None` when no font was found: text is not drawn.
     pub font: Option<Font>,
     pub style: Style,
+    pub widgets: Widgets,
 }
 
 pub(crate) fn png(path: &Path) -> Option<RgbaImage> {

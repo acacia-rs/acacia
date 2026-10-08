@@ -2,19 +2,20 @@
 //! and modes: app/keys.rs.
 
 mod events;
+mod form;
 mod keys;
 mod menu;
 mod screen;
+mod view;
 mod window;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acacia_render::blocks::BlockTable;
-use acacia_render::entity::EntityInstance;
-use acacia_render::item::{ItemKey, ItemModels, hand};
+use acacia_render::item::ItemModels;
 use acacia_render::sky::{DAY_TICKS, SkyTextures, moon_phase};
-use acacia_render::{Camera, FrameStats, Outline, Renderer};
+use acacia_render::{Camera, FrameStats, Renderer};
 use acacia_world::World;
 use glam::DVec3;
 use winit::window::{CursorGrabMode, Window};
@@ -22,11 +23,12 @@ use winit::window::{CursorGrabMode, Window};
 use crate::audio::Audio;
 use crate::control::Inventory;
 use crate::debug_lines::{self, Facts};
+use crate::forms::{FormScreen, Images};
 use crate::input::FlyInput;
 use crate::looks::Looks;
 use crate::net::Net;
 use crate::player::Play;
-use crate::settings::Settings;
+use crate::settings::{LookChoice, Settings};
 use crate::shot::Shot;
 use crate::smooth::Smoother;
 use crate::ui::{Frame, Ui};
@@ -57,6 +59,9 @@ pub struct App {
     audio: Audio,
     /// F3.
     show_debug: bool,
+    /// Tab held: the player list shows.
+    show_players: bool,
+    players: Vec<String>,
     /// The inventory screen is open (E).
     screen_open: bool,
     /// The pause menu or options (Esc).
@@ -88,6 +93,9 @@ pub struct App {
     shot: Option<Shot>,
     /// Why the bot's session ended before an unattended screenshot was taken; the viewer exits.
     pub failed: Option<String>,
+    /// The server form shown, and its button images.
+    form: Option<FormScreen>,
+    form_images: Images,
 }
 
 /// Frame-rate and memory figures shown in the title.
@@ -110,10 +118,14 @@ impl App {
         let shot = Shot::from_env();
         let mode = if shot.is_some() && std::env::var_os("ACACIA_PLAY").is_none() { Mode::Fly } else { Mode::Play };
         let (ui, audio) = (Ui::new(&looks), Audio::new(&looks));
+        // Form button images name textures of the Bedrock pack, whichever look is shown.
+        let bedrock_pack = looks.get(LookChoice::Bedrock).files().to_owned();
         App {
             ui,
             audio,
             show_debug: std::env::var_os("ACACIA_DEBUG").is_some(),
+            show_players: false,
+            players: Vec::new(),
             // For unattended screenshots of the inventory screen.
             screen_open: std::env::var_os("ACACIA_SCREEN").is_some(),
             // For unattended screenshots of the pause menu.
@@ -146,6 +158,8 @@ impl App {
             overlay: Overlay { since: Instant::now(), frames: 0, reports: 0 },
             shot,
             failed: None,
+            form: App::shot_form(),
+            form_images: Images::new(&bedrock_pack),
         }
     }
 
@@ -176,34 +190,6 @@ impl App {
         self.table = Some(table.clone());
         self.ui.set_world(self.settings.look, pack.clone(), table.clone());
         r.set_world(world, table, &pack.atlas);
-    }
-
-    /// Moves the camera by the mode's input; in play, finds the targeted block.
-    fn steer(&mut self, now: Instant, dt: f32) -> Option<Outline> {
-        match self.mode {
-            Mode::Fly => {
-                self.input.step(&mut self.camera, dt);
-                None
-            }
-            Mode::Play => {
-                let world = self.renderer.as_ref().and_then(|r| r.world().cloned());
-                let entities = self.entities.hitboxes();
-                self.play.frame(&mut self.camera, world.as_deref(), self.table.as_deref(), &entities, now);
-                let mining = self.play.me.as_ref().and_then(|m| m.mining);
-                self.play.target.as_ref().map(|t| {
-                    let crack = mining.filter(|(block, _)| *block == t.block).map(|(_, progress)| (progress * 10.0).clamp(0.0, 9.0) as u8);
-                    Outline { block: t.block, boxes: t.boxes.clone(), crack }
-                })
-            }
-        }
-    }
-
-    /// The held item in first person, swinging with clicks.
-    fn hand(&mut self, now: Instant) -> Option<EntityInstance> {
-        let stack = self.play.held_first_person().filter(|_| self.mode == Mode::Play)?.clone();
-        let swing = self.play.swing(now);
-        let model = self.entities.item(&ItemKey { name: stack.name, aux: stack.aux, block: stack.block })?;
-        Some(hand::first_person(&model, &self.camera, swing))
     }
 
     fn frame(&mut self) {
@@ -239,13 +225,16 @@ impl App {
             let facts = Facts { camera: &self.camera, fps: self.fps, stats: &self.stats, look: self.settings.look, mode: self.mode, target, world: world.as_deref() };
             debug_lines::lines(&facts)
         });
+        self.update_form();
         let (size, scale) = self.gui();
         let mouse = self.gui_mouse();
         let screen = self.screen_open.then_some((&self.inventory, self.layout()));
         let menu = self.menu.map(|m| self.menu_content(m));
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice()));
         let Some(r) = &mut self.renderer else { return };
-        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, mouse, size, scale, now };
+        let form = self.form.as_ref();
+        let players = self.show_players.then_some(self.players.as_slice());
+        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, form, players, mouse, size, scale, now };
         let ui = self.ui.draw(frame);
         let view = match self.mode == Mode::Play && self.play.view_turned() {
             true => Camera { yaw: self.camera.yaw + std::f32::consts::PI, pitch: -self.camera.pitch, ..self.camera },

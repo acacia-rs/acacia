@@ -15,6 +15,9 @@ impl App {
             }
             return;
         }
+        if self.form.is_some() {
+            return self.form_key(code, pressed);
+        }
         if self.ui.chat.is_open() || self.screen_open {
             if pressed && self.screen_open {
                 self.screen_key(code);
@@ -31,6 +34,7 @@ impl App {
             }
             (KeyCode::Escape, true) if self.mode == Mode::Play => self.open_menu(Menu::Pause),
             (KeyCode::Escape, true) => self.grab(false),
+            (KeyCode::Tab, _) => self.show_players = pressed,
             (KeyCode::F6, true) => self.switch_mode(),
             (KeyCode::F3, true) => self.show_debug = !self.show_debug,
             (KeyCode::F5, true) if self.mode == Mode::Play => self.play.next_perspective(),
@@ -67,7 +71,9 @@ impl App {
 
     /// Text typed while the chat was already open (the key that opens it types nothing).
     pub(super) fn text(&mut self, text: &str, chat_was_open: bool) {
-        if chat_was_open {
+        if self.form.is_some() && self.menu.is_none() {
+            self.form_text(text);
+        } else if chat_was_open {
             self.ui.chat.type_text(text);
         }
     }
@@ -88,6 +94,9 @@ impl App {
             }
             return;
         }
+        if self.form.is_some() {
+            return self.form_button(button, pressed);
+        }
         if self.screen_open {
             if pressed {
                 self.screen_click(button, self.shift);
@@ -106,6 +115,9 @@ impl App {
     }
 
     pub(super) fn scroll(&mut self, lines: f32) {
+        if self.form.is_some() && self.menu.is_none() {
+            return self.form_scroll(lines);
+        }
         match self.mode {
             Mode::Fly => self.input.scroll(lines),
             Mode::Play => self.play.scroll(lines),

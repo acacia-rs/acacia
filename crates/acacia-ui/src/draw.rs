@@ -22,11 +22,13 @@ pub struct DrawList {
     pub quads: Vec<Quad>,
     /// Window pixels per GUI pixel.
     pub scale: f32,
+    /// Quads added are cut to this rectangle (GUI pixels), UVs with them.
+    pub clip: Option<[f32; 4]>,
 }
 
 impl DrawList {
     pub fn new(scale: f32) -> DrawList {
-        DrawList { quads: Vec::new(), scale }
+        DrawList { quads: Vec::new(), scale, clip: None }
     }
 
     /// `sprite` at its own size with its top-left at (`x`, `y`) GUI pixels.
@@ -54,10 +56,24 @@ impl DrawList {
         self.quad(rect, [u, v, u, v], color);
     }
 
-    fn quad(&mut self, rect: [f32; 4], uv: [f32; 4], color: [u8; 4]) {
+    pub(crate) fn quad(&mut self, rect: [f32; 4], uv: [f32; 4], color: [u8; 4]) {
+        let Some((rect, uv)) = clipped(rect, uv, self.clip) else { return };
         let s = self.scale;
         self.quads.push(Quad { rect: rect.map(|v| v * s), uv, color });
     }
+}
+
+/// `rect` cut to `clip`, its UVs cut in proportion; `None` when nothing is left.
+fn clipped(rect: [f32; 4], uv: [f32; 4], clip: Option<[f32; 4]>) -> Option<([f32; 4], [f32; 4])> {
+    let Some([cl, ct, cr, cb]) = clip else { return Some((rect, uv)) };
+    let [l, t, r, b] = rect;
+    let (nl, nt, nr, nb) = (l.max(cl), t.max(ct), r.min(cr), b.min(cb));
+    if nl >= nr || nt >= nb {
+        return None;
+    }
+    let lerp = |a: f32, b: f32, from: f32, to: f32, at: f32| if to == from { a } else { a + (b - a) * (at - from) / (to - from) };
+    let [ul, ut, ur, ub] = uv;
+    Some(([nl, nt, nr, nb], [lerp(ul, ur, l, r, nl), lerp(ut, ub, t, b, nt), lerp(ul, ur, l, r, nr), lerp(ut, ub, t, b, nb)]))
 }
 
 #[cfg(test)]
@@ -71,5 +87,17 @@ mod tests {
         list.sprite_part(sprite, 5.0, 6.0, [0.0, 0.0, 5.0, 9.0], WHITE);
         assert_eq!(list.quads[0].rect, [10.0, 12.0, 20.0, 30.0]);
         assert_eq!(list.quads[0].uv, [10.0, 20.0, 15.0, 29.0]);
+    }
+
+    #[test]
+    fn clipping_cuts_uvs_in_proportion() {
+        let sprite = Sprite { x: 0, y: 0, width: 10, height: 10 };
+        let mut list = DrawList::new(1.0);
+        list.clip = Some([5.0, 0.0, 100.0, 100.0]);
+        list.sprite_stretched(sprite, [0.0, 0.0, 20.0, 20.0], WHITE);
+        list.sprite(sprite, -20.0, 0.0, WHITE);
+        assert_eq!(list.quads.len(), 1, "wholly outside is dropped");
+        assert_eq!(list.quads[0].rect, [5.0, 0.0, 20.0, 20.0]);
+        assert_eq!(list.quads[0].uv, [2.5, 0.0, 10.0, 10.0]);
     }
 }

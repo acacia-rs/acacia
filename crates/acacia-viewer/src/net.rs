@@ -48,8 +48,12 @@ pub enum NetEvent {
     Broken { pos: glam::IVec3, block: u32 },
     /// A title, subtitle or action bar text (or a clear).
     Title(acacia_bot::events::Title),
+    /// The player list's names, sorted, when they changed.
+    Players(Vec<String>),
     /// The player's slots, when they changed.
     Inventory(control::Inventory),
+    /// The server form now open, when that changed (`None`: it closed).
+    Form(Option<acacia_bot::forms::Form>),
     /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
     Chat { sender: Option<String>, message: String, params: Vec<String> },
     /// Sent once, before any [`NetEvent::Entities`].
@@ -125,7 +129,8 @@ async fn run(
     let subscribe = audio::PACKETS.into_iter().fold(PacketFilter::none().with(BiomeDefinitionList::ID), PacketFilter::with);
     let trackers = Trackers { entities: true, skins: true, ..Trackers::default() };
     let events = Events::TICKS | Events::CHAT | Events::TITLES;
-    let config = BotConfig { physics: true, auto_respawn: true, subscribe, trackers, events, mouse_input: true, ..BotConfig::default() };
+    // The death screen respawns (control::Command::Respawn), as a player does.
+    let config = BotConfig { physics: true, auto_respawn: false, subscribe, trackers, events, mouse_input: true, ..BotConfig::default() };
     let models = Arc::new(EntityModels::load(files));
     send(NetEvent::EntityModels(models.clone()))?;
     let mut feed = Feed::new(models);
@@ -137,6 +142,8 @@ async fn run(
     // `ACACIA_COMMANDS="summon cow;time set day"`: setup for unattended shots (needs an operator).
     let mut inventory = control::Inventory::default();
     let mut own_sounds = audio::Own::default();
+    let mut players: Vec<String> = Vec::new();
+    let mut form: Option<u32> = None;
     // Sent a second after the player left the loading screen: BDS ignored them sent at once.
     let mut spawned_ticks = 0u32;
     // `ACACIA_COMMANDS_AFTER=secs` times them (a break just before a screenshot).
@@ -197,6 +204,16 @@ async fn run(
                     if now != inventory {
                         inventory = now.clone();
                         send(NetEvent::Inventory(now))?;
+                    }
+                    let names = control::player_names(&bot);
+                    if names != players {
+                        players = names.clone();
+                        send(NetEvent::Players(names))?;
+                    }
+                    let open = bot.state().forms.latest().map(|f| f.id);
+                    if open != form {
+                        form = open;
+                        send(NetEvent::Form(bot.state().forms.latest().cloned()))?;
                     }
                     continue;
                 }

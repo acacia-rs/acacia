@@ -27,7 +27,13 @@ impl App {
                         self.camera_placed = true;
                     }
                 }
-                NetEvent::Me(me) => self.play.tick(me),
+                NetEvent::Me(me) => {
+                    if !me.alive && self.menu.is_none() && self.mode == super::Mode::Play {
+                        self.open_menu(super::menu::Menu::Death);
+                    }
+                    self.play.tick(me);
+                }
+                NetEvent::Players(names) => self.players = names,
                 NetEvent::Inventory(inventory) => self.set_inventory(inventory),
                 NetEvent::Title(title) => self.ui.show_title(title),
                 NetEvent::Broken { pos, block } => {
@@ -36,6 +42,7 @@ impl App {
                     }
                 }
                 NetEvent::Sound(cue) => self.audio.play(self.settings.look, &cue, &self.camera, self.settings.volume as f32 / 100.0),
+                NetEvent::Form(form) => self.show_form(form),
                 NetEvent::Chat { sender, message, params } => self.ui.push_chat(sender.as_deref(), &message, &params),
                 NetEvent::EntityModels(models) => {
                     self.entities.set_models(models.clone());

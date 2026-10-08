@@ -3,11 +3,14 @@
 use acacia_ui::menu;
 
 use super::App;
+use crate::control::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Menu {
     Pause,
     Options,
+    /// Shown while the player is dead; Esc does not close it.
+    Death,
 }
 
 /// Largest GUI scale the options cycle through before auto.
@@ -24,6 +27,7 @@ impl App {
     pub(super) fn menu_back(&mut self) {
         match self.menu {
             Some(Menu::Options) => self.menu = Some(Menu::Pause),
+            Some(Menu::Death) => {}
             _ => {
                 self.menu = None;
                 self.grab(true);
@@ -35,6 +39,7 @@ impl App {
         let on = |b: bool| if b { "On" } else { "Off" };
         match menu {
             Menu::Pause => ("Game Menu", vec!["Back to Game".into(), "Options...".into(), "Disconnect".into()]),
+            Menu::Death => ("You Died!", vec!["Respawn".into(), "Disconnect".into()]),
             Menu::Options => {
                 let s = &self.settings;
                 let scale = if s.gui_scale == 0 { "Auto".to_owned() } else { s.gui_scale.to_string() };
@@ -59,7 +64,12 @@ impl App {
         match (open, i) {
             (Menu::Pause, 0) => self.menu_back(),
             (Menu::Pause, 1) => self.menu = Some(Menu::Options),
-            (Menu::Pause, _) => self.quit = true,
+            (Menu::Pause, _) | (Menu::Death, 1) => self.quit = true,
+            (Menu::Death, _) => {
+                let _ = self.net.commands.send(Command::Respawn);
+                self.menu = None;
+                self.grab(true);
+            }
             (Menu::Options, 0) => self.switch_look(),
             (Menu::Options, 1) => self.settings.change_and_save(|s| s.gui_scale = (s.gui_scale + 1) % (MAX_GUI_SCALE + 1)),
             (Menu::Options, 2) => self.toggle_vsync(),

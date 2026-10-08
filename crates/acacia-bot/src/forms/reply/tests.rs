@@ -23,9 +23,10 @@ fn simple_form_with_mixed_elements_indexes_buttons_only() {
     let json = r#"{"type":"form","title":{"rawtext":[{"text":"Menu"}]},"content":"","elements":[{"type":"header","text":"Top"},{"type":"button","text":"A"},{"type":"divider","text":""},{"type":"button","text":"B"}]}"#;
     let form = parse::form(1, json).unwrap();
     assert_eq!(form.title, "Menu");
-    let FormKind::Simple { buttons, elements, .. } = &form.kind else { panic!() };
+    let FormKind::Simple { buttons, elements, positions, .. } = &form.kind else { panic!() };
     assert_eq!(buttons.iter().map(|b| b.text.as_str()).collect::<Vec<_>>(), ["A", "B"]);
     assert_eq!(elements, &[Element::Header { text: "Top".into() }, Element::Divider]);
+    assert_eq!(positions, &[0, 1], "the header before A, the divider between A and B");
     assert_eq!(data(&form, FormReply::Button(1)), "1\n");
 }
 

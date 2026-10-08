@@ -1,6 +1,7 @@
 //! The bot thread's side of playing: commands from the window, and the player as each tick leaves it.
 
 use acacia_bot::Bot;
+use acacia_bot::forms::FormReply;
 use acacia_bot::interact::Face;
 use acacia_bot::items::{Click, SlotRef};
 use acacia_bot::state::ItemStack;
@@ -26,6 +27,8 @@ pub enum Command {
     ReleaseItem,
     /// Left-click on nothing.
     Swing,
+    /// The death screen's respawn button.
+    Respawn,
     Chat(String),
     /// The inventory screen opened (E) or closed.
     Inventory(bool),
@@ -33,6 +36,8 @@ pub enum Command {
     Click(SlotRef, Click),
     /// A click outside the screen: throws the held stack, or one of it.
     DropCursor { one: bool },
+    /// The player's answer to open form `id`.
+    AnswerForm(u32, FormReply),
 }
 
 /// The player's own slots as a screen shows them.
@@ -66,6 +71,13 @@ fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s) })
 }
 
+/// The player list's names, sorted.
+pub fn player_names(bot: &Bot) -> Vec<String> {
+    let mut names: Vec<String> = bot.state().player_list.iter().map(|p| p.username.clone()).collect();
+    names.sort_unstable_by_key(|n| n.to_lowercase());
+    names
+}
+
 pub fn inventory(bot: &Bot) -> Inventory {
     let state = bot.state();
     let stack = |s: &ItemStack| stack_of(bot, s);
@@ -90,6 +102,7 @@ pub struct Me {
     pub mining: Option<(IVec3, f32)>,
     pub hotbar: u8,
     pub game_mode: GameMode,
+    pub alive: bool,
     pub health: f32,
     pub max_health: f32,
     pub food: f32,
@@ -130,6 +143,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         },
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
         Command::DropCursor { one } => bot.drop_cursor(one).await,
+        Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),
         Command::Controls(c) => {
             if let Some(controls) = bot.controls() {
                 *controls = Controls { glide: controls.glide, ..c };
@@ -156,6 +170,10 @@ pub async fn apply(bot: &mut Bot, command: Command) {
             bot.swing();
             Ok(())
         }
+        Command::Respawn => {
+            bot.respawn();
+            Ok(())
+        }
         Command::Chat(text) => {
             let sent = match text.strip_prefix('/') {
                 Some(command) => bot.client().command(command),
@@ -179,6 +197,7 @@ pub fn me(bot: &Bot) -> Me {
         mining: bot.mining_progress().map(|(p, f)| (IVec3::from_array(p), f)),
         hotbar: state.inventory.selected_hotbar_slot,
         game_mode: p.game_mode,
+        alive: p.alive,
         health: p.health,
         max_health: p.max_health,
         food: p.hunger,

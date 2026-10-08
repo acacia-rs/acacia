@@ -1,11 +1,17 @@
-//! The jar's HUD sprites and ASCII font, copied into a Java look's files for acacia-ui's Java
+//! The jar's HUD and widget sprites and ASCII font, copied into a Java look's files for acacia-ui's Java
 //! theme (`acacia_ui::theme::java`), in the jar's own layout.
 
 use std::path::Path;
 
 use crate::download::Error;
 
-const COPIED: [&str; 4] = ["textures/gui/sprites/hud", "textures/gui/sprites/boss_bar", "textures/font/ascii.png", "font/include/default.json"];
+const COPIED: [&str; 5] = [
+    "textures/gui/sprites/hud",
+    "textures/gui/sprites/boss_bar",
+    "textures/gui/sprites/widget",
+    "textures/font/ascii.png",
+    "font/include/default.json",
+];
 
 pub fn copy(assets: &Path, out: &Path) -> Result<(), Error> {
     for name in COPIED {

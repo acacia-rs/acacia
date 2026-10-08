@@ -23,6 +23,16 @@ impl Bot {
         self.send_form_response(id, &packet)
     }
 
+    /// Answers open form `id` at once: for a person at the keyboard, whose delay is their own.
+    pub fn answer_form_now(&mut self, id: u32, reply: FormReply) -> Result<(), ActionError> {
+        let form = self.open_form(id)?;
+        let packet = match reply {
+            FormReply::Close => cancel(id),
+            reply => response(&form, &reply)?,
+        };
+        self.send_form_response(id, &packet)
+    }
+
     /// Closes open form `id` (the X button) after a short delay.
     pub async fn close_form(&mut self, id: u32) -> Result<(), ActionError> {
         self.open_form(id)?;

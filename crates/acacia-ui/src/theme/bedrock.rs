@@ -10,6 +10,8 @@ use super::{Style, Theme, java_font, png};
 use crate::atlas::Atlas;
 use crate::hud::sprite;
 use crate::overlay::BOSS_COLOURS;
+use crate::widget::Widgets;
+use crate::widget::bedrock::Kit;
 
 pub const STYLE: Style = Style { xp_colour: 0x80FF00, xp_outline: false };
 
@@ -59,7 +61,8 @@ pub fn load(root: &Path, java_root: Option<&Path>) -> Theme {
         }
     }
     let font = java_root.and_then(|r| java_font(r, &mut atlas));
-    Theme { atlas, font, style: STYLE }
+    let widgets = Widgets::Bedrock(Kit::load(root, &mut atlas));
+    Theme { atlas, font, style: STYLE, widgets }
 }
 
 /// The 182×22 bar: start cap, nine 20×22 slots, end cap.
