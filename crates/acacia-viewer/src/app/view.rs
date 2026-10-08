@@ -20,10 +20,14 @@ impl App {
             Mode::Play => {
                 let world = self.renderer.as_ref().and_then(|r| r.world().cloned());
                 let entities = self.entities.hitboxes();
+                for (key, pressed) in self.key_script.as_mut().map(|s| s.due(now)).unwrap_or_default() {
+                    self.play.key(key, pressed);
+                }
                 self.play.frame(&mut self.camera, world.as_deref(), self.table.as_deref(), &entities, now);
                 if self.auto_attack && self.play.target.is_some() && !self.play.attacking() {
                     self.play.button(winit::event::MouseButton::Left, true);
-                }                let mining = self.play.me.as_ref().and_then(|m| m.mining);
+                }
+                let mining = self.play.me.as_ref().and_then(|m| m.mining);
                 self.play.target.as_ref().map(|t| {
                     let crack = mining.filter(|(block, _)| *block == t.block).map(|(_, progress)| (progress * 10.0).clamp(0.0, 9.0) as u8);
                     Outline { block: t.block, boxes: t.boxes.clone(), crack }

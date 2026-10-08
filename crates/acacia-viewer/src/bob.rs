@@ -36,7 +36,6 @@ impl Bob {
         let fov = if self.fov == 0.0 { 1.0 } else { self.fov };
         self.fov = fov + (fov_modifier(me.sprinting, me.flying) - fov) * 0.5;
         self.ticked = Some(now);
-        tracing::debug!(moved, on_ground = me.on_ground, sprinting = me.sprinting, bob = self.bob, fov = self.fov, "bob");
     }
 
     /// The camera's field of view and sway at `now`.

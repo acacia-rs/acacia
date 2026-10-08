@@ -168,6 +168,8 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),
         Command::Controls(c) => {
             if let Some(controls) = bot.controls() {
+                // The flight follows the player's own Space taps (`Play::controls`): a changed `fly` would add
+                // the bot's double tap, which BDS could pair with the player's.
                 *controls = Controls { glide: controls.glide, fly: controls.fly, ..c };
             }
             Ok(())
