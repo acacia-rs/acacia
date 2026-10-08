@@ -6,6 +6,7 @@ mod entity_textures;
 mod globals;
 mod inputs;
 mod outline;
+mod particles;
 mod pipeline;
 mod screenshot;
 mod sky;
@@ -75,6 +76,10 @@ pub struct Renderer {
     outline: Option<Outline>,
     crack_pass: CrackPass,
     ui_pass: UiPass,
+    particle_pass: particles::ParticlePass,
+    particles: crate::particles::Particles,
+    /// The game tick the particles were last advanced to.
+    particle_tick: u64,
     scene: Option<Scene>,
     biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
@@ -106,6 +111,7 @@ impl Renderer {
         let entities = EntityPass::new(&device, config.format, &globals);
         let outline_pass = OutlinePass::new(&device, config.format, &globals);
         let ui_pass = UiPass::new(&device, config.format);
+        let particle_pass = particles::ParticlePass::new(&device, config.format);
         let crack_pass = CrackPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
@@ -129,6 +135,9 @@ impl Renderer {
             outline: None,
             crack_pass,
             ui_pass,
+            particle_pass,
+            particles: Default::default(),
+            particle_tick: 0,
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
@@ -164,6 +173,7 @@ impl Renderer {
             self.bind_group = pipeline::bind_group(&self.device, &self.pipelines.layout, &self.globals, &self.store, &self.textures.view, &self.sampler);
         }
         self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
+        self.prepare_particles(camera);
 
         let view_proj = camera.view_proj();
         let has_sky = self.world().is_none_or(|w| w.dimension().sky);
@@ -238,6 +248,7 @@ impl Renderer {
                     self.entities.draw(&mut pass);
                 }
             }
+            self.particle_pass.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
             self.crack_pass.draw(&mut pass);
             self.outline_pass.draw(&mut pass);
             if atlas.is_some() {

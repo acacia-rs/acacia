@@ -14,6 +14,7 @@ pub mod light;
 pub mod look;
 pub mod lookpack;
 pub mod mesh;
+pub mod particles;
 mod scene;
 pub mod sky;
 mod workers;

@@ -43,6 +43,7 @@ impl App {
                     format!("GUI Scale: {scale}"),
                     format!("VSync: {}", on(s.vsync)),
                     format!("Cave Culling: {}", on(s.cave_culling)),
+                    format!("Sound: {}%", s.volume),
                     "Done".into(),
                 ])
             }
@@ -63,6 +64,7 @@ impl App {
             (Menu::Options, 1) => self.settings.change_and_save(|s| s.gui_scale = (s.gui_scale + 1) % (MAX_GUI_SCALE + 1)),
             (Menu::Options, 2) => self.toggle_vsync(),
             (Menu::Options, 3) => self.settings.change_and_save(|s| s.cave_culling = !s.cave_culling),
+            (Menu::Options, 4) => self.settings.change_and_save(|s| s.volume = (s.volume / 25 * 25 + 25) % 125),
             (Menu::Options, _) => self.menu = Some(Menu::Pause),
         }
     }

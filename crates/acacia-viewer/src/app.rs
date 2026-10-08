@@ -19,6 +19,7 @@ use acacia_world::World;
 use glam::DVec3;
 use winit::window::{CursorGrabMode, Window};
 
+use crate::audio::Audio;
 use crate::control::Inventory;
 use crate::debug_lines::{self, Facts};
 use crate::input::FlyInput;
@@ -53,6 +54,7 @@ pub struct App {
     input: FlyInput,
     play: Play,
     ui: Ui,
+    audio: Audio,
     /// F3.
     show_debug: bool,
     /// The inventory screen is open (E).
@@ -107,9 +109,10 @@ impl App {
         // Unattended screenshots place the camera themselves.
         let shot = Shot::from_env();
         let mode = if shot.is_some() && std::env::var_os("ACACIA_PLAY").is_none() { Mode::Fly } else { Mode::Play };
-        let ui = Ui::new(&looks);
+        let (ui, audio) = (Ui::new(&looks), Audio::new(&looks));
         App {
             ui,
+            audio,
             show_debug: std::env::var_os("ACACIA_DEBUG").is_some(),
             // For unattended screenshots of the inventory screen.
             screen_open: std::env::var_os("ACACIA_SCREEN").is_some(),

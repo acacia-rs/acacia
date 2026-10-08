@@ -13,6 +13,7 @@ profile = []
 [dependencies]
 acacia-bot = { path = "../acacia-bot" }
 acacia-render = { path = "../acacia-render" }
+acacia-sound = { path = "../acacia-sound" }
 acacia-ui = { path = "../acacia-ui" }
 image = { version = "0.25", default-features = false, features = ["png", "tga"] }
 acacia-world.workspace = true

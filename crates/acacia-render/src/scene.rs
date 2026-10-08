@@ -80,6 +80,10 @@ impl Scene {
     }
 
     /// The world, block table and lighting, to build a replacement scene from.
+    pub fn table(&self) -> &Arc<BlockTable> {
+        &self.table
+    }
+
     pub fn into_parts(self) -> (Arc<World>, Arc<BlockTable>, Lighting) {
         (self.tracked.world, self.table, self.lighting)
     }

@@ -20,6 +20,7 @@ use glam::DVec3;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::sync::oneshot;
 
+use crate::audio;
 use crate::control::{self, Command, Me};
 
 /// Ticks after spawning before `ACACIA_COMMANDS` go out.
@@ -42,6 +43,9 @@ pub enum NetEvent {
     Player(DVec3),
     /// The player after each tick.
     Me(Me),
+    Sound(audio::Cue),
+    /// A block broke there; `block` is its runtime id, for the chips.
+    Broken { pos: glam::IVec3, block: u32 },
     /// A title, subtitle or action bar text (or a clear).
     Title(acacia_bot::events::Title),
     /// The player's slots, when they changed.
@@ -118,7 +122,7 @@ async fn run(
     let send = |e| tx.send(e).map_err(|_| "window closed");
     send(NetEvent::Status(format!("connecting to {}", options.server)))?;
     let builder = login(Client::builder(&options.server).chunk_radius(options.radius), &options.name).await?;
-    let subscribe = PacketFilter::none().with(BiomeDefinitionList::ID);
+    let subscribe = audio::PACKETS.into_iter().fold(PacketFilter::none().with(BiomeDefinitionList::ID), PacketFilter::with);
     let trackers = Trackers { entities: true, skins: true, ..Trackers::default() };
     let events = Events::TICKS | Events::CHAT | Events::TITLES;
     let config = BotConfig { physics: true, auto_respawn: true, subscribe, trackers, events, mouse_input: true, ..BotConfig::default() };
@@ -132,8 +136,11 @@ async fn run(
     send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
     // `ACACIA_COMMANDS="summon cow;time set day"`: setup for unattended shots (needs an operator).
     let mut inventory = control::Inventory::default();
+    let mut own_sounds = audio::Own::default();
     // Sent a second after the player left the loading screen: BDS ignored them sent at once.
     let mut spawned_ticks = 0u32;
+    // `ACACIA_COMMANDS_AFTER=secs` times them (a break just before a screenshot).
+    let setup_after = std::env::var("ACACIA_COMMANDS_AFTER").ok().and_then(|s| s.parse::<f32>().ok()).map_or(SETUP_AFTER_TICKS, |s| (s * 20.0) as u32);
     let mut setup: Vec<String> = std::env::var("ACACIA_COMMANDS").iter().flat_map(|s| s.split(';')).map(|c| c.trim().to_owned()).collect();
 
     let mut current: Option<Arc<World>> = None;
@@ -149,6 +156,15 @@ async fn run(
             event = bot.next() => match event {
                 Some(BotEvent::Disconnected(reason)) => return Ok(format!("disconnected: {reason:?}")),
                 None => return Ok("bot stopped".into()),
+                Some(BotEvent::Packet(p)) if audio::PACKETS.contains(&p.id) => {
+                    if let Some(cue) = audio::cue(&bot, &p) {
+                        send(NetEvent::Sound(cue))?;
+                    }
+                    if let Some((pos, block)) = audio::broken(&bot, &p) {
+                        send(NetEvent::Broken { pos, block })?;
+                    }
+                    continue;
+                }
                 Some(BotEvent::Packet(p)) if p.id == BiomeDefinitionList::ID => {
                     let defs = biome_defs(&p.decode()?);
                     tracing::info!(count = defs.len(), "biome definitions");
@@ -169,11 +185,14 @@ async fn run(
                     if bot.movement().is_some_and(|m| m.is_started()) {
                         spawned_ticks += 1;
                     }
-                    if spawned_ticks >= SETUP_AFTER_TICKS && !setup.is_empty() {
+                    if spawned_ticks >= setup_after && !setup.is_empty() {
                         tracing::info!(commands = ?setup, "setup");
                         setup.drain(..).for_each(|c| _ = bot.client().command(&c));
                     }
                     send(NetEvent::Me(control::me(&bot)))?;
+                    for cue in own_sounds.tick(&bot) {
+                        send(NetEvent::Sound(cue))?;
+                    }
                     let now = control::inventory(&bot);
                     if now != inventory {
                         inventory = now.clone();
