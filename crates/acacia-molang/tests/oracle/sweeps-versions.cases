@@ -1,0 +1,26 @@
+# engines: 1.13.0 1.17.30 1.17.40 1.18.20 1.19.60
+# molangx rows measured at other Molang versions; each claim holds at the version in molangx-claims.tsv.
+v.a = -1.0f; => 5/v.a
+v.a = -10.0f; v.b = -2.0f; => v.a/v.b
+'a' + 'b'
+v.count = 0; loop(3, {v.count = v.count + 1;}) + 1; => v.count
+v.count = 0; loop(3, {v.count = v.count + 1; (v.count == 2) ? break + 1; }); => v.count
+v.count = 0; loop(3, {(v.count == 1) ? continue + 1; v.count = v.count + 1;}); => v.count
+(v.foo = 1) + 2; => v.foo
+v.x = 5; => v.x / -1
+v.x = 5; v.z = -1; => v.x / v.z
+1 + (9 10)
+[1 2]
+temp.v = ('foo' 'bar'); return temp.v; => 0
+1 + (variable.foo 3)
+1+
+9 10
+(v.x + 1) = 0; => 0
+return 0; return 0; => 0
+v.n = math.sqrt(-1); v.f = 4; v.p1 = math.max(v.n, v.f); => v.p1 == 4 ? 1 : (v.p1 == v.p1 ? 2 : 3)
+v.n = math.sqrt(-1); v.f = 4; v.p1 = math.max(v.f, v.n); => v.p1 == 4 ? 1 : (v.p1 == v.p1 ? 2 : 3)
+v.one = 1; (v.foo = v.one) + 2; => v.foo == 1 ? 1 : (v.foo == 3 ? 2 : 3)
+(v.foo24c = 1) + 2; => v.foo24c == 1 ? 1 : (v.foo24c == 3 ? 2 : 3)
+v.two24 = 2; (v.foo24m = v.two24) * 3; => v.foo24m == 2 ? 1 : (v.foo24m == 6 ? 2 : 3)
+v.a?v.b?v.c:v.d:v.e
+(1 2)

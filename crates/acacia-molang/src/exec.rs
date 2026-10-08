@@ -44,8 +44,11 @@ impl Machine<'_> {
                 Value::ZERO
             }
             Node::Loop { count, body } => {
-                // A fraction of a pass is a pass.
-                let count = self.num(count).ceil();
+                // A fraction of a pass is a pass; BDS counts a not-a-number down forever.
+                let count = match self.num(count) {
+                    n if n.is_nan() => f32::INFINITY,
+                    n => n.ceil(),
+                };
                 for _ in 0..self.spend(count) {
                     self.run(body);
                     if self.leaves_loop() {

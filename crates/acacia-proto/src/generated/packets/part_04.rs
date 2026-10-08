@@ -968,7 +968,7 @@ pub struct UpdateBlockSynced {
     pub block_runtime_id: u32,
     pub flags: types::UpdateBlockFlags,
     pub layer: u32,
-    pub entity_unique_id: i64,
+    pub entity_unique_id: u64,
     pub transition_type: UpdateBlockSyncedTransitionType,
 }
 impl UpdateBlockSynced {
@@ -981,7 +981,7 @@ impl UpdateBlockSynced {
             .map_err(|e| e.at("UpdateBlockSynced.flags"))?;
         let f_layer = (|| -> Result<_> { Ok(read_varint(r)?) })()
             .map_err(|e| e.at("UpdateBlockSynced.layer"))?;
-        let f_entity_unique_id = (|| -> Result<_> { Ok(read_zigzag64(r)?) })()
+        let f_entity_unique_id = (|| -> Result<_> { Ok(read_varint64(r)?) })()
             .map_err(|e| e.at("UpdateBlockSynced.entity_unique_id"))?;
         let f_transition_type =
             (|| -> Result<_> { Ok(UpdateBlockSyncedTransitionType::read(r)?) })()
@@ -1000,7 +1000,7 @@ impl UpdateBlockSynced {
         write_varint(w, self.block_runtime_id);
         self.flags.write(w);
         write_varint(w, self.layer);
-        write_zigzag64(w, self.entity_unique_id);
+        write_varint64(w, self.entity_unique_id);
         self.transition_type.write(w);
     }
 }

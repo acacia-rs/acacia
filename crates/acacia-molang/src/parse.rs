@@ -1,4 +1,4 @@
-//! Statements and the parser's plumbing; operators and names are in `parse_expr.rs`. Nodes are
+//! Statements and the parser's plumbing; operators are in `parse_expr.rs`, names in `parse_name.rs`. Nodes are
 //! emitted as they are parsed, with every name already resolved. The rules follow what BDS accepts
 //! (`tests/oracle/*.bds`).
 
@@ -8,6 +8,7 @@ use crate::fold::{Folded, fold};
 use crate::lex::{Token, tokens};
 use crate::parse_expr::{LEVELS, Levels, OLD_LEVELS};
 use crate::program::{List, Node, Op, Program};
+use crate::value::Value;
 
 /// The tallest tree a program may have; a long `a + b + c + ...` chain is as tall as it is long.
 const MAX_HEIGHT: u16 = 512;
@@ -185,7 +186,11 @@ impl<'a> Parser<'a> {
         }
         self.at += 1;
         self.complex = true;
-        let value = self.coalesce()?;
+        let mut value = self.coalesce()?;
+        // BDS stores a literal through its post-op, the identity's `n·1 + 0` included: -0 becomes 0.
+        if let Some(n) = self.absorbed(value) {
+            value = self.push(Node::Const(Value::Num(n)));
+        }
         Ok(self.push(Node::Assign { target, value }))
     }
 
@@ -250,7 +255,8 @@ impl<'a> Parser<'a> {
         let tallest = |parser: &Self, children: &[u32]| children.iter().map(|&child| parser.heights[child as usize]).max().unwrap_or(0);
         let below = match node {
             Node::Const(_) | Node::This | Node::Var { .. } | Node::Temp { .. } | Node::Context(_) | Node::Break | Node::Continue => 0,
-            Node::Not(a) | Node::Neg(a) | Node::Return(a) | Node::Member { of: a, .. } => tallest(self, &[a]),
+            Node::Not(a) | Node::Post { of: a, .. } | Node::Return(a) | Node::Member { of: a, .. } => tallest(self, &[a]),
+            Node::Sum(list) | Node::Logic { terms: list, .. } => tallest(self, self.items(list)),
             Node::Binary(_, a, b) | Node::Coalesce(a, b) | Node::When(a, b) => tallest(self, &[a, b]),
             Node::Assign { target: a, value: b } | Node::Loop { count: a, body: b } | Node::Arrow { entity: a, of: b } => tallest(self, &[a, b]),
             Node::Ternary(a, b, c) | Node::ForEach { variable: a, array: b, body: c } => tallest(self, &[a, b, c]),
@@ -261,6 +267,10 @@ impl<'a> Parser<'a> {
         self.heights.push(below + 1);
         self.nodes.push(node);
         self.nodes.len() as u32 - 1
+    }
+
+    pub(crate) fn items(&self, list: List) -> &[u32] {
+        &self.lists[list.start as usize..(list.start + list.len) as usize]
     }
 
     pub(crate) fn list(&mut self, items: &[u32]) -> List {

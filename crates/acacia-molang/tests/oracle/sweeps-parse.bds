@@ -1,0 +1,167 @@
+# BDS 1.26.52.3, engine 1.26.0; result, case, Molang errors. Written by tools/molang-oracle/oracle.py.
+error	'a' + 3	'Add '+'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	1+	Error: binary Add '+' operator at end of expression
+error	9 10	found multiple operations without a combining operation between them:
+0	(v.x + 1) = 0; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Left Parenthesis '('
+0	return 0; return 0; => 0	Error: unreachable statements after Return 'return'.
+error	0+	Error: binary Add '+' operator at end of expression
+error	1++	Malformed Add '+' expression. It has 0 children but should have between 2 and 18446744073709551615
+error	+1	Error: binary Add '+' operator at end of expression
+error	*1	Error: binary Multiply '*' operator at end of expression
+error	*0	Error: binary Multiply '*' operator at end of expression
+error	0*	Error: binary Multiply '*' operator at end of expression
+error	1*	Error: binary Multiply '*' operator at end of expression
+error	'foo' 'bar'	found multiple operations without a combining operation between them:
+error	variable.foo 1	found multiple operations without a combining operation between them:
+error	'text without closing single quote	Error: Molang string missing final ' character	unrecognized token: 'text without closing single quote
+error	1 + (1 .)	unrecognized token: .)
+error	v.a?v.b:v.c??v.d	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	v.a ?? v.b ?? v.c	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	1.5.5	found multiple operations without a combining operation between them:
+error	1ex	error parsing float string, expected '+' or '-' after 'e': x	Error: unknown token: x	unrecognized token: x
+error	1.5d	Error: unknown token: d	unrecognized token: d
+error	0x10	Error: unknown token: x10	unrecognized token: x10
+error	1_000	Error: unknown token: _000	unrecognized token: _000
+error	--1	Error: binary Add '+' operator at end of expression
+error	---1	Error: binary Add '+' operator at end of expression
+error	1+++1	Error: binary Add '+' operator at end of expression
+error	v.1x	Error: unknown token: v.1x	unrecognized token: v.1x
+error	math.e	Error: unknown token: math.e	unrecognized token: math.e
+error	math.foo(1)	Error: unknown token: math.foo(1)	unrecognized token: math.foo(1)
+error	math.abs -2	Error: Absolute Value 'math.abs' operator not followed by parenthesis section
+error	math.abs	Error: Absolute Value 'math.abs' operator at end of expression without a parenthesis section
+error	math.max(1,2,3)	Unexpected number of parameters to Max 'math.max' function - expected 2, found 3.
+unset	truex
+unset	thisx
+error	'unterminated	Error: Molang string missing final ' character	unrecognized token: 'unterminated
+error	'abc' + 1	'Add '+'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	'abc' * 2	'Multiply '*'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	1 # comment	unrecognized token: # comment
+error	1 // comment	Error: unknown token: comment	unrecognized token: comment
+error	(1, 2)	Error: Unexpected Comma ',' operator not inside an arguments list for a query, loop, or math function
+error	(1 2)	Error: Left Parenthesis '(' optimization expected only one child operation but found 2
+error	()	Malformed Left Parenthesis '(' expression. It has 0 children but should have between 1 and 18446744073709551615
+error	{1}	Brace sections must only contain semicolon-delimited expressions, even if only one expression is contained.
+0	{1;} => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	{v.x = 1;} => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+error	v.x = 1	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	v.x = 1; v.y = 2 => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	; => 0	Error: expressions can't begin with a semicolon
+0	;1 => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	return; => 0	Error: unary Return 'return' operator not followed by expression
+0	return 1; return 2; => 0	Error: unreachable statements after Return 'return'.
+0	loop(3, v.x = v.x + 1); => 0	Error: loop requires two parameters - an expression resulting in a number of times to loop, and a {}-delimited expression to loop.
+0	loop(3); => 0	Error: loop requires two parameters - an expression resulting in a number of times to loop, and a {}-delimited expression to loop.
+0	loop(3, {v.x = 1;}, 2); => 0	Error: loop requires two parameters - an expression resulting in a number of times to loop, and a {}-delimited expression to loop.
+unset	loopy
+unset	break
+error	v.a ?: v.b	found multiple operations without a combining operation between them:
+error	1 ?? 2	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	v.a.b ?? 1	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	v.x[0]	found multiple operations without a combining operation between them:
+0	v.x = v.y = 1; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Assignment '='
+0	v.x + 1 = 2; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Add '+'
+0	-v.x = 1; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Negate '-'
+error	v.a & v.b	unrecognized token: & v.b
+error	v.a | v.b	v.b
+error	v.a and v.b	Error: unknown token: and v.b	unrecognized token: and v.b
+error	v.a = = v.b	Error: complex expressions (contains either '=' or ';') must end with a ';'
+error	v.a ! = v.b	Error: complex expressions (contains either '=' or ';') must end with a ';'
+error	v.a <> v.b	found multiple operations without a combining operation between them:
+error	v.a - > v.b	Error: binary Greater Than '>' operator at end of expression
+0	v.a => v.b	Error: unhandled request for unknown variable 'variable.a'	Error: unhandled request for unknown variable 'variable.b'
+error	v.a % v.b	unrecognized token: % v.b
+error	v.a ^ v.b	unrecognized token: ^ v.b
+error	"abc"	unrecognized token: "abc"
+error	v.a @ v.b	unrecognized token: @ v.b
+error	$x	unrecognized token: $x
+error	{}	Malformed Left Brace '{' expression. It has 0 children but should have between 1 and 18446744073709551615
+0	{}; => 0	Malformed Left Brace '{' expression. It has 0 children but should have between 1 and 18446744073709551615
+0	v.x = 1; 2 => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+error	1 , 8	Error: Unexpected Comma ',' operator not inside an arguments list for a query, loop, or math function
+error	2 : 7	Error: could not find sub-expressions for Conditional Else ':' operator
+error	3 { 6	Unable to find matching closing section symbol for symbol at 2(Left Brace '{') -- looking for Right Brace '}'	Error: Could not find Right Brace '}' to close section started with Left Brace '{'
+error	4 } 5	found multiple operations without a combining operation between them:
+error	5 [ 4	Unable to find matching closing section symbol for symbol at 2(Left Bracket '[') -- looking for Right Bracket ']'	Error: Could not find Right Bracket ']' to close section started with Left Bracket '['
+error	6 ] 3	found multiple operations without a combining operation between them:
+error	7 ( 2	Unable to find matching closing section symbol for symbol at 2(Left Parenthesis '(') -- looking for Right Parenthesis ')'	Error: Could not find Right Parenthesis ')' to close section started with Left Parenthesis '('
+error	8 ) 1	found multiple operations without a combining operation between them:
+error	break 11	found multiple operations without a combining operation between them:
+error	.foo	Error: cannot start an expression with a member accessor; member accessors require a variable of which to access a member.
+error	variable.	Error: unknown token: variable.	unrecognized token: variable.
+error	. 1	unrecognized token: . 1
+error	1 ?	Error: could not find sub-expressions for Conditional '?' operator
+error	? 1	Error: could not find sub-expressions for Conditional '?' operator
+error	1 :	Error: could not find sub-expressions for Conditional Else ':' operator
+error	: 1	Error: could not find sub-expressions for Conditional Else ':' operator
+error	(1	Unable to find matching closing section symbol for symbol at 1(Left Parenthesis '(') -- looking for Right Parenthesis ')'	Error: Could not find Right Parenthesis ')' to close section started with Left Parenthesis '('
+error	1)	found multiple operations without a combining operation between them:
+error	((1)	Unable to find matching closing section symbol for symbol at 1(Left Parenthesis '(') -- looking for Right Parenthesis ')'	Error: Could not find Right Parenthesis ')' to close section started with Left Parenthesis '('
+error	(1))	found multiple operations without a combining operation between them:
+0	{v.x = 1; => 0	Unable to find matching closing section symbol for symbol at 1(Left Brace '{') -- looking for Right Brace '}'	Error: Could not find Right Brace '}' to close section started with Left Brace '{'
+0	v.x = 1;} => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	v.x.1 = 1; => 0	Error: Could not reduce sub-expression before a semicolon to a single operation to evaluate
+error	v.x . y	unrecognized token: . y
+0	v.x = 'a' + 'b'; => 0	'Add '+'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+0	loop(3, {v.i = v.i + 1;}) + 1; => 0	'Add '+'' expression cannot take a 'Loop 'loop'' argument. It only supports numerical arguments.
+0	(v.x) = 1; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Left Parenthesis '('
+0	{v.x + 1 = 2;}; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Add '+'
+0	loop(1,{v.x + 1 = 2;}); => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Add '+'
+error	v.x ?? 1 ?? 2	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	--3	Error: binary Add '+' operator at end of expression
+error	2 * - -3	Error: binary Add '+' operator at end of expression
+error	!--3	Error: binary Add '+' operator at end of expression
+error	2 - - -3	Error: binary Add '+' operator at end of expression
+0	v.b = v.a = 1; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Assignment '='
+error	7 % 3	unrecognized token: % 3
+error	m.floor(1.5)	Error: unknown token: m.floor(1.5)	unrecognized token: m.floor(1.5)
+0	;1;2; => 0	Error: expressions can't begin with a semicolon
+error	foo.bar	Error: unknown token: foo.bar	unrecognized token: foo.bar
+error	loop(5 { })	Error: loop requires two parameters - an expression resulting in a number of times to loop, and a {}-delimited expression to loop.
+error	ÿ	unrecognized token: ÿ
+error	3 ?? 5	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	's' ?? 5	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	true ?? 5	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	math.sqrt(-1) ?? 5	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	math.pi ?? 1	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	!v.x ?? 1	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	v.a ?? v.b ?? 1	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	v.a || v.b ?? 1	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	v.a ? v.b ?? 1 : 2	Error: could not find sub-expressions for Conditional Else ':' operator
+error	v.a ? 1 : v.b ?? 2	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+error	(v.a ? 1 : 2) ?? 3	Error: found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.
+0	v.d ?? { v.a = 1 }; => 0	Brace sections must only contain semicolon-delimited expressions, even if only one expression is contained.
+0	1 = 2; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Float
+0	'a' = 2; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: String '''
+0	math.pi = 2; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Pi
+0	!v.x = 1; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Logical Not '!'
+0	v.x - 1 = 2; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Add '+'
+0	v.x * 2 = 2; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Multiply '*'
+0	math.abs(v.x) = 1; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Absolute Value 'math.abs'
+0	v.a ?? 1 = 2; => 0	Error: assignment to non-variable not allowed. Expression is trying to assign to a: Null Coalescing '??'
+error	1 + 'a'	'Add '+'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	'a' - 1	'Add '+'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	1 - 'a'	'Negate '-'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	'a' / 2	'Divide '/'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	'a' >= 1	'Greater Than Or Equal '>='' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	'a' && 1	'Logical And '&&'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+error	'a' || 1	'Logical Or '||'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+0	math.max(v.a = 5, 3); => 0	Unexpected number of parameters to Max 'math.max' function - expected 2, found 1.
+0	math.abs(v.a = -4); => 0	'Absolute Value 'math.abs'' expression cannot take a 'Assignment '='' argument. It only supports numerical arguments.
+0	(v.a = 2) * (t.b = 3); => 0	'Multiply '*'' expression cannot take a 'Assignment '='' argument. It only supports numerical arguments.
+0	!(v.a = 1); => 0	'Logical Not '!'' expression cannot take a 'Assignment '='' argument. It only supports numerical arguments.
+0	(v.a = 1) < 2; => 0	'Less Than '<'' expression cannot take a 'Assignment '='' argument. It only supports numerical arguments.
+0	v.x = 1 + (v.a = 1); => 0	'Add '+'' expression cannot take a 'Assignment '='' argument. It only supports numerical arguments.
+0	loop(2, {v.n = 'a' + 1;}); => 0	'Add '+'' expression cannot take a 'String '''' argument. It only supports numerical arguments.
+0	return 1; v.x = 5; => 0	Error: unreachable statements after Return 'return'.
+error	v.a=1	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	v.a = 1; v.b = 2 => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	{v.a=1;} => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	v.x ? {v.a=0;} => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	v.x ? {v.a=0;} : 1 => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	loop(2, {v.a=1;}) => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	1;2 => 0	Error: complex expressions (contains either '=' or ';') must end with a ';'
+0	{v.a=1}; => 0	Brace sections must only contain semicolon-delimited expressions, even if only one expression is contained.
+0	v.x ? {v.a=1} : 0; => 0	Brace sections must only contain semicolon-delimited expressions, even if only one expression is contained.
+0	loop(2, {v.a=1}); => 0	Brace sections must only contain semicolon-delimited expressions, even if only one expression is contained.
+0	loop(2, {}); => 0	Malformed Left Brace '{' expression. It has 0 children but should have between 1 and 18446744073709551615

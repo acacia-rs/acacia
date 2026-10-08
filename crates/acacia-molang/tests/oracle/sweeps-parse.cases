@@ -1,0 +1,167 @@
+# Sources molangx records as rejected (parse_fails rows, parse groups, parse_vectors FAIL rows).
+'a' + 3
+1+
+9 10
+(v.x + 1) = 0; => 0
+return 0; return 0; => 0
+0+
+1++
++1
+*1
+*0
+0*
+1*
+'foo' 'bar'
+variable.foo 1
+'text without closing single quote
+1 + (1 .)
+v.a?v.b:v.c??v.d
+v.a ?? v.b ?? v.c
+1.5.5
+1ex
+1.5d
+0x10
+1_000
+--1
+---1
+1+++1
+v.1x
+math.e
+math.foo(1)
+math.abs -2
+math.abs
+math.max(1,2,3)
+truex
+thisx
+'unterminated
+'abc' + 1
+'abc' * 2
+1 # comment
+1 // comment
+(1, 2)
+(1 2)
+()
+{1}
+{1;} => 0
+{v.x = 1;} => 0
+v.x = 1
+v.x = 1; v.y = 2 => 0
+; => 0
+;1 => 0
+return; => 0
+return 1; return 2; => 0
+loop(3, v.x = v.x + 1); => 0
+loop(3); => 0
+loop(3, {v.x = 1;}, 2); => 0
+loopy
+break
+v.a ?: v.b
+1 ?? 2
+v.a.b ?? 1
+v.x[0]
+v.x = v.y = 1; => 0
+v.x + 1 = 2; => 0
+-v.x = 1; => 0
+v.a & v.b
+v.a | v.b
+v.a and v.b
+v.a = = v.b
+v.a ! = v.b
+v.a <> v.b
+v.a - > v.b
+v.a => v.b
+v.a % v.b
+v.a ^ v.b
+"abc"
+v.a @ v.b
+$x
+{}
+{}; => 0
+v.x = 1; 2 => 0
+1 , 8
+2 : 7
+3 { 6
+4 } 5
+5 [ 4
+6 ] 3
+7 ( 2
+8 ) 1
+break 11
+.foo
+variable.
+. 1
+1 ?
+? 1
+1 :
+: 1
+(1
+1)
+((1)
+(1))
+{v.x = 1; => 0
+v.x = 1;} => 0
+v.x.1 = 1; => 0
+v.x . y
+v.x = 'a' + 'b'; => 0
+loop(3, {v.i = v.i + 1;}) + 1; => 0
+(v.x) = 1; => 0
+{v.x + 1 = 2;}; => 0
+loop(1,{v.x + 1 = 2;}); => 0
+v.x ?? 1 ?? 2
+--3
+2 * - -3
+!--3
+2 - - -3
+v.b = v.a = 1; => 0
+7 % 3
+m.floor(1.5)
+;1;2; => 0
+foo.bar
+loop(5 { })
+ÿ
+3 ?? 5
+'s' ?? 5
+true ?? 5
+math.sqrt(-1) ?? 5
+math.pi ?? 1
+!v.x ?? 1
+v.a ?? v.b ?? 1
+v.a || v.b ?? 1
+v.a ? v.b ?? 1 : 2
+v.a ? 1 : v.b ?? 2
+(v.a ? 1 : 2) ?? 3
+v.d ?? { v.a = 1 }; => 0
+1 = 2; => 0
+'a' = 2; => 0
+math.pi = 2; => 0
+!v.x = 1; => 0
+v.x - 1 = 2; => 0
+v.x * 2 = 2; => 0
+math.abs(v.x) = 1; => 0
+v.a ?? 1 = 2; => 0
+1 + 'a'
+'a' - 1
+1 - 'a'
+'a' / 2
+'a' >= 1
+'a' && 1
+'a' || 1
+math.max(v.a = 5, 3); => 0
+math.abs(v.a = -4); => 0
+(v.a = 2) * (t.b = 3); => 0
+!(v.a = 1); => 0
+(v.a = 1) < 2; => 0
+v.x = 1 + (v.a = 1); => 0
+loop(2, {v.n = 'a' + 1;}); => 0
+return 1; v.x = 5; => 0
+v.a=1
+v.a = 1; v.b = 2 => 0
+{v.a=1;} => 0
+v.x ? {v.a=0;} => 0
+v.x ? {v.a=0;} : 1 => 0
+loop(2, {v.a=1;}) => 0
+1;2 => 0
+{v.a=1}; => 0
+v.x ? {v.a=1} : 0; => 0
+loop(2, {v.a=1}); => 0
+loop(2, {}); => 0

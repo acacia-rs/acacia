@@ -1,4 +1,5 @@
 use crate::math::MathFn;
+use crate::post::Post;
 use crate::value::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,14 +21,14 @@ pub(crate) enum Op {
 }
 
 impl Op {
-    /// `+ - * /`. Dividing by zero gives 0.
+    /// `+ - * /`. A divisor smaller than `f32::EPSILON` gives 0.
     #[inline]
     pub(crate) fn arithmetic(self, x: f32, y: f32) -> f32 {
         match self {
             Op::Add => x + y,
             Op::Sub => x - y,
             Op::Mul => x * y,
-            _ if y == 0.0 => 0.0,
+            _ if y.abs() < f32::EPSILON => 0.0,
             Op::Div => x / y,
             _ => x / y.abs(),
         }
@@ -72,8 +73,14 @@ pub(crate) enum Node {
     Member { of: u32, path: List },
     Math { function: MathFn, args: [u32; 3], count: u8 },
     Not(u32),
-    Neg(u32),
+    /// Arithmetic, comparisons and `==`; `&&` and `||` are [`Node::Logic`].
     Binary(Op, u32, u32),
+    /// `of`'s result through a post-op (`post.rs`): what `-x`, `x·c` and `x + c` become.
+    Post { of: u32, post: Post },
+    /// `a + b - c + ...`, flattened as BDS does (`optimise.rs`); `-` negates its term.
+    Sum(List),
+    /// `a && b && ...` (`any` false) or `a || b || ...`.
+    Logic { any: bool, terms: List },
     Coalesce(u32, u32),
     Ternary(u32, u32, u32),
     /// `a ? b`
