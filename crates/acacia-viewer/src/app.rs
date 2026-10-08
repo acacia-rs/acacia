@@ -3,6 +3,7 @@
 
 mod events;
 mod keys;
+mod menu;
 mod screen;
 mod window;
 
@@ -10,7 +11,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acacia_render::blocks::BlockTable;
-use acacia_render::item::ItemModels;
+use acacia_render::entity::EntityInstance;
+use acacia_render::item::{ItemKey, ItemModels, hand};
 use acacia_render::sky::{DAY_TICKS, SkyTextures, moon_phase};
 use acacia_render::{Camera, FrameStats, Outline, Renderer};
 use acacia_world::World;
@@ -26,9 +28,12 @@ use crate::player::Play;
 use crate::settings::Settings;
 use crate::shot::Shot;
 use crate::smooth::Smoother;
-use crate::ui::Ui;
+use crate::ui::{Frame, Ui};
+use menu::Menu;
 
 const TITLE_EVERY: Duration = Duration::from_millis(500);
+/// A frame's work before drawing that takes longer than this is logged, by stage.
+const SLOW_FRAME: Duration = Duration::from_millis(250);
 
 /// Who moves the camera.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +57,10 @@ pub struct App {
     show_debug: bool,
     /// The inventory screen is open (E).
     screen_open: bool,
+    /// The pause menu or options (Esc).
+    menu: Option<Menu>,
+    /// Disconnect was chosen: the window closes.
+    pub quit: bool,
     inventory: Inventory,
     /// Cursor position in window pixels, and Shift held.
     mouse: [f64; 2],
@@ -97,13 +106,16 @@ impl App {
         let play = Play::new(net.commands.clone());
         // Unattended screenshots place the camera themselves.
         let shot = Shot::from_env();
-        let mode = if shot.is_some() { Mode::Fly } else { Mode::Play };
+        let mode = if shot.is_some() && std::env::var_os("ACACIA_PLAY").is_none() { Mode::Fly } else { Mode::Play };
         let ui = Ui::new(&looks);
         App {
             ui,
             show_debug: std::env::var_os("ACACIA_DEBUG").is_some(),
             // For unattended screenshots of the inventory screen.
             screen_open: std::env::var_os("ACACIA_SCREEN").is_some(),
+            // For unattended screenshots of the pause menu.
+            menu: std::env::var_os("ACACIA_MENU").map(|_| Menu::Pause),
+            quit: false,
             inventory: Inventory::default(),
             mouse: [0.0; 2],
             shift: false,
@@ -183,12 +195,27 @@ impl App {
         }
     }
 
+    /// The held item in first person, swinging with clicks.
+    fn hand(&mut self, now: Instant) -> Option<EntityInstance> {
+        let stack = self.play.held_first_person().filter(|_| self.mode == Mode::Play)?.clone();
+        let swing = self.play.swing(now);
+        let model = self.entities.item(&ItemKey { name: stack.name, aux: stack.aux, block: stack.block })?;
+        Some(hand::first_person(&model, &self.camera, swing))
+    }
+
     fn frame(&mut self) {
+        let start = Instant::now();
         self.poll_net();
         let now = Instant::now();
         let dt = (now - self.last_frame).as_secs_f32().min(0.1);
         self.last_frame = now;
         let outline = self.steer(now, dt);
+        let steered = Instant::now();
+        let hand = self.hand(now);
+        let held = Instant::now();
+        if held - start > SLOW_FRAME {
+            tracing::warn!(net = ?(now - start), steer = ?(steered - now), hand = ?(held - steered), "slow frame");
+        }
         let Some(r) = &mut self.renderer else { return };
         r.set_outline(outline);
         r.fog_distance = self.fog_distance;
@@ -200,7 +227,9 @@ impl App {
             r.moon_phase = moon_phase(i64::from(time));
         }
         self.camera.aspect = r.aspect();
-        r.set_entities(self.entities.instances(self.camera.position));
+        let mut instances = self.entities.instances(self.camera.position);
+        instances.extend(hand);
+        r.set_entities(instances);
         let world = r.world().cloned();
         let debug = self.show_debug.then(|| {
             let target = self.play.target.as_ref().filter(|_| self.mode == Mode::Play);
@@ -209,14 +238,21 @@ impl App {
         });
         let (size, scale) = self.gui();
         let mouse = self.gui_mouse();
-        let screen = self.screen_open.then_some((&self.inventory, self.layout(), mouse));
+        let screen = self.screen_open.then_some((&self.inventory, self.layout()));
+        let menu = self.menu.map(|m| self.menu_content(m));
+        let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice()));
         let Some(r) = &mut self.renderer else { return };
-        let ui = self.ui.draw(self.settings.look, self.play.me.as_ref(), debug, screen, size, scale, now);
+        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, mouse, size, scale, now };
+        let ui = self.ui.draw(frame);
         let view = match self.mode == Mode::Play && self.play.view_turned() {
             true => Camera { yaw: self.camera.yaw + std::f32::consts::PI, pitch: -self.camera.pitch, ..self.camera },
             false => self.camera,
         };
+        let drawing = Instant::now();
         let stats = r.render(&view, Some(ui));
+        if drawing.elapsed() > SLOW_FRAME {
+            tracing::warn!(ui = ?(drawing - held), render = ?drawing.elapsed(), "slow draw");
+        }
         self.stats = stats;
         self.overlay.frames += 1;
         let elapsed = self.overlay.since.elapsed();

@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::download::Error;
 
-const COPIED: [&str; 3] = ["textures/gui/sprites/hud", "textures/font/ascii.png", "font/include/default.json"];
+const COPIED: [&str; 4] = ["textures/gui/sprites/hud", "textures/gui/sprites/boss_bar", "textures/font/ascii.png", "font/include/default.json"];
 
 pub fn copy(assets: &Path, out: &Path) -> Result<(), Error> {
     for name in COPIED {

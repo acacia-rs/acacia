@@ -4,6 +4,7 @@
 mod block;
 pub mod drop;
 mod extrude;
+pub mod hand;
 mod icon;
 mod icons;
 

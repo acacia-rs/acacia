@@ -238,9 +238,11 @@ impl EntityPass {
                 (None, None) => continue,
             };
             // Model space has the entity facing -z with its right at -x: mirror z, then turn.
-            let body = Mat4::from_translation((e.position - camera).as_vec3())
-                * Mat4::from_rotation_y(-e.yaw.to_radians())
-                * Mat4::from_scale(Vec3::new(e.scale, e.scale, -e.scale));
+            let body = e.frame.unwrap_or_else(|| {
+                Mat4::from_translation((e.position - camera).as_vec3())
+                    * Mat4::from_rotation_y(-e.yaw.to_radians())
+                    * Mat4::from_scale(Vec3::new(e.scale, e.scale, -e.scale))
+            });
             let first_bone = bones.len() as u32;
             bones.extend(mesh.skin(&e.pose).iter().map(|posed| (body * *posed).to_cols_array_2d()));
             let [block, sky] = light(e.position + DVec3::Y * 0.5);

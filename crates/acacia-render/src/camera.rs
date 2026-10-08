@@ -28,7 +28,6 @@ impl Camera {
         let (sy, cy) = self.yaw.sin_cos();
         Vec3::new(-cy, 0.0, -sy)
     }
-
     pub fn look(&mut self, d_yaw: f32, d_pitch: f32) {
         self.yaw = (self.yaw + d_yaw).rem_euclid(std::f32::consts::TAU);
         self.pitch = (self.pitch + d_pitch).clamp(-1.55, 1.55);

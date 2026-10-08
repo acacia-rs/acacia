@@ -65,6 +65,7 @@ pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop) -> Vec<Entity
             yaw: -spin.to_degrees(),
             scale: ground.scale,
             pose: Pose::default(),
+            frame: None,
         })
         .collect()
 }

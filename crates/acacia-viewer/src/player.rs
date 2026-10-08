@@ -42,7 +42,12 @@ pub struct Play {
     using_item: bool,
     /// 0 first person, 1 behind, 2 in front.
     perspective: u8,
+    /// When the arm last started a swing.
+    swung: Option<Instant>,
 }
+
+/// Java's arm swing: 6 ticks.
+const SWING: Duration = Duration::from_millis(300);
 
 /// Blocks between the eye and a third-person camera.
 const THIRD_PERSON_DISTANCE: f32 = 4.0;
@@ -63,7 +68,7 @@ impl EyeTrack {
 
 impl Play {
     pub fn new(commands: UnboundedSender<Command>) -> Self {
-        Play { commands, held: Vec::new(), sent: None, eye: None, me: None, target: None, entity: None, attacking: false, using: None, using_item: false, perspective: 0 }
+        Play { commands, held: Vec::new(), sent: None, eye: None, me: None, target: None, entity: None, attacking: false, using: None, using_item: false, perspective: 0, swung: None }
     }
 
     fn send(&self, command: Command) {
@@ -147,6 +152,20 @@ impl Play {
             }
             (None, None) => {}
         }
+    }
+
+    /// How far through a swing the arm is (0 at rest); a held attack or use keeps it swinging.
+    pub fn swing(&mut self, now: Instant) -> f32 {
+        if (self.attacking || self.using.is_some()) && self.swung.is_none_or(|s| now - s >= SWING) {
+            self.swung = Some(now);
+        }
+        self.swung.map_or(0.0, |s| ((now - s).as_secs_f32() / SWING.as_secs_f32()).min(1.0) % 1.0)
+    }
+
+    /// The held stack in first person; `None` from behind or in front.
+    pub fn held_first_person(&self) -> Option<&crate::control::Stack> {
+        let me = self.me.as_ref().filter(|_| self.perspective == 0)?;
+        me.items.get(usize::from(me.hotbar))?.as_ref()
     }
 
     /// F5: first person, then behind, then in front facing back.

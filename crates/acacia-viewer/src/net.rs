@@ -42,6 +42,8 @@ pub enum NetEvent {
     Player(DVec3),
     /// The player after each tick.
     Me(Me),
+    /// A title, subtitle or action bar text (or a clear).
+    Title(acacia_bot::events::Title),
     /// The player's slots, when they changed.
     Inventory(control::Inventory),
     /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
@@ -118,7 +120,7 @@ async fn run(
     let builder = login(Client::builder(&options.server).chunk_radius(options.radius), &options.name).await?;
     let subscribe = PacketFilter::none().with(BiomeDefinitionList::ID);
     let trackers = Trackers { entities: true, skins: true, ..Trackers::default() };
-    let events = Events::TICKS | Events::CHAT;
+    let events = Events::TICKS | Events::CHAT | Events::TITLES;
     let config = BotConfig { physics: true, auto_respawn: true, subscribe, trackers, events, mouse_input: true, ..BotConfig::default() };
     let models = Arc::new(EntityModels::load(files));
     send(NetEvent::EntityModels(models.clone()))?;
@@ -159,11 +161,16 @@ async fn run(
                     send(NetEvent::Chat { sender, message: m.message, params: m.params })?;
                     continue;
                 }
+                Some(BotEvent::Title(t)) => {
+                    send(NetEvent::Title(t))?;
+                    continue;
+                }
                 Some(BotEvent::Tick) => {
                     if bot.movement().is_some_and(|m| m.is_started()) {
                         spawned_ticks += 1;
                     }
                     if spawned_ticks >= SETUP_AFTER_TICKS && !setup.is_empty() {
+                        tracing::info!(commands = ?setup, "setup");
                         setup.drain(..).for_each(|c| _ = bot.client().command(&c));
                     }
                     send(NetEvent::Me(control::me(&bot)))?;

@@ -89,7 +89,11 @@ impl ApplicationHandler for App {
         self.net.shutdown();
     }
 
-    fn about_to_wait(&mut self, _: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.quit {
+            event_loop.exit();
+            return;
+        }
         if let Some(w) = &self.window {
             w.request_redraw();
         }

@@ -14,6 +14,8 @@ use acacia_render::item::{ItemIcons, block_icon};
 use acacia_ui::chat::{self, Chat};
 use acacia_ui::hud::{self, HudState, sprite};
 use acacia_ui::lang::Lang;
+use acacia_ui::overlay::{self, Boss, Titles};
+use acacia_bot::events::{Title, TitleKind};
 use acacia_ui::theme::{Theme, bedrock, java};
 use acacia_ui::{DrawList, Quad, Sprite};
 
@@ -34,10 +36,28 @@ struct Skin {
     generation: u32,
 }
 
+/// What one frame's UI shows, over a window `size` pixels big at GUI `scale`.
+pub struct Frame<'a> {
+    pub look: LookChoice,
+    pub me: Option<&'a Me>,
+    /// The debug screen's two columns, when it is shown.
+    pub debug: Option<(Vec<String>, Vec<String>)>,
+    /// An open inventory screen.
+    pub screen: Option<(&'a Inventory, Layout)>,
+    /// An open menu: its title and button labels.
+    pub menu: Option<(&'a str, &'a [String])>,
+    /// GUI pixels.
+    pub mouse: [f32; 2],
+    pub size: [u32; 2],
+    pub scale: u32,
+    pub now: Instant,
+}
+
 pub struct Ui {
     bedrock: Skin,
     java: Skin,
     pub chat: Chat,
+    titles: Titles,
     lang: Lang,
     quads: Vec<Quad>,
 }
@@ -58,7 +78,17 @@ impl Ui {
         tracing::info!(font = font_root.is_some(), "ui themes");
         let lang = Lang::load(&bedrock_root.join("texts/en_US.lang"));
         let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root), Skin::new(java_theme, &java_root));
-        Ui { bedrock, java, chat: Chat::default(), lang, quads: Vec::new() }
+        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), lang, quads: Vec::new() }
+    }
+
+    pub fn show_title(&mut self, title: Title) {
+        let (text, now) = (self.lang.translate(&title.text, &[]), Instant::now());
+        match title.kind {
+            TitleKind::Title => self.titles.title(text, now),
+            TitleKind::Subtitle => self.titles.subtitle(text),
+            TitleKind::ActionBar => self.titles.action_bar(text, now),
+            TitleKind::Clear => self.titles.clear(),
+        }
     }
 
     /// The blocks of the world now shown in `look`, for block items' icons.
@@ -80,23 +110,14 @@ impl Ui {
     pub fn push_chat(&mut self, sender: Option<&str>, message: &str, params: &[String]) {
         let text = self.lang.translate(message, params);
         let line = sender.map_or_else(|| text.clone(), |s| format!("<{s}> {text}"));
+        tracing::info!(target: "chat", "{line}");
         self.chat.push(line, Instant::now());
     }
 
     /// This frame's quads for a window `size` pixels big at GUI `scale`, and the atlas they sample.
-    /// `debug` is the debug screen's two columns, when it is shown; `screen` the open inventory and
-    /// the mouse in GUI pixels.
-    #[allow(clippy::too_many_arguments)]
-    pub fn draw(
-        &mut self,
-        look: LookChoice,
-        me: Option<&Me>,
-        debug: Option<(Vec<String>, Vec<String>)>,
-        screen: Option<(&Inventory, Layout, [f32; 2])>,
-        size: [u32; 2],
-        scale: u32,
-        now: Instant,
-    ) -> (&acacia_ui::Atlas, &[Quad]) {
+    /// This frame's quads and the atlas they sample.
+    pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad]) {
+        let Frame { look, me, debug, screen, menu, mouse, size, scale, now } = frame;
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
             LookChoice::Java => &mut self.java,
@@ -106,12 +127,15 @@ impl Ui {
         if let Some(me) = me {
             let state = skin.state(me);
             hud::draw(&mut list, &skin.theme, &state, gui);
+            let bosses: Vec<Boss> = me.bosses.iter().map(|(title, progress, colour)| Boss { title, progress: *progress, colour: *colour }).collect();
+            overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
         }
+        overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
         chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
         if let Some((left, right)) = debug {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
-        if let Some((inventory, layout, mouse)) = screen {
+        if let Some((inventory, layout)) = screen {
             let mut icons = HashMap::new();
             for (slot, _) in acacia_ui::inventory::slots(layout) {
                 if let Some(item) = stack_in(inventory, slot).and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count))) {
@@ -122,6 +146,9 @@ impl Ui {
             let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor };
             let title = inventory.container.as_ref().map_or("", |c| c.title.as_str());
             acacia_ui::inventory::draw(&mut list, &skin.theme, layout, title, &contents, mouse, gui);
+        }
+        if let Some((title, buttons)) = menu {
+            acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, mouse, gui);
         }
         self.quads = list.quads;
         (&skin.theme.atlas, &self.quads)

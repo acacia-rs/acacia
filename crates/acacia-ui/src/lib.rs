@@ -10,6 +10,8 @@ pub mod font;
 pub mod hud;
 pub mod inventory;
 pub mod lang;
+pub mod menu;
+pub mod overlay;
 pub mod scale;
 pub mod theme;
 

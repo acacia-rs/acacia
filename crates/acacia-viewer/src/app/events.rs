@@ -29,6 +29,7 @@ impl App {
                 }
                 NetEvent::Me(me) => self.play.tick(me),
                 NetEvent::Inventory(inventory) => self.set_inventory(inventory),
+                NetEvent::Title(title) => self.ui.show_title(title),
                 NetEvent::Chat { sender, message, params } => self.ui.push_chat(sender.as_deref(), &message, &params),
                 NetEvent::EntityModels(models) => {
                     self.entities.set_models(models.clone());

@@ -3,11 +3,18 @@
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
+use super::menu::Menu;
 use super::{App, Mode};
 use crate::control::Command;
 
 impl App {
     pub(super) fn key(&mut self, code: KeyCode, pressed: bool) {
+        if self.menu.is_some() {
+            if pressed && code == KeyCode::Escape {
+                self.menu_back();
+            }
+            return;
+        }
         if self.ui.chat.is_open() || self.screen_open {
             if pressed && self.screen_open {
                 self.screen_key(code);
@@ -22,6 +29,7 @@ impl App {
                 self.play.release_all();
                 self.ui.chat.open(if code == KeyCode::Slash { "/" } else { "" });
             }
+            (KeyCode::Escape, true) if self.mode == Mode::Play => self.open_menu(Menu::Pause),
             (KeyCode::Escape, true) => self.grab(false),
             (KeyCode::F6, true) => self.switch_mode(),
             (KeyCode::F3, true) => self.show_debug = !self.show_debug,
@@ -32,18 +40,8 @@ impl App {
                 }
             }
             (KeyCode::KeyC, true) if self.mode == Mode::Fly => self.settings.change_and_save(|s| s.cave_culling = !s.cave_culling),
-            (KeyCode::KeyL, true) => {
-                self.settings.change_and_save(|s| s.look = s.look.next());
-                if let Some(world) = self.renderer.as_ref().and_then(|r| r.world().cloned()) {
-                    self.show_world(world);
-                }
-            }
-            (KeyCode::KeyV, true) if self.mode == Mode::Fly => {
-                self.settings.change_and_save(|s| s.vsync = !s.vsync);
-                if let Some(r) = &mut self.renderer {
-                    r.set_vsync(self.settings.vsync);
-                }
-            }
+            (KeyCode::KeyL, true) => self.switch_look(),
+            (KeyCode::KeyV, true) if self.mode == Mode::Fly => self.toggle_vsync(),
             _ => match self.mode {
                 Mode::Fly => self.input.key(code, pressed),
                 Mode::Play => self.play.key(code, pressed),
@@ -84,6 +82,12 @@ impl App {
     }
 
     pub(super) fn button(&mut self, button: MouseButton, pressed: bool) {
+        if self.menu.is_some() {
+            if pressed && button == MouseButton::Left {
+                self.menu_click();
+            }
+            return;
+        }
         if self.screen_open {
             if pressed {
                 self.screen_click(button, self.shift);

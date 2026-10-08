@@ -168,11 +168,11 @@ impl Feed {
             let stack = e.item.as_ref().filter(|s| !s.is_empty())?;
             let key = ItemKey { name: bot.state().item_name(stack)?.to_owned(), aux: stack.metadata, block: crate::control::block_of(bot, stack) };
             dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32) });
-            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default() };
+            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None };
             (e.kind.clone(), instance)
         } else {
             let (layers, scale) = self.models.appearance(&e.kind, &|name| facts.query(name))?;
-            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default() };
+            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None };
             (e.kind.clone(), instance)
         };
         let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none());
@@ -196,7 +196,7 @@ impl Feed {
             Some((skin.clone(), *slim))
         });
         let layers = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
-        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default() })
+        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None })
     }
 }
 

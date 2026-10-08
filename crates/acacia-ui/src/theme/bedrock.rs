@@ -9,6 +9,7 @@ use image::{RgbaImage, imageops};
 use super::{Style, Theme, java_font, png};
 use crate::atlas::Atlas;
 use crate::hud::sprite;
+use crate::overlay::BOSS_COLOURS;
 
 pub const STYLE: Style = Style { xp_colour: 0x80FF00, xp_outline: false };
 
@@ -49,6 +50,12 @@ pub fn load(root: &Path, java_root: Option<&Path>) -> Theme {
     if let Some(icons) = png(&root.join("textures/gui/icons.png")) {
         for (name, [x, y, w, h]) in ICONS {
             atlas.add(name, &imageops::crop_imm(&icons, x, y, w, h).to_image());
+        }
+        // The sheet has one boss bar (the pink one); every colour draws it.
+        let (bg, fill) = (imageops::crop_imm(&icons, 0, 74, 182, 5).to_image(), imageops::crop_imm(&icons, 0, 79, 182, 5).to_image());
+        for colour in BOSS_COLOURS {
+            atlas.add(&format!("boss_bar/{colour}_background"), &bg);
+            atlas.add(&format!("boss_bar/{colour}_progress"), &fill);
         }
     }
     let font = java_root.and_then(|r| java_font(r, &mut atlas));

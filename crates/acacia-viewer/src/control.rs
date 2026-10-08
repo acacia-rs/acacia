@@ -5,6 +5,7 @@ use acacia_bot::interact::Face;
 use acacia_bot::items::{Click, SlotRef};
 use acacia_bot::state::ItemStack;
 use acacia_bot::movement::Controls;
+use acacia_bot::proto::packets::BossEventColor;
 use acacia_bot::proto::types::{GameMode, WindowType};
 use glam::{DVec3, IVec3};
 
@@ -96,6 +97,8 @@ pub struct Me {
     pub xp_progress: f32,
     /// The nine hotbar stacks.
     pub items: [Option<Stack>; 9],
+    /// Boss bars: name, fill 0 to 1, and an index of `acacia_ui::overlay::BOSS_COLOURS`.
+    pub bosses: Vec<(String, f32, usize)>,
 }
 
 /// An item stack as the HUD shows it.
@@ -111,6 +114,7 @@ pub struct Stack {
 
 /// Item moves wait for the server's answer (one round trip) before the next command runs.
 pub async fn apply(bot: &mut Bot, command: Command) {
+    tracing::debug!(?command, "command");
     let result = match command {
         Command::Inventory(true) => {
             bot.open_inventory();
@@ -181,5 +185,19 @@ pub fn me(bot: &Bot) -> Me {
         xp_level: p.xp_level,
         xp_progress: p.xp_progress,
         items,
+        bosses: state.environment.boss_bars.values().map(|b| (b.title.clone(), b.progress, boss_colour(b.color))).collect(),
+    }
+}
+
+fn boss_colour(colour: BossEventColor) -> usize {
+    use BossEventColor as C;
+    match colour {
+        C::Blue => 1,
+        C::Red => 2,
+        C::Green => 3,
+        C::Yellow => 4,
+        C::Purple | C::RebeccaPurple => 5,
+        C::White => 6,
+        C::Pink | C::Unknown(_) => 0,
     }
 }

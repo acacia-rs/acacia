@@ -95,6 +95,9 @@ pub struct EntityInstance {
     pub scale: f32,
     /// From [`EntityModels::pose`]; the head's turn is part of it.
     pub pose: Pose,
+    /// Model space to camera-relative world space, in place of position, yaw and scale: what the
+    /// camera carries (the item in the player's hand). Lit at `position`.
+    pub frame: Option<glam::Mat4>,
 }
 
 impl EntityModels {

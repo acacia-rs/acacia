@@ -23,6 +23,12 @@ player state. Layout is tested headless.
 - `chat.rs`: the log (100 lines; 10 shown while closed, for 10 s with a 1 s fade, Java's
   `ChatComponent`), the input line and sent-line recall. Drawn bottom-left, 320 wide, 40 px up.
 
+- `inventory.rs`: the player's screen (Java's `InventoryScreen`, 176×166) and rows of nine above
+  the player's slots (`ChestMenu`), with hit-testing; panels and slots drawn flat in vanilla's greys.
+- `menu.rs`: a title over a column of 200×20 buttons (pause, options); hit-testing.
+- `overlay.rs`: title (scale 4) and subtitle (scale 2) with Java's 10/70/20-tick fade, the action
+  bar 68 px up for 3 s, boss bars 19 px apart from the top.
+
 ## Themes (`theme/`)
 
 A `Theme` is an atlas holding the HUD sprites under the names in `hud::sprite`, a font and a
@@ -40,6 +46,6 @@ Bedrock sprites (the same pixels) with the Java style.
 
 ## Not yet
 
-Menus and screens (pause, options, inventory, containers, forms), the boss bar, titles, the
-debug overlay, scoreboard, Unicode glyph pages, translated server messages (`%key` strings), block
-items in the hotbar (they need a rendered icon), offhand and attack indicator.
+Workstation and other non-chest containers, the crafting grid and portrait, server forms (in
+progress on `ui/forms`), scoreboard, Unicode glyph pages, offhand and attack indicator, Java's
+widget sprites (screens are drawn flat).

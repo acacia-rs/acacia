@@ -82,6 +82,11 @@ impl Smoother {
         self.items = Some(items);
     }
 
+    /// An item's model in the shown world's look (the held item's, for the hand).
+    pub fn item(&mut self, key: &acacia_render::item::ItemKey) -> Option<ItemModel> {
+        self.items.as_mut()?.get(key)
+    }
+
     pub fn push(&mut self, snapshot: Vec<Tracked>) {
         let t = self.progress();
         let now = Instant::now();
