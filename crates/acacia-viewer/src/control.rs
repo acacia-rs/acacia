@@ -71,9 +71,11 @@ pub struct Rows {
 
 /// A stack's block id in the world's registry: items carry the server's wire id, hashed on BDS.
 pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
-    match (s.block_runtime_id, bot.world().and_then(|w| w.view())) {
-        (0, _) | (_, None) => 0,
-        (wire, Some(view)) => view.world().runtime_id(wire),
+    let Some(view) = bot.world().and_then(|w| w.view()) else { return 0 };
+    match s.block_runtime_id {
+        // Recipe outputs carry no block id: the block of the item's name, in its first state.
+        0 => bot.state().item_name(s).and_then(|name| view.world().registry().states_of(name).next()).map_or(0, |(id, _)| id),
+        wire => view.world().runtime_id(wire),
     }
 }
 

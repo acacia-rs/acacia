@@ -54,7 +54,7 @@ pub struct Layer {
 const OVERLAY_MATERIALS: [&str; 8] = ["outer", "charged", "ghost", "wind", "bioluminescent", "dissolve", "spectator", "enchanted"];
 const PLAYER_GEOMETRIES: [&str; 3] = ["geometry.humanoid.custom", "geometry.humanoid.customSlim", "geometry.humanoid"];
 /// sRGB dye colours by the `color` data value, white first.
-const DYES: [u32; 16] = [
+pub(crate) const DYES: [u32; 16] = [
     0xF9FFFE, 0xF9801D, 0xC74EBD, 0x3AB3DA, 0xFED83D, 0x80C71F, 0xF38BAA, 0x474F52, 0x9D9D97, 0x169C9C, 0x8932B8, 0x3C44AA, 0x835432, 0x5E7C16,
     0xB02E26, 0x1D1D21,
 ];

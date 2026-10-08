@@ -13,40 +13,22 @@ use crate::entity::bake::{Joint, Mesh, Vertex};
 const TILE: u32 = 16;
 
 /// A quad in block space (0..1, Java axes) with UVs inside its tile.
-struct Face {
-    corners: [Vec3; 4],
-    uv: [[f32; 2]; 4],
-    tile: Tile,
+pub(super) struct Face {
+    pub corners: [Vec3; 4],
+    pub uv: [[f32; 2]; 4],
+    pub tile: Tile,
 }
 
 #[derive(Clone, Copy, PartialEq)]
 pub(super) struct Tile {
-    layer: u16,
+    pub layer: u16,
     tint: Tint,
     material: Material,
 }
 
 /// The block drawn as an item, or `None` for shapes that are not boxes or model faces.
 pub fn skin(block: &RenderBlock, atlas: &Atlas) -> Option<Skin> {
-    let tile = |face| tile_of(block, face);
-    let faces: Vec<Face> = match &block.shape {
-        Shape::Cube => box_faces([0, 0, 0, 16, 16, 16], tile).collect(),
-        Shape::Boxes(boxes) => boxes.iter().flat_map(|b| box_faces(*b, tile)).collect(),
-        Shape::Model(faces) => faces
-            .iter()
-            .map(|f| {
-                let [c0, c1, c3] = f.corners.map(|c| Vec3::from(c) / 16.0);
-                let [t0, t1, t3] = f.uv.map(|[u, v]| [u / 16.0, v / 16.0]);
-                let t2 = [t1[0] + t3[0] - t0[0], t1[1] + t3[1] - t0[1]];
-                let tile = Tile { layer: f.texture, tint: f.tint, material: f.material };
-                Face { corners: [c0, c1, c1 + c3 - c0, c3], uv: [t0, t1, t2, t3], tile }
-            })
-            .collect(),
-        _ => return None,
-    };
-    if faces.is_empty() {
-        return None;
-    }
+    let faces = faces(block)?;
     let mut tiles: Vec<Tile> = Vec::new();
     for face in &faces {
         if !tiles.contains(&face.tile) {
@@ -72,6 +54,27 @@ pub fn skin(block: &RenderBlock, atlas: &Atlas) -> Option<Skin> {
     let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
     let mesh = Mesh { vertices, bones: vec!["root".into()], joints: vec![joint] };
     Some(Skin { width: TILE, height: TILE * tiles.len() as u32, rgba, mesh: Some(mesh) })
+}
+
+/// The block's faces, or `None` for shapes that are not boxes or model faces.
+pub(super) fn faces(block: &RenderBlock) -> Option<Vec<Face>> {
+    let tile = |face| tile_of(block, face);
+    let faces: Vec<Face> = match &block.shape {
+        Shape::Cube => box_faces([0, 0, 0, 16, 16, 16], tile).collect(),
+        Shape::Boxes(boxes) => boxes.iter().flat_map(|b| box_faces(*b, tile)).collect(),
+        Shape::Model(faces) => faces
+            .iter()
+            .map(|f| {
+                let [c0, c1, c3] = f.corners.map(|c| Vec3::from(c) / 16.0);
+                let [t0, t1, t3] = f.uv.map(|[u, v]| [u / 16.0, v / 16.0]);
+                let t2 = [t1[0] + t3[0] - t0[0], t1[1] + t3[1] - t0[1]];
+                let tile = Tile { layer: f.texture, tint: f.tint, material: f.material };
+                Face { corners: [c0, c1, c1 + c3 - c0, c3], uv: [t0, t1, t2, t3], tile }
+            })
+            .collect(),
+        _ => return None,
+    };
+    (!faces.is_empty()).then_some(faces)
 }
 
 /// A tile as the terrain would draw it, under plains colours: the entity pass knows no tints.

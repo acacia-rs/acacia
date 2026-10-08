@@ -17,7 +17,7 @@ use crate::blocks::{BlockTable, Shape};
 use crate::entity::{Layer, NO_MODEL, NO_TEXTURE, Skin};
 use crate::LookPack;
 use crate::look::Dropped;
-pub use icon::block_icon;
+pub use icon::{banner_icon, block_icon};
 pub use icons::ItemIcons;
 
 /// An item stack as the server names it.
