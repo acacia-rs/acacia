@@ -1,6 +1,6 @@
-//! `ACACIA_KEYS="3 +Space; 3.15 -Space; 9 click 640 300; ..."`: key presses (+) and releases (-), and
-//! left clicks at window pixels, at seconds after play starts, for unattended live tests of the
-//! controls (e.g. flight's double tap, menu buttons).
+//! `ACACIA_KEYS="3 +Space; 3.15 -Space; 9 click 640 300; 12 +Use; ..."`: key presses (+) and
+//! releases (-), the right button held (`Use`), and left clicks at window pixels, at seconds after
+//! play starts, for unattended live tests of the controls (flight's double tap, menu buttons).
 
 use std::time::{Duration, Instant};
 
@@ -10,6 +10,8 @@ use winit::keyboard::KeyCode;
 pub enum Step {
     Key(KeyCode, bool),
     Click([f64; 2]),
+    /// The right button (`+Use`, `-Use`).
+    Use(bool),
 }
 
 pub struct KeyScript {
@@ -50,6 +52,7 @@ fn parse(step: &str) -> Option<(Duration, Step)> {
         _ => return None,
     };
     let key = match name {
+        "Use" => return Some((at, Step::Use(pressed))),
         "Space" => KeyCode::Space,
         "Shift" => KeyCode::ShiftLeft,
         "Ctrl" => KeyCode::ControlLeft,
@@ -74,5 +77,6 @@ mod tests {
         assert_eq!(parse("3.5 +Space"), Some((Duration::from_secs_f32(3.5), Step::Key(KeyCode::Space, true))));
         assert_eq!(parse("9 click 640 300"), Some((Duration::from_secs(9), Step::Click([640.0, 300.0]))));
         assert_eq!(parse("1 +Nope"), None);
+        assert_eq!(parse("2 -Use"), Some((Duration::from_secs(2), Step::Use(false))));
     }
 }

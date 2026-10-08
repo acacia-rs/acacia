@@ -29,6 +29,7 @@ impl App {
                             self.button(winit::event::MouseButton::Left, true);
                             self.button(winit::event::MouseButton::Left, false);
                         }
+                        Step::Use(pressed) => self.button(winit::event::MouseButton::Right, pressed),
                     }
                 }
                 self.play.frame(&mut self.camera, world.as_deref(), self.table.as_deref(), &entities, now);
@@ -71,7 +72,17 @@ impl App {
     pub(super) fn hand(&mut self, now: Instant) -> Option<EntityInstance> {
         let stack = self.play.held_first_person().filter(|_| self.mode == Mode::Play)?.clone();
         let swing = self.play.swing(now);
+        let using = self.play.item_use_secs(now).and_then(|secs| using(&stack.name, secs * 20.0));
         let model = self.entities.item(&ItemKey { name: stack.name, aux: stack.aux, block: stack.block })?;
-        Some(hand::first_person(&model, &self.camera, swing))
+        Some(hand::first_person(&model, &self.camera, swing, using))
     }
+}
+
+/// How an item in use looks held: a bow drawn, or food and drink eaten (again each `duration`).
+fn using(name: &str, ticks: f32) -> Option<hand::Using> {
+    if matches!(name, "minecraft:bow" | "minecraft:crossbow") {
+        return Some(hand::Using::Bow { ticks });
+    }
+    let duration = acacia_bot::survival::use_ticks(name)? as f32;
+    Some(hand::Using::Eat { ticks: ticks % duration, duration })
 }

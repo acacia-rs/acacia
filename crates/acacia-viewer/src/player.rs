@@ -41,8 +41,8 @@ pub struct Play {
     attacking: bool,
     /// When the use button was last acted on while held.
     using: Option<Instant>,
-    /// A use in the air is in progress: releasing the button sends `ReleaseItem`.
-    using_item: bool,
+    /// When a use in the air began (eating, drawing a bow): releasing the button sends `ReleaseItem`.
+    using_item: Option<Instant>,
     /// 0 first person, 1 behind, 2 in front.
     perspective: u8,
     /// When the arm last started a swing.
@@ -73,7 +73,7 @@ impl EyeTrack {
 
 impl Play {
     pub fn new(commands: UnboundedSender<Command>) -> Self {
-        Play { commands, held: Vec::new(), sent: None, eye: None, me: None, target: None, entity: None, attacking: false, using: None, using_item: false, perspective: 0, swung: None, jumped: None }
+        Play { commands, held: Vec::new(), sent: None, eye: None, me: None, target: None, entity: None, attacking: false, using: None, using_item: None, perspective: 0, swung: None, jumped: None }
     }
 
     fn send(&self, command: Command) {
@@ -142,7 +142,7 @@ impl Play {
             }
             (MouseButton::Right, false) if self.using.is_some() => {
                 self.using = None;
-                if std::mem::take(&mut self.using_item) {
+                if self.using_item.take().is_some() {
                     self.send(Command::ReleaseItem);
                 }
             }
@@ -154,8 +154,8 @@ impl Play {
         match (self.entity, &self.target) {
             (Some(runtime_id), _) => self.send(Command::Entity { runtime_id, attack: false }),
             (None, Some(t)) => self.send(Command::UseOn(t.block, t.face)),
-            (None, None) if !self.using_item => {
-                self.using_item = true;
+            (None, None) if self.using_item.is_none() => {
+                self.using_item = Some(Instant::now());
                 self.send(Command::UseItem);
             }
             (None, None) => {}
@@ -174,6 +174,11 @@ impl Play {
     pub fn held_first_person(&self) -> Option<&crate::control::Stack> {
         let me = self.me.as_ref().filter(|_| self.perspective == 0)?;
         me.items.get(usize::from(me.hotbar))?.as_ref()
+    }
+
+    /// Seconds the held item has been in use in the air, if it is.
+    pub fn item_use_secs(&self, now: Instant) -> Option<f32> {
+        self.using_item.map(|since| now.saturating_duration_since(since).as_secs_f32())
     }
 
     pub fn attacking(&self) -> bool {

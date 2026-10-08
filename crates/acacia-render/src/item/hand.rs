@@ -57,12 +57,50 @@ mod tests {
     }
 }
 
+/// The held item in use, for Java's first-person use animations; `ticks` since the use began.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Using {
+    /// Food or drink taking `duration` ticks.
+    Eat { ticks: f32, duration: f32 },
+    Bow { ticks: f32 },
+}
+
+/// `applyEatTransform`, in view space before the arm's offset: the item rises to the mouth, turned
+/// in, and bobs while eaten.
+fn eat_transform(ticks: f32, duration: f32) -> Mat4 {
+    let remaining = (duration - ticks).max(0.0) + 1.0;
+    let g = remaining / duration;
+    let bob = if g < 0.8 { ((remaining / 4.0 * std::f32::consts::PI).cos() * 0.1).abs() } else { 0.0 };
+    let h = 1.0 - g.min(1.0).powi(27);
+    Mat4::from_translation(Vec3::new(h * 0.6, bob - h * 0.5, 0.0))
+        * Mat4::from_rotation_y((h * 90.0).to_radians())
+        * Mat4::from_rotation_x((h * 10.0).to_radians())
+        * Mat4::from_rotation_z((h * 30.0).to_radians())
+}
+
+/// The bow held drawn, after the arm's offset; Java's pull `(m² + 2m) / 3` of the seconds drawn.
+fn bow_transform(ticks: f32) -> Mat4 {
+    let m = ticks / 20.0;
+    let pull = ((m * m + m * 2.0) / 3.0).min(1.0);
+    let shake = if pull > 0.1 { ((ticks - 0.1) * 1.3).sin() * (pull - 0.1) * 0.004 } else { 0.0 };
+    Mat4::from_translation(Vec3::new(-0.278_568_2, 0.183_443_87, 0.157_315_31))
+        * Mat4::from_rotation_x((-13.935f32).to_radians())
+        * Mat4::from_rotation_y(35.3f32.to_radians())
+        * Mat4::from_rotation_z((-9.785f32).to_radians())
+        * Mat4::from_translation(Vec3::new(0.0, shake, pull * 0.04))
+        * Mat4::from_scale(Vec3::new(1.0, 1.0, 1.0 + pull * 0.2))
+        * Mat4::from_rotation_y((-45.0f32).to_radians())
+}
+
 /// `swing` is 0 to 1 through an arm swing (0 at rest).
-pub fn first_person(model: &ItemModel, camera: &Camera, swing: f32) -> EntityInstance {
+pub fn first_person(model: &ItemModel, camera: &Camera, swing: f32, using: Option<Using>) -> EntityInstance {
     let forward = camera.forward();
     let right = camera.right();
     let up = right.cross(forward);
-    let view = Mat4::from_mat3(Mat3::from_cols(right, up, -forward));
+    let mut view = Mat4::from_mat3(Mat3::from_cols(right, up, -forward));
+    if let Some(Using::Eat { ticks, duration }) = using {
+        view *= eat_transform(ticks, duration);
+    }
     let (rotation, translation, scale) = if model.block {
         (Vec3::new(0.0, 45.0, 0.0), Vec3::ZERO, 0.4)
     } else {
@@ -73,8 +111,13 @@ pub fn first_person(model: &ItemModel, camera: &Camera, swing: f32) -> EntityIns
     let arm = ARM + Vec3::new(-0.4 * s, 0.2 * s, -0.2 * s);
     let [rx, ry, rz] = rotation.to_array().map(f32::to_radians);
     // Meshes are stored with z mirrored (model space faces -z): mirror back into Java's item space.
+    let drawn = match using {
+        Some(Using::Bow { ticks }) => bow_transform(ticks),
+        _ => Mat4::IDENTITY,
+    };
     let frame = view
         * Mat4::from_translation(arm)
+        * drawn
         * Mat4::from_rotation_y(-s * 0.35)
         * Mat4::from_translation(translation)
         * Mat4::from_euler(EulerRot::XYZ, rx, ry, rz)
