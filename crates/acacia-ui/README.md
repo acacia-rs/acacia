@@ -35,6 +35,8 @@ player state. Layout is tested headless.
 - `sidebar.rs`: the scoreboard sidebar in Java's `displayScoreboardSidebar` layout, for both looks.
 - `overlay.rs`: title (scale 4) and subtitle (scale 2) with Java's 10/70/20-tick fade, the action
   bar 68 px up for 3 s, boss bars 19 px apart from the top.
+- `signs.rs`: a sign side's text as quads in font pixels around its centre, for the renderer to put
+  on the board (see "Signs").
 - `nine.rs`: nine-slice sprites with their borders from the file beside them (`.mcmeta`, Bedrock's
   `.json`); Java tiles edges and centre, Bedrock stretches. `DrawList::clip` cuts quads for scrolling.
 - `input.rs`: mouse, wheel, keys and typed text in GUI pixels; the viewer translates window events.
@@ -64,6 +66,24 @@ A `Theme` is an atlas holding the HUD sprites under the names in `hud::sprite`, 
 
 Without a font, text is not drawn; the sprites still are. A Java look that was not baked draws the
 Bedrock sprites (the same pixels) with the Java style.
+
+## Signs (`signs.rs`)
+
+Java's `AbstractSignRenderer` (26.3 client): four lines, each centred (the negated width halved
+towards zero), line i at `(i − 2) ×` the line height: 10 px and at most 90 px wide on signs, 9 and
+60 on hanging signs. Bedrock keeps a side's text as one string: it is split at `\n`, each part
+wrapped at spaces to the width, and the first four lines drawn.
+
+| | Java theme (`Style::java_signs`) | Bedrock theme |
+|---|---|---|
+| Colour | Bedrock's `SignTextColor` (the dye's colour; blue, red and green seen on BDS 1.26.52, the rest from the dyes' Java values) mapped to Java's `DyeColor.getTextColor`, another colour kept | `SignTextColor` |
+| Unlit text | 40% of it (`getDarkColor`) | As it is; unmeasured |
+| Glowing | Full colour over an outline (the glyphs at the 8 neighbouring pixels) of the 40% colour, `0xF0EBCC` around black | The same; unmeasured. `HideGlowOutline` drops the outline |
+
+`§` codes colour the text as the font does everywhere; the outline ignores them.
+
+The sign editor is not a screen of its own: the viewer shows it as a custom form of four inputs
+and Done (`Spec::Custom`'s `submit`), not as either game's sign screen.
 
 ## Not yet
 

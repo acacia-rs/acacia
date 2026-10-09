@@ -26,7 +26,7 @@ material per face. Build it from the **world's** registry: custom blocks shift r
 - **Shape**: vanilla shapes are hard-coded in the game, so full cubes use `Cube`, other solid blocks use
   their collision boxes (clamped to the block, rounded to 1/16), and collisionless blocks use a small table
   (carpets, rails, torches, buttons, snow layers, open fence gates) or crossed planes. Chests, beds,
-  signs and heads are models (see "Block models"). Hanging signs, banners and vines draw nothing yet.
+  signs and heads are models (see "Block models"). Banners and vines draw nothing yet.
 - **Orientation**: `pillar_axis` and `minecraft:cardinal_direction` (blocks.json fronts face south).
 - **Tint**: which faces take grass, foliage or water colour is by name (birch and spruce leaves are
   fixed colours). Water opacity comes from the look.
@@ -199,14 +199,38 @@ texture, yaw from the block state) and the shape `None`. The mesher lists a sect
 renderer draws those within the fog distance through the entity pass, lit like entities.
 
 - **Meshes**: the game hard-codes chests and signs, so `entity/block_models.json` holds them (after
-  Java's `ChestModel` and `SignModel`; signs at 2/3 scale). Beds and heads come from the pack's
+  Java's `ChestModel`, `SignModel` and `HangingSignRenderer`; standing and wall signs at 2/3 scale;
+  hanging signs under two chains, under chains meeting in the middle with `attached_bit`, or under
+  a wall's bracket, each chain one plane). Beds and heads come from the pack's
   `geometry.bed` and `geometry.*_head`, moved into the block: the pack's bed stands upright and the
   heads sit at neck height. All bake to one bone (`Mesh::fixed`).
 - **Block entity data** (`BlockData`, `Renderer::set_block_data`): the caller reads it from the NBT.
   `color` picks the bed texture (red without it). `pairx`/`pairz`/`pairlead` join two chests: the
   lead draws the double model between both blocks, the other half nothing. `Rotation` turns a floor
   head; that 0 faces north is assumed from Java.
-- A bed's head piece draws both halves. Lids never open. Signs show no text.
+- A bed's head piece draws both halves. Lids never open.
+
+### Sign text (`sign_text.rs`, `gpu/sign_text.rs`)
+
+`Renderer::set_sign_text` takes each written sign's front and back as quads in font pixels
+(`acacia_ui::signs::layout`, in the UI atlas `render` is given, so the caller lays them out again
+when the look changes). A sign model carries them where Java's `StandingSignRenderer` and
+`HangingSignRenderer` put text (26.3 client):
+
+| | Standing, wall | Hanging |
+|---|---|---|
+| Pivot in the block | 0.5, 0.5, 0.5 | 0.5, 0.9375, 0.5 |
+| Shift after the turn | Wall: 0, −0.3125, −0.4375 | 0, −0.3125, 0 |
+| Text offset | 0, 0.3333, 0.04667 | 0, −0.32, 0.073 |
+| Blocks per font pixel | 0.010416667 | 0.0140625 |
+
+The back is turned half around before the offset. The pass draws after the block models: glyph
+quads sampled nearest from the atlas, depth-tested against the board 0.005 behind and not
+written, lit by the sign's cell without the board's directional shade, fogged. Glowing text is
+drawn at full light over its outline. From Java: no text beyond 64 blocks
+(`BlockEntityRenderer.getViewDistance`), and the outline only within 16 unless the text is black
+(`OUTLINE_RENDER_DISTANCE`; Java measures from the player's feet, this from the camera).
+Unmeasured: where Bedrock's client puts and cuts off text; it takes Java's values.
 
 ## Items (`item/`)
 
@@ -381,7 +405,7 @@ way from the Bedrock one (docs/java-look.md).
 ## Not yet
 
 Java's fast (flat) clouds, the End's and the Nether's skies, GPU occlusion culling (Hi-Z). Block
-models: hanging signs, banners, sign text, bells, open lids, piglin heads. Entities: animation
+models: banners, bells, open lids, piglin heads. Entities: animation
 state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller
 colours (slime shell, creeper flash, collar dyes), a leather stack's own dye (undyed leather's
 colour is baked, `gpu/entity_textures.rs`), enchantment glint, queries that need untracked state

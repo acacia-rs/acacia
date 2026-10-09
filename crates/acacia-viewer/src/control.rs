@@ -41,6 +41,8 @@ pub enum Command {
     DropCursor { one: bool },
     /// The player's answer to open form `id`.
     AnswerForm(u32, FormReply),
+    /// The open sign editor closed with this text, or (`None`) with the side's text unchanged.
+    WriteSign(Option<String>),
 }
 
 /// The player's own slots as a screen shows them.
@@ -165,6 +167,12 @@ pub struct Stack {
     pub block: u32,
 }
 
+/// The text on the side of the sign whose editor the server opened, `None` without an editor.
+pub fn open_sign_text(bot: &Bot) -> Option<String> {
+    let editor = bot.state().signs.editor?;
+    Some(bot.state().block_entities.sign_text(editor.position, editor.front).unwrap_or_default().to_owned())
+}
+
 /// Item moves wait for the server's answer (one round trip) before the next command runs.
 pub async fn apply(bot: &mut Bot, command: Command) {
     tracing::debug!(?command, "command");
@@ -185,6 +193,10 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::Craft { name, table } => bot.craft(&name, 1, table).await.map(|_| ()),
         Command::DropCursor { one } => bot.drop_cursor(one).await,
         Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),
+        Command::WriteSign(text) => {
+            let text = text.or_else(|| open_sign_text(bot)).unwrap_or_default();
+            bot.write_open_sign(&text)
+        }
         Command::Controls(c) => {
             if let Some(controls) = bot.controls() {
                 // The flight follows the player's own Space taps (`Play::controls`): a changed `fly` would add

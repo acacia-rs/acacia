@@ -14,7 +14,7 @@ use crate::overlay::BOSS_COLOURS;
 use crate::widget::Widgets;
 use crate::widget::bedrock::Kit;
 
-pub const STYLE: Style = Style { xp_colour: 0x80FF00, xp_outline: false };
+pub const STYLE: Style = Style { xp_colour: 0x80FF00, xp_outline: false, java_signs: false };
 
 /// Single files under `textures/ui`.
 const FILES: [(&str, &str); 11] = [

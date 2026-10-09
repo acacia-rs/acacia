@@ -10,11 +10,13 @@ mod globals;
 mod inputs;
 mod outline;
 mod over;
+mod updates;
 mod particle_feed;
 mod particles;
 mod pipeline;
 mod screen_effect;
 mod screenshot;
+mod sign_text;
 mod sky;
 mod sprites;
 mod store;
@@ -80,6 +82,7 @@ pub struct Renderer {
     /// Entities drawn over the UI, fully lit (`over.rs`): each needs a `frame`.
     pub ui_entities: Vec<EntityInstance>,
     block_models: BlockModels,
+    sign_text: sign_text::SignTextPass,
     /// `None` until [`Renderer::set_sky_textures`]: the sky is then a plain colour.
     sky: Option<SkyPass>,
     outline_pass: OutlinePass,
@@ -139,6 +142,7 @@ impl Renderer {
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
             depth: pipeline::depth_view(&device, config.width, config.height),
+            sign_text: sign_text::SignTextPass::new(&device, config.format, &globals),
             surface,
             device,
             queue,
@@ -183,25 +187,7 @@ impl Renderer {
     /// Draws a frame from `camera`, with `ui` (its atlas and this frame's quads) over it.
     pub fn render(&mut self, camera: &Camera, ui: Option<(&acacia_ui::Atlas, &[acacia_ui::Quad])>) -> FrameStats {
         let (cam_block, cam_frac) = camera.split_position();
-        if let Some(scene) = &mut self.scene {
-            scene.pump(cam_block, &mut self.updates);
-        }
-        for update in self.updates.drain(..) {
-            match update {
-                Update::Mesh(key, mut mesh) => {
-                    self.block_models.set_section(key, std::mem::take(&mut mesh.models));
-                    self.store.upload(&self.device, &self.queue, key, mesh);
-                }
-                Update::Light(key, light) => self.store.upload_light(&self.queue, key, &light),
-                Update::Remove(key) => {
-                    self.block_models.set_section(key, Vec::new());
-                    self.store.remove(key);
-                }
-            }
-        }
-        if std::mem::take(&mut self.store.replaced) {
-            self.bind_group = pipeline::bind_group(&self.device, &self.pipelines.layout, &self.globals, &self.store, &self.textures.view, &self.sampler);
-        }
+        self.take_updates(cam_block);
         self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
         self.prepare_particles(camera);
         let world = self.scene.as_ref().map(|s| s.world().clone());
@@ -233,13 +219,14 @@ impl Renderer {
         let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance));
         self.screen_effect.prepare(&self.queue, camera, fog.underwater, light_at(camera.position));
         self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), &self.ui_entities, camera.position, light_at);
-        drop(light);
         self.outline_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         self.crack_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         let (atlas, quads) = ui.map_or((None, &[][..]), |(a, q)| (Some(a), q));
         if let Some(atlas) = atlas {
             self.ui_pass.prepare(&self.device, &self.queue, atlas, quads, [self.config.width, self.config.height]);
         }
+        self.sign_text.prepare(&self.device, &self.queue, self.ui_pass.texture.as_ref(), self.block_models.sign_text(), camera.position, light_at);
+        drop(light);
         let frustum = Frustum::new(view_proj);
         let reachable = self
             .scene
@@ -271,6 +258,7 @@ impl Renderer {
                 }
                 if std::ptr::eq(pipeline, &self.pipelines.solid) {
                     self.entities.draw(&mut pass);
+                    self.sign_text.draw(&mut pass);
                 }
             }
             self.particles.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);

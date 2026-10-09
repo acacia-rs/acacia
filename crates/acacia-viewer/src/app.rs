@@ -107,6 +107,7 @@ pub struct App {
     /// The server form shown, and its button images.
     form: Option<FormScreen>,
     form_images: Images,
+    signs: crate::sign_text::Signs,
 }
 
 /// Frame-rate and memory figures shown in the title.
@@ -177,6 +178,7 @@ impl App {
             failed: None,
             form: App::shot_form(),
             form_images: Images::new(&bedrock_pack),
+            signs: Default::default(),
         }
     }
 
@@ -220,6 +222,7 @@ impl App {
         let portrait = self.portrait();
         let Some(r) = &mut self.renderer else { return };
         r.ui_entities = portrait;
+        self.signs.feed(self.settings.look, self.ui.theme(self.settings.look), r);
         r.set_outline(outline);
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.settings.cave_culling;

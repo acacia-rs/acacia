@@ -17,7 +17,7 @@ const SHOT_FORM_ID: u32 = u32::MAX;
 impl App {
     /// The form the bot reports open; the same one again changes nothing.
     pub(super) fn show_form(&mut self, form: Option<Form>) {
-        if self.form.as_ref().is_some_and(|f| f.id == SHOT_FORM_ID) {
+        if self.form.as_ref().is_some_and(|f| f.id >= forms::SIGN_EDITOR_ID) {
             return;
         }
         match form {
@@ -30,6 +30,21 @@ impl App {
                 self.form = Some(FormScreen::new(&form));
             }
             None if self.form.is_some() => self.close_form(),
+            None => {}
+        }
+    }
+
+    /// The sign editor the server opened, on the side's `text` so far; `None` once it is closed.
+    pub(super) fn show_sign_editor(&mut self, text: Option<String>) {
+        match text {
+            Some(text) => {
+                if self.form.is_none() {
+                    self.play.release_all();
+                    self.grab(false);
+                }
+                self.form = Some(FormScreen::sign_editor(&text));
+            }
+            None if self.form.as_ref().is_some_and(|f| f.id == forms::SIGN_EDITOR_ID) => self.close_form(),
             None => {}
         }
     }
@@ -62,9 +77,11 @@ impl App {
         let look = self.settings.look;
         let Some(form) = &mut self.form else { return };
         let Some(outcome) = form.handle(&input, self.ui.theme_mut(look)) else { return };
-        if form.id != SHOT_FORM_ID {
-            let _ = self.net.commands.send(Command::AnswerForm(form.id, forms::reply(outcome)));
-        }
+        let _ = match form.id {
+            SHOT_FORM_ID => Ok(()),
+            forms::SIGN_EDITOR_ID => self.net.commands.send(Command::WriteSign(forms::sign_text(outcome))),
+            id => self.net.commands.send(Command::AnswerForm(id, forms::reply(outcome))),
+        };
         self.close_form();
     }
 

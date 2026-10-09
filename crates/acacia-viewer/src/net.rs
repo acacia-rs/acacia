@@ -55,6 +55,8 @@ pub enum NetEvent {
     Inventory(control::Inventory),
     /// The server form now open, when that changed (`None`: it closed).
     Form(Option<acacia_bot::forms::Form>),
+    /// The server opened a sign's editor, on this text; `None`: it closed.
+    SignEditor(Option<String>),
     /// The scoreboard sidebar, when it changed (`None`: none shown).
     Sidebar(Option<acacia_ui::sidebar::Sidebar>),
     /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
@@ -67,6 +69,8 @@ pub enum NetEvent {
     Time(i32),
     /// What the block entities add to block models, when it changes.
     BlockData(Arc<BlockDataMap>),
+    /// The written signs, when one changes.
+    Signs(Arc<crate::sign_text::Texts>),
     Status(String),
     /// The bot thread stopped: kicked, disconnected, or failed to join. Last event sent.
     Ended(String),
@@ -147,7 +151,7 @@ async fn run(
     let mut inventory = control::Inventory::default();
     let mut own_sounds = audio::Own::default();
     let mut players: Vec<String> = Vec::new();
-    let mut form: Option<u32> = None;
+    let (mut form, mut sign_open): (Option<u32>, bool) = (None, false);
     let mut sidebar: Option<acacia_ui::sidebar::Sidebar> = None;
     // Sent a second after the player left the loading screen: BDS ignored them sent at once.
     let mut spawned_ticks = 0u32;
@@ -159,7 +163,7 @@ async fn run(
     let mut current: Option<Arc<World>> = None;
     let mut biome_logged = false;
     let mut time = None;
-    let mut block_data = Arc::new(BlockDataMap::new());
+    let (mut block_data, mut signs) = (Arc::new(BlockDataMap::new()), Arc::new(crate::sign_text::Texts::new()));
     let mut reports = 0u32;
     // `next` only returns for caller-facing events, which a viewer barely subscribes to; the
     // timer reports world and position changes in between (`next` is cancel-safe).
@@ -224,6 +228,11 @@ async fn run(
                         form = open;
                         send(NetEvent::Form(bot.state().forms.latest().cloned()))?;
                     }
+                    let editing = control::open_sign_text(&bot);
+                    if editing.is_some() != sign_open {
+                        sign_open = editing.is_some();
+                        send(NetEvent::SignEditor(editing))?;
+                    }
                     let now = crate::scoreboard::sidebar(&bot);
                     if now != sidebar {
                         sidebar = now.clone();
@@ -263,6 +272,11 @@ async fn run(
                 if data != *block_data {
                     block_data = Arc::new(data);
                     send(NetEvent::BlockData(block_data.clone()))?;
+                }
+                let texts = crate::sign_text::snapshot(&bot.state().block_entities);
+                if texts != *signs {
+                    signs = Arc::new(texts);
+                    send(NetEvent::Signs(signs.clone()))?;
                 }
             }
             if !biome_logged {

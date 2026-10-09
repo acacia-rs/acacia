@@ -18,6 +18,8 @@ pub struct UiPass {
     screen: wgpu::Buffer,
     /// With the atlas version it was built for and the atlas size.
     atlas: Option<(wgpu::BindGroup, u64, [f32; 2])>,
+    /// The uploaded atlas and its version, for the sign text drawn from it in the world.
+    pub texture: Option<(wgpu::TextureView, u64)>,
     instances: wgpu::Buffer,
     count: u32,
     /// A non-sRGB format: the UI blends in gamma space, and its colours are sRGB values.
@@ -77,7 +79,7 @@ impl UiPass {
             mapped_at_creation: false,
         });
         let instances = instance_buffer(device, 1024);
-        UiPass { pipeline, layout, sampler, screen, atlas: None, instances, count: 0, format: color }
+        UiPass { pipeline, layout, sampler, screen, atlas: None, texture: None, instances, count: 0, format: color }
     }
 
     /// Uploads the atlas when it changed and this frame's quads.
@@ -95,6 +97,7 @@ impl UiPass {
                 ],
             });
             self.atlas = Some((bind_group, atlas.version, [image.width() as f32, image.height() as f32]));
+            self.texture = Some((view, atlas.version));
         }
         let Some((_, _, size)) = &self.atlas else { return };
         let screen = [window[0] as f32, window[1] as f32, size[0], size[1]];

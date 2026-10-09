@@ -60,6 +60,14 @@ impl Bot {
         Ok(())
     }
 
+    /// Closes the editor the server opened with `text` on its side, at once: for a player who
+    /// typed it, where [`Self::write_sign`] takes a person's time.
+    pub fn write_open_sign(&mut self, text: &str) -> Result<(), ActionError> {
+        let editor = self.state.signs.editor.ok_or_else(|| ActionError::NotPossible("no sign editor is open".into()))?;
+        self.close_sign_editor(editor.position, editor.front, text);
+        Ok(())
+    }
+
     async fn open_sign_editor(&mut self, pos: BlockPos) -> Result<SignEditor, ActionError> {
         self.state.signs.editor = None;
         let face = facing_face(self.eye_position(), pos);

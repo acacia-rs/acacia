@@ -65,7 +65,7 @@ fn custom_form_submits_values_in_order_and_esc_closes() {
             Widget::Toggle { label: "On".into(), on: true },
             Widget::Input { label: "Name".into(), placeholder: "you".into(), edit: TextEdit::new("", 100) },
         ];
-        let mut view = FormView::new("Form", Spec::Custom { elements }, &theme, SIZE);
+        let mut view = FormView::new("Form", Spec::Custom { elements, submit: SUBMIT.into() }, &theme, SIZE);
         let field = theme.widgets.skin().hit(theme.font.as_ref(), &view.panel.items[2].widget, view.panel.rect(2));
         click(&mut view, &theme, [field[0] + 2.0, field[1] + 2.0]);
         view.handle(&Input::Text("Ann".into()), &theme);

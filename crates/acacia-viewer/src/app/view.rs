@@ -24,6 +24,7 @@ impl App {
                 for step in self.key_script.as_mut().map(|s| s.due(now)).unwrap_or_default() {
                     match step {
                         Step::Key(key, pressed) => self.key(key, pressed),
+                        Step::Type(text) => self.text(&text, true),
                         Step::Click(at) => {
                             self.mouse = at;
                             self.button(winit::event::MouseButton::Left, true);
