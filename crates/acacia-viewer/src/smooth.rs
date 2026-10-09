@@ -151,50 +151,61 @@ impl Smoother {
     pub fn instances(&self, camera: DVec3) -> Vec<EntityInstance> {
         let t = self.progress();
         let visible = |(e, _): &&(Tracked, Motion)| e.own_eyes.is_none_or(|eyes| eyes.distance(camera) > OWN_HEAD_RADIUS);
-        let posed = |(e, to): &(Tracked, Motion)| -> Vec<EntityInstance> {
-            let m = self.blend(e.runtime_id, *to, t);
-            let life = self.born.get(&e.runtime_id).map_or(0.0, |b| b.elapsed().as_secs_f32());
-            if let Some(stack) = &e.dropped {
-                let (Some(model), Some(items)) = (self.dropped.get(&e.runtime_id), &self.items) else { return Vec::new() };
-                let age_ticks = life / SNAPSHOT_SECS;
-                let at = Drop { feet: m.position, count: stack.count, seed: stack.seed, age_ticks, bob_offset: drop::bob_offset(e.runtime_id) };
-                return drop::instances(model, items.dropped(), &at);
-            }
-            let query = |name: &str| {
-                Value::Num(match name {
-                    "life_time" => life,
-                    "modified_distance_moved" => m.walk.distance,
-                    "modified_move_speed" => m.walk.speed,
-                    "target_x_rotation" => m.pitch,
-                    "target_y_rotation" => wrap_degrees(m.head_yaw - m.yaw),
-                    "is_on_ground" => 1.0,
-                    "is_alive" => f32::from(u8::from(!e.dying)),
-                    _ => return e.facts.query(name),
-                })
-            };
-            let pose = e.instance.layers.first().map(|l| self.models.pose(&e.kind, l.model, &query)).unwrap_or_default();
-            let mut out = Vec::with_capacity(2);
-            let status = self.hurt.get(&e.runtime_id).copied().unwrap_or_default();
-            let dying = status.dying_since.map(|since| since.elapsed().as_secs_f32());
-            let hurt = dying.is_some() || status.at.is_some_and(|at| at.elapsed().as_secs_f32() < HURT_SECS);
-            // The body transform the entity pass gives this instance, toppled while dying.
-            let s = e.instance.scale;
-            let topple = glam::Mat4::from_rotation_z(-dying.map_or(0.0, topple_degrees).to_radians());
-            let body = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * topple * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
-            let frame = dying.map(|_| body);
-            if let Some(item) = self.held.get(&e.runtime_id) {
-                let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
-                let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
-                if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.right_hand(&pose)) {
-                    out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
-                }
-            }
-            let worn = e.armor.iter().map(|layers| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, ..e.instance.clone() });
-            out.extend(worn);
-            out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
-            out
-        };
+        let posed = |(e, to): &(Tracked, Motion)| self.pieces(e, self.blend(e.runtime_id, *to, t), camera, None);
         self.to.iter().filter(visible).flat_map(posed).collect()
+    }
+
+    /// The own player standing still at `place` (model space to camera-relative space), its head
+    /// turned by `head_yaw` and `pitch` degrees: the figure in the inventory screen.
+    pub fn portrait(&self, place: glam::Mat4, head_yaw: f32, pitch: f32, camera: DVec3) -> Vec<EntityInstance> {
+        let Some((e, _)) = self.to.iter().find(|(e, _)| e.own_eyes.is_some()) else { return Vec::new() };
+        let still = Motion { position: camera, yaw: 0.0, head_yaw, pitch, walk: Walk::default() };
+        self.pieces(e, still, camera, Some(place))
+    }
+
+    /// One entity's instances (itself, what it wears and holds) at `m`, or at `place` instead.
+    fn pieces(&self, e: &Tracked, m: Motion, camera: DVec3, place: Option<glam::Mat4>) -> Vec<EntityInstance> {
+        let life = self.born.get(&e.runtime_id).map_or(0.0, |b| b.elapsed().as_secs_f32());
+        if let Some(stack) = &e.dropped {
+            let (Some(model), Some(items)) = (self.dropped.get(&e.runtime_id), &self.items) else { return Vec::new() };
+            let age_ticks = life / SNAPSHOT_SECS;
+            let at = Drop { feet: m.position, count: stack.count, seed: stack.seed, age_ticks, bob_offset: drop::bob_offset(e.runtime_id) };
+            return drop::instances(model, items.dropped(), &at);
+        }
+        let query = |name: &str| {
+            Value::Num(match name {
+                "life_time" => life,
+                "modified_distance_moved" => m.walk.distance,
+                "modified_move_speed" => m.walk.speed,
+                "target_x_rotation" => m.pitch,
+                "target_y_rotation" => wrap_degrees(m.head_yaw - m.yaw),
+                "is_on_ground" => 1.0,
+                "is_alive" => f32::from(u8::from(!e.dying)),
+                _ => return e.facts.query(name),
+            })
+        };
+        let pose = e.instance.layers.first().map(|l| self.models.pose(&e.kind, l.model, &query)).unwrap_or_default();
+        let mut out = Vec::with_capacity(2);
+        let status = self.hurt.get(&e.runtime_id).copied().unwrap_or_default();
+        let dying = status.dying_since.map(|since| since.elapsed().as_secs_f32());
+        let hurt = dying.is_some() || status.at.is_some_and(|at| at.elapsed().as_secs_f32() < HURT_SECS);
+        // The body transform the entity pass gives this instance, toppled while dying.
+        let s = e.instance.scale;
+        let topple = glam::Mat4::from_rotation_z(-dying.map_or(0.0, topple_degrees).to_radians());
+        let stood = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * topple * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
+        let body = place.map_or(stood, |place| place * glam::Mat4::from_scale(glam::Vec3::splat(s)));
+        let frame = (dying.is_some() || place.is_some()).then_some(body);
+        if let Some(item) = self.held.get(&e.runtime_id) {
+            let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
+            let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
+            if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.right_hand(&pose)) {
+                out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
+            }
+        }
+        let worn = e.armor.iter().map(|layers| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, ..e.instance.clone() });
+        out.extend(worn);
+        out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
+        out
     }
 
     /// Name tags and where they hang this frame: half a block over the entity's box.

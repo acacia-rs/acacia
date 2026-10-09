@@ -224,6 +224,8 @@ impl Feed {
             Some((skin.clone(), *slim))
         });
         let layers = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
+        // The pack's player definition (and Java) draws the 2-block model at 0.9375.
+        let scale = scale * 0.9375;
         Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None, hurt: false })
     }
 }

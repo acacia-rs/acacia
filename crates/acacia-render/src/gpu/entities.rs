@@ -49,6 +49,8 @@ pub struct EntityPass {
     ranges: Vec<Range<u32>>,
     looks: HashMap<TextureKey, Look>,
     draws: Vec<(Range<u32>, TextureKey)>,
+    /// How many of `draws` are in the world; the rest go over the UI.
+    world_draws: usize,
 }
 
 /// GPU side of one texture: a layer's, or a player skin with the mesh it may bring.
@@ -166,6 +168,7 @@ impl EntityPass {
             ranges: Vec::new(),
             looks: HashMap::new(),
             draws: Vec::new(),
+            world_draws: 0,
         }
     }
 
@@ -197,21 +200,25 @@ impl EntityPass {
         self.models = models;
     }
 
-    /// Uploads this frame's instances. `light` gives the (block, sky) levels at a world position.
+    /// Uploads this frame's instances. `light` gives the (block, sky) levels at a world position;
+    /// `over` are drawn by [`EntityPass::draw_over`] (over the UI), fully lit.
     pub fn prepare<'a>(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         globals: &wgpu::Buffer,
         entities: impl Iterator<Item = &'a EntityInstance>,
+        over: &'a [EntityInstance],
         camera: DVec3,
         light: impl Fn(DVec3) -> [f32; 2],
     ) {
         self.draws.clear();
+        self.world_draws = 0;
         self.looks.retain(|_, look| look.skin.as_ref().is_none_or(|s| Arc::strong_count(s) > 1));
         let mut records = Vec::new();
         let mut bones: Vec<BoneMatrix> = Vec::new();
-        for (e, layer) in entities.flat_map(|e| e.layers.iter().map(move |l| (e, l))) {
+        let all = entities.map(|e| (e, false)).chain(over.iter().map(|e| (e, true)));
+        for (e, layer, over) in all.flat_map(|(e, over)| e.layers.iter().map(move |l| (e, l, over))) {
             let shared = self.models.models().get(layer.model as usize).zip(self.ranges.get(layer.model as usize));
             if shared.is_none() && e.skin.as_ref().is_none_or(|s| s.mesh.is_none()) {
                 continue;
@@ -245,10 +252,13 @@ impl EntityPass {
             });
             let first_bone = bones.len() as u32;
             bones.extend(mesh.skin(&e.pose).iter().map(|posed| (body * *posed).to_cols_array_2d()));
-            let [block, sky] = light(e.position + DVec3::Y * 0.5);
+            let [block, sky] = if over { [15.0, 0.0] } else { light(e.position + DVec3::Y * 0.5) };
             let tint = layer.tint.map_or([0.0; 4], |[r, g, b]| [r, g, b, 1.0]);
             records.push(Instance { light: [block, sky, f32::from(u8::from(e.hurt)), 0.0], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0] });
             self.draws.push((range, key));
+            if !over {
+                self.world_draws = self.draws.len();
+            }
         }
         let grown = upload(device, queue, &mut self.instances, INSTANCES, &records) | upload(device, queue, &mut self.bones, BONES, &bones);
         if grown {
@@ -257,10 +267,19 @@ impl EntityPass {
     }
 
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        let Some(vertices) = self.vertices.as_ref().filter(|_| !self.draws.is_empty()) else { return };
+        self.draw_range(pass, 0..self.world_draws);
+    }
+
+    /// The instances given to [`EntityPass::prepare`] as `over`.
+    pub fn draw_over(&self, pass: &mut wgpu::RenderPass<'_>) {
+        self.draw_range(pass, self.world_draws..self.draws.len());
+    }
+
+    fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, draws: Range<usize>) {
+        let Some(vertices) = self.vertices.as_ref().filter(|_| !draws.is_empty()) else { return };
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
-        for (index, (range, key)) in self.draws.iter().enumerate() {
+        for (index, (range, key)) in self.draws.iter().enumerate().skip(draws.start).take(draws.len()) {
             let look = &self.looks[key];
             pass.set_bind_group(1, &look.texture, &[]);
             pass.set_vertex_buffer(0, look.own_mesh.as_ref().unwrap_or(vertices).slice(..));

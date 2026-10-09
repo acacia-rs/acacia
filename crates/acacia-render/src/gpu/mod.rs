@@ -9,6 +9,7 @@ mod fog;
 mod globals;
 mod inputs;
 mod outline;
+mod over;
 mod particle_feed;
 mod particles;
 mod pipeline;
@@ -76,6 +77,8 @@ pub struct Renderer {
     store: Store,
     entities: EntityPass,
     entity_list: Vec<EntityInstance>,
+    /// Entities drawn over the UI, fully lit (`over.rs`): each needs a `frame`.
+    pub ui_entities: Vec<EntityInstance>,
     block_models: BlockModels,
     /// `None` until [`Renderer::set_sky_textures`]: the sky is then a plain colour.
     sky: Option<SkyPass>,
@@ -149,6 +152,7 @@ impl Renderer {
             store,
             entities,
             entity_list: Vec::new(),
+            ui_entities: Vec::new(),
             block_models: BlockModels::default(),
             sky: None,
             outline_pass,
@@ -228,7 +232,7 @@ impl Renderer {
         };
         let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance));
         self.screen_effect.prepare(&self.queue, camera, fog.underwater, light_at(camera.position));
-        self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), camera.position, light_at);
+        self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), &self.ui_entities, camera.position, light_at);
         drop(light);
         self.outline_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         self.crack_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
@@ -282,6 +286,7 @@ impl Renderer {
         if atlas.is_some() {
             self.ui_pass.draw(&mut encoder, &frame.texture);
         }
+        self.draw_over_ui(&mut encoder, &view);
         self.queue.submit([encoder.finish()]);
         if let Some(path) = self.screenshot.take() {
             match screenshot::save(&self.device, &self.queue, &frame.texture, &path) {

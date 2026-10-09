@@ -6,6 +6,7 @@ mod fluid;
 mod form;
 mod keys;
 mod menu;
+mod portrait;
 mod screen;
 mod sky;
 mod view;
@@ -216,7 +217,9 @@ impl App {
         }
         self.feed_sky(dt);
         self.feed_fluid(dt);
+        let portrait = self.portrait();
         let Some(r) = &mut self.renderer else { return };
+        r.ui_entities = portrait;
         r.set_outline(outline);
         r.fog_distance = self.fog_distance;
         r.cave_culling = self.settings.cave_culling;
