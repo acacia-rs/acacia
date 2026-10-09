@@ -41,8 +41,11 @@ impl App {
     /// New slots from the bot. A container the server opened (a chest clicked) opens the screen;
     /// one it closed closes it.
     pub(super) fn set_inventory(&mut self, inventory: Inventory) {
-        let opened = |i: &Inventory| i.container.is_some() || i.workbench.is_some();
+        let opened = |i: &Inventory| i.container.is_some() || i.bench.is_some();
         let (had, has) = (opened(&self.inventory), opened(&inventory));
+        if inventory.picks != self.inventory.picks {
+            self.pick = None;
+        }
         self.inventory = inventory;
         if has && !self.screen_open {
             self.show_screen();
@@ -56,7 +59,7 @@ impl App {
         match (self.inventory.station, &self.inventory.container) {
             (Some(station), Some(_)) => Layout::Station(station),
             (_, Some(c)) => Layout::Rows((c.slots.len() / 9) as u8),
-            _ => Layout::Player,
+            _ => self.inventory.bench.map_or(Layout::Player, Layout::Bench),
         }
     }
 
@@ -83,17 +86,28 @@ impl App {
             _ => return,
         };
         let layout = self.layout();
-        let book = (layout == Layout::Player).then(|| recipes::hit(layout, size, self.inventory.craftable.len(), at)).flatten();
+        let book = layout.has_book().then(|| recipes::hit(layout, size, self.inventory.craftable.len(), at)).flatten();
         if let Some(i) = book {
             let name = self.inventory.craftable[i].name.clone();
             let _ = self.net.commands.send(Command::Craft { name, table: self.inventory.workbench });
             return;
         }
+        if let Some(i) = inventory::hit_pick(layout, size, self.inventory.enchants.len(), at) {
+            let _ = self.net.commands.send(Command::Enchant(i));
+            return;
+        }
+        if let Some(i) = inventory::hit_pick(layout, size, self.inventory.picks.len(), at) {
+            self.pick = Some(i);
+            return;
+        }
+        let picked = self.pick.and_then(|i| self.inventory.picks.get(i));
         let command = match inventory::hit(layout, size, at) {
-            Some(slot) => match slot_ref(slot) {
-                Some(slot) => Command::Click(slot, click),
+            Some(Slot::Result) if !self.inventory.picks.is_empty() => match picked {
+                Some(&(id, _)) => Command::TakeCut { id, all: click == Click::Shift },
                 None => return,
             },
+            Some(Slot::Result) => Command::TakeCrafted { all: click == Click::Shift },
+            Some(slot) => Command::Click(slot_ref(slot), click),
             None if !inventory::inside(layout, size, at) => Command::DropCursor { one: click == Click::Right },
             None => return,
         };
@@ -117,13 +131,14 @@ impl App {
     }
 }
 
-/// The bot's name for a screen slot; the crafting grid is not wired yet.
-fn slot_ref(slot: Slot) -> Option<SlotRef> {
+/// The bot's name for a screen slot.
+fn slot_ref(slot: Slot) -> SlotRef {
     match slot {
-        Slot::Main(i) => Some(SlotRef::Main(i)),
-        Slot::Armor(i) => Some(SlotRef::Armor(i)),
-        Slot::Offhand => Some(SlotRef::Offhand),
-        Slot::Container(i) => Some(SlotRef::Container(i)),
-        Slot::Craft(_) | Slot::CraftResult => None,
+        Slot::Main(i) => SlotRef::Main(i),
+        Slot::Armor(i) => SlotRef::Armor(i),
+        Slot::Offhand => SlotRef::Offhand,
+        Slot::Container(i) => SlotRef::Container(i),
+        Slot::Ui(i) => SlotRef::Ui(i),
+        Slot::Result => SlotRef::CREATED_OUTPUT,
     }
 }

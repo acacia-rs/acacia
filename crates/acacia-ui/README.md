@@ -27,6 +27,11 @@ player state. Layout is tested headless.
   the player's slots (`ChestMenu`), with hit-testing. `inventory/art.rs` draws the panel: Java's
   `container/inventory.png` and `generic_54.png`, Bedrock's `dialog_background_opaque` with a
   `cell_image` per slot (its classic screen has the same 176×166 root), flat greys otherwise.
+  `inventory/station.rs`: furnaces, hopper, dispenser, brewing stand (a container's own slots, with
+  progress). `inventory/bench.rs`: crafting table, anvil, smithing table, grindstone, stonecutter,
+  cartography and enchanting table: the player's UI slots by Bedrock's offset, a `Slot::Result`
+  the caller works out, and a pick list (`Pick`, `hit_pick`) for the stonecutter's cuts and the
+  enchanting options.
 - `recipes.rs`: the recipe book left of the player's screen, in Java's `recipe_book.png` and slot
   buttons or Bedrock's panel and cells.
 - `menu.rs`: button menus (pause, options, death) on the widget skins: Java's 200×20 column a
@@ -87,6 +92,6 @@ and Done (`Spec::Custom`'s `submit`), not as either game's sign screen.
 
 ## Not yet
 
-Workstation and other non-chest containers, the crafting grid and portrait, Unicode glyph pages,
+Loom, beacon and trading screens, name boxes (anvil, cartography), a scrolling pick list, Unicode glyph pages,
 offhand and attack indicator, Java's background blur, Bedrock's own settings screen and sidebar
 placement, multiselect form elements, JPEG button images.

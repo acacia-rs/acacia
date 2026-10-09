@@ -68,6 +68,8 @@ pub struct App {
     players: Vec<String>,
     /// The inventory screen is open (E).
     screen_open: bool,
+    /// The result picked from an open stonecutter's list.
+    pick: Option<usize>,
     /// The pause menu or options (Esc).
     menu: Option<Menu>,
     /// Disconnect was chosen: the window closes.
@@ -140,6 +142,7 @@ impl App {
             // For unattended screenshots of the pause menu.
             menu: std::env::var_os("ACACIA_MENU").map(|_| Menu::Pause),
             quit: false,
+            pick: None,
             inventory: Inventory::default(),
             mouse: [0.0; 2],
             shift: false,
@@ -241,7 +244,7 @@ impl App {
         self.drive_use();
         let (size, scale) = self.gui();
         let mouse = self.gui_mouse();
-        let screen = self.screen_open.then_some((&self.inventory, self.layout()));
+        let screen = self.screen_open.then_some((&self.inventory, self.layout(), self.pick));
         let menu = self.menu.map(|m| self.menu_content(m));
         let backdrop = if self.menu == Some(Menu::Death) { Backdrop::Death } else { Backdrop::Dim };
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice(), backdrop));

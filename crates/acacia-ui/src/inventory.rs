@@ -3,8 +3,10 @@
 //! (Bedrock's classic screen has the same 176×166 root); the panel is each game's art (`art.rs`).
 
 mod art;
+mod bench;
 mod station;
 
+pub use bench::{Bench, Picks};
 pub use station::{Progress, Station};
 
 use crate::atlas::Sprite;
@@ -24,6 +26,8 @@ pub enum Layout {
     Rows(u8),
     /// A furnace, hopper, dispenser or brewing stand (`station.rs`).
     Station(Station),
+    /// A crafting table, anvil, enchanting table and the like (`bench.rs`).
+    Bench(Bench),
 }
 
 impl Layout {
@@ -32,7 +36,13 @@ impl Layout {
             Layout::Player => 166.0,
             Layout::Rows(rows) => 114.0 + SLOT * f32::from(rows),
             Layout::Station(station) => station.height(),
+            Layout::Bench(_) => 166.0,
         }
+    }
+
+    /// Whether the recipe book stands beside the screen.
+    pub fn has_book(self) -> bool {
+        matches!(self, Layout::Player | Layout::Bench(Bench::Crafting))
     }
 
     /// Top of the player's three inventory rows (the hotbar is 58 below).
@@ -41,6 +51,7 @@ impl Layout {
             Layout::Player => 84.0,
             Layout::Rows(rows) => 103.0 + SLOT * (f32::from(rows) - 4.0),
             Layout::Station(station) => station.player_rows(),
+            Layout::Bench(_) => 84.0,
         }
     }
 }
@@ -53,9 +64,11 @@ pub enum Slot {
     /// Helmet, chestplate, leggings, boots.
     Armor(u8),
     Offhand,
-    /// The 2×2 grid, row by row.
-    Craft(u8),
-    CraftResult,
+    /// A workstation slot of the player's UI window, by Bedrock's offset (the crafting grids, an
+    /// anvil's inputs).
+    Ui(u8),
+    /// What the workstation's slots make.
+    Result,
     /// The open container's slots, row by row.
     Container(u8),
 }
@@ -69,20 +82,21 @@ pub fn slots(layout: Layout) -> Vec<(Slot, [f32; 2])> {
     match layout {
         Layout::Player => {
             out.extend((0..4u8).map(|i| (Slot::Armor(i), [8.0, 8.0 + SLOT * f32::from(i)])));
-            out.extend((0..4u8).map(|i| (Slot::Craft(i), [98.0 + SLOT * f32::from(i % 2), 18.0 + SLOT * f32::from(i / 2)])));
-            out.extend([(Slot::Offhand, [77.0, 62.0]), (Slot::CraftResult, [154.0, 28.0])]);
+            out.extend((0..4u8).map(|i| (Slot::Ui(bench::GRID_2X2 + i), [98.0 + SLOT * f32::from(i % 2), 18.0 + SLOT * f32::from(i / 2)])));
+            out.extend([(Slot::Offhand, [77.0, 62.0]), (Slot::Result, [154.0, 28.0])]);
         }
         Layout::Rows(rows) => out.extend((0..rows * 9).map(|i| (Slot::Container(i), at(i % 9, 18.0, i / 9)))),
         Layout::Station(station) => out.extend(station.slots().into_iter().enumerate().map(|(i, at)| (Slot::Container(i as u8), at))),
+        Layout::Bench(bench) => out.extend(bench.slots()),
     }
     out
 }
 
 /// The panel's top-left for a screen `size` GUI pixels big.
-/// The player's screen moves right to make room for the recipe book beside it, as Java's does
-/// when the book is open and the screen is at least 379 wide.
+/// A screen with the recipe book moves right to make room for it, as Java's does when the book
+/// is open and the screen is at least 379 wide.
 pub fn origin(layout: Layout, size: [f32; 2]) -> [f32; 2] {
-    let book = if layout == Layout::Player && size[0] >= BOOK_ROOM { BOOK_SHIFT } else { 0.0 };
+    let book = if layout.has_book() && size[0] >= BOOK_ROOM { BOOK_SHIFT } else { 0.0 };
     [((size[0] - WIDTH) / 2.0).floor() + book, ((size[1] - layout.height()) / 2.0).floor()]
 }
 
@@ -94,6 +108,24 @@ pub fn hit(layout: Layout, size: [f32; 2], mouse: [f32; 2]) -> Option<Slot> {
     let [ox, oy] = origin(layout, size);
     let over = |&(_, [x, y]): &(Slot, [f32; 2])| (ox + x..ox + x + 16.0).contains(&mouse[0]) && (oy + y..oy + y + 16.0).contains(&mouse[1]);
     slots(layout).into_iter().find(over).map(|(s, _)| s)
+}
+
+/// Each of a bench's first `count` pick buttons, as far as its list shows them.
+fn pick_rects(layout: Layout, size: [f32; 2], count: usize) -> Vec<[f32; 4]> {
+    let Layout::Bench(bench) = layout else { return Vec::new() };
+    let Some(Picks { at, columns, rows, cell }) = bench.picks() else { return Vec::new() };
+    let [ox, oy] = origin(layout, size);
+    (0..count.min(columns * rows))
+        .map(|i| {
+            let (x, y) = (ox + at[0] + (i % columns) as f32 * cell[0], oy + at[1] + (i / columns) as f32 * cell[1]);
+            [x, y, x + cell[0], y + cell[1]]
+        })
+        .collect()
+}
+
+/// The pick button under `mouse`, of `count`.
+pub fn hit_pick(layout: Layout, size: [f32; 2], count: usize, mouse: [f32; 2]) -> Option<usize> {
+    pick_rects(layout, size, count).iter().position(|r| (r[0]..r[2]).contains(&mouse[0]) && (r[1]..r[3]).contains(&mouse[1]))
 }
 
 /// Whether `mouse` is over the panel (a click outside it drops the held stack).
@@ -108,6 +140,17 @@ pub struct Contents<'a> {
     pub cursor: Option<(Sprite, u16)>,
     /// A station's arrow and flame.
     pub progress: Progress,
+    /// What a bench with a pick list offers, and the one chosen.
+    pub picks: &'a [Pick],
+    pub picked: Option<usize>,
+}
+
+/// One entry of a bench's pick list: a result's icon (the stonecutter's) or a line of text (an
+/// enchanting option).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Pick {
+    pub icon: Option<Sprite>,
+    pub label: String,
 }
 
 /// Java's screen background gradient, flattened.
@@ -137,17 +180,36 @@ pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, con
                 font.draw(list, title, ox + x, oy + 6.0, TITLE, 1.0, false);
                 font.draw(list, "Inventory", ox + 8.0, oy + height - 94.0, TITLE, 1.0, false)
             }
+            Layout::Bench(bench) => {
+                let [x, y] = bench.title_at();
+                font.draw(list, bench.title(), ox + x, oy + y, TITLE, 1.0, false);
+                font.draw(list, "Inventory", ox + 8.0, oy + height - 94.0, TITLE, 1.0, false)
+            }
         };
+    }
+    let over = hit_pick(layout, size, contents.picks.len(), mouse);
+    for (i, (rect, item)) in pick_rects(layout, size, contents.picks.len()).into_iter().zip(contents.picks).enumerate() {
+        art.pick(list, rect, contents.picked == Some(i), over == Some(i));
+        if let Some(icon) = item.icon {
+            stack(list, theme.font.as_ref(), (icon, 1), rect[0], rect[1] + 1.0);
+        }
+        if let Some(font) = &theme.font {
+            font.draw(list, &item.label, rect[0] + 5.0, rect[1] + 5.0, art.pick_text(), 1.0, false);
+        }
     }
     let hovered = hit(layout, size, mouse);
     for (slot, [x, y]) in slots(layout) {
         let (x, y) = (ox + x, oy + y);
         let item = (contents.slot)(slot);
         art.slot(list, slot, x, y, item.is_none());
+        let hover = hovered == Some(slot);
+        if hover && art.hover_is_under() {
+            art.hover(list, x, y);
+        }
         if let Some(item) = item {
             stack(list, theme.font.as_ref(), item, x, y);
         }
-        if hovered == Some(slot) {
+        if hover && !art.hover_is_under() {
             art.hover(list, x, y);
         }
     }
@@ -157,51 +219,4 @@ pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, con
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn slots_are_where_java_puts_them() {
-        let p = Layout::Player;
-        assert_eq!(slots(p).len(), 4 + 36 + 4 + 2);
-        let size = [320.0, 240.0];
-        let [ox, oy] = origin(p, size);
-        assert_eq!([ox, oy], [72.0, 37.0]);
-        assert_eq!(hit(p, size, [ox + 8.0 + 18.0 * 2.0 + 3.0, oy + 142.0 + 5.0]), Some(Slot::Main(2)));
-        assert_eq!(hit(p, size, [ox + 8.0 + 1.0, oy + 84.0 + 1.0]), Some(Slot::Main(9)));
-        assert_eq!(hit(p, size, [ox + 8.0 + 18.0 * 8.0 + 1.0, oy + 84.0 + 36.0 + 1.0]), Some(Slot::Main(35)));
-        assert_eq!(hit(p, size, [ox + 9.0, oy + 9.0 + 18.0 * 3.0]), Some(Slot::Armor(3)));
-        assert_eq!(hit(p, size, [ox + 7.0, oy + 142.0]), None, "the gap between slots");
-        assert!(!inside(p, size, [10.0, 10.0]));
-    }
-
-    #[test]
-    fn stations_put_their_slots_where_javas_menus_do() {
-        let at = |layout, s| slots(layout).into_iter().find(|(slot, _)| *slot == s).unwrap().1;
-        let furnace = Layout::Station(Station::Furnace);
-        assert_eq!([at(furnace, Slot::Container(0)), at(furnace, Slot::Container(1)), at(furnace, Slot::Container(2))], [[56.0, 17.0], [56.0, 53.0], [116.0, 35.0]]);
-        assert_eq!(at(furnace, Slot::Main(9)), [8.0, 84.0]);
-        let hopper = Layout::Station(Station::Hopper);
-        assert_eq!(hopper.height(), 133.0);
-        assert_eq!(at(hopper, Slot::Container(4)), [116.0, 20.0]);
-        assert_eq!(at(hopper, Slot::Main(0)), [8.0, 109.0]);
-        assert_eq!(at(Layout::Station(Station::Dropper), Slot::Container(8)), [98.0, 53.0]);
-        // Bedrock's order: ingredient, bottles, blaze powder.
-        let brewing = Layout::Station(Station::Brewing);
-        assert_eq!([at(brewing, Slot::Container(0)), at(brewing, Slot::Container(4))], [[79.0, 17.0], [17.0, 17.0]]);
-    }
-
-    #[test]
-    fn a_chest_sits_above_the_player_rows() {
-        let chest = Layout::Rows(3);
-        assert_eq!(chest.height(), 168.0);
-        let all = slots(chest);
-        assert_eq!(all.len(), 27 + 36);
-        let at = |s| all.iter().find(|(slot, _)| *slot == s).unwrap().1;
-        assert_eq!(at(Slot::Container(0)), [8.0, 18.0]);
-        assert_eq!(at(Slot::Container(26)), [8.0 + 18.0 * 8.0, 18.0 + 36.0]);
-        assert_eq!(at(Slot::Main(9)), [8.0, 85.0]);
-        assert_eq!(at(Slot::Main(0)), [8.0, 143.0]);
-        assert_eq!(Layout::Rows(6).height(), 222.0);
-    }
-}
+mod tests;

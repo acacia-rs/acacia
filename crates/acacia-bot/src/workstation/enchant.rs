@@ -43,11 +43,15 @@ impl Bot {
         let plan = enchant_plan(&self.state, option)?;
         let level = self.state.player.xp_level;
         self.craft_click(plan).await?;
-        // BDS takes option + 1 levels (not the cost); its attribute update may come after the response.
-        if self.state.player.xp_level == level && self.state.player.game_mode != GameMode::Creative {
+        self.pay_enchant_levels(level, option);
+        Ok(())
+    }
+
+    /// BDS takes option + 1 levels (not the cost); its attribute update may come after the response.
+    pub(super) fn pay_enchant_levels(&mut self, before: i32, option: usize) {
+        if self.state.player.xp_level == before && self.state.player.game_mode != GameMode::Creative {
             self.state.player.xp_level -= option as i32 + 1;
         }
-        Ok(())
     }
 }
 

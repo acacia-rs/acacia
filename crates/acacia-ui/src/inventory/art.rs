@@ -2,7 +2,7 @@
 //! printed on), Bedrock's nine-slices (`dialog_background_opaque`, a `cell_image` per slot, the
 //! green `highlight_slot` at 0.8), or flat greys when the look lacks the screen's art.
 
-use super::{Layout, Progress, SLOT, Slot, Station, WIDTH};
+use super::{Bench, Layout, Progress, SLOT, Slot, Station, WIDTH};
 use crate::atlas::Sprite;
 use crate::draw::{DrawList, WHITE};
 use crate::nine::Nine;
@@ -32,6 +32,8 @@ const BREW_ARROW: [f32; 2] = [97.0, 16.0];
 pub(super) struct Art<'a> {
     white: Sprite,
     kind: Kind<'a>,
+    /// The open bench: Bedrock's panel gets its arrow drawn on.
+    bench: Option<Bench>,
 }
 
 enum Kind<'a> {
@@ -49,13 +51,15 @@ impl<'a> Art<'a> {
                     Layout::Player => kit.inventory.map(|s| (s, None)),
                     Layout::Rows(_) => kit.chest_top.zip(kit.chest_bottom).map(|(top, bottom)| (top, Some(bottom))),
                     Layout::Station(station) => kit.stations.get(station.sheet()).map(|s| (*s, None)),
+                    Layout::Bench(bench) => kit.stations.get(bench.sheet()).map(|s| (*s, None)),
                 };
                 sheets.map_or(Kind::Flat, |(sheet, bottom)| Kind::Java(kit, sheet, bottom))
             }
             Widgets::Bedrock(kit) if kit.panel.is_some() && kit.cell.is_some() => Kind::Bedrock(kit),
             Widgets::Bedrock(_) => Kind::Flat,
         };
-        Art { white: theme.atlas.white(), kind }
+        let bench = if let Layout::Bench(bench) = layout { Some(bench) } else { None };
+        Art { white: theme.atlas.white(), kind, bench }
     }
 
     /// The panel; Java's sheets bring their slots and portrait box with them.
@@ -63,7 +67,7 @@ impl<'a> Art<'a> {
         let rect = [ox, oy, ox + WIDTH, oy + layout.height()];
         let portrait = [ox + PORTRAIT[0], oy + PORTRAIT[1], ox + PORTRAIT[2], oy + PORTRAIT[3]];
         match self.kind {
-            Kind::Java(_, sheet, bottom) => match (layout, bottom) {
+            Kind::Java(kit, sheet, bottom) => match (layout, bottom) {
                 // ContainerScreen: the title and the rows of the six-row sheet, then its player part.
                 (Layout::Rows(rows), Some(bottom)) => {
                     let split = f32::from(rows) * SLOT + 17.0;
@@ -71,12 +75,21 @@ impl<'a> Art<'a> {
                     list.sprite_stretched(Sprite { height: texels, ..sheet }, [ox, oy, ox + WIDTH, oy + split], WHITE);
                     list.sprite_stretched(bottom, [ox, oy + split, ox + WIDTH, oy + split + CHEST_BOTTOM], WHITE);
                 }
-                _ => list.sprite_stretched(sheet, rect, WHITE),
+                _ => {
+                    list.sprite_stretched(sheet, rect, WHITE);
+                    // AnvilScreen draws its name box over the sheet.
+                    if let Some(field) = kit.stations.get("anvil/text_field_disabled").filter(|_| self.bench == Some(Bench::Anvil)) {
+                        list.sprite(*field, ox + 59.0, oy + 20.0, WHITE);
+                    }
+                }
             },
             Kind::Bedrock(kit) => {
                 kit.paint(list, kit.panel, rect, WHITE, 0xC6C6C6);
                 if layout == Layout::Player {
                     list.fill(self.white, portrait, EDGE);
+                }
+                if let (Some([x, y]), Some(Nine { sprite, .. })) = (self.bench.and_then(Bench::arrow), kit.arrow[0]) {
+                    list.sprite(sprite, ox + x, oy + y, WHITE);
                 }
             }
             Kind::Flat => {
@@ -132,9 +145,9 @@ impl<'a> Art<'a> {
     /// One slot's backing (none for Java, whose sheet has them); an empty armour or offhand slot
     /// shows Bedrock's outline of what goes there.
     pub(super) fn slot(&self, list: &mut DrawList, slot: Slot, x: f32, y: f32, empty: bool) {
-        // The player's crafting result is an ordinary 18 px slot (Java's sheet); the crafting
-        // table's 26 px one is not drawn here.
-        let rect = [x - 1.0, y - 1.0, x + 17.0, y + 17.0];
+        // The player's crafting result is an ordinary 18 px slot (Java's sheet), a bench's is 26.
+        let pad = if slot == Slot::Result && self.bench.is_some_and(Bench::big_result) { 5.0 } else { 1.0 };
+        let rect = [x - pad, y - pad, x + 16.0 + pad, y + 16.0 + pad];
         match self.kind {
             Kind::Java(..) => {}
             Kind::Bedrock(kit) => {
@@ -150,6 +163,43 @@ impl<'a> Art<'a> {
             }
             Kind::Flat => bevel(list, self.white, rect, SLOT_DARK, LIGHT, SLOT_FILL),
         }
+    }
+
+    /// A pick-list button: Java's stonecutter or enchanting sprites, Bedrock's cell with its highlight.
+    pub(super) fn pick(&self, list: &mut DrawList, rect: [f32; 4], picked: bool, hover: bool) {
+        let flat = if picked { SLOT_FILL } else { PANEL };
+        match self.kind {
+            Kind::Java(kit, ..) => {
+                let name = match (self.bench, picked, hover) {
+                    (Some(Bench::Enchanting), _, true) => "enchanting_table/enchantment_slot_highlighted",
+                    (Some(Bench::Enchanting), ..) => "enchanting_table/enchantment_slot",
+                    (_, true, _) => "stonecutter/recipe_selected",
+                    (_, _, true) => "stonecutter/recipe_highlighted",
+                    _ => "stonecutter/recipe",
+                };
+                match kit.stations.get(name) {
+                    Some(sprite) => list.sprite(*sprite, rect[0], rect[1], WHITE),
+                    None => bevel(list, self.white, rect, LIGHT, DARK, flat),
+                }
+            }
+            Kind::Bedrock(kit) => {
+                kit.paint(list, kit.cell, rect, WHITE, 0x8B8B8B);
+                if picked || hover {
+                    kit.paint(list, kit.highlight, [rect[0] + 1.0, rect[1] + 1.0, rect[2] - 1.0, rect[3] - 1.0], HIGHLIGHT, 0x62B531);
+                }
+            }
+            Kind::Flat => bevel(list, self.white, rect, LIGHT, DARK, flat),
+        }
+    }
+
+    /// Text on a pick button: Java's enchanting option brown, dark grey on Bedrock's cells.
+    pub(super) fn pick_text(&self) -> u32 {
+        if matches!(self.kind, Kind::Java(..)) { 0x685E4A } else { 0x404040 }
+    }
+
+    /// Bedrock's green highlight lies under the item, Java's white veil over it.
+    pub(super) fn hover_is_under(&self) -> bool {
+        matches!(self.kind, Kind::Bedrock(_))
     }
 
     pub(super) fn hover(&self, list: &mut DrawList, x: f32, y: f32) {

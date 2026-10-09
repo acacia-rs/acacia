@@ -49,9 +49,15 @@ pub struct Kit {
 }
 
 /// Workstation sheets under `textures/gui/container` and the panel's height in each.
-const STATION_SHEETS: [(&str, u32); 6] = [("furnace", 166), ("blast_furnace", 166), ("smoker", 166), ("hopper", 133), ("dispenser", 166), ("brewing_stand", 166)];
+const STATION_SHEETS: [(&str, u32); 13] = [("crafting_table", 166), ("cartography_table", 166), ("enchanting_table", 166), ("stonecutter", 166), ("anvil", 166), ("smithing", 166), ("grindstone", 166), ("furnace", 166), ("blast_furnace", 166), ("smoker", 166), ("hopper", 133), ("dispenser", 166), ("brewing_stand", 166)];
 /// Progress sprites under `textures/gui/sprites/container`.
-const STATION_SPRITES: [&str; 8] = [
+const STATION_SPRITES: [&str; 14] = [
+    "enchanting_table/enchantment_slot",
+    "enchanting_table/enchantment_slot_highlighted",
+    "stonecutter/recipe",
+    "stonecutter/recipe_selected",
+    "stonecutter/recipe_highlighted",
+    "anvil/text_field_disabled",
     "furnace/lit_progress",
     "furnace/burn_progress",
     "blast_furnace/lit_progress",

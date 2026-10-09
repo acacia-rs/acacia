@@ -8,7 +8,7 @@ use acacia_bot::items::{Click, SlotRef};
 use acacia_bot::state::ItemStack;
 use acacia_bot::movement::Controls;
 use acacia_bot::proto::types::WindowType;
-use acacia_ui::inventory::{Progress, Station};
+use acacia_ui::inventory::{Bench, Progress, Station};
 use glam::IVec3;
 
 /// What the player at the window does.
@@ -39,6 +39,12 @@ pub enum Command {
     Click(SlotRef, Click),
     /// A recipe-book click: one craft of item `name`, at the crafting table at `table` if given.
     Craft { name: String, table: Option<[i32; 3]> },
+    /// A click on what the workstation's slots make: one craft, or all a crafting grid holds.
+    TakeCrafted { all: bool },
+    /// A click on the stonecutter's result with recipe `id` picked: one cut, or all.
+    TakeCut { id: u32, all: bool },
+    /// A click on the enchanting table's option of this index.
+    Enchant(usize),
     /// A click outside the screen: throws the held stack, or one of it.
     DropCursor { one: bool },
     /// The player's answer to open form `id`.
@@ -62,8 +68,22 @@ pub struct Inventory {
     pub progress: Progress,
     /// An open crafting table's position.
     pub workbench: Option<[i32; 3]>,
+    /// The workstation slots of the player's UI window, by offset.
+    pub ui: Vec<Option<Stack>>,
     /// What can be crafted now (in the 2x2 grid, or at the open table); filled by [`craftable`].
     pub craftable: Vec<Stack>,
+    /// What the crafting grid's or the bench's slots make; filled by [`crafted`].
+    pub crafted: Option<Stack>,
+    /// The open workstation whose slots are the player's UI slots.
+    pub bench: Option<Bench>,
+    /// What a stonecutter offers for its input: recipe ids and one cut's result.
+    pub picks: Vec<(u32, Stack)>,
+    /// The level each option of an enchanting table needs.
+    pub enchants: Vec<u8>,
+}
+
+pub fn crafted(bot: &Bot) -> Option<Stack> {
+    bot.station_result().and_then(|s| stack_of(bot, &s))
 }
 
 /// One result stack per item [`Inventory`]'s crafting can make now.
@@ -117,7 +137,12 @@ pub fn inventory(bot: &Bot) -> Inventory {
             slots: (0..c.slots.len().max(station.map_or(0, Station::slot_count))).map(|i| c.slots.get(i).and_then(stack)).collect(),
         }),
         workbench: bot.open_container().filter(|c| c.window_type == WindowType::Workbench).and_then(|c| c.position.as_ref()).map(|p| [p.x, p.y, p.z]),
+        ui: inv.ui.iter().map(stack).collect(),
         craftable: Vec::new(),
+        crafted: None,
+        bench: bot.open_container().and_then(|c| crate::stations::bench(c.window_type)),
+        enchants: bot.enchant_costs(),
+        picks: bot.stonecutter_choices().into_iter().filter_map(|(id, s)| Some((id, stack_of(bot, &s)?))).collect(),
     }
 }
 
@@ -138,6 +163,12 @@ pub fn open_sign_text(bot: &Bot) -> Option<String> {
     Some(bot.state().block_entities.sign_text(editor.position, editor.front).unwrap_or_default().to_owned())
 }
 
+/// What a grid or workstation still holds goes back into the inventory first.
+async fn close_screen(bot: &mut Bot) -> Result<(), acacia_bot::ActionError> {
+    bot.take_back_ui().await?;
+    bot.close_container().await
+}
+
 /// Item moves wait for the server's answer (one round trip) before the next command runs.
 pub async fn apply(bot: &mut Bot, command: Command) {
     tracing::debug!(?command, "command");
@@ -147,13 +178,16 @@ pub async fn apply(bot: &mut Bot, command: Command) {
             Ok(())
         }
         Command::Inventory(false) => match bot.state().inventory.cursor().is_empty() {
-            true => bot.close_container().await,
+            true => close_screen(bot).await,
             // Vanilla throws what the cursor still holds when the screen closes.
             false => match bot.drop_cursor(false).await {
-                Ok(()) => bot.close_container().await,
+                Ok(()) => close_screen(bot).await,
                 Err(e) => Err(e),
             },
         },
+        Command::TakeCrafted { all } => bot.take_station_result(all).await,
+        Command::TakeCut { id, all } => bot.take_stonecut(id, all).await,
+        Command::Enchant(option) => bot.take_enchant(option).await,
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
         Command::Craft { name, table } => bot.craft(&name, 1, table).await.map(|_| ()),
         Command::DropCursor { one } => bot.drop_cursor(one).await,
