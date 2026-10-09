@@ -48,6 +48,7 @@ const SHAPE_OVERRIDES = {
   shelf_mushroom: [], // 26.50 block without a shape source; assumed walk-through like other fungi
 
   end_portal_frame: [[0, 0, 0, 1, 0.8125, 1]],
+  end_portal: [], // BDS 1.26.52 lets a player fall straight through (drill `dimensions`); minecraft-data has a 0.25 slab
   // Collide only in special cases (see DYNAMIC_SHAPE docs); the static shape is what they usually are.
   scaffolding: SCAFFOLDING_TOP, bamboo: [], pointed_dripstone: [], powder_snow: [],
 };

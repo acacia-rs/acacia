@@ -23,6 +23,7 @@ use crate::trace::{self, Recorder};
 use crate::world::WorldTracker;
 use crate::BotConfig;
 
+mod dimension;
 mod tick;
 
 /// One unit of work done by [`Bot::step`].
@@ -63,6 +64,10 @@ pub struct Bot {
     pub(crate) request_ids: RequestIds,
     pub(crate) reflexes: Reflexes,
     pub(crate) mining: Option<crate::interact::Mining>,
+    /// A dimension change in progress.
+    travel: Option<dimension::Travel>,
+    /// Physics bots: the simulation has started once, and the spawn packets went out with it.
+    spawned: bool,
     strict: bool,
     closed: Option<DisconnectReason>,
 }
@@ -73,7 +78,7 @@ impl Bot {
         config.trackers.block_entities = config.trackers.block_entities.resolve(config.physics);
         let events = EventSource::new(config.events, config.chat_patterns);
         let mut tracked: PacketFilter = config.trackers.packet_ids().into_iter().chain(events.packet_ids()).collect();
-        tracked = PredictionSync::PACKETS.iter().chain(crate::sleep::PACKETS).fold(tracked, |f, &id| f.with(id));
+        tracked = PredictionSync::PACKETS.iter().chain(crate::sleep::PACKETS).chain(dimension::PACKETS).fold(tracked, |f, &id| f.with(id));
         tracked = WorldTracker::PACKETS.iter().fold(tracked, |f, &id| f.with(id));
         let mode = if config.physics { Movement::PACKETS } else { SubChunkRequester::PACKETS };
         tracked = mode.iter().fold(tracked, |f, &id| f.with(id));
@@ -126,6 +131,8 @@ impl Bot {
             request_ids: RequestIds::default(),
             reflexes: Reflexes::default(),
             mining: None,
+            travel: None,
+            spawned: false,
             strict: config.strict,
             closed: None,
         })
@@ -257,6 +264,7 @@ impl Bot {
         if let Some(subchunks) = &mut self.subchunks {
             subchunks.apply(packet);
         }
+        self.on_travel_packet(packet);
         self.auto_respawn(packet, was_alive);
         self.reflex_packet(packet);
         self.on_fetch_packet(packet);

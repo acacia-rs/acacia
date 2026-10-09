@@ -62,6 +62,9 @@ for every tick our position is off by more than 0.0001, so each correction is a 
 - `cargo run -p acacia-bot --example flight -- <server> <name> [rounds]` drills creative flight (crates/acacia-physics
   README "Flight"); on testbox use its own strict instance (`BDS_DIR=work/bds-flight BDS_PORT=19178 tools/testbox-bds.sh`,
   with the `-Strict` keys above set in its server.properties).
+- `cargo run -p acacia-bot --example dimensions -- <server> <name> [tp|portals|all]` drills dimension travel
+  (docs/DESIGN.md "Dimension travel"): overworld, Nether and End by command, then by a Nether portal and End portal
+  blocks, printing each arrival's and walk's corrections and the distance from the server's own position.
 - `cargo run -p acacia-bot --example replay -- <trace> [--verbose]` replays a trace offline through the current code
   and reports server corrections we disagree with (`--correction-tolerance`, default 0.001) and ticks that differ from
   what the live bot did. "Diverged from the recording" means the replay would send other inputs than were recorded:

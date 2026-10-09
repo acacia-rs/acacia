@@ -162,6 +162,39 @@ the proxy (`crates/acacia-mitm/src/transfer.rs`). What is left: [mitm-next.md](m
   - Water contact counts any liquid cell the shrunk box overlaps, however shallow (liquid.rs).
   - Dead players don't move: movement pauses while dead and auto-respawn (`respawn.rs`) handles both
     BDS (`Respawn` searching) and Geyser (no searching packet; dying is the trigger).
+- Dimension travel on BDS 1.26.52 (`bot/dimension.rs`; packets seen live with `examples/dimensions.rs`, the
+  server's rules read from its binary; no vanilla client capture of a change exists yet):
+  - Server: `ChangeDimension {dimension, position, respawn, loading_screen_id}`. From here its `PlayerAuthInput`
+    handler drops every input silently: it queues one only while the player's dimension state is ready and no
+    "server has movement authority" bit is set (teleport, dimension transfer, loading screen).
+  - Client: `ServerboundLoadingScreen` type 1 with that id, which sets the loading screen bit. An id BDS did not
+    announce is a kick (UnexpectedPacket), and the change that follows a death in another dimension carries
+    none: no screen packets then.
+  - Server, when its chunks are ready and without waiting for the client: its own
+    `PlayerAction(DimensionChangeAck)`.
+  - Client: `PlayerAction(DimensionChangeAck)`, which clears the transfer bit at once, then
+    `ServerboundLoadingScreen` type 2; the screen bit clears on the server's next tick. Inputs count again.
+    `SetLocalPlayerAsInitialized` is not read again.
+  - `ChangeDimension.position` is the feet (`execute in nether run tp @s 30 70 30` carries y 70), unlike the
+    eye positions of MovePlayer and corrections. Through a Nether portal it is only near (the portal block's
+    centre, or the scaled source position while the far portal is made) and out of the End it is
+    (0, 32767, 0); the real position follows in a MovePlayer or Respawn.
+  - The bot stops simulating at the change and sends no input while it travels. With the server's
+    acknowledgement and the sections around its feet in, it acknowledges, ends the screen, waits 10 ticks and
+    simulates on from the server's position in the state BDS carries over: on the ground with one tick of
+    gravity, so a player put in mid-air falls 0.0784 on the first input. An input sent in the server tick that
+    ends the screen is dropped and leaves the server one tick behind (one correction): hence the wait.
+    Inputs from the dimension left that BDS had not run yet are corrected to the new position after the
+    acknowledgement; they reach a stopped simulation, and `replay` lists them as teleport lags.
+  - Out of the End through a portal: BDS sends `ShowCredits` (0) and brings the player back
+    (`ChangeDimension` with `respawn`) only after the client's `ShowCredits` (1); the bot answers at once.
+  - Joining while in another dimension needs nothing more: `StartGame` names the dimension and position. A
+    player who died there joins with `StartGame` in the overworld at the old position, then `Respawn` (ready).
+  - Portals set by command (the drill): a Nether portal just used does nothing for some seconds (the drill
+    waits 16 s outside it); an `end_portal` block takes a player standing in it but not one falling through,
+    and has no collision.
+  - BDS forgets an offline player between sessions (no xuid, empty `SelfSignedId`), so a join in another
+    dimension needs an account, or a `SelfSignedId` in the client data (tried, not kept).
 - Checking physics: record drills against BDS with `server-authoritative-movement-strict=true`,
   `player-position-acceptance-threshold=0.0001` and `player-rewind-min-correction-delay-ticks=0` (BDS
   then corrects on the first diverging tick, so each mismatch is a one-tick error; with the default

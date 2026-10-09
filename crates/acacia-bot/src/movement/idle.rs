@@ -13,7 +13,7 @@ use super::Controls;
 use crate::state::PlayerState;
 
 /// Velocity a player standing on the ground reports: one tick of gravity, cancelled by the floor.
-const STANDING_DELTA: [f32; 3] = [0.0, -0.0784, 0.0];
+pub(super) const STANDING_DELTA: [f32; 3] = [0.0, -0.0784, 0.0];
 /// The vanilla client's first `PlayerAuthInput` carries tick 4.
 const FIRST_TICK: u64 = 4;
 

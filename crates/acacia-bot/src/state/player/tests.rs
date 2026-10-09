@@ -132,7 +132,7 @@ fn game_mode_dimension_and_spawn() {
     p.apply(&raw(&update(-42))).unwrap();
     assert_eq!(p.game_mode, GameMode::Spectator);
 
-    let change = ChangeDimension { dimension: 2, position: v(100.0, 51.62, 0.0), respawn: false, loading_screen_id: Some(3) };
+    let change = ChangeDimension { dimension: 2, position: v(100.0, 50.0, 0.0), respawn: false, loading_screen_id: Some(3) };
     p.apply(&raw(&change)).unwrap();
     assert_eq!(p.dimension, 2);
     assert!(approx(&p.position, &v(100.0, 50.0, 0.0)));
