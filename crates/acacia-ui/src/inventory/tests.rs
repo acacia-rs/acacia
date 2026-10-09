@@ -77,6 +77,19 @@ fn a_beacon_lists_its_powers_in_two_columns() {
 }
 
 #[test]
+fn the_creative_inventory_has_tabs_a_grid_and_the_hotbar() {
+    let (creative, size) = (Layout::Creative, [427.0, 240.0]);
+    let [ox, oy] = origin(creative, size);
+    assert_eq!([ox, oy], [116.0, 52.0]);
+    assert_eq!(slots(creative).len(), 9, "only the hotbar");
+    assert_eq!(hit(creative, size, [ox + 9.0 + 18.0 * 8.0 + 1.0, oy + 113.0]), Some(Slot::Main(8)));
+    assert_eq!(hit_pick(creative, size, 45, [ox + 9.0 + 18.0 * 8.0 + 1.0, oy + 18.0 + 18.0 * 4.0 + 1.0]), Some(44));
+    assert_eq!(pick_rects(creative, size, 500).len(), 45);
+    assert_eq!(hit_tab(creative, size, [ox + 49.0 * 3.0 + 2.0, oy - 10.0]), Some(3));
+    assert_eq!(hit_tab(Layout::Player, size, [ox + 2.0, oy - 10.0]), None);
+}
+
+#[test]
 fn a_chest_sits_above_the_player_rows() {
     let chest = Layout::Rows(3);
     assert_eq!(chest.height(), 168.0);

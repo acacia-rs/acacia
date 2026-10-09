@@ -4,7 +4,7 @@
 use acacia_client::proto::types::{
     ItemExtraDataWithoutBlockingTick, ItemExtraDataWithoutBlockingTickHasNbt as HasNbt, ItemExtraDataWithoutBlockingTickNbt,
     ItemStackRequestActionsItem as Action, ItemStackRequestActionsItemContent as Content,
-    ItemStackRequestActionsItemContentCraftGrindstoneRequest, ItemStackRequestActionsItemContentCraftLoomRequest,
+    ItemStackRequestActionsItemContentCraftCreative, ItemStackRequestActionsItemContentCraftGrindstoneRequest, ItemStackRequestActionsItemContentCraftLoomRequest,
     ItemStackRequestActionsItemContentCraftRecipe, ItemStackRequestActionsItemContentCraftRecipeAuto,
     ItemStackRequestActionsItemContentOptional, ItemStackRequestActionsItemContentResultsDeprecated,
     ItemStackRequestActionsItemTypeId as TypeId, ItemStackRequestCause, ItemStackRequestInstanceDescriptor,
@@ -29,6 +29,8 @@ pub(crate) enum CraftAction {
     Optional { network_id: u32, filter_index: i32 },
     Grindstone { network_id: i32, times: u8, cost: i32 },
     Loom { pattern: String, times: u8 },
+    /// `CraftCreative`: an entry of the creative inventory.
+    Creative { entry_id: u32 },
 }
 
 impl CraftAction {
@@ -38,7 +40,7 @@ impl CraftAction {
             | CraftAction::Auto { times, .. }
             | CraftAction::Grindstone { times, .. }
             | CraftAction::Loom { times, .. } => *times,
-            CraftAction::Optional { .. } => 1,
+            CraftAction::Optional { .. } | CraftAction::Creative { .. } => 1,
         }
     }
 }
@@ -124,6 +126,10 @@ impl Craft {
                     times_crafted: times,
                     cost,
                 }),
+            ),
+            &CraftAction::Creative { entry_id } => action(
+                TypeId::CraftCreative,
+                Content::CraftCreative(ItemStackRequestActionsItemContentCraftCreative { item_id: entry_id, times_crafted: 1 }),
             ),
             CraftAction::Loom { pattern, times } => action(
                 TypeId::CraftLoomRequest,

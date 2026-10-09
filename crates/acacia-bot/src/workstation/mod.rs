@@ -15,6 +15,7 @@ mod brewing;
 mod cartography;
 mod craft;
 mod craftable;
+mod creative;
 mod enchant;
 mod enchants;
 mod furnace;

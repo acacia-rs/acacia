@@ -37,6 +37,7 @@ unit or pack tests only.
 | Screens | Anvil with its name box, smithing table, stonecutter, enchanting table | live |
 | Screens | Grindstone, cartography table (no renaming) | tests only, never opened live |
 | Screens | Beacon: powers, second power and confirm as buttons (not either game's own screen) | live |
+| Screens | Creative inventory (E in creative mode): four tabs, a click takes one, Shift a stack | live; the wheel's scrolling: untested |
 | Screens | Trading: the offers of a villager or wandering trader, a click trades once | live (wandering trader) |
 | Screens | Furnace family, hopper, dispenser/dropper, brewing stand | live (acacia-46) |
 | Screens | Server forms, pause, options (two columns), death and respawn | live |
@@ -47,7 +48,8 @@ unit or pack tests only.
 - **Screens:** loom; the beacon's own art and which powers its pyramid allows; more than seven offers of a trader (no scrolling), trader levels; a cartography table's name box, the anvil's level cost; a stonecutter
   list longer than three rows (no scrolling); enchanting hints and the galactic text; craft
   results onto the cursor (they go into the inventory); books; maps; the game's own sign editor
-  (a four-line form stands in); creative inventory tabs.
+  (a four-line form stands in); the creative inventory's search, its survival-inventory tab and
+  deleting items into it.
 - **Dimensions:** after a teleport to the End, or joining there, the client's own position runs
   off into the void (seen 2026-10-09; being fixed on `bot/dimensions`). The Nether is untested.
 - **Entities:** the charged creeper's aura, patterns on held banners and shields, the banner's

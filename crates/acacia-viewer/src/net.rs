@@ -53,6 +53,8 @@ pub enum NetEvent {
     Players(Vec<String>),
     /// The player's slots, when they changed.
     Inventory(control::Inventory),
+    /// The creative inventory's items, once the server sent them.
+    Creative(Vec<control::CreativeEntry>),
     /// The server form now open, when that changed (`None`: it closed).
     Form(Option<acacia_bot::forms::Form>),
     /// The server opened a sign's editor, on this text; `None`: it closed.
@@ -148,6 +150,8 @@ async fn run(
     };
     send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
     let mut inventory = control::Inventory::default();
+    // How many creative items were last sent to the window.
+    let mut creative = 0;
     // The text in an open anvil's name box, and whether it changed since the result was worked out.
     let (mut name, mut renamed) = (None::<String>, false);
     let mut own_sounds = audio::Own::default();
@@ -206,6 +210,10 @@ async fn run(
                         let table = now.workbench.is_some();
                         let (craftable, crafted) = (control::craftable(&bot, table), control::crafted(&bot, name.as_deref()));
                         send(NetEvent::Inventory(control::Inventory { craftable, crafted, ..now }))?;
+                    }
+                    if creative != bot.state().creative.items().len() {
+                        creative = bot.state().creative.items().len();
+                        send(NetEvent::Creative(control::creative(&bot)))?;
                     }
                     let names = control::player_names(&bot);
                     if names != players {

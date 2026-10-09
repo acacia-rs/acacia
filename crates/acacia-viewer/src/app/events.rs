@@ -44,6 +44,7 @@ impl App {
                 }
                 NetEvent::Players(names) => self.players = names,
                 NetEvent::Inventory(inventory) => self.set_inventory(inventory),
+                NetEvent::Creative(items) => self.shown.items = items,
                 NetEvent::Title(title) => self.ui.show_title(title),
                 NetEvent::Broken { pos, block } => {
                     if let Some(r) = &mut self.renderer {

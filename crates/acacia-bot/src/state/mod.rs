@@ -15,6 +15,7 @@ mod metadata;
 mod player;
 mod player_list;
 pub(crate) mod queries;
+mod creative;
 mod recipes;
 mod riding;
 mod scoreboard;
@@ -35,6 +36,7 @@ pub use hurts::Hurts;
 pub use riding::{Pose, Riding, Vehicle};
 pub use inventory::{Inventory, ItemStack};
 pub use items::ItemRegistry;
+pub use creative::{Creative, CreativeItem, CreativeTab};
 pub use recipes::{Ingredient, Recipe, RecipeBook, RecipeKind, Recipes};
 pub use stations::{EnchantOption, Stations, TradeItem, TradeOffer, TradeWindow};
 pub use player::PlayerState;
@@ -66,6 +68,7 @@ impl Trackers {
         ids.extend_from_slice(ItemRegistry::PACKETS);
         ids.extend_from_slice(Recipes::PACKETS);
         ids.extend_from_slice(Stations::PACKETS);
+        ids.extend_from_slice(Creative::PACKETS);
         ids.extend_from_slice(Inventory::PACKETS);
         ids.extend_from_slice(Containers::PACKETS);
         ids.extend_from_slice(Scoreboard::PACKETS);
@@ -102,6 +105,7 @@ pub struct GameState {
     pub recipes: Recipes,
     /// Enchanting options and trade offers of the open workstation.
     pub stations: Stations,
+    pub creative: Creative,
     pub inventory: Inventory,
     pub containers: Containers,
     pub scoreboard: Scoreboard,
@@ -144,6 +148,9 @@ impl GameState {
         }
         if Recipes::PACKETS.contains(&id) {
             self.recipes.apply(packet);
+        }
+        if Creative::PACKETS.contains(&id) {
+            self.creative.apply(packet);
         }
         if Stations::PACKETS.contains(&id) {
             self.stations.apply(packet)?;

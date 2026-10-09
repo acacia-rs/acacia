@@ -76,6 +76,8 @@ pub struct Screen<'a> {
     pub picked: [Option<usize>; 2],
     /// The text in its name box, before the caret and after.
     pub name: Option<(&'a str, &'a str)>,
+    /// The creative inventory's shown items, its tab, and how far it is scrolled.
+    pub creative: Option<(&'a [crate::control::Stack], usize, f32)>,
 }
 
 pub struct Ui {
