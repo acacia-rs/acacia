@@ -65,7 +65,12 @@ impl Mesh {
     /// The posed right arm at its shoulder pivot, in model space: where Java's `translateToHand`
     /// leaves an item. `None` for models without a `rightarm` bone.
     pub fn right_hand(&self, pose: &Pose) -> Option<Mat4> {
-        let index = self.bones.iter().position(|b| b == "rightarm")?;
+        self.hand(pose, false)
+    }
+
+    /// [`Mesh::right_hand`] for either arm.
+    pub fn hand(&self, pose: &Pose, left: bool) -> Option<Mat4> {
+        let index = self.bones.iter().position(|b| b == if left { "leftarm" } else { "rightarm" })?;
         let posed = *self.skin(pose).get(index)?;
         Some(posed * Mat4::from_translation(self.joints[index].pivot))
     }

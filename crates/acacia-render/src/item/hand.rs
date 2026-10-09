@@ -19,23 +19,28 @@ const ARM: Vec3 = Vec3::new(0.56, -0.52, -0.72);
 /// shoulder: Bedrock geometry is Java's with y mirrored): out of the arm (-90° x, 180° y), to the
 /// fist (1, 2, -10 px), then the model's `thirdperson_righthand` display. Non-block items take the
 /// `handheld` display (0, -90, 55; 0, 4, 0.5 px; 0.85), which mobs mostly hold; blocks 75, 45, 0;
-/// 0, 2.5, 0 px; 0.375.
-pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, light_at: glam::DVec3) -> EntityInstance {
-    let frame = body * held_frame(model.block, hand);
+/// 0, 2.5, 0 px; 0.375. In the `left` hand (`hand` then from `Mesh::hand`) the fist's x offset
+/// changes sign, and a block's turn is mirrored (see `held_frame`).
+pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, left: bool, light_at: glam::DVec3) -> EntityInstance {
+    let frame = body * held_frame(model.block, hand, left);
     let glint = model.glint.then_some(Glint::Item);
     EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
 }
 
 /// [`third_person`]'s item mesh to the holder's model space.
-pub fn held_frame(block: bool, hand: Mat4) -> Mat4 {
+pub fn held_frame(block: bool, hand: Mat4, left: bool) -> Mat4 {
     const FLIP_Y: Vec3 = Vec3::new(1.0, -1.0, 1.0);
     let (rotation, shift, scale) =
         if block { (Vec3::new(75.0, 45.0, 0.0), Vec3::new(0.0, 2.5, 0.0), 0.375) } else { (Vec3::new(0.0, -90.0, 55.0), Vec3::new(0.0, 4.0, 0.5), 0.85) };
-    let [rx, ry, rz] = rotation.to_array().map(f32::to_radians);
+    let side = if left { -1.0 } else { 1.0 };
+    // `handheld` lists a left-hand display with y and z negated, which `ItemTransform.apply`
+    // negates back: the same turn in either hand. `block` lists none, so its right one is mirrored.
+    let turn = if block { side } else { 1.0 };
+    let [rx, ry, rz] = (rotation * Vec3::new(1.0, turn, turn)).to_array().map(f32::to_radians);
     hand * Mat4::from_scale(FLIP_Y)
         * Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2)
         * Mat4::from_rotation_y(std::f32::consts::PI)
-        * Mat4::from_translation((Vec3::new(1.0, 2.0, -10.0) + shift) / 16.0)
+        * Mat4::from_translation((Vec3::new(side, 2.0, -10.0) + shift) / 16.0)
         * Mat4::from_euler(EulerRot::XYZ, rx, ry, rz)
         * Mat4::from_scale(Vec3::new(scale, scale, -scale))
 }
@@ -48,14 +53,20 @@ mod tests {
     fn a_resting_arm_holds_a_sword_forward_at_the_fist() {
         // Shoulder of a humanoid's right arm, in model space (blocks).
         let hand = Mat4::from_translation(Vec3::new(-5.0, 22.0, 0.0) / 16.0);
-        let frame = held_frame(false, hand);
+        let frame = held_frame(false, hand, false);
         // A sword sprite: hilt bottom-left, tip top-right (item mesh space).
-        let (hilt, tip) = (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
+        let ends = |frame: Mat4| (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
+        let (hilt, tip) = ends(frame);
         let blade = (tip - hilt).normalize();
         // Model space faces -z: forward, a little down, no sideways lean (Java's 55° twist is about the blade).
         assert!(blade.z < -0.9 && blade.y < 0.0 && blade.x.abs() < 0.1, "{blade}");
         let fist = (hilt + tip) / 2.0;
         assert!((fist.x + 0.375).abs() < 0.15 && (0.6..0.95).contains(&fist.y), "{fist}");
+        // The left hand holds it pointing the same way, at the other fist.
+        let (left_hilt, left_tip) = ends(held_frame(false, Mat4::from_translation(Vec3::new(5.0, 22.0, 0.0) / 16.0), true));
+        assert!((left_tip - left_hilt).normalize().abs_diff_eq(blade, 1e-4), "{left_hilt} {left_tip}");
+        let left_fist = (left_hilt + left_tip) / 2.0;
+        assert!((left_fist.x + fist.x).abs() < 1e-4 && (left_fist.y - fist.y).abs() < 1e-4, "{left_fist} {fist}");
     }
 }
 

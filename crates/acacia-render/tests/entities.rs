@@ -195,7 +195,7 @@ fn humanoids_hold_items_in_their_right_hand() {
     let model = look(&models, "minecraft:zombie", &[]).0[0].model;
     let raised = Pose(vec![BonePose { bone: "rightarm".into(), rotation: [-90.0, 0.0, 0.0], position: [0.0; 3], scale: [1.0; 3] }]);
     let hand = models.models()[model as usize].mesh.right_hand(&raised).unwrap();
-    let frame = acacia_render::item::hand::held_frame(false, hand);
+    let frame = acacia_render::item::hand::held_frame(false, hand, false);
     let (hilt, tip) = (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
     assert!((tip - hilt).normalize().y > 0.8 && (hilt + tip).z < -1.0, "hilt {hilt}, tip {tip}");
 }

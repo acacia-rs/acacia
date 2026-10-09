@@ -34,8 +34,8 @@ pub struct Tracked {
     pub hitbox: Option<(f32, f32)>,
     /// The name tag shown over it: a player's name, or a mob's given name.
     pub name: Option<String>,
-    /// What it holds in its right hand, and whether that is enchanted.
-    pub held: Option<(ItemKey, bool)>,
+    /// What it holds in its right and left hand, and whether each is enchanted.
+    pub held: [Option<(ItemKey, bool)>; 2],
     /// The armour it wears, as layers posed like its own, and whether each piece is enchanted.
     pub armor: Vec<(Arc<[Layer]>, bool)>,
     /// Hurt animations so far, and whether it is dying ([`acacia_bot::state::Hurts`]).
@@ -181,7 +181,8 @@ impl Feed {
         };
         if let Some(instance) = self.player(bot, uuid, eyes - DVec3::Y * EYE_HEIGHT, head_yaw, 1.0) {
             let (kind, facts) = (PLAYER.to_owned(), Facts::default());
-            let (held, armor) = (held_key(bot, state.inventory.held()), self.armor(bot, state.inventory.armor.iter()));
+            let held = [held_key(bot, state.inventory.held()), held_key(bot, &state.inventory.offhand)];
+            let armor = self.armor(bot, state.inventory.armor.iter());
             let (hurts, dying) = (state.hurts.count(me.runtime_entity_id), state.hurts.dying(me.runtime_entity_id));
             out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat });
         }
@@ -224,7 +225,7 @@ impl Feed {
         let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none() && !own_vehicle);
         let seat = seat_of(bot, e.unique_id, e.metadata.seat_position(), e.metadata.seat_turn(), e.is_player());
         let name = e.metadata.name_tag().filter(|n| !n.is_empty()).map(str::to_owned).or_else(|| e.username.clone());
-        let held = e.equipment.as_ref().and_then(|q| held_key(bot, &q.main_hand));
+        let held = e.equipment.as_ref().map_or([None, None], |q| [held_key(bot, &q.main_hand), held_key(bot, &q.off_hand)]);
         let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));
         let hurts = &bot.state().hurts;
         let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));

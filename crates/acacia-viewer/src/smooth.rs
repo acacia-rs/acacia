@@ -77,7 +77,7 @@ pub struct Smoother {
     /// This snapshot's dropped items that have a model, by runtime id.
     dropped: HashMap<u64, ItemModel>,
     /// This snapshot's held items that have a model, by runtime id.
-    held: HashMap<u64, ItemModel>,
+    held: HashMap<u64, [Option<ItemModel>; 2]>,
     /// By runtime id: hurts seen, when the last began, and when the dying began.
     hurt: HashMap<u64, Hurt>,
 }
@@ -137,7 +137,7 @@ impl Smoother {
         (self.dropped, self.held) = match &mut self.items {
             Some(items) => (
                 self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, e.dropped.as_ref().and_then(|d| items.get(&d.key, d.enchanted))?))).collect(),
-                self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, e.held.as_ref().and_then(|(key, enchanted)| items.get(key, *enchanted))?))).collect(),
+                self.to.iter().map(|(e, _)| (e.runtime_id, e.held.each_ref().map(|h| h.as_ref().and_then(|(key, enchanted)| items.get(key, *enchanted))))).collect(),
             ),
             None => (HashMap::new(), HashMap::new()),
         };
@@ -218,11 +218,12 @@ impl Smoother {
         let stood = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * topple * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
         let body = place.map_or(stood, |place| place * glam::Mat4::from_scale(glam::Vec3::splat(s)));
         let frame = (dying.is_some() || place.is_some()).then_some(body);
-        if let Some(item) = self.held.get(&e.runtime_id) {
+        let held = self.held.get(&e.runtime_id).into_iter().flatten().enumerate();
+        for (left, item) in held.filter_map(|(side, item)| Some((side == 1, item.as_ref()?))) {
             let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
             let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
-            if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.right_hand(&pose)) {
-                out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
+            if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.hand(&pose, left)) {
+                out.push(hand::third_person(item, body, hand, left, m.position + DVec3::Y));
             }
         }
         let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);
