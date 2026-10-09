@@ -17,7 +17,7 @@ const SHOT_FORM_ID: u32 = u32::MAX;
 impl App {
     /// The form the bot reports open; the same one again changes nothing.
     pub(super) fn show_form(&mut self, form: Option<Form>) {
-        if self.form.as_ref().is_some_and(|f| f.id >= forms::SIGN_EDITOR_ID) {
+        if self.form.as_ref().is_some_and(|f| f.id == SHOT_FORM_ID) {
             return;
         }
         match form {
@@ -34,21 +34,6 @@ impl App {
         }
     }
 
-    /// The sign editor the server opened, on the side's `text` so far; `None` once it is closed.
-    pub(super) fn show_sign_editor(&mut self, text: Option<String>) {
-        match text {
-            Some(text) => {
-                if self.form.is_none() {
-                    self.play.release_all();
-                    self.grab(false);
-                }
-                self.form = Some(FormScreen::sign_editor(&text));
-            }
-            None if self.form.as_ref().is_some_and(|f| f.id == forms::SIGN_EDITOR_ID) => self.close_form(),
-            None => {}
-        }
-    }
-
     pub(super) fn shot_form() -> Option<FormScreen> {
         let json = std::fs::read_to_string(std::env::var_os("ACACIA_FORM")?).ok()?;
         Form::parse(SHOT_FORM_ID, &json).map(|f| FormScreen::new(&f))
@@ -56,7 +41,7 @@ impl App {
 
     fn close_form(&mut self) {
         self.form = None;
-        if self.menu.is_none() && !self.screen_open {
+        if self.menu.is_none() && !self.screen_open && self.shown.sign.is_none() {
             self.grab(true);
         }
     }
@@ -79,7 +64,6 @@ impl App {
         let Some(outcome) = form.handle(&input, self.ui.theme_mut(look)) else { return };
         let _ = match form.id {
             SHOT_FORM_ID => Ok(()),
-            forms::SIGN_EDITOR_ID => self.net.commands.send(Command::WriteSign(forms::sign_text(outcome))),
             id => self.net.commands.send(Command::AnswerForm(id, forms::reply(outcome))),
         };
         self.close_form();

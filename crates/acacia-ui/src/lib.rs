@@ -21,6 +21,7 @@ pub mod players;
 pub mod recipes;
 pub mod scale;
 pub mod sidebar;
+pub mod sign_editor;
 pub mod signs;
 pub mod theme;
 pub mod widget;

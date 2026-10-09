@@ -38,6 +38,7 @@ unit or pack tests only.
 | Screens | Crafting by hand: the 2×2 grid and the crafting table's 3×3 | table live; 2×2: tests |
 | Screens | Anvil with its name box, smithing table, stonecutter, enchanting table | live |
 | Screens | Grindstone, cartography table (no renaming) | tests only, never opened live |
+| Screens | Sign editor: the board with its four lines, Done or Esc writes | live |
 | Screens | Loom: patterns as buttons (the pattern item's one, else the plain 32); the result's icon shows no patterns | live |
 | Screens | Beacon: powers, second power and confirm as buttons (not either game's own screen) | live |
 | Screens | Creative inventory (E in creative mode): four tabs, a click takes one, Shift a stack | live |
@@ -51,8 +52,8 @@ unit or pack tests only.
 - **Screens:** the loom's banner preview; the beacon's own art and which powers its pyramid allows; trader levels; a
   cartography table's name box, the anvil's level cost; a scroll bar on the stonecutter's and
   trader's lists (the wheel scrolls them); enchanting hints and the galactic text; craft
-  results onto the cursor (they go into the inventory); books; maps; the game's own sign editor
-  (a four-line form stands in); the creative inventory's search, its survival-inventory tab and
+  results onto the cursor (they go into the inventory); books; maps; a hanging sign's narrower lines in the sign
+  editor; the creative inventory's search, its survival-inventory tab and
   deleting items into it.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").

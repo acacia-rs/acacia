@@ -91,8 +91,9 @@ wrapped at spaces to the width, and the first four lines drawn.
 
 `§` codes colour the text as the font does everywhere; the outline ignores them.
 
-The sign editor is not a screen of its own: the viewer shows it as a custom form of four inputs
-and Done (`Spec::Custom`'s `submit`), not as either game's sign screen.
+The sign editor (`sign_editor.rs`) follows Java's `AbstractSignEditScreen` in both themes: a flat
+oak board with the four lines, the typed one between `>` and `<`, and Done. Lines are capped at a
+standing sign's 90 px, also on hanging signs.
 
 ## Not yet
 
