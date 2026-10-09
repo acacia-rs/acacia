@@ -28,6 +28,8 @@ pub enum Command {
     ReleaseItem,
     /// Left-click on nothing.
     Swing,
+    /// Sneak pressed on a vehicle.
+    Dismount,
     /// The death screen's respawn button.
     Respawn,
     Chat(String),
@@ -126,6 +128,8 @@ pub struct Me {
     pub on_ground: bool,
     pub sprinting: bool,
     pub flying: bool,
+    /// On a vehicle; `eye` is then the seat's.
+    pub riding: bool,
     /// Times this player has been hurt (the camera rolls on each).
     pub hurts: u32,
     pub mining: Option<(IVec3, f32)>,
@@ -207,6 +211,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
             bot.swing();
             Ok(())
         }
+        Command::Dismount => bot.dismount().await,
         Command::Respawn => {
             bot.respawn();
             Ok(())
@@ -234,6 +239,7 @@ pub fn me(bot: &Bot) -> Me {
         on_ground: bot.movement().is_some_and(|m| m.on_ground()),
         sprinting: bot.movement().is_some_and(|m| m.sprinting()),
         flying: bot.movement().is_some_and(|m| m.flying()),
+        riding: bot.vehicle().is_some(),
         hurts: bot.state().hurts.count(bot.state().player.runtime_entity_id),
         mining: bot.mining_progress().map(|(p, f)| (IVec3::from_array(p), f)),
         hotbar: state.inventory.selected_hotbar_slot,

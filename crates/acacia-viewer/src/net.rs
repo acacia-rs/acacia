@@ -145,6 +145,7 @@ async fn run(
     // `ACACIA_COMMANDS="summon cow;time set day"`: setup for unattended shots (needs an operator).
     let mut inventory = control::Inventory::default();
     let mut own_sounds = audio::Own::default();
+    let mut ride_log = crate::ride::RideLog::default();
     let mut players: Vec<String> = Vec::new();
     let mut form: Option<u32> = None;
     let mut sidebar: Option<acacia_ui::sidebar::Sidebar> = None;
@@ -195,6 +196,7 @@ async fn run(
                             None => _ = bot.client().command(&command),
                         }
                     }
+                    ride_log.tick(&bot);
                     send(NetEvent::Me(control::me(&bot)))?;
                     let own = own_sounds.tick(&bot);
                     for cue in own.sounds {

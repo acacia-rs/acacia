@@ -32,6 +32,7 @@ mod overlay;
 mod particles;
 mod pick;
 mod player;
+mod ride;
 mod scoreboard;
 mod settings;
 mod shot;

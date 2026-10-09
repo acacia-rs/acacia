@@ -55,6 +55,14 @@ impl Host for Asked<'_> {
         if matches!(name, "get_equipped_item_name" | "get_name") {
             return acacia_molang::Value::Str(Symbol::EMPTY);
         }
+        // Asked once per kind listed.
+        if name == "is_riding_any_entity_of_type" {
+            let rides = |kind: &acacia_molang::Value| match kind {
+                acacia_molang::Value::Str(kind) => (self.query)(&format!("{name}:{}", self.compiler.text(*kind))).truthy(),
+                _ => false,
+            };
+            return acacia_molang::Value::Num(f32::from(u8::from(args.iter().any(rides))));
+        }
         let answer = match args.first() {
             Some(acacia_molang::Value::Str(argument)) => (self.query)(&format!("{name}:{}", self.compiler.text(*argument))),
             _ => (self.query)(name),

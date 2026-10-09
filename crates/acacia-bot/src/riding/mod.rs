@@ -90,6 +90,13 @@ impl Bot {
         self.state.riding.vehicle.as_ref()
     }
 
+    /// The seated player's eye: the seat (`RiderSeatPosition` turned by the vehicle's yaw) on the vehicle's
+    /// latest pose. `None` when not riding or before the server sent the seat.
+    pub fn seat_eye(&self) -> Option<[f32; 3]> {
+        self.state.riding.seat_offset.as_ref()?;
+        exit::Mount::of(&self.state).map(|m| m.seat())
+    }
+
     /// `eye`: the dismount tick's input position, which vanilla repeats in LeaveVehicle.
     fn leave_vehicle(&mut self, eye: Vec3f) {
         let target = self.state.riding.vehicle.as_ref().and_then(|v| v.runtime_id).unwrap_or(0);

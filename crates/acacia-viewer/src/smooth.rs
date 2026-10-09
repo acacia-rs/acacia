@@ -15,6 +15,10 @@ use crate::pick::EntityBox;
 
 /// The bot's own body is hidden while the camera is this close to its eyes.
 const OWN_HEAD_RADIUS: f64 = 0.6;
+/// `query.is_riding_any_entity_of_type` with one of its kinds, as the entity code asks it.
+const RIDING_KIND: &str = "is_riding_any_entity_of_type:";
+/// Degrees a head turns from its body.
+const MAX_HEAD_TURN: f32 = 90.0;
 
 /// Java's limb swing: how far the legs are through their stride, and how wide they swing.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -148,11 +152,22 @@ impl Smoother {
         self.from.get(&id).map_or(to, |from| from.towards(to, t))
     }
 
+    /// A rider's motion this frame, on its seat and turned with its vehicle, and the vehicle's kind.
+    fn seated(&self, e: &Tracked, m: Motion, t: f32) -> Option<(Motion, &str)> {
+        let seat = e.seat?;
+        let (vehicle, to) = self.to.iter().find(|(v, _)| v.runtime_id == seat.vehicle)?;
+        let v = self.blend(vehicle.runtime_id, *to, t);
+        let offset = glam::Quat::from_rotation_y(-v.yaw.to_radians()) * seat.offset;
+        Some((Motion { position: v.position + offset.as_dvec3(), yaw: v.yaw, walk: Walk::default(), ..m }, &vehicle.kind))
+    }
+
     pub fn instances(&self, camera: DVec3) -> Vec<EntityInstance> {
         let t = self.progress();
         let visible = |(e, _): &&(Tracked, Motion)| e.own_eyes.is_none_or(|eyes| eyes.distance(camera) > OWN_HEAD_RADIUS);
         let posed = |(e, to): &(Tracked, Motion)| -> Vec<EntityInstance> {
             let m = self.blend(e.runtime_id, *to, t);
+            let seated = self.seated(e, m, t);
+            let (m, vehicle) = seated.map_or((m, None), |(m, kind)| (m, Some(kind)));
             let life = self.born.get(&e.runtime_id).map_or(0.0, |b| b.elapsed().as_secs_f32());
             if let Some(stack) = &e.dropped {
                 let (Some(model), Some(items)) = (self.dropped.get(&e.runtime_id), &self.items) else { return Vec::new() };
@@ -166,7 +181,9 @@ impl Smoother {
                     "modified_distance_moved" => m.walk.distance,
                     "modified_move_speed" => m.walk.speed,
                     "target_x_rotation" => m.pitch,
-                    "target_y_rotation" => wrap_degrees(m.head_yaw - m.yaw),
+                    "target_y_rotation" => wrap_degrees(m.head_yaw - m.yaw).clamp(-MAX_HEAD_TURN, MAX_HEAD_TURN),
+                    "is_riding" => f32::from(u8::from(vehicle.is_some())),
+                    _ if name.starts_with(RIDING_KIND) => f32::from(u8::from(vehicle == name.strip_prefix(RIDING_KIND))),
                     "is_on_ground" => 1.0,
                     "is_alive" => f32::from(u8::from(!e.dying)),
                     _ => return e.facts.query(name),

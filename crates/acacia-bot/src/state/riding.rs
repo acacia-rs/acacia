@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use acacia_client::proto::codec::read_varint64;
-use acacia_client::proto::packets::{AddEntity, ChangeDimension, RemoveEntity, SetEntityData, SetEntityLink};
+use acacia_client::proto::packets::{AddEntity, AddPlayer, ChangeDimension, RemoveEntity, SetEntityData, SetEntityLink};
 use acacia_client::proto::types::{Link, MetadataDictionaryItemKey, MetadataDictionaryItemValue, MetadataDictionaryItemValueDefault, Vec3f};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
@@ -47,11 +47,13 @@ pub struct Riding {
     /// The own seat offset from the vehicle (`SetEntityData` RiderSeatPosition), while riding.
     pub seat_offset: Option<Vec3f>,
     spawned: HashMap<i64, Spawned>,
+    /// Every linked rider's vehicle, by unique ids (the local player's included).
+    links: HashMap<i64, i64>,
 }
 
 impl Riding {
     pub const PACKETS: &'static [u32] =
-        &[AddEntity::ID, RemoveEntity::ID, SetEntityLink::ID, SetEntityData::ID, ChangeDimension::ID];
+        &[AddEntity::ID, AddPlayer::ID, RemoveEntity::ID, SetEntityLink::ID, SetEntityData::ID, ChangeDimension::ID];
 
     pub fn is_riding(&self) -> bool {
         self.vehicle.is_some()
@@ -65,6 +67,11 @@ impl Riding {
     /// The pose an entity spawned with.
     pub fn spawn_pose(&self, unique_id: i64) -> Option<&Pose> {
         self.spawned.get(&unique_id).map(|s| &s.pose)
+    }
+
+    /// Unique id of the entity `rider` (a unique id) sits on.
+    pub fn vehicle_of(&self, rider: i64) -> Option<i64> {
+        self.links.get(&rider).copied()
     }
 
     /// Forgets the seat without waiting for the server, as the vanilla client does when it dismounts.
@@ -81,9 +88,11 @@ impl Riding {
                 self.spawned.insert(p.unique_id, Spawned { runtime_id: p.runtime_id, kind: p.entity_type, pose });
                 p.links.iter().for_each(|l| self.on_link(l, me));
             }
+            AddPlayer::ID => packet.decode::<AddPlayer>()?.links.iter().for_each(|l| self.on_link(l, me)),
             RemoveEntity::ID => {
                 let unique = packet.decode::<RemoveEntity>()?.entity_id_self;
                 self.spawned.remove(&unique);
+                self.links.retain(|rider, ridden| *rider != unique && *ridden != unique);
                 if self.vehicle.as_ref().is_some_and(|v| v.unique_id == unique) {
                     self.leave();
                 }
@@ -102,6 +111,7 @@ impl Riding {
             }
             ChangeDimension::ID => {
                 self.spawned.clear();
+                self.links.clear();
                 self.leave();
             }
             _ => {}
@@ -110,6 +120,10 @@ impl Riding {
     }
 
     fn on_link(&mut self, link: &Link, me: &Me) {
+        match link.r#type {
+            LINK_REMOVE => self.links.retain(|rider, ridden| (*rider, *ridden) != (link.rider_entity_id, link.ridden_entity_id)),
+            _ => _ = self.links.insert(link.rider_entity_id, link.ridden_entity_id),
+        }
         if link.rider_entity_id != me.unique_entity_id {
             return;
         }

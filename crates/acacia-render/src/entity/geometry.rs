@@ -54,6 +54,9 @@ pub struct Geometry {
     pub bones: Vec<Bone>,
 }
 
+/// Geometries the game has in code and packs only name: the boat's hull (Java's `BoatModel`, no paddles;
+/// a boat's position is 0.375 above its bottom).
+const HARD_CODED: &str = include_str!("hardcoded.geo.json");
 /// The texture size of geometries in the old layout that state none.
 const LEGACY_TEXTURE: [f32; 2] = [64.0, 32.0];
 
@@ -61,6 +64,7 @@ const LEGACY_TEXTURE: [f32; 2] = [64.0, 32.0];
 /// the size of the texture a geometry is drawn with, for files that state none.
 pub fn load_all(root: &Path, texture_sizes: &HashMap<&str, [f32; 2]>) -> HashMap<String, Geometry> {
     let mut raw: HashMap<String, (Option<String>, Value)> = HashMap::new();
+    collect(serde_json::from_str(HARD_CODED).unwrap_or_default(), &mut raw);
     let mut files = vec![root.join("models/mobs.json")];
     files.extend(std::fs::read_dir(root.join("models/entity")).into_iter().flatten().flatten().map(|e| e.path()));
     for file in files {

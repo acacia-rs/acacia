@@ -99,10 +99,17 @@ impl Play {
             if key == KeyCode::Space {
                 self.jumped = Some(Instant::now());
             }
+            if key == KeyCode::ShiftLeft && self.riding() {
+                self.send(Command::Dismount);
+            }
             if let Some(slot) = HOTBAR_KEYS.iter().position(|&k| k == key) {
                 self.send(Command::Hotbar(slot as u8));
             }
         }
+    }
+
+    fn riding(&self) -> bool {
+        self.me.as_ref().is_some_and(|m| m.riding)
     }
 
     pub fn release_all(&mut self) {
@@ -239,7 +246,8 @@ impl Play {
             forward: axis(KeyCode::KeyW, KeyCode::KeyS),
             strafe: axis(KeyCode::KeyA, KeyCode::KeyD),
             jump: down(KeyCode::Space) || self.jumped.is_some_and(|t| t.elapsed() < JUMP_LATCH),
-            sneak: down(KeyCode::ShiftLeft),
+            // Seated, Shift leaves the vehicle (`Play::key`); BDS refuses mounts while sneaking.
+            sneak: down(KeyCode::ShiftLeft) && !self.riding(),
             sprint: down(KeyCode::ControlLeft),
             glide: false,
             fly: false,

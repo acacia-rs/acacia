@@ -75,6 +75,14 @@ impl Metadata {
         }
     }
 
+    /// The rider's wire position against its vehicle, in the vehicle's frame (`RiderSeatPosition`).
+    pub fn seat_position(&self) -> Option<[f32; 3]> {
+        match self.plain(Key::RiderSeatPosition)? {
+            Plain::Vec3f(v) => Some([v.x, v.y, v.z]),
+            _ => None,
+        }
+    }
+
     pub(crate) fn merge(&mut self, items: Vec<MetadataDictionaryItem>) {
         self.0.extend(items.into_iter().map(|i| (i.key, i.value)));
     }
