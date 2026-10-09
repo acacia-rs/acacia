@@ -129,8 +129,11 @@ impl Ui {
     }
 
     /// A chat message, translated; a player's is shown as `<name> text`.
-    pub fn push_chat(&mut self, sender: Option<&str>, message: &str, params: &[String]) {
-        let text = self.lang.translate(message, params);
+    /// `rawtext` is the message as JSON when the server sent it so: translated here, where the
+    /// language files are, in place of `message` (the bot's flattening, keys untranslated).
+    pub fn push_chat(&mut self, sender: Option<&str>, message: &str, params: &[String], rawtext: Option<&str>) {
+        tracing::debug!(target: "chat", message, ?params, rawtext, "raw");
+        let text = rawtext.and_then(|json| self.lang.rawtext(json)).unwrap_or_else(|| self.lang.translate(message, params));
         let line = sender.map_or_else(|| text.clone(), |s| format!("<{s}> {text}"));
         tracing::info!(target: "chat", "{line}");
         self.chat.push(line, Instant::now());
@@ -217,8 +220,8 @@ impl Skin {
             health: me.health,
             max_health: me.max_health,
             food: me.food,
-            armor: 0,
-            air: None,
+            armor: me.armor,
+            air: me.air,
             xp_level: me.xp_level.max(0) as u32,
             xp_progress: me.xp_progress,
             selected: me.hotbar,

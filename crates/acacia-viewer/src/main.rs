@@ -15,6 +15,7 @@
 //!     V toggles vsync, C toggles cave culling (both remembered).
 
 mod app;
+mod armor;
 mod audio;
 mod block_data;
 mod bob;

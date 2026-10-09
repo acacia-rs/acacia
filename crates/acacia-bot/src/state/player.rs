@@ -46,6 +46,8 @@ pub struct PlayerState {
     pub abilities: Abilities,
     /// `minecraft:movement` attribute: base walking speed with modifiers (sprinting, slowness, ...).
     pub movement_speed: f32,
+    /// Ticks of breath left and at most, from `SetEntityData` (300 of 300 out of water).
+    pub air: (i16, i16),
     /// The sleeping entity flag (Geyser) and player flag (BDS, PocketMine) from `SetEntityData`.
     pub(crate) sleep_flags: [bool; 2],
     /// Own `MovePlayer`s and ready `Respawn`s seen: each needs `HandledTeleport` (movement::Idle).
@@ -74,6 +76,7 @@ impl Default for PlayerState {
             effects: Effects::default(),
             abilities: Abilities::default(),
             movement_speed: 0.1,
+            air: (300, 300),
             sleep_flags: [false; 2],
             teleports: 0,
         }
@@ -127,6 +130,8 @@ impl PlayerState {
                 Meta::Default(MetadataDictionaryItemValueDefault::Byte(b)) if item.key == MetadataDictionaryItemKey::PlayerFlags => {
                     self.sleep_flags[1] = b & PLAYER_FLAG_SLEEP != 0;
                 }
+                Meta::Default(MetadataDictionaryItemValueDefault::Short(v)) if item.key == MetadataDictionaryItemKey::Air => self.air.0 = v,
+                Meta::Default(MetadataDictionaryItemValueDefault::Short(v)) if item.key == MetadataDictionaryItemKey::MaxAirdataMaxAir => self.air.1 = v,
                 _ => {}
             }
         }

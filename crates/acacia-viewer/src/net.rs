@@ -58,7 +58,8 @@ pub enum NetEvent {
     /// The scoreboard sidebar, when it changed (`None`: none shown).
     Sidebar(Option<acacia_ui::sidebar::Sidebar>),
     /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
-    Chat { sender: Option<String>, message: String, params: Vec<String> },
+    /// `rawtext` is the message's JSON when it came as one (`acacia_bot::events` `ChatMessage`).
+    Chat { sender: Option<String>, message: String, params: Vec<String>, rawtext: Option<String> },
     /// Sent once, before any [`NetEvent::Entities`].
     EntityModels(Arc<EntityModels>),
     Entities(Vec<Tracked>),
@@ -176,7 +177,7 @@ async fn run(
                 }
                 Some(BotEvent::Chat(m)) => {
                     let sender = m.sender.filter(|s| !s.is_empty());
-                    send(NetEvent::Chat { sender, message: m.message, params: m.params })?;
+                    send(NetEvent::Chat { sender, message: m.message, params: m.params, rawtext: m.rawtext })?;
                     continue;
                 }
                 Some(BotEvent::Title(t)) => {

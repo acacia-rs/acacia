@@ -128,6 +128,9 @@ pub struct Me {
     pub flying: bool,
     /// Times this player has been hurt (the camera rolls on each).
     pub hurts: u32,
+    /// Armour points worn (0 to 20), and ticks of breath left and at most while short of breath.
+    pub armor: u32,
+    pub air: Option<(u32, u32)>,
     pub mining: Option<(IVec3, f32)>,
     pub hotbar: u8,
     pub game_mode: GameMode,
@@ -235,6 +238,8 @@ pub fn me(bot: &Bot) -> Me {
         sprinting: bot.movement().is_some_and(|m| m.sprinting()),
         flying: bot.movement().is_some_and(|m| m.flying()),
         hurts: bot.state().hurts.count(bot.state().player.runtime_entity_id),
+        armor: state.inventory.armor.iter().filter_map(|s| state.item_name(s)).map(crate::armor::points).sum(),
+        air: Some((p.air.0.max(0) as u32, p.air.1.max(1) as u32)).filter(|(air, max)| air < max),
         mining: bot.mining_progress().map(|(p, f)| (IVec3::from_array(p), f)),
         hotbar: state.inventory.selected_hotbar_slot,
         game_mode: p.game_mode,

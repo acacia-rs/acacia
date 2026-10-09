@@ -36,6 +36,9 @@ pub struct ChatMessage {
     /// With `§` formatting codes; JSON (rawtext) messages are flattened to their text.
     pub message: String,
     pub params: Vec<String>,
+    /// The `{"rawtext":[...]}` JSON as sent, for a JSON message: a client with language files
+    /// translates it better than `message`, which shows keys untranslated.
+    pub rawtext: Option<String>,
     /// The sender's XUID, when the server sends it.
     pub xuid: String,
 }
@@ -44,6 +47,12 @@ impl ChatMessage {
     /// `None` for a `Text` packet with no content.
     pub fn from_packet(p: Text) -> Option<Self> {
         use ChatKind as K;
+        let json = match &p.content {
+            TextContent::Json(c) => Some(c.message.clone()),
+            TextContent::JsonWhisper(c) => Some(c.message.clone()),
+            TextContent::JsonAnnouncement(c) => Some(c.message.clone()),
+            _ => None,
+        };
         let (kind, sender, message, params) = match p.content {
             TextContent::Chat(c) => (K::Chat, Some(c.source_name), c.message, Vec::new()),
             TextContent::Whisper(c) => (K::Whisper, Some(c.source_name), c.message, Vec::new()),
@@ -60,7 +69,7 @@ impl ChatMessage {
             TextContent::Default => return None,
         };
         let sender = sender.filter(|s| !s.is_empty());
-        Some(Self { kind, sender, message, params, xuid: p.xuid })
+        Some(Self { kind, sender, message, params, rawtext: json, xuid: p.xuid })
     }
 
     /// The message without formatting codes.
