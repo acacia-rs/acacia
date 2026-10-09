@@ -36,6 +36,8 @@ pub(super) struct Art<'a> {
     bench: Option<Bench>,
     /// The trade screen: its offers are the look's buttons.
     trade: bool,
+    /// The creative inventory: its picks are slots.
+    creative: bool,
 }
 
 enum Kind<'a> {
@@ -55,6 +57,7 @@ impl<'a> Art<'a> {
                     Layout::Station(station) => kit.stations.get(station.sheet()).map(|s| (*s, None)),
                     Layout::Bench(bench) => kit.stations.get(bench.sheet()).map(|s| (*s, None)),
                     Layout::Trade => kit.trade.map(|s| (s, None)),
+                    Layout::Creative => kit.creative.map(|s| (s, None)),
                 };
                 sheets.map_or(Kind::Flat, |(sheet, bottom)| Kind::Java(kit, sheet, bottom))
             }
@@ -62,7 +65,7 @@ impl<'a> Art<'a> {
             Widgets::Bedrock(_) => Kind::Flat,
         };
         let bench = if let Layout::Bench(bench) = layout { Some(bench) } else { None };
-        Art { white: theme.atlas.white(), kind, bench, trade: layout == Layout::Trade }
+        Art { white: theme.atlas.white(), kind, bench, trade: layout == Layout::Trade, creative: layout == Layout::Creative }
     }
 
     /// The panel; Java's sheets bring their slots and portrait box with them.
@@ -167,6 +170,14 @@ impl<'a> Art<'a> {
     /// A pick-list button: Java's stonecutter or enchanting sprites, Bedrock's cell with its highlight.
     pub(super) fn pick(&self, list: &mut DrawList, rect: [f32; 4], picked: bool, hover: bool) {
         let flat = if picked { SLOT_FILL } else { PANEL };
+        if self.creative {
+            let [x, y] = [rect[0] + 1.0, rect[1] + 1.0];
+            self.slot(list, Slot::Container(0), x, y, false);
+            if hover {
+                self.hover(list, x, y);
+            }
+            return;
+        }
         match self.kind {
             Kind::Java(kit, ..) if self.trade => match kit.button_nine(hover) {
                 Some(button) => list.nine(button, rect, WHITE),

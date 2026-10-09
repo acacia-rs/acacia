@@ -1,8 +1,10 @@
 //! Workstations where a player picks one of several results by hand (the viewer's screens): what
 //! the stonecutter offers for the stack in its slot and the click on the result, and the
-//! enchanting table's options.
+//! enchanting table's options, and a beacon's powers.
 
+use super::beacon::beacon_plan;
 use super::enchant::enchant_plan;
+use super::BeaconEffect;
 use super::occupied;
 use super::smithing::stonecut_plan;
 use crate::items::{ui, SlotRef};
@@ -44,5 +46,12 @@ impl Bot {
         self.craft_request(&craft, &ops).await?;
         self.pay_enchant_levels(level, option);
         Ok(())
+    }
+
+    /// The beacon screen's confirm button: sets the open beacon's powers, paid with the item in
+    /// its slot.
+    pub async fn take_beacon(&mut self, primary: BeaconEffect, secondary: Option<BeaconEffect>) -> Result<(), ActionError> {
+        let (head, ops) = beacon_plan(&self.state, primary, secondary)?;
+        self.headed_request(head, &ops).await
     }
 }

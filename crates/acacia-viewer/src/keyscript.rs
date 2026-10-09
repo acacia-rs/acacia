@@ -1,5 +1,6 @@
 //! `ACACIA_KEYS="3 +Space; 3.15 -Space; 9 click 640 300; 12 +Use; ..."`: key presses (+) and
-//! releases (-), the right button held (`Use`), typed text (`5 type Hello`) and left clicks at
+//! releases (-), the right button held (`Use`), typed text (`5 type Hello`), the wheel
+//! (`6 wheel -3`) and left clicks at
 //! window pixels, at seconds after the player's first tick in the world, for unattended live tests
 //! of the controls (flight's double tap, menu buttons).
 
@@ -13,6 +14,8 @@ pub enum Step {
     Click([f64; 2]),
     /// Text typed into the focused input (`type Hello`).
     Type(String),
+    /// The wheel, in notches (`wheel -3` scrolls down).
+    Wheel(f32),
     /// The right button (`+Use`, `-Use`).
     Use(bool),
 }
@@ -48,6 +51,9 @@ fn parse(step: &str) -> Option<(Duration, Step)> {
     if let Some(xy) = what.trim().strip_prefix("click ") {
         let (x, y) = xy.trim().split_once(' ')?;
         return Some((at, Step::Click([x.parse().ok()?, y.trim().parse().ok()?])));
+    }
+    if let Some(notches) = what.trim().strip_prefix("wheel ") {
+        return Some((at, Step::Wheel(notches.trim().parse().ok()?)));
     }
     if let Some(text) = what.strip_prefix("type ") {
         return Some((at, Step::Type(text.to_owned())));

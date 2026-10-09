@@ -120,6 +120,9 @@ impl App {
         if self.form.is_some() && self.menu.is_none() {
             return self.form_scroll(lines);
         }
+        if self.screen_open {
+            return self.screen_scroll(lines);
+        }
         match self.mode {
             Mode::Fly => self.input.scroll(lines),
             Mode::Play => self.play.scroll(lines),

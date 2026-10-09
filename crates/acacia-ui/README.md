@@ -33,7 +33,9 @@ player state. Layout is tested headless.
   cartography and enchanting table: the player's UI slots by Bedrock's offset, a `Slot::Result`
   the caller works out, and a pick list (`Pick`, `hit_pick`) for the stonecutter's cuts and the
   enchanting options. `Layout::Trade` is Java's 276-wide `MerchantScreen`: the offers as a pick
-  list left of the payment slots.
+  list left of the payment slots. `Layout::Creative` is Java's 195×136 creative screen: a tab's
+  items as a nine-column pick list over the hotbar, the tabs as buttons above (`hit_tab`).
+  `inventory/paint.rs` draws them all.
 - `recipes.rs`: the recipe book left of the player's screen, in Java's `recipe_book.png` and slot
   buttons or Bedrock's panel and cells.
 - `menu.rs`: button menus (pause, options, death) on the widget skins: Java's 200×20 column a
@@ -94,6 +96,6 @@ and Done (`Spec::Custom`'s `submit`), not as either game's sign screen.
 
 ## Not yet
 
-Loom and beacon screens, a cartography table's name box, a scrolling pick list, Unicode glyph pages,
+The loom screen, the beacon's own art, a cartography table's name box, Unicode glyph pages,
 offhand and attack indicator, Java's background blur, Bedrock's own settings screen and sidebar
 placement, multiselect form elements, JPEG button images.

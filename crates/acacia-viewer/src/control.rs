@@ -50,6 +50,10 @@ pub enum Command {
     Enchant(usize),
     /// A click on a trader's offer of this index: one trade.
     Trade(usize),
+    /// The beacon screen's confirm with these powers.
+    Beacon(acacia_bot::workstation::BeaconEffect, Option<acacia_bot::workstation::BeaconEffect>),
+    /// A click on a creative inventory entry: this many of it into the inventory.
+    Creative { id: u32, count: u8 },
     /// A click outside the screen: throws the held stack, or one of it.
     DropCursor { one: bool },
     /// The player's answer to open form `id`.
@@ -117,6 +121,20 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
     Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted() })
+}
+
+/// One entry of the creative inventory: its id, the item, and its tab (an index into acacia-ui's
+/// `TABS`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreativeEntry {
+    pub id: u32,
+    pub stack: Stack,
+    pub tab: usize,
+}
+
+pub fn creative(bot: &Bot) -> Vec<CreativeEntry> {
+    let entry = |i: &acacia_bot::state::CreativeItem| Some(CreativeEntry { id: i.entry_id, stack: stack_of(bot, &i.stack)?, tab: i.tab as usize });
+    bot.state().creative.items().iter().filter_map(entry).collect()
 }
 
 /// The player list's names, sorted.
@@ -199,6 +217,8 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::TakeCut { id, all } => bot.take_stonecut(id, all).await,
         Command::Enchant(option) => bot.take_enchant(option).await,
         Command::Trade(offer) => bot.trade_once(offer).await,
+        Command::Creative { id, count } => bot.take_creative(id, count).await,
+        Command::Beacon(primary, secondary) => bot.take_beacon(primary, secondary).await,
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
         Command::Craft { name, table } => bot.craft(&name, 1, table).await.map(|_| ()),
         Command::DropCursor { one } => bot.drop_cursor(one).await,

@@ -1,6 +1,7 @@
 //! The viewer's state, its frame loop and the title-bar overlay. Window events: app/window.rs; keys
 //! and modes: app/keys.rs.
 
+mod creative;
 mod events;
 mod fluid;
 mod form;
@@ -68,10 +69,8 @@ pub struct App {
     players: Vec<String>,
     /// The inventory screen is open (E).
     screen_open: bool,
-    /// The result picked from an open stonecutter's list.
-    pick: Option<usize>,
-    /// The text in an open anvil's name box.
-    name: acacia_ui::widget::TextEdit,
+    /// What the open screen shows beyond its slots: picks, a name being typed, the creative tab.
+    shown: screen::Shown,
     /// The pause menu or options (Esc).
     menu: Option<Menu>,
     /// Disconnect was chosen: the window closes.
@@ -144,8 +143,7 @@ impl App {
             // For unattended screenshots of the pause menu.
             menu: std::env::var_os("ACACIA_MENU").map(|_| Menu::Pause),
             quit: false,
-            pick: None,
-            name: acacia_ui::widget::TextEdit::new("", screen::NAME_MAX),
+            shown: screen::Shown::default(),
             inventory: Inventory::default(),
             mouse: [0.0; 2],
             shift: false,
@@ -247,9 +245,11 @@ impl App {
         self.drive_use();
         let (size, scale) = self.gui();
         let mouse = self.gui_mouse();
-        let name = self.names().then(|| (self.name.before_caret(), self.name.text()));
+        let name = self.names().then(|| (self.shown.name.before_caret(), self.shown.name.text()));
         let name = name.as_ref().map(|(before, all)| (before.as_str(), &all[before.len()..]));
-        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.pick, name });
+        let creative = self.creative_view();
+        let creative = creative.as_ref().map(|(stacks, tab, scrolled)| (stacks.as_slice(), *tab, *scrolled));
+        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.shown.pick, first: self.first_pick(), name, creative });
         let menu = self.menu.map(|m| self.menu_content(m));
         let backdrop = if self.menu == Some(Menu::Death) { Backdrop::Death } else { Backdrop::Dim };
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice(), backdrop));

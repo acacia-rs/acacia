@@ -72,10 +72,13 @@ pub struct Frame<'a> {
 pub struct Screen<'a> {
     pub inventory: &'a Inventory,
     pub layout: Layout,
-    /// What is picked from its list.
-    pub picked: Option<usize>,
+    /// What is picked from its list, and the first entry the list shows.
+    pub picked: [Option<usize>; 2],
+    pub first: usize,
     /// The text in its name box, before the caret and after.
     pub name: Option<(&'a str, &'a str)>,
+    /// The creative inventory's shown items, its tab, and how far it is scrolled.
+    pub creative: Option<(&'a [crate::control::Stack], usize, f32)>,
 }
 
 pub struct Ui {

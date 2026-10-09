@@ -2,6 +2,7 @@ mod anvil;
 mod beacon;
 mod cartography;
 mod crafting;
+mod creative;
 mod grid;
 mod hand;
 mod stations;
