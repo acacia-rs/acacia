@@ -27,6 +27,7 @@ impl App {
                     match step {
                         Step::Key(key, pressed) => self.key(key, pressed),
                         Step::Type(text) => self.text(&text, true),
+                        Step::Wheel(notches) => self.scroll(notches),
                         Step::Click(at) => {
                             self.mouse = at;
                             self.button(winit::event::MouseButton::Left, true);

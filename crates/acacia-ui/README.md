@@ -96,6 +96,6 @@ and Done (`Spec::Custom`'s `submit`), not as either game's sign screen.
 
 ## Not yet
 
-The loom screen, the beacon's own art, a cartography table's name box, a scrolling pick list, Unicode glyph pages,
+The loom screen, the beacon's own art, a cartography table's name box, Unicode glyph pages,
 offhand and attack indicator, Java's background blur, Bedrock's own settings screen and sidebar
 placement, multiselect form elements, JPEG button images.

@@ -15,7 +15,7 @@ const PRICE: [f32; 2] = [5.0, 30.0];
 const GOODS: f32 = 68.0;
 
 pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &Screen, mouse: [f32; 2], gui: [f32; 2]) {
-    let Screen { inventory, layout, picked, name, creative } = *screen;
+    let Screen { inventory, layout, picked, first, name, creative } = *screen;
     let mut icons = HashMap::new();
     for (slot, _) in inventory::slots(layout) {
         // A pick list's result is the picked one.
@@ -29,10 +29,12 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &S
     }
     let cursor = inventory.cursor.as_ref().and_then(|s| skin.item(s));
     let mut picks = picks(skin, inventory);
+    picks.drain(..first.min(picks.len()));
+    let shown = picked.map(|p| p.and_then(|i| i.checked_sub(first)));
     for stack in creative.iter().flat_map(|(stacks, ..)| *stacks) {
         picks.push(Pick { icons: skin.icon(&stack.name, stack.aux, stack.block).map(|icon| (icon, 1, 1.0)).into_iter().collect(), label: String::new() });
     }
-    let contents = Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress, picks: &picks, picked, name, creative: creative.map(|(_, tab, scrolled)| (tab, scrolled)) };
+    let contents = Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress, picks: &picks, picked: shown, name, creative: creative.map(|(_, tab, scrolled)| (tab, scrolled)) };
     let title = match (&inventory.trade, &inventory.container) {
         _ if creative.is_some() => inventory::TABS[creative.map_or(0, |c| c.1)].to_owned(),
         (Some(trade), _) => lang.translate(&trade.title, &[]),

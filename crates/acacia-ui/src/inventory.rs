@@ -58,7 +58,7 @@ impl Layout {
     }
 
     /// The results to pick from: a bench's, or the trader's offers.
-    fn picks(self) -> Option<Picks> {
+    pub fn picks(self) -> Option<Picks> {
         match self {
             Layout::Bench(bench) => bench.picks(),
             Layout::Trade => Some(Picks { at: [5.0, 18.0], columns: 1, rows: 7, cell: [88.0, 20.0], text: 57.0 }),

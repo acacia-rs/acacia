@@ -37,7 +37,7 @@ unit or pack tests only.
 | Screens | Anvil with its name box, smithing table, stonecutter, enchanting table | live |
 | Screens | Grindstone, cartography table (no renaming) | tests only, never opened live |
 | Screens | Beacon: powers, second power and confirm as buttons (not either game's own screen) | live |
-| Screens | Creative inventory (E in creative mode): four tabs, a click takes one, Shift a stack | live; the wheel's scrolling: untested |
+| Screens | Creative inventory (E in creative mode): four tabs, a click takes one, Shift a stack | live |
 | Screens | Trading: the offers of a villager or wandering trader, a click trades once | live (wandering trader) |
 | Screens | Furnace family, hopper, dispenser/dropper, brewing stand | live (acacia-46) |
 | Screens | Server forms, pause, options (two columns), death and respawn | live |
@@ -45,8 +45,9 @@ unit or pack tests only.
 
 ## Not done
 
-- **Screens:** loom; the beacon's own art and which powers its pyramid allows; more than seven offers of a trader (no scrolling), trader levels; a cartography table's name box, the anvil's level cost; a stonecutter
-  list longer than three rows (no scrolling); enchanting hints and the galactic text; craft
+- **Screens:** loom; the beacon's own art and which powers its pyramid allows; trader levels; a
+  cartography table's name box, the anvil's level cost; a scroll bar on the stonecutter's and
+  trader's lists (the wheel scrolls them); enchanting hints and the galactic text; craft
   results onto the cursor (they go into the inventory); books; maps; the game's own sign editor
   (a four-line form stands in); the creative inventory's search, its survival-inventory tab and
   deleting items into it.
