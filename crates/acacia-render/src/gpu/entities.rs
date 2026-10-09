@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use glam::{DVec3, Mat4, Vec3};
-use wgpu::util::DeviceExt;
 
+use super::entity_buffers::{BONES, INSTANCES, storage_buffer, upload, vertex_buffer};
 use super::entity_textures;
 use super::pipeline::DEPTH_FORMAT;
 use crate::entity::{EntityInstance, EntityModels, Skin, TextureId, Vertex};
@@ -38,6 +38,8 @@ enum TextureKey {
 
 pub struct EntityPass {
     pipeline: wgpu::RenderPipeline,
+    /// For [`Layer::blend`] layers.
+    blend_pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
@@ -48,7 +50,8 @@ pub struct EntityPass {
     vertices: Option<wgpu::Buffer>,
     ranges: Vec<Range<u32>>,
     looks: HashMap<TextureKey, Look>,
-    draws: Vec<(Range<u32>, TextureKey)>,
+    /// Vertices, texture and whether the layer is blended, per instance record.
+    draws: Vec<(Range<u32>, TextureKey, bool)>,
     /// How many of `draws` are in the world; the rest go over the UI.
     world_draws: usize,
 }
@@ -58,38 +61,6 @@ struct Look {
     skin: Option<Arc<Skin>>,
     texture: wgpu::BindGroup,
     own_mesh: Option<wgpu::Buffer>,
-}
-
-fn vertex_buffer(device: &wgpu::Device, vertices: &[Vertex]) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("entity models"),
-        contents: bytemuck::cast_slice(vertices),
-        usage: wgpu::BufferUsages::VERTEX,
-    })
-}
-
-const INSTANCES: &str = "entity instances";
-const BONES: &str = "entity bones";
-
-fn storage_buffer(device: &wgpu::Device, label: &str, size: u64) -> wgpu::Buffer {
-    device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some(label),
-        size,
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    })
-}
-
-/// Writes `records` to `buffer`, replacing it with a larger one first when they do not fit.
-/// Returns whether it was replaced.
-fn upload<T: bytemuck::Pod>(device: &wgpu::Device, queue: &wgpu::Queue, buffer: &mut wgpu::Buffer, label: &str, records: &[T]) -> bool {
-    let bytes: &[u8] = bytemuck::cast_slice(records);
-    let grown = bytes.len() as u64 > buffer.size();
-    if grown {
-        *buffer = storage_buffer(device, label, (bytes.len() as u64).next_power_of_two());
-    }
-    queue.write_buffer(buffer, 0, bytes);
-    grown
 }
 
 impl EntityPass {
@@ -119,7 +90,7 @@ impl EntityPass {
             immediate_size: 0,
         });
         let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Uint32, 2 => Float32x3, 3 => Float32x2];
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let pipeline = |entry: &str, target: wgpu::ColorTargetState, write_depth: bool| device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("entity"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
@@ -136,7 +107,7 @@ impl EntityPass {
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
-                depth_write_enabled: Some(true),
+                depth_write_enabled: Some(write_depth),
                 // Or equal: an entity's later layers lie exactly on its first.
                 depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                 stencil: Default::default(),
@@ -145,18 +116,22 @@ impl EntityPass {
             multisample: Default::default(),
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: Some("fs_main"),
+                entry_point: Some(entry),
                 compilation_options: Default::default(),
-                targets: &[Some(color.into())],
+                targets: &[Some(target)],
             }),
             multiview_mask: None,
             cache: None,
         });
+        // Blended layers leave the depth alone, so what they cover (a slime's core) still shows.
+        let blended = wgpu::ColorTargetState { format: color, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::COLOR };
+        let (pipeline, blend_pipeline) = (pipeline("fs_main", color.into(), true), pipeline("fs_blend", blended, false));
         let instances = storage_buffer(device, INSTANCES, 64 * size_of::<Instance>() as u64);
         let bones = storage_buffer(device, BONES, 1024 * size_of::<BoneMatrix>() as u64);
         let bind_group = Self::bind_group(device, &layout, globals, &instances, &bones);
         EntityPass {
             pipeline,
+            blend_pipeline,
             layout,
             texture_layout,
             sampler: entity_textures::sampler(device),
@@ -255,7 +230,7 @@ impl EntityPass {
             let [block, sky] = if over { [15.0, 0.0] } else { light(e.position + DVec3::Y * 0.5) };
             let tint = layer.tint.map_or([0.0; 4], |[r, g, b]| [r, g, b, 1.0]);
             records.push(Instance { light: [block, sky, f32::from(u8::from(e.hurt)), 0.0], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0] });
-            self.draws.push((range, key));
+            self.draws.push((range, key, layer.blend));
             if !over {
                 self.world_draws = self.draws.len();
             }
@@ -266,20 +241,28 @@ impl EntityPass {
         }
     }
 
+    /// The world's opaque layers.
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw_range(pass, 0..self.world_draws);
+        self.draw_range(pass, 0..self.world_draws, false);
+    }
+
+    /// The world's blended layers, after everything opaque.
+    pub fn draw_blended(&self, pass: &mut wgpu::RenderPass<'_>) {
+        self.draw_range(pass, 0..self.world_draws, true);
     }
 
     /// The instances given to [`EntityPass::prepare`] as `over`.
     pub fn draw_over(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw_range(pass, self.world_draws..self.draws.len());
+        self.draw_range(pass, self.world_draws..self.draws.len(), false);
+        self.draw_range(pass, self.world_draws..self.draws.len(), true);
     }
 
-    fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, draws: Range<usize>) {
+    fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, draws: Range<usize>, blended: bool) {
         let Some(vertices) = self.vertices.as_ref().filter(|_| !draws.is_empty()) else { return };
-        pass.set_pipeline(&self.pipeline);
+        pass.set_pipeline(if blended { &self.blend_pipeline } else { &self.pipeline });
         pass.set_bind_group(0, &self.bind_group, &[]);
-        for (index, (range, key)) in self.draws.iter().enumerate().skip(draws.start).take(draws.len()) {
+        let chosen = self.draws.iter().enumerate().skip(draws.start).take(draws.len()).filter(|(_, d)| d.2 == blended);
+        for (index, (range, key, _)) in chosen {
             let look = &self.looks[key];
             pass.set_bind_group(1, &look.texture, &[]);
             pass.set_vertex_buffer(0, look.own_mesh.as_ref().unwrap_or(vertices).slice(..));

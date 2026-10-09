@@ -47,11 +47,15 @@ pub struct Layer {
     pub tint: Option<[f32; 3]>,
     /// Bit per bone of [`Mesh::bones`] that is not drawn.
     pub hidden: [u32; 4],
+    /// Blended over what is behind by the texture's alpha (a slime's shell), after the opaque layers.
+    pub blend: bool,
 }
 
-/// Materials drawn blended over the body (slime shell, charged creeper aura, enchantment glint);
-/// the entity pass is opaque, so their layers are left out.
-const OVERLAY_MATERIALS: [&str; 8] = ["outer", "charged", "ghost", "wind", "bioluminescent", "dissolve", "spectator", "enchanted"];
+/// Materials blended by their texture's alpha: the shells of slimes and sulfur cubes.
+const BLENDED_MATERIALS: [&str; 1] = ["outer"];
+/// Materials with effects the entity pass does not draw (the charged creeper's scrolling aura,
+/// the guardian's ghost, the enchantment glint): their layers are left out.
+const OVERLAY_MATERIALS: [&str; 7] = ["charged", "ghost", "wind", "bioluminescent", "dissolve", "spectator", "enchanted"];
 const PLAYER_GEOMETRIES: [&str; 3] = ["geometry.humanoid.custom", "geometry.humanoid.customSlim", "geometry.humanoid"];
 /// sRGB dye colours by the `color` data value, white first.
 pub(crate) const DYES: [u32; 16] = [
@@ -161,12 +165,12 @@ impl EntityModels {
         let steve = out.kinds.get("minecraft:player").and_then(|d| out.texture_ids.get(d.textures.get("default")?)).copied();
         let player = |geometry: &str| -> Option<Arc<[Layer]>> {
             let model = *out.by_geometry.get(geometry)?;
-            Some([Layer { model, textures: [steve.unwrap_or(NO_TEXTURE), NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4] }].into())
+            Some([Layer { model, textures: [steve.unwrap_or(NO_TEXTURE), NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: false }].into())
         };
         out.armor = armor
             .iter()
             .filter_map(|p| {
-                let layer = Layer { model: *out.by_geometry.get(&p.geometry)?, textures: [*out.texture_ids.get(&p.texture)?, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4] };
+                let layer = Layer { model: *out.by_geometry.get(&p.geometry)?, textures: [*out.texture_ids.get(&p.texture)?, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: false };
                 Some((p.item.clone(), Arc::from([layer])))
             })
             .collect();
@@ -251,7 +255,8 @@ impl EntityModels {
             }
         }
         let tint = (material == "sheep").then(|| dye((scope.query)("color").num()));
-        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, hidden })
+        let blend = BLENDED_MATERIALS.iter().any(|m| material.contains(m));
+        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, hidden, blend })
     }
 
     /// The default geometry in the default texture, for kinds whose controllers yield nothing.
@@ -259,13 +264,13 @@ impl EntityModels {
         let pick = |table: &HashMap<String, String>| table.get("default").or_else(|| table.values().min()).cloned();
         let model = *self.by_geometry.get(&pick(&definition.geometry)?)?;
         let texture = *self.texture_ids.get(&pick(&definition.textures)?)?;
-        Some(Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4] })
+        Some(Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: false })
     }
 
     /// The one layer of a block model ([`crate::blocks::model`]), if its geometry and texture loaded.
     pub fn block_layers(&self, geometry: &str, texture: &str) -> Option<Arc<[Layer]>> {
         let (model, texture) = (*self.by_geometry.get(geometry)?, *self.texture_ids.get(texture)?);
-        Some([Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4] }].into())
+        Some([Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: false }].into())
     }
 
     /// The humanoid for a skin: slim or wide arms, or the old layout when the skin is half height.

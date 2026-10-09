@@ -57,16 +57,29 @@ fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
     return out;
 }
 
-@fragment
-fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    let texel = textureSample(skin, skin_sampler, in.uv);
+// The lit, fogged colour of a texel.
+fn shaded(in: VsOut, texel: vec4<f32>) -> vec3<f32> {
     var rgb = texel.rgb;
     if in.tint.a > 0.5 {
         rgb = mix(rgb * in.tint.rgb, rgb, texel.a);
-    } else if texel.a < 0.1 {
-        discard;
     }
     // Java's hurt overlay: 30% red, before the light.
     rgb = mix(rgb, vec3(1.0, 0.0, 0.0), 0.3 * in.hurt);
-    return vec4(fogged(rgb * in.shade, in.dist), 1.0);
+    return fogged(rgb * in.shade, in.dist);
+}
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = textureSample(skin, skin_sampler, in.uv);
+    if in.tint.a <= 0.5 && texel.a < 0.1 {
+        discard;
+    }
+    return vec4(shaded(in, texel), 1.0);
+}
+
+// Blended layers (a slime's shell): the texel's alpha is how much of it shows.
+@fragment
+fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = textureSample(skin, skin_sampler, in.uv);
+    return vec4(shaded(in, texel), texel.a);
 }

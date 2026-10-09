@@ -4,6 +4,7 @@ mod clouds;
 mod crack;
 mod device;
 mod entities;
+mod entity_buffers;
 mod entity_textures;
 mod fog;
 mod globals;
@@ -269,6 +270,7 @@ impl Renderer {
                     self.sign_text.draw(&mut pass);
                 }
             }
+            self.entities.draw_blended(&mut pass);
             self.shadow_pass.draw(&mut pass);
             self.particles.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
             if !fog.in_fluid {

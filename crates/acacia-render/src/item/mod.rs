@@ -52,7 +52,7 @@ pub struct ItemModels {
 impl ItemModels {
     /// `table` is the look pack's for the world's registry ([`LookPack::block_table`]).
     pub fn new(pack: Arc<LookPack>, table: Arc<BlockTable>) -> ItemModels {
-        let layers = [Layer { model: NO_MODEL, textures: [NO_TEXTURE; 3], tint: None, hidden: [0; 4] }].into();
+        let layers = [Layer { model: NO_MODEL, textures: [NO_TEXTURE; 3], tint: None, hidden: [0; 4], blend: false }].into();
         ItemModels { icons: ItemIcons::load(pack.files()), pack, table, layers, cache: HashMap::new() }
     }
 
