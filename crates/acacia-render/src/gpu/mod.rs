@@ -50,7 +50,7 @@ use crate::camera::{Camera, Frustum};
 use crate::cull;
 use crate::look::Look;
 use crate::scene::{Scene, Update};
-use crate::sky::{NOON, Sky};
+use crate::sky::{NOON, Realm, Sky};
 use globals::Globals;
 use pipeline::Pipelines;
 use store::Store;
@@ -199,20 +199,21 @@ impl Renderer {
         self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
         self.prepare_particles(camera);
         let world = self.scene.as_ref().map(|s| s.world().clone());
-        self.weather_pass.prepare(&self.queue, world.as_deref(), &self.biomes, camera.position, self.weather.rain, self.started.elapsed().as_secs_f32());
-        let clouds = self.cloud_height.filter(|_| world.as_ref().is_none_or(|w| w.dimension().sky));
+        // Rain and clouds only under an open sky: the server's rain level outlasts a trip to the End.
+        let open_sky = world.as_ref().is_none_or(|w| w.dimension().sky);
+        let rain = if open_sky { self.weather.rain } else { 0.0 };
+        self.weather_pass.prepare(&self.queue, world.as_deref(), &self.biomes, camera.position, rain, self.started.elapsed().as_secs_f32());
+        let clouds = self.cloud_height.filter(|_| open_sky);
         self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, crate::sky::cloud_tint(self.weather), self.started.elapsed().as_secs_f64());
         self.bolt_pass.prepare(&self.device, &self.queue, &self.bolts, camera.position);
         self.prepare_shadows(camera.position);
 
         let view_proj = camera.view_proj();
-        let has_sky = self.world().is_none_or(|w| w.dimension().sky);
-        let sky = match has_sky {
-            true => Sky::at(self.time, self.weather),
-            false => Sky::at(NOON, Default::default()),
-        };
+        let realm = self.world().map_or(Realm::Overworld, |w| Realm::of(&w.dimension()));
+        let has_sky = realm == Realm::Overworld;
+        let sky = Sky::of(realm, self.time, self.weather);
         let fog = self.frame_fog(sky.color_towards(camera.forward()));
-        let sky_pass = self.sky.as_ref().filter(|_| has_sky && !fog.in_fluid);
+        let sky_pass = self.sky.as_ref().filter(|_| !fog.in_fluid);
         if let Some(pass) = sky_pass {
             pass.prepare(&self.queue, &sky, self.moon_phase);
         }
@@ -257,7 +258,7 @@ impl Renderer {
         {
             let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, fog.color);
             if let Some(sky) = sky_pass {
-                sky.draw(&mut pass);
+                sky.draw(&mut pass, realm);
             }
             for (pipeline, draws) in [(&self.pipelines.solid, &solid), (&self.pipelines.translucent, &translucent)] {
                 pass.set_pipeline(pipeline);

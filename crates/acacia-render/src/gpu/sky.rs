@@ -8,7 +8,7 @@ use wgpu::util::DeviceExt;
 
 use super::entity_textures;
 use super::pipeline::DEPTH_FORMAT;
-use crate::sky::{Sky, SkyTextures};
+use crate::sky::{Realm, Sky, SkyTextures};
 
 const DISTANCE: f32 = 100.0;
 const SUN_HALF: f32 = 30.0;
@@ -19,6 +19,7 @@ const KIND_MOON: u32 = 1;
 const KIND_STAR: u32 = 2;
 const KIND_GLOW: u32 = 3;
 const KIND_DOME: u32 = 4;
+const KIND_END: u32 = 5;
 /// Points on the sunrise fan's rim (Java's 16), and on the sky disc's.
 const GLOW_RIM: usize = 16;
 /// Java's sky disc: 16 blocks overhead, 512 across each way.
@@ -52,7 +53,9 @@ pub struct SkyPass {
     uniform: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     vertices: wgpu::Buffer,
+    /// Vertices of the overworld's sky, and of the End's box after them.
     count: u32,
+    end_count: u32,
 }
 
 /// Two triangles around `centre`, spanned by `right` and `down` as the texture runs.
@@ -108,6 +111,7 @@ impl SkyPass {
                 entry(2, texture_type),
                 entry(3, texture_type),
                 entry(4, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
+                entry(5, texture_type),
             ],
         });
         let pipeline_layout =
@@ -166,6 +170,13 @@ impl SkyPass {
         quad(&mut vertices, KIND_SUN, Vec3::Y * DISTANCE, Vec3::X * SUN_HALF, Vec3::Z * SUN_HALF);
         quad(&mut vertices, KIND_MOON, Vec3::NEG_Y * DISTANCE, Vec3::X * MOON_HALF, Vec3::NEG_Z * MOON_HALF);
         stars(&mut vertices);
+        // The End's box: each face `DISTANCE` out, spanned by the other two axes.
+        let sky_count = vertices.len() as u32;
+        for (out, right, down) in [(Vec3::X, Vec3::Z, Vec3::Y), (Vec3::Y, Vec3::X, Vec3::Z), (Vec3::Z, Vec3::Y, Vec3::X)] {
+            for side in [1.0, -1.0] {
+                quad(&mut vertices, KIND_END, out * side * DISTANCE, right * DISTANCE, down * DISTANCE);
+            }
+        }
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("sky"),
             contents: bytemuck::cast_slice(&vertices),
@@ -179,6 +190,7 @@ impl SkyPass {
         });
         let view = |image: &image::RgbaImage| entity_textures::upload(device, queue, image.width(), image.height(), image);
         let (sun, moon) = (view(&textures.sun), view(&textures.moon));
+        let end = view(textures.end.as_ref().unwrap_or(&image::RgbaImage::from_pixel(1, 1, image::Rgba([255; 4]))));
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor { label: Some("sky"), ..Default::default() });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("sky"),
@@ -189,9 +201,10 @@ impl SkyPass {
                 wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&sun) },
                 wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&moon) },
                 wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::Sampler(&sampler) },
+                wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&end) },
             ],
         });
-        SkyPass { pipeline, glow, uniform, bind_group, vertices: vertex_buffer, count: vertices.len() as u32 }
+        SkyPass { pipeline, glow, uniform, bind_group, vertices: vertex_buffer, count: sky_count, end_count: vertices.len() as u32 - sky_count }
     }
 
     pub fn prepare(&self, queue: &wgpu::Queue, sky: &Sky, moon_phase: u8) {
@@ -205,14 +218,21 @@ impl SkyPass {
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&celestial));
     }
 
-    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
+    /// The Nether has no sky: the frame keeps its fog colour.
+    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>, realm: Realm) {
         // The sky disc, then the glow fan over it.
         let glow = (GLOW_RIM * 6) as u32;
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertices.slice(..));
         pass.set_pipeline(&self.glow);
-        pass.draw(0..glow, 0..1);
-        pass.set_pipeline(&self.pipeline);
-        pass.draw(glow..self.count, 0..1);
+        match realm {
+            Realm::Overworld => {
+                pass.draw(0..glow, 0..1);
+                pass.set_pipeline(&self.pipeline);
+                pass.draw(glow..self.count, 0..1);
+            }
+            Realm::End => pass.draw(self.count..self.count + self.end_count, 0..1),
+            Realm::Nether => {}
+        }
     }
 }

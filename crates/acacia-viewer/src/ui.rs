@@ -178,7 +178,9 @@ impl Ui {
                 })
                 .collect();
             acacia_ui::effects::draw(&mut list, &skin.theme, &active, gui[0]);
-            let bosses: Vec<Boss> = me.bosses.iter().map(|(title, progress, colour)| Boss { title, progress: *progress, colour: *colour }).collect();
+            // A vanilla boss's title is its name's key (`entity.ender_dragon.name`).
+            let titles: Vec<String> = me.bosses.iter().map(|(title, ..)| self.lang.translate(title, &[])).collect();
+            let bosses: Vec<Boss> = me.bosses.iter().zip(&titles).map(|((_, progress, colour), title)| Boss { title, progress: *progress, colour: *colour }).collect();
             overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
         }
         if let Some(sidebar) = &self.sidebar {

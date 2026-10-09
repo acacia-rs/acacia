@@ -16,6 +16,7 @@ struct Celestial {
 @group(0) @binding(2) var sun: texture_2d<f32>;
 @group(0) @binding(3) var moon: texture_2d<f32>;
 @group(0) @binding(4) var samp: sampler;
+@group(0) @binding(5) var end_sky: texture_2d<f32>;
 
 const SUN: u32 = 0u;
 const MOON: u32 = 1u;
@@ -24,6 +25,10 @@ const MOON: u32 = 1u;
 const GLOW: u32 = 3u;
 // Java's sky disc: flat, 16 blocks overhead, fading into the fog with distance.
 const DOME: u32 = 4u;
+// The End's sky (Java's `renderEndSky`): a box round the camera, its texture tiled 16 times a face.
+const END: u32 = 5u;
+const END_TILES: f32 = 16.0;
+const END_SHADE: f32 = 0.1568627;
 
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
@@ -39,7 +44,7 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) kind: u32, @location(2
     out.uv = uv;
     out.kind = kind;
     out.rel = position;
-    if kind == DOME {
+    if kind == DOME || kind == END {
         out.clip = g.view_proj * vec4<f32>(position, 1.0);
     }
     if kind == GLOW {
@@ -58,6 +63,12 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let cell = vec2<f32>(f32(phase % 4u), f32(phase / 4u));
     let sun_color = textureSample(sun, samp, in.uv);
     let moon_color = textureSample(moon, samp, (in.uv + cell) * vec2<f32>(0.25, 0.5));
+    // Sampled by level: `fract` breaks the derivatives at each tile's edge.
+    let end_color = textureSampleLevel(end_sky, samp, fract(in.uv * END_TILES), 0.0);
+    if in.kind == END {
+        // Java multiplies in sRGB; the sample is linear.
+        return vec4<f32>(end_color.rgb * pow(END_SHADE, 2.2), 1.0);
+    }
     if in.kind == SUN {
         return sun_color * sky.params.z;
     }

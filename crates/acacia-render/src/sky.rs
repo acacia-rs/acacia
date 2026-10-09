@@ -44,7 +44,42 @@ pub struct Weather {
     pub flash: f32,
 }
 
+/// Which kind of sky a dimension has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Realm {
+    Overworld,
+    Nether,
+    End,
+}
+
+impl Realm {
+    /// `Dimension` carries no name: a dimension without sky light is the Nether when it is 128
+    /// blocks tall, else the End.
+    pub fn of(dimension: &acacia_world::Dimension) -> Realm {
+        match (dimension.sky, dimension.height <= 128) {
+            (true, _) => Realm::Overworld,
+            (false, true) => Realm::Nether,
+            (false, false) => Realm::End,
+        }
+    }
+}
+
+/// Java's fog colours where there is no day: the nether wastes' (the other Nether biomes' own are
+/// not read), and the End's 0xA080A0 at its 0.15 brightness.
+const NETHER_FOG: [f32; 3] = [0.2, 0.031, 0.031];
+const END_FOG: [f32; 3] = [0.094, 0.075, 0.094];
+
 impl Sky {
+    /// The sky of `realm`: only the overworld's follows the time and the weather.
+    pub fn of(realm: Realm, time: f32, weather: Weather) -> Sky {
+        let still = |color| Sky { color, darken: 0.0, turn: 0.0, stars: 0.0, celestial: 0.0, glow: None };
+        match realm {
+            Realm::Overworld => Sky::at(time, weather),
+            Realm::Nether => still(NETHER_FOG),
+            Realm::End => still(END_FOG),
+        }
+    }
+
     pub fn at(time: f32, weather: Weather) -> Sky {
         let day = (time / DAY_TICKS - 0.25).rem_euclid(1.0);
         let turn = (day * 2.0 + 0.5 - (day * PI).cos() / 2.0) / 3.0;
@@ -108,12 +143,14 @@ pub fn moon_phase(world_time: i64) -> u8 {
 pub struct SkyTextures {
     pub sun: RgbaImage,
     pub moon: RgbaImage,
+    /// `end_sky.png`, tiled over the End's sky; a pack without it gets a plain one.
+    pub end: Option<RgbaImage>,
 }
 
 impl SkyTextures {
     pub fn load(root: &Path) -> Option<SkyTextures> {
         let open = |name: &str| Some(image::open(image_file(root, &format!("textures/environment/{name}"))?).ok()?.into_rgba8());
-        Some(SkyTextures { sun: open("sun")?, moon: open("moon_phases")? })
+        Some(SkyTextures { sun: open("sun")?, moon: open("moon_phases")?, end: open("end_sky") })
     }
 }
 
@@ -134,6 +171,19 @@ mod tests {
         assert!(dusk.darken > 3.0 && dusk.darken < NIGHT_DARKEN, "{dusk:?}");
         assert_eq!(Sky::at(NOON + DAY_TICKS * 3.0, clear), noon, "the time wraps");
         assert_eq!((moon_phase(23999), moon_phase(24000), moon_phase(24000 * 9), moon_phase(-1)), (0, 1, 1, 7));
+    }
+
+    #[test]
+    fn the_nether_and_the_end_have_their_own_still_skies() {
+        let air = 0;
+        let end = acacia_world::Dimension { min_y: 0, height: 256, air, sky: false };
+        assert_eq!((Realm::of(&acacia_world::Dimension::overworld(air)), Realm::of(&acacia_world::Dimension::nether(air)), Realm::of(&end)), (Realm::Overworld, Realm::Nether, Realm::End));
+        let storm = Weather { rain: 1.0, thunder: 1.0, flash: 1.0 };
+        for (realm, color) in [(Realm::Nether, NETHER_FOG), (Realm::End, END_FOG)] {
+            let sky = Sky::of(realm, 18000.0, storm);
+            assert_eq!((sky.color, sky.darken, sky.stars, sky.celestial, sky.glow), (color, 0.0, 0.0, 0.0, None), "{realm:?}");
+        }
+        assert_eq!(Sky::of(Realm::Overworld, NOON, Weather::default()), Sky::at(NOON, Weather::default()));
     }
 
     #[test]
