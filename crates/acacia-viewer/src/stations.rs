@@ -86,6 +86,7 @@ pub fn bench(window: WindowType) -> Option<Bench> {
         WindowType::Cartography => Bench::Cartography,
         WindowType::Enchantment => Bench::Enchanting,
         WindowType::Beacon => Bench::Beacon,
+        WindowType::Loom => Bench::Loom,
         _ => return None,
     })
 }

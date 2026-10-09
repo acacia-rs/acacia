@@ -1,5 +1,5 @@
 //! An open inventory screen as acacia-ui draws it: each slot's icon, the pick list (a
-//! stonecutter's cuts, enchanting options, a trader's offers) and the recipe book.
+//! stonecutter's cuts, a loom's patterns, enchanting options, a trader's offers) and the recipe book.
 
 use std::collections::HashMap;
 
@@ -13,6 +13,7 @@ use crate::control::{Inventory, Stack};
 /// Where a trade's two prices and its goods lie in the offer's button (Java's `MerchantScreen`).
 const PRICE: [f32; 2] = [5.0, 30.0];
 const GOODS: f32 = 68.0;
+const LOOM_BANNER: u8 = 9;
 
 pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &Screen, mouse: [f32; 2], gui: [f32; 2]) {
     let Screen { inventory, layout, picked, first, name, creative } = *screen;
@@ -21,10 +22,13 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &S
         // A pick list's result is the picked one.
         let shown = match slot {
             Slot::Result if !inventory.picks.is_empty() => picked[0].and_then(|i| inventory.picks.get(i)).map(|p| &p.1),
+            // The banner as it goes in: item icons do not show patterns.
+            Slot::Result if !inventory.patterns.is_empty() => picked[0].and_then(|_| stack_in(inventory, Slot::Ui(LOOM_BANNER))),
             _ => stack_in(inventory, slot),
         };
         if let Some(item) = shown.and_then(|s| skin.item(s)) {
-            icons.insert(slot, item);
+            let made_one = slot == Slot::Result && !inventory.patterns.is_empty();
+            icons.insert(slot, if made_one { acacia_ui::hud::Item { count: 1, ..item } } else { item });
         }
     }
     let cursor = inventory.cursor.as_ref().and_then(|s| skin.item(s));
@@ -60,6 +64,7 @@ fn picks(skin: &mut Skin, inventory: &Inventory) -> Vec<Pick> {
         let icons = prices.into_iter().filter_map(|(stack, x)| at(stack?, x)).collect();
         picks.push(Pick { icons, label: if offer.open { ">" } else { "x" }.into() });
     }
+    picks.extend(inventory.patterns.iter().map(|code| Pick { icons: skin.pattern(code).map(|icon| (icon, 1, -1.0)).into_iter().collect(), label: String::new() }));
     if inventory.bench == Some(Bench::Beacon) {
         picks.extend(crate::stations::BEACON.iter().map(|label| Pick { icons: Vec::new(), label: (*label).into() }));
     }

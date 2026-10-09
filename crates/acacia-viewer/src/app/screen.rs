@@ -71,7 +71,7 @@ impl App {
     pub(super) fn set_inventory(&mut self, inventory: Inventory) {
         let opened = |i: &Inventory| i.container.is_some() || i.bench.is_some() || i.trade.is_some();
         let (had, has) = (opened(&self.inventory), opened(&inventory));
-        if inventory.picks != self.inventory.picks || inventory.trade.is_some() != self.inventory.trade.is_some() {
+        if inventory.picks != self.inventory.picks || inventory.patterns != self.inventory.patterns || inventory.trade.is_some() != self.inventory.trade.is_some() {
             (self.shown.pick, self.shown.scroll) = ([None; 2], 0);
         }
         if inventory.bench != self.inventory.bench {
@@ -177,7 +177,8 @@ impl App {
             let _ = self.net.commands.send(Command::Enchant(i));
             return;
         }
-        if let Some(i) = inventory::hit_pick(layout, size, self.inventory.picks.len().saturating_sub(first), at) {
+        let listed = self.inventory.picks.len().max(self.inventory.patterns.len());
+        if let Some(i) = inventory::hit_pick(layout, size, listed.saturating_sub(first), at) {
             self.shown.pick[0] = Some(i + first);
             return;
         }
@@ -188,6 +189,10 @@ impl App {
         }
         let picked = self.shown.pick[0].and_then(|i| self.inventory.picks.get(i));
         let command = match inventory::hit(layout, size, at) {
+            Some(Slot::Result) if !self.inventory.patterns.is_empty() => match self.shown.pick[0].and_then(|i| self.inventory.patterns.get(i)) {
+                Some(pattern) => Command::Loom((*pattern).to_owned()),
+                None => return,
+            },
             Some(Slot::Result) if !self.inventory.picks.is_empty() => match picked {
                 Some(&(id, _)) => Command::TakeCut { id, all: click == Click::Shift },
                 None => return,

@@ -44,6 +44,15 @@ fn a_crafting_table_has_its_grid_and_result() {
 }
 
 #[test]
+fn a_loom_lists_patterns_in_fourteen_pixel_buttons() {
+    let (loom, size) = (Layout::Bench(Bench::Loom), [320.0, 240.0]);
+    let [ox, oy] = origin(loom, size);
+    assert_eq!(hit_pick(loom, size, 32, [ox + 60.0 + 14.0 * 3.0 + 1.0, oy + 13.0 + 14.0 + 1.0]), Some(7));
+    assert_eq!(hit_pick(loom, size, 32, [ox + 61.0, oy + 13.0 + 14.0 * 4.0 + 1.0]), None, "four rows show");
+    assert_eq!(hit(loom, size, [ox + 24.0, oy + 46.0]), Some(Slot::Ui(11)));
+}
+
+#[test]
 fn a_stonecutter_lists_its_cuts_four_to_a_row() {
     let (cutter, size) = (Layout::Bench(Bench::Stonecutter), [320.0, 240.0]);
     let [ox, oy] = origin(cutter, size);

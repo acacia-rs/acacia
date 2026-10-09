@@ -49,6 +49,7 @@ pub(super) const ITEMS: &[(&str, i16)] = &[
     ("minecraft:oak_fence", 85),
     ("minecraft:enchanted_book", 403),
     ("minecraft:book", 340),
+    ("minecraft:creeper_banner_pattern", 582),
 ];
 
 pub(super) fn id(name: &str) -> i32 {

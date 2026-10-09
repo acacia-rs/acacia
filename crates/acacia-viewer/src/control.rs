@@ -46,6 +46,8 @@ pub enum Command {
     Name(Option<String>),
     /// A click on the stonecutter's result with recipe `id` picked: one cut, or all.
     TakeCut { id: u32, all: bool },
+    /// A click on the loom's result with this pattern picked.
+    Loom(String),
     /// A click on the enchanting table's option of this index.
     Enchant(usize),
     /// A click on a trader's offer of this index: one trade.
@@ -87,6 +89,8 @@ pub struct Inventory {
     pub bench: Option<Bench>,
     /// What a stonecutter offers for its input: recipe ids and one cut's result.
     pub picks: Vec<(u32, Stack)>,
+    /// The patterns an open loom offers.
+    pub patterns: Vec<&'static str>,
     /// The level each option of an enchanting table needs.
     pub enchants: Vec<u8>,
     /// An open trading screen.
@@ -166,6 +170,7 @@ pub fn inventory(bot: &Bot) -> Inventory {
         craftable: Vec::new(),
         crafted: None,
         bench: bot.open_container().and_then(|c| crate::stations::bench(c.window_type)),
+        patterns: bot.loom_choices(),
         enchants: bot.enchant_costs(),
         trade: crate::stations::trade(bot),
         picks: bot.stonecutter_choices().into_iter().filter_map(|(id, s)| Some((id, stack_of(bot, &s)?))).collect(),
@@ -215,6 +220,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::TakeCrafted { all, name } => bot.take_station_result(all, name.as_deref()).await,
         Command::Name(_) => Ok(()),
         Command::TakeCut { id, all } => bot.take_stonecut(id, all).await,
+        Command::Loom(pattern) => bot.take_loom(&pattern).await,
         Command::Enchant(option) => bot.take_enchant(option).await,
         Command::Trade(offer) => bot.trade_once(offer).await,
         Command::Creative { id, count } => bot.take_creative(id, count).await,

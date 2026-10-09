@@ -68,6 +68,20 @@ pub fn banner_icon(root: &std::path::Path, aux: u32) -> Option<RgbaImage> {
     Some(icon)
 }
 
+/// A loom's button for pattern `code`: the pattern in white on a grey flag (6×12 GUI pixels), as
+/// Java's `LoomScreen` draws it.
+pub fn pattern_icon(root: &std::path::Path, code: &str) -> Option<RgbaImage> {
+    // Bedrock's banner dye numbers.
+    let (grey, white) = (8, 15);
+    let banner = crate::banner::compose(root, &crate::banner::Banner::from_bedrock(grey, [(code, white)], 0))?;
+    let scale = banner.width() / 64;
+    let flag = image::imageops::crop_imm(&banner, scale, scale, 20 * scale, 40 * scale).to_image();
+    let flag = image::imageops::resize(&flag, 12, 24, image::imageops::FilterType::Triangle);
+    let mut icon = RgbaImage::new(SIZE, SIZE);
+    image::imageops::replace(&mut icon, &flag, 10, 4);
+    Some(icon)
+}
+
 fn draw(icon: &mut RgbaImage, nearest: &mut [f32], face: &Face, rgba: &[u8]) {
     let [c0, c1, _, c3] = face.corners;
     let (o, a, b) = (project(c0), project(c1) - project(c0), project(c3) - project(c0));
