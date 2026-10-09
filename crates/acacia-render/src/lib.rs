@@ -18,6 +18,7 @@ pub mod look;
 pub mod lookpack;
 pub mod mesh;
 pub mod particles;
+pub mod shadows;
 mod scene;
 pub mod sign_text;
 pub mod sky;

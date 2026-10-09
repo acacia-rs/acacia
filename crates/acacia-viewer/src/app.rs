@@ -222,6 +222,7 @@ impl App {
         let portrait = self.portrait();
         let Some(r) = &mut self.renderer else { return };
         r.ui_entities = portrait;
+        r.shadows = self.entities.shadows(self.camera.position);
         self.signs.feed(self.settings.look, self.ui.theme(self.settings.look), r);
         r.set_outline(outline);
         r.fog_distance = self.fog_distance;

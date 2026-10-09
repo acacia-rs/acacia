@@ -10,11 +10,12 @@ use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 
 use acacia_bot::state::{Entity, ITEM_KIND, ItemStack, Metadata, PlayerSkin};
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Pose, Skin, SkinSource, Value};
 use acacia_render::item::ItemKey;
-use glam::DVec3;
+use glam::{DVec3, Vec3};
 
 /// Seconds between snapshots (the bot thread's report interval): one game tick.
 pub const SNAPSHOT_SECS: f32 = 0.05;
 const PLAYER: &str = "minecraft:player";
+const EYE_HEIGHT: f64 = acacia_bot::state::PLAYER_EYE_HEIGHT as f64;
 
 pub struct Tracked {
     pub runtime_id: u64,
@@ -40,6 +41,28 @@ pub struct Tracked {
     /// Hurt animations so far, and whether it is dying ([`acacia_bot::state::Hurts`]).
     pub hurts: u32,
     pub dying: bool,
+    pub seat: Option<Seat>,
+}
+
+/// Where a rider sits.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Seat {
+    /// The vehicle's runtime id.
+    pub vehicle: u64,
+    /// The rider's feet against the vehicle, in the vehicle's frame.
+    pub offset: Vec3,
+    /// Degrees the rider's body is held at from the vehicle's yaw; `None` on a seat that leaves it free.
+    pub turn: Option<f32>,
+}
+
+/// The seat of the rider with this unique id, from the server's link and the rider's seat data
+/// (`RiderSeatPosition`, `RiderSeatRotationOffset`).
+fn seat_of(bot: &Bot, rider: i64, offset: Option<[f32; 3]>, turn: Option<f32>, player: bool) -> Option<Seat> {
+    let state = bot.state();
+    let vehicle = state.entities.by_unique(state.riding.vehicle_of(rider)?)?.runtime_id;
+    // Players' wire position is their eyes'.
+    let eyes = if player { EYE_HEIGHT as f32 } else { 0.0 };
+    Some(Seat { vehicle, offset: Vec3::from(offset?) - Vec3::Y * eyes, turn })
 }
 
 pub struct DroppedStack {
@@ -149,14 +172,17 @@ impl Feed {
 
         let me = &state.player;
         let uuid = state.player_list.iter().find(|p| p.entity_unique_id == me.unique_entity_id).map(|p| p.uuid);
-        let eyes = me.eye_position();
-        let feet = DVec3::new(me.position.x.into(), me.position.y.into(), me.position.z.into());
-        if let Some(instance) = self.player(bot, uuid, feet, me.yaw, 1.0) {
-            let own_eyes = Some(DVec3::new(eyes.x.into(), eyes.y.into(), eyes.z.into()));
+        let seat = seat_of(bot, me.unique_entity_id, state.riding.seat_offset.as_ref().map(|o| [o.x, o.y, o.z]), state.riding.seat_turn(), true);
+        // Seated, the server's position and rotation of the player are stale: the seat and the aim sent are not.
+        let (eyes, (head_yaw, pitch)) = match seat {
+            Some(_) => (DVec3::from(bot.eye_position().map(f64::from)), bot.facing()),
+            None => (DVec3::new(me.position.x.into(), f64::from(me.position.y) + EYE_HEIGHT, me.position.z.into()), (me.yaw, me.pitch)),
+        };
+        if let Some(instance) = self.player(bot, uuid, eyes - DVec3::Y * EYE_HEIGHT, head_yaw, 1.0) {
             let (kind, facts) = (PLAYER.to_owned(), Facts::default());
             let (held, armor) = (held_key(bot, state.inventory.held()), self.armor(bot, state.inventory.armor.iter()));
             let (hurts, dying) = (state.hurts.count(me.runtime_entity_id), state.hurts.dying(me.runtime_entity_id));
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying });
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
@@ -192,13 +218,16 @@ impl Feed {
             let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false };
             (e.kind.clone(), instance)
         };
-        let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none());
+        // The player's own vehicle is not under its crosshair.
+        let own_vehicle = bot.vehicle().is_some_and(|v| v.unique_id == e.unique_id);
+        let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none() && !own_vehicle);
+        let seat = seat_of(bot, e.unique_id, e.metadata.seat_position(), e.metadata.seat_turn(), e.is_player());
         let name = e.metadata.name_tag().filter(|n| !n.is_empty()).map(str::to_owned).or_else(|| e.username.clone());
         let held = e.equipment.as_ref().and_then(|q| held_key(bot, &q.main_hand));
         let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));
         let hurts = &bot.state().hurts;
         let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));
-        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying })
+        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying, seat })
     }
 
     /// The layers of the armour pieces among `worn` that the pack has attachables for.

@@ -1,6 +1,7 @@
 //! The bot's thread: connects, keeps the bot polled, and reports world changes to the window.
 
 mod packets;
+mod setup;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -21,10 +22,9 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::sync::oneshot;
 
 use crate::audio;
-use crate::control::{self, Command, Me};
+use crate::control::{self, Command};
+use crate::me::{self, Me};
 
-/// Ticks after spawning before `ACACIA_COMMANDS` go out.
-const SETUP_AFTER_TICKS: u32 = 20;
 /// Reports between looks at the block entities for changed model data.
 const BLOCK_DATA_EVERY: u32 = 10;
 
@@ -147,18 +147,13 @@ async fn run(
         _ = &mut quit => return Ok("quit".into()),
     };
     send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
-    // `ACACIA_COMMANDS="summon cow;time set day"`: setup for unattended shots (needs an operator).
     let mut inventory = control::Inventory::default();
     let mut own_sounds = audio::Own::default();
+    let mut ride_log = crate::ride::RideLog::default();
     let mut players: Vec<String> = Vec::new();
     let (mut form, mut sign_open): (Option<u32>, bool) = (None, false);
     let mut sidebar: Option<acacia_ui::sidebar::Sidebar> = None;
-    // Sent a second after the player left the loading screen: BDS ignored them sent at once.
-    let mut spawned_ticks = 0u32;
-    // `ACACIA_COMMANDS_AFTER=secs` times them (a break just before a screenshot); a `wait secs`
-    // among them holds the rest back that long (a bolt struck just before the shot).
-    let mut setup_after = std::env::var("ACACIA_COMMANDS_AFTER").ok().and_then(|s| s.parse::<f32>().ok()).map_or(SETUP_AFTER_TICKS, |s| (s * 20.0) as u32);
-    let mut setup: Vec<String> = std::env::var("ACACIA_COMMANDS").iter().flat_map(|s| s.split(';')).map(|c| c.trim().to_owned()).collect();
+    let mut setup = setup::Setup::from_env();
 
     let mut current: Option<Arc<World>> = None;
     let mut biome_logged = false;
@@ -189,18 +184,9 @@ async fn run(
                     continue;
                 }
                 Some(BotEvent::Tick) => {
-                    if bot.movement().is_some_and(|m| m.is_started()) {
-                        spawned_ticks += 1;
-                    }
-                    while spawned_ticks >= setup_after && !setup.is_empty() {
-                        let command = setup.remove(0);
-                        tracing::info!(command, "setup");
-                        match command.strip_prefix("wait ").and_then(|s| s.trim().parse::<f32>().ok()) {
-                            Some(secs) => setup_after = spawned_ticks + (secs * 20.0) as u32,
-                            None => _ = bot.client().command(&command),
-                        }
-                    }
-                    send(NetEvent::Me(control::me(&bot)))?;
+                    setup.tick(&bot);
+                    ride_log.tick(&bot);
+                    send(NetEvent::Me(me::me(&bot)))?;
                     let own = own_sounds.tick(&bot);
                     for cue in own.sounds {
                         send(NetEvent::Sound(cue))?;

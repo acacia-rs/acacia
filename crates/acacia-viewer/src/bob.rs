@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use glam::{DVec3, Mat4, Vec3};
 
-use crate::control::Me;
+use crate::me::Me;
 
 const TICK: Duration = Duration::from_millis(50);
 

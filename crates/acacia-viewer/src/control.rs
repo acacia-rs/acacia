@@ -1,4 +1,5 @@
-//! The bot thread's side of playing: commands from the window, and the player as each tick leaves it.
+//! The bot thread's side of playing: commands from the window and the screens' contents (the
+//! player as each tick leaves it is me.rs).
 
 use acacia_bot::Bot;
 use acacia_bot::forms::FormReply;
@@ -6,10 +7,9 @@ use acacia_bot::interact::Face;
 use acacia_bot::items::{Click, SlotRef};
 use acacia_bot::state::ItemStack;
 use acacia_bot::movement::Controls;
-use acacia_bot::proto::packets::BossEventColor;
-use acacia_bot::proto::types::{GameMode, WindowType};
+use acacia_bot::proto::types::WindowType;
 use acacia_ui::inventory::{Progress, Station};
-use glam::{DVec3, IVec3};
+use glam::IVec3;
 
 /// What the player at the window does.
 #[derive(Debug, Clone)]
@@ -28,6 +28,8 @@ pub enum Command {
     ReleaseItem,
     /// Left-click on nothing.
     Swing,
+    /// Sneak pressed on a vehicle.
+    Dismount,
     /// The death screen's respawn button.
     Respawn,
     Chat(String),
@@ -85,7 +87,7 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
     }
 }
 
-fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
+pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
     Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s) })
 }
@@ -117,43 +119,6 @@ pub fn inventory(bot: &Bot) -> Inventory {
         workbench: bot.open_container().filter(|c| c.window_type == WindowType::Workbench).and_then(|c| c.position.as_ref()).map(|p| [p.x, p.y, p.z]),
         craftable: Vec::new(),
     }
-}
-
-/// The player after a tick, for the camera and the HUD.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Me {
-    /// Simulated eye position.
-    pub eye: DVec3,
-    /// The simulation's movement state, for view bobbing and the field of view.
-    pub on_ground: bool,
-    pub sprinting: bool,
-    pub flying: bool,
-    /// Times this player has been hurt (the camera rolls on each).
-    pub hurts: u32,
-    /// Armour points worn (0 to 20), and ticks of breath left and at most while short of breath.
-    pub armor: u32,
-    pub air: Option<(u32, u32)>,
-    pub mining: Option<(IVec3, f32)>,
-    pub hotbar: u8,
-    pub game_mode: GameMode,
-    pub alive: bool,
-    /// How hard it rains, and thunders, 0 to 1.
-    pub rain: f32,
-    pub thunder: f32,
-    /// Lightning bolts in the world (the sky flashes while there are any): runtime id and position.
-    pub bolts: Vec<(u64, DVec3)>,
-    pub health: f32,
-    pub max_health: f32,
-    pub food: f32,
-    pub xp_level: i32,
-    pub xp_progress: f32,
-    /// The nine hotbar stacks.
-    pub items: [Option<Stack>; 9],
-    /// Active effects: id, the ticks left when the server sent it (-1 for endless), the tick it
-    /// was stamped with, and whether it is ambient.
-    pub effects: Vec<(i32, i32, u64, bool)>,
-    /// Boss bars: name, fill 0 to 1, and an index of `acacia_ui::overlay::BOSS_COLOURS`.
-    pub bosses: Vec<(String, f32, usize)>,
 }
 
 /// An item stack as the HUD shows it.
@@ -225,6 +190,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
             bot.swing();
             Ok(())
         }
+        Command::Dismount => bot.dismount().await,
         Command::Respawn => {
             bot.respawn();
             Ok(())
@@ -239,54 +205,5 @@ pub async fn apply(bot: &mut Bot, command: Command) {
     };
     if let Err(e) = result {
         tracing::debug!(%e, "command not carried out");
-    }
-}
-
-pub fn me(bot: &Bot) -> Me {
-    let [x, y, z] = bot.eye_position();
-    let state = bot.state();
-    let p = &state.player;
-    let items = std::array::from_fn(|slot| stack_of(bot, state.inventory.main.get(slot)?));
-    Me {
-        eye: DVec3::new(x.into(), y.into(), z.into()),
-        on_ground: bot.movement().is_some_and(|m| m.on_ground()),
-        sprinting: bot.movement().is_some_and(|m| m.sprinting()),
-        flying: bot.movement().is_some_and(|m| m.flying()),
-        hurts: bot.state().hurts.count(bot.state().player.runtime_entity_id),
-        armor: state.inventory.armor.iter().filter_map(|s| state.item_name(s)).map(crate::armor::points).sum(),
-        air: Some((p.air.0.max(0) as u32, p.air.1.max(1) as u32)).filter(|(air, max)| air < max),
-        mining: bot.mining_progress().map(|(p, f)| (IVec3::from_array(p), f)),
-        hotbar: state.inventory.selected_hotbar_slot,
-        game_mode: p.game_mode,
-        alive: p.alive,
-        rain: state.environment.rain,
-        thunder: state.environment.thunder,
-        bolts: state
-            .entities
-            .iter()
-            .filter(|e| e.kind == "minecraft:lightning_bolt")
-            .map(|e| (e.runtime_id, DVec3::new(e.position.x.into(), e.position.y.into(), e.position.z.into())))
-            .collect(),
-        health: p.health,
-        max_health: p.max_health,
-        food: p.hunger,
-        xp_level: p.xp_level,
-        xp_progress: p.xp_progress,
-        items,
-        effects: p.effects.iter().map(|e| (e.id, e.duration, e.tick, e.ambient)).collect(),
-        bosses: state.environment.boss_bars.values().map(|b| (b.title.clone(), b.progress, boss_colour(b.color))).collect(),
-    }
-}
-
-fn boss_colour(colour: BossEventColor) -> usize {
-    use BossEventColor as C;
-    match colour {
-        C::Blue => 1,
-        C::Red => 2,
-        C::Green => 3,
-        C::Yellow => 4,
-        C::Purple | C::RebeccaPurple => 5,
-        C::White => 6,
-        C::Pink | C::Unknown(_) => 0,
     }
 }

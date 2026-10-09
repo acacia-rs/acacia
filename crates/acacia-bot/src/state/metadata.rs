@@ -75,6 +75,24 @@ impl Metadata {
         }
     }
 
+    /// The rider's wire position against its vehicle, in the vehicle's frame (`RiderSeatPosition`).
+    pub fn seat_position(&self) -> Option<[f32; 3]> {
+        match self.plain(Key::RiderSeatPosition)? {
+            Plain::Vec3f(v) => Some([v.x, v.y, v.z]),
+            _ => None,
+        }
+    }
+
+    /// Degrees a seat that locks its rider's rotation (`RiderRotationLocked`) turns the rider from the
+    /// vehicle's yaw (`RiderSeatRotationOffset`); `None` on a seat that leaves the rider free.
+    pub fn seat_turn(&self) -> Option<f32> {
+        let locked = matches!(self.plain(Key::RiderRotationLocked), Some(Plain::Byte(b)) if *b != 0);
+        match self.plain(Key::RiderSeatRotationOffset) {
+            Some(Plain::Float(v)) if locked => Some(*v),
+            _ => locked.then_some(0.0),
+        }
+    }
+
     pub(crate) fn merge(&mut self, items: Vec<MetadataDictionaryItem>) {
         self.0.extend(items.into_iter().map(|i| (i.key, i.value)));
     }

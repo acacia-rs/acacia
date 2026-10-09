@@ -20,7 +20,8 @@ use acacia_bot::events::{Title, TitleKind};
 use acacia_ui::theme::{Theme, bedrock, java};
 use acacia_ui::{DrawList, Quad, Sprite};
 
-use crate::control::{Inventory, Me, Stack};
+use crate::control::{Inventory, Stack};
+use crate::me::Me;
 use acacia_ui::inventory::{Layout, Slot};
 use acacia_ui::menu::Backdrop;
 

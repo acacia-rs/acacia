@@ -13,7 +13,8 @@ use tokio::sync::mpsc::UnboundedSender;
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
-use crate::control::{Command, Me};
+use crate::control::Command;
+use crate::me::Me;
 use crate::pick::{self, EntityBox, Target};
 
 const MOUSE_SENSITIVITY: f32 = 0.0025;
@@ -49,6 +50,7 @@ pub struct Play {
     swung: Option<Instant>,
     /// When Space was last pressed (see `JUMP_LATCH`).
     jumped: Option<Instant>,
+    carried: Carried,
 }
 
 /// Java's arm swing: 6 ticks.
@@ -64,6 +66,25 @@ struct EyeTrack {
     at: Instant,
 }
 
+/// The turn a boat gives its rider's view, spread over the tick it happened in.
+struct Carried {
+    degrees: f32,
+    turned: f32,
+    at: Instant,
+}
+
+impl Carried {
+    fn left(&self) -> f32 {
+        self.degrees - self.turned
+    }
+
+    /// Degrees to turn the view by this frame.
+    fn turn(&mut self, now: Instant) -> f32 {
+        let due = self.degrees * ((now - self.at).as_secs_f32() / TICK.as_secs_f32()).min(1.0);
+        due - std::mem::replace(&mut self.turned, due)
+    }
+}
+
 impl EyeTrack {
     fn at(&self, now: Instant) -> DVec3 {
         let t = (now - self.at).as_secs_f64() / TICK.as_secs_f64();
@@ -73,7 +94,7 @@ impl EyeTrack {
 
 impl Play {
     pub fn new(commands: UnboundedSender<Command>) -> Self {
-        Play { commands, held: Vec::new(), sent: None, eye: None, me: None, target: None, entity: None, attacking: false, using: None, using_item: None, perspective: 0, swung: None, jumped: None }
+        Play { commands, held: Vec::new(), sent: None, eye: None, me: None, target: None, entity: None, attacking: false, using: None, using_item: None, perspective: 0, swung: None, jumped: None, carried: Carried { degrees: 0.0, turned: 0.0, at: Instant::now() } }
     }
 
     fn send(&self, command: Command) {
@@ -85,6 +106,10 @@ impl Play {
         let now = Instant::now();
         let from = self.eye.as_ref().map_or(me.eye, |e| e.at(now));
         self.eye = Some(EyeTrack { from, to: me.eye, at: now });
+        let before = self.me.as_ref().and_then(|m| m.carrying_yaw);
+        if let (Some(before), Some(yaw)) = (before, me.carrying_yaw) {
+            self.carried = Carried { degrees: self.carried.left() + crate::entities::wrap_degrees(yaw - before), turned: 0.0, at: now };
+        }
         self.me = Some(me);
     }
 
@@ -99,10 +124,17 @@ impl Play {
             if key == KeyCode::Space {
                 self.jumped = Some(Instant::now());
             }
+            if key == KeyCode::ShiftLeft && self.riding() {
+                self.send(Command::Dismount);
+            }
             if let Some(slot) = HOTBAR_KEYS.iter().position(|&k| k == key) {
                 self.send(Command::Hotbar(slot as u8));
             }
         }
+    }
+
+    fn riding(&self) -> bool {
+        self.me.as_ref().is_some_and(|m| m.riding)
     }
 
     pub fn release_all(&mut self) {
@@ -193,6 +225,7 @@ impl Play {
     /// Moves the camera to the eye (or behind it), finds the target and sends what changed.
     pub fn frame(&mut self, camera: &mut Camera, world: Option<&World>, table: Option<&BlockTable>, entities: &[EntityBox], now: Instant) {
         let Some(eye) = self.eye(now) else { return };
+        camera.yaw += self.carried.turn(now).to_radians();
         let aim = camera.forward();
         let mut target = world.zip(table).and_then(|(w, t)| pick::pick(w, t, eye, aim, BLOCK_REACH));
         let entity = pick::pick_entity(entities, eye, aim, ENTITY_REACH)
@@ -239,7 +272,8 @@ impl Play {
             forward: axis(KeyCode::KeyW, KeyCode::KeyS),
             strafe: axis(KeyCode::KeyA, KeyCode::KeyD),
             jump: down(KeyCode::Space) || self.jumped.is_some_and(|t| t.elapsed() < JUMP_LATCH),
-            sneak: down(KeyCode::ShiftLeft),
+            // Seated, Shift leaves the vehicle (`Play::key`); BDS refuses mounts while sneaking.
+            sneak: down(KeyCode::ShiftLeft) && !self.riding(),
             sprint: down(KeyCode::ControlLeft),
             glide: false,
             fly: false,

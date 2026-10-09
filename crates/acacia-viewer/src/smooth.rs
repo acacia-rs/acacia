@@ -8,6 +8,7 @@ use std::time::Instant;
 use acacia_render::entity::{EntityInstance, EntityModels, Value};
 use acacia_render::item::drop::{self, Drop};
 use acacia_render::item::{ItemModel, ItemModels, hand};
+use acacia_render::shadows::Shadow;
 use glam::DVec3;
 
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
@@ -15,6 +16,10 @@ use crate::pick::EntityBox;
 
 /// The bot's own body is hidden while the camera is this close to its eyes.
 const OWN_HEAD_RADIUS: f64 = 0.6;
+/// `query.is_riding_any_entity_of_type` with one of its kinds, as the entity code asks it.
+const RIDING_KIND: &str = "is_riding_any_entity_of_type:";
+/// Degrees a head turns from its body.
+const MAX_HEAD_TURN: f32 = 90.0;
 
 /// Java's limb swing: how far the legs are through their stride, and how wide they swing.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -151,8 +156,21 @@ impl Smoother {
     pub fn instances(&self, camera: DVec3) -> Vec<EntityInstance> {
         let t = self.progress();
         let visible = |(e, _): &&(Tracked, Motion)| e.own_eyes.is_none_or(|eyes| eyes.distance(camera) > OWN_HEAD_RADIUS);
-        let posed = |(e, to): &(Tracked, Motion)| self.pieces(e, self.blend(e.runtime_id, *to, t), camera, None);
+        let posed = |(e, to): &(Tracked, Motion)| {
+            let m = self.blend(e.runtime_id, *to, t);
+            let (m, vehicle) = self.seated(e, m, t).map_or((m, None), |(m, kind)| (m, Some(kind)));
+            self.pieces(e, m, camera, None, vehicle)
+        };
         self.to.iter().filter(visible).flat_map(posed).collect()
+    }
+
+    /// A rider's motion this frame, on its seat (turned with the vehicle where the seat holds it), and the vehicle's kind.
+    fn seated(&self, e: &Tracked, m: Motion, t: f32) -> Option<(Motion, &str)> {
+        let seat = e.seat?;
+        let (vehicle, to) = self.to.iter().find(|(v, _)| v.runtime_id == seat.vehicle)?;
+        let v = self.blend(vehicle.runtime_id, *to, t);
+        let offset = glam::Quat::from_rotation_y(-v.yaw.to_radians()) * seat.offset;
+        Some((Motion { position: v.position + offset.as_dvec3(), yaw: seat.turn.map_or(m.yaw, |turn| v.yaw + turn), walk: Walk::default(), ..m }, &vehicle.kind))
     }
 
     /// The own player standing still at `place` (model space to camera-relative space), its head
@@ -160,11 +178,12 @@ impl Smoother {
     pub fn portrait(&self, place: glam::Mat4, head_yaw: f32, pitch: f32, camera: DVec3) -> Vec<EntityInstance> {
         let Some((e, _)) = self.to.iter().find(|(e, _)| e.own_eyes.is_some()) else { return Vec::new() };
         let still = Motion { position: camera, yaw: 0.0, head_yaw, pitch, walk: Walk::default() };
-        self.pieces(e, still, camera, Some(place))
+        self.pieces(e, still, camera, Some(place), None)
     }
 
-    /// One entity's instances (itself, what it wears and holds) at `m`, or at `place` instead.
-    fn pieces(&self, e: &Tracked, m: Motion, camera: DVec3, place: Option<glam::Mat4>) -> Vec<EntityInstance> {
+    /// One entity's instances (itself, what it wears and holds) at `m`, or at `place` instead;
+    /// `vehicle` is the kind it rides.
+    fn pieces(&self, e: &Tracked, m: Motion, camera: DVec3, place: Option<glam::Mat4>, vehicle: Option<&str>) -> Vec<EntityInstance> {
         let life = self.born.get(&e.runtime_id).map_or(0.0, |b| b.elapsed().as_secs_f32());
         if let Some(stack) = &e.dropped {
             let (Some(model), Some(items)) = (self.dropped.get(&e.runtime_id), &self.items) else { return Vec::new() };
@@ -178,8 +197,12 @@ impl Smoother {
                 "modified_distance_moved" => m.walk.distance,
                 "modified_move_speed" => m.walk.speed,
                 "target_x_rotation" => m.pitch,
-                "target_y_rotation" => wrap_degrees(m.head_yaw - m.yaw),
+                "target_y_rotation" => wrap_degrees(m.head_yaw - m.yaw).clamp(-MAX_HEAD_TURN, MAX_HEAD_TURN),
+                "is_riding" => f32::from(u8::from(vehicle.is_some())),
+                _ if name.starts_with(RIDING_KIND) => f32::from(u8::from(vehicle == name.strip_prefix(RIDING_KIND))),
                 "is_on_ground" => 1.0,
+                // Blocks per model pixel.
+                "model_scale" => e.instance.scale / 16.0,
                 "is_alive" => f32::from(u8::from(!e.dying)),
                 _ => return e.facts.query(name),
             })
@@ -228,6 +251,26 @@ impl Smoother {
             Some(EntityBox { runtime_id: e.runtime_id, feet: self.blend(e.runtime_id, *to, t).position, width, height })
         };
         self.to.iter().filter_map(hittable).collect()
+    }
+
+    /// The round shadows under what is drawn from `camera`. Java gives each kind a radius; the
+    /// pack has none, so it is taken from the hitbox (players 0.5, cows 0.7, chickens 0.3 as in
+    /// Java), 0.15 under dropped items, and none for the kinds Java gives none.
+    pub fn shadows(&self, camera: DVec3) -> Vec<Shadow> {
+        const NONE: [&str; 4] = ["minecraft:armor_stand", "minecraft:painting", "minecraft:lightning_bolt", "minecraft:arrow"];
+        let t = self.progress();
+        let cast = |(e, to): &(Tracked, Motion)| {
+            let radius = match (&e.dropped, e.hitbox, e.own_eyes) {
+                (Some(_), ..) => 0.15,
+                (None, Some((width, _)), _) => (width * 0.8).min(0.8),
+                (None, None, Some(eyes)) if eyes.distance(camera) > OWN_HEAD_RADIUS => 0.5,
+                _ => return None,
+            };
+            let m = self.blend(e.runtime_id, *to, t);
+            let feet = self.seated(e, m, t).map_or(m.position, |(seat, _)| seat.position);
+            (!NONE.contains(&e.kind.as_str())).then_some(Shadow { feet, radius })
+        };
+        self.to.iter().filter_map(cast).collect()
     }
 }
 

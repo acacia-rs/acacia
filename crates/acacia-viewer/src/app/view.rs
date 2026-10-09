@@ -21,7 +21,9 @@ impl App {
             Mode::Play => {
                 let world = self.renderer.as_ref().and_then(|r| r.world().cloned());
                 let entities = self.entities.hitboxes();
-                for step in self.key_script.as_mut().map(|s| s.due(now)).unwrap_or_default() {
+                // The script's clock starts with the player's first tick: joining takes 4 to 9 s.
+                let script = self.key_script.as_mut().filter(|_| self.play.me.is_some());
+                for step in script.map(|s| s.due(now)).unwrap_or_default() {
                     match step {
                         Step::Key(key, pressed) => self.key(key, pressed),
                         Step::Type(text) => self.text(&text, true),

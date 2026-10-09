@@ -1,7 +1,8 @@
 # Java look: what is left
 
-State on 2026-10-05. The plan and its decisions are in [java-look.md](java-look.md); this is the
-work list. J0 (look packs) and J1 (Java blocks) are on master. J2 to J5 are not started.
+State on 2026-10-05 for item 1 (drawing parity), which is still open. The plan and its decisions
+are in [java-look.md](java-look.md). What the viewer does today (HUD, screens, entities, weather,
+sound), which sections 2 and 3 below predate, is in [viewer-status.md](viewer-status.md).
 
 ## Where J1 stands
 

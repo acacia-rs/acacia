@@ -5,7 +5,9 @@ Owner: the `physics-fuzz` session (acacia-physics / `movement/`). Formulas, pack
 
 **Gliding is done** (feat/glide-physics, 2026-10-03). Item 1 and the gliding notes below are kept only for
 context. In the bot it is `Controls::glide`, `movement/glide.rs` and the server boost via MovementEffect;
-in physics, `simulate_glide` follows BDS. Vehicles (items 2-3) are still open.
+in physics, `simulate_glide` follows BDS. **Horses and boats are done** (viewer/riding, 2026-10-09: `vehicle.rs`,
+`boat.rs`, bot `riding/horse.rs` and `riding/boat.rs`; rules and live results in the research doc's "Horse" and
+"Boat"). Camels and the acceptance drills as recorded traces are still open.
 
 ## What exists on master
 | Piece | Where | Behaviour now |

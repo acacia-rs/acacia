@@ -7,6 +7,7 @@
 
 mod aabb;
 mod block_effects;
+mod boat;
 mod clip;
 mod collide;
 pub mod constants;
@@ -26,6 +27,7 @@ mod vehicle;
 mod world;
 
 pub use aabb::{Aabb, INTERSECT_EPSILON};
+pub use boat::{BoatState, boat_tick, wave_phases, wave_step};
 pub use clip::clip_collide;
 pub use flight::Flight;
 pub use input::Input;
@@ -33,5 +35,5 @@ pub use math::{BlockPos, Vec3, mc_cos, mc_sin};
 pub use motion::jump_impulse;
 pub use sim::{Outcome, TickOutput, apply_current, tick, touching_water};
 pub use state::{Effects, Equipment, PlayerState};
-pub use vehicle::{RiderInput, horse, horse_tick};
+pub use vehicle::{HorseJump, RiderInput, horse, horse_tick};
 pub use world::{BlockPhysics, Bounce, BubbleColumn, InsideMovement, Liquid, LiquidKind, Traversal, WorldView};

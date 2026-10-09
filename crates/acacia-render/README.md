@@ -399,6 +399,13 @@ way from the Bedrock one (docs/java-look.md).
   nothing where the biome has no downfall, snow below 0.15 at the ground's height, else rain.
   Snow drifts down one repeat per 512 ticks.
 - **Hurt** (`EntityInstance::hurt`): Java's overlay, 30% red before the light.
+- **Shadows** (`shadows.rs`, `gpu/shadows.rs`, `Renderer::shadows`): Java's
+  `EntityRenderDispatcher.renderShadow`. Every cell within an entity's radius that rests on a full
+  cube gets a quad on the ground; alpha is half the strength (1 at the camera, 0 at 16 blocks)
+  less half the entity's height over that ground. The dot is drawn by the shader, and the alpha
+  is converted (`1 - (1 - a)^2.2`) because Java blends in sRGB and this target is linear. Not
+  done: Java's scaling by the cell's light. The caller gives the radii (the viewer takes them
+  from the hitbox; the pack has none).
 - **UI** (`render(camera, Some((atlas, quads)))`): acacia-ui's draw list in its own pass.
 - `EntityInstance::frame` carries a model with the camera (the held item, `item/hand.rs`).
 
@@ -406,7 +413,8 @@ way from the Bedrock one (docs/java-look.md).
 
 Java's fast (flat) clouds, the End's and the Nether's skies, GPU occlusion culling (Hi-Z). Block
 models: banners, bells, open lids, piglin heads. Entities: animation
-state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller
+state between frames (attacks, grazing, swimming), boat paddles and the water cut out of a boat's
+hull (the hull itself is built in, `entity/hardcoded.geo.json`), blended overlay layers and controller
 colours (slime shell, creeper flash, collar dyes), a leather stack's own dye (undyed leather's
 colour is baked, `gpu/entity_textures.rs`), enchantment glint, queries that need untracked state
 (synced properties such as the climate variant), babies' own proportions where the pack has no

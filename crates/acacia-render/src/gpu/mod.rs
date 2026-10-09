@@ -10,6 +10,7 @@ mod globals;
 mod inputs;
 mod outline;
 mod over;
+mod shadows;
 mod updates;
 mod particle_feed;
 mod particles;
@@ -95,6 +96,9 @@ pub struct Renderer {
     pub weather: crate::sky::Weather,
     cloud_pass: clouds::CloudPass,
     bolt_pass: bolts::BoltPass,
+    shadow_pass: shadows::ShadowPass,
+    /// The round shadows under entities this frame.
+    pub shadows: Vec<crate::shadows::Shadow>,
     screen_effect: screen_effect::ScreenEffectPass,
     /// What the camera is in; its fog replaces the sky's.
     pub in_fluid: Option<crate::fluid_view::InFluid>,
@@ -137,6 +141,7 @@ impl Renderer {
         let weather_pass = weather::WeatherPass::new(&device, config.format, &globals);
         let cloud_pass = clouds::CloudPass::new(&device, config.format, &globals);
         let bolt_pass = bolts::BoltPass::new(&device, config.format, &globals);
+        let shadow_pass = shadows::ShadowPass::new(&device, config.format, &globals);
         let crack_pass = CrackPass::new(&device, config.format, &globals);
         let screen_effect = screen_effect::ScreenEffectPass::new(&device, config.format, &globals);
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
@@ -172,6 +177,8 @@ impl Renderer {
             screen_effect,
             in_fluid: None,
             bolts: Vec::new(),
+            shadow_pass,
+            shadows: Vec::new(),
             scene: None,
             biomes: Arc::default(),
             updates: Vec::new(),
@@ -195,6 +202,7 @@ impl Renderer {
         let clouds = self.cloud_height.filter(|_| world.as_ref().is_none_or(|w| w.dimension().sky));
         self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, crate::sky::cloud_tint(self.weather), self.started.elapsed().as_secs_f64());
         self.bolt_pass.prepare(&self.device, &self.queue, &self.bolts, camera.position);
+        self.prepare_shadows(camera.position);
 
         let view_proj = camera.view_proj();
         let has_sky = self.world().is_none_or(|w| w.dimension().sky);
@@ -261,6 +269,7 @@ impl Renderer {
                     self.sign_text.draw(&mut pass);
                 }
             }
+            self.shadow_pass.draw(&mut pass);
             self.particles.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
             if !fog.in_fluid {
                 self.cloud_pass.draw(&mut pass);

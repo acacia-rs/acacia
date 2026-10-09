@@ -2,9 +2,11 @@
 //! The seat itself is tracked in `state::Riding`. Physics bots steer horses (`horse.rs`); other
 //! vehicles are not simulated yet (docs/research/riding-fishing-elytra.md, with the vanilla packet sequences).
 
+mod boat;
 mod exit;
 mod horse;
 mod input;
+mod keys;
 mod tick;
 
 use std::time::Duration;
@@ -35,6 +37,8 @@ pub(crate) struct Ride {
     leaving_feet: Option<[f32; 3]>,
     /// Physics bots: the horse being driven.
     horse: Option<horse::HorseSim>,
+    /// Physics bots: the boat being paddled.
+    boat: Option<boat::BoatSim>,
     /// Added once to the next reported vehicle position ([`Bot::offset_vehicle_report`]).
     report_offset: Option<[f32; 3]>,
 }
@@ -88,6 +92,13 @@ impl Bot {
     /// The vehicle the bot sits on, from the server's links (also when the server seated it).
     pub fn vehicle(&self) -> Option<&Vehicle> {
         self.state.riding.vehicle.as_ref()
+    }
+
+    /// The seated player's eye: the seat (`RiderSeatPosition` turned by the vehicle's yaw) on the vehicle's
+    /// latest pose. `None` when not riding or before the server sent the seat.
+    pub fn seat_eye(&self) -> Option<[f32; 3]> {
+        self.state.riding.seat_offset.as_ref()?;
+        exit::Mount::of(&self.state).map(|m| m.seat())
     }
 
     /// `eye`: the dismount tick's input position, which vanilla repeats in LeaveVehicle.

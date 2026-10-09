@@ -49,8 +49,11 @@ use crate::{ActionError, Bot};
 const AIM_TOLERANCE: f32 = 0.5;
 
 impl Bot {
-    /// Eye position: simulated for physics bots, last server position otherwise.
+    /// Eye position: the seat while riding, else simulated for physics bots, last server position otherwise.
     pub fn eye_position(&self) -> Vec3 {
+        if let Some(seat) = self.seat_eye() {
+            return seat;
+        }
         if let Some(eye) = self.movement.as_ref().and_then(|m| m.eye_position()) {
             return eye;
         }
