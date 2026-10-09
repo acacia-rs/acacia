@@ -43,6 +43,10 @@ pub(crate) struct VehicleCorrection {
     pub delta: Vec3,
     pub on_ground: bool,
     pub pitch_yaw: [f32; 2],
+    /// The input tick the server's state is from.
+    pub tick: u64,
+    /// A boat's turn per tick, in degrees.
+    pub yaw_velocity: Option<f32>,
 }
 
 /// What the bot is trying to do this tick; persists until changed.
@@ -307,13 +311,15 @@ impl Movement {
                 if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle {
                     tracing::debug!(
                         server_tick = c.tick, server = ?[c.position.x, c.position.y, c.position.z], delta = ?[c.delta.x, c.delta.y, c.delta.z],
-                        rotation = ?[c.rotation.x, c.rotation.z], on_ground = c.on_ground, "vehicle correction"
+                        rotation = ?[c.rotation.x, c.rotation.z], yaw_velocity = ?c.angular_velocity, on_ground = c.on_ground, "vehicle correction"
                     );
                     self.vehicle_correction = Some(VehicleCorrection {
                         feet: [c.position.x, c.position.y, c.position.z],
                         delta: [c.delta.x, c.delta.y, c.delta.z],
                         on_ground: c.on_ground,
                         pitch_yaw: [c.rotation.x, c.rotation.z],
+                        tick: c.tick,
+                        yaw_velocity: c.angular_velocity,
                     });
                     self.vehicle_corrections += 1;
                     self.last_vehicle_delta = Some([c.delta.x, c.delta.y, c.delta.z]);

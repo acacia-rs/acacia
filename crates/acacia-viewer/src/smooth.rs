@@ -158,7 +158,7 @@ impl Smoother {
         let (vehicle, to) = self.to.iter().find(|(v, _)| v.runtime_id == seat.vehicle)?;
         let v = self.blend(vehicle.runtime_id, *to, t);
         let offset = glam::Quat::from_rotation_y(-v.yaw.to_radians()) * seat.offset;
-        Some((Motion { position: v.position + offset.as_dvec3(), yaw: v.yaw, walk: Walk::default(), ..m }, &vehicle.kind))
+        Some((Motion { position: v.position + offset.as_dvec3(), yaw: v.yaw + seat.turn, walk: Walk::default(), ..m }, &vehicle.kind))
     }
 
     pub fn instances(&self, camera: DVec3) -> Vec<EntityInstance> {

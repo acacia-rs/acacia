@@ -51,15 +51,18 @@ pub struct Seat {
     pub vehicle: u64,
     /// The rider's feet against the vehicle, in the vehicle's frame.
     pub offset: Vec3,
+    /// Degrees the rider's body is turned from the vehicle's yaw.
+    pub turn: f32,
 }
 
-/// The seat of the rider with this unique id, from the server's link and the rider's `RiderSeatPosition`.
-fn seat_of(bot: &Bot, rider: i64, offset: Option<[f32; 3]>, player: bool) -> Option<Seat> {
+/// The seat of the rider with this unique id, from the server's link and the rider's seat data
+/// (`RiderSeatPosition`, `RiderSeatRotationOffset`).
+fn seat_of(bot: &Bot, rider: i64, offset: Option<[f32; 3]>, turn: f32, player: bool) -> Option<Seat> {
     let state = bot.state();
     let vehicle = state.entities.by_unique(state.riding.vehicle_of(rider)?)?.runtime_id;
     // Players' wire position is their eyes'.
     let eyes = if player { EYE_HEIGHT as f32 } else { 0.0 };
-    Some(Seat { vehicle, offset: Vec3::from(offset?) - Vec3::Y * eyes })
+    Some(Seat { vehicle, offset: Vec3::from(offset?) - Vec3::Y * eyes, turn })
 }
 
 pub struct DroppedStack {
@@ -169,7 +172,7 @@ impl Feed {
 
         let me = &state.player;
         let uuid = state.player_list.iter().find(|p| p.entity_unique_id == me.unique_entity_id).map(|p| p.uuid);
-        let seat = seat_of(bot, me.unique_entity_id, state.riding.seat_offset.as_ref().map(|o| [o.x, o.y, o.z]), true);
+        let seat = seat_of(bot, me.unique_entity_id, state.riding.seat_offset.as_ref().map(|o| [o.x, o.y, o.z]), state.riding.seat_turn, true);
         // Seated, the server's position and rotation of the player are stale: the seat and the aim sent are not.
         let (eyes, (head_yaw, pitch)) = match seat {
             Some(_) => (DVec3::from(bot.eye_position().map(f64::from)), bot.facing()),
@@ -218,7 +221,7 @@ impl Feed {
         // The player's own vehicle is not under its crosshair.
         let own_vehicle = bot.vehicle().is_some_and(|v| v.unique_id == e.unique_id);
         let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none() && !own_vehicle);
-        let seat = seat_of(bot, e.unique_id, e.metadata.seat_position(), e.is_player());
+        let seat = seat_of(bot, e.unique_id, e.metadata.seat_position(), e.metadata.seat_turn(), e.is_player());
         let name = e.metadata.name_tag().filter(|n| !n.is_empty()).map(str::to_owned).or_else(|| e.username.clone());
         let held = e.equipment.as_ref().and_then(|q| held_key(bot, &q.main_hand));
         let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));

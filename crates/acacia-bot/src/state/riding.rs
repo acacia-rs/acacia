@@ -46,6 +46,8 @@ pub struct Riding {
     pub vehicle: Option<Vehicle>,
     /// The own seat offset from the vehicle (`SetEntityData` RiderSeatPosition), while riding.
     pub seat_offset: Option<Vec3f>,
+    /// Degrees the seat turns its rider from the vehicle's yaw (`RiderSeatRotationOffset`; a boat's -90).
+    pub seat_turn: f32,
     spawned: HashMap<i64, Spawned>,
     /// Every linked rider's vehicle, by unique ids (the local player's included).
     links: HashMap<i64, i64>,
@@ -78,6 +80,7 @@ impl Riding {
     pub(crate) fn leave(&mut self) {
         self.vehicle = None;
         self.seat_offset = None;
+        self.seat_turn = 0.0;
     }
 
     pub fn apply(&mut self, packet: &RawPacket, me: &Me) -> Result<(), DecodeError> {
@@ -100,13 +103,16 @@ impl Riding {
             SetEntityLink::ID => self.on_link(&packet.decode::<SetEntityLink>()?.link, me),
             // Every entity's metadata comes through here; only the own is decoded.
             SetEntityData::ID if read_varint64(&mut &packet.body[..])? == me.runtime_entity_id => {
-                let seat = packet.decode::<SetEntityData>()?.metadata.into_iter().find_map(|m| match m.value {
-                    MetadataDictionaryItemValue::Default(MetadataDictionaryItemValueDefault::Vec3f(v))
-                        if m.key == MetadataDictionaryItemKey::RiderSeatPosition => Some(v),
-                    _ => None,
-                });
-                if seat.is_some() {
-                    self.seat_offset = seat;
+                for m in packet.decode::<SetEntityData>()?.metadata {
+                    match (m.key, m.value) {
+                        (MetadataDictionaryItemKey::RiderSeatPosition, MetadataDictionaryItemValue::Default(MetadataDictionaryItemValueDefault::Vec3f(v))) => {
+                            self.seat_offset = Some(v);
+                        }
+                        (MetadataDictionaryItemKey::RiderSeatRotationOffset, MetadataDictionaryItemValue::Default(MetadataDictionaryItemValueDefault::Float(v))) => {
+                            self.seat_turn = v;
+                        }
+                        _ => {}
+                    }
                 }
             }
             ChangeDimension::ID => {

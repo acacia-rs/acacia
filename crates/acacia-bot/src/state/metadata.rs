@@ -83,6 +83,14 @@ impl Metadata {
         }
     }
 
+    /// Degrees the seat turns the rider from its vehicle's yaw (`RiderSeatRotationOffset`).
+    pub fn seat_turn(&self) -> f32 {
+        match self.plain(Key::RiderSeatRotationOffset) {
+            Some(Plain::Float(v)) => *v,
+            _ => 0.0,
+        }
+    }
+
     pub(crate) fn merge(&mut self, items: Vec<MetadataDictionaryItem>) {
         self.0.extend(items.into_iter().map(|i| (i.key, i.value)));
     }

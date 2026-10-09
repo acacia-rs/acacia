@@ -6,6 +6,15 @@ use acacia_bot::Bot;
 /// Ticks between log lines while seated.
 const EVERY_TICKS: u32 = 10;
 
+/// Vehicles that turn their rider's view with them (seats that lock the rider's rotation).
+const CARRYING: [&str; 2] = ["minecraft:boat", "minecraft:chest_boat"];
+
+/// The yaw of a vehicle that carries the player's view round as it turns.
+pub fn carrying_yaw(bot: &Bot) -> Option<f32> {
+    let vehicle = bot.vehicle().filter(|v| v.kind.as_deref().is_some_and(|k| CARRYING.contains(&k)))?;
+    Some(bot.state().entities.get(vehicle.runtime_id?)?.yaw)
+}
+
 #[derive(Default)]
 pub struct RideLog {
     seated_ticks: u32,
@@ -26,7 +35,7 @@ impl RideLog {
         if self.seated_ticks.is_multiple_of(EVERY_TICKS) {
             let at = vehicle.runtime_id.and_then(|id| bot.state().entities.get(id)).map(|e| ([e.position.x, e.position.y, e.position.z], e.yaw));
             let (vehicle_corrections, corrections) = bot.movement().map_or((0, 0), |m| (m.vehicle_corrections, m.corrections));
-            tracing::info!(kind = vehicle.kind.as_deref(), driver = vehicle.driver, ?at, eye = ?bot.eye_position(), seat = ?bot.state().riding.seat_offset, vehicle_corrections, corrections, "riding");
+            tracing::info!(kind = vehicle.kind.as_deref(), driver = vehicle.driver, ?at, eye = ?bot.eye_position(), seat = ?bot.state().riding.seat_offset, seat_turn = bot.state().riding.seat_turn,vehicle_corrections, corrections, "riding");
         }
         self.seated_ticks += 1;
     }

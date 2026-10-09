@@ -130,6 +130,8 @@ pub struct Me {
     pub flying: bool,
     /// On a vehicle; `eye` is then the seat's.
     pub riding: bool,
+    /// See [`crate::ride::carrying_yaw`].
+    pub carrying_yaw: Option<f32>,
     /// Times this player has been hurt (the camera rolls on each).
     pub hurts: u32,
     pub mining: Option<(IVec3, f32)>,
@@ -240,6 +242,7 @@ pub fn me(bot: &Bot) -> Me {
         sprinting: bot.movement().is_some_and(|m| m.sprinting()),
         flying: bot.movement().is_some_and(|m| m.flying()),
         riding: bot.vehicle().is_some(),
+        carrying_yaw: crate::ride::carrying_yaw(bot),
         hurts: bot.state().hurts.count(bot.state().player.runtime_entity_id),
         mining: bot.mining_progress().map(|(p, f)| (IVec3::from_array(p), f)),
         hotbar: state.inventory.selected_hotbar_slot,
