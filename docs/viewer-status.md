@@ -53,8 +53,8 @@ unit or pack tests only.
   results onto the cursor (they go into the inventory); books; maps; the game's own sign editor
   (a four-line form stands in); the creative inventory's search, its survival-inventory tab and
   deleting items into it.
-- **Dimensions:** after a teleport to the End, or joining there, the client's own position runs
-  off into the void (seen 2026-10-09; being fixed on `bot/dimensions`). The Nether is untested.
+- **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
+  an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
 - **Entities:** the charged creeper's aura, patterns on held banners and shields, the banner's
   sway, a leather
   stack's own dye, the off hand, capes, boat paddles, camels, leads, fishing lines.
