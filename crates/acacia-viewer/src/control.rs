@@ -40,7 +40,10 @@ pub enum Command {
     /// A recipe-book click: one craft of item `name`, at the crafting table at `table` if given.
     Craft { name: String, table: Option<[i32; 3]> },
     /// A click on what the workstation's slots make: one craft, or all a crafting grid holds.
-    TakeCrafted { all: bool },
+    TakeCrafted { all: bool, name: Option<String> },
+    /// The text in an anvil's name box changed (`None`: empty); handled by the bot loop, for the
+    /// result shown.
+    Name(Option<String>),
     /// A click on the stonecutter's result with recipe `id` picked: one cut, or all.
     TakeCut { id: u32, all: bool },
     /// A click on the enchanting table's option of this index.
@@ -86,8 +89,8 @@ pub struct Inventory {
     pub trade: Option<crate::stations::Trade>,
 }
 
-pub fn crafted(bot: &Bot) -> Option<Stack> {
-    bot.station_result().and_then(|s| stack_of(bot, &s))
+pub fn crafted(bot: &Bot, name: Option<&str>) -> Option<Stack> {
+    bot.station_result(name).and_then(|s| stack_of(bot, &s))
 }
 
 /// One result stack per item [`Inventory`]'s crafting can make now.
@@ -191,7 +194,8 @@ pub async fn apply(bot: &mut Bot, command: Command) {
                 Err(e) => Err(e),
             },
         },
-        Command::TakeCrafted { all } => bot.take_station_result(all).await,
+        Command::TakeCrafted { all, name } => bot.take_station_result(all, name.as_deref()).await,
+        Command::Name(_) => Ok(()),
         Command::TakeCut { id, all } => bot.take_stonecut(id, all).await,
         Command::Enchant(option) => bot.take_enchant(option).await,
         Command::Trade(offer) => bot.trade_once(offer).await,

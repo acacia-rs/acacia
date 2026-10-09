@@ -3,12 +3,16 @@
 
 use acacia_bot::items::{Click, SlotRef};
 use acacia_ui::inventory::{self, Layout, Slot};
+use acacia_ui::input::Key;
 use acacia_ui::recipes;
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
 use super::App;
 use crate::control::{Command, Inventory};
+
+/// An anvil takes names this long.
+pub(super) const NAME_MAX: usize = 30;
 
 impl App {
     /// `ACACIA_USE=secs`: one right-click on the targeted block or entity, that long after the player
@@ -46,6 +50,9 @@ impl App {
         if inventory.picks != self.inventory.picks {
             self.pick = None;
         }
+        if inventory.bench != self.inventory.bench {
+            self.rename(|name| *name = acacia_ui::widget::TextEdit::new("", NAME_MAX));
+        }
         self.inventory = inventory;
         if has && !self.screen_open {
             self.show_screen();
@@ -72,10 +79,41 @@ impl App {
         self.grab(true);
     }
 
-    /// Keys while the screen is open: E or Esc close it.
+    /// Whether the open screen has a name box (an anvil's), which typed text goes into.
+    pub(super) fn names(&self) -> bool {
+        self.screen_open && matches!(self.layout(), Layout::Bench(bench) if bench.name_box().is_some())
+    }
+
+    /// Edits the name box and tells the bot loop, which works out the renamed result.
+    fn rename(&mut self, edit: impl FnOnce(&mut acacia_ui::widget::TextEdit)) {
+        let before = self.name.text();
+        edit(&mut self.name);
+        let now = self.name.text();
+        if now != before {
+            let _ = self.net.commands.send(Command::Name((!now.is_empty()).then_some(now)));
+        }
+    }
+
+    pub(super) fn screen_text(&mut self, text: &str) {
+        self.rename(|name| name.insert(text));
+    }
+
+    /// Keys while the screen is open: E or Esc close it; a name box takes E as a letter.
     pub(super) fn screen_key(&mut self, code: KeyCode) {
-        if matches!(code, KeyCode::KeyE | KeyCode::Escape) {
-            self.close_inventory();
+        let naming = self.names();
+        let edit = match code {
+            KeyCode::Backspace => Key::Backspace,
+            KeyCode::Delete => Key::Delete,
+            KeyCode::ArrowLeft => Key::Left,
+            KeyCode::ArrowRight => Key::Right,
+            KeyCode::Home => Key::Home,
+            KeyCode::End => Key::End,
+            KeyCode::Escape => return self.close_inventory(),
+            KeyCode::KeyE if !naming => return self.close_inventory(),
+            _ => return,
+        };
+        if naming {
+            self.rename(|name| _ = name.key(edit));
         }
     }
 
@@ -116,7 +154,10 @@ impl App {
                 Some(&(id, _)) => Command::TakeCut { id, all: click == Click::Shift },
                 None => return,
             },
-            Some(Slot::Result) => Command::TakeCrafted { all: click == Click::Shift },
+            Some(Slot::Result) => {
+                let name = Some(self.name.text()).filter(|n| !n.is_empty() && self.names());
+                Command::TakeCrafted { all: click == Click::Shift, name }
+            }
             Some(slot) => Command::Click(slot_ref(slot), click),
             None if !inventory::inside(layout, size, at) => Command::DropCursor { one: click == Click::Right },
             None => return,

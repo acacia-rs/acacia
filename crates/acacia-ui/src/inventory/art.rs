@@ -70,7 +70,7 @@ impl<'a> Art<'a> {
         let rect = [ox, oy, ox + layout.width(), oy + layout.height()];
         let portrait = [ox + PORTRAIT[0], oy + PORTRAIT[1], ox + PORTRAIT[2], oy + PORTRAIT[3]];
         match self.kind {
-            Kind::Java(kit, sheet, bottom) => match (layout, bottom) {
+            Kind::Java(_, sheet, bottom) => match (layout, bottom) {
                 // ContainerScreen: the title and the rows of the six-row sheet, then its player part.
                 (Layout::Rows(rows), Some(bottom)) => {
                     let split = f32::from(rows) * SLOT + 17.0;
@@ -80,10 +80,6 @@ impl<'a> Art<'a> {
                 }
                 _ => {
                     list.sprite_stretched(sheet, rect, WHITE);
-                    // AnvilScreen draws its name box over the sheet.
-                    if let Some(field) = kit.stations.get("anvil/text_field_disabled").filter(|_| self.bench == Some(Bench::Anvil)) {
-                        list.sprite(*field, ox + 59.0, oy + 20.0, WHITE);
-                    }
                 }
             },
             Kind::Bedrock(kit) => {
@@ -196,6 +192,21 @@ impl<'a> Art<'a> {
                 }
             }
             Kind::Flat => bevel(list, self.white, rect, LIGHT, DARK, flat),
+        }
+    }
+
+    /// A bench's name box (110×16): Java's anvil sprites, a dark box otherwise.
+    pub(super) fn name_box(&self, list: &mut DrawList, [x, y]: [f32; 2], filled: bool) {
+        let rect = [x, y, x + 110.0, y + 16.0];
+        match self.kind {
+            Kind::Java(kit, ..) => {
+                let name = if filled { "anvil/text_field" } else { "anvil/text_field_disabled" };
+                match kit.stations.get(name) {
+                    Some(field) => list.sprite(*field, x, y, WHITE),
+                    None => bevel(list, self.white, rect, SLOT_DARK, LIGHT, EDGE),
+                }
+            }
+            _ => bevel(list, self.white, rect, SLOT_DARK, LIGHT, EDGE),
         }
     }
 

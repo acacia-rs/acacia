@@ -51,8 +51,7 @@ pub struct Frame<'a> {
     pub me: Option<&'a Me>,
     /// The debug screen's two columns, when it is shown.
     pub debug: Option<(Vec<String>, Vec<String>)>,
-    /// An open inventory screen, and what is picked from its list.
-    pub screen: Option<(&'a Inventory, Layout, Option<usize>)>,
+    pub screen: Option<Screen<'a>>,
     /// An open menu: its title, button labels and what it is drawn over.
     pub menu: Option<(&'a str, &'a [String], Backdrop)>,
     /// An open server form.
@@ -66,6 +65,17 @@ pub struct Frame<'a> {
     pub size: [u32; 2],
     pub scale: u32,
     pub now: Instant,
+}
+
+/// An open inventory screen.
+#[derive(Clone, Copy)]
+pub struct Screen<'a> {
+    pub inventory: &'a Inventory,
+    pub layout: Layout,
+    /// What is picked from its list.
+    pub picked: Option<usize>,
+    /// The text in its name box, before the caret and after.
+    pub name: Option<(&'a str, &'a str)>,
 }
 
 pub struct Ui {
@@ -196,8 +206,8 @@ impl Ui {
         if let Some((left, right)) = debug {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
-        if let Some((inventory, layout, picked)) = screen {
-            screen::draw(&mut list, skin, &self.lang, inventory, layout, picked, mouse, gui);
+        if let Some(screen) = screen {
+            screen::draw(&mut list, skin, &self.lang, &screen, mouse, gui);
         }
         if let Some(names) = players {
             acacia_ui::players::draw(&mut list, &skin.theme, names, gui[0]);

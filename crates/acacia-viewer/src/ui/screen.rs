@@ -4,18 +4,18 @@
 use std::collections::HashMap;
 
 use acacia_ui::DrawList;
-use acacia_ui::inventory::{self, Contents, Layout, Pick, Slot};
+use acacia_ui::inventory::{self, Contents, Pick, Slot};
 use acacia_ui::lang::Lang;
 
-use super::Skin;
+use super::{Screen, Skin};
 use crate::control::{Inventory, Stack};
 
 /// Where a trade's two prices and its goods lie in the offer's button (Java's `MerchantScreen`).
 const PRICE: [f32; 2] = [5.0, 30.0];
 const GOODS: f32 = 68.0;
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, inventory: &Inventory, layout: Layout, picked: Option<usize>, mouse: [f32; 2], gui: [f32; 2]) {
+pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &Screen, mouse: [f32; 2], gui: [f32; 2]) {
+    let Screen { inventory, layout, picked, name } = *screen;
     let mut icons = HashMap::new();
     for (slot, _) in inventory::slots(layout) {
         // A pick list's result is the picked one.
@@ -29,7 +29,7 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, inventory:
     }
     let cursor = inventory.cursor.as_ref().and_then(|s| skin.item(s));
     let picks = picks(skin, inventory);
-    let contents = Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress, picks: &picks, picked };
+    let contents = Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress, picks: &picks, picked, name };
     let title = match (&inventory.trade, &inventory.container) {
         (Some(trade), _) => lang.translate(&trade.title, &[]),
         (_, Some(container)) => container.title.clone(),

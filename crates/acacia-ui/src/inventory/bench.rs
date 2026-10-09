@@ -98,6 +98,11 @@ impl Bench {
         })
     }
 
+    /// Where the box for the result's new name is (110×16), for a bench that renames.
+    pub fn name_box(self) -> Option<[f32; 2]> {
+        (self == Bench::Anvil).then_some([59.0, 20.0])
+    }
+
     /// The crafting table's result slot is the 26-pixel one.
     pub(super) fn big_result(self) -> bool {
         self == Bench::Crafting
