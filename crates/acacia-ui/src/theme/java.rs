@@ -10,7 +10,7 @@ use crate::overlay::BOSS_COLOURS;
 use crate::widget::Widgets;
 use crate::widget::java::Kit;
 
-pub const STYLE: Style = Style { xp_colour: 0x80FF20, xp_outline: true };
+pub const STYLE: Style = Style { xp_colour: 0x80FF20, xp_outline: true, java_signs: true };
 
 const SPRITES: [&str; 15] = [
     sprite::HOTBAR, sprite::HOTBAR_SELECTION, sprite::CROSSHAIR, sprite::HEART_CONTAINER, sprite::HEART_FULL,

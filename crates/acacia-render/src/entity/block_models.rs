@@ -1,5 +1,5 @@
 //! Meshes for the blocks of [`crate::blocks::model`]. The game hard-codes the chest and sign
-//! models (`block_models.json`, after Java's `ChestModel` and `SignModel`); beds and heads come
+//! models (`block_models.json`, after Java's `ChestModel`, `SignModel` and `HangingSignRenderer`); beds and heads come
 //! from the pack, moved to where the block draws them.
 
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ use glam::{Mat4, Vec3, Vec4};
 
 use super::bake::{self, Mesh};
 use super::geometry::{self, Geometry};
-use crate::blocks::model::{BED, CHEST, DOUBLE_CHEST, DRAGON_HEAD, MOB_HEAD, PLAYER_HEAD, SIGN, WALL_SIGN};
+use crate::blocks::model::{BED, CHEST, DOUBLE_CHEST, DRAGON_HEAD, HANGING_SIGNS, MOB_HEAD, PLAYER_HEAD, SIGN, WALL_SIGN};
 
 const BUILT_IN: &str = include_str!("block_models.json");
 /// Signs are drawn at two thirds of their model.
@@ -33,6 +33,9 @@ pub(super) fn meshes(pack: &HashMap<String, Geometry>) -> Vec<(&'static str, Mes
     add(DOUBLE_CHEST, built_in.get(DOUBLE_CHEST), Mat4::IDENTITY);
     add(SIGN, built_in.get(SIGN), sign);
     add(WALL_SIGN, built_in.get(WALL_SIGN), sign);
+    for id in HANGING_SIGNS {
+        add(id, built_in.get(id), Mat4::IDENTITY);
+    }
     // The old layout states no texture size and beds are not 64×32.
     let pack_bed = pack.get("geometry.bed").map(|g| Geometry { texture_size: BED_TEXTURE, ..g.clone() });
     add(BED, pack_bed.as_ref(), bed);
@@ -50,6 +53,6 @@ pub(super) fn textures(root: &Path) -> Vec<String> {
         let dir = dir.to_owned();
         files.filter_map(move |f| Some(format!("{dir}/{}", f.path().file_name()?.to_str()?.strip_suffix(".png")?)))
     };
-    let signs = stems("textures/entity").filter(|path| path.rsplit('/').next().is_some_and(|name| name.contains("sign") && !name.contains("hanging")));
+    let signs = stems("textures/entity").filter(|path| path.rsplit('/').next().is_some_and(|name| name.contains("sign")));
     stems("textures/entity/chest").chain(signs).collect()
 }

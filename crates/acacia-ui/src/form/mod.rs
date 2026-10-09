@@ -20,7 +20,8 @@ pub enum Spec {
     /// `items` are buttons, text, headers and dividers, in order.
     Action { content: String, items: Vec<Widget> },
     Modal { content: String, yes: String, no: String },
-    Custom { elements: Vec<Widget> },
+    /// `submit` is the button's text: [`SUBMIT`] on a server's form.
+    Custom { elements: Vec<Widget>, submit: String },
 }
 
 /// How the player answered.
@@ -74,7 +75,7 @@ enum Chrome {
 }
 
 /// The submit button's text (Bedrock's `#submit_text`, Java's `gui.done`).
-const SUBMIT: &str = "Submit";
+pub const SUBMIT: &str = "Submit";
 
 impl FormView {
     pub fn new(title: &str, spec: Spec, theme: &Theme, size: [f32; 2]) -> FormView {
@@ -82,7 +83,7 @@ impl FormView {
         let (content, actions) = match spec {
             Spec::Action { content, items } => (text_then(content, items), Vec::new()),
             Spec::Modal { content, yes, no } => (text_then(content, Vec::new()), vec![(Action::Yes, yes), (Action::No, no)]),
-            Spec::Custom { elements } => (elements, vec![(Action::Submit, SUBMIT.to_owned())]),
+            Spec::Custom { elements, submit } => (elements, vec![(Action::Submit, submit)]),
         };
         let buttons = actions.iter().map(|(_, text)| Widget::Button { text: text.clone(), image: None }).collect();
         let mut view = FormView {

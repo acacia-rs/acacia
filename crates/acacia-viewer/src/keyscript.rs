@@ -1,15 +1,17 @@
 //! `ACACIA_KEYS="3 +Space; 3.15 -Space; 9 click 640 300; 12 +Use; ..."`: key presses (+) and
-//! releases (-), the right button held (`Use`), and left clicks at window pixels, at seconds after
+//! releases (-), the right button held (`Use`), typed text (`5 type Hello`) and left clicks at window pixels, at seconds after
 //! play starts, for unattended live tests of the controls (flight's double tap, menu buttons).
 
 use std::time::{Duration, Instant};
 
 use winit::keyboard::KeyCode;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Step {
     Key(KeyCode, bool),
     Click([f64; 2]),
+    /// Text typed into the focused input (`type Hello`).
+    Type(String),
     /// The right button (`+Use`, `-Use`).
     Use(bool),
 }
@@ -46,6 +48,9 @@ fn parse(step: &str) -> Option<(Duration, Step)> {
         let (x, y) = xy.trim().split_once(' ')?;
         return Some((at, Step::Click([x.parse().ok()?, y.trim().parse().ok()?])));
     }
+    if let Some(text) = what.strip_prefix("type ") {
+        return Some((at, Step::Type(text.to_owned())));
+    }
     let (pressed, name) = match what.trim().split_at(1) {
         ("+", name) => (true, name),
         ("-", name) => (false, name),
@@ -78,6 +83,7 @@ mod tests {
         assert_eq!(parse("3.5 +Space"), Some((Duration::from_secs_f32(3.5), Step::Key(KeyCode::Space, true))));
         assert_eq!(parse("9 click 640 300"), Some((Duration::from_secs(9), Step::Click([640.0, 300.0]))));
         assert_eq!(parse("1 +Nope"), None);
+        assert_eq!(parse("4 type Hello sign"), Some((Duration::from_secs(4), Step::Type("Hello sign".into()))));
         assert_eq!(parse("2 -Use"), Some((Duration::from_secs(2), Step::Use(false))));
     }
 }

@@ -20,6 +20,7 @@ pub mod players;
 pub mod recipes;
 pub mod scale;
 pub mod sidebar;
+pub mod signs;
 pub mod theme;
 pub mod widget;
 

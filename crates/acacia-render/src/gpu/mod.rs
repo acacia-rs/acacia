@@ -14,6 +14,7 @@ mod particles;
 mod pipeline;
 mod screen_effect;
 mod screenshot;
+mod sign_text;
 mod sky;
 mod sprites;
 mod store;
@@ -77,6 +78,7 @@ pub struct Renderer {
     entities: EntityPass,
     entity_list: Vec<EntityInstance>,
     block_models: BlockModels,
+    sign_text: sign_text::SignTextPass,
     /// `None` until [`Renderer::set_sky_textures`]: the sky is then a plain colour.
     sky: Option<SkyPass>,
     outline_pass: OutlinePass,
@@ -136,6 +138,7 @@ impl Renderer {
         let bind_group = pipeline::bind_group(&device, &pipelines.layout, &globals, &store, &textures.view, &sampler);
         Ok(Renderer {
             depth: pipeline::depth_view(&device, config.width, config.height),
+            sign_text: sign_text::SignTextPass::new(&device, config.format, &globals),
             surface,
             device,
             queue,
@@ -229,13 +232,14 @@ impl Renderer {
         let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance));
         self.screen_effect.prepare(&self.queue, camera, fog.underwater, light_at(camera.position));
         self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), camera.position, light_at);
-        drop(light);
         self.outline_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         self.crack_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         let (atlas, quads) = ui.map_or((None, &[][..]), |(a, q)| (Some(a), q));
         if let Some(atlas) = atlas {
             self.ui_pass.prepare(&self.device, &self.queue, atlas, quads, [self.config.width, self.config.height]);
         }
+        self.sign_text.prepare(&self.device, &self.queue, self.ui_pass.texture.as_ref(), self.block_models.sign_text(), camera.position, light_at);
+        drop(light);
         let frustum = Frustum::new(view_proj);
         let reachable = self
             .scene
@@ -267,6 +271,7 @@ impl Renderer {
                 }
                 if std::ptr::eq(pipeline, &self.pipelines.solid) {
                     self.entities.draw(&mut pass);
+                    self.sign_text.draw(&mut pass);
                 }
             }
             self.particles.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);

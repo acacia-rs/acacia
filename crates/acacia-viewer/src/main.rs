@@ -35,6 +35,7 @@ mod player;
 mod scoreboard;
 mod settings;
 mod shot;
+mod sign_text;
 mod smooth;
 mod stations;
 mod ui;

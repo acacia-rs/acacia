@@ -78,6 +78,11 @@ impl Renderer {
         self.block_models.set_data(data);
     }
 
+    /// The text on signs, laid out in the UI atlas given to [`Renderer::render`].
+    pub fn set_sign_text(&mut self, text: Arc<crate::sign_text::SignTextMap>) {
+        self.block_models.set_sign_text(text);
+    }
+
     /// Draws the sun, moon and stars from now on.
     pub fn set_sky_textures(&mut self, textures: &SkyTextures) {
         self.sky = Some(SkyPass::new(&self.device, &self.queue, self.config.format, &self.globals, textures));

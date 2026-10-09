@@ -10,6 +10,9 @@ pub const CHEST: &str = "geometry.acacia.chest";
 pub const DOUBLE_CHEST: &str = "geometry.acacia.double_chest";
 pub const SIGN: &str = "geometry.acacia.sign";
 pub const WALL_SIGN: &str = "geometry.acacia.wall_sign";
+/// Hanging signs: under a block by two chains, by chains meeting in the middle (`attached_bit`),
+/// and under a wall's bracket.
+pub const HANGING_SIGNS: [&str; 3] = ["geometry.acacia.hanging_sign", "geometry.acacia.hanging_sign.attached", "geometry.acacia.hanging_sign.wall"];
 pub const BED: &str = "geometry.acacia.bed";
 /// Floor and wall geometry per head shape.
 pub const MOB_HEAD: [&str; 2] = ["geometry.acacia.mob_head", "geometry.acacia.mob_head.wall"];
@@ -123,6 +126,13 @@ pub fn classify(state: &BlockState) -> Option<BlockModel> {
     if let Some(wood) = name.strip_suffix("wall_sign") {
         return model(Kind::Sign, WALL_SIGN, sign_texture(wood), facing_yaw(int("facing_direction")));
     }
+    if name.ends_with("hanging_sign") {
+        let texture = format!("textures/entity/{name}");
+        return match (int("hanging"), int("attached_bit")) {
+            (1, 1) => model(Kind::Sign, HANGING_SIGNS[1], texture, f32::from(int("ground_sign_direction")) * 22.5),
+            (hanging, _) => model(Kind::Sign, HANGING_SIGNS[usize::from(hanging == 0) * 2], texture, facing_yaw(int("facing_direction"))),
+        };
+    }
     let (shape, texture) = match name {
         "skeleton_skull" => (MOB_HEAD, "skulls/skeleton"),
         "wither_skeleton_skull" => (MOB_HEAD, "skulls/wither_skeleton"),
@@ -194,7 +204,11 @@ mod tests {
         assert_eq!(model("wall_sign", &[]).unwrap().texture, "textures/entity/sign");
         assert_eq!(model("zombie_head", &["facing_direction=5"]).unwrap().geometry, MOB_HEAD[1]);
         assert_eq!(model("player_head", &["facing_direction=1"]).unwrap().kind, Kind::FloorHead);
-        assert_eq!(model("oak_hanging_sign", &[]), None);
+        let hanging = model("oak_hanging_sign", &["hanging=1", "attached_bit=1", "ground_sign_direction=2"]).unwrap();
+        assert_eq!((hanging.geometry, hanging.texture.as_str(), hanging.yaw), (HANGING_SIGNS[1], "textures/entity/oak_hanging_sign", 45.0));
+        assert_eq!(model("dark_oak_hanging_sign", &["hanging=1", "attached_bit=0", "facing_direction=4"]).unwrap().geometry, HANGING_SIGNS[0]);
+        let bracket = model("cherry_hanging_sign", &["hanging=0", "facing_direction=5"]).unwrap();
+        assert_eq!((bracket.geometry, bracket.yaw), (HANGING_SIGNS[2], 270.0));
     }
 
     #[test]

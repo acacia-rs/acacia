@@ -72,6 +72,8 @@ impl App {
                         r.set_block_data(data);
                     }
                 }
+                NetEvent::Signs(texts) => self.signs.set(texts),
+                NetEvent::SignEditor(text) => self.show_sign_editor(text),
                 NetEvent::Status(s) => {
                     tracing::info!("{s}");
                     self.status = s;
