@@ -15,10 +15,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acacia_render::blocks::BlockTable;
-use acacia_render::item::ItemModels;
 use acacia_render::sky::SkyTextures;
 use acacia_render::{Camera, FrameStats, Renderer};
-use acacia_world::World;
 use glam::DVec3;
 use winit::window::{CursorGrabMode, Window};
 
@@ -196,18 +194,6 @@ impl App {
             shot.taken = true;
         }
         false
-    }
-
-    /// Draws `world` with the chosen look, meshing it anew.
-    fn show_world(&mut self, world: Arc<World>) {
-        let Some(r) = &mut self.renderer else { return };
-        let pack = self.looks.get(self.settings.look);
-        r.look = pack.look;
-        let table = Arc::new(pack.block_table(world.registry()));
-        self.entities.set_items(ItemModels::new(pack.clone(), table.clone()));
-        self.table = Some(table.clone());
-        self.ui.set_world(self.settings.look, pack.clone(), table.clone());
-        r.set_world(world, table, &pack.atlas);
     }
 
     fn frame(&mut self) {

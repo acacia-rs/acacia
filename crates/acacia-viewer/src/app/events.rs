@@ -1,6 +1,10 @@
 //! What the bot thread reports, applied to the window's state.
 
+use std::sync::Arc;
 use std::time::Instant;
+
+use acacia_render::item::ItemModels;
+use acacia_world::World;
 
 use super::App;
 use crate::net::NetEvent;
@@ -46,6 +50,11 @@ impl App {
                         r.break_particles(pos, block);
                     }
                 }
+                NetEvent::Particles(s) => {
+                    if let Some(r) = &mut self.renderer {
+                        r.spawn_particles(s.kind, s.at, s.velocity, s.count, s.spread);
+                    }
+                }
                 NetEvent::Sound(cue) => self.audio.play(self.settings.look, &cue, &self.camera, self.settings.volume as f32 / 100.0),
                 NetEvent::Form(form) => self.show_form(form),
                 NetEvent::Sidebar(sidebar) => self.ui.sidebar = sidebar,
@@ -76,5 +85,20 @@ impl App {
                 }
             }
         }
+    }
+
+    /// Draws `world` with the chosen look, meshing it anew.
+    pub(super) fn show_world(&mut self, world: Arc<World>) {
+        let Some(r) = &mut self.renderer else { return };
+        let pack = self.looks.get(self.settings.look);
+        r.look = pack.look;
+        let table = Arc::new(pack.block_table(world.registry()));
+        self.entities.set_items(ItemModels::new(pack.clone(), table.clone()));
+        self.table = Some(table.clone());
+        self.ui.set_world(self.settings.look, pack.clone(), table.clone());
+        if let Some(sheet) = acacia_render::particles::Sheet::load(pack.files()) {
+            r.set_particle_sheet(sheet);
+        }
+        r.set_world(world, table, &pack.atlas);
     }
 }

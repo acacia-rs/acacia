@@ -29,6 +29,7 @@ mod keyscript;
 mod looks;
 mod net;
 mod overlay;
+mod particles;
 mod pick;
 mod player;
 mod scoreboard;

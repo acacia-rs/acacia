@@ -1,10 +1,10 @@
-//! The particle pass (`particles.wgsl`): one instance per particle, opaque with cut-out, depth-tested
-//! and written like terrain.
+//! The block-chip pass (`particles.wgsl`): one instance per chip, opaque with cut-out,
+//! depth-tested and written like terrain.
 
 use glam::{DVec3, Vec3};
 
 use super::pipeline::DEPTH_FORMAT;
-use crate::particles::Particle;
+use crate::particles::Chip;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -89,16 +89,21 @@ impl ParticlePass {
         ParticlePass { pipeline, layout, view, instances: instance_buffer(device, 1024), count: 0 }
     }
 
-    /// Uploads this frame's particles; `light` gives (block, sky) at a world position.
-    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, particles: &[Particle], camera: DVec3, right: Vec3, up: Vec3, light: impl Fn(DVec3) -> [f32; 2]) {
-        let data: Vec<Instance> = particles
+    /// Uploads this frame's chips `partial` of a tick past their last tick; `light` gives
+    /// (block, sky) at a world position.
+    #[allow(clippy::too_many_arguments)]
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, chips: &[Chip], partial: f64, camera: DVec3, right: Vec3, up: Vec3, light: impl Fn(DVec3) -> [f32; 2]) {
+        let data: Vec<Instance> = chips
             .iter()
-            .map(|p| Instance {
-                centre: (p.position - camera).as_vec3().to_array(),
-                size: p.size,
-                piece: [f32::from(p.piece[0]), f32::from(p.piece[1])],
-                layer: u32::from(p.layer),
-                light: light(p.position),
+            .map(|p| {
+                let at = p.previous.lerp(p.position, partial);
+                Instance {
+                    centre: (at - camera).as_vec3().to_array(),
+                    size: p.size,
+                    piece: [f32::from(p.piece[0]), f32::from(p.piece[1])],
+                    layer: u32::from(p.layer),
+                    light: light(at),
+                }
             })
             .collect();
         self.count = data.len() as u32;
@@ -132,42 +137,6 @@ impl ParticlePass {
         pass.set_bind_group(0, &bind_group, &[]);
         pass.set_vertex_buffer(0, self.instances.slice(..));
         pass.draw(0..6, 0..self.count);
-    }
-}
-
-impl super::Renderer {
-    /// The chips of the block broken at `pos`; `runtime` is its id in the shown world.
-    pub fn break_particles(&mut self, pos: glam::IVec3, runtime: u32) {
-        let Some(scene) = &self.scene else { return };
-        let layer = scene.table().get(runtime).textures[0];
-        self.particles.break_block(pos, layer);
-    }
-
-    /// Advances the particles to the game tick now, then uploads them.
-    pub(super) fn prepare_particles(&mut self, camera: &crate::Camera) {
-        let now = (self.started.elapsed().as_secs_f64() * 20.0) as u64;
-        if let Some(scene) = &self.scene {
-            let world = scene.world();
-            let solid = |c: glam::IVec3| {
-                let id = world.get(c.x >> 4, c.z >> 4).map(|chunk| chunk.read().block(c.x, c.y, c.z));
-                id.and_then(|id| world.registry().get(id)).is_some_and(|s| s.is_solid())
-            };
-            // Catch up at most a second of ticks after a stall.
-            for _ in 0..now.saturating_sub(self.particle_tick).min(20) {
-                self.particles.tick(&solid);
-            }
-        }
-        self.particle_tick = now;
-        let light = self.scene.as_ref().map(|s| s.light().clone());
-        let light = light.as_ref().map(|l| l.read());
-        // Outside lit columns a particle is as bright as open sky.
-        let light_at = |p: DVec3| {
-            let c = p.floor().as_ivec3();
-            let byte = light.as_ref().and_then(|l| l.light(c.x, c.y, c.z)).unwrap_or(15);
-            [f32::from(byte >> 4), f32::from(byte & 15)]
-        };
-        let (forward, right) = (camera.forward(), camera.right());
-        self.particle_pass.prepare(&self.device, &self.queue, &self.particles.list, camera.position, right, right.cross(forward), light_at);
     }
 }
 
