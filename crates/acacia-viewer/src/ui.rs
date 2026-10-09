@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use acacia_render::LookPack;
 use acacia_render::blocks::BlockTable;
-use acacia_render::item::{ItemIcons, banner_icon, block_icon};
+use acacia_render::item::{ItemIcons, banner_icon, block_icon, pattern_icon};
 use acacia_ui::chat::{self, Chat};
 use acacia_ui::effects::Active;
 use acacia_render::glint::Foil;
@@ -251,6 +251,18 @@ impl Skin {
             survival: matches!(me.game_mode, GameMode::Survival | GameMode::Adventure),
             crosshair: true,
         }
+    }
+
+    /// A loom pattern's button image, added on first use.
+    fn pattern(&mut self, code: &str) -> Option<Sprite> {
+        let key = (format!("pattern/{code}"), 0);
+        if let Some(sprite) = self.added.get(&key) {
+            return *sprite;
+        }
+        let image = pattern_icon(&self.root, code).or_else(|| pattern_icon(&acacia_render::assets::Pack::default_dir(), code));
+        let sprite = image.map(|i| self.theme.atlas.add(&key.0, &i));
+        self.added.insert(key, sprite);
+        sprite
     }
 
     /// The item's icon (its first frame) in the atlas, added on first use; a block item without one

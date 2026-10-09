@@ -167,7 +167,7 @@ impl<'a> Art<'a> {
         }
     }
 
-    /// A pick-list button: Java's stonecutter or enchanting sprites, Bedrock's cell with its highlight.
+    /// A pick-list button: Java's stonecutter, loom or enchanting sprites, Bedrock's cell with its highlight.
     pub(super) fn pick(&self, list: &mut DrawList, rect: [f32; 4], picked: bool, hover: bool) {
         let flat = if picked { SLOT_FILL } else { PANEL };
         if self.creative {
@@ -187,6 +187,9 @@ impl<'a> Art<'a> {
                 let name = match (self.bench, picked, hover) {
                     (Some(Bench::Enchanting), _, true) => "enchanting_table/enchantment_slot_highlighted",
                     (Some(Bench::Enchanting), ..) => "enchanting_table/enchantment_slot",
+                    (Some(Bench::Loom), true, _) => "loom/pattern_selected",
+                    (Some(Bench::Loom), _, true) => "loom/pattern_highlighted",
+                    (Some(Bench::Loom), ..) => "loom/pattern",
                     (_, true, _) => "stonecutter/recipe_selected",
                     (_, _, true) => "stonecutter/recipe_highlighted",
                     _ => "stonecutter/recipe",

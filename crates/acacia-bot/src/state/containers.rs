@@ -60,6 +60,7 @@ impl Containers {
                 let p: ContainerOpen = packet.decode()?;
                 // Named runtime_entity_id in the schema, but it is the unique id; -1 means a block container.
                 let entity = (p.runtime_entity_id != -1).then_some(p.runtime_entity_id);
+                tracing::debug!(window = ?p.window_type, id = ?p.window_id, "container open");
                 self.data.clear();
                 self.open = Some(Container {
                     window_id: p.window_id.to_raw() as i32,
@@ -70,7 +71,8 @@ impl Containers {
                 });
             }
             ContainerClose::ID => {
-                packet.decode::<ContainerClose>()?;
+                let p: ContainerClose = packet.decode()?;
+                tracing::debug!(id = ?p.window_id, server = p.server, "container close");
                 self.open = None;
                 self.data.clear();
             }

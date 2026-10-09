@@ -29,7 +29,7 @@ player state. Layout is tested headless.
   `container/inventory.png` and `generic_54.png`, Bedrock's `dialog_background_opaque` with a
   `cell_image` per slot (its classic screen has the same 176×166 root), flat greys otherwise.
   `inventory/station.rs`: furnaces, hopper, dispenser, brewing stand (a container's own slots, with
-  progress). `inventory/bench.rs`: crafting table, anvil, smithing table, grindstone, stonecutter,
+  progress). `inventory/bench.rs`: crafting table, anvil, smithing table, grindstone, stonecutter, loom,
   cartography and enchanting table: the player's UI slots by Bedrock's offset, a `Slot::Result`
   the caller works out, and a pick list (`Pick`, `hit_pick`) for the stonecutter's cuts and the
   enchanting options. `Layout::Trade` is Java's 276-wide `MerchantScreen`: the offers as a pick
@@ -96,6 +96,6 @@ and Done (`Spec::Custom`'s `submit`), not as either game's sign screen.
 
 ## Not yet
 
-The loom screen, the beacon's own art, a cartography table's name box, Unicode glyph pages,
+The loom's banner preview, the beacon's own art, a cartography table's name box, Unicode glyph pages,
 offhand and attack indicator, Java's background blur, Bedrock's own settings screen and sidebar
 placement, multiselect form elements, JPEG button images.

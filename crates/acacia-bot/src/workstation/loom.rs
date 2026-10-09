@@ -12,14 +12,47 @@ use crate::state::{GameState, ItemStack};
 use crate::{ActionError, Bot};
 
 const COMPOUND_TAG: u8 = 10;
+/// The patterns a loom makes without a pattern item, in Java's `LoomMenu` order.
+const PLAIN_PATTERNS: [&str; 32] = [
+    "bl", "br", "tl", "tr", "bs", "ts", "ls", "rs", "cs", "ms", "drs", "dls", "ss", "cr", "sc", "bt", "tt", "bts", "tts", "ld", "rd", "lud",
+    "rud", "mc", "mr", "vh", "hh", "vhr", "hhb", "bo", "gra", "gru",
+];
+/// The pattern each `minecraft:<name>_banner_pattern` item gives.
+const ITEM_PATTERNS: [(&str, &str); 10] = [
+    ("flower", "flo"), ("creeper", "cre"), ("skull", "sku"), ("mojang", "moj"), ("field_masoned", "bri"),
+    ("bordure_indented", "cbo"), ("piglin", "pig"), ("globe", "glb"), ("flow", "flw"), ("guster", "gus"),
+];
 
 impl Bot {
+    /// The patterns the open loom offers for what is in its slots: none without a banner and a
+    /// dye, the pattern item's one, else the plain ones.
+    pub fn loom_choices(&self) -> Vec<&'static str> {
+        loom_choices(&self.state)
+    }
+
+    /// The click on the loom's result with `pattern` picked: one banner into the inventory.
+    pub async fn take_loom(&mut self, pattern: &str) -> Result<(), ActionError> {
+        let (craft, ops) = loom_plan(&self.state, pattern)?;
+        self.craft_request(&craft, &ops).await
+    }
+
     /// Adds `pattern` (Bedrock pattern id such as `bo`) in the colour of `dye` to the banner in
     /// `banner` at the loom at `pos`; `pattern_item` is the banner pattern some designs need.
     pub async fn loom(&mut self, pos: BlockPos, banner: SlotRef, dye: SlotRef, pattern: &str, pattern_item: Option<SlotRef>) -> Result<(), ActionError> {
         let slots = [ui::LOOM_BANNER, ui::LOOM_DYE, ui::LOOM_PATTERN].map(SlotRef::Ui);
         self.workstation_craft(pos, WindowType::Loom, &[Some(banner), Some(dye), pattern_item], &slots, |state| loom_plan(state, pattern)).await
     }
+}
+
+pub(crate) fn loom_choices(state: &GameState) -> Vec<&'static str> {
+    let filled = |slot: u8| occupied(state, SlotRef::Ui(slot)).ok();
+    if filled(ui::LOOM_BANNER).is_none() || filled(ui::LOOM_DYE).is_none() {
+        return Vec::new();
+    }
+    let Some(item) = filled(ui::LOOM_PATTERN) else { return PLAIN_PATTERNS.to_vec() };
+    let name = state.items.name(item.network_id).unwrap_or_default();
+    let kind = name.strip_prefix("minecraft:").and_then(|n| n.strip_suffix("_banner_pattern"));
+    ITEM_PATTERNS.iter().filter(|(item, _)| Some(*item) == kind).map(|(_, code)| *code).collect()
 }
 
 pub(crate) fn loom_plan(state: &GameState, pattern: &str) -> Result<(Craft, Vec<Op>), ActionError> {

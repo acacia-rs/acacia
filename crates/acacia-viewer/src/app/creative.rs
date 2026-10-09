@@ -34,7 +34,7 @@ impl App {
             return *row = step(*row, rows);
         }
         let Some(list) = self.layout().picks() else { return };
-        let total = self.inventory.picks.len().max(self.inventory.trade.as_ref().map_or(0, |t| t.offers.len()));
+        let total = self.inventory.picks.len().max(self.inventory.patterns.len()).max(self.inventory.trade.as_ref().map_or(0, |t| t.offers.len()));
         self.shown.scroll = step(self.shown.scroll, total.div_ceil(list.columns).saturating_sub(list.rows));
     }
 

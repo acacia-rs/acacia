@@ -7,7 +7,7 @@ use acacia_client::proto::types::{
 use super::*;
 use crate::items::ui;
 use crate::workstation::enchant::enchant_plan;
-use crate::workstation::loom::{dye_color, loom_plan};
+use crate::workstation::loom::{dye_color, loom_choices, loom_plan};
 use crate::ActionError;
 
 fn put_ui(state: &mut GameState, slot: u8, item: ItemStack) {
@@ -58,6 +58,9 @@ fn loom_result_carries_the_new_pattern() {
     put_ui(&mut state, ui::LOOM_BANNER, ItemStack { nbt: Some(banner_nbt), ..stack("minecraft:white_banner", 1, 61) });
     put_ui(&mut state, ui::LOOM_DYE, stack("minecraft:red_dye", 5, 62));
     let request = encode(&state, &loom_plan(&state, "bo").unwrap());
+    assert_eq!((loom_choices(&state).len(), loom_choices(&state)[0]), (32, "bl"));
+    put_ui(&mut state, ui::LOOM_PATTERN, stack("minecraft:creeper_banner_pattern", 1, 63));
+    assert_eq!(loom_choices(&state), ["cre"]);
     assert_eq!(kinds(&request)[0], (TypeId::CraftLoomRequest, 17));
     let Content::ResultsDeprecated(results) = &request.actions[1].content else { panic!() };
     let nbt = &results.result_items[0].extra.as_ref().unwrap().nbt.as_ref().unwrap().nbt;
