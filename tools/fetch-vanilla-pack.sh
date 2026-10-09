@@ -20,6 +20,7 @@ git -C "$tmp/repo" sparse-checkout set --no-cone \
   resource_pack/attachables/ resource_pack/textures/models/armor/ \
   resource_pack/textures/ui/ resource_pack/textures/gui/ resource_pack/texts/en_US.lang \
   resource_pack/textures/particle/ \
+  resource_pack/textures/misc/enchanted_item_glint.png resource_pack/textures/misc/enchanted_actor_glint.png \
   resource_pack/sounds.json resource_pack/sounds/
 rm -rf "$dest"
 mkdir -p "$dest"

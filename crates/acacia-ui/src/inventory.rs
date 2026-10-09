@@ -9,9 +9,8 @@ mod station;
 pub use bench::{Bench, Picks};
 pub use station::{Progress, Station};
 
-use crate::atlas::Sprite;
 use crate::draw::DrawList;
-use crate::hud::stack;
+use crate::hud::{Item, stack};
 use crate::theme::Theme;
 
 pub const WIDTH: f32 = 176.0;
@@ -160,8 +159,8 @@ pub fn inside(layout: Layout, size: [f32; 2], mouse: [f32; 2]) -> bool {
 
 /// What is in each slot, and the stack the mouse carries.
 pub struct Contents<'a> {
-    pub slot: &'a dyn Fn(Slot) -> Option<(Sprite, u16)>,
-    pub cursor: Option<(Sprite, u16)>,
+    pub slot: &'a dyn Fn(Slot) -> Option<Item>,
+    pub cursor: Option<Item>,
     /// A station's arrow and flame.
     pub progress: Progress,
     /// What a bench with a pick list offers, and the one chosen.
@@ -174,7 +173,7 @@ pub struct Contents<'a> {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Pick {
     /// Stacks and how far right of the button's edge each lies.
-    pub icons: Vec<(Sprite, u16, f32)>,
+    pub icons: Vec<(crate::Sprite, u16, f32)>,
     pub label: String,
 }
 
@@ -224,7 +223,8 @@ pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, con
         art.pick(list, rect, contents.picked == Some(i), over == Some(i));
         let (inset, text) = (((rect[3] - rect[1] - 16.0) / 2.0).floor(), layout.picks().map_or(5.0, |p| p.text));
         for &(icon, count, x) in &item.icons {
-            stack(list, theme.font.as_ref(), (icon, count), rect[0] + x, rect[1] + inset);
+            // Pick lists carry plain sprites: their stacks do not glint.
+            stack(list, theme.font.as_ref(), Item { icon, count, glint: false }, rect[0] + x, rect[1] + inset);
         }
         if let Some(font) = &theme.font {
             font.draw(list, &item.label, rect[0] + text, rect[1] + inset + 4.0, art.pick_text(), 1.0, false);

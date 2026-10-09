@@ -154,9 +154,10 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
   A source that does not compile is skipped, and what it would have set reads 0; a script that does
   not compile as a whole is compiled line by line. Query names outside acacia-molang's list are let
   through and read 0. Colour expressions (`color`, `overlay_color`) and `uv_anim` are not evaluated.
-- **Materials**: no material file is read. Layers whose material is a blended overlay (slime shell,
-  charged creeper, enchantment glint: `OVERLAY_MATERIALS`) are dropped, since the pass is opaque. The
-  `sheep` material tints by the `color` query where the texture's alpha is 0.
+- **Materials**: no material file is read. Layers whose material is an effect the pass does not
+  draw (charged creeper, guardian ghost: `OVERLAY_MATERIALS`) are dropped, the pack's `enchanted`
+  layers among them (see "Enchantment glint"). The `sheep` material tints by the `color` query
+  where the texture's alpha is 0.
 - **Geometry** (`geometry.rs`): both file layouts. A `minecraft:geometry` file without a texture size
   takes the size of the kind's texture; the old layout defaults to 64×32. With inheritance (`geometry.a:geometry.b`) a child
   bone of the same name adds its cubes and overrides the keys it sets, or replaces the bone with
@@ -259,6 +260,44 @@ entity-pass mesh with its own texture, built on first use and cached.
   entity texture, dyed.
 - **Worn** (`entity/armor.rs`, `EntityModels::armor`): the pack's attachables give each armour
   item a geometry and texture, drawn as a further instance in the wearer's pose.
+
+### Enchantment glint (`glint.rs`, `gpu/glint.rs`)
+
+`EntityInstance::glint` shimmers an instance: an item (`ItemModel::glint`, set by
+`ItemModels::get` for an enchanted stack or one of the look's `Foil` items) or a worn piece of
+armour. UI quads carry `Quad::glint` for an item's icon. It is not a layer or a pass of its own:
+the 26.3 client draws it in the item and entity shaders (`item.fsh`, `entity.fsh`, `GLINT`), and
+so do `gpu/entity.wgsl` and `gpu/ui.wgsl`.
+
+- **Colour**: the glint texel times `glintStrength` (0.75), squared, added to the lit colour
+  before the fog (`color.rgb += glintColor.rgb * glintColor.rgb`). Java adds sRGB values, so the
+  entity shader converts to sRGB and back around the sum; the UI pass already works in sRGB.
+- **Where it samples** (`TextureTransform.setupGlintTexturing`): the UV scaled, turned 10°, then
+  slid by `-(t mod 110000) / 110000, (t mod 30000) / 30000` with `t` = milliseconds ×
+  `glintSpeed` (0.5) × 8: once across in 27.5 s, once up in 7.5 s. Linear filtering, repeating.
+- **Scale**: 0.16 over an armour texture's own UVs (`ARMOR_ENTITY_GLINT_TEXTURING`, with
+  `enchanted_glint_armor`). Items take 8 over their **atlas** UVs (`GLINT_TEXTURING`, with
+  `enchanted_glint_item`), so the size of Java's atlas sets the pattern's size. It is taken as
+  2048 texels a side, worked out and not dumped from the game: the stitcher pads each sprite by
+  `1 << mip level` (16 at the default 4 levels) on every side, and the 895 item sprites at 48
+  texels need more than 2048×1024. A 16-texel sprite then spans 1/16 of the glint texture.
+- **Textures** (`glint::Images::load`, `Renderer::set_glint_textures`): the look's
+  `textures/misc/enchanted_glint_item` and `enchanted_glint_armor` (`lookbake java` copies them
+  from the jar), else Bedrock's `enchanted_item_glint` and `enchanted_actor_glint`. Without
+  either nothing shimmers: fetch the pack or bake the look again.
+- **Which items** (`glint::Foil`, the look's `foil`): Java's are the items its `Items` gives
+  `ENCHANTMENT_GLINT_OVERRIDE` (enchanted golden apple, experience bottle, written book, nether
+  star, enchanted book, end crystal). Bedrock's list is the client's and was not read: potions,
+  the enchanted golden apple, nether star, enchanted book and experience bottle are assumed.
+- **Bedrock**: only the textures are its own. How its glint materials (the attachables'
+  `armor_enchanted`) scale, turn, colour and blend them is in the client, not in the pack, so
+  the Bedrock look moves and adds them by Java's rules. Its textures are grey; they are
+  multiplied by `0x8040CC` (`glint::BEDROCK_TINT`, an assumption: the purple of Java's old glint,
+  and the hue of Java's texture today). That comes out at about half the strength of the Java
+  look's glint, faint on a bright item (seen live on a diamond sword).
+- Not done: Java's `SPECIAL` foil (compass and clock, whose glint lies in screen space), the
+  glint over trimmed armour and patterned shields (Java's separate `glint` pass), block items'
+  own atlas placement (their stacked texture is scaled like an item sprite).
 
 ## Day and night (`sky.rs`, `gpu/sky.rs`)
 
@@ -416,7 +455,7 @@ models: banners, bells, open lids, piglin heads. Entities: animation
 state between frames (attacks, grazing, swimming), boat paddles and the water cut out of a boat's
 hull (the hull itself is built in, `entity/hardcoded.geo.json`), blended overlay layers and controller
 colours (slime shell, creeper flash, collar dyes), a leather stack's own dye (undyed leather's
-colour is baked, `gpu/entity_textures.rs`), enchantment glint, queries that need untracked state
+colour is baked, `gpu/entity_textures.rs`), queries that need untracked state
 (synced properties such as the climate variant), babies' own proportions where the pack has no
 baby geometry, the off hand's item, capes. Held items take three displays (`item/hand.rs`
 `Display::of`: generated, block, bow); other models' own are not read.

@@ -10,19 +10,24 @@ use glam::{DVec3, Mat4, Vec3};
 
 use super::entity_buffers::{BONES, INSTANCES, storage_buffer, upload, vertex_buffer};
 use super::entity_textures;
+use super::glint::GlintTextures;
 use super::pipeline::DEPTH_FORMAT;
 use crate::entity::{EntityInstance, EntityModels, Skin, TextureId, Vertex};
+use crate::glint::Glint;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
-    /// x: block light, y: sky light (0..=15), z: 1 for the hurt overlay.
+    /// x: block light, y: sky light (0..=15), z: 1 for the hurt overlay, w: the glint texture
+    /// (0 none, 1 the item's, 2 the armour's).
     light: [f32; 4],
     /// rgb: the layer's tint, a: 1 when the texture's alpha is a tint mask and not a cutout.
     tint: [f32; 4],
     hidden: [u32; 4],
     /// x: index of the layer's first matrix in the bone buffer.
     bones: [u32; 4],
+    /// xy: the glint's scale over the UVs, zw: how far it has slid ([`crate::glint`]).
+    glint: [f32; 4],
 }
 
 /// Model space to camera-relative world space, one per bone of each instance.
@@ -46,6 +51,7 @@ pub struct EntityPass {
     instances: wgpu::Buffer,
     bones: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
+    pub glint: GlintTextures,
     models: Arc<EntityModels>,
     vertices: Option<wgpu::Buffer>,
     ranges: Vec<Range<u32>>,
@@ -75,12 +81,16 @@ impl EntityPass {
             ty: wgpu::BindingType::Buffer { ty, has_dynamic_offset: false, min_binding_size: None },
             count: None,
         };
+        let [glint_item, glint_armor, glint_sampler] = GlintTextures::layout_entries(3);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("entity"),
             entries: &[
                 buffer(0, wgpu::BufferBindingType::Uniform),
                 buffer(1, wgpu::BufferBindingType::Storage { read_only: true }),
                 buffer(2, wgpu::BufferBindingType::Storage { read_only: true }),
+                glint_item,
+                glint_armor,
+                glint_sampler,
             ],
         });
         let texture_layout = entity_textures::layout(device);
@@ -128,7 +138,8 @@ impl EntityPass {
         let (pipeline, blend_pipeline) = (pipeline("fs_main", color.into(), true), pipeline("fs_blend", blended, false));
         let instances = storage_buffer(device, INSTANCES, 64 * size_of::<Instance>() as u64);
         let bones = storage_buffer(device, BONES, 1024 * size_of::<BoneMatrix>() as u64);
-        let bind_group = Self::bind_group(device, &layout, globals, &instances, &bones);
+        let glint = GlintTextures::new(device);
+        let bind_group = Self::bind_group(device, &layout, globals, &instances, &bones, &glint);
         EntityPass {
             pipeline,
             blend_pipeline,
@@ -138,6 +149,7 @@ impl EntityPass {
             instances,
             bones,
             bind_group,
+            glint,
             models: Arc::default(),
             vertices: None,
             ranges: Vec::new(),
@@ -153,10 +165,17 @@ impl EntityPass {
         globals: &wgpu::Buffer,
         instances: &wgpu::Buffer,
         bones: &wgpu::Buffer,
+        glint: &GlintTextures,
     ) -> wgpu::BindGroup {
         let buffers = [globals, instances, bones];
-        let entries: Vec<_> = (0..).zip(buffers).map(|(binding, b)| wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() }).collect();
+        let buffers = (0..).zip(buffers).map(|(binding, b)| wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() });
+        let entries: Vec<_> = buffers.chain(glint.entries(3)).collect();
         device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("entity"), layout, entries: &entries })
+    }
+
+    pub fn set_glint(&mut self, device: &wgpu::Device, globals: &wgpu::Buffer, glint: GlintTextures) {
+        self.glint = glint;
+        self.bind_group = Self::bind_group(device, &self.layout, globals, &self.instances, &self.bones, &self.glint);
     }
 
     pub fn set_models(&mut self, device: &wgpu::Device, models: Arc<EntityModels>) {
@@ -185,6 +204,7 @@ impl EntityPass {
         entities: impl Iterator<Item = &'a EntityInstance>,
         over: &'a [EntityInstance],
         camera: DVec3,
+        glint_scroll: [f32; 2],
         light: impl Fn(DVec3) -> [f32; 2],
     ) {
         self.draws.clear();
@@ -229,7 +249,11 @@ impl EntityPass {
             bones.extend(mesh.skin(&e.pose).iter().map(|posed| (body * *posed).to_cols_array_2d()));
             let [block, sky] = if over { [15.0, 0.0] } else { light(e.position + DVec3::Y * 0.5) };
             let tint = layer.tint.map_or([0.0; 4], |[r, g, b]| [r, g, b, 1.0]);
-            records.push(Instance { light: [block, sky, f32::from(u8::from(e.hurt)), 0.0], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0] });
+            let texture = e.glint.map_or(0.0, |g| if g == Glint::Item { 1.0 } else { 2.0 });
+            // Only a skin's size is known here; armour's scale does not ask for it.
+            let [sx, sy] = e.glint.map_or([0.0; 2], |g| g.scale(e.skin.as_ref().map_or([16; 2], |s| [s.width, s.height])));
+            let glint = [sx, sy, glint_scroll[0], glint_scroll[1]];
+            records.push(Instance { light: [block, sky, f32::from(u8::from(e.hurt)), texture], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0], glint });
             self.draws.push((range, key, layer.blend));
             if !over {
                 self.world_draws = self.draws.len();
@@ -237,7 +261,7 @@ impl EntityPass {
         }
         let grown = upload(device, queue, &mut self.instances, INSTANCES, &records) | upload(device, queue, &mut self.bones, BONES, &bones);
         if grown {
-            self.bind_group = Self::bind_group(device, &self.layout, globals, &self.instances, &self.bones);
+            self.bind_group = Self::bind_group(device, &self.layout, globals, &self.instances, &self.bones, &self.glint);
         }
     }
 

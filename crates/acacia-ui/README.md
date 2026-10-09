@@ -17,7 +17,8 @@ player state. Layout is tested headless.
   opaque column, advance width + 1, space 4. `§0`–`§f`, `§l`, `§r`; the shadow is each channel at a
   quarter, one pixel down and right.
 - `hud.rs`: Java's `Gui` layout at scale 1: hotbar (182×22, bottom centre), selection 24×23 at
-  `cx − 92 + 20·slot`, items at `+3, +3`, hearts from `cx − 91` at `h − 39` (rows of ten), food from
+  `cx − 92 + 20·slot`, items at `+3, +3` (`hud::Item`: icon, count, and `glint` for an enchanted
+  one, which `DrawList::icon` passes on as `Quad::glint` for the renderer to shimmer), hearts from `cx − 91` at `h − 39` (rows of ten), food from
   `cx + 91` leftwards, armour above the hearts, air above the food, experience bar at `h − 29` with
   the level at `h − 35`. Creative and spectator draw only the hotbar and crosshair.
 - `chat.rs`: the log (100 lines; 10 shown while closed, for 10 s with a 1 s fade, Java's

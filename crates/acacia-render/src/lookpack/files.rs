@@ -116,7 +116,8 @@ fn read_blocks(path: &Path) -> Result<Vec<RenderBlock>, Error> {
 }
 
 /// What [`LookPack::files`] holds, copied beside the baked data.
-const LOOSE: [&str; 18] = [
+const LOOSE: [&str; 20] = [
+    "textures/misc/enchanted_item_glint.png", "textures/misc/enchanted_actor_glint.png",
     "entity", "models", "render_controllers", "animations", "animation_controllers",
     "textures/entity", "textures/environment", "textures/colormap", "biomes_client.json",
     "textures/items", "textures/item_texture.json", "attachables", "textures/models/armor",

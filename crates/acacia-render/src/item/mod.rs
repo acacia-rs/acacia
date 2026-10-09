@@ -39,6 +39,8 @@ pub struct ItemModel {
     pub layers: Arc<[Layer]>,
     /// Drawn as a block (a unit cube's worth), not a flat sprite: they sit and stack differently.
     pub block: bool,
+    /// Shimmers: the stack is enchanted, or the look's game always draws the item so.
+    pub glint: bool,
 }
 
 pub struct ItemModels {
@@ -62,20 +64,22 @@ impl ItemModels {
     }
 
     /// Built on first use and kept; `None` for items with neither an icon nor a drawable block.
-    pub fn get(&mut self, key: &ItemKey) -> Option<ItemModel> {
-        if let Some(cached) = self.cache.get(key) {
-            return cached.clone();
+    /// `enchanted` is the stack's own ([`ItemModel::glint`]).
+    pub fn get(&mut self, key: &ItemKey, enchanted: bool) -> Option<ItemModel> {
+        if !self.cache.contains_key(key) {
+            let model = self.build(key);
+            if model.is_none() {
+                tracing::debug!(item = key.name, aux = key.aux, "item without a model");
+            }
+            self.cache.insert(key.clone(), model);
         }
-        let model = self.build(key);
-        if model.is_none() {
-            tracing::debug!(item = key.name, aux = key.aux, "item without a model");
-        }
-        self.cache.insert(key.clone(), model.clone());
-        model
+        let model = self.cache.get(key)?.clone()?;
+        Some(ItemModel { glint: model.glint || enchanted, ..model })
     }
 
     fn build(&self, key: &ItemKey) -> Option<ItemModel> {
-        let model = |skin: Skin, block| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), block });
+        let glint = self.pack.look.foil.always(&key.name);
+        let model = |skin: Skin, block| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), block, glint });
         // An item with an icon of its own shows it, even when it places a block (doors, beds).
         if let Some(skin) = self.icons.path(&key.name, key.aux).and_then(|path| icon(self.pack.files(), path)) {
             return model(skin, false);

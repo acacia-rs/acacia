@@ -23,11 +23,11 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, inventory:
             Slot::Result if !inventory.picks.is_empty() => picked.and_then(|i| inventory.picks.get(i)).map(|p| &p.1),
             _ => stack_in(inventory, slot),
         };
-        if let Some(item) = shown.and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count))) {
+        if let Some(item) = shown.and_then(|s| skin.item(s)) {
             icons.insert(slot, item);
         }
     }
-    let cursor = inventory.cursor.as_ref().and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count)));
+    let cursor = inventory.cursor.as_ref().and_then(|s| skin.item(s));
     let picks = picks(skin, inventory);
     let contents = Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress, picks: &picks, picked };
     let title = match (&inventory.trade, &inventory.container) {
@@ -38,7 +38,8 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, inventory:
     inventory::draw(list, &skin.theme, layout, &title, &contents, mouse, gui);
     if layout.has_book() {
         // Every result keeps its cell (clicks index the same list); a missing icon draws blank.
-        let results: Vec<_> = inventory.craftable.iter().map(|s| (skin.icon(&s.name, s.aux, s.block).unwrap_or_else(|| skin.theme.atlas.white()), s.count)).collect();
+        let blank = |s: &Stack, skin: &Skin| acacia_ui::hud::Item { icon: skin.theme.atlas.white(), count: s.count, glint: false };
+        let results: Vec<_> = inventory.craftable.iter().map(|s| skin.item(s).unwrap_or_else(|| blank(s, skin))).collect();
         acacia_ui::recipes::draw(list, &skin.theme, layout, &results, mouse, gui);
     }
 }

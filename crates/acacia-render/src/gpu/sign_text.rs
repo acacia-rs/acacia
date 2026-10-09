@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn a_quad_becomes_two_triangles_on_the_board() {
-        let quad = Quad { rect: [-2.0, -1.0, 2.0, 1.0], uv: [10.0, 20.0, 14.0, 22.0], color: [1, 2, 3, 255] };
+        let quad = Quad { rect: [-2.0, -1.0, 2.0, 1.0], uv: [10.0, 20.0, 14.0, 22.0], color: [1, 2, 3, 255], glint: false };
         let matrix = Mat4::from_translation(Vec3::new(0.5, 0.5, 0.5)) * Mat4::from_scale(Vec3::new(0.25, -0.25, 0.25));
         let mut out = Vec::new();
         push_quad(&mut out, &quad, &matrix, Vec3::new(10.0, 0.0, 0.0), [7.0, 15.0]);

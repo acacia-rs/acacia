@@ -34,10 +34,10 @@ pub struct Tracked {
     pub hitbox: Option<(f32, f32)>,
     /// The name tag shown over it: a player's name, or a mob's given name.
     pub name: Option<String>,
-    /// What it holds in its right hand.
-    pub held: Option<ItemKey>,
-    /// The armour it wears, as layers posed like its own.
-    pub armor: Vec<Arc<[Layer]>>,
+    /// What it holds in its right hand, and whether that is enchanted.
+    pub held: Option<(ItemKey, bool)>,
+    /// The armour it wears, as layers posed like its own, and whether each piece is enchanted.
+    pub armor: Vec<(Arc<[Layer]>, bool)>,
     /// Hurt animations so far, and whether it is dying ([`acacia_bot::state::Hurts`]).
     pub hurts: u32,
     pub dying: bool,
@@ -70,6 +70,7 @@ pub struct DroppedStack {
     pub count: u16,
     /// Network id plus aux; see [`acacia_render::item::drop::Drop::seed`].
     pub seed: i32,
+    pub enchanted: bool,
 }
 
 /// The entity data Molang queries read, copied out of the bot's metadata so the window thread
@@ -149,10 +150,10 @@ pub fn wrap_degrees(angle: f32) -> f32 {
 /// The body yaw one snapshot on. Servers sync where a mob heads and where it looks, not where its
 /// body points: like the vanilla client, the body eases towards the heading while moving and is
 /// dragged along once the head is turned too far.
-/// The item model key of a held stack; `None` for an empty hand.
-fn held_key(bot: &Bot, stack: &ItemStack) -> Option<ItemKey> {
+/// The item model key of a held stack and whether it is enchanted; `None` for an empty hand.
+fn held_key(bot: &Bot, stack: &ItemStack) -> Option<(ItemKey, bool)> {
     let name = bot.state().item_name(stack).filter(|_| !stack.is_empty())?.to_owned();
-    Some(ItemKey { name, aux: stack.metadata, block: crate::control::block_of(bot, stack) })
+    Some((ItemKey { name, aux: stack.metadata, block: crate::control::block_of(bot, stack) }, stack.is_enchanted()))
 }
 
 fn turn_body(body: f32, moved: bool, yaw: f32, head_yaw: f32) -> f32 {
@@ -210,12 +211,12 @@ impl Feed {
         } else if e.kind == ITEM_KIND {
             let stack = e.item.as_ref().filter(|s| !s.is_empty())?;
             let key = ItemKey { name: bot.state().item_name(stack)?.to_owned(), aux: stack.metadata, block: crate::control::block_of(bot, stack) };
-            dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32) });
-            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None, hurt: false };
+            dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32), enchanted: stack.is_enchanted() });
+            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None, hurt: false, glint: None };
             (e.kind.clone(), instance)
         } else {
             let (layers, scale) = self.models.appearance(&e.kind, &|name| facts.query(name))?;
-            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false };
+            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false, glint: None };
             (e.kind.clone(), instance)
         };
         // The player's own vehicle is not under its crosshair.
@@ -230,10 +231,11 @@ impl Feed {
         Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying, seat })
     }
 
-    /// The layers of the armour pieces among `worn` that the pack has attachables for.
-    fn armor<'a>(&self, bot: &Bot, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<Arc<[Layer]>> {
+    /// The layers of the armour pieces among `worn` that the pack has attachables for, each with
+    /// whether it is enchanted.
+    fn armor<'a>(&self, bot: &Bot, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<(Arc<[Layer]>, bool)> {
         let layers = |s: &ItemStack| self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")));
-        worn.filter(|s| !s.is_empty()).filter_map(layers).collect()
+        worn.filter(|s| !s.is_empty()).filter_map(|s| Some((layers(s)?, s.is_enchanted()))).collect()
     }
 
     fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, yaw: f32, scale: f32) -> Option<EntityInstance> {
@@ -255,7 +257,7 @@ impl Feed {
         let layers = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
         // The pack's player definition (and Java) draws the 2-block model at 0.9375.
         let scale = scale * 0.9375;
-        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None, hurt: false })
+        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None, hurt: false, glint: None })
     }
 }
 

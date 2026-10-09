@@ -1,9 +1,8 @@
 //! The recipe book beside an inventory screen (Java's `RecipeBookComponent`, 147 wide, left of the
 //! panel): what can be crafted now as a grid of 25-pixel buttons; a click crafts one.
 
-use crate::atlas::Sprite;
 use crate::draw::{DrawList, WHITE};
-use crate::hud::stack;
+use crate::hud::{Item, stack};
 use crate::inventory::{self, Layout};
 use crate::theme::Theme;
 use crate::widget::{Widgets, java};
@@ -41,7 +40,7 @@ pub fn hit(screen: Layout, size: [f32; 2], count: usize, mouse: [f32; 2]) -> Opt
 
 /// `results`: each craftable item's icon and the stack one craft makes. Java's look draws its
 /// `recipe_book.png` and `slot_craftable` buttons, Bedrock's its panel and cells, else flat greys.
-pub fn draw(list: &mut DrawList, theme: &Theme, screen: Layout, results: &[(Sprite, u16)], mouse: [f32; 2], size: [f32; 2]) {
+pub fn draw(list: &mut DrawList, theme: &Theme, screen: Layout, results: &[Item], mouse: [f32; 2], size: [f32; 2]) {
     let white = theme.atlas.white();
     let (book, cells) = layout(screen, size, results.len());
     let java = match &theme.widgets {

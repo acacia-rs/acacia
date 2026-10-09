@@ -8,6 +8,7 @@ use glam::{EulerRot, Mat3, Mat4, Vec3};
 use super::ItemModel;
 use crate::Camera;
 use crate::entity::{EntityInstance, Pose};
+use crate::glint::Glint;
 
 /// Right hand, at rest, in view space (x right, y up, z towards the viewer).
 const ARM: Vec3 = Vec3::new(0.56, -0.52, -0.72);
@@ -21,7 +22,8 @@ const ARM: Vec3 = Vec3::new(0.56, -0.52, -0.72);
 /// 0, 2.5, 0 px; 0.375.
 pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, light_at: glam::DVec3) -> EntityInstance {
     let frame = body * held_frame(model.block, hand);
-    EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false }
+    let glint = model.glint.then_some(Glint::Item);
+    EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
 }
 
 /// [`third_person`]'s item mesh to the holder's model space.
@@ -147,5 +149,6 @@ pub fn first_person(model: &ItemModel, display: Display, camera: &Camera, swing:
         pose: Pose::default(),
         frame: Some(frame),
         hurt: false,
+        glint: model.glint.then_some(Glint::Item),
     }
 }

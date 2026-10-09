@@ -37,6 +37,11 @@ impl ItemStack {
         self.network_id == 0 || self.count == 0
     }
 
+    /// Whether it carries enchantments: a non-empty `ench` list in the item NBT.
+    pub fn is_enchanted(&self) -> bool {
+        matches!(self.nbt.as_ref().and_then(|n| n.value.get("ench")), Some(Value::List(list)) if !list.items.is_empty())
+    }
+
     /// Applies one slot of a successful `ItemStackResponse`. The response carries no item type, so
     /// a slot that was empty stays empty here until the request sender records its prediction.
     pub(crate) fn apply_response(&mut self, slot: &ResponseSlot) {

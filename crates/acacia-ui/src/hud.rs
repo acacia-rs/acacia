@@ -26,6 +26,14 @@ pub mod sprite {
     pub const XP_PROGRESS: &str = "hud/experience_bar_progress";
 }
 
+/// An item in a slot: its icon in the atlas, the stack size, and whether it shimmers (enchanted).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Item {
+    pub icon: Sprite,
+    pub count: u16,
+    pub glint: bool,
+}
+
 /// What the HUD shows, from the player's state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HudState {
@@ -40,8 +48,7 @@ pub struct HudState {
     /// 0 to 1.
     pub xp_progress: f32,
     pub selected: u8,
-    /// Hotbar slots: the item's icon in the atlas and the stack size.
-    pub hotbar: [Option<(Sprite, u16)>; 9],
+    pub hotbar: [Option<Item>; 9],
     /// Creative and spectator show no health, food or experience.
     pub survival: bool,
     /// Off while a screen, menu or form is open.
@@ -91,8 +98,8 @@ pub fn draw(list: &mut DrawList, theme: &Theme, state: &HudState, size: [f32; 2]
 }
 
 /// An item's icon in a 16×16 slot at (`x`, `y`), with the stack size bottom-right above one.
-pub(crate) fn stack(list: &mut DrawList, font: Option<&Font>, (icon, count): (Sprite, u16), x: f32, y: f32) {
-    list.sprite_stretched(icon, [x, y, x + 16.0, y + 16.0], WHITE);
+pub(crate) fn stack(list: &mut DrawList, font: Option<&Font>, Item { icon, count, glint }: Item, x: f32, y: f32) {
+    list.icon(icon, [x, y, x + 16.0, y + 16.0], glint);
     if let (true, Some(font)) = (count > 1, font) {
         let text = count.to_string();
         font.draw(list, &text, x + 17.0 - font.width(&text), y + 9.0, 0xFFFFFF, 1.0, true);

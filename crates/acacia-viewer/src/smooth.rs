@@ -106,8 +106,8 @@ impl Smoother {
     }
 
     /// An item's model in the shown world's look (the held item's, for the hand).
-    pub fn item(&mut self, key: &acacia_render::item::ItemKey) -> Option<ItemModel> {
-        self.items.as_mut()?.get(key)
+    pub fn item(&mut self, key: &acacia_render::item::ItemKey, enchanted: bool) -> Option<ItemModel> {
+        self.items.as_mut()?.get(key, enchanted)
     }
 
     pub fn push(&mut self, snapshot: Vec<Tracked>) {
@@ -136,8 +136,8 @@ impl Smoother {
             .collect();
         (self.dropped, self.held) = match &mut self.items {
             Some(items) => (
-                self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, items.get(&e.dropped.as_ref()?.key)?))).collect(),
-                self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, items.get(e.held.as_ref()?)?))).collect(),
+                self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, e.dropped.as_ref().and_then(|d| items.get(&d.key, d.enchanted))?))).collect(),
+                self.to.iter().filter_map(|(e, _)| Some((e.runtime_id, e.held.as_ref().and_then(|(key, enchanted)| items.get(key, *enchanted))?))).collect(),
             ),
             None => (HashMap::new(), HashMap::new()),
         };
@@ -225,7 +225,8 @@ impl Smoother {
                 out.push(hand::third_person(item, body, hand, m.position + DVec3::Y));
             }
         }
-        let worn = e.armor.iter().map(|layers| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, ..e.instance.clone() });
+        let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);
+        let worn = e.armor.iter().map(|(layers, enchanted)| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, glint: glint(*enchanted), ..e.instance.clone() });
         out.extend(worn);
         out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
         out

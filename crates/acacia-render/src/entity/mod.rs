@@ -54,7 +54,8 @@ pub struct Layer {
 /// Materials blended by their texture's alpha: the shells of slimes and sulfur cubes.
 const BLENDED_MATERIALS: [&str; 1] = ["outer"];
 /// Materials with effects the entity pass does not draw (the charged creeper's scrolling aura,
-/// the guardian's ghost, the enchantment glint): their layers are left out.
+/// the guardian's ghost): their layers are left out. `enchanted` layers too: the glint is the
+/// instance's ([`EntityInstance::glint`]).
 const OVERLAY_MATERIALS: [&str; 7] = ["charged", "ghost", "wind", "bioluminescent", "dissolve", "spectator", "enchanted"];
 const PLAYER_GEOMETRIES: [&str; 3] = ["geometry.humanoid.custom", "geometry.humanoid.customSlim", "geometry.humanoid"];
 /// sRGB dye colours by the `color` data value, white first.
@@ -107,6 +108,8 @@ pub struct EntityInstance {
     pub frame: Option<glam::Mat4>,
     /// Hurt or dying: drawn with the red overlay.
     pub hurt: bool,
+    /// Enchanted: the glint shimmers over every layer.
+    pub glint: Option<crate::glint::Glint>,
 }
 
 impl EntityModels {

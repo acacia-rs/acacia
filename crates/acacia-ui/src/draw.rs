@@ -12,6 +12,8 @@ pub struct Quad {
     pub uv: [f32; 4],
     /// Multiplies the texel, straight alpha.
     pub color: [u8; 4],
+    /// An enchanted item's icon: the renderer shimmers its opaque texels.
+    pub glint: bool,
 }
 
 pub const WHITE: [u8; 4] = [255; 4];
@@ -56,10 +58,21 @@ impl DrawList {
         self.quad(rect, [u, v, u, v], color);
     }
 
+    /// An item's icon stretched over `rect` (GUI pixels), shimmering when `glint`.
+    pub fn icon(&mut self, sprite: Sprite, rect: [f32; 4], glint: bool) {
+        let (u, v) = (sprite.x as f32, sprite.y as f32);
+        self.push(rect, [u, v, u + sprite.width as f32, v + sprite.height as f32], WHITE, glint);
+    }
+
     pub(crate) fn quad(&mut self, rect: [f32; 4], uv: [f32; 4], color: [u8; 4]) {
-        let Some((rect, uv)) = clipped(rect, uv, self.clip) else { return };
+        self.push(rect, uv, color, false);
+    }
+
+    fn push(&mut self, rect: [f32; 4], uv: [f32; 4], color: [u8; 4], glint: bool) {
+        let Some((cut, uv)) = clipped(rect, uv, self.clip) else { return };
         let s = self.scale;
-        self.quads.push(Quad { rect: rect.map(|v| v * s), uv, color });
+        // A cut icon does not shimmer: the renderer lays the glint over a whole quad.
+        self.quads.push(Quad { rect: cut.map(|v| v * s), uv, color, glint: glint && cut == rect });
     }
 }
 
@@ -87,6 +100,18 @@ mod tests {
         list.sprite_part(sprite, 5.0, 6.0, [0.0, 0.0, 5.0, 9.0], WHITE);
         assert_eq!(list.quads[0].rect, [10.0, 12.0, 20.0, 30.0]);
         assert_eq!(list.quads[0].uv, [10.0, 20.0, 15.0, 29.0]);
+    }
+
+    #[test]
+    fn only_a_whole_enchanted_icon_shimmers() {
+        let sprite = Sprite { x: 0, y: 0, width: 16, height: 16 };
+        let mut list = DrawList::new(2.0);
+        list.icon(sprite, [0.0, 0.0, 16.0, 16.0], false);
+        list.icon(sprite, [20.0, 0.0, 36.0, 16.0], true);
+        list.clip = Some([0.0, 0.0, 48.0, 16.0]);
+        list.icon(sprite, [40.0, 0.0, 56.0, 16.0], true);
+        list.icon(sprite, [60.0, 0.0, 76.0, 16.0], true);
+        assert_eq!(list.quads.iter().map(|q| q.glint).collect::<Vec<_>>(), [false, true, false], "the last is clipped away");
     }
 
     #[test]
