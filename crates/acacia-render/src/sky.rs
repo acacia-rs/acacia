@@ -29,6 +29,9 @@ pub struct Sky {
     pub stars: f32,
     /// How visible the sun and moon are, 0 to 1.
     pub celestial: f32,
+    /// The sunrise or sunset glow (sRGB and its strength) while the sun is near the horizon, and
+    /// the side it is on: +1 east (+x), -1 west.
+    pub glow: Option<([f32; 4], f32)>,
 }
 
 /// Weather on the sky, from Java's `ClientLevel.getSkyColor` and `Level.updateSkyBrightness`.
@@ -53,8 +56,29 @@ impl Sky {
         let stars = (0.75 - height * 2.0).clamp(0.0, 1.0);
         let daylight = (height * 2.0 + 0.2).clamp(0.0, 1.0) * (1.0 - weather.rain * 5.0 / 16.0) * (1.0 - weather.thunder * 5.0 / 16.0);
         let color = [r * (light * 0.94 + 0.06), g * (light * 0.94 + 0.06), b * (light * 0.91 + 0.09)];
-        Sky { color: weathered(color, weather), darken: (1.0 - daylight) * NIGHT_DARKEN, turn, stars: stars * stars * 0.5 * clear, celestial: clear }
+        // The sun sets in the west through the first half of its turn and rises in the east in the second.
+        let glow = sunrise(height).map(|c| (c, if turn < 0.5 { -1.0 } else { 1.0 }));
+        Sky { color: weathered(color, weather), darken: (1.0 - daylight) * NIGHT_DARKEN, turn, stars: stars * stars * 0.5 * clear, celestial: clear, glow }
     }
+
+    /// The sky and fog colour seen looking along `forward`: pulled to the glow when facing it
+    /// (Java's `FogRenderer`).
+    pub fn color_towards(&self, forward: glam::Vec3) -> [f32; 3] {
+        let Some(([r, g, b, strength], side)) = self.glow else { return self.color };
+        let facing = (forward.x * side).max(0.0) * strength;
+        let glow = [r, g, b];
+        std::array::from_fn(|i| self.color[i] * (1.0 - facing) + glow[i] * facing)
+    }
+}
+
+/// Java's `getSunriseOrSunsetColor`: `height` is the sun's (1 at noon, 0 on the horizon).
+fn sunrise(height: f32) -> Option<[f32; 4]> {
+    if !(-0.4..=0.4).contains(&height) {
+        return None;
+    }
+    let h = height / 0.4 * 0.5 + 0.5;
+    let strength = (1.0 - (1.0 - (h * PI).sin()) * 0.99).powi(2);
+    Some([h * 0.3 + 0.7, h * h * 0.7 + 0.2, 0.2, strength])
 }
 
 /// White clouds greyed by the weather (`ClientLevel.getCloudColor`), linear.
@@ -101,7 +125,7 @@ mod tests {
     fn noon_is_bright_and_midnight_dark() {
         let clear = Weather::default();
         let noon = Sky::at(NOON, clear);
-        assert_eq!((noon.color, noon.darken, noon.turn, noon.stars, noon.celestial), (DAY, 0.0, 0.0, 0.0, 1.0));
+        assert_eq!((noon.color, noon.darken, noon.turn, noon.stars, noon.celestial, noon.glow), (DAY, 0.0, 0.0, 0.0, 1.0, None));
         let midnight = Sky::at(18000.0, clear);
         assert_eq!((midnight.darken, midnight.stars), (NIGHT_DARKEN, 0.5));
         assert!(midnight.color[2] < 0.1 && (midnight.turn - 0.5).abs() < 1e-6, "{midnight:?}");
@@ -110,6 +134,18 @@ mod tests {
         assert!(dusk.darken > 3.0 && dusk.darken < NIGHT_DARKEN, "{dusk:?}");
         assert_eq!(Sky::at(NOON + DAY_TICKS * 3.0, clear), noon, "the time wraps");
         assert_eq!((moon_phase(23999), moon_phase(24000), moon_phase(24000 * 9), moon_phase(-1)), (0, 1, 1, 7));
+    }
+
+    #[test]
+    fn the_horizon_glows_at_sunset_and_sunrise() {
+        // The sun is on the horizon at a quarter and three quarters of its turn: full strength, orange.
+        let sunset = (0..24000).map(|t| Sky::at(t as f32, Weather::default())).min_by(|a, b| (a.turn - 0.25).abs().total_cmp(&(b.turn - 0.25).abs())).unwrap();
+        let ([r, g, b, strength], side) = sunset.glow.expect("glow at sunset");
+        assert!(strength > 0.99 && (r - 0.85).abs() < 0.01 && (g - 0.375).abs() < 0.01 && b == 0.2 && side == -1.0, "{:?}", sunset.glow);
+        // Facing west the sky takes the glow's colour, facing east it keeps its own.
+        assert!((sunset.color_towards(glam::Vec3::NEG_X)[0] - r).abs() < 0.01);
+        assert_eq!(sunset.color_towards(glam::Vec3::X), sunset.color);
+        assert_eq!(Sky::at(0.0, Weather::default()).glow.map(|g| g.1), Some(1.0), "sunrise is in the east");
     }
 
     #[test]

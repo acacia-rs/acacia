@@ -17,6 +17,13 @@ const STARS: usize = 1500;
 const KIND_SUN: u32 = 0;
 const KIND_MOON: u32 = 1;
 const KIND_STAR: u32 = 2;
+const KIND_GLOW: u32 = 3;
+const KIND_DOME: u32 = 4;
+/// Points on the sunrise fan's rim (Java's 16), and on the sky disc's.
+const GLOW_RIM: usize = 16;
+/// Java's sky disc: 16 blocks overhead, 512 across each way.
+const DOME_HEIGHT: f32 = 16.0;
+const DOME_RADIUS: f32 = 512.0;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -31,12 +38,17 @@ struct Vertex {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Celestial {
     turn: [[f32; 4]; 4],
-    /// x: star brightness, y: moon phase.
+    /// x: star brightness, y: moon phase, z: sun and moon visibility, w: the glow's side.
     params: [f32; 4],
+    glow: [f32; 4],
+    /// rgb: the sky's colour overhead, linear.
+    zenith: [f32; 4],
 }
 
 pub struct SkyPass {
     pipeline: wgpu::RenderPipeline,
+    /// Draws the first vertices blended, not added: the sky disc and the sunrise fan.
+    glow: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     vertices: wgpu::Buffer,
@@ -101,7 +113,7 @@ impl SkyPass {
         let pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("sky"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
         let additive = wgpu::BlendComponent { src_factor: wgpu::BlendFactor::SrcAlpha, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add };
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let pipeline = |blend| device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("sky"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
@@ -128,17 +140,29 @@ impl SkyPass {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: color,
-                    blend: Some(wgpu::BlendState { color: additive, alpha: additive }),
-                    write_mask: wgpu::ColorWrites::COLOR,
-                })],
+                targets: &[Some(wgpu::ColorTargetState { format: color, blend: Some(blend), write_mask: wgpu::ColorWrites::COLOR })],
             }),
             multiview_mask: None,
             cache: None,
         });
+        // Java blends the glow over the sky, then adds the sun, moon and stars.
+        let (glow, pipeline) = (pipeline(wgpu::BlendState::ALPHA_BLENDING), pipeline(wgpu::BlendState { color: additive, alpha: additive }));
 
-        let mut vertices = Vec::with_capacity((STARS + 2) * 6);
+        let mut vertices = Vec::with_capacity((STARS + 2) * 6 + GLOW_RIM * 6);
+        for i in 0..GLOW_RIM {
+            let rim = |i: usize| {
+                let (sin, cos) = (i as f32 * TAU / GLOW_RIM as f32).sin_cos();
+                Vertex { position: [cos * DOME_RADIUS, DOME_HEIGHT, sin * DOME_RADIUS], kind: KIND_DOME, uv: [0.0; 2] }
+            };
+            vertices.extend([Vertex { position: [0.0, DOME_HEIGHT, 0.0], kind: KIND_DOME, uv: [0.0; 2] }, rim(i), rim(i + 1)]);
+        }
+        for i in 0..GLOW_RIM {
+            let rim = |i: usize| {
+                let (sin, cos) = (i as f32 * TAU / GLOW_RIM as f32).sin_cos();
+                Vertex { position: [cos, sin, 1.0], kind: KIND_GLOW, uv: [0.0; 2] }
+            };
+            vertices.extend([Vertex { position: [0.0; 3], kind: KIND_GLOW, uv: [0.0; 2] }, rim(i), rim(i + 1)]);
+        }
         quad(&mut vertices, KIND_SUN, Vec3::Y * DISTANCE, Vec3::X * SUN_HALF, Vec3::Z * SUN_HALF);
         quad(&mut vertices, KIND_MOON, Vec3::NEG_Y * DISTANCE, Vec3::X * MOON_HALF, Vec3::NEG_Z * MOON_HALF);
         stars(&mut vertices);
@@ -167,20 +191,28 @@ impl SkyPass {
                 wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::Sampler(&sampler) },
             ],
         });
-        SkyPass { pipeline, uniform, bind_group, vertices: vertex_buffer, count: vertices.len() as u32 }
+        SkyPass { pipeline, glow, uniform, bind_group, vertices: vertex_buffer, count: vertices.len() as u32 }
     }
 
     pub fn prepare(&self, queue: &wgpu::Queue, sky: &Sky, moon_phase: u8) {
         // The sun rises in the east (+x): the sky turns around the north-south axis.
         let turn = Mat4::from_rotation_y(-FRAC_PI_2) * Mat4::from_rotation_x(sky.turn * TAU);
-        let celestial = Celestial { turn: turn.to_cols_array_2d(), params: [sky.stars, f32::from(moon_phase), sky.celestial, 0.0] };
+        let ([r, g, b, strength], side) = sky.glow.unwrap_or(([0.0; 4], 1.0));
+        let [r, g, b] = super::globals::srgb_to_linear([r, g, b]);
+        let [zr, zg, zb] = super::globals::srgb_to_linear(sky.color);
+        let params = [sky.stars, f32::from(moon_phase), sky.celestial, side];
+        let celestial = Celestial { turn: turn.to_cols_array_2d(), params, glow: [r, g, b, strength], zenith: [zr, zg, zb, 0.0] };
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&celestial));
     }
 
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        pass.set_pipeline(&self.pipeline);
+        // The sky disc, then the glow fan over it.
+        let glow = (GLOW_RIM * 6) as u32;
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertices.slice(..));
-        pass.draw(0..self.count, 0..1);
+        pass.set_pipeline(&self.glow);
+        pass.draw(0..glow, 0..1);
+        pass.set_pipeline(&self.pipeline);
+        pass.draw(glow..self.count, 0..1);
     }
 }

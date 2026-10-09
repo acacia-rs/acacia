@@ -212,7 +212,7 @@ impl Renderer {
             true => Sky::at(self.time, self.weather),
             false => Sky::at(NOON, Default::default()),
         };
-        let fog = self.frame_fog(sky.color);
+        let fog = self.frame_fog(sky.color_towards(camera.forward()));
         let sky_pass = self.sky.as_ref().filter(|_| has_sky && !fog.in_fluid);
         if let Some(pass) = sky_pass {
             pass.prepare(&self.queue, &sky, self.moon_phase);
