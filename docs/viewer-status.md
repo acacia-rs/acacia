@@ -21,6 +21,7 @@ unit or pack tests only.
 | Entities | Death topple | tests |
 | Entities | Round shadows on the ground (radius from the hitbox) | live |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
+| Banners | Standing and wall banners with their dye and patterns, the ominous banner; no sway | live, both looks (20 of 42 patterns seen; composition by tests) |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
 | Moving | Creative flight (Space twice) | live, 0 corrections on a strict BDS |
 | Moving | Riding: boat, horse, pig, minecart; seat camera, sitting pose | live (pig pose: not seen) |
@@ -39,7 +40,7 @@ unit or pack tests only.
 - **Screens:** anvil, enchanting, trading, beacon, loom and the other Ui-slot stations; books; maps;
   the game's own sign editor (a four-line form stands in); creative inventory tabs; the crafting
   table's 3×3 grid by hand (the recipe book crafts).
-- **Entities:** enchantment glint, creeper and slime overlays, banner patterns, a leather
+- **Entities:** enchantment glint, creeper and slime overlays, patterns on held banners and shields, the banner's sway, a leather
   stack's own dye, the off hand, capes, boat paddles, camels, leads, fishing lines.
 - **Sky:** the End's and the Nether's skies, Java's fast clouds.
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
@@ -55,4 +56,6 @@ unit or pack tests only.
   between them (`src/net/setup.rs`). A summon right after a far teleport fails: wait first.
 - `ACACIA_KEYS="5 +W; 9 -W; 12 +Use; 15 click 640 300; 16 type Hello"`: scripted input
   (`src/keyscript.rs`).
+- Patterned banners: no command writes them, so `cargo run -p acacia-bot --example banners -- <server> [x y z]`
+  looms and places a row (it runs commands only on itself and within 40 blocks).
 - `RUST_LOG=chat=debug` logs each chat line's raw packet.

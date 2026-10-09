@@ -51,21 +51,15 @@ pub fn block_icon(block: &RenderBlock, atlas: &Atlas) -> Option<RgbaImage> {
 }
 
 /// A banner, which has no item texture (both games draw the entity): the flag's front from the
-/// pack's `banner_base` (Java's UV: 20×40 at 1, 1), dyed by the item's aux (legacy dye order,
-/// 15 white), with the crossbar above it.
+/// composed texture (Java's UV: 20×40 at 1, 1), dyed by the item's aux (legacy dye order,
+/// 15 white) and without the stack's patterns, with the crossbar above it.
 pub fn banner_icon(root: &std::path::Path, aux: u32) -> Option<RgbaImage> {
-    let base = image::open(crate::assets::image_file(root, "textures/entity/banner/banner_base")?).ok()?.into_rgba8();
+    let base = crate::banner::compose(root, &crate::banner::Banner::from_bedrock(aux as i32, [], 0))?;
     let scale = base.width() / 64;
     let flag = image::imageops::crop_imm(&base, scale, scale, 20 * scale, 40 * scale).to_image();
     let flag = image::imageops::resize(&flag, 14, 28, image::imageops::FilterType::Nearest);
-    let dye = crate::entity::DYES[15 - (aux as usize).min(15)];
-    let [r, g, b] = [16, 8, 0].map(|shift| ((dye >> shift) & 255) as u16);
     let mut icon = RgbaImage::new(SIZE, SIZE);
-    for (x, y, px) in flag.enumerate_pixels() {
-        let [fr, fg, fb, a] = px.0;
-        let tint = |c: u8, d: u16| (u16::from(c) * d / 255) as u8;
-        icon.put_pixel(x + 9, y + 3, image::Rgba([tint(fr, r), tint(fg, g), tint(fb, b), a]));
-    }
+    image::imageops::replace(&mut icon, &flag, 9, 3);
     for x in 7..25 {
         for y in 1..3 {
             icon.put_pixel(x, y, image::Rgba([0x6B, 0x51, 0x32, 255]));

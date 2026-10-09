@@ -6,8 +6,9 @@ use std::sync::Arc;
 use glam::{DVec3, IVec3};
 use rustc_hash::FxHashMap;
 
+use crate::banner::{self, Banner};
 use crate::blocks::model::{BlockData, BlockModel};
-use crate::entity::{EntityInstance, EntityModels, Layer, Pose};
+use crate::entity::{EntityInstance, EntityModels, Layer, Pose, Skin};
 use crate::sign_text::{self, SignTextMap};
 use crate::workers::SectionKey;
 
@@ -25,6 +26,8 @@ pub struct BlockModels {
     instances: Vec<EntityInstance>,
     text: Arc<SignTextMap>,
     signs: Vec<sign_text::Placed>,
+    /// Each distinct banner's composed texture in the models' pack; `None` when it has no base image.
+    banners: HashMap<Arc<Banner>, Option<Arc<Skin>>>,
     stale: bool,
 }
 
@@ -52,6 +55,7 @@ impl BlockModels {
 
     pub fn set_models(&mut self, models: Arc<EntityModels>) {
         self.models = models;
+        self.banners.clear();
         self.stale = true;
     }
 
@@ -75,6 +79,14 @@ impl BlockModels {
 
     fn rebuild(&mut self) {
         let mut layers: HashMap<(&str, String), Option<Arc<[Layer]>>> = HashMap::new();
+        let mut banners = std::mem::take(&mut self.banners);
+        let mut flag = |banner: Arc<Banner>| {
+            let compose = |b: &Arc<Banner>| {
+                let image = banner::compose(&self.models.root, b)?;
+                Some(Arc::new(Skin { width: image.width(), height: image.height(), rgba: image.into_raw(), mesh: None }))
+            };
+            banners.entry(banner).or_insert_with_key(compose).clone()
+        };
         self.instances.clear();
         self.signs.clear();
         for (&(cx, sy, cz), models) in &self.sections {
@@ -86,8 +98,10 @@ impl BlockModels {
                 let Some(placed) = model.place(pos, self.data.get(&pos.to_array())) else { continue };
                 let look = layers.entry((placed.geometry, placed.texture)).or_insert_with_key(|(geometry, texture)| self.models.block_layers(geometry, texture));
                 let Some(layers) = look.clone() else { continue };
-                self.instances.push(EntityInstance { layers, skin: None, position: placed.position, yaw: placed.yaw, scale: 1.0, pose: Pose::default(), frame: None, hurt: false });
+                let skin = placed.banner.and_then(&mut flag);
+                self.instances.push(EntityInstance { layers, skin, position: placed.position, yaw: placed.yaw, scale: 1.0, pose: Pose::default(), frame: None, hurt: false });
             }
         }
+        self.banners = banners;
     }
 }

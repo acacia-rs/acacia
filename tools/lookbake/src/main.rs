@@ -9,6 +9,7 @@
 //! - `lookbake java-check <quads.json.gz> [java dir]`: our bake of every Java block state against a
 //!   dump of the game's own (check.rs).
 
+mod banners;
 mod biomes;
 mod block;
 mod blockstate;
@@ -57,6 +58,7 @@ fn main() -> Result<(), Error> {
             ui::copy(&jar.assets, &out)?;
             environment::copy(&jar.assets, &out)?;
             particles::copy(&jar.assets, &out)?;
+            banners::copy(&jar.assets, &out)?;
             println!("  Java sounds: {} files", sounds::fetch(&out)?);
             println!("{}", summary(&look, &out));
             println!("  Java: {} states as cubes, {} as models, {} liquids; kept from Bedrock: {:?}", report.cubes, report.models, report.liquids, report.kept);

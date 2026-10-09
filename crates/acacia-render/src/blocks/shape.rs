@@ -49,7 +49,7 @@ const INVISIBLE: &[&str] = &[
     "frame", "moving_block", "piston_arm_collision", "sticky_piston_arm_collision",
 ];
 /// Rendered as nothing for now: they need a model of their own or attachment faces.
-const UNSUPPORTED: &[&str] = &["banner", "vine", "glow_lichen", "sculk_vein", "resin_clump", "piglin_head"];
+const UNSUPPORTED: &[&str] = &["vine","glow_lichen", "sculk_vein", "resin_clump", "piglin_head"];
 
 pub fn classify(state: &BlockState) -> Shape {
     let name = short_name(state.name);
