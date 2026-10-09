@@ -163,9 +163,9 @@ pub struct Contents<'a> {
     pub cursor: Option<Item>,
     /// A station's arrow and flame.
     pub progress: Progress,
-    /// What a bench with a pick list offers, and the one chosen.
+    /// What a bench with a pick list offers, and the ones chosen (a beacon has two powers).
     pub picks: &'a [Pick],
-    pub picked: Option<usize>,
+    pub picked: [Option<usize>; 2],
     /// The text in a bench's name box, up to the caret and after it.
     pub name: Option<(&'a str, &'a str)>,
 }
@@ -233,7 +233,7 @@ pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, con
     }
     let over = hit_pick(layout, size, contents.picks.len(), mouse);
     for (i, (rect, item)) in pick_rects(layout, size, contents.picks.len()).into_iter().zip(contents.picks).enumerate() {
-        art.pick(list, rect, contents.picked == Some(i), over == Some(i));
+        art.pick(list, rect, contents.picked.contains(&Some(i)), over == Some(i));
         let (inset, text) = (((rect[3] - rect[1] - 16.0) / 2.0).floor(), layout.picks().map_or(5.0, |p| p.text));
         for &(icon, count, x) in &item.icons {
             // Pick lists carry plain sprites: their stacks do not glint.

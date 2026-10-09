@@ -69,6 +69,14 @@ fn a_trade_screen_is_wider_with_the_offers_on_the_left() {
 }
 
 #[test]
+fn a_beacon_lists_its_powers_in_two_columns() {
+    let (beacon, size) = (Layout::Bench(Bench::Beacon), [320.0, 240.0]);
+    let [ox, oy] = origin(beacon, size);
+    assert_eq!(hit_pick(beacon, size, 8, [ox + 58.0 + 55.0 + 1.0, oy + 12.0 + 17.0 * 3.0 + 1.0]), Some(7), "the last button");
+    assert_eq!(hit(beacon, size, [ox + 27.0, oy + 39.0]), Some(Slot::Ui(27)), "the payment");
+}
+
+#[test]
 fn a_chest_sits_above_the_player_rows() {
     let chest = Layout::Rows(3);
     assert_eq!(chest.height(), 168.0);

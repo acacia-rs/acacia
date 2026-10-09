@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use acacia_bot::proto::types::WindowType;
 use acacia_bot::Bot;
 use acacia_bot::state::{ItemStack, TradeItem};
+use acacia_bot::workstation::BeaconEffect;
 use acacia_ui::inventory::{Bench, Progress, Station};
 
 use crate::control::{Stack, stack_of};
@@ -63,6 +64,18 @@ pub fn trade(bot: &Bot) -> Option<Trade> {
     Some(Trade { title: window.display_name.clone(), offers: offers.collect() })
 }
 
+/// The beacon screen's buttons: the five powers, the two second powers, and the confirm.
+pub const BEACON: [&str; 8] = ["Speed", "Haste", "Resist", "Jump", "Strength", "Regen", "Level II", "Done"];
+const POWERS: [BeaconEffect; 5] = [BeaconEffect::Speed, BeaconEffect::Haste, BeaconEffect::Resistance, BeaconEffect::JumpBoost, BeaconEffect::Strength];
+const REGENERATION: usize = 5;
+pub const BEACON_DONE: usize = 7;
+
+/// The powers the picked buttons stand for: the second is regeneration or the first again.
+pub fn beacon_powers([first, second]: [Option<usize>; 2]) -> Option<(BeaconEffect, Option<BeaconEffect>)> {
+    let primary = *POWERS.get(first?)?;
+    Some((primary, second.map(|s| if s == REGENERATION { BeaconEffect::Regeneration } else { primary })))
+}
+
 pub fn bench(window: WindowType) -> Option<Bench> {
     Some(match window {
         WindowType::Workbench => Bench::Crafting,
@@ -72,6 +85,7 @@ pub fn bench(window: WindowType) -> Option<Bench> {
         WindowType::Stonecutter => Bench::Stonecutter,
         WindowType::Cartography => Bench::Cartography,
         WindowType::Enchantment => Bench::Enchanting,
+        WindowType::Beacon => Bench::Beacon,
         _ => return None,
     })
 }
@@ -94,6 +108,14 @@ pub fn progress(station: Station, data: &HashMap<i32, i32>) -> Progress {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn beacon_buttons_name_their_powers() {
+        assert_eq!(beacon_powers([Some(1), None]), Some((BeaconEffect::Haste, None)));
+        assert_eq!(beacon_powers([Some(4), Some(5)]), Some((BeaconEffect::Strength, Some(BeaconEffect::Regeneration))));
+        assert_eq!(beacon_powers([Some(0), Some(6)]), Some((BeaconEffect::Speed, Some(BeaconEffect::Speed))), "level II");
+        assert_eq!(beacon_powers([None, Some(5)]), None);
+    }
 
     #[test]
     fn furnace_progress_comes_from_its_properties() {

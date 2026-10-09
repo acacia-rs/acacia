@@ -50,6 +50,8 @@ pub enum Command {
     Enchant(usize),
     /// A click on a trader's offer of this index: one trade.
     Trade(usize),
+    /// The beacon screen's confirm with these powers.
+    Beacon(acacia_bot::workstation::BeaconEffect, Option<acacia_bot::workstation::BeaconEffect>),
     /// A click outside the screen: throws the held stack, or one of it.
     DropCursor { one: bool },
     /// The player's answer to open form `id`.
@@ -199,6 +201,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::TakeCut { id, all } => bot.take_stonecut(id, all).await,
         Command::Enchant(option) => bot.take_enchant(option).await,
         Command::Trade(offer) => bot.trade_once(offer).await,
+        Command::Beacon(primary, secondary) => bot.take_beacon(primary, secondary).await,
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
         Command::Craft { name, table } => bot.craft(&name, 1, table).await.map(|_| ()),
         Command::DropCursor { one } => bot.drop_cursor(one).await,

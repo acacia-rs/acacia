@@ -1,8 +1,8 @@
 //! The inventory screen (E) and container screens (a chest clicked): opening frees the mouse,
 //! clicks go to the slot under it.
 
-use acacia_bot::items::{Click, SlotRef};
-use acacia_ui::inventory::{self, Layout, Slot};
+use acacia_bot::items::{Click, SlotRef, ui};
+use acacia_ui::inventory::{self, Bench, Layout, Slot};
 use acacia_ui::input::Key;
 use acacia_ui::recipes;
 use winit::event::MouseButton;
@@ -48,9 +48,10 @@ impl App {
         let opened = |i: &Inventory| i.container.is_some() || i.bench.is_some() || i.trade.is_some();
         let (had, has) = (opened(&self.inventory), opened(&inventory));
         if inventory.picks != self.inventory.picks {
-            self.pick = None;
+            self.pick = [None; 2];
         }
         if inventory.bench != self.inventory.bench {
+            self.pick = [None; 2];
             self.rename(|name| *name = acacia_ui::widget::TextEdit::new("", NAME_MAX));
         }
         self.inventory = inventory;
@@ -145,10 +146,15 @@ impl App {
             return;
         }
         if let Some(i) = inventory::hit_pick(layout, size, self.inventory.picks.len(), at) {
-            self.pick = Some(i);
+            self.pick[0] = Some(i);
             return;
         }
-        let picked = self.pick.and_then(|i| self.inventory.picks.get(i));
+        if layout == Layout::Bench(Bench::Beacon) {
+            if let Some(i) = inventory::hit_pick(layout, size, crate::stations::BEACON.len(), at) {
+                return self.beacon_click(i);
+            }
+        }
+        let picked = self.pick[0].and_then(|i| self.inventory.picks.get(i));
         let command = match inventory::hit(layout, size, at) {
             Some(Slot::Result) if !self.inventory.picks.is_empty() => match picked {
                 Some(&(id, _)) => Command::TakeCut { id, all: click == Click::Shift },
@@ -158,11 +164,26 @@ impl App {
                 let name = Some(self.name.text()).filter(|n| !n.is_empty() && self.names());
                 Command::TakeCrafted { all: click == Click::Shift, name }
             }
+            // A beacon takes one item: the held stack is not put down whole.
+            Some(Slot::Ui(ui::BEACON_PAYMENT)) if self.inventory.cursor.is_some() => Command::Click(SlotRef::Ui(ui::BEACON_PAYMENT), Click::Right),
             Some(slot) => Command::Click(slot_ref(slot), click),
             None if !inventory::inside(layout, size, at) => Command::DropCursor { one: click == Click::Right },
             None => return,
         };
         let _ = self.net.commands.send(command);
+    }
+
+    /// A beacon button: a power, one of the two second powers (again to drop it), or the confirm.
+    fn beacon_click(&mut self, button: usize) {
+        match button {
+            0..=4 => self.pick[0] = Some(button),
+            crate::stations::BEACON_DONE => {
+                if let Some((primary, secondary)) = crate::stations::beacon_powers(self.pick) {
+                    let _ = self.net.commands.send(Command::Beacon(primary, secondary));
+                }
+            }
+            _ => self.pick[1] = Some(button).filter(|b| self.pick[1] != Some(*b)),
+        }
     }
 
     /// The window's size in GUI pixels and the scale.

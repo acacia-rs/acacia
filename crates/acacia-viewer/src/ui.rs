@@ -73,7 +73,7 @@ pub struct Screen<'a> {
     pub inventory: &'a Inventory,
     pub layout: Layout,
     /// What is picked from its list.
-    pub picked: Option<usize>,
+    pub picked: [Option<usize>; 2],
     /// The text in its name box, before the caret and after.
     pub name: Option<(&'a str, &'a str)>,
 }

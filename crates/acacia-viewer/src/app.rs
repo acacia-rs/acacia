@@ -68,8 +68,8 @@ pub struct App {
     players: Vec<String>,
     /// The inventory screen is open (E).
     screen_open: bool,
-    /// The result picked from an open stonecutter's list.
-    pick: Option<usize>,
+    /// What is picked from an open screen's list: a stonecutter's result, a beacon's two powers.
+    pick: [Option<usize>; 2],
     /// The text in an open anvil's name box.
     name: acacia_ui::widget::TextEdit,
     /// The pause menu or options (Esc).
@@ -144,7 +144,7 @@ impl App {
             // For unattended screenshots of the pause menu.
             menu: std::env::var_os("ACACIA_MENU").map(|_| Menu::Pause),
             quit: false,
-            pick: None,
+            pick: [None; 2],
             name: acacia_ui::widget::TextEdit::new("", screen::NAME_MAX),
             inventory: Inventory::default(),
             mouse: [0.0; 2],

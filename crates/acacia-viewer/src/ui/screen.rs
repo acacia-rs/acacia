@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use acacia_ui::DrawList;
-use acacia_ui::inventory::{self, Contents, Pick, Slot};
+use acacia_ui::inventory::{self, Bench, Contents, Pick, Slot};
 use acacia_ui::lang::Lang;
 
 use super::{Screen, Skin};
@@ -20,7 +20,7 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &S
     for (slot, _) in inventory::slots(layout) {
         // A pick list's result is the picked one.
         let shown = match slot {
-            Slot::Result if !inventory.picks.is_empty() => picked.and_then(|i| inventory.picks.get(i)).map(|p| &p.1),
+            Slot::Result if !inventory.picks.is_empty() => picked[0].and_then(|i| inventory.picks.get(i)).map(|p| &p.1),
             _ => stack_in(inventory, slot),
         };
         if let Some(item) = shown.and_then(|s| skin.item(s)) {
@@ -44,7 +44,7 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &S
     }
 }
 
-/// The open screen's pick list: only one of the three kinds is ever filled.
+/// The open screen's pick list: only one of the kinds is ever filled.
 fn picks(skin: &mut Skin, inventory: &Inventory) -> Vec<Pick> {
     let mut at = |s: &Stack, x: f32| skin.icon(&s.name, s.aux, s.block).map(|icon| (icon, s.count, x));
     let mut picks: Vec<Pick> = inventory.picks.iter().map(|(_, s)| Pick { icons: at(&Stack { count: 1, ..s.clone() }, 0.0).into_iter().collect(), label: String::new() }).collect();
@@ -53,6 +53,9 @@ fn picks(skin: &mut Skin, inventory: &Inventory) -> Vec<Pick> {
         let prices = [(Some(&offer.price), PRICE[0]), (offer.second_price.as_ref(), PRICE[1]), (Some(&offer.goods), GOODS)];
         let icons = prices.into_iter().filter_map(|(stack, x)| at(stack?, x)).collect();
         picks.push(Pick { icons, label: if offer.open { ">" } else { "x" }.into() });
+    }
+    if inventory.bench == Some(Bench::Beacon) {
+        picks.extend(crate::stations::BEACON.iter().map(|label| Pick { icons: Vec::new(), label: (*label).into() }));
     }
     picks
 }
