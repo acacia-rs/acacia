@@ -83,11 +83,13 @@ impl Metadata {
         }
     }
 
-    /// Degrees the seat turns the rider from its vehicle's yaw (`RiderSeatRotationOffset`).
-    pub fn seat_turn(&self) -> f32 {
+    /// Degrees a seat that locks its rider's rotation (`RiderRotationLocked`) turns the rider from the
+    /// vehicle's yaw (`RiderSeatRotationOffset`); `None` on a seat that leaves the rider free.
+    pub fn seat_turn(&self) -> Option<f32> {
+        let locked = matches!(self.plain(Key::RiderRotationLocked), Some(Plain::Byte(b)) if *b != 0);
         match self.plain(Key::RiderSeatRotationOffset) {
-            Some(Plain::Float(v)) => *v,
-            _ => 0.0,
+            Some(Plain::Float(v)) if locked => Some(*v),
+            _ => locked.then_some(0.0),
         }
     }
 

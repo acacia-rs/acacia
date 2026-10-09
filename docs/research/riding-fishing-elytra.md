@@ -45,12 +45,11 @@ per-kind hitboxes (`interact/geometry.rs`), since aiming at a player-sized box a
   still carries the standing (0,-0.078,0). Move vector/flags are the player's WASD.
 - **Boat** (client-predicted): from the **first** seated tick `ClientPredictedVehicle` + `vehicle_rotation =
   (0, vehicle yaw)` (yaw unwrapped, 135 → 766) + `predicted_vehicle = unique id`; position/delta = the boat's.
-  PaddlingLeft only with Left, PaddlingRight only with Right. Other predicted vehicles (horses, camels) assumed
-  the same: **UNKNOWN**.
+  PaddlingLeft only with Left, PaddlingRight only with Right. Horses the same, with (pitch, yaw) and the jump
+  key's flags; camels: **UNKNOWN**.
 - Vehicle position source: `Trackers::entities` moves when enabled, else the spawn pose kept by `state::Riding`.
 - Never send MoveActorAbsolute, PlayerInput, row Animates or PassengerJump (legacy; Geyser rejects them).
-- Physics bots stop simulating while seated; vehicle physics is the physics session's
-  (docs/physics-handoff-glide-vehicles.md).
+- Physics bots simulate the horse or boat they drive ("Horse", "Boat" below) and stop simulating on anything else.
 
 ## Fishing (`Bot::fish`)
 - **Cast and reel are identical**: `Animate SwingArm "useitem"` then `ItemUse ClickAir {trigger UnknownValue,
@@ -108,23 +107,72 @@ vx *= 0.99; vy *= 0.98; vz *= 0.99; then move + collide
 - **UNKNOWN**: wall-impact damage (`GlidingCollisionDamageCalculateSystem`, not decoded), the durability
   threshold, the glide box size.
 
-### Horse (`acacia-physics` `vehicle.rs`, bot `riding/horse.rs`; BDS 1.26.52, verified live 2026-10-03)
+### Horse (`acacia-physics` `vehicle.rs`, bot `riding/horse.rs`; BDS 1.26.52, strict movement, 2026-10-09)
 Client-predicted when tamed, saddled and driven by a player. Per tick:
 - **Yaw:** eases toward the rider's. With `d = wrap180(riderYaw − yaw)`, `yaw += d·0.7·max(0.18, (45 − min(|d|, 45))/90)`.
 - **Pitch:** rider pitch × 0.5.
-- **Move vector:** strafe × 0.5, backward × 0.25, forward unchanged.
+- **Move vector:** the keys, normalised when two are held, then strafe × 0.5, backward × 0.25. It is **not**
+  scaled by the player's 0.98, on the ground or in the air.
 - **Travel:** the player's ground travel with the horse's `minecraft:movement`. Air speed is movement × 0.1.
 - **Box and step:** 1.4 × 1.6; step height 1.0625 with a controlling rider.
 
-Corrections:
-- BDS corrects a yaw gap on its own; the correction's rotation is (pitch, yaw).
-- It ignores the client's reported delta: sending 0 changed nothing.
+**Charged jump** (bdsre: `PassengerJumpTrigger` 143b722e0, `MobOnPlayerJumpServerSystem` 14665b7f0, `ApplyJumpModifier`
+145e36020). The server charges it from the rider's `Jumping` flag; nothing else is sent:
+```
+held this tick and the tick before: scale = t < 9 ? (t+1)·0.1 : 0.8 + 0.2/(t−8); t += 1
+released:  amount = int(scale·100); power = amount >= 90 ? 1 : 0.4 + 0.4·amount/90; t = −10 (counts back up to 0)
+on the ground with power > 0:  vy = jump_strength·power (+ jump boost, × 0.6 on honey)
+                               forward key held: vx −= sin(yaw)·0.4·power; vz += cos(yaw)·0.4·power (sine table)
+```
+`jump_strength` is the horse's `minecraft:horse.jump_strength` attribute. The jump leaves the ground on the release tick.
 
-Live (`ride_horse`, horse at 0.2): walking, turning, strafing, backing and a 1-block ledge, with 0 corrections.
+Corrections: BDS corrects a yaw gap on its own (rotation is pitch, yaw) and ignores the reported delta.
 
-**Open:** above about movement 0.25, BDS's steady speed drifts from the formula. At 0.3 it was 0.3547751 against our 0.35356, reproducible. At 0.35 two sweeps disagreed: +1% once, no corrections the next time; the cause is not known. Probe with `HORSE_SWEEP=… ONLY=horse_sweep tools/live-repeat.sh`, or compare against a vanilla capture of a fast horse. The charged jump is not modelled yet.
+Live on strict BDS (viewer, natural horses at movement 0.125–0.21): walking, easing to the rider's yaw, strafing,
+backing, all four diagonals, a standing and two running jumps: 2 corrections in about 500 ticks, both 1e-5 apart.
+The 2026-10-03 fit (keys × 0.98, a drift above movement 0.25) came from the action-test BDS, whose default
+0.5-block acceptance lets the server follow the client: only a strict server shows the rule.
+
+### Boat (`acacia-physics` `boat.rs`, bot `riding/boat.rs`; BDS 1.26.52, strict movement, 2026-10-09)
+Client-predicted for its driver. The position is 0.375 above the box's bottom (1.4 × 0.455), the bow points 90° left
+of the yaw (`a = (90 − yaw)·π/180`, direction `(sin a, cos a)`), the yaw is never wrapped. Constants from bdsre
+(`PassengerBoatPaddleInputSystem` 1483a31c0, `VehicleBoatPaddleInputSystem` 1483a4a10, `BoatMoveFrictionSystem`
+1424dffa0, `BoatMoveControlServerSystem` 14250c800, buoyancy 1483a9b40/1483ac050/1483a91e0); order and inputs fitted
+to the server's corrections. Per tick:
+```
+x, y = keys, normalised when two are held; a held forward key makes y = 1 all the same
+pull = sqrt(x² + y²); y < 0: x = −x, pull ·= −0.15
+left = (x > 0 ? 1 − x : 1)·pull; right = (x <= 0 ? x + 1 : 1)·pull         (x + is the left key)
+force = 3·paddle on a stroke's first tick, sign·(|3·paddle| − 0.1) on the next nine; f = force·0.01375
+fr = 0.9 in or on water, the block's friction on the ground, 1 in the air (no thrust there)
+vx, vz, yawVel ·= fr
+forward = fL + fR; torque = 3·fL − 3·fR;  vx² + vz² < 0.01 and torque ≠ 0: forward ·= fr, torque ·= 1.6
+yawVel = (torque·10 + yawVel)·fr; yaw += yawVel
+vx = (forward·sin a + vx)·fr; vz = (forward·cos a + vz)·fr;  move (Y, X, Z), motion = what was moved
+wave += (sqrt(vx² + vz²)·30 + 1)·0.05, ten times that with probability 0.03 (the server's own random)
+vy = (vy − 0.04)·0.98
+floating (in a water block with none above, below its top): depth = clamp((1 − frac(y))·0.9 + 0.1, 0, 1)
+    vy = min(vy·0.7 + 0.05, (depth − (sin(wave) + 1)·0.035 − 0.1)·0.15)
+```
+- The big waves cannot be predicted, so the vertical position drifts and BDS corrects (a vanilla client too: most
+  ticks in the capture). A correction's vertical motion gives the wave's sine back; of the two phases with that
+  sine the bot takes the one a correction up to 8 ticks before agrees with. It then replays the inputs sent since.
+- The correction carries position, motion, yaw and the yaw's speed (`angular_velocity`).
+- Inputs: position and delta are the boat's, `vehicle_rotation = (0, yaw)`, WASD flags, PaddlingLeft/Right with
+  Left/Right. The paddling flags are only read for touch with the classic interaction model (bdsre).
+
+Live on strict BDS (viewer), two runs:
+- W, a coast, A, D, S, W+A over 262 ticks: 29 corrections. In all 28 with a traced input x, z and yaw were equal
+  and only the height was off (the waves: two or three corrections per big wave, more while the speed changes).
+- S+D, W+A, W, W+D and a coast over 371 ticks: 14 corrections; 10 height only, one 5e-6 in y, two 1–2e-5 in x or z.
+**Not checked:** ice and land friction, collisions with banks, flowing water, the 25-tick underwater ejection.
+
+### Other vehicles
+Pigs and minecarts are server-driven (no `ClientPredictedVehicle`): the seated input reports the seat and the
+rider's WASD. Riders' seats come with `SetEntityData`: `RiderSeatPosition` (the rider's wire position against the
+vehicle, in its frame) and `RiderSeatRotationOffset` (a boat's −90).
 
 ## Still open
 1. Exit spot: `dismount_mode on_top_center` vehicles and exempt blocks (`blockIgnoredForExit`) are not modelled.
-2. Seated inputs for horses, camels, minecarts, striders and back seats; sneak-to-dismount (not captured).
+2. Seated inputs for camels, striders and back seats; sneak-to-dismount (not captured).
 3. Right-click elytra equip; recast pacing after a catch (n=1).

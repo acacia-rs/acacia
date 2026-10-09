@@ -79,7 +79,12 @@ const MAX_HOPS: usize = 4;
 /// entity seen by another player at rest has them. Unset, reading one ends the whole script
 /// (acacia-molang README, "Rules BDS follows"): the player's `pre_animation` stopped at
 /// `attack_time` before setting `tcos0`, and its controllers never left first person.
-pub(super) const BUILT_IN: [(&str, f32); 7] = [
+pub(super) const BUILT_IN: [(&str, f32); 11] = [
+    // A minecart on level track: unset, its `move` animation left the cart 18.5 pixels up.
+    ("rail_offset.x", 0.0),
+    ("rail_offset.y", 0.0),
+    ("rail_offset.z", 0.0),
+    ("rail_rotation.z", 0.0),
     ("gliding_speed_value", 1.0),
     ("is_first_person", 0.0),
     ("is_paperdoll", 0.0),

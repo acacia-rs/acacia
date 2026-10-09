@@ -21,6 +21,10 @@ bedsim files (`movement.rs` = `simulateMovement`, `collide.rs` = `tryCollisions`
   (`acacia-bot` sets the effects from `MobEffect` and the equipment from the worn armour).
 - `WorldView`: `block_collisions(pos)` (block-local boxes), `block(pos) -> BlockPhysics`, plus the defaulted
   `collisions(area)` and `is_area_loaded(area)`. `test_world::TestWorld` is a synthetic grid.
+- Vehicles a player drives, not from bedsim but fitted to strict BDS (docs/research/riding-fishing-elytra.md
+  "Horse", "Boat"): `horse(feet, yaw, speed)` + `horse_tick(state, &mut HorseJump, &RiderInput, world)` run a
+  horse as a `PlayerState` with its own box, step and unscaled keys; `boat_tick(&mut BoatState, keys, world)`
+  paddles a boat, and `wave_phases`/`wave_step` read its wave back out of a server correction.
 
 ## Ported
 Gravity and drag, per-block friction (ice, blue ice, slime, honey) and soul sand acceleration, walk, sprint and
@@ -35,7 +39,7 @@ boost. Effects: jump boost, levitation, slow falling. Also ported: elytra glidin
 ticks), sneak, crawl and swim pose fitting under ceilings, teleports, knockback, and loaded-area freezing.
 
 ## Not ported
-Riptide, vehicles and no-clip (bedsim does not simulate these either; it resets to the client),
+Riptide, vehicles other than horses and boats, and no-clip (bedsim does not simulate these either; it resets to the client),
 bedsim's client-drift correction and reconciliation, the step tie-breaker (always accepted, as with
 `IgnoreClientStepTiebreaker`), slide offset, legacy sprint timing, server-forced sprint, crawl input flags,
 the `AutoJumpingInWater` input flag, scaffolding's unsupported-bottom lip, and powder snow's player-dependent

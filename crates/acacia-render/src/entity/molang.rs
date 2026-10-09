@@ -91,8 +91,9 @@ impl<'a> Scope<'a> {
         Scope { compiler, query, variables: Variables::new(), scratch: Scratch::new(), this: 0.0 }
     }
 
-    pub(super) fn set(&mut self, variable: Variable, value: f32) {
-        self.variables.set(variable, value);
+    /// Sets `variable`, or its member at `path`.
+    pub(super) fn set(&mut self, variable: Variable, path: &[Symbol], value: f32) {
+        self.variables.set_member(variable, path, value);
     }
 
     fn eval(&mut self, program: &Program) -> acacia_molang::Value {

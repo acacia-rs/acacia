@@ -51,13 +51,13 @@ pub struct Seat {
     pub vehicle: u64,
     /// The rider's feet against the vehicle, in the vehicle's frame.
     pub offset: Vec3,
-    /// Degrees the rider's body is turned from the vehicle's yaw.
-    pub turn: f32,
+    /// Degrees the rider's body is held at from the vehicle's yaw; `None` on a seat that leaves it free.
+    pub turn: Option<f32>,
 }
 
 /// The seat of the rider with this unique id, from the server's link and the rider's seat data
 /// (`RiderSeatPosition`, `RiderSeatRotationOffset`).
-fn seat_of(bot: &Bot, rider: i64, offset: Option<[f32; 3]>, turn: f32, player: bool) -> Option<Seat> {
+fn seat_of(bot: &Bot, rider: i64, offset: Option<[f32; 3]>, turn: Option<f32>, player: bool) -> Option<Seat> {
     let state = bot.state();
     let vehicle = state.entities.by_unique(state.riding.vehicle_of(rider)?)?.runtime_id;
     // Players' wire position is their eyes'.
@@ -172,7 +172,7 @@ impl Feed {
 
         let me = &state.player;
         let uuid = state.player_list.iter().find(|p| p.entity_unique_id == me.unique_entity_id).map(|p| p.uuid);
-        let seat = seat_of(bot, me.unique_entity_id, state.riding.seat_offset.as_ref().map(|o| [o.x, o.y, o.z]), state.riding.seat_turn, true);
+        let seat = seat_of(bot, me.unique_entity_id, state.riding.seat_offset.as_ref().map(|o| [o.x, o.y, o.z]), state.riding.seat_turn(), true);
         // Seated, the server's position and rotation of the player are stale: the seat and the aim sent are not.
         let (eyes, (head_yaw, pitch)) = match seat {
             Some(_) => (DVec3::from(bot.eye_position().map(f64::from)), bot.facing()),

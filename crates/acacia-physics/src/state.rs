@@ -67,14 +67,12 @@ pub struct PlayerState {
     pub movement_attribute: f32,
     /// Powder snow freezing, 0 to 1 (see `block_effects::update_freeze`).
     pub freeze: f32,
-    /// The server's freeze for the next tick, taken instead of stepping it: BDS steps per world tick, which
-    /// drifts by a step either way from the input ticks.
+    /// The server's freeze for the next tick, taken instead of stepping it (BDS steps per world tick: a step off either way).
     pub server_freeze: Option<f32>,
     pub air_speed: f32,
     /// Replaces the walk/sprint air speed: a ridden horse's is its movement attribute x 0.1 (`vehicle.rs`).
     pub fixed_air_speed: Option<f32>,
-    /// What the move vector is scaled by: a player's 0.98, a ridden horse's 1 (`vehicle.rs`).
-    pub input_scale: f32,
+    pub input_scale: f32, // the move vector's scale: a player's 0.98, a ridden horse's 1 (`vehicle.rs`)
     /// Highest ledge walked up without a jump: the player's 0.5625, a ridden horse's 1.0625.
     pub step_height: f32,
     pub underwater_movement_speed: f32,

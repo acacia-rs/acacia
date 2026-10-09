@@ -10,6 +10,8 @@
 //!     button uses or places; 1-9 and the wheel pick the hotbar slot; T or / opens the chat (Enter
 //!     sends, Up recalls); F5 changes the perspective; E opens the inventory (click, right-click,
 //!     shift-click; outside drops); Esc opens the pause menu and its options.
+//!     Right-click a boat, minecart, or saddled horse or pig to ride it: WASD steers (Space held and
+//!     released jumps a horse), Shift gets off.
 //!   - Either: F3 shows the debug screen.
 //!   - Free camera: WASD/Space/Shift fly, Ctrl faster, wheel changes speed, F jumps to the bot,
 //!     V toggles vsync, C toggles cave culling (both remembered).

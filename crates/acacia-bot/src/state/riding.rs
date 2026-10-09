@@ -5,7 +5,7 @@ use acacia_client::proto::packets::{AddEntity, AddPlayer, ChangeDimension, Remov
 use acacia_client::proto::types::{Link, MetadataDictionaryItemKey, MetadataDictionaryItemValue, MetadataDictionaryItemValueDefault, Vec3f};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
-use super::Me;
+use super::{Me, Metadata};
 
 /// `EntityLink` types (gophertunnel `EntityLinkRemove`/`Rider`/`Passenger`).
 const LINK_REMOVE: u8 = 0;
@@ -46,8 +46,8 @@ pub struct Riding {
     pub vehicle: Option<Vehicle>,
     /// The own seat offset from the vehicle (`SetEntityData` RiderSeatPosition), while riding.
     pub seat_offset: Option<Vec3f>,
-    /// Degrees the seat turns its rider from the vehicle's yaw (`RiderSeatRotationOffset`; a boat's -90).
-    pub seat_turn: f32,
+    /// The own seat's metadata.
+    seat: Metadata,
     spawned: HashMap<i64, Spawned>,
     /// Every linked rider's vehicle, by unique ids (the local player's included).
     links: HashMap<i64, i64>,
@@ -76,11 +76,16 @@ impl Riding {
         self.links.get(&rider).copied()
     }
 
+    /// The own seat's turn: see [`Metadata::seat_turn`] (a boat's -90).
+    pub fn seat_turn(&self) -> Option<f32> {
+        self.seat.seat_turn()
+    }
+
     /// Forgets the seat without waiting for the server, as the vanilla client does when it dismounts.
     pub(crate) fn leave(&mut self) {
         self.vehicle = None;
         self.seat_offset = None;
-        self.seat_turn = 0.0;
+        self.seat = Metadata::default();
     }
 
     pub fn apply(&mut self, packet: &RawPacket, me: &Me) -> Result<(), DecodeError> {
@@ -103,17 +108,15 @@ impl Riding {
             SetEntityLink::ID => self.on_link(&packet.decode::<SetEntityLink>()?.link, me),
             // Every entity's metadata comes through here; only the own is decoded.
             SetEntityData::ID if read_varint64(&mut &packet.body[..])? == me.runtime_entity_id => {
-                for m in packet.decode::<SetEntityData>()?.metadata {
-                    match (m.key, m.value) {
-                        (MetadataDictionaryItemKey::RiderSeatPosition, MetadataDictionaryItemValue::Default(MetadataDictionaryItemValueDefault::Vec3f(v))) => {
-                            self.seat_offset = Some(v);
-                        }
-                        (MetadataDictionaryItemKey::RiderSeatRotationOffset, MetadataDictionaryItemValue::Default(MetadataDictionaryItemValueDefault::Float(v))) => {
-                            self.seat_turn = v;
-                        }
-                        _ => {}
+                use MetadataDictionaryItemKey as Key;
+                let mut items = packet.decode::<SetEntityData>()?.metadata;
+                items.retain(|m| matches!(m.key, Key::RiderSeatPosition | Key::RiderRotationLocked | Key::RiderSeatRotationOffset));
+                for m in &items {
+                    if let MetadataDictionaryItemValue::Default(MetadataDictionaryItemValueDefault::Vec3f(v)) = &m.value {
+                        self.seat_offset = Some(v.clone());
                     }
                 }
+                self.seat.merge(items);
             }
             ChangeDimension::ID => {
                 self.spawned.clear();

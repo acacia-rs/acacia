@@ -345,7 +345,8 @@ way from the Bedrock one (docs/java-look.md).
 
 Snow and thunder, clouds, GPU occlusion culling (Hi-Z). Block models: hanging signs, banners, sign text, bells,
 open lids, piglin heads. Entities: animation
-state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller colours (slime shell,
+state between frames (attacks, grazing, swimming), boat paddles and the water cut out of a boat's hull (the hull
+itself is built in, `entity/hardcoded.geo.json`), blended overlay layers and controller colours (slime shell,
 creeper flash, collar and armour dyes), queries that need untracked state (equipment, synced
 properties such as the climate variant), babies' own proportions where the pack has no baby
 geometry, name tags, armour and held items (the bot tracks `Entity::equipment`; nothing draws it), capes.

@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use acacia_molang::{Compiler, Variable};
+use acacia_molang::{Compiler, Symbol, Variable};
 use glam::DVec3;
 
 use crate::assets::image_file;
@@ -77,8 +77,8 @@ pub struct EntityModels {
     animations: animation::Library,
     /// Owns the names the pack's compiled Molang shares.
     compiler: Compiler,
-    /// [`pose::BUILT_IN`], by variable.
-    built_in: Vec<(Variable, f32)>,
+    /// [`pose::BUILT_IN`], by variable and the member's path in it.
+    built_in: Vec<(Variable, Vec<Symbol>, f32)>,
     /// Wide arms, slim arms, 64×32 skin layout; drawn with Steve when the player has no skin.
     players: Option<[Arc<[Layer]>; 3]>,
     /// Worn armour by item identifier ([`armor`]).
@@ -119,7 +119,12 @@ impl EntityModels {
             ..Default::default()
         };
         out.compiler = loading.into_inner();
-        out.built_in = pose::BUILT_IN.iter().map(|&(name, value)| (out.compiler.variable(name), value)).collect();
+        let mut built_in = |&(name, value): &(&str, f32)| {
+            let mut path = name.split('.');
+            let variable = out.compiler.variable(path.next().unwrap_or_default());
+            (variable, path.map(|member| out.compiler.symbol(member)).collect(), value)
+        };
+        out.built_in = pose::BUILT_IN.iter().map(&mut built_in).collect();
         let mut texture_sizes = HashMap::new();
         for d in out.kinds.values() {
             let texture = d.textures.get("default").or_else(|| d.textures.values().min());
@@ -188,8 +193,8 @@ impl EntityModels {
     /// A fresh scope for one entity, with the variables the game sets itself.
     fn scope<'a>(&'a self, query: &'a dyn Fn(&str) -> Value) -> Scope<'a> {
         let mut scope = Scope::new(&self.compiler, query);
-        for &(variable, value) in &self.built_in {
-            scope.set(variable, value);
+        for (variable, path, value) in &self.built_in {
+            scope.set(*variable, path, *value);
         }
         scope
     }

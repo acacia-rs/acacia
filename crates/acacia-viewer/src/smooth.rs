@@ -152,13 +152,13 @@ impl Smoother {
         self.from.get(&id).map_or(to, |from| from.towards(to, t))
     }
 
-    /// A rider's motion this frame, on its seat and turned with its vehicle, and the vehicle's kind.
+    /// A rider's motion this frame, on its seat (turned with the vehicle where the seat holds it), and the vehicle's kind.
     fn seated(&self, e: &Tracked, m: Motion, t: f32) -> Option<(Motion, &str)> {
         let seat = e.seat?;
         let (vehicle, to) = self.to.iter().find(|(v, _)| v.runtime_id == seat.vehicle)?;
         let v = self.blend(vehicle.runtime_id, *to, t);
         let offset = glam::Quat::from_rotation_y(-v.yaw.to_radians()) * seat.offset;
-        Some((Motion { position: v.position + offset.as_dvec3(), yaw: v.yaw + seat.turn, walk: Walk::default(), ..m }, &vehicle.kind))
+        Some((Motion { position: v.position + offset.as_dvec3(), yaw: seat.turn.map_or(m.yaw, |turn| v.yaw + turn), walk: Walk::default(), ..m }, &vehicle.kind))
     }
 
     pub fn instances(&self, camera: DVec3) -> Vec<EntityInstance> {
@@ -185,6 +185,8 @@ impl Smoother {
                     "is_riding" => f32::from(u8::from(vehicle.is_some())),
                     _ if name.starts_with(RIDING_KIND) => f32::from(u8::from(vehicle == name.strip_prefix(RIDING_KIND))),
                     "is_on_ground" => 1.0,
+                    // Blocks per model pixel.
+                    "model_scale" => e.instance.scale / 16.0,
                     "is_alive" => f32::from(u8::from(!e.dying)),
                     _ => return e.facts.query(name),
                 })

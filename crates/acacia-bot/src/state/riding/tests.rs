@@ -36,6 +36,19 @@ fn mount_and_dismount_from_links() {
 }
 
 #[test]
+fn other_riders_links_are_kept_until_removed() {
+    let mut r = Riding::default();
+    r.apply(&add_entity(7, 70, "minecraft:boat", vec![link(70, -5, LINK_RIDER)]), &ME).unwrap();
+    r.apply(&set_link(70, -6, 2), &ME).unwrap();
+    assert_eq!((r.vehicle_of(-5), r.vehicle_of(-6), r.vehicle_of(ME.unique_entity_id)), (Some(70), Some(70), None));
+
+    r.apply(&set_link(70, -6, LINK_REMOVE), &ME).unwrap();
+    assert_eq!((r.vehicle_of(-5), r.vehicle_of(-6)), (Some(70), None));
+    r.apply(&raw(&RemoveEntity { entity_id_self: 70 }), &ME).unwrap();
+    assert_eq!(r.vehicle_of(-5), None, "the vehicle despawned");
+}
+
+#[test]
 fn seated_by_spawn_links_and_unknown_vehicles() {
     let mut r = Riding::default();
     r.apply(&add_entity(9, 90, "minecraft:minecart", vec![link(90, ME.unique_entity_id, LINK_RIDER)]), &ME).unwrap();
