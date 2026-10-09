@@ -92,8 +92,28 @@ fn bow_transform(ticks: f32) -> Mat4 {
         * Mat4::from_rotation_y((-45.0f32).to_radians())
 }
 
+/// An item model's `firstperson_righthand` display: rotation in degrees, translation in blocks, scale.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Display {
+    rotation: Vec3,
+    translation: Vec3,
+    scale: f32,
+}
+
+impl Display {
+    /// Java's `item/generated`, `block/block` and `item/bow` displays; other models' own are not read.
+    pub fn of(name: &str, block: bool) -> Display {
+        let px = |x: f32, y: f32, z: f32| Vec3::new(x, y, z) / 16.0;
+        match (name, block) {
+            ("minecraft:bow", _) => Display { rotation: Vec3::new(-80.0, 260.0, -40.0), translation: px(-1.0, -2.0, 2.5), scale: 0.9 },
+            (_, true) => Display { rotation: Vec3::new(0.0, 45.0, 0.0), translation: Vec3::ZERO, scale: 0.4 },
+            _ => Display { rotation: Vec3::new(0.0, -90.0, 25.0), translation: px(1.13, 3.2, 1.13), scale: 0.68 },
+        }
+    }
+}
+
 /// `swing` is 0 to 1 through an arm swing (0 at rest).
-pub fn first_person(model: &ItemModel, camera: &Camera, swing: f32, using: Option<Using>) -> EntityInstance {
+pub fn first_person(model: &ItemModel, display: Display, camera: &Camera, swing: f32, using: Option<Using>) -> EntityInstance {
     let forward = camera.forward();
     let right = camera.right();
     let up = right.cross(forward);
@@ -101,11 +121,7 @@ pub fn first_person(model: &ItemModel, camera: &Camera, swing: f32, using: Optio
     if let Some(Using::Eat { ticks, duration }) = using {
         view *= eat_transform(ticks, duration);
     }
-    let (rotation, translation, scale) = if model.block {
-        (Vec3::new(0.0, 45.0, 0.0), Vec3::ZERO, 0.4)
-    } else {
-        (Vec3::new(0.0, -90.0, 25.0), Vec3::new(1.13, 3.2, 1.13) / 16.0, 0.68)
-    };
+    let Display { rotation, translation, scale } = display;
     // Java's swing: the arm dips and turns in, by sin of the progress.
     let s = (swing.clamp(0.0, 1.0) * std::f32::consts::PI).sin();
     let arm = ARM + Vec3::new(-0.4 * s, 0.2 * s, -0.2 * s);
