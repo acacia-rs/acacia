@@ -26,7 +26,7 @@ material per face. Build it from the **world's** registry: custom blocks shift r
 - **Shape**: vanilla shapes are hard-coded in the game, so full cubes use `Cube`, other solid blocks use
   their collision boxes (clamped to the block, rounded to 1/16), and collisionless blocks use a small table
   (carpets, rails, torches, buttons, snow layers, open fence gates) or crossed planes. Chests, beds,
-  signs and heads are models (see "Block models"). Banners and vines draw nothing yet.
+  signs, heads and banners are models (see "Block models"). Vines draw nothing yet.
 - **Orientation**: `pillar_axis` and `minecraft:cardinal_direction` (blocks.json fronts face south).
 - **Tint**: which faces take grass, foliage or water colour is by name (birch and spruce leaves are
   fixed colours). Water opacity comes from the look.
@@ -195,7 +195,7 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
 
 ## Block models (`blocks/model.rs`, `entity/block_models.rs`, `block_models.rs`)
 
-Chests, beds, signs and heads have no quads: their `RenderBlock` carries a `BlockModel` (geometry,
+Chests, beds, signs, heads and banners have no quads: their `RenderBlock` carries a `BlockModel` (geometry,
 texture, yaw from the block state) and the shape `None`. The mesher lists a section's models, and the
 renderer draws those within the fog distance through the entity pass, lit like entities.
 
@@ -210,6 +210,31 @@ renderer draws those within the fog distance through the entity pass, lit like e
   lead draws the double model between both blocks, the other half nothing. `Rotation` turns a floor
   head; that 0 faces north is assumed from Java.
 - A bed's head piece draws both halves. Lids never open.
+
+### Banners (`banner.rs`)
+
+`standing_banner` (16 turns) and `wall_banner` draw Java's `BannerModel` and `BannerFlagModel`
+(26.3 client; pole 2×42×2, bar 20×2×2, flag 20×40×1, at 2/3) in both looks: Bedrock hard-codes
+its own, unmeasured. The flag hangs at the middle of Java's sway (2.25° forward) and does not
+move: no pack animation drives it.
+
+`BlockData::banner` is the block entity's `Base`, `Patterns` and `Type` (`Banner::from_bedrock`:
+dyes count from black there, pattern codes are `bo`, `tl`...). `banner::compose` builds one
+texture per distinct banner from the files of `EntityModels::root`, kept by `BlockModels` and drawn
+as the instance's skin:
+
+| | Bedrock files (`banner_<pattern>.tga`) | Java files (`<pattern>.png`, from `tools/lookbake java`) |
+|---|---|---|
+| Cloth | `banner_base`'s flag texels times the dye | `base.png` times the dye, laid over `banner_base` |
+| Pattern | The image times the dye, blended by its alpha | The same (`BannerRenderer.submitPatternLayer`) |
+| Ominous (`Type` 1) | `banner_illager` as it is | Java's eight patterns on white |
+
+Pattern names are Java's (the code table is its `BannerPatternFormatFix`). Bedrock's files match
+them image for image except the four diagonals, which sit under the other name of the same side
+(`banner_diagonal_left` is Java's `diagonal_up_left`); `bedrock_file` swaps them, on the
+assumption that a code looks the same in both games. At most 16 patterns (Java's limit). Also
+assumed, not measured: that Bedrock blends patterns the way Java does, and its dye colours
+(Java's are used).
 
 ### Sign text (`sign_text.rs`, `gpu/sign_text.rs`)
 
@@ -256,8 +281,8 @@ entity-pass mesh with its own texture, built on first use and cached.
   at the posed right arm (`Mesh::right_hand`); Bedrock geometry is Java's with y mirrored, so the
   chain is converted by a y flip at the shoulder.
 - **Icons** (`icon.rs`): `block_icon` rasterises any block's faces (cube, boxes or model) as
-  Java's GUI shows a block, with a depth buffer; `banner_icon` draws the flag from the banner
-  entity texture, dyed.
+  Java's GUI shows a block, with a depth buffer; `banner_icon` draws the flag from the composed
+  banner texture (see "Banners") in the item's dye, without the stack's patterns.
 - **Worn** (`entity/armor.rs`, `EntityModels::armor`): the pack's attachables give each armour
   item a geometry and texture, drawn as a further instance in the wearer's pose.
 
@@ -451,7 +476,8 @@ way from the Bedrock one (docs/java-look.md).
 ## Not yet
 
 Java's fast (flat) clouds, the End's and the Nether's skies, GPU occlusion culling (Hi-Z). Block
-models: banners, bells, open lids, piglin heads. Entities: animation
+models: bells, open lids, piglin heads, the banner's sway, patterns on held banners and shields.
+Entities: animation
 state between frames (attacks, grazing, swimming), boat paddles and the water cut out of a boat's
 hull (the hull itself is built in, `entity/hardcoded.geo.json`), blended overlay layers and controller
 colours (slime shell, creeper flash, collar dyes), a leather stack's own dye (undyed leather's

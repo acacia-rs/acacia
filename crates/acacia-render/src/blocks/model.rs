@@ -1,10 +1,13 @@
-//! Blocks drawn as entity models instead of quads: chests, beds, signs and heads. See README
+//! Blocks drawn as entity models instead of quads: chests, beds, signs, heads and banners. See README
 //! "Block models".
+
+use std::sync::Arc;
 
 use acacia_world::BlockState;
 use glam::{DVec3, IVec3};
 
 use super::shape::short_name;
+use crate::banner::Banner;
 
 pub const CHEST: &str = "geometry.acacia.chest";
 pub const DOUBLE_CHEST: &str = "geometry.acacia.double_chest";
@@ -18,6 +21,10 @@ pub const BED: &str = "geometry.acacia.bed";
 pub const MOB_HEAD: [&str; 2] = ["geometry.acacia.mob_head", "geometry.acacia.mob_head.wall"];
 pub const PLAYER_HEAD: [&str; 2] = ["geometry.acacia.player_head", "geometry.acacia.player_head.wall"];
 pub const DRAGON_HEAD: [&str; 2] = ["geometry.acacia.dragon_head", "geometry.acacia.dragon_head.wall"];
+/// Standing and on a wall.
+pub const BANNERS: [&str; 2] = ["geometry.acacia.banner", "geometry.acacia.banner.wall"];
+/// What a banner draws until its texture is composed ([`crate::banner`]).
+pub const BANNER_TEXTURE: &str = "textures/entity/banner/banner_base";
 
 /// Bed textures by the `color` of the block entity, white first.
 const BED_COLORS: [&str; 16] =
@@ -35,6 +42,7 @@ pub enum Kind {
     Sign,
     FloorHead,
     WallHead,
+    Banner,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -48,8 +56,10 @@ pub struct BlockModel {
 }
 
 /// What a block entity's data adds to the block state; the caller reads it from the NBT.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct BlockData {
+    /// A banner's cloth and patterns.
+    pub banner: Option<Arc<Banner>>,
     /// A bed's `color`.
     pub color: Option<u8>,
     /// A floor head's `Rotation` in degrees.
@@ -65,15 +75,18 @@ pub struct Placement {
     pub texture: String,
     pub position: DVec3,
     pub yaw: f32,
+    /// Composed into the texture drawn in place of `texture`; plain white without its block entity.
+    pub banner: Option<Arc<Banner>>,
 }
 
 impl BlockModel {
     /// `None` for the half of a bed or double chest that the other half draws.
     pub fn place(&self, pos: IVec3, data: Option<&BlockData>) -> Option<Placement> {
         let centre = pos.as_dvec3() + DVec3::new(0.5, 0.0, 0.5);
-        let mut placed = Placement { geometry: self.geometry, texture: self.texture.clone(), position: centre, yaw: self.yaw };
+        let mut placed = Placement { geometry: self.geometry, texture: self.texture.clone(), position: centre, yaw: self.yaw, banner: None };
         match self.kind {
             Kind::BedFoot => return None,
+            Kind::Banner => placed.banner = Some(data.and_then(|d| d.banner.clone()).unwrap_or_default()),
             Kind::BedHead => {
                 let color = data.and_then(|d| d.color).unwrap_or(RED);
                 placed.texture = format!("textures/entity/bed/{}", BED_COLORS[usize::from(color) % BED_COLORS.len()]);
@@ -132,6 +145,11 @@ pub fn classify(state: &BlockState) -> Option<BlockModel> {
             (1, 1) => model(Kind::Sign, HANGING_SIGNS[1], texture, f32::from(int("ground_sign_direction")) * 22.5),
             (hanging, _) => model(Kind::Sign, HANGING_SIGNS[usize::from(hanging == 0) * 2], texture, facing_yaw(int("facing_direction"))),
         };
+    }
+    match name {
+        "standing_banner" => return model(Kind::Banner, BANNERS[0], BANNER_TEXTURE.into(), f32::from(int("ground_sign_direction")) * 22.5),
+        "wall_banner" => return model(Kind::Banner, BANNERS[1], BANNER_TEXTURE.into(), facing_yaw(int("facing_direction"))),
+        _ => {}
     }
     let (shape, texture) = match name {
         "skeleton_skull" => (MOB_HEAD, "skulls/skeleton"),
@@ -228,5 +246,17 @@ mod tests {
         assert_eq!(double.position, DVec3::new(5.0, 64.0, -2.5));
         assert_eq!(chest.place(at, Some(&BlockData { pair: Some(([5, -3], false)), ..Default::default() })), None);
         assert_eq!(double_texture("textures/entity/chest/normal"), "textures/entity/chest/double_normal");
+    }
+
+    #[test]
+    fn banners_turn_by_state_and_carry_their_block_entity() {
+        let standing = model("standing_banner", &["ground_sign_direction=6"]).unwrap();
+        assert_eq!((standing.geometry, standing.yaw), (BANNERS[0], 135.0));
+        let wall = model("wall_banner", &["facing_direction=4"]).unwrap();
+        assert_eq!((wall.geometry, wall.yaw, wall.texture.as_str()), (BANNERS[1], 90.0, BANNER_TEXTURE));
+        let red = Arc::new(Banner { base: 14, layers: vec![("border", 15)], ominous: false });
+        let data = BlockData { banner: Some(red.clone()), ..Default::default() };
+        assert_eq!(wall.place(IVec3::ZERO, Some(&data)).unwrap().banner, Some(red));
+        assert_eq!(wall.place(IVec3::ZERO, None).unwrap().banner, Some(Arc::default()));
     }
 }

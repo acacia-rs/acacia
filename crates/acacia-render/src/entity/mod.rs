@@ -71,6 +71,8 @@ fn dye(index: f32) -> [f32; 3] {
 
 #[derive(Default)]
 pub struct EntityModels {
+    /// The directory loaded from; banner textures are read there as banners turn up.
+    pub root: PathBuf,
     models: Vec<Model>,
     by_geometry: HashMap<String, ModelId>,
     textures: Vec<PathBuf>,
@@ -120,6 +122,7 @@ impl EntityModels {
         compiler.documented_queries_only = false;
         let loading = Loading::new(compiler);
         let mut out = EntityModels {
+            root: root.to_owned(),
             kinds: controller::definitions(&loading, root),
             controllers: controller::controllers(&loading, root),
             animations: animation::load(&loading, root),

@@ -23,6 +23,7 @@ unit or pack tests only.
 | Entities | Round shadows on the ground (radius from the hitbox) | live |
 | Entities | Translucent shells (slime, sulfur cube) | live (slime) |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
+| Banners | Standing and wall banners with their dye and patterns, the ominous banner; no sway | live, both looks (20 of 42 patterns seen; composition by tests) |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
 | Moving | Creative flight (Space twice) | live, 0 corrections on a strict BDS |
 | Moving | Riding: boat, horse, pig, minecart; seat camera, sitting pose | live (pig pose: not seen) |
@@ -48,7 +49,8 @@ unit or pack tests only.
   (a four-line form stands in); creative inventory tabs.
 - **Dimensions:** after a teleport to the End, or joining there, the client's own position runs
   off into the void (seen 2026-10-09; being fixed on `bot/dimensions`). The Nether is untested.
-- **Entities:** the charged creeper's aura, banner patterns, a leather
+- **Entities:** the charged creeper's aura, patterns on held banners and shields, the banner's
+  sway, a leather
   stack's own dye, the off hand, capes, boat paddles, camels, leads, fishing lines.
 - **Sky:** Java's fast clouds; the Nether's fog per biome (the nether wastes' is used; never seen
   live); the End's sky was seen live, its terrain was not (see Dimensions).
@@ -68,4 +70,6 @@ unit or pack tests only.
 - `/enchant @s ...` sent through `ACACIA_COMMANDS` had no effect (2026-10-09, no output either);
   written to the BDS console fifo (`echo "enchant <name> sharpness 1" > work/bds-forms/console`)
   it works. Armour is put on by holding it and `ACACIA_KEYS="18 +Use; 18.3 -Use"`.
+- Patterned banners: no command writes them, so `cargo run -p acacia-bot --example banners -- <server> [x y z]`
+  looms and places a row (it runs commands only on itself and within 40 blocks).
 - `RUST_LOG=chat=debug` logs each chat line's raw packet.

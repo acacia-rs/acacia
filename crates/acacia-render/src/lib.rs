@@ -2,6 +2,7 @@
 //! section meshing on worker threads, and drawing. Design: see README.md.
 
 pub mod assets;
+pub mod banner;
 pub mod biome;
 pub mod block_models;
 pub mod blocks;
