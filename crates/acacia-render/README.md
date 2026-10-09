@@ -225,6 +225,16 @@ entity-pass mesh with its own texture, built on first use and cached.
 - **Dropped** (`drop.rs`, Java's `ItemEntityRenderer`): hover, bob, spin, the number of copies by
   stack size and their scatter come from `Look::dropped` (Java's values for both looks; Bedrock's are
   unmeasured). The bob phase follows from the runtime id, the scatter from network id plus aux.
+- **Held** (`hand.rs`): in first person the camera carries the item (`first_person`: Java's arm
+  offset, swing, the model's display from `Display::of`, and `Using`: `applyEatTransform` for food
+  and drink, the bow's pull). On another entity `third_person` runs Java's `ItemInHandLayer` chain
+  at the posed right arm (`Mesh::right_hand`); Bedrock geometry is Java's with y mirrored, so the
+  chain is converted by a y flip at the shoulder.
+- **Icons** (`icon.rs`): `block_icon` rasterises any block's faces (cube, boxes or model) as
+  Java's GUI shows a block, with a depth buffer; `banner_icon` draws the flag from the banner
+  entity texture, dyed.
+- **Worn** (`entity/armor.rs`, `EntityModels::armor`): the pack's attachables give each armour
+  item a geometry and texture, drawn as a further instance in the wearer's pose.
 
 ## Day and night (`sky.rs`, `gpu/sky.rs`)
 
@@ -238,7 +248,29 @@ Java's `SkyRenderer`): quads 100 blocks from the camera, turned with the time ar
 axis and added onto the sky colour without depth writes, so terrain covers them. The sun and moon
 textures have black backgrounds, which adding leaves invisible. `Renderer::moon_phase` picks the
 cell of `moon_phases.png` (`sky::moon_phase` of the world time). Stars fade in as the sun sets.
-There is no sunrise glow.
+
+Before them the pass blends two things over the cleared frame, which has the fog's colour:
+- Java's sky disc, flat and 16 blocks overhead, the sky's colour fading into the fog's with
+  distance: overhead the sky keeps its colour while the horizon takes the fog's.
+- The sunrise or sunset glow (`getSunriseOrSunsetColor`) while the sun is within 0.4 of the
+  horizon: a fan round the horizon, strongest under the sun. `Sky::color_towards` pulls the fog's
+  colour to the glow's when the camera faces it (`FogRenderer`).
+
+`Renderer::weather` (`sky::Weather`: rain, thunder and a lightning flash, each 0 to 1) greys the
+sky toward 60% of its luminance under rain and 20% under thunder, takes 5/16 off the daylight for
+each, hides the sun, moon and stars with the rain and whitens the sky for a flash
+(`ClientLevel.getSkyColor`, `Level.updateSkyBrightness`).
+
+**Clouds** (`clouds.rs`, `gpu/clouds.rs`, `Renderer::cloud_height`, `set_cloud_texture`): Java's
+fancy clouds. Each opaque texel of `clouds.png` is a box 12 blocks square and 4 thick, faces
+between neighbours left out, shaded by side (1.0, 0.9, 0.8, 0.7), drifting 0.03 blocks a tick, 32
+cells round the camera; the mesh is rebuilt when the camera's cell changes. Translucent as
+Java's: a depth-only pass, then colour where the depth matches. `sky::cloud_tint` greys them in
+rain (to 0.62) and thunder (0.149).
+
+**Lightning** (`lightning.rs`, `gpu/bolts.rs`, `Renderer::bolts`): each bolt's seed and strike
+point. The geometry is `LightningBoltRenderer`'s, drawn by a port of `java.util.Random`: a trunk
+of 8 segments 16 blocks tall that ends on the strike, 2 branches, 4 nested widths, added at 0.3.
 
 ## In a fluid (`fluid_view.rs`, `biome/fog.rs`, `gpu/fog.rs`, `gpu/screen_effect.rs`)
 
@@ -334,21 +366,28 @@ way from the Bedrock one (docs/java-look.md).
   - Drawn in one pass (`gpu/sprites.rs`), far to near, premultiplied: Java's opaque layer and
     Bedrock's `particles_alpha` cut out at 0.1, campfire smoke blended; lit by their cell, by
     their own glow (flames, lava, explosions) or full, and fogged.
-- **Rain** (`Renderer::rain`, `set_weather_texture`): each column within 10 blocks gets a quad
-  facing the camera from its first non-air block (or 10 below the eye) to 10 above, the rain half
-  of Bedrock's `weather.png` at 16 texels a block scrolling down, 0.6 alpha fading to half at the
-  edge, lit as open sky. Its opaque white dots are cleared on load.
+- **Rain and snow** (`Renderer::weather`, `set_weather_texture`): each column within 10 blocks
+  gets a quad facing the camera from its first non-air block (or 10 below the eye) to 10 above,
+  0.6 alpha fading to half at the edge, lit as open sky. `weather::load_texture` gives the streaks
+  and how they lie: Java's `rain.png` and `snow.png` where the look has them (a 1-block quad,
+  repeating every 4 blocks), else Bedrock's `weather.png` (half a block wide, every 1.25; its
+  opaque white dots cleared). `BiomeColors::fall` decides per column (`Biome.getPrecipitationAt`):
+  nothing where the biome has no downfall, snow below 0.15 at the ground's height, else rain.
+  Snow drifts down one repeat per 512 ticks.
+- **Hurt** (`EntityInstance::hurt`): Java's overlay, 30% red before the light.
 - **UI** (`render(camera, Some((atlas, quads)))`): acacia-ui's draw list in its own pass.
 - `EntityInstance::frame` carries a model with the camera (the held item, `item/hand.rs`).
 
 ## Not yet
 
-Snow and thunder, clouds, GPU occlusion culling (Hi-Z). Block models: hanging signs, banners, sign text, bells,
-open lids, piglin heads. Entities: animation
-state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller colours (slime shell,
-creeper flash, collar and armour dyes), queries that need untracked state (equipment, synced
-properties such as the climate variant), babies' own proportions where the pack has no baby
-geometry, name tags, armour and held items (the bot tracks `Entity::equipment`; nothing draws it), capes.
+Java's fast (flat) clouds, the End's and the Nether's skies, GPU occlusion culling (Hi-Z). Block
+models: hanging signs, banners, sign text, bells, open lids, piglin heads. Entities: animation
+state between frames (attacks, grazing, swimming, riding), blended overlay layers and controller
+colours (slime shell, creeper flash, collar dyes), a leather stack's own dye (undyed leather's
+colour is baked, `gpu/entity_textures.rs`), enchantment glint, queries that need untracked state
+(synced properties such as the climate variant), babies' own proportions where the pack has no
+baby geometry, the off hand's item, capes. Held items take three displays (`item/hand.rs`
+`Display::of`: generated, block, bow); other models' own are not read.
 
 Approximate: water loses 2 light per block (the wiki's Bedrock opacity note; its table is ambiguous),
 so seabeds deeper than ~7 blocks go dark. Each section change relights its whole column.
