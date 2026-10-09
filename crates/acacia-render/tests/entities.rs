@@ -102,8 +102,9 @@ fn render_controllers_follow_the_entity_state() {
     let cat = |variant| texture(&models, &look(&models, "minecraft:cat", &[("variant", variant)]).0[0], 0);
     assert!(cat(0.0) != cat(1.0) && cat(1.0) != cat(3.0));
 
-    // The slime's translucent shell is left out, the body stays.
-    assert_eq!(look(&models, "minecraft:slime", &[]).0.len(), 1);
+    // The slime's body is opaque and its shell a blended layer after it.
+    let slime: Vec<bool> = look(&models, "minecraft:slime", &[]).0.iter().map(|l| l.blend).collect();
+    assert_eq!(slime, [false, true]);
     // Kinds whose controllers are missing or all overlays still draw their default.
     for kind in ["minecraft:iron_golem", "minecraft:ender_dragon"] {
         assert_eq!(look(&models, kind, &[]).0.len(), 1, "{kind}");
