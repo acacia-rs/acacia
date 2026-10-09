@@ -12,11 +12,13 @@ pub struct Camera {
     pub aspect: f32,
     /// View-space sway after the look (Java's view bobbing); identity for none.
     pub bob: Mat4,
+    /// The biome the camera is in, when known: its air fog (the Nether's biomes have their own).
+    pub biome: Option<u32>,
 }
 
 impl Camera {
     pub fn new(position: DVec3) -> Self {
-        Camera { position, yaw: 0.0, pitch: 0.0, fov_y: 70f32.to_radians(), aspect: 16.0 / 9.0, bob: Mat4::IDENTITY }
+        Camera { position, yaw: 0.0, pitch: 0.0, fov_y: 70f32.to_radians(), aspect: 16.0 / 9.0, bob: Mat4::IDENTITY, biome: None }
     }
 
     pub fn forward(&self) -> Vec3 {

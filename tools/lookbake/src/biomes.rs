@@ -62,6 +62,8 @@ pub struct Colors {
     /// Colour and opaque distance of the fog with the camera in water, at full water vision.
     pub water_fog: u32,
     pub water_fog_end: f32,
+    /// The air's fog where the biome sets one (`minecraft:visual/fog_color`: the Nether's biomes).
+    pub fog: Option<u32>,
 }
 
 /// The jar's 256×256 colormaps, row by row.
@@ -103,8 +105,10 @@ pub fn colors(biome: &Value, maps: &Colormaps) -> Option<Colors> {
         _ => (base, None),
     };
     let attributes = &biome["attributes"];
-    let water_fog = attributes["minecraft:visual/water_fog_color"].as_str().and_then(|c| u32::from_str_radix(c.strip_prefix('#')?, 16).ok());
+    let hex_of = |key: &str| attributes[key].as_str().and_then(|c| u32::from_str_radix(c.strip_prefix('#')?, 16).ok());
+    let water_fog = hex_of("minecraft:visual/water_fog_color");
     Some(Colors {
+        fog: hex_of("minecraft:visual/fog_color"),
         water: color("water_color")?,
         grass,
         grass_patch,
@@ -158,6 +162,9 @@ pub fn write(java: &BTreeMap<String, Colors>, look: &Path) -> Result<(), Error> 
         if let Some(patch) = c.grass_patch {
             entry["grass_patch_color"] = hex(patch).into();
         }
+        if let Some(fog) = c.fog {
+            entry["fog_color"] = hex(fog).into();
+        }
         for bedrock in bedrock_names(name) {
             by_name.insert(format!("minecraft:{bedrock}"), entry.clone());
         }
@@ -186,7 +193,7 @@ mod tests {
         let plains = json!({"temperature": 0.8, "downfall": 0.4, "effects": {"water_color": "#3f76e4"}});
         let at = (((1.0 - 0.8f32 as f64 * 0.4f32 as f64) * 255.0) as u32) << 8 | ((1.0 - 0.8f32 as f64) * 255.0) as u32;
         let water_fog = (DEFAULT_WATER_FOG, WATER_FOG_END);
-        let plains_colors = Colors { water: 0x3F76E4, grass: at, grass_patch: None, foliage: at, dry_foliage: at, water_fog: water_fog.0, water_fog_end: water_fog.1 };
+        let plains_colors = Colors { water: 0x3F76E4, grass: at, grass_patch: None, foliage: at, dry_foliage: at, water_fog: water_fog.0, water_fog_end: water_fog.1, fog: None };
         assert_eq!(colors(&plains, &maps()), Some(plains_colors));
         let swamp = json!({"temperature": 0.8, "downfall": 0.9, "effects": {"water_color": "#617b64", "foliage_color": "#6a7039", "grass_color_modifier": "swamp"},
             "attributes": {"minecraft:visual/water_fog_color": "#232317", "minecraft:visual/water_fog_end_distance": {"argument": 0.85, "modifier": "multiply"}}});
@@ -203,7 +210,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("lookbake-biomes-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let swamp = Colors { water: 0x617B64, grass: 0x6A7039, grass_patch: Some(0x4C763C), foliage: 1, dry_foliage: 2, water_fog: 0x232317, water_fog_end: 81.0 };
+        let swamp = Colors { water: 0x617B64, grass: 0x6A7039, grass_patch: Some(0x4C763C), foliage: 1, dry_foliage: 2, water_fog: 0x232317, water_fog_end: 81.0, fog: Some(0x330808) };
         write(&BTreeMap::from([("swamp".to_owned(), swamp)]), &dir).unwrap();
         let written: Value = serde_json::from_slice(&std::fs::read(dir.join("biomes_client.json")).unwrap()).unwrap();
         let of = |name: &str, key: &str| written["biomes"][name][key].as_str().map(str::to_owned);
@@ -211,6 +218,7 @@ mod tests {
         assert_eq!(of("minecraft:swampland_mutated", "grass_patch_color"), Some("#4c763c".to_owned()));
         assert_eq!(of("minecraft:swampland", "dry_foliage_color"), Some("#000002".to_owned()));
         assert_eq!(of("minecraft:swampland", "water_fog_color"), Some("#232317".to_owned()));
+        assert_eq!(of("minecraft:swampland", "fog_color"), Some("#330808".to_owned()));
         assert_eq!(written["biomes"]["minecraft:swampland"]["water_fog_distance"], json!([-8.0, 81.0]));
         assert_eq!((of("default", "water_surface_color"), of("minecraft:swamp", "grass_color")), (Some("#3f76e4".to_owned()), None));
         std::fs::remove_dir_all(&dir).unwrap();

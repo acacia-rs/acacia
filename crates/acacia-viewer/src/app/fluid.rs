@@ -11,6 +11,8 @@ impl App {
     pub(super) fn feed_fluid(&mut self, dt: f32) {
         let Some(r) = &mut self.renderer else { return };
         let found = r.world().and_then(|w| fluid_at(w, self.camera.position));
+        let p = self.camera.position.floor().as_ivec3();
+        self.camera.biome = r.world().and_then(|w| w.get(p.x >> 4, p.z >> 4)?.read().biome(p.x, p.y, p.z));
         let seconds = match (r.in_fluid, found) {
             (Some(was), Some((fluid, _))) if was.fluid == fluid => was.seconds + dt,
             _ => 0.0,

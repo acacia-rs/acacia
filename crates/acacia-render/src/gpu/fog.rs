@@ -15,8 +15,8 @@ pub(super) struct FrameFog {
 }
 
 impl Renderer {
-    /// `sky_color` is sRGB.
-    pub(super) fn frame_fog(&self, sky_color: [f32; 3]) -> FrameFog {
+    /// `sky_color` is sRGB; `biome` is the camera's, whose own air fog colours the Nether.
+    pub(super) fn frame_fog(&self, sky_color: [f32; 3], biome: Option<u32>) -> FrameFog {
         if let Some(eye) = &self.in_fluid {
             // The fluid's fog stands in for the look's haze, so it is linear and spherical in both looks.
             let v = fluid_view::view(self.look.fluid_fog, self.biomes.fluid_fogs(), eye, self.fog_distance);
@@ -25,6 +25,7 @@ impl Renderer {
         // Only the Nether is that low; the End hazes as the overworld does.
         let nether = self.world().is_some_and(|w| !w.dimension().sky && w.dimension().height <= 128);
         let haze = self.look.fog.haze.map(|h| if nether { h.nether } else { h.overworld });
-        FrameFog { color: srgb_to_linear(sky_color), haze, in_fluid: false, underwater: false }
+        let own = self.biomes.fluid_fogs().air(biome).filter(|_| nether).map(|c| c.map(|v| f32::from(v) / 255.0));
+        FrameFog { color: srgb_to_linear(own.unwrap_or(sky_color)), haze, in_fluid: false, underwater: false }
     }
 }

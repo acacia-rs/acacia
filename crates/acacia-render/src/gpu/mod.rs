@@ -212,7 +212,7 @@ impl Renderer {
         let realm = self.world().map_or(Realm::Overworld, |w| Realm::of(&w.dimension()));
         let has_sky = realm == Realm::Overworld;
         let sky = Sky::of(realm, self.time, self.weather);
-        let fog = self.frame_fog(sky.color_towards(camera.forward()));
+        let fog = self.frame_fog(sky.color_towards(camera.forward()), camera.biome);
         let sky_pass = self.sky.as_ref().filter(|_| !fog.in_fluid);
         if let Some(pass) = sky_pass {
             pass.prepare(&self.queue, &sky, self.moon_phase);

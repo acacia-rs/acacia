@@ -53,6 +53,8 @@ pub struct WaterFog {
 pub struct FluidFogs {
     water: FxHashMap<u32, WaterFog>,
     default_water: WaterFog,
+    /// The air's fog colour for biomes that set one (sRGB): what tells the Nether's biomes apart.
+    air: FxHashMap<u32, [u8; 3]>,
     pub lava: Fog,
     pub powder_snow: Fog,
 }
@@ -71,7 +73,7 @@ const BEDROCK_POWDER_SNOW: Fog = fixed([0x9F, 0xBB, 0xC8], 0.0, 2.0);
 
 impl Default for FluidFogs {
     fn default() -> Self {
-        FluidFogs { water: FxHashMap::default(), default_water: BEDROCK_WATER, lava: BEDROCK_LAVA, powder_snow: BEDROCK_POWDER_SNOW }
+        FluidFogs { water: FxHashMap::default(), default_water: BEDROCK_WATER, air: FxHashMap::default(), lava: BEDROCK_LAVA, powder_snow: BEDROCK_POWDER_SNOW }
     }
 }
 
@@ -87,9 +89,20 @@ impl FluidFogs {
         let distance = |key: &str| default_fog.and_then(|f| fog(f.get(key)?));
         let water_of = |entry: Option<&Value>| java_water(entry?).or_else(|| water(fog_of(entry)?.get("water")?));
         let default_water = water_of(entry("default")).unwrap_or(BEDROCK_WATER);
-        let water = biomes.filter_map(|(id, name)| Some((id, water_of(entry(name))?))).collect();
+        // A Java look lists the colour itself; Bedrock's is its fog definition's `air`.
+        let air_of = |entry: Option<&Value>| entry.and_then(|e| color(e.get("fog_color")?)).or_else(|| color(fog_of(entry)?.get("air")?.get("fog_color")?));
+        let (mut water, mut air) = (FxHashMap::default(), FxHashMap::default());
+        for (id, name) in biomes {
+            water.extend(water_of(entry(name)).map(|fog| (id, fog)));
+            air.extend(air_of(entry(name)).map(|color| (id, color)));
+        }
         let powder_snow = defined.get("minecraft:fog_powder_snow").and_then(|f| fog(f.get("powder_snow")?));
-        FluidFogs { water, default_water, lava: distance("lava").unwrap_or(BEDROCK_LAVA), powder_snow: powder_snow.unwrap_or(BEDROCK_POWDER_SNOW) }
+        FluidFogs { water, default_water, air, lava: distance("lava").unwrap_or(BEDROCK_LAVA), powder_snow: powder_snow.unwrap_or(BEDROCK_POWDER_SNOW) }
+    }
+
+    /// The air's fog colour in `biome`, where it has its own.
+    pub fn air(&self, biome: Option<u32>) -> Option<[u8; 3]> {
+        self.air.get(&biome?).copied()
     }
 
     pub fn water(&self, biome: Option<u32>) -> &WaterFog {
@@ -180,6 +193,20 @@ mod tests {
         let fogs = FluidFogs::load(&root, [(6, "swampland")].into_iter());
         assert_eq!(fogs.water(Some(6)).fog, fixed([0x23, 0x23, 0x17], -8.0, 81.6));
         assert_eq!(*fogs.water(None), WaterFog { fog: fixed([5, 5, 0x33], -8.0, 96.0), transition: None });
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn nether_biomes_have_their_own_air_fog_in_both_packs() {
+        let crimson = r##"{"minecraft:fog_settings": {"description": {"identifier": "minecraft:fog_crimson_forest"}, "distance": {"air": {"fog_start": 10, "fog_end": 96, "fog_color": "#330303", "render_distance_type": "fixed"}}}}"##;
+        let bedrock = r#"{"biomes": {"crimson_forest": {"fog_identifier": "minecraft:fog_crimson_forest"}, "plains": {}}}"#;
+        let root = dir("air-bedrock", &[("fogs/crimson.json", crimson), ("biomes_client.json", bedrock)]);
+        let fogs = FluidFogs::load(&root, [(179, "crimson_forest"), (1, "plains")].into_iter());
+        assert_eq!((fogs.air(Some(179)), fogs.air(Some(1)), fogs.air(None)), (Some([0x33, 3, 3]), None, None));
+        std::fs::remove_dir_all(&root).unwrap();
+        let java = r##"{"biomes": {"minecraft:warped_forest": {"fog_color": "#1a051a"}}}"##;
+        let root = dir("air-java", &[("biomes_client.json", java)]);
+        assert_eq!(FluidFogs::load(&root, [(180, "warped_forest")].into_iter()).air(Some(180)), Some([0x1A, 5, 0x1A]));
         std::fs::remove_dir_all(&root).unwrap();
     }
 
