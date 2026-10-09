@@ -23,6 +23,8 @@ unit or pack tests only.
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
 | Moving | Creative flight (Space twice) | live, 0 corrections on a strict BDS |
+| Moving | Dimension travel: by command, joining in another dimension | live |
+| Moving | Dimension travel through Nether and End portals | bot drill `dimensions` (0 corrections); not seen in the viewer |
 | Moving | Riding: boat, horse, pig, minecart; seat camera, sitting pose | live (pig pose: not seen) |
 | Camera | View bobbing, sprint and flight FOV, hurt roll, death tilt, F5 views | live (death tilt: tests) |
 | Acting | Mining with cracks and predicted break, placing, using, attacking | live |

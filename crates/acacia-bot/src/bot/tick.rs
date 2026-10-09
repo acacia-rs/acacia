@@ -66,37 +66,54 @@ impl Bot {
             self.sync.spawned();
         }
         step.after.into_iter().for_each(|p| spawn::send(&self.client, me, p));
+        // The server is the source of an idle bot's position: nothing to wait for but its acknowledgement.
+        self.travel_tick(true);
+    }
+
+    /// Starts the simulation at the server's position once the terrain there has arrived: at spawn, and
+    /// again after each dimension change (dimension.rs).
+    fn start_movement(&mut self) {
+        let (Some(world), Some(movement)) = (&self.world, &mut self.movement) else { return };
+        let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return };
+        let p = &self.state.player;
+        let feet = [p.position.x, p.position.y, p.position.z];
+        let travelled = self.travel.is_some();
+        let mut placed = if travelled { super::dimension::terrain_arrived(view, feet) } else { crate::world::is_chunk_loaded(view, feet) };
+        // Geyser's StartGame position is a placeholder until its first teleport, so wait for ground or
+        // liquid near the feet as well as the chunk (or give up waiting when spawned mid-air), then
+        // leave the loading screen like vanilla.
+        if placed && !travelled {
+            movement.spawn_wait += 1;
+            placed = crate::world::has_support_below(view, registry, feet) || movement.spawn_wait >= SPAWN_WAIT_TICKS;
+        }
+        // After the spawn the look is the player's own; the server's is from before the change.
+        let (yaw, pitch) = if self.spawned { (movement.controls.yaw, movement.controls.pitch) } else { (p.yaw, p.pitch) };
+        if !self.travel_tick(placed) {
+            return;
+        }
+        let Some(movement) = &mut self.movement else { return };
+        movement.start(feet, yaw, pitch);
+        if let Some(r) = &mut self.recorder {
+            r.write(&trace::Event::Start { feet, yaw, pitch });
+        }
+        if std::mem::replace(&mut self.spawned, true) {
+            return;
+        }
+        // TODO: physics bots skip vanilla's spawn timing (crate::spawn); idle bots follow it.
+        for packet in [SpawnPacket::LoadingScreenStart, SpawnPacket::LoadingScreenEnd, SpawnPacket::Initialized] {
+            spawn::send(&self.client, self.state.player.runtime_entity_id, packet);
+        }
+        self.sync.spawned();
     }
 
     fn physics_tick(&mut self) {
         let elytra = self.wears_elytra();
+        if self.movement.as_ref().is_some_and(|m| !m.is_started()) {
+            return self.start_movement();
+        }
         let (Some(world), Some(movement)) = (&self.world, &mut self.movement) else { return };
         movement.elytra = elytra;
         let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return };
-        if !movement.is_started() {
-            let p = &self.state.player;
-            let feet = [p.position.x, p.position.y, p.position.z];
-            // Geyser's StartGame position is a placeholder until its first teleport, so wait for ground or
-            // liquid near the feet as well as the chunk (or give up waiting when spawned mid-air), then
-            // leave the loading screen like vanilla.
-            if !crate::world::is_chunk_loaded(view, feet) {
-                return;
-            }
-            movement.spawn_wait += 1;
-            if !crate::world::has_support_below(view, registry, feet) && movement.spawn_wait < SPAWN_WAIT_TICKS {
-                return;
-            }
-            // TODO: physics bots skip vanilla's spawn timing (crate::spawn); idle bots follow it.
-            for packet in [SpawnPacket::LoadingScreenStart, SpawnPacket::LoadingScreenEnd, SpawnPacket::Initialized] {
-                spawn::send(&self.client, p.runtime_entity_id, packet);
-            }
-            movement.start(feet, p.yaw, p.pitch);
-            self.sync.spawned();
-            if let Some(r) = &mut self.recorder {
-                r.write(&trace::Event::Start { feet, yaw: p.yaw, pitch: p.pitch });
-            }
-            return;
-        }
         // Dead players don't move; simulating on would sink or fall away from the server's position.
         if !self.state.player.alive {
             return;

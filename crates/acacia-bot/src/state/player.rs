@@ -18,8 +18,8 @@ const PLAYER_FLAG_SLEEP: i8 = 1 << 1;
 /// The local player.
 ///
 /// `position` is the FEET position. Bedrock sends player positions at eye height (feet +
-/// [`Self::EYE_HEIGHT`]) in StartGame, MovePlayer, Respawn, ChangeDimension and
-/// CorrectPlayerMovePrediction; the offset is removed on the way in.
+/// [`Self::EYE_HEIGHT`]) in StartGame, MovePlayer, Respawn and CorrectPlayerMovePrediction; the offset is
+/// removed on the way in. ChangeDimension carries the feet.
 #[derive(Debug)]
 pub struct PlayerState {
     pub runtime_entity_id: u64,
@@ -186,7 +186,8 @@ impl PlayerState {
             ChangeDimension::ID => {
                 let p: ChangeDimension = packet.decode()?;
                 self.dimension = p.dimension;
-                self.position = feet(p.position);
+                // BDS sends the feet here: `execute in nether run tp @s 30 70 30` carries y 70 (live, 1.26.52).
+                self.position = p.position;
             }
             SetSpawnPosition::ID => {
                 let p: SetSpawnPosition = packet.decode()?;

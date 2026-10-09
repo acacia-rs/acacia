@@ -6,6 +6,7 @@ pub(crate) mod equipment;
 mod flight;
 mod glide;
 mod idle;
+mod lifecycle;
 mod rewind;
 #[cfg(test)]
 mod tests;
@@ -13,7 +14,7 @@ mod tests;
 pub use idle::Idle;
 
 use acacia_client::proto::packets::{
-    CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MobEffectEventId, MovePlayer, MovementEffect, PlayerAuthInput,
+    ChangeDimension, CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MobEffect, MobEffectEventId, MovePlayer, MovementEffect, PlayerAuthInput,
     PlayerAuthInputBlockActionItem, PlayerAuthInputInputMode, PlayerAuthInputInteractionModel, Respawn, SetEntityMotion, UpdateAttributes,
 };
 use acacia_client::proto::types::{InputData, MovementEffectType};
@@ -111,6 +112,8 @@ pub struct Movement {
     pub last_vehicle_delta: Option<Vec3>,
     /// Ticks spent with the spawn chunk loaded but movement not yet started.
     pub(crate) spawn_wait: u32,
+    /// The movement attribute of the simulation a dimension change stopped: the next one arrives with it.
+    carried_attribute: Option<f32>,
     /// Holding "use" on an item (eating, drinking), which slows movement.
     pub(crate) using_item: bool,
     /// An elytra is worn (set by the bot every tick).
@@ -147,6 +150,7 @@ impl Movement {
         MobEffect::ID,
         UpdateAttributes::ID,
         MovementEffect::ID,
+        ChangeDimension::ID,
     ];
 
     pub fn new() -> Self {
@@ -160,6 +164,7 @@ impl Movement {
             vehicle_correction: None,
             last_vehicle_delta: None,
             spawn_wait: 0,
+            carried_attribute: None,
             using_item: false,
             elytra: false,
             physics: None,
@@ -179,22 +184,6 @@ impl Movement {
         }
     }
 
-    /// Starts simulating from the spawn position (feet).
-    pub fn start(&mut self, feet: Vec3, yaw: f32, pitch: f32) {
-        let mut st = PlayerState::new(feet);
-        st.effects = self.effects;
-        self.physics = Some(st);
-        (self.controls.yaw, self.controls.pitch) = (yaw, pitch);
-    }
-
-    /// Replaces the simulated position and velocity as of the end of input `tick`.
-    pub(crate) fn resync(&mut self, tick: u64, feet: Vec3, delta: Vec3) {
-        if let Some(st) = &mut self.physics {
-            st.apply_correction(feet, delta, st.on_ground);
-            self.tick = tick;
-        }
-    }
-
     /// The worn armour for the ticks from here on (see `equipment::worn`); true when it changed.
     pub(crate) fn set_equipment(&mut self, equipment: Equipment) -> bool {
         let changed = equipment != self.equipment;
@@ -210,23 +199,9 @@ impl Movement {
         self.equipment
     }
 
-    /// Numbers the next simulated tick `tick`: a real client's tick counter can skip (replay only).
-    pub(crate) fn align_tick(&mut self, tick: u64) {
-        self.tick = tick.saturating_sub(1);
-    }
-
-    /// Tick of the last `PlayerAuthInput` built.
-    pub(crate) fn input_tick(&self) -> u64 {
-        self.tick
-    }
-
     /// The freeze the simulation holds, and the one the server has reported for input `tick`.
     pub(crate) fn freeze_at(&self, tick: u64) -> (f32, Option<f32>) {
         (self.physics.as_ref().map_or(0.0, |p| p.freeze), self.history.server_freeze(tick))
-    }
-
-    pub fn is_started(&self) -> bool {
-        self.physics.is_some()
     }
 
     /// Simulated feet position.
@@ -272,6 +247,10 @@ impl Movement {
             if p.runtime_entity_id == me.runtime_entity_id {
                 self.apply_effect(&p);
             }
+            return Ok(());
+        }
+        if packet.id == ChangeDimension::ID {
+            self.leave_dimension();
             return Ok(());
         }
         let Some(st) = &mut self.physics else {
