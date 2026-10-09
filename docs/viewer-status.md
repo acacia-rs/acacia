@@ -20,6 +20,7 @@ unit or pack tests only.
 | Entities | Held items, worn armour (leather dyed its default), hurt flash | live |
 | Entities | Death topple | tests |
 | Entities | Round shadows on the ground (radius from the hitbox) | live |
+| Entities | Translucent shells (slime, sulfur cube) | live (slime) |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
 | Moving | Creative flight (Space twice) | live, 0 corrections on a strict BDS |
@@ -43,9 +44,12 @@ unit or pack tests only.
   list longer than three rows (no scrolling); enchanting hints and the galactic text; craft
   results onto the cursor (they go into the inventory); books; maps; the game's own sign editor
   (a four-line form stands in); creative inventory tabs.
-- **Entities:** enchantment glint, creeper and slime overlays, banner patterns, a leather
+- **Dimensions:** after a teleport to the End, or joining there, the client's own position runs
+  off into the void (seen 2026-10-09; being fixed on `bot/dimensions`). The Nether is untested.
+- **Entities:** enchantment glint, the charged creeper's aura, banner patterns, a leather
   stack's own dye, the off hand, capes, boat paddles, camels, leads, fishing lines.
-- **Sky:** the End's and the Nether's skies, Java's fast clouds.
+- **Sky:** Java's fast clouds; the Nether's fog per biome (the nether wastes' is used; never seen
+  live); the End's sky was seen live, its terrain was not (see Dimensions).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
   own are unmeasured.
 - **Sound:** music, ambience, and Java's event mapping where a Bedrock sound has no Java file.
