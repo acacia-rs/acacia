@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use acacia_bot::proto::types::WindowType;
-use acacia_ui::inventory::{Progress, Station};
+use acacia_ui::inventory::{Bench, Progress, Station};
 
 /// Furnace properties: ticks cooked, ticks of flame left, and what the burning fuel gave.
 const COOK_TICKS: i32 = 0;
@@ -25,6 +25,19 @@ pub fn station(window: WindowType) -> Option<Station> {
         WindowType::Dispenser => Station::Dispenser,
         WindowType::Dropper => Station::Dropper,
         WindowType::BrewingStand => Station::Brewing,
+        _ => return None,
+    })
+}
+
+pub fn bench(window: WindowType) -> Option<Bench> {
+    Some(match window {
+        WindowType::Workbench => Bench::Crafting,
+        WindowType::Anvil => Bench::Anvil,
+        WindowType::SmithingTable => Bench::Smithing,
+        WindowType::Grindstone => Bench::Grindstone,
+        WindowType::Stonecutter => Bench::Stonecutter,
+        WindowType::Cartography => Bench::Cartography,
+        WindowType::Enchantment => Bench::Enchanting,
         _ => return None,
     })
 }

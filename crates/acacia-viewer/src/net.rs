@@ -201,8 +201,9 @@ async fn run(
                             tracing::debug!(open = ?bot.state().containers.open.as_ref().map(|c| (c.window_type, c.slots.len())), station = ?now.station, "screen");
                         }
                         inventory = now.clone();
-                        let craftable = control::craftable(&bot, now.workbench.is_some());
-                        send(NetEvent::Inventory(control::Inventory { craftable, ..now }))?;
+                        let table = now.workbench.is_some();
+                        let (craftable, crafted) = (control::craftable(&bot, table), control::crafted(&bot));
+                        send(NetEvent::Inventory(control::Inventory { craftable, crafted, ..now }))?;
                     }
                     let names = control::player_names(&bot);
                     if names != players {

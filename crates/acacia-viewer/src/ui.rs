@@ -22,7 +22,7 @@ use acacia_ui::{DrawList, Quad, Sprite};
 
 use crate::control::{Inventory, Stack};
 use crate::me::Me;
-use acacia_ui::inventory::{Layout, Slot};
+use acacia_ui::inventory::{Layout, Pick, Slot};
 use acacia_ui::menu::Backdrop;
 
 use crate::forms::FormScreen;
@@ -47,8 +47,8 @@ pub struct Frame<'a> {
     pub me: Option<&'a Me>,
     /// The debug screen's two columns, when it is shown.
     pub debug: Option<(Vec<String>, Vec<String>)>,
-    /// An open inventory screen.
-    pub screen: Option<(&'a Inventory, Layout)>,
+    /// An open inventory screen, and what is picked from its list.
+    pub screen: Option<(&'a Inventory, Layout, Option<usize>)>,
     /// An open menu: its title, button labels and what it is drawn over.
     pub menu: Option<(&'a str, &'a [String], Backdrop)>,
     /// An open server form.
@@ -191,18 +191,25 @@ impl Ui {
         if let Some((left, right)) = debug {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
-        if let Some((inventory, layout)) = screen {
+        if let Some((inventory, layout, picked)) = screen {
             let mut icons = HashMap::new();
             for (slot, _) in acacia_ui::inventory::slots(layout) {
-                if let Some(item) = stack_in(inventory, slot).and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count))) {
+                // A pick list's result is the picked one.
+                let shown = match slot {
+                    Slot::Result if !inventory.picks.is_empty() => picked.and_then(|i| inventory.picks.get(i)).map(|p| &p.1),
+                    _ => stack_in(inventory, slot),
+                };
+                if let Some(item) = shown.and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count))) {
                     icons.insert(slot, item);
                 }
             }
             let cursor = inventory.cursor.as_ref().and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count)));
-            let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress };
+            let mut picks: Vec<Pick> = inventory.picks.iter().map(|(_, s)| Pick { icon: skin.icon(&s.name, s.aux, s.block), label: String::new() }).collect();
+            picks.extend(inventory.enchants.iter().enumerate().map(|(i, level)| Pick { icon: None, label: format!("{}  Level {level}", i + 1) }));
+            let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress, picks: &picks, picked };
             let title = inventory.container.as_ref().map_or("", |c| c.title.as_str());
             acacia_ui::inventory::draw(&mut list, &skin.theme, layout, title, &contents, mouse, gui);
-            if layout == Layout::Player {
+            if layout.has_book() {
                 // Every result keeps its cell (clicks index the same list); a missing icon draws blank.
                 let results: Vec<_> = inventory.craftable.iter().map(|s| (skin.icon(&s.name, s.aux, s.block).unwrap_or_else(|| skin.theme.atlas.white()), s.count)).collect();
                 acacia_ui::recipes::draw(&mut list, &skin.theme, layout, &results, mouse, gui);
@@ -228,7 +235,8 @@ fn stack_in(inventory: &Inventory, slot: Slot) -> Option<&Stack> {
         Slot::Armor(i) => inventory.armor.get(usize::from(i))?.as_ref(),
         Slot::Offhand => inventory.offhand.as_ref(),
         Slot::Container(i) => inventory.container.as_ref()?.slots.get(usize::from(i))?.as_ref(),
-        Slot::Craft(_) | Slot::CraftResult => None,
+        Slot::Ui(i) => inventory.ui.get(usize::from(i))?.as_ref(),
+        Slot::Result => inventory.crafted.as_ref(),
     }
 }
 

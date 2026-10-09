@@ -3,6 +3,7 @@ mod beacon;
 mod cartography;
 mod crafting;
 mod grid;
+mod hand;
 mod stations;
 mod trade;
 

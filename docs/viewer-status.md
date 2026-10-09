@@ -30,15 +30,19 @@ unit or pack tests only.
 | HUD | Hotbar, hearts, food, armour, air, XP, item name, effects, boss bars, titles, action bar | live |
 | HUD | Chat with translations (rawtext and keys), Tab list, sidebar, F3 | live |
 | Screens | Inventory with the player's figure, chests, recipe book and crafting by click | live |
+| Screens | Crafting by hand: the 2×2 grid and the crafting table's 3×3 | table live; 2×2: tests |
+| Screens | Anvil (no renaming), smithing table, stonecutter, enchanting table | live |
+| Screens | Grindstone, cartography table (no renaming) | tests only, never opened live |
 | Screens | Furnace family, hopper, dispenser/dropper, brewing stand | live (acacia-46) |
 | Screens | Server forms, pause, options (two columns), death and respawn | live |
 | Sound | Each look's own samples: Bedrock `.fsb` (FADPCM), Java `.ogg` | logs (testbox has no audio device) |
 
 ## Not done
 
-- **Screens:** anvil, enchanting, trading, beacon, loom and the other Ui-slot stations; books; maps;
-  the game's own sign editor (a four-line form stands in); creative inventory tabs; the crafting
-  table's 3×3 grid by hand (the recipe book crafts).
+- **Screens:** trading, beacon, loom; an anvil's and cartography table's name box; a stonecutter
+  list longer than three rows (no scrolling); enchanting hints and the galactic text; craft
+  results onto the cursor (they go into the inventory); books; maps; the game's own sign editor
+  (a four-line form stands in); creative inventory tabs.
 - **Entities:** enchantment glint, creeper and slime overlays, banner patterns, a leather
   stack's own dye, the off hand, capes, boat paddles, camels, leads, fishing lines.
 - **Sky:** the End's and the Nether's skies, Java's fast clouds.
