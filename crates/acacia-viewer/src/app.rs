@@ -203,9 +203,10 @@ impl App {
         let dt = (now - self.last_frame).as_secs_f32().min(0.1);
         self.last_frame = now;
         let outline = self.steer(now, dt);
+        let fov = self.settings.fov.clamp(30, 110) as f32;
         match self.mode {
-            Mode::Play => self.bob.apply(&mut self.camera.fov_y, &mut self.camera.bob, now),
-            _ => (self.camera.fov_y, self.camera.bob) = (crate::bob::FOV.to_radians(), glam::Mat4::IDENTITY),
+            Mode::Play => self.bob.apply(fov, self.settings.view_bobbing, &mut self.camera.fov_y, &mut self.camera.bob, now),
+            _ => (self.camera.fov_y, self.camera.bob) = (fov.to_radians(), glam::Mat4::IDENTITY),
         }
         let steered = Instant::now();
         let hand = self.hand(now);

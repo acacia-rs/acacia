@@ -34,21 +34,45 @@ fn layout(theme: &Theme, title: &str, count: usize, [w, h]: [f32; 2]) -> ([f32; 
         Widgets::Java(_) => {
             let x = ((w - JAVA.width) / 2.0).floor();
             let top = (h / 4.0 + 8.0).floor();
-            let buttons = (0..count).map(|i| [x, top + i as f32 * (JAVA.height + JAVA.gap), x + JAVA.width, top + i as f32 * (JAVA.height + JAVA.gap) + JAVA.height]).collect();
-            ([x, (h / 4.0 - 12.0).floor(), x + JAVA.width, (h / 4.0 - 3.0).floor()], buttons)
+            let step = JAVA.height + JAVA.gap;
+            let heading = [x, (h / 4.0 - 12.0).floor(), x + JAVA.width, (h / 4.0 - 3.0).floor()];
+            if top + n * step > h {
+                // Java's options screen: 150-wide buttons either side of the middle, Done below.
+                let columns = [(w / 2.0 - 155.0).floor(), (w / 2.0 + 5.0).floor()];
+                return (heading, two_columns(count, columns, 150.0, [x, JAVA.width], top, step, JAVA.height));
+            }
+            let buttons = (0..count).map(|i| [x, top + i as f32 * step, x + JAVA.width, top + i as f32 * step + JAVA.height]).collect();
+            (heading, buttons)
         }
         Widgets::Bedrock(_) => {
             let width = (BEDROCK_WIDTH * w - 10.0).floor();
             let x = (BEDROCK_CENTRE * w - width / 2.0).floor();
             let heading = if title.is_empty() && theme.atlas.get(LOGO).is_some() { (width * 0.2).floor() } else { crate::font::LINE_HEIGHT };
-            let total = heading + LOGO_GAP + n * BEDROCK.height + (n - 1.0).max(0.0) * BEDROCK.gap;
+            let step = BEDROCK.height + BEDROCK.gap;
+            let rows = if n * step > h { (count / 2 + 1) as f32 } else { n };
+            let total = heading + LOGO_GAP + rows * BEDROCK.height + (rows - 1.0).max(0.0) * BEDROCK.gap;
             let top = ((h - total) / 2.0).floor();
             let first = top + heading + LOGO_GAP;
-            let step = BEDROCK.height + BEDROCK.gap;
+            if rows < n {
+                let columns = [x, x + width + BEDROCK.gap];
+                return ([x, top, x + width, top + heading], two_columns(count, columns, width, [x, width], first, step, BEDROCK.height));
+            }
             let buttons = (0..count).map(|i| [x, first + i as f32 * step, x + width, first + i as f32 * step + BEDROCK.height]).collect();
             ([x, top, x + width, top + heading], buttons)
         }
     }
+}
+
+/// Buttons too many for one column: all but the last in two `columns` (their left edges), row by
+/// row, and the last (Done) alone below at `last` (left edge and width).
+fn two_columns(count: usize, columns: [f32; 2], width: f32, last: [f32; 2], top: f32, step: f32, height: f32) -> Vec<[f32; 4]> {
+    let paired = count.saturating_sub(1);
+    let cell = |i: usize| {
+        let (x, y) = (columns[i % 2], top + (i / 2) as f32 * step);
+        [x, y, x + width, y + height]
+    };
+    let below = top + paired.div_ceil(2) as f32 * step;
+    (0..paired).map(cell).chain((count > 0).then_some([last[0], below, last[0] + last[1], below + height])).collect()
 }
 
 /// The button under `mouse`, if any.
@@ -116,6 +140,18 @@ mod tests {
         assert_eq!(layout(&theme, "Game Menu", 3, size).1[0], [60.0, 68.0, 260.0, 88.0]);
         assert_eq!(hit(&theme, "Game Menu", 3, size, [61.0, 68.0 + 24.0 * 2.0 + 1.0]), Some(2));
         assert_eq!(hit(&theme, "Game Menu", 3, size, [61.0, 89.0]), None, "between buttons");
+    }
+
+    #[test]
+    fn a_long_menu_takes_two_columns_and_fits() {
+        for java in [true, false] {
+            let (theme, size) = (theme(java), [427.0, 240.0]);
+            let rects = layout(&theme, "Options", 9, size).1;
+            assert_eq!(rects.len(), 9);
+            assert!(rects.iter().all(|r| r[0] >= 0.0 && r[2] <= size[0] && r[3] <= size[1]), "{java}: {rects:?}");
+            // Pairs share a row; Done sits alone under them.
+            assert!(rects[0][1] == rects[1][1] && rects[0][2] <= rects[1][0] && rects[8][1] > rects[7][1], "{java}: {rects:?}");
+        }
     }
 
     #[test]

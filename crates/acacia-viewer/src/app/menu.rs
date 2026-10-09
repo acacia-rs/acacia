@@ -54,6 +54,9 @@ impl App {
                     format!("VSync: {}", on(s.vsync)),
                     format!("Cave Culling: {}", on(s.cave_culling)),
                     format!("Sound: {}%", s.volume),
+                    format!("FOV: {}", s.fov),
+                    format!("View Bobbing: {}", on(s.view_bobbing)),
+                    format!("Clouds: {}", on(s.clouds)),
                     "Done".into(),
                 ])
             }
@@ -80,6 +83,10 @@ impl App {
             (Menu::Options, 2) => self.toggle_vsync(),
             (Menu::Options, 3) => self.settings.change_and_save(|s| s.cave_culling = !s.cave_culling),
             (Menu::Options, 4) => self.settings.change_and_save(|s| s.volume = (s.volume / 25 * 25 + 25) % 125),
+            // Java's range, 30 to 110, in steps of 10.
+            (Menu::Options, 5) => self.settings.change_and_save(|s| s.fov = (s.fov.clamp(30, 110) / 10 * 10 - 20) % 90 + 30),
+            (Menu::Options, 6) => self.settings.change_and_save(|s| s.view_bobbing = !s.view_bobbing),
+            (Menu::Options, 7) => self.settings.change_and_save(|s| s.clouds = !s.clouds),
             (Menu::Options, _) => self.menu = Some(Menu::Pause),
         }
     }

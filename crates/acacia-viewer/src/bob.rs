@@ -9,8 +9,6 @@ use glam::{DVec3, Mat4, Vec3};
 use crate::control::Me;
 
 const TICK: Duration = Duration::from_millis(50);
-/// Java's default field of view.
-pub const FOV: f32 = 70.0;
 
 #[derive(Default)]
 pub struct Bob {
@@ -45,14 +43,16 @@ impl Bob {
         self.ticked = Some(now);
     }
 
-    /// The camera's field of view and sway at `now`.
-    pub fn apply(&self, fov_y: &mut f32, bob: &mut Mat4, now: Instant) {
+    /// The camera's field of view (from the chosen `base` degrees) and sway at `now`; without
+    /// `bobbing` only the hurt roll is left, as in Java.
+    pub fn apply(&self, base: f32, bobbing: bool, fov_y: &mut f32, bob: &mut Mat4, now: Instant) {
         let t = self.ticked.map_or(1.0, |at| (now.saturating_duration_since(at).as_secs_f32() / TICK.as_secs_f32()).min(1.0));
         let fov = if self.fov == 0.0 { 1.0 } else { self.fov_before + (self.fov - self.fov_before) * t };
-        *fov_y = (FOV * fov.max(0.1)).to_radians();
+        *fov_y = (base * fov.max(0.1)).to_radians();
         let ticks_since = |at: Option<Instant>| at.map(|at| now.saturating_duration_since(at).as_secs_f32() / TICK.as_secs_f32());
         let roll = hurt_roll(ticks_since(self.hurt_at), ticks_since(self.dead_since));
-        *bob = roll * sway(-(self.walk + (self.walk - self.walk_before) * t), self.bob_before + (self.bob - self.bob_before) * t);
+        let amount = if bobbing { self.bob_before + (self.bob - self.bob_before) * t } else { 0.0 };
+        *bob = roll * sway(-(self.walk + (self.walk - self.walk_before) * t), amount);
     }
 }
 

@@ -44,11 +44,15 @@ pub struct Settings {
     pub gui_scale: u32,
     /// Master volume in percent.
     pub volume: u32,
+    /// Vertical field of view in degrees, before sprinting and flying widen it (Java's 30 to 110).
+    pub fov: u32,
+    pub view_bobbing: bool,
+    pub clouds: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { look: LookChoice::default(), vsync: true, cave_culling: true, gui_scale: 0, volume: 100 }
+        Settings { look: LookChoice::default(), vsync: true, cave_culling: true, gui_scale: 0, volume: 100, fov: 70, view_bobbing: true, clouds: true }
     }
 }
 
