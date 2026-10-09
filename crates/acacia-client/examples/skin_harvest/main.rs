@@ -16,7 +16,7 @@ use base64::engine::general_purpose::STANDARD;
 use acacia_client::auth::login::Skin;
 use acacia_client::auth::{Account, AuthClient, AuthConfig, FileTokenCache};
 use acacia_client::proto::packets::{PlayerList, PlayerSkin};
-use acacia_client::proto::types::{PlayerRecordContent, Skin as WireSkin, SkinArmSize};
+use acacia_client::proto::types::{PersonaPieceType, PlayerRecordContent, Skin as WireSkin, SkinArmSize};
 use acacia_client::{Client, Event};
 use serde_json::json;
 use styled::styled;
@@ -45,6 +45,10 @@ impl Harvest {
             *self.rejected.entry(shape(wire)).or_default() += 1;
             return Ok(());
         };
+        if let Some(name) = skin.unreadable_piece_type() {
+            *self.rejected.entry(format!("piece type {name:?} is not one BDS reads")).or_default() += 1;
+            return Ok(());
+        }
         let entry = self.looks.entry(look.clone()).or_default();
         entry.players += 1;
         entry.persona_ids.insert(skin.skin_id.clone());
@@ -159,7 +163,7 @@ fn default_character(w: &WireSkin) -> Option<(String, Skin)> {
             "IsDefault": true,
             "PackId": p.pack_id.to_string(),
             "PieceId": p.piece_id,
-            "PieceType": format!("persona_{}", snake(&format!("{:?}", p.piece_type))),
+            "PieceType": piece_type_name(p.piece_type),
             "ProductId": "",
         })
     }).collect();
@@ -214,6 +218,14 @@ fn shape(w: &WireSkin) -> String {
         w.skin_data.width, w.skin_data.height, w.personal_pieces.len(), defaults,
         w.skin_id.chars().map(|c| if c.is_ascii_hexdigit() { 'x' } else { c }).collect::<String>(),
     )
+}
+
+/// Login's name for a wire piece type: the enum's own, except `Hands`, which Login calls `persona_hand`.
+fn piece_type_name(piece_type: PersonaPieceType) -> String {
+    match piece_type {
+        PersonaPieceType::Hands => "persona_hand".into(),
+        other => format!("persona_{}", snake(&format!("{other:?}"))),
+    }
 }
 
 fn snake(camel: &str) -> String {

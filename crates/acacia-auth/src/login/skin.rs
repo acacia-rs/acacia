@@ -11,6 +11,16 @@ const CAPTURED: &[&str] = include!(concat!(env!("OUT_DIR"), "/skins.rs"));
 const FLAT_GEOMETRY: &str = include_str!("../../assets/skin_geometry.json");
 const FLAT_RESOURCE_PATCH: &str = include_str!("../../assets/skin_resource_patch.json");
 
+/// Every `PieceType` BDS 1.26.52 reads in `PersonaPieces` and `PieceTintColors`; any other name
+/// fails the whole Login (README, "Persona piece types"). `hand` is the wire enum's `Hands`.
+pub const PERSONA_PIECE_TYPES: [&str; 27] = [
+    "persona_skeleton", "persona_body", "persona_skin", "persona_bottom", "persona_feet", "persona_dress",
+    "persona_top", "persona_high_pants", "persona_hand", "persona_outerwear", "persona_facial_hair",
+    "persona_mouth", "persona_eyes", "persona_hair", "persona_hood", "persona_back", "persona_face_accessory",
+    "persona_head", "persona_legs", "persona_left_leg", "persona_right_leg", "persona_arms", "persona_left_arm",
+    "persona_right_arm", "persona_capes", "persona_classic_skin", "persona_emote",
+];
+
 /// The skin claims of [`super::ClientData`], named as the mitm dump names them.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "PascalCase", default)]
@@ -72,6 +82,15 @@ impl Skin {
                 *field = STANDARD.encode(text.unwrap_or_default().replace(&old, hex));
             }
         }
+    }
+
+    /// The first piece or tint `PieceType` outside [`PERSONA_PIECE_TYPES`] (a missing one is `""`).
+    pub fn unreadable_piece_type(&self) -> Option<&str> {
+        self.persona_pieces
+            .iter()
+            .chain(&self.piece_tint_colours)
+            .map(|piece| piece["PieceType"].as_str().unwrap_or_default())
+            .find(|name| !PERSONA_PIECE_TYPES.contains(name))
     }
 
     fn flat() -> Self {
@@ -163,6 +182,25 @@ mod tests {
         assert_eq!(pick(&pool, 7), pick(&pool, 7));
         let picked: std::collections::HashSet<_> = (0..30).filter_map(|s| pick(&pool, s)).collect();
         assert_eq!(picked.len(), 3);
+    }
+
+    #[test]
+    fn every_embedded_skin_names_piece_types_bds_reads() {
+        for json in CAPTURED {
+            let skin: Skin = serde_json::from_str(json).unwrap();
+            assert_eq!(skin.unreadable_piece_type(), None, "{}", skin.skin_id);
+        }
+    }
+
+    #[test]
+    fn piece_types_outside_the_list_are_reported() {
+        let mut skin = Skin::flat();
+        assert_eq!(skin.unreadable_piece_type(), None);
+        skin.persona_pieces = vec![serde_json::json!({"PieceType": "persona_hand"}), serde_json::json!({"PieceType": "persona_hands"})];
+        assert_eq!(skin.unreadable_piece_type(), Some("persona_hands"));
+        skin.persona_pieces.pop();
+        skin.piece_tint_colours = vec![serde_json::json!({"Colors": []})];
+        assert_eq!(skin.unreadable_piece_type(), Some(""));
     }
 
     #[test]
