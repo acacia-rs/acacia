@@ -55,6 +55,20 @@ pub fn upload(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u3
     texture.create_view(&Default::default())
 }
 
+/// Leather armour's TGA: alpha 0 is a hole, 255 greyscale leather to dye, anything between trim
+/// in its own colour. Dyed with undyed leather's colour (0xA06540); a stack's own dye is not read.
+fn dye_leather(image: &mut image::RgbaImage) {
+    const LEATHER: [u16; 3] = [0xA0, 0x65, 0x40];
+    for p in image.pixels_mut().filter(|p| p.0[3] > 0) {
+        if p.0[3] == 255 {
+            for (c, dye) in p.0.iter_mut().zip(LEATHER) {
+                *c = (u16::from(*c) * dye / 255) as u8;
+            }
+        }
+        p.0[3] = 255;
+    }
+}
+
 /// Texture layers, the later ones laid over the first where they are opaque; the missing-texture
 /// checkerboard without a readable first layer. `tint_mask` keeps the first layer's alpha, which
 /// then marks the texels to tint.
@@ -69,7 +83,10 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue, layers: &[&PathBuf], tin
     let Some((mut image, mask_alpha)) = layers.first().and_then(open) else {
         return upload(device, queue, 16, 16, &Texture::missing().rgba[..]);
     };
-    if mask_alpha && !tint_mask {
+    let armor = layers[0].components().any(|c| c.as_os_str() == "armor");
+    if mask_alpha && armor {
+        dye_leather(&mut image);
+    } else if mask_alpha && !tint_mask {
         // TGA alpha marks tinted or overlaid texels (sheep wool, horse markings), not holes.
         image.pixels_mut().for_each(|p| p.0[3] = 255);
     }

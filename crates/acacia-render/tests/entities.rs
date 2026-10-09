@@ -169,6 +169,14 @@ fn armor_is_posed_by_humanoid_bones() {
         assert_ne!(layers[0].textures[0], NO_TEXTURE, "{item}");
     }
     assert!(models.armor("minecraft:diamond_sword").is_none());
+    // Leggings are the second armour layer's texture, on leg bones that carry cubes.
+    let leggings = models.armor("minecraft:golden_leggings").expect("golden leggings");
+    assert_eq!(texture(&models, &leggings[0], 0), "gold_2");
+    // Leather is a TGA whose empty texels are white at alpha 0: the decoder must keep the alpha.
+    let boots = models.armor("minecraft:leather_boots").expect("leather boots");
+    let image = image::open(&models.textures()[boots[0].textures[0] as usize]).unwrap().into_rgba8();
+    let clear = image.pixels().filter(|p| p.0[3] == 0).count();
+    assert!(clear > 500, "{clear} clear texels of {}", image.pixels().len());
 }
 
 #[test]

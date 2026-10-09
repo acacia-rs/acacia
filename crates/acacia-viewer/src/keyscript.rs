@@ -63,6 +63,7 @@ fn parse(step: &str) -> Option<(Duration, Step)> {
         "E" => KeyCode::KeyE,
         "Tab" => KeyCode::Tab,
         "Esc" => KeyCode::Escape,
+        "F5" => KeyCode::F5,
         _ => return None,
     };
     Some((at, Step::Key(key, pressed)))

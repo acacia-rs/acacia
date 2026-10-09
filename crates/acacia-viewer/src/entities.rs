@@ -7,7 +7,7 @@ use std::sync::Arc;
 use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
 use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 as Flags};
-use acacia_bot::state::{Entity, ITEM_KIND, Metadata, PlayerSkin};
+use acacia_bot::state::{Entity, ITEM_KIND, ItemStack, Metadata, PlayerSkin};
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Pose, Skin, SkinSource, Value};
 use acacia_render::item::ItemKey;
 use glam::DVec3;
@@ -126,6 +126,12 @@ pub fn wrap_degrees(angle: f32) -> f32 {
 /// The body yaw one snapshot on. Servers sync where a mob heads and where it looks, not where its
 /// body points: like the vanilla client, the body eases towards the heading while moving and is
 /// dragged along once the head is turned too far.
+/// The item model key of a held stack; `None` for an empty hand.
+fn held_key(bot: &Bot, stack: &ItemStack) -> Option<ItemKey> {
+    let name = bot.state().item_name(stack).filter(|_| !stack.is_empty())?.to_owned();
+    Some(ItemKey { name, aux: stack.metadata, block: crate::control::block_of(bot, stack) })
+}
+
 fn turn_body(body: f32, moved: bool, yaw: f32, head_yaw: f32) -> f32 {
     let body = if moved { body + wrap_degrees(yaw - body) * BODY_TURN } else { body };
     head_yaw - wrap_degrees(head_yaw - body).clamp(-MAX_HEAD_TURN, MAX_HEAD_TURN)
@@ -148,7 +154,9 @@ impl Feed {
         if let Some(instance) = self.player(bot, uuid, feet, me.yaw, 1.0) {
             let own_eyes = Some(DVec3::new(eyes.x.into(), eyes.y.into(), eyes.z.into()));
             let (kind, facts) = (PLAYER.to_owned(), Facts::default());
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None, name: None, held: None, armor: Vec::new(), hurts: 0, dying: false });
+            let (held, armor) = (held_key(bot, state.inventory.held()), self.armor(bot, state.inventory.armor.iter()));
+            let (hurts, dying) = (state.hurts.count(me.runtime_entity_id), state.hurts.dying(me.runtime_entity_id));
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes, kind, facts, head_yaw: me.yaw, pitch: me.pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
@@ -186,14 +194,17 @@ impl Feed {
         };
         let hitbox = e.metadata.bounding_box().filter(|_| dropped.is_none());
         let name = e.metadata.name_tag().filter(|n| !n.is_empty()).map(str::to_owned).or_else(|| e.username.clone());
-        let held = e.equipment.as_ref().map(|q| &q.main_hand).filter(|s| !s.is_empty()).and_then(|s| {
-            Some(ItemKey { name: bot.state().item_name(s)?.to_owned(), aux: s.metadata, block: crate::control::block_of(bot, s) })
-        });
-        let worn = e.equipment.iter().flat_map(|q| &q.armor).filter(|s| !s.is_empty());
-        let armor = worn.filter_map(|s| self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")))).collect();
+        let held = e.equipment.as_ref().and_then(|q| held_key(bot, &q.main_hand));
+        let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));
         let hurts = &bot.state().hurts;
         let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));
         Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying })
+    }
+
+    /// The layers of the armour pieces among `worn` that the pack has attachables for.
+    fn armor<'a>(&self, bot: &Bot, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<Arc<[Layer]>> {
+        let layers = |s: &ItemStack| self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")));
+        worn.filter(|s| !s.is_empty()).filter_map(layers).collect()
     }
 
     fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, yaw: f32, scale: f32) -> Option<EntityInstance> {
