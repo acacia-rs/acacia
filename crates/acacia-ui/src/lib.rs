@@ -6,6 +6,7 @@ pub mod atlas;
 pub mod chat;
 pub mod debug;
 pub mod draw;
+pub mod effects;
 pub mod font;
 pub mod form;
 pub mod hud;

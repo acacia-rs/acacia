@@ -8,6 +8,7 @@ use image::{RgbaImage, imageops};
 
 use super::{Style, Theme, java_font, png};
 use crate::atlas::Atlas;
+use crate::effects;
 use crate::hud::sprite;
 use crate::overlay::BOSS_COLOURS;
 use crate::widget::Widgets;
@@ -58,6 +59,16 @@ pub fn load(root: &Path, java_root: Option<&Path>) -> Theme {
         for colour in BOSS_COLOURS {
             atlas.add(&format!("boss_bar/{colour}_background"), &bg);
             atlas.add(&format!("boss_bar/{colour}_progress"), &fill);
+        }
+    }
+    for (name, file) in [(effects::BACKGROUND, "hud_mob_effect_background"), (effects::BACKGROUND_AMBIENT, "hud_mob_ambient_effect_background")] {
+        if let Some(image) = ui(file) {
+            atlas.add(name, &image);
+        }
+    }
+    for (_, name, _) in effects::EFFECTS {
+        if let Some(image) = ui(&effects::bedrock_file(name)) {
+            atlas.add(&effects::sprite(name), &image);
         }
     }
     // 1937×333 does not fit the atlas; drawn about 150 GUI pixels wide.

@@ -5,6 +5,7 @@ use std::path::Path;
 
 use super::{Style, Theme, java_font, png};
 use crate::atlas::Atlas;
+use crate::effects;
 use crate::hud::sprite;
 use crate::overlay::BOSS_COLOURS;
 use crate::widget::Widgets;
@@ -32,6 +33,16 @@ pub fn load(root: &Path) -> Theme {
             if let Some(image) = png(&root.join(format!("textures/gui/sprites/{name}.png"))) {
                 atlas.add(&name, &image);
             }
+        }
+    }
+    for name in [effects::BACKGROUND, effects::BACKGROUND_AMBIENT] {
+        if let Some(image) = png(&root.join(format!("textures/gui/sprites/{name}.png"))) {
+            atlas.add(name, &image);
+        }
+    }
+    for (_, name, _) in effects::EFFECTS {
+        if let Some(image) = png(&root.join(format!("textures/mob_effect/{name}.png"))) {
+            atlas.add(&effects::sprite(name), &image);
         }
     }
     let font = java_font(root, &mut atlas);

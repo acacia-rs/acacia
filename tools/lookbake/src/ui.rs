@@ -1,13 +1,14 @@
-//! The jar's HUD and widget sprites, the container and recipe book sheets with their progress
-//! sprites and the ASCII font, copied into a Java look's files for acacia-ui's Java theme
-//! (`acacia_ui::theme::java`), in the jar's own layout.
+//! The jar's HUD and widget sprites, the status effect icons, the container and recipe book sheets
+//! with their progress sprites and the ASCII font, copied into a Java look's files for acacia-ui's
+//! Java theme (`acacia_ui::theme::java`), in the jar's own layout.
 
 use std::path::Path;
 
 use crate::download::Error;
 
-const COPIED: [&str; 9] = [
+const COPIED: [&str; 10] = [
     "textures/gui/sprites/hud",
+    "textures/mob_effect",
     "textures/gui/sprites/boss_bar",
     "textures/gui/sprites/widget",
     "textures/gui/container",

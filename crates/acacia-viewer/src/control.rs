@@ -147,6 +147,9 @@ pub struct Me {
     pub xp_progress: f32,
     /// The nine hotbar stacks.
     pub items: [Option<Stack>; 9],
+    /// Active effects: id, the ticks left when the server sent it (-1 for endless), the tick it
+    /// was stamped with, and whether it is ambient.
+    pub effects: Vec<(i32, i32, u64, bool)>,
     /// Boss bars: name, fill 0 to 1, and an index of `acacia_ui::overlay::BOSS_COLOURS`.
     pub bosses: Vec<(String, f32, usize)>,
 }
@@ -258,6 +261,7 @@ pub fn me(bot: &Bot) -> Me {
         xp_level: p.xp_level,
         xp_progress: p.xp_progress,
         items,
+        effects: p.effects.iter().map(|e| (e.id, e.duration, e.tick, e.ambient)).collect(),
         bosses: state.environment.boss_bars.values().map(|b| (b.title.clone(), b.progress, boss_colour(b.color))).collect(),
     }
 }

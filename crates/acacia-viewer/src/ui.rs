@@ -12,6 +12,7 @@ use acacia_render::LookPack;
 use acacia_render::blocks::BlockTable;
 use acacia_render::item::{ItemIcons, banner_icon, block_icon};
 use acacia_ui::chat::{self, Chat};
+use acacia_ui::effects::Active;
 use acacia_ui::hud::{self, HudState, sprite};
 use acacia_ui::lang::Lang;
 use acacia_ui::overlay::{self, Boss, Titles};
@@ -73,6 +74,8 @@ pub struct Ui {
     quads: Vec<Quad>,
     /// The hotbar slot and item last seen selected: a change shows the item's name.
     selected: Option<(u8, String)>,
+    /// When each effect (as the server sent it) was first seen, to count its time down.
+    effects_seen: HashMap<(i32, i32, u64), Instant>,
 }
 
 impl Ui {
@@ -91,7 +94,7 @@ impl Ui {
         tracing::info!(font = font_root.is_some(), "ui themes");
         let lang = Lang::load(&bedrock_root.join("texts/en_US.lang"));
         let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root), Skin::new(java_theme, &java_root));
-        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None }
+        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None, effects_seen: HashMap::new() }
     }
 
     pub fn show_title(&mut self, title: Title) {
@@ -163,6 +166,17 @@ impl Ui {
                 }
                 self.selected = selected;
             }
+            self.effects_seen.retain(|key, _| me.effects.iter().any(|&(id, ticks, tick, _)| *key == (id, ticks, tick)));
+            let active: Vec<Active> = me
+                .effects
+                .iter()
+                .map(|&(id, ticks, tick, ambient)| {
+                    let seen = *self.effects_seen.entry((id, ticks, tick)).or_insert(now);
+                    let elapsed = (now.saturating_duration_since(seen).as_secs_f32() * 20.0) as i32;
+                    Active { id, ticks: if ticks < 0 { ticks } else { (ticks - elapsed).max(0) }, ambient }
+                })
+                .collect();
+            acacia_ui::effects::draw(&mut list, &skin.theme, &active, gui[0]);
             let bosses: Vec<Boss> = me.bosses.iter().map(|(title, progress, colour)| Boss { title, progress: *progress, colour: *colour }).collect();
             overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
         }
