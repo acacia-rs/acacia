@@ -28,15 +28,36 @@ pub enum Layout {
     Station(Station),
     /// A crafting table, anvil, enchanting table and the like (`bench.rs`).
     Bench(Bench),
+    /// A villager's or wandering trader's offers (Java's `MerchantScreen`, 276 wide: the offers
+    /// left of the payment slots and the player's).
+    Trade,
 }
 
 impl Layout {
+    pub fn width(self) -> f32 {
+        if self == Layout::Trade { 276.0 } else { WIDTH }
+    }
+
+    /// Left edge of the player's slots.
+    fn player_x(self) -> f32 {
+        if self == Layout::Trade { 108.0 } else { 8.0 }
+    }
+
+    /// The results to pick from: a bench's, or the trader's offers.
+    fn picks(self) -> Option<Picks> {
+        match self {
+            Layout::Bench(bench) => bench.picks(),
+            Layout::Trade => Some(Picks { at: [5.0, 18.0], columns: 1, rows: 7, cell: [88.0, 20.0], text: 57.0 }),
+            _ => None,
+        }
+    }
+
     pub fn height(self) -> f32 {
         match self {
             Layout::Player => 166.0,
             Layout::Rows(rows) => 114.0 + SLOT * f32::from(rows),
             Layout::Station(station) => station.height(),
-            Layout::Bench(_) => 166.0,
+            Layout::Bench(_) | Layout::Trade => 166.0,
         }
     }
 
@@ -51,7 +72,7 @@ impl Layout {
             Layout::Player => 84.0,
             Layout::Rows(rows) => 103.0 + SLOT * (f32::from(rows) - 4.0),
             Layout::Station(station) => station.player_rows(),
-            Layout::Bench(_) => 84.0,
+            Layout::Bench(_) | Layout::Trade => 84.0,
         }
     }
 }
@@ -75,7 +96,8 @@ pub enum Slot {
 
 /// Every slot of `layout` with the top-left of its 16×16 item area, relative to the panel.
 pub fn slots(layout: Layout) -> Vec<(Slot, [f32; 2])> {
-    let at = |col: u8, top: f32, row: u8| [8.0 + SLOT * f32::from(col), top + SLOT * f32::from(row)];
+    let left = layout.player_x();
+    let at = |col: u8, top: f32, row: u8| [left + SLOT * f32::from(col), top + SLOT * f32::from(row)];
     let top = layout.player_rows();
     let mut out: Vec<(Slot, [f32; 2])> = (0..27u8).map(|i| (Slot::Main(9 + i), at(i % 9, top, i / 9))).collect();
     out.extend((0..9u8).map(|i| (Slot::Main(i), at(i, top + 58.0, 0))));
@@ -88,6 +110,7 @@ pub fn slots(layout: Layout) -> Vec<(Slot, [f32; 2])> {
         Layout::Rows(rows) => out.extend((0..rows * 9).map(|i| (Slot::Container(i), at(i % 9, 18.0, i / 9)))),
         Layout::Station(station) => out.extend(station.slots().into_iter().enumerate().map(|(i, at)| (Slot::Container(i as u8), at))),
         Layout::Bench(bench) => out.extend(bench.slots()),
+        Layout::Trade => out.extend([(Slot::Ui(TRADE[0]), [136.0, 37.0]), (Slot::Ui(TRADE[1]), [162.0, 37.0])]),
     }
     out
 }
@@ -97,9 +120,11 @@ pub fn slots(layout: Layout) -> Vec<(Slot, [f32; 2])> {
 /// is open and the screen is at least 379 wide.
 pub fn origin(layout: Layout, size: [f32; 2]) -> [f32; 2] {
     let book = if layout.has_book() && size[0] >= BOOK_ROOM { BOOK_SHIFT } else { 0.0 };
-    [((size[0] - WIDTH) / 2.0).floor() + book, ((size[1] - layout.height()) / 2.0).floor()]
+    [((size[0] - layout.width()) / 2.0).floor() + book, ((size[1] - layout.height()) / 2.0).floor()]
 }
 
+/// UI offsets of a trade's two payment slots.
+const TRADE: [u8; 2] = [4, 5];
 const BOOK_ROOM: f32 = 379.0;
 const BOOK_SHIFT: f32 = 77.0;
 
@@ -112,8 +137,7 @@ pub fn hit(layout: Layout, size: [f32; 2], mouse: [f32; 2]) -> Option<Slot> {
 
 /// Each of a bench's first `count` pick buttons, as far as its list shows them.
 fn pick_rects(layout: Layout, size: [f32; 2], count: usize) -> Vec<[f32; 4]> {
-    let Layout::Bench(bench) = layout else { return Vec::new() };
-    let Some(Picks { at, columns, rows, cell }) = bench.picks() else { return Vec::new() };
+    let Some(Picks { at, columns, rows, cell, .. }) = layout.picks() else { return Vec::new() };
     let [ox, oy] = origin(layout, size);
     (0..count.min(columns * rows))
         .map(|i| {
@@ -131,7 +155,7 @@ pub fn hit_pick(layout: Layout, size: [f32; 2], count: usize, mouse: [f32; 2]) -
 /// Whether `mouse` is over the panel (a click outside it drops the held stack).
 pub fn inside(layout: Layout, size: [f32; 2], mouse: [f32; 2]) -> bool {
     let [ox, oy] = origin(layout, size);
-    (ox..ox + WIDTH).contains(&mouse[0]) && (oy..oy + layout.height()).contains(&mouse[1])
+    (ox..ox + layout.width()).contains(&mouse[0]) && (oy..oy + layout.height()).contains(&mouse[1])
 }
 
 /// What is in each slot, and the stack the mouse carries.
@@ -145,11 +169,12 @@ pub struct Contents<'a> {
     pub picked: Option<usize>,
 }
 
-/// One entry of a bench's pick list: a result's icon (the stonecutter's) or a line of text (an
-/// enchanting option).
-#[derive(Debug, Clone, PartialEq)]
+/// One entry of a pick list: a result's icon (the stonecutter's), a line of text (an enchanting
+/// option) or a trade's price and goods.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Pick {
-    pub icon: Option<Sprite>,
+    /// Stacks and how far right of the button's edge each lies.
+    pub icons: Vec<(Sprite, u16, f32)>,
     pub label: String,
 }
 
@@ -185,16 +210,24 @@ pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, con
                 font.draw(list, bench.title(), ox + x, oy + y, TITLE, 1.0, false);
                 font.draw(list, "Inventory", ox + 8.0, oy + height - 94.0, TITLE, 1.0, false)
             }
+            // MerchantScreen: the trader's name over the right part, "Trades" over the offers.
+            Layout::Trade => {
+                let left = layout.player_x();
+                font.draw(list, "Trades", ox + 5.0 + ((88.0 - font.width("Trades")) / 2.0).floor(), oy + 6.0, TITLE, 1.0, false);
+                font.draw(list, title, ox + left + ((162.0 - font.width(title)) / 2.0).floor(), oy + 6.0, TITLE, 1.0, false);
+                font.draw(list, "Inventory", ox + left, oy + height - 94.0, TITLE, 1.0, false)
+            }
         };
     }
     let over = hit_pick(layout, size, contents.picks.len(), mouse);
     for (i, (rect, item)) in pick_rects(layout, size, contents.picks.len()).into_iter().zip(contents.picks).enumerate() {
         art.pick(list, rect, contents.picked == Some(i), over == Some(i));
-        if let Some(icon) = item.icon {
-            stack(list, theme.font.as_ref(), (icon, 1), rect[0], rect[1] + 1.0);
+        let (inset, text) = (((rect[3] - rect[1] - 16.0) / 2.0).floor(), layout.picks().map_or(5.0, |p| p.text));
+        for &(icon, count, x) in &item.icons {
+            stack(list, theme.font.as_ref(), (icon, count), rect[0] + x, rect[1] + inset);
         }
         if let Some(font) = &theme.font {
-            font.draw(list, &item.label, rect[0] + 5.0, rect[1] + 5.0, art.pick_text(), 1.0, false);
+            font.draw(list, &item.label, rect[0] + text, rect[1] + inset + 4.0, art.pick_text(), 1.0, false);
         }
     }
     let hovered = hit(layout, size, mouse);

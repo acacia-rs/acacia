@@ -57,6 +57,18 @@ fn a_stonecutter_lists_its_cuts_four_to_a_row() {
 }
 
 #[test]
+fn a_trade_screen_is_wider_with_the_offers_on_the_left() {
+    let (trade, size) = (Layout::Trade, [427.0, 240.0]);
+    let [ox, oy] = origin(trade, size);
+    assert_eq!([ox, oy], [75.0, 37.0]);
+    let at = |s| slots(trade).into_iter().find(|(slot, _)| *slot == s).unwrap().1;
+    assert_eq!([at(Slot::Ui(4)), at(Slot::Ui(5)), at(Slot::Main(9)), at(Slot::Main(0))], [[136.0, 37.0], [162.0, 37.0], [108.0, 84.0], [108.0, 142.0]]);
+    assert_eq!(hit_pick(trade, size, 9, [ox + 6.0, oy + 18.0 + 20.0 * 6.0 + 1.0]), Some(6));
+    assert_eq!(pick_rects(trade, size, 9).len(), 7, "seven offers show");
+    assert!(inside(trade, size, [ox + 270.0, oy + 10.0]) && !inside(Layout::Player, size, [ox + 270.0 + 50.0, oy + 10.0]));
+}
+
+#[test]
 fn a_chest_sits_above_the_player_rows() {
     let chest = Layout::Rows(3);
     assert_eq!(chest.height(), 168.0);

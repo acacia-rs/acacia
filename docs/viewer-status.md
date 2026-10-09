@@ -34,13 +34,14 @@ unit or pack tests only.
 | Screens | Crafting by hand: the 2×2 grid and the crafting table's 3×3 | table live; 2×2: tests |
 | Screens | Anvil (no renaming), smithing table, stonecutter, enchanting table | live |
 | Screens | Grindstone, cartography table (no renaming) | tests only, never opened live |
+| Screens | Trading: the offers of a villager or wandering trader, a click trades once | live (wandering trader) |
 | Screens | Furnace family, hopper, dispenser/dropper, brewing stand | live (acacia-46) |
 | Screens | Server forms, pause, options (two columns), death and respawn | live |
 | Sound | Each look's own samples: Bedrock `.fsb` (FADPCM), Java `.ogg` | logs (testbox has no audio device) |
 
 ## Not done
 
-- **Screens:** trading, beacon, loom; an anvil's and cartography table's name box; a stonecutter
+- **Screens:** beacon, loom; more than seven offers of a trader (no scrolling), trader levels; an anvil's and cartography table's name box; a stonecutter
   list longer than three rows (no scrolling); enchanting hints and the galactic text; craft
   results onto the cursor (they go into the inventory); books; maps; the game's own sign editor
   (a four-line form stands in); creative inventory tabs.

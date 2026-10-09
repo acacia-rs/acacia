@@ -213,6 +213,11 @@ impl Play {
         self.using_item.map(|since| now.saturating_duration_since(since).as_secs_f32())
     }
 
+    /// Whether a block or an entity is under the crosshair.
+    pub fn aims_at_something(&self) -> bool {
+        self.target.is_some() || self.entity.is_some()
+    }
+
     pub fn attacking(&self) -> bool {
         self.attacking
     }

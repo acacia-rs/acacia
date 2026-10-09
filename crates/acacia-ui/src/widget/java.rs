@@ -46,6 +46,8 @@ pub struct Kit {
     /// Workstation sheets by file name (`furnace`: 176×166, `hopper`: 176×133) and their progress
     /// sprites (`furnace/lit_progress`), as `inventory::Station::sheet` names them.
     pub stations: HashMap<String, Sprite>,
+    /// `villager.png`'s 276×166 trading screen.
+    pub trade: Option<Sprite>,
 }
 
 /// Workstation sheets under `textures/gui/container` and the panel's height in each.
@@ -69,6 +71,11 @@ const STATION_SPRITES: [&str; 14] = [
 ];
 
 impl Kit {
+    /// The button's nine-slice, highlighted under the mouse.
+    pub fn button_nine(&self, hover: bool) -> Option<Nine> {
+        self.button[usize::from(hover)]
+    }
+
     pub fn load(root: &Path, atlas: &mut Atlas) -> Kit {
         let sheet = |file: &str, [x, y, w, h]: [u32; 4], atlas: &mut Atlas| {
             let image = crate::theme::png(&root.join(format!("textures/gui/{file}.png")))?;
@@ -77,6 +84,11 @@ impl Kit {
             Some(atlas.add(&format!("{file}/{x},{y}"), &image::imageops::crop_imm(&image, x * s, y * s, w * s, h * s).to_image()))
         };
         let inventory = sheet("container/inventory", [0, 0, 176, 166], atlas);
+        // The one sheet that is 512×256.
+        let trade = crate::theme::png(&root.join("textures/gui/container/villager.png")).map(|image| {
+            let s = (image.width() / 512).max(1);
+            atlas.add("container/villager", &image::imageops::crop_imm(&image, 0, 0, 276 * s, 166 * s).to_image())
+        });
         let chest_top = sheet("container/generic_54", [0, 0, 176, 125], atlas);
         let chest_bottom = sheet("container/generic_54", [0, 126, 176, 96], atlas);
         let recipe_book = sheet("recipe_book", [1, 1, 147, 166], atlas);
@@ -100,6 +112,7 @@ impl Kit {
             recipe_book,
             recipe_slot,
             stations,
+            trade,
             button: [n("button"), n("button_highlighted")],
             checkbox: [n("checkbox"), n("checkbox_highlighted"), n("checkbox_selected"), n("checkbox_selected_highlighted")],
             slider: [n("slider"), n("slider_highlighted")],

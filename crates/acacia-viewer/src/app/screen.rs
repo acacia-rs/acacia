@@ -11,7 +11,7 @@ use super::App;
 use crate::control::{Command, Inventory};
 
 impl App {
-    /// `ACACIA_USE=secs`: one right-click on the targeted block, that long after the player
+    /// `ACACIA_USE=secs`: one right-click on the targeted block or entity, that long after the player
     /// arrived (after the setup commands have built what is to be opened).
     pub(super) fn drive_use(&mut self) {
         let Some(delay) = self.auto_use else { return };
@@ -19,7 +19,7 @@ impl App {
             return;
         }
         let at = *self.use_at.get_or_insert_with(|| std::time::Instant::now() + std::time::Duration::from_secs_f32(delay));
-        if std::time::Instant::now() >= at && self.mode == super::Mode::Play && self.play.target.is_some() {
+        if std::time::Instant::now() >= at && self.mode == super::Mode::Play && self.play.aims_at_something() {
             self.auto_use = None;
             tracing::info!(block = ?self.play.target.as_ref().map(|t| t.block), "ACACIA_USE");
             self.play.button(MouseButton::Right, true);
@@ -41,7 +41,7 @@ impl App {
     /// New slots from the bot. A container the server opened (a chest clicked) opens the screen;
     /// one it closed closes it.
     pub(super) fn set_inventory(&mut self, inventory: Inventory) {
-        let opened = |i: &Inventory| i.container.is_some() || i.bench.is_some();
+        let opened = |i: &Inventory| i.container.is_some() || i.bench.is_some() || i.trade.is_some();
         let (had, has) = (opened(&self.inventory), opened(&inventory));
         if inventory.picks != self.inventory.picks {
             self.pick = None;
@@ -56,6 +56,9 @@ impl App {
     }
 
     pub(super) fn layout(&self) -> Layout {
+        if self.inventory.trade.is_some() {
+            return Layout::Trade;
+        }
         match (self.inventory.station, &self.inventory.container) {
             (Some(station), Some(_)) => Layout::Station(station),
             (_, Some(c)) => Layout::Rows((c.slots.len() / 9) as u8),
@@ -90,6 +93,13 @@ impl App {
         if let Some(i) = book {
             let name = self.inventory.craftable[i].name.clone();
             let _ = self.net.commands.send(Command::Craft { name, table: self.inventory.workbench });
+            return;
+        }
+        let offers = self.inventory.trade.as_ref().map_or(&[][..], |t| &t.offers);
+        if let Some(i) = inventory::hit_pick(layout, size, offers.len(), at) {
+            if offers[i].open {
+                let _ = self.net.commands.send(Command::Trade(i));
+            }
             return;
         }
         if let Some(i) = inventory::hit_pick(layout, size, self.inventory.enchants.len(), at) {

@@ -34,6 +34,8 @@ pub(super) struct Art<'a> {
     kind: Kind<'a>,
     /// The open bench: Bedrock's panel gets its arrow drawn on.
     bench: Option<Bench>,
+    /// The trade screen: its offers are the look's buttons.
+    trade: bool,
 }
 
 enum Kind<'a> {
@@ -52,6 +54,7 @@ impl<'a> Art<'a> {
                     Layout::Rows(_) => kit.chest_top.zip(kit.chest_bottom).map(|(top, bottom)| (top, Some(bottom))),
                     Layout::Station(station) => kit.stations.get(station.sheet()).map(|s| (*s, None)),
                     Layout::Bench(bench) => kit.stations.get(bench.sheet()).map(|s| (*s, None)),
+                    Layout::Trade => kit.trade.map(|s| (s, None)),
                 };
                 sheets.map_or(Kind::Flat, |(sheet, bottom)| Kind::Java(kit, sheet, bottom))
             }
@@ -59,12 +62,12 @@ impl<'a> Art<'a> {
             Widgets::Bedrock(_) => Kind::Flat,
         };
         let bench = if let Layout::Bench(bench) = layout { Some(bench) } else { None };
-        Art { white: theme.atlas.white(), kind, bench }
+        Art { white: theme.atlas.white(), kind, bench, trade: layout == Layout::Trade }
     }
 
     /// The panel; Java's sheets bring their slots and portrait box with them.
     pub(super) fn panel(&self, list: &mut DrawList, layout: Layout, [ox, oy]: [f32; 2]) {
-        let rect = [ox, oy, ox + WIDTH, oy + layout.height()];
+        let rect = [ox, oy, ox + layout.width(), oy + layout.height()];
         let portrait = [ox + PORTRAIT[0], oy + PORTRAIT[1], ox + PORTRAIT[2], oy + PORTRAIT[3]];
         match self.kind {
             Kind::Java(kit, sheet, bottom) => match (layout, bottom) {
@@ -169,6 +172,10 @@ impl<'a> Art<'a> {
     pub(super) fn pick(&self, list: &mut DrawList, rect: [f32; 4], picked: bool, hover: bool) {
         let flat = if picked { SLOT_FILL } else { PANEL };
         match self.kind {
+            Kind::Java(kit, ..) if self.trade => match kit.button_nine(hover) {
+                Some(button) => list.nine(button, rect, WHITE),
+                None => bevel(list, self.white, rect, LIGHT, DARK, flat),
+            },
             Kind::Java(kit, ..) => {
                 let name = match (self.bench, picked, hover) {
                     (Some(Bench::Enchanting), _, true) => "enchanting_table/enchantment_slot_highlighted",
@@ -194,7 +201,11 @@ impl<'a> Art<'a> {
 
     /// Text on a pick button: Java's enchanting option brown, dark grey on Bedrock's cells.
     pub(super) fn pick_text(&self) -> u32 {
-        if matches!(self.kind, Kind::Java(..)) { 0x685E4A } else { 0x404040 }
+        match self.kind {
+            Kind::Java(..) if self.trade => 0xFFFFFF,
+            Kind::Java(..) => 0x685E4A,
+            _ => 0x404040,
+        }
     }
 
     /// Bedrock's green highlight lies under the item, Java's white veil over it.

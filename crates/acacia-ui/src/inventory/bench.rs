@@ -35,6 +35,8 @@ pub struct Picks {
     pub columns: usize,
     pub rows: usize,
     pub cell: [f32; 2],
+    /// Where a button's text starts.
+    pub text: f32,
 }
 
 impl Bench {
@@ -77,8 +79,8 @@ impl Bench {
     /// The results to pick from, for a bench that offers several.
     pub fn picks(self) -> Option<Picks> {
         match self {
-            Bench::Stonecutter => Some(Picks { at: [52.0, 14.0], columns: 4, rows: 3, cell: [16.0, 18.0] }),
-            Bench::Enchanting => Some(Picks { at: [60.0, 14.0], columns: 1, rows: 3, cell: [108.0, 19.0] }),
+            Bench::Stonecutter => Some(Picks { at: [52.0, 14.0], columns: 4, rows: 3, cell: [16.0, 18.0], text: 5.0 }),
+            Bench::Enchanting => Some(Picks { at: [60.0, 14.0], columns: 1, rows: 3, cell: [108.0, 19.0], text: 5.0 }),
             _ => None,
         }
     }

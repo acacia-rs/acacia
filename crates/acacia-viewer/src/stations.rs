@@ -4,7 +4,11 @@
 use std::collections::HashMap;
 
 use acacia_bot::proto::types::WindowType;
+use acacia_bot::Bot;
+use acacia_bot::state::{ItemStack, TradeItem};
 use acacia_ui::inventory::{Bench, Progress, Station};
+
+use crate::control::{Stack, stack_of};
 
 /// Furnace properties: ticks cooked, ticks of flame left, and what the burning fuel gave.
 const COOK_TICKS: i32 = 0;
@@ -27,6 +31,36 @@ pub fn station(window: WindowType) -> Option<Station> {
         WindowType::BrewingStand => Station::Brewing,
         _ => return None,
     })
+}
+
+/// The open trading screen.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Trade {
+    /// The trader's name as the server sent it (may be a translation key).
+    pub title: String,
+    pub offers: Vec<Offer>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Offer {
+    pub price: Stack,
+    pub second_price: Option<Stack>,
+    pub goods: Stack,
+    /// Not sold out and within the trader's level.
+    pub open: bool,
+}
+
+pub fn trade(bot: &Bot) -> Option<Trade> {
+    let window = bot.state().stations.trade.as_ref()?;
+    // Prices say "any aux value" as 32767.
+    let item = |t: &TradeItem| {
+        let metadata = if t.metadata == i16::MAX { 0 } else { t.metadata.max(0) as u32 };
+        stack_of(bot, &ItemStack { network_id: bot.state().items.id(&t.name)?, count: t.count, metadata, ..ItemStack::default() })
+    };
+    let offers = window.offers.iter().filter_map(|o| {
+        Some(Offer { price: item(&o.buy_a)?, second_price: o.buy_b.as_ref().and_then(item), goods: item(&o.sell)?, open: !o.is_disabled() && o.tier <= window.tier })
+    });
+    Some(Trade { title: window.display_name.clone(), offers: offers.collect() })
 }
 
 pub fn bench(window: WindowType) -> Option<Bench> {

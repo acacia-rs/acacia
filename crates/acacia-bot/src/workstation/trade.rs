@@ -69,6 +69,23 @@ impl Bot {
         Ok(done)
     }
 
+    /// One trade of offer `offer` on the open trading screen, as a player's click on the offer
+    /// and then on its result: paid from the inventory, the result put into it.
+    pub async fn trade_once(&mut self, offer: usize) -> Result<(), ActionError> {
+        let fill = fill_ops(&self.state, offer)?;
+        if !fill.is_empty() {
+            self.item_stack_request(&fill).await?;
+        }
+        if !self.state.inventory.cursor().is_empty() {
+            self.cursor_to_inventory().await?;
+        }
+        let (craft, ops) = trade_plan(&self.state, offer)?;
+        let uses = chosen(&self.state, offer)?.uses;
+        self.craft_request(&craft, &ops).await?;
+        count_use(&mut self.state, offer, uses);
+        self.cursor_to_inventory().await
+    }
+
     async fn next_click(&mut self, first: &mut bool) -> Result<(), ActionError> {
         if std::mem::take(first) {
             return Ok(());

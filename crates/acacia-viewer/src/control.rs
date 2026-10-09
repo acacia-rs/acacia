@@ -45,6 +45,8 @@ pub enum Command {
     TakeCut { id: u32, all: bool },
     /// A click on the enchanting table's option of this index.
     Enchant(usize),
+    /// A click on a trader's offer of this index: one trade.
+    Trade(usize),
     /// A click outside the screen: throws the held stack, or one of it.
     DropCursor { one: bool },
     /// The player's answer to open form `id`.
@@ -80,6 +82,8 @@ pub struct Inventory {
     pub picks: Vec<(u32, Stack)>,
     /// The level each option of an enchanting table needs.
     pub enchants: Vec<u8>,
+    /// An open trading screen.
+    pub trade: Option<crate::stations::Trade>,
 }
 
 pub fn crafted(bot: &Bot) -> Option<Stack> {
@@ -142,6 +146,7 @@ pub fn inventory(bot: &Bot) -> Inventory {
         crafted: None,
         bench: bot.open_container().and_then(|c| crate::stations::bench(c.window_type)),
         enchants: bot.enchant_costs(),
+        trade: crate::stations::trade(bot),
         picks: bot.stonecutter_choices().into_iter().filter_map(|(id, s)| Some((id, stack_of(bot, &s)?))).collect(),
     }
 }
@@ -188,6 +193,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::TakeCrafted { all } => bot.take_station_result(all).await,
         Command::TakeCut { id, all } => bot.take_stonecut(id, all).await,
         Command::Enchant(option) => bot.take_enchant(option).await,
+        Command::Trade(offer) => bot.trade_once(offer).await,
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
         Command::Craft { name, table } => bot.craft(&name, 1, table).await.map(|_| ()),
         Command::DropCursor { one } => bot.drop_cursor(one).await,

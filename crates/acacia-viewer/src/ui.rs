@@ -1,5 +1,7 @@
 //! The HUD and chat over the world, in the theme of the chosen look (acacia-ui).
 
+mod screen;
+
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
@@ -20,9 +22,9 @@ use acacia_bot::events::{Title, TitleKind};
 use acacia_ui::theme::{Theme, bedrock, java};
 use acacia_ui::{DrawList, Quad, Sprite};
 
-use crate::control::{Inventory, Stack};
+use crate::control::Inventory;
 use crate::me::Me;
-use acacia_ui::inventory::{Layout, Pick, Slot};
+use acacia_ui::inventory::Layout;
 use acacia_ui::menu::Backdrop;
 
 use crate::forms::FormScreen;
@@ -192,28 +194,7 @@ impl Ui {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
         if let Some((inventory, layout, picked)) = screen {
-            let mut icons = HashMap::new();
-            for (slot, _) in acacia_ui::inventory::slots(layout) {
-                // A pick list's result is the picked one.
-                let shown = match slot {
-                    Slot::Result if !inventory.picks.is_empty() => picked.and_then(|i| inventory.picks.get(i)).map(|p| &p.1),
-                    _ => stack_in(inventory, slot),
-                };
-                if let Some(item) = shown.and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count))) {
-                    icons.insert(slot, item);
-                }
-            }
-            let cursor = inventory.cursor.as_ref().and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count)));
-            let mut picks: Vec<Pick> = inventory.picks.iter().map(|(_, s)| Pick { icon: skin.icon(&s.name, s.aux, s.block), label: String::new() }).collect();
-            picks.extend(inventory.enchants.iter().enumerate().map(|(i, level)| Pick { icon: None, label: format!("{}  Level {level}", i + 1) }));
-            let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress, picks: &picks, picked };
-            let title = inventory.container.as_ref().map_or("", |c| c.title.as_str());
-            acacia_ui::inventory::draw(&mut list, &skin.theme, layout, title, &contents, mouse, gui);
-            if layout.has_book() {
-                // Every result keeps its cell (clicks index the same list); a missing icon draws blank.
-                let results: Vec<_> = inventory.craftable.iter().map(|s| (skin.icon(&s.name, s.aux, s.block).unwrap_or_else(|| skin.theme.atlas.white()), s.count)).collect();
-                acacia_ui::recipes::draw(&mut list, &skin.theme, layout, &results, mouse, gui);
-            }
+            screen::draw(&mut list, skin, &self.lang, inventory, layout, picked, mouse, gui);
         }
         if let Some(names) = players {
             acacia_ui::players::draw(&mut list, &skin.theme, names, gui[0]);
@@ -226,17 +207,6 @@ impl Ui {
         }
         self.quads = list.quads;
         (&skin.theme.atlas, &self.quads)
-    }
-}
-
-fn stack_in(inventory: &Inventory, slot: Slot) -> Option<&Stack> {
-    match slot {
-        Slot::Main(i) => inventory.main.get(usize::from(i))?.as_ref(),
-        Slot::Armor(i) => inventory.armor.get(usize::from(i))?.as_ref(),
-        Slot::Offhand => inventory.offhand.as_ref(),
-        Slot::Container(i) => inventory.container.as_ref()?.slots.get(usize::from(i))?.as_ref(),
-        Slot::Ui(i) => inventory.ui.get(usize::from(i))?.as_ref(),
-        Slot::Result => inventory.crafted.as_ref(),
     }
 }
 
