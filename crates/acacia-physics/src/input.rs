@@ -263,7 +263,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if was_flight_pose && !st.gliding && !st.swim_pose() {
             known = self.restore_upright_pose(st, available) && known;
         }
-        st.impulse = [mv[0] * 0.98, mv[1] * 0.98];
+        st.impulse = [mv[0] * st.input_scale, mv[1] * st.input_scale];
         (known, mv)
     }
 }

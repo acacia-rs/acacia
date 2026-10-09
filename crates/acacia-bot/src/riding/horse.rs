@@ -3,9 +3,9 @@
 
 use acacia_client::proto::packets::PlayerAuthInput;
 use acacia_client::proto::types::{Vec2f, Vec3f};
-use acacia_physics::{self as physics, PlayerState, RiderInput};
+use acacia_physics::{self as physics, HorseJump, PlayerState, RiderInput};
 
-use super::keys::{keys, report_keys};
+use super::keys::{keys, report_jump, report_keys};
 use crate::world::PhysicsWorld;
 use crate::Bot;
 
@@ -16,6 +16,9 @@ const HORSES: &[&str] = &["minecraft:horse", "minecraft:donkey", "minecraft:mule
 pub(crate) struct HorseSim {
     unique_id: i64,
     st: PlayerState,
+    jump: HorseJump,
+    /// The jump key was held on the last input.
+    jump_held: bool,
 }
 
 impl Bot {
@@ -33,7 +36,9 @@ impl Bot {
             let Some(e) = runtime_id.and_then(|id| self.state.entities.get(id)) else { return false };
             let Some(&speed) = e.attributes.get("minecraft:movement") else { return false };
             let feet = [e.position.x, e.position.y, e.position.z];
-            self.ride.horse = Some(HorseSim { unique_id, st: physics::horse(feet, e.yaw, speed) });
+            let strength = e.attributes.get("minecraft:horse.jump_strength").copied().unwrap_or_default();
+            tracing::debug!(speed, strength, "driving a horse");
+            self.ride.horse = Some(HorseSim { unique_id, st: physics::horse(feet, e.yaw, speed), jump: HorseJump::new(strength), jump_held: false });
         }
         let Some(horse) = self.ride.horse.as_mut() else { return false };
         if let Some(c) = movement.vehicle_correction.take() {
@@ -43,9 +48,10 @@ impl Bot {
         }
         let c = movement.controls;
         let keys = keys(&c);
-        let rider = RiderInput { move_vector: keys, yaw: c.yaw, pitch: c.pitch };
-        let out = physics::horse_tick(&mut horse.st, &rider, &PhysicsWorld { view, registry });
-        tracing::trace!(tick = input.tick, pos = ?out.position, delta = ?out.delta, yaw = horse.st.yaw, pitch = horse.st.pitch, on_ground = horse.st.on_ground, ?keys, "horse input");
+        let rider = RiderInput { move_vector: keys, yaw: c.yaw, pitch: c.pitch, jump: c.jump };
+        let out = physics::horse_tick(&mut horse.st, &mut horse.jump, &rider, &PhysicsWorld { view, registry });
+        tracing::trace!(tick = input.tick, pos = ?out.position, delta = ?out.delta, yaw = horse.st.yaw, pitch = horse.st.pitch, on_ground = horse.st.on_ground, ?keys, jump = c.jump, "horse input");
+        report_jump(input, c.jump, std::mem::replace(&mut horse.jump_held, c.jump));
         let [x, y, z] = out.position;
         let [ox, oy, oz] = self.ride.report_offset.take().unwrap_or([0.0; 3]);
         input.position = Vec3f { x: x + ox, y: y + oy, z: z + oz };

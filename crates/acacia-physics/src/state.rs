@@ -73,6 +73,8 @@ pub struct PlayerState {
     pub air_speed: f32,
     /// Replaces the walk/sprint air speed: a ridden horse's is its movement attribute x 0.1 (`vehicle.rs`).
     pub fixed_air_speed: Option<f32>,
+    /// What the move vector is scaled by: a player's 0.98, a ridden horse's 1 (`vehicle.rs`).
+    pub input_scale: f32,
     /// Highest ledge walked up without a jump: the player's 0.5625, a ridden horse's 1.0625.
     pub step_height: f32,
     pub underwater_movement_speed: f32,
@@ -165,6 +167,7 @@ impl PlayerState {
             server_freeze: None,
             air_speed: WALK_AIR_SPEED,
             fixed_air_speed: None,
+            input_scale: 0.98,
             step_height: STEP_HEIGHT,
             underwater_movement_speed: 0.0,
             lava_movement_speed: 0.0,

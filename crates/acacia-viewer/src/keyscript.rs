@@ -1,6 +1,6 @@
 //! `ACACIA_KEYS="3 +Space; 3.15 -Space; 9 click 640 300; 12 +Use; ..."`: key presses (+) and
 //! releases (-), the right button held (`Use`), and left clicks at window pixels, at seconds after
-//! play starts, for unattended live tests of the controls (flight's double tap, menu buttons).
+//! the player's first tick in the world, for unattended live tests of the controls (flight's double tap, menu buttons).
 
 use std::time::{Duration, Instant};
 

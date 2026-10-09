@@ -28,6 +28,14 @@ pub(super) fn report_paddles(input: &mut PlayerAuthInput, strafe: f32) {
     push_held(input, [(strafe > 0.0, F::PaddlingLeft), (strafe < 0.0, F::PaddlingRight)]);
 }
 
+/// The jump key as a walking input reports it (`movement/auth_input.rs`): BDS charges a horse's jump
+/// from `Jumping`.
+pub(super) fn report_jump(input: &mut PlayerAuthInput, held: bool, was_held: bool) {
+    let flags = [(held, F::Jumping), (held, F::JumpDown), (held, F::JumpCurrentRaw), (held, F::WantUp)];
+    push_held(input, flags);
+    push_held(input, [(held && !was_held, F::JumpPressedRaw), (!held && was_held, F::JumpReleasedRaw)]);
+}
+
 fn push_held<const N: usize>(input: &mut PlayerAuthInput, held: [(bool, F); N]) {
     for (on, flag) in held {
         if on && !input.input_data.contains(&flag) {
