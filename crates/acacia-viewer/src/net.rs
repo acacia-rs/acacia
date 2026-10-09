@@ -148,6 +148,8 @@ async fn run(
     };
     send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
     let mut inventory = control::Inventory::default();
+    // The text in an open anvil's name box, and whether it changed since the result was worked out.
+    let (mut name, mut renamed) = (None::<String>, false);
     let mut own_sounds = audio::Own::default();
     let mut ride_log = crate::ride::RideLog::default();
     let mut players: Vec<String> = Vec::new();
@@ -196,13 +198,13 @@ async fn run(
                     }
                     // `inventory` is compared without what is craftable, which is worked out only on a change.
                     let now = control::inventory(&bot);
-                    if now != inventory {
+                    if now != inventory || std::mem::take(&mut renamed) {
                         if now.station != inventory.station || now.container.is_some() != inventory.container.is_some() {
                             tracing::debug!(open = ?bot.state().containers.open.as_ref().map(|c| (c.window_type, c.slots.len())), station = ?now.station, "screen");
                         }
                         inventory = now.clone();
                         let table = now.workbench.is_some();
-                        let (craftable, crafted) = (control::craftable(&bot, table), control::crafted(&bot));
+                        let (craftable, crafted) = (control::craftable(&bot, table), control::crafted(&bot, name.as_deref()));
                         send(NetEvent::Inventory(control::Inventory { craftable, crafted, ..now }))?;
                     }
                     let names = control::player_names(&bot);
@@ -230,6 +232,9 @@ async fn run(
                 Some(_) => continue,
             },
             Some(command) = commands.recv() => {
+                if let control::Command::Name(new) = &command {
+                    (name, renamed) = (new.clone(), true);
+                }
                 control::apply(&mut bot, command).await;
                 continue;
             }

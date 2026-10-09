@@ -166,6 +166,8 @@ pub struct Contents<'a> {
     /// What a bench with a pick list offers, and the one chosen.
     pub picks: &'a [Pick],
     pub picked: Option<usize>,
+    /// The text in a bench's name box, up to the caret and after it.
+    pub name: Option<(&'a str, &'a str)>,
 }
 
 /// One entry of a pick list: a result's icon (the stonecutter's), a line of text (an enchanting
@@ -217,6 +219,17 @@ pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, con
                 font.draw(list, "Inventory", ox + left, oy + height - 94.0, TITLE, 1.0, false)
             }
         };
+    }
+    if let (Layout::Bench(bench), Some((before, after))) = (layout, contents.name) {
+        if let Some([x, y]) = bench.name_box() {
+            art.name_box(list, [ox + x, oy + y], !(before.is_empty() && after.is_empty()));
+            if let Some(font) = &theme.font {
+                let (start, caret) = (ox + x + 3.0, ox + x + 3.0 + font.width(before));
+                font.draw(list, before, start, oy + y + 4.0, 0xFFFFFF, 1.0, true);
+                font.draw(list, "_", caret, oy + y + 5.0, 0xFFFFFF, 1.0, true);
+                font.draw(list, after, caret, oy + y + 4.0, 0xFFFFFF, 1.0, true);
+            }
+        }
     }
     let over = hit_pick(layout, size, contents.picks.len(), mouse);
     for (i, (rect, item)) in pick_rects(layout, size, contents.picks.len()).into_iter().zip(contents.picks).enumerate() {

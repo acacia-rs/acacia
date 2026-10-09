@@ -34,7 +34,7 @@ unit or pack tests only.
 | HUD | Chat with translations (rawtext and keys), Tab list, sidebar, F3 | live |
 | Screens | Inventory with the player's figure, chests, recipe book and crafting by click | live |
 | Screens | Crafting by hand: the 2×2 grid and the crafting table's 3×3 | table live; 2×2: tests |
-| Screens | Anvil (no renaming), smithing table, stonecutter, enchanting table | live |
+| Screens | Anvil with its name box, smithing table, stonecutter, enchanting table | live |
 | Screens | Grindstone, cartography table (no renaming) | tests only, never opened live |
 | Screens | Trading: the offers of a villager or wandering trader, a click trades once | live (wandering trader) |
 | Screens | Furnace family, hopper, dispenser/dropper, brewing stand | live (acacia-46) |
@@ -43,7 +43,7 @@ unit or pack tests only.
 
 ## Not done
 
-- **Screens:** beacon, loom; more than seven offers of a trader (no scrolling), trader levels; an anvil's and cartography table's name box; a stonecutter
+- **Screens:** beacon, loom; more than seven offers of a trader (no scrolling), trader levels; a cartography table's name box, the anvil's level cost; a stonecutter
   list longer than three rows (no scrolling); enchanting hints and the galactic text; craft
   results onto the cursor (they go into the inventory); books; maps; the game's own sign editor
   (a four-line form stands in); creative inventory tabs.

@@ -73,6 +73,8 @@ impl App {
     pub(super) fn text(&mut self, text: &str, chat_was_open: bool) {
         if self.form.is_some() && self.menu.is_none() {
             self.form_text(text);
+        } else if self.names() && self.menu.is_none() {
+            self.screen_text(text);
         } else if chat_was_open {
             self.ui.chat.type_text(text);
         }

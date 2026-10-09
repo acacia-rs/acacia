@@ -22,14 +22,15 @@ type Cell<'a> = Option<(&'a str, u32, u16)>;
 
 impl Bot {
     /// What the open screen's workstation slots make now: the own 2x2 grid, a crafting table's,
-    /// an anvil's or cartography table's (without a new name), a smithing table's or a grindstone's.
-    pub fn station_result(&self) -> Option<ItemStack> {
-        station_plan(&self.state, false).ok()?.0.created().into_iter().next()
+    /// an anvil's or cartography table's (with the new name `name`, if any), a smithing table's or
+    /// a grindstone's.
+    pub fn station_result(&self, name: Option<&str>) -> Option<ItemStack> {
+        station_plan(&self.state, false, name).ok()?.0.created().into_iter().next()
     }
 
     /// The click on that result: one craft, or with `all` as many as a crafting grid's cells hold.
-    pub async fn take_station_result(&mut self, all: bool) -> Result<(), ActionError> {
-        let (craft, ops) = station_plan(&self.state, all)?;
+    pub async fn take_station_result(&mut self, all: bool, name: Option<&str>) -> Result<(), ActionError> {
+        let (craft, ops) = station_plan(&self.state, all, name)?;
         self.craft_request(&craft, &ops).await
     }
 
@@ -45,14 +46,14 @@ impl Bot {
     }
 }
 
-fn station_plan(state: &GameState, all: bool) -> Result<(Craft, Vec<Op>), ActionError> {
+fn station_plan(state: &GameState, all: bool, name: Option<&str>) -> Result<(Craft, Vec<Op>), ActionError> {
     match state.containers.open.as_ref().filter(|c| !is_own_screen(c)).map(|c| c.window_type) {
         None => hand_craft_plan(state, false, all),
         Some(WindowType::Workbench) => hand_craft_plan(state, true, all),
-        Some(WindowType::Anvil) => anvil_plan(state, None),
+        Some(WindowType::Anvil) => anvil_plan(state, name),
         Some(WindowType::SmithingTable) => smithing_plan(state),
         Some(WindowType::Grindstone) => grindstone_plan(state),
-        Some(WindowType::Cartography) => cartography_plan(state, None),
+        Some(WindowType::Cartography) => cartography_plan(state, name),
         Some(other) => Err(ActionError::NotPossible(format!("a {other:?} window makes nothing by hand"))),
     }
 }

@@ -70,6 +70,8 @@ pub struct App {
     screen_open: bool,
     /// The result picked from an open stonecutter's list.
     pick: Option<usize>,
+    /// The text in an open anvil's name box.
+    name: acacia_ui::widget::TextEdit,
     /// The pause menu or options (Esc).
     menu: Option<Menu>,
     /// Disconnect was chosen: the window closes.
@@ -143,6 +145,7 @@ impl App {
             menu: std::env::var_os("ACACIA_MENU").map(|_| Menu::Pause),
             quit: false,
             pick: None,
+            name: acacia_ui::widget::TextEdit::new("", screen::NAME_MAX),
             inventory: Inventory::default(),
             mouse: [0.0; 2],
             shift: false,
@@ -244,7 +247,9 @@ impl App {
         self.drive_use();
         let (size, scale) = self.gui();
         let mouse = self.gui_mouse();
-        let screen = self.screen_open.then_some((&self.inventory, self.layout(), self.pick));
+        let name = self.names().then(|| (self.name.before_caret(), self.name.text()));
+        let name = name.as_ref().map(|(before, all)| (before.as_str(), &all[before.len()..]));
+        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.pick, name });
         let menu = self.menu.map(|m| self.menu_content(m));
         let backdrop = if self.menu == Some(Menu::Death) { Backdrop::Death } else { Backdrop::Dim };
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice(), backdrop));
