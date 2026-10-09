@@ -11,6 +11,7 @@ use crate::theme::Theme;
 const TITLE_TIMES: [u32; 3] = [10, 70, 20];
 /// The action bar stays 3 s and fades over its last half.
 const ACTION_BAR: Duration = Duration::from_secs(3);
+const ITEM_NAME_TICKS: f32 = 40.0;
 const TICK: f32 = 0.05;
 pub const BOSS_COLOURS: [&str; 7] = ["pink", "blue", "red", "green", "yellow", "purple", "white"];
 
@@ -19,6 +20,7 @@ pub struct Titles {
     title: Option<(String, Instant)>,
     subtitle: Option<String>,
     action_bar: Option<(String, Instant)>,
+    item_name: Option<(String, Instant, bool)>,
 }
 
 impl Titles {
@@ -33,6 +35,11 @@ impl Titles {
 
     pub fn action_bar(&mut self, text: String, now: Instant) {
         self.action_bar = Some((text, now));
+    }
+
+    /// The newly selected item's name; `bars` when hearts are shown (the name sits above them).
+    pub fn item_name(&mut self, text: String, now: Instant, bars: bool) {
+        self.item_name = Some((text, now, bars));
     }
 
     pub fn clear(&mut self) {
@@ -75,6 +82,13 @@ pub fn draw_titles(list: &mut DrawList, theme: &Theme, titles: &Titles, now: Ins
         let left = ACTION_BAR.saturating_sub(now.saturating_duration_since(*since)).as_secs_f32();
         if left > 0.0 {
             centred(list, font, text, w / 2.0, h - 68.0, 1.0, (left / (ACTION_BAR.as_secs_f32() / 2.0)).min(1.0));
+        }
+    }
+    if let Some((text, since, bars)) = &titles.item_name {
+        // Java: 40 ticks, fading over the last 10; 59 above the bottom, 14 lower without the bars.
+        let left = ITEM_NAME_TICKS - now.saturating_duration_since(*since).as_secs_f32() / TICK;
+        if left > 0.0 {
+            centred(list, font, text, w / 2.0, h - if *bars { 59.0 } else { 45.0 }, 1.0, (left / 10.0).min(1.0));
         }
     }
 }

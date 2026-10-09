@@ -71,6 +71,8 @@ pub struct Ui {
     pub sidebar: Option<acacia_ui::sidebar::Sidebar>,
     lang: Lang,
     quads: Vec<Quad>,
+    /// The hotbar slot and item last seen selected: a change shows the item's name.
+    selected: Option<(u8, String)>,
 }
 
 impl Ui {
@@ -89,7 +91,7 @@ impl Ui {
         tracing::info!(font = font_root.is_some(), "ui themes");
         let lang = Lang::load(&bedrock_root.join("texts/en_US.lang"));
         let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root), Skin::new(java_theme, &java_root));
-        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new() }
+        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None }
     }
 
     pub fn show_title(&mut self, title: Title) {
@@ -154,6 +156,13 @@ impl Ui {
         if let Some(me) = me {
             let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none(), ..skin.state(me) };
             hud::draw(&mut list, &skin.theme, &state, gui);
+            let selected = me.items[me.hotbar as usize % 9].as_ref().map(|stack| (me.hotbar, stack.name.clone()));
+            if selected != self.selected {
+                if let Some((_, name)) = &selected {
+                    self.titles.item_name(self.lang.item_name(name), now, state.survival);
+                }
+                self.selected = selected;
+            }
             let bosses: Vec<Boss> = me.bosses.iter().map(|(title, progress, colour)| Boss { title, progress: *progress, colour: *colour }).collect();
             overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
         }

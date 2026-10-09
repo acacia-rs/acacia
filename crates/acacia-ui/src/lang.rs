@@ -40,6 +40,17 @@ impl Lang {
         self.0.get(word.strip_prefix('%')?).map(String::as_str)
     }
 
+    /// The name shown for item `id` (`minecraft:diamond_sword`): the table's `item.` or `tile.`
+    /// entry, else the identifier as a title (most block entries keep pre-flattening keys).
+    pub fn item_name(&self, id: &str) -> String {
+        let bare = id.rsplit(':').next().unwrap_or(id);
+        let named = ["item", "tile"].iter().find_map(|kind| self.0.get(&format!("{kind}.{bare}.name")));
+        named.cloned().unwrap_or_else(|| {
+            let word = |w: &str| w.chars().take(1).flat_map(char::to_uppercase).chain(w.chars().skip(1)).collect::<String>();
+            bare.split('_').map(word).collect::<Vec<_>>().join(" ")
+        })
+    }
+
     /// A `{"rawtext":[...]}` message (command feedback, scripted text) as its text: `text` parts
     /// verbatim, `translate` parts through the table with their `with` filled in. `None` when it
     /// is not JSON.
@@ -141,5 +152,7 @@ mod tests {
         let mode = r#"{"rawtext":[{"translate":"gameMode.changed","with":["%gameMode.creative"]}]}"#;
         assert_eq!(lang.rawtext(mode).as_deref(), Some("Your game mode has been updated to Creative"));
         assert_eq!(lang.rawtext("not json"), None);
+        let names = Lang::parse("item.stick.name=Stick\ntile.torch.name=Torch\n");
+        assert_eq!([names.item_name("minecraft:stick"), names.item_name("minecraft:torch"), names.item_name("minecraft:oak_planks")], ["Stick", "Torch", "Oak Planks"]);
     }
 }
