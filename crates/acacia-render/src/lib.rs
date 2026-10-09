@@ -10,6 +10,7 @@ pub mod clouds;
 mod cull;
 pub mod entity;
 pub mod fluid_view;
+pub mod glint;
 mod gpu;
 pub mod item;
 pub mod light;

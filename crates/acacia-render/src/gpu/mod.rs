@@ -7,6 +7,7 @@ mod entities;
 mod entity_buffers;
 mod entity_textures;
 mod fog;
+mod glint;
 mod globals;
 mod inputs;
 mod outline;
@@ -227,12 +228,12 @@ impl Renderer {
         };
         let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance));
         self.screen_effect.prepare(&self.queue, camera, fog.underwater, light_at(camera.position));
-        self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), &self.ui_entities, camera.position, light_at);
+        self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), &self.ui_entities, camera.position, crate::glint::scroll(self.started.elapsed().as_millis() as u64), light_at);
         self.outline_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         self.crack_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         let (atlas, quads) = ui.map_or((None, &[][..]), |(a, q)| (Some(a), q));
         if let Some(atlas) = atlas {
-            self.ui_pass.prepare(&self.device, &self.queue, atlas, quads, [self.config.width, self.config.height]);
+            self.ui_pass.prepare(&self.device, &self.queue, atlas, quads, [self.config.width, self.config.height], crate::glint::scroll(self.started.elapsed().as_millis() as u64));
         }
         self.sign_text.prepare(&self.device, &self.queue, self.ui_pass.texture.as_ref(), self.block_models.sign_text(), camera.position, light_at);
         drop(light);

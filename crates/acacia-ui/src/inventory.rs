@@ -7,9 +7,8 @@ mod station;
 
 pub use station::{Progress, Station};
 
-use crate::atlas::Sprite;
 use crate::draw::DrawList;
-use crate::hud::stack;
+use crate::hud::{Item, stack};
 use crate::theme::Theme;
 
 pub const WIDTH: f32 = 176.0;
@@ -104,8 +103,8 @@ pub fn inside(layout: Layout, size: [f32; 2], mouse: [f32; 2]) -> bool {
 
 /// What is in each slot, and the stack the mouse carries.
 pub struct Contents<'a> {
-    pub slot: &'a dyn Fn(Slot) -> Option<(Sprite, u16)>,
-    pub cursor: Option<(Sprite, u16)>,
+    pub slot: &'a dyn Fn(Slot) -> Option<Item>,
+    pub cursor: Option<Item>,
     /// A station's arrow and flame.
     pub progress: Progress,
 }

@@ -93,6 +93,20 @@ fn stack_response_updates_ok_slots_and_ignores_errors() {
 }
 
 #[test]
+fn a_stack_is_enchanted_by_a_non_empty_ench_list() {
+    use acacia_client::proto::nbt::{List, Nbt, Value};
+    let with = |entries: Vec<(&str, Value)>| {
+        let value = Value::Compound(entries.into_iter().map(|(k, v)| (k.into(), v)).collect());
+        ItemStack { network_id: 5, count: 1, nbt: Some(Nbt { name: String::new(), value }), ..ItemStack::default() }
+    };
+    let sharpness = Value::Compound(vec![("id".into(), Value::Short(9)), ("lvl".into(), Value::Short(1))]);
+    assert!(with(vec![("ench", Value::List(List { tag: 10, items: vec![sharpness] }))]).is_enchanted());
+    assert!(!with(vec![("ench", Value::List(List { tag: 0, items: Vec::new() }))]).is_enchanted());
+    assert!(!with(vec![("Damage", Value::Int(3))]).is_enchanted());
+    assert!(!ItemStack { network_id: 5, count: 1, ..ItemStack::default() }.is_enchanted());
+}
+
+#[test]
 fn decodes_fixtures() {
     let mut inv = Inventory::default();
     for packet in fixtures::<InventoryContent>().into_iter().chain(fixtures::<InventorySlot>()).chain(fixtures::<ItemStackResponse>()) {

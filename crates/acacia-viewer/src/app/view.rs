@@ -77,7 +77,7 @@ impl App {
         let stack = self.play.held_first_person().filter(|_| self.mode == Mode::Play)?.clone();
         let swing = self.play.swing(now);
         let using = self.play.item_use_secs(now).and_then(|secs| using(&stack.name, secs * 20.0));
-        let model = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block })?;
+        let model = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block }, stack.enchanted)?;
         Some(hand::first_person(&model, hand::Display::of(&stack.name, model.block), &self.camera, swing, using))
     }
 }

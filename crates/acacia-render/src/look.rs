@@ -49,6 +49,9 @@ pub struct Look {
     /// Packs baked before this field have none: they take the pack's.
     #[serde(default)]
     pub fluid_fog: FluidFog,
+    /// Packs baked before this field have none: they take Bedrock's.
+    #[serde(default)]
+    pub foil: crate::glint::Foil,
 }
 
 /// Whose rules set the fog with the camera in water, lava or powder snow ([`crate::fluid_view`]).
@@ -117,6 +120,7 @@ impl Look {
         ambient_occlusion: [0.45, 0.62, 0.8, 1.0],
         dropped: Dropped::JAVA,
         fluid_fog: FluidFog::Pack,
+        foil: crate::glint::Foil::Bedrock,
     };
     /// The blend is Java's default `biomeBlendRadius`; the haze its environmental fog
     /// (`fog_start_distance` and `fog_end_distance`: the defaults, and the Nether's), without
@@ -135,6 +139,7 @@ impl Look {
         ambient_occlusion: [0.4, 0.6, 0.8, 1.0],
         dropped: Dropped::JAVA,
         fluid_fog: FluidFog::Java,
+        foil: crate::glint::Foil::Java,
     };
 }
 

@@ -101,6 +101,9 @@ impl App {
         if let Some(sheet) = acacia_render::particles::Sheet::load(pack.files()) {
             r.set_particle_sheet(sheet);
         }
+        if let Some(glint) = acacia_render::glint::Images::load(pack.files()) {
+            r.set_glint_textures(&glint);
+        }
         r.set_world(world, table, &pack.atlas);
     }
 }

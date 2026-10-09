@@ -89,7 +89,7 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
-    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s) })
+    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted() })
 }
 
 /// The player list's names, sorted.
@@ -130,6 +130,7 @@ pub struct Stack {
     pub count: u16,
     /// Block runtime id of a block item, else 0.
     pub block: u32,
+    pub enchanted: bool,
 }
 
 /// The text on the side of the sign whose editor the server opened, `None` without an editor.

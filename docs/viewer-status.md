@@ -18,6 +18,7 @@ unit or pack tests only.
 | Particles | Server particles; torches, fires, furnaces, campfires, drips; block chips | live, both looks |
 | Entities | Pack models and animations, skins, name tags, dropped items | live |
 | Entities | Held items, worn armour (leather dyed its default), hurt flash | live |
+| Entities | Enchantment glint on held items, worn armour and slot icons | live in the Java look (armour: faint on netherite, not told apart on diamond); Bedrock look: faint, its rules assumed; dropped items and other entities' hands: tests |
 | Entities | Death topple | tests |
 | Entities | Round shadows on the ground (radius from the hitbox) | live |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
@@ -39,7 +40,7 @@ unit or pack tests only.
 - **Screens:** anvil, enchanting, trading, beacon, loom and the other Ui-slot stations; books; maps;
   the game's own sign editor (a four-line form stands in); creative inventory tabs; the crafting
   table's 3×3 grid by hand (the recipe book crafts).
-- **Entities:** enchantment glint, creeper and slime overlays, banner patterns, a leather
+- **Entities:** creeper and slime overlays, banner patterns, a leather
   stack's own dye, the off hand, capes, boat paddles, camels, leads, fishing lines.
 - **Sky:** the End's and the Nether's skies, Java's fast clouds.
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
@@ -55,4 +56,7 @@ unit or pack tests only.
   between them (`src/net/setup.rs`). A summon right after a far teleport fails: wait first.
 - `ACACIA_KEYS="5 +W; 9 -W; 12 +Use; 15 click 640 300; 16 type Hello"`: scripted input
   (`src/keyscript.rs`).
+- `/enchant @s ...` sent through `ACACIA_COMMANDS` had no effect (2026-10-09, no output either);
+  written to the BDS console fifo (`echo "enchant <name> sharpness 1" > work/bds-forms/console`)
+  it works. Armour is put on by holding it and `ACACIA_KEYS="18 +Use; 18.3 -Use"`.
 - `RUST_LOG=chat=debug` logs each chat line's raw packet.

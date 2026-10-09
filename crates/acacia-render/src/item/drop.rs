@@ -67,6 +67,7 @@ pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop) -> Vec<Entity
             pose: Pose::default(),
             frame: None,
             hurt: false,
+            glint: model.glint.then_some(crate::glint::Glint::Item),
         })
         .collect()
 }

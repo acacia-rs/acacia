@@ -13,7 +13,8 @@ use acacia_render::blocks::BlockTable;
 use acacia_render::item::{ItemIcons, banner_icon, block_icon};
 use acacia_ui::chat::{self, Chat};
 use acacia_ui::effects::Active;
-use acacia_ui::hud::{self, HudState, sprite};
+use acacia_render::glint::Foil;
+use acacia_ui::hud::{self, HudState, Item, sprite};
 use acacia_ui::lang::Lang;
 use acacia_ui::overlay::{self, Boss, Titles};
 use acacia_bot::events::{Title, TitleKind};
@@ -39,6 +40,7 @@ struct Skin {
     blocks: Option<(Arc<LookPack>, Arc<BlockTable>)>,
     /// Bumped per world: atlas names of block icons carry it, as runtime ids change meaning.
     generation: u32,
+    foil: Foil,
 }
 
 /// What one frame's UI shows, over a window `size` pixels big at GUI `scale`.
@@ -94,7 +96,8 @@ impl Ui {
         };
         tracing::info!(font = font_root.is_some(), "ui themes");
         let lang = Lang::load(&bedrock_root.join("texts/en_US.lang"));
-        let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root), Skin::new(java_theme, &java_root));
+        let foil = |look| looks.get(look).look.foil;
+        let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root, foil(LookChoice::Bedrock)), Skin::new(java_theme, &java_root, foil(LookChoice::Java)));
         Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None, effects_seen: HashMap::new() }
     }
 
@@ -192,17 +195,17 @@ impl Ui {
         if let Some((inventory, layout)) = screen {
             let mut icons = HashMap::new();
             for (slot, _) in acacia_ui::inventory::slots(layout) {
-                if let Some(item) = stack_in(inventory, slot).and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count))) {
+                if let Some(item) = stack_in(inventory, slot).and_then(|s| skin.item(s)) {
                     icons.insert(slot, item);
                 }
             }
-            let cursor = inventory.cursor.as_ref().and_then(|s| Some((skin.icon(&s.name, s.aux, s.block)?, s.count)));
+            let cursor = inventory.cursor.as_ref().and_then(|s| skin.item(s));
             let contents = acacia_ui::inventory::Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress };
             let title = inventory.container.as_ref().map_or("", |c| c.title.as_str());
             acacia_ui::inventory::draw(&mut list, &skin.theme, layout, title, &contents, mouse, gui);
             if layout == Layout::Player {
                 // Every result keeps its cell (clicks index the same list); a missing icon draws blank.
-                let results: Vec<_> = inventory.craftable.iter().map(|s| (skin.icon(&s.name, s.aux, s.block).unwrap_or_else(|| skin.theme.atlas.white()), s.count)).collect();
+                let results: Vec<_> = inventory.craftable.iter().map(|s| skin.item(s).unwrap_or(Item { icon: skin.theme.atlas.white(), count: s.count, glint: false })).collect();
                 acacia_ui::recipes::draw(&mut list, &skin.theme, layout, &results, mouse, gui);
             }
         }
@@ -231,15 +234,17 @@ fn stack_in(inventory: &Inventory, slot: Slot) -> Option<&Stack> {
 }
 
 impl Skin {
-    fn new(theme: Theme, root: &Path) -> Skin {
-        Skin { theme, icons: ItemIcons::load(root), root: root.to_owned(), added: HashMap::new(), blocks: None, generation: 0 }
+    fn new(theme: Theme, root: &Path, foil: Foil) -> Skin {
+        Skin { theme, icons: ItemIcons::load(root), root: root.to_owned(), added: HashMap::new(), blocks: None, generation: 0, foil }
+    }
+
+    /// A stack as a slot shows it; `None` for an item without an icon.
+    fn item(&mut self, s: &Stack) -> Option<Item> {
+        Some(Item { icon: self.icon(&s.name, s.aux, s.block)?, count: s.count, glint: s.enchanted || self.foil.always(&s.name) })
     }
 
     fn state(&mut self, me: &Me) -> HudState {
-        let hotbar = std::array::from_fn(|slot| {
-            let stack = me.items[slot].as_ref()?;
-            Some((self.icon(&stack.name, stack.aux, stack.block)?, stack.count))
-        });
+        let hotbar = std::array::from_fn(|slot| self.item(me.items[slot].as_ref()?));
         HudState {
             health: me.health,
             max_health: me.max_health,
