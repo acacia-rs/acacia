@@ -31,7 +31,8 @@ unit or pack tests only.
 | Entities | Players crouch while sneaking (the server's flag; the own player's input) and raise a shield with it, the arm in Java's blocking pose | live for another player (Java look, the `props` bot). BDS did not set the blocking flag on it: a sneaking shield holder counts as blocking |
 | Entities | Capes: the skin's cape image on the game's cape sheet, hung at Java's rest angle, leaning with a sneaking wearer and lifting with its pace | live on a standing, sneaking player from behind and the side (Java look, `props`); lifted behind a walking one (`props … pace`; any direction lifts it, no sideways sway); a persona skin's cape image would arrive the same way but none of the pool skins has one |
 | Entities | A shield's banner: the cloth and patterns from `shield_patterns`, on the model and the slot icon | tests only (no command makes one) |
-| Maps | A filled map held in first person shows the picture the server sends, on the map sheet: in both hands lying flat until the holder looks down (Java's placement), or beside the view when the other hand is full | live (Java look): lying flat and one-handed; upright by tests. Not drawn: the arms under it, markers, maps in item frames; other hands and slots show the item's icon |
+| Maps | A filled map held in first person shows the picture the server sends, on the map sheet: in both hands lying flat until the holder looks down (Java's placement), or beside the view when the other hand is full | live (Java look): lying flat and one-handed; upright by tests. Not drawn: the arms under it, markers; other hands and slots show the item's icon |
+| Item frames | Frames on walls with their item at half size, or a map's picture over the block's face (asked of the server once) | live (Java look): a sword, an apple, a block and a map, filled by the `frames` bot. Not drawn: frames on floors and ceilings; the turn of a rotated item is unchecked |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
 | Banners | Standing and wall banners with their dye and patterns, the ominous banner; the flag sways | live, both looks (20 of 42 patterns seen; composition and sway by tests) |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
@@ -93,6 +94,8 @@ unit or pack tests only.
   it works. Armour is put on by holding it and `ACACIA_KEYS="18 +Use; 18.3 -Use"`.
 - Patterned banners: no command writes them, so `cargo run -p acacia-bot --example banners -- <server> [x y z]`
   looms and places a row (it runs commands only on itself and within 40 blocks).
+- Item frames: no command fills one, so `cargo run -p acacia-bot --example frames -- <server> [x y z]`
+  hangs a row on a wall and fills it, the last with a map.
 - A second player: `cargo run -p acacia-bot --example props -- <server> [x y z]` stands there
   in a cape (`ClientBuilder::skin`), facing north, leashes a cow, looms a patterned banner into its hand and sneaks with a shield
   for a minute.
