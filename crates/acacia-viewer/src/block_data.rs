@@ -28,12 +28,19 @@ fn data(nbt: &Nbt) -> Option<BlockData> {
         _ => None,
     };
     let pair = int("pairx").zip(int("pairz")).map(|(x, z)| ([x, z], int("pairlead") == Some(1)));
-    let data = BlockData { banner: banner(&nbt.value).map(Arc::new), color: int("color").map(|c| c as u8), rotation, pair };
+    let data = BlockData { banner: banner(&nbt.value, None).map(Arc::new), color: int("color").map(|c| c as u8), rotation, pair };
     (data != BlockData::default()).then_some(data)
 }
 
-/// A banner's `Base` dye, `Patterns` (each a `Pattern` code and `Color`) and `Type` (1: ominous).
-fn banner(nbt: &Value) -> Option<Banner> {
+/// A banner item's cloth: its aux is the base dye, and its NBT, when it has any, the rest.
+pub fn item_banner(aux: u32, nbt: Option<&Nbt>) -> Banner {
+    let none = Value::Compound(Vec::new());
+    banner(nbt.map_or(&none, |nbt| &nbt.value), Some(aux as i32)).unwrap_or_default()
+}
+
+/// A banner's `Base` dye (`base` for an item, which keeps it in its aux), `Patterns` (each a
+/// `Pattern` code and `Color`) and `Type` (1: ominous).
+fn banner(nbt: &Value, base: Option<i32>) -> Option<Banner> {
     let patterns = match nbt.get("Patterns") {
         Some(Value::List(patterns)) => &patterns.items[..],
         _ => &[],
@@ -44,5 +51,5 @@ fn banner(nbt: &Value) -> Option<Banner> {
             _ => None,
         }
     }
-    Some(Banner::from_bedrock(int(nbt, "Base")?, patterns.iter().filter_map(layer), int(nbt, "Type").unwrap_or(0)))
+    Some(Banner::from_bedrock(base.or_else(|| int(nbt, "Base"))?, patterns.iter().filter_map(layer), int(nbt, "Type").unwrap_or(0)))
 }

@@ -7,6 +7,7 @@ use image::RgbaImage;
 
 use super::block::{Face, faces, texels, tile_of};
 use crate::assets::flipbook::Atlas;
+use crate::banner::Banner;
 use crate::blocks::{RenderBlock, Shape};
 
 const SIZE: u32 = 32;
@@ -51,10 +52,10 @@ pub fn block_icon(block: &RenderBlock, atlas: &Atlas) -> Option<RgbaImage> {
 }
 
 /// A banner, which has no item texture (both games draw the entity): the flag's front from the
-/// composed texture (Java's UV: 20×40 at 1, 1), dyed by the item's aux (legacy dye order,
-/// 15 white) and without the stack's patterns, with the crossbar above it.
-fn banner_icon(root: &std::path::Path, aux: u32) -> Option<RgbaImage> {
-    let base = crate::banner::compose(root, &crate::banner::Banner::from_bedrock(aux as i32, [], 0))?;
+/// composed texture (Java's UV: 20×40 at 1, 1) with the stack's dye and patterns, and the
+/// crossbar above it.
+fn banner_icon(root: &std::path::Path, banner: &Banner) -> Option<RgbaImage> {
+    let base = crate::banner::compose(root, banner)?;
     let scale = base.width() / 64;
     let flag = image::imageops::crop_imm(&base, scale, scale, 20 * scale, 40 * scale).to_image();
     let flag = image::imageops::resize(&flag, 14, 28, image::imageops::FilterType::Nearest);
@@ -95,9 +96,10 @@ fn shield_plate_at(pixel: Vec2) -> [f32; 2] {
 }
 
 /// The icon of an item both games draw as its model in a slot; `None` for any other item.
-pub fn model_icon(root: &std::path::Path, name: &str, aux: u32) -> Option<RgbaImage> {
+/// `banner` is a banner stack's cloth.
+pub fn model_icon(root: &std::path::Path, name: &str, banner: Option<&Banner>) -> Option<RgbaImage> {
     match name {
-        "minecraft:banner" => banner_icon(root, aux),
+        "minecraft:banner" => banner_icon(root, banner?),
         super::shield::ITEM => shield_icon(root),
         _ => None,
     }

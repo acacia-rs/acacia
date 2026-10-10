@@ -88,7 +88,7 @@ impl App {
         let mut out = Vec::new();
         for (left, stack) in [(false, main), (true, off)] {
             let Some(stack) = stack else { continue };
-            let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block, dye: stack.dye }, stack.enchanted) else { continue };
+            let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block, dye: stack.dye, banner: stack.banner.clone() }, stack.enchanted) else { continue };
             let display = hand::Display::first_person(&stack.name, model.form, left, sneaking && (left || !off_shield));
             let (swing, using) = if left { (0.0, None) } else { (swing, using) };
             out.push(hand::first_person(&model, display, &self.camera, left, swing, using));

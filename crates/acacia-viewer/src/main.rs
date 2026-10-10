@@ -29,6 +29,7 @@ mod forms;
 mod heap;
 mod facts;
 mod input;
+mod item_look;
 mod keyscript;
 mod looks;
 mod me;

@@ -33,6 +33,8 @@ pub struct ItemKey {
     pub block: u32,
     /// Dyed leather's colour ([`leather`]).
     pub dye: Option<[u8; 3]>,
+    /// A banner's cloth.
+    pub banner: Option<Arc<crate::banner::Banner>>,
 }
 
 /// What a model is, for how it is held, dropped and stacked.
@@ -96,6 +98,10 @@ impl ItemModels {
         let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint });
         if let Some(skin) = Some(self.pack.files()).filter(|_| key.name == shield::ITEM).and_then(shield::skin) {
             return model(skin, Form::Shield);
+        }
+        // A banner is held as its slot icon; both games hold the model.
+        if let Some(icon) = key.banner.as_deref().and_then(|banner| model_icon(self.pack.files(), &key.name, Some(banner))) {
+            return model(flat(icon.width(), icon.height(), icon.into_raw()), Form::Flat);
         }
         // An item with an icon of its own shows it, even when it places a block (doors, beds).
         let dye = leather::dyeable(&key.name).then_some(key.dye);

@@ -127,7 +127,8 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
-    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color() })
+    let banner = crate::item_look::banner(&name, s);
+    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color(), banner })
 }
 
 /// One entry of the creative inventory: its id, the item, and its tab (an index into acacia-ui's
@@ -192,6 +193,8 @@ pub struct Stack {
     pub enchanted: bool,
     /// Dyed leather's colour.
     pub dye: Option<[u8; 3]>,
+    /// A banner's cloth.
+    pub banner: Option<std::sync::Arc<acacia_render::banner::Banner>>,
 }
 
 /// The text on the side of the sign whose editor the server opened, `None` without an editor.

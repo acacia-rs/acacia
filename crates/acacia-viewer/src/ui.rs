@@ -277,11 +277,11 @@ impl Skin {
     fn icon(&mut self, s: &Stack) -> Option<Sprite> {
         let (name, aux, block) = (s.name.as_str(), s.aux, s.block);
         let dyed = leather::dyeable(name).then_some(s.dye);
-        let key = (dyed.flatten().map_or_else(|| name.to_owned(), |[r, g, b]| format!("{name}/{r:02x}{g:02x}{b:02x}")), aux);
+        let (banner, key) = (s.banner.as_deref(), (format!("{name}/{}", crate::item_look::variant(dyed.flatten(), s.banner.as_deref())), aux));
         if let Some(sprite) = self.added.get(&key) {
             return *sprite;
         }
-        let model = model_icon(&self.root, name, aux).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, aux));
+        let model = model_icon(&self.root, name, banner).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, banner));
         let image = model.or_else(|| self.icons.path(name, aux).and_then(|p| leather::icon(&self.root, p, dyed)));
         let sprite = match image {
             Some(i) => {
