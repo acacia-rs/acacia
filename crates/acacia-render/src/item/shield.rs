@@ -12,7 +12,7 @@ use super::hand::Display;
 use crate::assets::{image_file, json};
 use crate::banner::{self, Banner};
 use crate::entity::bake::{self, Mesh};
-use crate::entity::{Skin, geometry};
+use crate::entity::{Pose, Skin, geometry};
 
 pub const ITEM: &str = "minecraft:shield";
 const TEXTURE: &str = "textures/entity/shield";
@@ -53,6 +53,13 @@ pub(super) fn skin(root: &Path, cloth: Option<&Banner>) -> Option<Skin> {
 /// Java's with y mirrored, so a shift does it.
 fn mesh(geometry: &geometry::Geometry) -> Mesh {
     bake::bake(geometry).fixed(Mat4::from_translation(Vec3::new(-0.5, -0.5, 0.5) - PACK_ORIGIN / 16.0))
+}
+
+/// Raises an arm as Java's `HumanoidModel.poseBlockingArm` does (0.9424778 rad up, π/6 across):
+/// the blocking displays are placed for that arm, not for the pack's blocking animation.
+pub fn raise_arm(pose: &mut Pose, left: bool) {
+    let (bone, across) = if left { ("leftarm", 30.0) } else { ("rightarm", -30.0) };
+    pose.turn(bone, [-54.0, across, 0.0]);
 }
 
 /// The shield models' `display` for a hand, as the files list it (the left one not yet mirrored).

@@ -21,7 +21,7 @@ use crate::LookPack;
 use crate::look::Dropped;
 pub use icon::{block_icon, model_icon, pattern_icon};
 pub use icons::ItemIcons;
-pub use shield::ITEM as SHIELD;
+pub use shield::{ITEM as SHIELD, raise_arm as raise_shield_arm};
 
 /// An item stack as the server names it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

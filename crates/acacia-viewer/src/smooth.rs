@@ -176,7 +176,12 @@ impl Smoother {
                 _ => return e.facts.query(name),
             })
         };
-        let pose = e.instance.layers.first().map(|l| self.models.pose(&e.kind, l.model, &query)).unwrap_or_default();
+        let mut pose = e.instance.layers.first().map(|l| self.models.pose(&e.kind, l.model, &query)).unwrap_or_default();
+        // The off hand's shield is raised before the main one's.
+        let raised = [1, 0].into_iter().find(|&side| e.facts.blocking() && e.held[side].as_ref().is_some_and(|(key, _)| key.name == SHIELD));
+        if let Some(side) = raised {
+            acacia_render::item::raise_shield_arm(&mut pose, side == 1);
+        }
         let mut out = Vec::with_capacity(2);
         let status = self.hurt.get(&e.runtime_id).copied().unwrap_or_default();
         let dying = status.dying_since.map(|since| since.elapsed().as_secs_f32());
@@ -192,9 +197,7 @@ impl Smoother {
             let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
             let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
             if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.hand(&pose, left)) {
-                // The off hand's shield is raised before the main one's.
-                let blocking = e.facts.blocking() && (left || e.held[1].as_ref().is_none_or(|(key, _)| key.name != SHIELD));
-                out.push(hand::third_person(item, body, hand, left, blocking, m.position + DVec3::Y));
+                out.push(hand::third_person(item, body, hand, left, raised == Some(usize::from(left)), m.position + DVec3::Y));
             }
         }
         let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);

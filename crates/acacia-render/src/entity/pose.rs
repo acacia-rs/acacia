@@ -33,6 +33,12 @@ impl Pose {
         self.0.iter().find(|b| &*b.bone == bone)
     }
 
+    /// Replaces what the animations turned `bone` by (degrees).
+    pub fn turn(&mut self, bone: &str, rotation: [f32; 3]) {
+        let index = self.index(&Arc::from(bone));
+        self.0[index].rotation = rotation;
+    }
+
     fn index(&mut self, bone: &Arc<str>) -> usize {
         self.0.iter().position(|b| b.bone == *bone).unwrap_or_else(|| {
             self.0.push(BonePose { bone: bone.clone(), rotation: [0.0; 3], position: [0.0; 3], scale: [1.0; 3] });
