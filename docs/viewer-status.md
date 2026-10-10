@@ -65,9 +65,8 @@ unit or pack tests only.
   deleting items into it.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
-- **Entities:** a banner stack's patterns in its slot icon and on the
-  held model are by tests only (no command makes a patterned banner item), as is a shield's
-  banner; capes. A camel was seen standing, saddled and ridden (2026-10-10), not
+- **Entities:** a banner stack's patterns were seen on the model in another player's hand
+  (2026-10-10, Java look); its slot icon and a shield's banner are by tests only; capes. A camel was seen standing, saddled and ridden (2026-10-10), not
   sitting or dashing. The Bedrock attachable's own shield placement (Java's is used in both
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
 - **Capes:** the bot keeps no cape images (acacia-bot `state/skins.rs`), and no account on the
@@ -95,7 +94,8 @@ unit or pack tests only.
 - Patterned banners: no command writes them, so `cargo run -p acacia-bot --example banners -- <server> [x y z]`
   looms and places a row (it runs commands only on itself and within 40 blocks).
 - A second player: `cargo run -p acacia-bot --example props -- <server> [x y z]` stands there
-  facing north, leashes a cow and sneaks with a shield for a minute.
+  facing north, leashes a cow, looms a patterned banner into its hand and sneaks with a shield
+  for a minute.
 - `RUST_LOG=chat=debug` logs each chat line's raw packet.
 - The action-test pack (BDS 19174) rebuilds its scene around wherever the player joins, which
   is where it last left: stay there, summon on a stage some 40 blocks off and shoot it with
