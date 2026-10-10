@@ -135,6 +135,22 @@ mod tests {
     }
 
     #[test]
+    fn a_raised_shield_faces_ahead_of_its_holder() {
+        const ARMS: &str = r#"{"format_version": "1.12.0", "minecraft:geometry": [{
+            "description": {"identifier": "geometry.arms", "texture_width": 64, "texture_height": 64},
+            "bones": [{"name": "rightArm", "pivot": [-5, 22, 0]}, {"name": "leftArm", "pivot": [5, 22, 0]}]}]}"#;
+        let arms = bake::bake(&geometry::parse(ARMS)["geometry.arms"]);
+        for left in [false, true] {
+            let mut pose = Pose::default();
+            raise_arm(&mut pose, left);
+            let frame = held_frame(Display::third_person(Form::Shield, left, true), arms.hand(&pose, left).unwrap(), left);
+            // The holder looks down -z; the plate's front is the mesh's -z face.
+            let front = frame.transform_vector3(Vec3::NEG_Z).normalize();
+            assert!(front.z < -0.6, "{left}: {front}");
+        }
+    }
+
+    #[test]
     fn a_raised_shield_moves_towards_the_middle_of_the_view() {
         // The plate's middle in Java's item space, from the hand's resting place.
         let centre = |left, blocking| Display::first_person(ITEM, Form::Shield, left, blocking).frame().transform_point3(Vec3::new(-0.5, -0.5, -0.5 + 1.5 / 16.0));
