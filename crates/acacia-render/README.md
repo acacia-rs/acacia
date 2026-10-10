@@ -154,10 +154,26 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
   A source that does not compile is skipped, and what it would have set reads 0; a script that does
   not compile as a whole is compiled line by line. Query names outside acacia-molang's list are let
   through and read 0. Colour expressions (`color`, `overlay_color`) and `uv_anim` are not evaluated.
-- **Materials**: no material file is read. Layers whose material is an effect the pass does not
-  draw (charged creeper, guardian ghost: `OVERLAY_MATERIALS`) are dropped, the pack's `enchanted`
-  layers among them (see "Enchantment glint"). The `sheep` material tints by the `color` query
-  where the texture's alpha is 0.
+- **Materials** (`layer.rs`): no material file is read; a material's name picks the layer's
+  `Blend`. Layers whose material is an effect the pass does not draw (guardian ghost:
+  `OVERLAY_MATERIALS`) are dropped, the pack's `enchanted` layers among them (see "Enchantment
+  glint"). `outer` materials blend by the texture's alpha (slime shell). The `sheep` material
+  tints by the `color` query where the texture's alpha is 0.
+- **Charged creeper** (`Blend::Swirl`, `fs_swirl`): the definition's `charged` layer
+  (`query.is_powered`) is the creeper inflated by 2 px in `creeper_armor`, as Java's
+  `CreeperPowerLayer`. It is added to the frame at half strength, unlit, faded by the fog, after
+  the translucent terrain, and only its outside faces draw. The texture slides by 0.01 of itself
+  per tick both ways (`EnergySwirlLayer`; the pack's `uv_anim` says the same and is not read),
+  on the pass's own clock, so every aura is in step. Java adds sRGB values and this adds linear
+  ones: the aura is fainter over a bright background than Java's.
+- **Boat** (`boat.rs`, `hardcoded.geo.json`): the pack names `geometry.boat` and has no file for
+  it, so Java's `BoatModel` is built in for both looks: hull, and two paddles (a 2×2×18 shaft and
+  a 1×6×7 blade each) resting where `animatePaddle` puts them at rowing time 0. A caller that
+  answers `row_time_left`/`row_time_right` (Java's `rowingTime`: π/8 more per tick) rows them;
+  the viewer does from the boat's paddle times (`ROW_SWEEP` in its `entities.rs`: an assumed
+  cadence, Bedrock's own is unmeasured, as is where its client rests the paddles).
+  `geometry.boat.mask` is Java's `water_patch`: a `Blend::Mask` layer, written to the depth only
+  after all opaque entity layers, so the water inside the hull is not drawn.
 - **Geometry** (`geometry.rs`): both file layouts. A `minecraft:geometry` file without a texture size
   takes the size of the kind's texture; the old layout defaults to 64×32. With inheritance (`geometry.a:geometry.b`) a child
   bone of the same name adds its cubes and overrides the keys it sets, or replaces the bone with
@@ -275,11 +291,21 @@ entity-pass mesh with its own texture, built on first use and cached.
 - **Dropped** (`drop.rs`, Java's `ItemEntityRenderer`): hover, bob, spin, the number of copies by
   stack size and their scatter come from `Look::dropped` (Java's values for both looks; Bedrock's are
   unmeasured). The bob phase follows from the runtime id, the scatter from network id plus aux.
-- **Held** (`hand.rs`): in first person the camera carries the item (`first_person`: Java's arm
-  offset, swing, the model's display from `Display::of`, and `Using`: `applyEatTransform` for food
-  and drink, the bow's pull). On another entity `third_person` runs Java's `ItemInHandLayer` chain
-  at the posed right arm (`Mesh::right_hand`); Bedrock geometry is Java's with y mirrored, so the
-  chain is converted by a y flip at the shoulder.
+- **Held** (`hand.rs`): in first person the camera carries the item in either hand
+  (`first_person`: Java's arm offset, swing, the model's display from `Display::first_person`,
+  and `Using`: `applyEatTransform` for food and drink, the bow's pull). On another entity
+  `third_person` runs Java's `ItemInHandLayer` chain at the posed arm (`Mesh::hand`) with
+  `Display::third_person`; Bedrock geometry is Java's with y mirrored, so the chain is converted
+  by a y flip at the shoulder. A left hand's display is the model's left entry mirrored, as
+  `ItemTransform.apply` does.
+- **Shield** (`shield.rs`, `Form::Shield`): not a sprite but the pack's `geometry.shield`, which
+  is Java's `ShieldModel` box for box (a built-in copy stands in without the file), in the pack's
+  `textures/entity/shield` for both looks (look packs carry Bedrock's entity textures; Java's
+  `shield_base_nopattern` is not baked). It is moved into Java's item space, so the displays of
+  `item/shield.json` apply as written: held at rest the plate faces sideways outside the arm, long
+  side level. `shield_blocking.json`'s first-person display is taken while blocking. Dropped, it
+  takes the `ground` display. Both looks place it by Java's rules: the Bedrock attachable's own
+  `animation.shield.wield_*` offsets are not applied.
 - **Icons** (`icon.rs`): `block_icon` rasterises any block's faces (cube, boxes or model) as
   Java's GUI shows a block, with a depth buffer; `banner_icon` draws the flag from the composed
   banner texture (see "Banners") in the item's dye, without the stack's patterns.
@@ -478,13 +504,15 @@ way from the Bedrock one (docs/java-look.md).
 Java's fast (flat) clouds, the End's and the Nether's skies, GPU occlusion culling (Hi-Z). Block
 models: bells, open lids, piglin heads, the banner's sway, patterns on held banners and shields.
 Entities: animation
-state between frames (attacks, grazing, swimming), boat paddles and the water cut out of a boat's
-hull (the hull itself is built in, `entity/hardcoded.geo.json`), blended overlay layers and controller
-colours (slime shell, creeper flash, collar dyes), a leather stack's own dye (undyed leather's
+state between frames (attacks, grazing, swimming), controller
+colours (creeper flash, collar dyes), the other overlay materials (guardian ghost, wither
+armour), a leather stack's own dye (undyed leather's
 colour is baked, `gpu/entity_textures.rs`), queries that need untracked state
 (synced properties such as the climate variant), babies' own proportions where the pack has no
-baby geometry, the off hand's item, capes. Held items take three displays (`item/hand.rs`
-`Display::of`: generated, block, bow); other models' own are not read.
+baby geometry, capes. Held items take four displays (`item/hand.rs` `Display`: generated or
+handheld, block, bow, shield); other models' own are not read. A blocking holder's raised arm
+and the shield's third-person blocking display (the player's `shield_block_*` animations ask
+`query.get_equipped_item_name`, which nothing answers).
 
 Approximate: water loses 2 light per block (the wiki's Bedrock opacity note; its table is ambiguous),
 so seabeds deeper than ~7 blocks go dark. Each section change relights its whole column.

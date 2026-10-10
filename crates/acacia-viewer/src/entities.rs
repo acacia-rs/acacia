@@ -85,9 +85,14 @@ pub struct Facts {
     skin_id: i32,
     trade_tier: i32,
     color: i8,
-    /// A boat's `PaddleTimeLeft` and `PaddleTimeRight`.
+    /// A boat's `PaddleTimeLeft` and `PaddleTimeRight`, as the model's rowing time ([`ROW_SWEEP`]).
     row_time: [f32; 2],
 }
+
+/// Radians of paddle sweep per unit of a boat's paddle time. BDS adds 0.04 a tick while a paddle
+/// rows (seen live, 1.26.50) and a stroke is 10 ticks (acacia-physics `boat`): one sweep per
+/// stroke is assumed, the Bedrock client's own factor is unmeasured.
+const ROW_SWEEP: f32 = std::f32::consts::TAU / 0.4;
 
 const FLAGS: [(&str, Flags); 12] = [
     ("is_baby", Flags::BABY),
@@ -114,7 +119,7 @@ impl Facts {
             skin_id: meta.int(Key::SkinId),
             trade_tier: meta.int(Key::TradeTier),
             color: meta.color(),
-            row_time: [Key::PaddleTimeLeft, Key::PaddleTimeRight].map(|key| meta.float(key)),
+            row_time: [Key::PaddleTimeLeft, Key::PaddleTimeRight].map(|key| meta.float(key) * ROW_SWEEP),
         }
     }
 
