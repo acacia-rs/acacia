@@ -106,8 +106,8 @@ pub struct Renderer {
     pub in_fluid: Option<crate::fluid_view::InFluid>,
     /// Lightning bolts: seed and where each strikes.
     pub bolts: Vec<(u64, DVec3)>,
-    /// World y of the cloud layer; `None` draws none.
-    pub cloud_height: Option<f32>,
+    /// The cloud layer; `None` draws none.
+    pub clouds: Option<crate::clouds::CloudLayer>,
     scene: Option<Scene>,
     biomes: Arc<BiomeColors>,
     updates: Vec<Update>,
@@ -174,7 +174,7 @@ impl Renderer {
             weather_pass,
             weather: Default::default(),
             cloud_pass,
-            cloud_height: None,
+            clouds: None,
             bolt_pass,
             screen_effect,
             in_fluid: None,
@@ -202,7 +202,7 @@ impl Renderer {
         let world = self.scene.as_ref().map(|s| s.world().clone());
         // Rain and clouds only under an open sky: the server's rain level outlasts a trip to the End.
         let open_sky = world.as_ref().is_none_or(|w| w.dimension().sky);
-        let (rain, clouds) = if open_sky { (self.weather.rain, self.cloud_height) } else { (0.0, None) };
+        let (rain, clouds) = if open_sky { (self.weather.rain, self.clouds) } else { (0.0, None) };
         self.weather_pass.prepare(&self.queue, world.as_deref(), &self.biomes, camera.position, rain, self.started.elapsed().as_secs_f32());
         self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, crate::sky::cloud_tint(self.weather), self.started.elapsed().as_secs_f64());
         self.bolt_pass.prepare(&self.device, &self.queue, &self.bolts, camera.position);

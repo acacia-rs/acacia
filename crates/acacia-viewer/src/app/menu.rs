@@ -56,7 +56,7 @@ impl App {
                     format!("Sound: {}%", s.volume),
                     format!("FOV: {}", s.fov),
                     format!("View Bobbing: {}", on(s.view_bobbing)),
-                    format!("Clouds: {}", on(s.clouds)),
+                    format!("Clouds: {}", if !s.clouds { "OFF" } else if s.fancy_clouds { "Fancy" } else { "Fast" }),
                     "Done".into(),
                 ])
             }
@@ -86,7 +86,12 @@ impl App {
             // Java's range, 30 to 110, in steps of 10.
             (Menu::Options, 5) => self.settings.change_and_save(|s| s.fov = (s.fov.clamp(30, 110) / 10 * 10 - 20) % 90 + 30),
             (Menu::Options, 6) => self.settings.change_and_save(|s| s.view_bobbing = !s.view_bobbing),
-            (Menu::Options, 7) => self.settings.change_and_save(|s| s.clouds = !s.clouds),
+            (Menu::Options, 7) => self.settings.change_and_save(|s| (s.clouds, s.fancy_clouds) = match (s.clouds, s.fancy_clouds) {
+                // Java's order: fancy, fast, off.
+                (true, true) => (true, false),
+                (true, false) => (false, true),
+                (false, _) => (true, true),
+            }),
             (Menu::Options, _) => self.menu = Some(Menu::Pause),
         }
     }

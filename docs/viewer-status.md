@@ -69,7 +69,8 @@ unit or pack tests only.
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
 - **A raised shield in first person** was never seen: the one sneaking shot with a shield had
   the eye inside a scene object (dark red screen at 700/700; sneaking at 120/120 looks normal).
-- **Sky:** Java's fast clouds. The Nether's per-biome fog is in (unit-tested; only the crimson
+- **Sky:** Java's fast clouds are in (Options, Clouds: Fast) but by tests only, never seen
+  live. The Nether's per-biome fog is in (unit-tested; only the crimson
   forest was seen live, before it landed).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
   own are unmeasured.

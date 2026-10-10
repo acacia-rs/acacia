@@ -34,6 +34,27 @@ impl CloudMap {
     }
 }
 
+/// The layer the renderer draws: its world y, and boxes (`fancy`) or Java's fast flat sheet.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CloudLayer {
+    pub height: f32,
+    pub fancy: bool,
+}
+
+/// Java's fast clouds: each cell within `radius` cells of `(cx, cz)` is one face at the layer's
+/// foot, in the top's shade.
+pub fn sheet(map: &CloudMap, cx: i32, cz: i32, radius: i32) -> Vec<CloudVertex> {
+    let cells = (cz - radius..=cz + radius).flat_map(|z| (cx - radius..=cx + radius).map(move |x| (x, z)));
+    cells
+        .filter(|&(x, z)| map.is_cloud(x, z))
+        .flat_map(|(x, z)| {
+            let (x0, z0, x1, z1) = (x as f32, z as f32, x as f32 + 1.0, z as f32 + 1.0);
+            let v = [[x0, 0.0, z0], [x0, 0.0, z1], [x1, 0.0, z1], [x1, 0.0, z0]].map(|position| CloudVertex { position, shade: 1.0 });
+            [v[0], v[1], v[2], v[0], v[2], v[3]]
+        })
+        .collect()
+}
+
 /// The boxes of cells within `radius` cells of `(cx, cz)`, as triangles in cell coordinates.
 pub fn boxes(map: &CloudMap, cx: i32, cz: i32, radius: i32) -> Vec<CloudVertex> {
     let mut out = Vec::new();
@@ -84,6 +105,13 @@ mod tests {
         assert_eq!(boxes(&map(&[(3, 3)]), 3, 3, 2).len(), 6 * 6);
         // Two cells side by side: 2 × (top + bottom) + 6 outer walls.
         assert_eq!(boxes(&map(&[(3, 3), (4, 3)]), 3, 3, 2).len(), (4 + 6) * 6);
+    }
+
+    #[test]
+    fn fast_clouds_are_one_flat_face_a_cell() {
+        let flat = sheet(&map(&[(3, 3), (4, 3)]), 3, 3, 2);
+        assert_eq!(flat.len(), 2 * 6);
+        assert!(flat.iter().all(|v| v.position[1] == 0.0 && v.shade == 1.0));
     }
 
     #[test]

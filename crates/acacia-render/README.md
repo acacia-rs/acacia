@@ -375,8 +375,9 @@ sky toward 60% of its luminance under rain and 20% under thunder, takes 5/16 off
 each, hides the sun, moon and stars with the rain and whitens the sky for a flash
 (`ClientLevel.getSkyColor`, `Level.updateSkyBrightness`).
 
-**Clouds** (`clouds.rs`, `gpu/clouds.rs`, `Renderer::cloud_height`, `set_cloud_texture`): Java's
-fancy clouds. Each opaque texel of `clouds.png` is a box 12 blocks square and 4 thick, faces
+**Clouds** (`clouds.rs`, `gpu/clouds.rs`, `Renderer::clouds`, `set_cloud_texture`): Java's
+clouds, fancy or fast (`CloudLayer::fancy`; fast is one flat face a cell at the layer's foot,
+never seen live). Fancy: each opaque texel of `clouds.png` is a box 12 blocks square and 4 thick, faces
 between neighbours left out, shaded by side (1.0, 0.9, 0.8, 0.7), drifting 0.03 blocks a tick, 32
 cells round the camera; the mesh is rebuilt when the camera's cell changes. Translucent as
 Java's: a depth-only pass, then colour where the depth matches. `sky::cloud_tint` greys them in
@@ -501,7 +502,7 @@ way from the Bedrock one (docs/java-look.md).
 
 ## Not yet
 
-Java's fast (flat) clouds, the End's and the Nether's skies, GPU occlusion culling (Hi-Z). Block
+GPU occlusion culling (Hi-Z). Block
 models: bells, open lids, piglin heads, the banner's sway, patterns on held banners and shields.
 Entities: animation
 state between frames (attacks, grazing, swimming), controller

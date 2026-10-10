@@ -6,7 +6,7 @@ use glam::DVec3;
 use image::RgbaImage;
 
 use super::pipeline::DEPTH_FORMAT;
-use crate::clouds::{self, CELL, CloudMap, CloudVertex};
+use crate::clouds::{self, CELL, CloudLayer, CloudMap, CloudVertex};
 
 /// Blocks per second the clouds drift (+x).
 const DRIFT: f64 = 0.03 * 20.0;
@@ -19,8 +19,8 @@ pub struct CloudPass {
     bind_group: wgpu::BindGroup,
     uniform: wgpu::Buffer,
     map: Option<CloudMap>,
-    /// The mesh, its vertex count and the cell it is centred on.
-    mesh: Option<(wgpu::Buffer, u32, [i32; 2])>,
+    /// The mesh, its vertex count, the cell it is centred on and whether it is the fancy one.
+    mesh: Option<(wgpu::Buffer, u32, ([i32; 2], bool))>,
     visible: bool,
 }
 
@@ -94,15 +94,16 @@ impl CloudPass {
         (self.map, self.mesh) = (Some(CloudMap::new(image)), None);
     }
 
-    /// `height` is the layer's world y, `None` where there are no clouds (the Nether, the End);
-    /// `tint` from [`crate::sky::cloud_tint`].
-    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, camera: DVec3, height: Option<f32>, tint: f32, seconds: f64) {
+    /// `layer` is `None` where there are no clouds (the Nether, the End); `tint` from
+    /// [`crate::sky::cloud_tint`].
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, camera: DVec3, layer: Option<CloudLayer>, tint: f32, seconds: f64) {
         self.visible = false;
-        let (Some(height), Some(map)) = (height, &self.map) else { return };
+        let (Some(CloudLayer { height, fancy }), Some(map)) = (layer, &self.map) else { return };
         let cells = [(camera.x + seconds * DRIFT) / f64::from(CELL), camera.z / f64::from(CELL)];
         let centre = cells.map(|c| c.floor() as i32);
-        if self.mesh.as_ref().is_none_or(|(_, _, at)| *at != centre) {
-            let vertices: Vec<CloudVertex> = clouds::boxes(map, centre[0], centre[1], RADIUS)
+        if self.mesh.as_ref().is_none_or(|(_, _, of)| *of != (centre, fancy)) {
+            let build = if fancy { clouds::boxes } else { clouds::sheet };
+            let vertices: Vec<CloudVertex> = build(map, centre[0], centre[1], RADIUS)
                 .into_iter()
                 .map(|v| CloudVertex { position: [v.position[0] - centre[0] as f32, v.position[1], v.position[2] - centre[1] as f32], ..v })
                 .collect();
@@ -113,7 +114,7 @@ impl CloudPass {
                 mapped_at_creation: false,
             });
             queue.write_buffer(&buffer, 0, bytemuck::cast_slice(&vertices));
-            self.mesh = Some((buffer, vertices.len() as u32, centre));
+            self.mesh = Some((buffer, vertices.len() as u32, (centre, fancy)));
         }
         let offset = [cells[0] - f64::from(centre[0]), cells[1] - f64::from(centre[1])];
         let reach = RADIUS as f32 * CELL;

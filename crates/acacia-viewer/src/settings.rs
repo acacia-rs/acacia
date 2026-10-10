@@ -48,11 +48,13 @@ pub struct Settings {
     pub fov: u32,
     pub view_bobbing: bool,
     pub clouds: bool,
+    /// Boxes; off is Java's fast flat sheet.
+    pub fancy_clouds: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { look: LookChoice::default(), vsync: true, cave_culling: true, gui_scale: 0, volume: 100, fov: 70, view_bobbing: true, clouds: true }
+        Settings { look: LookChoice::default(), vsync: true, cave_culling: true, gui_scale: 0, volume: 100, fov: 70, view_bobbing: true, clouds: true, fancy_clouds: true }
     }
 }
 
