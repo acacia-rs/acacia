@@ -38,8 +38,9 @@ fn reach(rope: Rope) -> Vec3 {
     }
 }
 
-/// The first-person hand's place against the camera (right, up, ahead).
-const OWN_HAND: Vec3 = Vec3::new(0.45, -0.35, 0.7);
+/// The first-person rod's tip against the camera (right, up, ahead), fitted to where the held
+/// rod draws at a 70° field of view.
+const OWN_HAND: Vec3 = Vec3::new(0.8, 0.05, 0.8);
 /// The knot on a fence: the lead ties to the entity itself.
 const KNOT: &str = "minecraft:leash_knot";
 /// How far up a leashed mob's box its lead ties.
