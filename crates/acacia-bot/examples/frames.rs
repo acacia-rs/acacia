@@ -1,6 +1,7 @@
 //! Hangs a row of item frames on a stone wall and fills them, on a flat-world server where the
 //! bot is operator, as a scene for viewer screenshots: no command puts an item into a frame.
-//! The frames face north along x from the origin; the last holds a map the bot fills there.
+//! The frames face north along x from the origin; the fourth holds a map the bot fills there
+//! and the last a sword turned one step.
 //! Three blocks north of the row one lies on the floor and one hangs under a stone.
 //! `cargo run -p acacia-bot --example frames -- <server> [x y z of the first frame's block]`
 use acacia_bot::client::Client;
@@ -10,7 +11,9 @@ use acacia_bot::{Bot, BotConfig};
 
 type Error = Box<dyn std::error::Error>;
 
-const ITEMS: [&str; 4] = ["diamond_sword", "apple", "grass_block", "empty_map"];
+const ITEMS: [&str; 5] = ["diamond_sword", "apple", "grass_block", "empty_map", "diamond_sword"];
+/// The frame whose item is turned one step by a second click.
+const TURNED: usize = 4;
 const FILLED: &str = "minecraft:filled_map";
 
 #[tokio::main(flavor = "current_thread")]
@@ -54,8 +57,10 @@ async fn main() -> Result<(), Error> {
             }
             bot.wait_ticks(5).await?;
         }
-        bot.use_item_on_block([column, y, z], Face::North).await?;
-        bot.wait_ticks(10).await?;
+        for _ in 0..=usize::from(index == TURNED) {
+            bot.use_item_on_block([column, y, z], Face::North).await?;
+            bot.wait_ticks(10).await?;
+        }
     }
     // One on the floor behind the bot and one under a stone over it, each with a sword.
     let lying = [(x, y - 1, 1, Face::Up), (x + 2, y + 1, 0, Face::Down)];
