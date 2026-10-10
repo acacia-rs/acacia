@@ -40,8 +40,8 @@ pub struct Hung {
 }
 
 fn placed(block: IVec3, hung: Hung, turn: f32, depth: f32, scale: f32, camera: DVec3) -> Mat4 {
-    // TODO: which way `ItemRotation` turns, and a floor frame's upright, were not checked against the game.
-    model_space(block, hung.yaw, camera) * tilted(hung.tilt) * Mat4::from_translation(Vec3::new(0.0, 0.5, depth)) * Mat4::from_rotation_z(turn.to_radians()) * Mat4::from_scale(Vec3::splat(scale))
+    // Clockwise to its viewer, as the game turns it. TODO: a floor frame's upright was not checked against the game.
+    model_space(block, hung.yaw, camera) * tilted(hung.tilt) * Mat4::from_translation(Vec3::new(0.0, 0.5, depth)) * Mat4::from_rotation_z(-turn.to_radians()) * Mat4::from_scale(Vec3::splat(scale))
 }
 
 fn instance(layers: Arc<[Layer]>, skin: Arc<Skin>, block: IVec3, frame: Mat4, glint: Option<Glint>) -> EntityInstance {
