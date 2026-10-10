@@ -148,7 +148,9 @@ impl EntityModels {
         let block_textures = block_models::textures(root);
         let armor_textures = armor.iter().map(|p| &p.texture);
         for path in out.kinds.values().flat_map(|d| d.textures.values()).chain(&block_textures).chain(armor_textures) {
-            if let Some(file) = image_file(root, path).filter(|_| !out.texture_ids.contains_key(path)) {
+            // A baked look keeps its block images in an atlas: block models take the base pack's.
+            let found = image_file(root, path).or_else(|| image_file(&crate::assets::Pack::default_dir(), path));
+            if let Some(file) = found.filter(|_| !out.texture_ids.contains_key(path)) {
                 out.texture_ids.insert(path.clone(), out.textures.len() as TextureId);
                 out.textures.push(file);
             }
