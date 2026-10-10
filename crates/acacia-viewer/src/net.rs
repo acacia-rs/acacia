@@ -268,6 +268,7 @@ async fn run(
             }
             reports += 1;
             if reports.is_multiple_of(BLOCK_DATA_EVERY) {
+                crate::frames::publish(&bot);
                 let data = crate::block_data::snapshot(&bot.state().block_entities);
                 if data != *block_data {
                     block_data = Arc::new(data);

@@ -4,6 +4,7 @@
 mod block;
 pub mod drop;
 mod extrude;
+pub mod framed;
 pub mod hand;
 mod held_banner;
 mod icon;

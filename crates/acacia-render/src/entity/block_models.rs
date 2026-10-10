@@ -9,7 +9,7 @@ use glam::{Mat4, Vec3, Vec4};
 
 use super::bake::{self, Mesh};
 use super::geometry::{self, Geometry};
-use crate::blocks::model::{BANNER_TEXTURE, BANNERS, BED, CHEST, DOUBLE_CHEST, DRAGON_HEAD, HANGING_SIGNS, MOB_HEAD, PLAYER_HEAD, SIGN, WALL_SIGN};
+use crate::blocks::model::{BANNER_TEXTURE, BANNERS, BED, CHEST, DOUBLE_CHEST, DRAGON_HEAD, FRAME, FRAME_BORDER_TEXTURE, FRAME_TEXTURES, HANGING_SIGNS, MOB_HEAD, PLAYER_HEAD, SIGN, WALL_SIGN};
 
 const BUILT_IN: &str = include_str!("block_models.json");
 /// Signs and banners are drawn at two thirds of their model.
@@ -39,6 +39,9 @@ pub(super) fn meshes(pack: &HashMap<String, Geometry>) -> Vec<(&'static str, Mes
     for id in BANNERS {
         add(id, built_in.get(id), sign);
     }
+    for id in FRAME {
+        add(id, built_in.get(id), Mat4::IDENTITY);
+    }
     // The old layout states no texture size and beds are not 64×32.
     let pack_bed = pack.get("geometry.bed").map(|g| Geometry { texture_size: BED_TEXTURE, ..g.clone() });
     add(BED, pack_bed.as_ref(), bed);
@@ -62,7 +65,8 @@ pub(super) fn textures(root: &Path) -> Vec<String> {
         files.filter_map(move |f| Some(format!("{dir}/{}", f.path().file_name()?.to_str()?.strip_suffix(".png")?)))
     };
     let signs = stems("textures/entity").filter(|path| path.rsplit('/').next().is_some_and(|name| name.contains("sign")));
-    stems("textures/entity/chest").chain(signs).chain([BANNER_TEXTURE.to_owned()]).collect()
+    let frames = FRAME_TEXTURES.into_iter().chain([FRAME_BORDER_TEXTURE, BANNER_TEXTURE]).map(str::to_owned);
+    stems("textures/entity/chest").chain(signs).chain(frames).collect()
 }
 
 #[cfg(test)]

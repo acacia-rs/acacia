@@ -46,7 +46,7 @@ pub struct ModelFace {
 
 const INVISIBLE: &[&str] = &[
     "air", "light_block", "structure_void", "barrier", "bubble_column", "tripwire", "lever", "end_portal", "portal",
-    "frame", "moving_block", "piston_arm_collision", "sticky_piston_arm_collision",
+    "frame", "glow_frame", "moving_block", "piston_arm_collision", "sticky_piston_arm_collision",
 ];
 /// Rendered as nothing for now: they need a model of their own or attachment faces.
 const UNSUPPORTED: &[&str] = &["vine","glow_lichen", "sculk_vein", "resin_clump", "piglin_head"];

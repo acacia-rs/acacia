@@ -28,6 +28,7 @@ mod forms;
 #[cfg(feature = "profile")]
 mod heap;
 mod facts;
+mod frames;
 mod held_map;
 mod input;
 mod item_look;

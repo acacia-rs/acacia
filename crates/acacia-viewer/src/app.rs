@@ -234,7 +234,7 @@ impl App {
         r.cave_culling = self.settings.cave_culling;
         self.camera.aspect = r.aspect();
         let mut instances = self.entities.scene(&self.camera);
-        instances.extend(hand);
+        instances.extend(hand.into_iter().chain(crate::frames::instances(&mut self.entities, self.camera.position, f64::from(self.fog_distance))));
         r.set_entities(instances);
         let world = r.world().cloned();
         let debug = self.show_debug.then(|| {

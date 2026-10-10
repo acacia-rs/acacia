@@ -110,7 +110,10 @@ impl BlockModels {
                     self.swaying.push((self.instances.len(), pos.x * 7 + pos.y * 9 + pos.z * 13));
                     pose.0.push(BonePose { bone: "flag".into(), rotation: [0.0; 3], position: [0.0; 3], scale: [1.0; 3] });
                 }
-                self.instances.push(EntityInstance { layers, skin, position: placed.position, yaw: placed.yaw, scale: 1.0, pose, frame: None, hurt: false, glint: None });
+                let instance = EntityInstance { layers, skin, position: placed.position, yaw: placed.yaw, scale: 1.0, pose, frame: None, hurt: false, glint: None };
+                let with = placed.with.and_then(|(geometry, texture)| self.models.block_layers(geometry, texture));
+                self.instances.extend(with.map(|layers| EntityInstance { layers, skin: None, ..instance.clone() }));
+                self.instances.push(instance);
             }
         }
         self.banners = banners;

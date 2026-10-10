@@ -35,6 +35,13 @@ pub fn skin(root: &Path, picture: &[u8]) -> Option<Skin> {
     Some(Skin { width: SHEET, height: SHEET, rgba: sheet.into_raw(), mesh: Some(sheet_mesh()) })
 }
 
+/// `picture` alone on the unit square, as an item frame shows it; unexplored pixels as parchment.
+pub fn picture(picture: &[u8]) -> Option<Skin> {
+    let mut sheet = RgbaImage::from_pixel(PICTURE, PICTURE, PARCHMENT);
+    imageops::overlay(&mut sheet, &RgbaImage::from_raw(PICTURE, PICTURE, picture.to_vec())?, 0, 0);
+    Some(Skin { width: PICTURE, height: PICTURE, rgba: sheet.into_raw(), mesh: Some(sheet_mesh()) })
+}
+
 /// A unit square facing +z, the image's top row along its top edge, drawn from both sides.
 fn sheet_mesh() -> Mesh {
     let corner = |x: f32, y: f32, facing: f32| Vertex { position: [x - 0.5, 0.5 - y, 0.0], bone: 0, normal: [0.0, 0.0, facing], uv: [x, y] };
