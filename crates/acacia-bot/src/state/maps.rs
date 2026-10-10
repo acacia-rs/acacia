@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use acacia_client::proto::packets::ClientboundMapItemData;
+use acacia_client::proto::types::{MapDecoration, MapDecorationType};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
 /// Pixels along a map's side.
@@ -12,6 +13,17 @@ pub const MAP_SIZE: usize = 128;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapImage {
     pub rgba: Vec<u8>,
+    pub markers: Vec<MapMarker>,
+}
+
+/// A pointer on a map (the players holding it, and others the server adds).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MapMarker {
+    /// Half pixels from the picture's middle, east and south.
+    pub offset: [i8; 2],
+    /// Sixteenths of a turn.
+    pub rotation: u8,
+    pub kind: MapDecorationType,
 }
 
 /// The maps the server has sent pictures of (it sends a held map's unasked), by the id in the
@@ -31,22 +43,36 @@ impl Maps {
 
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
         let p: ClientboundMapItemData = packet.decode()?;
-        let (Some(pixels), Some(width), Some(height)) = (p.pixels, p.width, p.height) else { return Ok(()) };
-        let size = |n: i32| usize::try_from(n).ok();
-        let (Some(width), Some(height), Some(x0), Some(y0)) = (size(width), size(height), size(p.x_offset.unwrap_or(0)), size(p.y_offset.unwrap_or(0))) else {
-            return Ok(());
-        };
-        if x0 + width > MAP_SIZE || y0 + height > MAP_SIZE || pixels.len() != width * height {
-            return Ok(());
+        let known = self.by_id.get(&p.map_id);
+        let mut image = known.map_or_else(|| MapImage { rgba: vec![0; MAP_SIZE * MAP_SIZE * 4], markers: Vec::new() }, |known| (**known).clone());
+        if let Some(decorations) = &p.decorations {
+            let marker = |d: &MapDecoration| MapMarker { offset: [d.x as i8, d.y as i8], rotation: d.rotation, kind: d.r#type };
+            image.markers = decorations.iter().map(marker).collect();
         }
-        let mut image = self.by_id.get(&p.map_id).map_or_else(|| MapImage { rgba: vec![0; MAP_SIZE * MAP_SIZE * 4] }, |known| (**known).clone());
-        for (index, pixel) in pixels.iter().enumerate() {
-            let at = ((y0 + index / width) * MAP_SIZE + x0 + index % width) * 4;
-            // Packed with red in the low byte.
-            image.rgba[at..at + 4].copy_from_slice(&pixel.to_le_bytes());
+        paint(&mut image, &p);
+        // A packet that says nothing of a map not yet seen makes no blank one.
+        let said = p.pixels.is_some() || p.decorations.is_some();
+        if known.map_or(said, |known| **known != image) {
+            self.by_id.insert(p.map_id, Arc::new(image));
         }
-        self.by_id.insert(p.map_id, Arc::new(image));
         Ok(())
+    }
+}
+
+/// Writes the packet's patch of pixels, if it has one that fits.
+fn paint(image: &mut MapImage, p: &ClientboundMapItemData) {
+    let (Some(pixels), Some(width), Some(height)) = (&p.pixels, p.width, p.height) else { return };
+    let size = |n: i32| usize::try_from(n).ok();
+    let (Some(width), Some(height), Some(x0), Some(y0)) = (size(width), size(height), size(p.x_offset.unwrap_or(0)), size(p.y_offset.unwrap_or(0))) else {
+        return;
+    };
+    if x0 + width > MAP_SIZE || y0 + height > MAP_SIZE || pixels.len() != width * height {
+        return;
+    }
+    for (index, pixel) in pixels.iter().enumerate() {
+        let at = ((y0 + index / width) * MAP_SIZE + x0 + index % width) * 4;
+        // Packed with red in the low byte.
+        image.rgba[at..at + 4].copy_from_slice(&pixel.to_le_bytes());
     }
 }
 

@@ -88,7 +88,7 @@ fn picture(image: &Arc<MapImage>) -> Option<Arc<Skin>> {
         if let Some((_, skin)) = pictures.iter().find(|(from, _)| Arc::ptr_eq(from, image)) {
             return Some(skin.clone());
         }
-        let skin = Arc::new(map::picture(&image.rgba)?);
+        let skin = Arc::new(map::picture(&image.rgba, &crate::held_map::markers(image))?);
         pictures.truncate(PICTURES_KEPT - 1);
         pictures.insert(0, (image.clone(), skin.clone()));
         Some(skin)

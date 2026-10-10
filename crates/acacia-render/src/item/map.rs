@@ -23,9 +23,54 @@ const PARCHMENT: Rgba<u8> = Rgba([0xD6, 0xBE, 0x96, 0xFF]);
 /// `renderMap`'s scale: the picture's side in view units.
 const SIDE: f32 = 0.38;
 
-/// The sheet with `picture` (RGBA8, [`PICTURE`] squared) on it; `None` for another size.
-pub fn skin(root: &Path, picture: &[u8]) -> Option<Skin> {
-    let picture = RgbaImage::from_raw(PICTURE, PICTURE, picture.to_vec())?;
+/// A pointer on the picture. Neither pack here ships the game's marker images: each is drawn as
+/// an arrowhead in its colour.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Marker {
+    /// Picture pixels from its top left corner.
+    pub at: [f32; 2],
+    /// Degrees clockwise from pointing up the picture (north).
+    pub turn: f32,
+    pub colour: [u8; 3],
+}
+
+/// Half the arrowhead's length in picture pixels, and how far its dark rim reaches past it.
+const ARROW: f32 = 3.5;
+const RIM: f32 = 1.0;
+
+fn mark(picture: &mut RgbaImage, marker: &Marker) {
+    let (sin, cos) = marker.turn.to_radians().sin_cos();
+    // Signed distance outside an arrowhead pointing up: its tip at -ARROW, its base at +ARROW.
+    let outside = |x: f32, y: f32| {
+        let slope = (x.abs() * 2.0 * ARROW - (y + ARROW) * ARROW * 0.75) / (ARROW * 2.14);
+        slope.max(y - ARROW).max(-ARROW - y)
+    };
+    let reach = (ARROW + RIM).ceil() as i32;
+    for (dx, dy) in (-reach..=reach).flat_map(|dy| (-reach..=reach).map(move |dx| (dx, dy))) {
+        let (px, py) = (marker.at[0].round() as i32 + dx, marker.at[1].round() as i32 + dy);
+        if px < 0 || py < 0 || px >= PICTURE as i32 || py >= PICTURE as i32 {
+            continue;
+        }
+        // The pixel in the arrow's own frame.
+        let (x, y) = (dx as f32 * cos + dy as f32 * sin, dy as f32 * cos - dx as f32 * sin);
+        let distance = outside(x, y);
+        if distance <= RIM {
+            let [r, g, b] = if distance <= 0.0 { marker.colour } else { [0x20; 3] };
+            picture.put_pixel(px as u32, py as u32, Rgba([r, g, b, 255]));
+        }
+    }
+}
+
+fn marked(picture: &[u8], markers: &[Marker]) -> Option<RgbaImage> {
+    let mut picture = RgbaImage::from_raw(PICTURE, PICTURE, picture.to_vec())?;
+    markers.iter().for_each(|marker| mark(&mut picture, marker));
+    Some(picture)
+}
+
+/// The sheet with `picture` (RGBA8, [`PICTURE`] squared) and its markers on it; `None` for
+/// another size.
+pub fn skin(root: &Path, picture: &[u8], markers: &[Marker]) -> Option<Skin> {
+    let picture = marked(picture, markers)?;
     let background = image_file(root, BACKGROUND).and_then(|file| image::open(file).ok()).map(|image| image.into_rgba8());
     let mut sheet = match background {
         Some(image) => imageops::resize(&image, SHEET, SHEET, imageops::FilterType::Nearest),
@@ -36,9 +81,9 @@ pub fn skin(root: &Path, picture: &[u8]) -> Option<Skin> {
 }
 
 /// `picture` alone on the unit square, as an item frame shows it; unexplored pixels as parchment.
-pub fn picture(picture: &[u8]) -> Option<Skin> {
+pub fn picture(picture: &[u8], markers: &[Marker]) -> Option<Skin> {
     let mut sheet = RgbaImage::from_pixel(PICTURE, PICTURE, PARCHMENT);
-    imageops::overlay(&mut sheet, &RgbaImage::from_raw(PICTURE, PICTURE, picture.to_vec())?, 0, 0);
+    imageops::overlay(&mut sheet, &marked(picture, markers)?, 0, 0);
     Some(Skin { width: PICTURE, height: PICTURE, rgba: sheet.into_raw(), mesh: Some(sheet_mesh()) })
 }
 
@@ -102,11 +147,15 @@ mod tests {
     fn the_picture_sits_inside_the_sheet_s_margin() {
         let mut picture = vec![0u8; (PICTURE * PICTURE * 4) as usize];
         picture[..4].copy_from_slice(&[1, 2, 3, 255]);
-        let skin = skin(Path::new("no-such-pack"), &picture).unwrap();
+        // A marker in the far corner, pointing east: its tip is a white pixel right of its middle.
+        let east = Marker { at: [100.0, 100.0], turn: 90.0, colour: [255; 3] };
+        let skin = skin(Path::new("no-such-pack"), &picture, &[east]).unwrap();
         let texel = |x: u32, y: u32| &skin.rgba[((y * SHEET + x) * 4) as usize..][..4];
         // An unexplored (transparent) pixel leaves the parchment.
         assert_eq!((texel(MARGIN, MARGIN), texel(MARGIN + 1, MARGIN), texel(0, 0)), (&[1, 2, 3, 255][..], &PARCHMENT.0[..], &PARCHMENT.0[..]));
-        assert!(super::skin(Path::new("no-such-pack"), &picture[4..]).is_none());
+        assert_eq!((texel(MARGIN + 103, MARGIN + 100), texel(MARGIN + 105, MARGIN + 100)), (&[255, 255, 255, 255][..], &PARCHMENT.0[..]));
+        assert_eq!(texel(MARGIN + 100, MARGIN + 102), &[0x20, 0x20, 0x20, 255][..], "the rim past its flank");
+        assert!(super::skin(Path::new("no-such-pack"), &picture[4..], &[]).is_none());
     }
 
     #[test]
