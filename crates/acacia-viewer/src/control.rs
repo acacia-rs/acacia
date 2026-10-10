@@ -197,10 +197,13 @@ pub struct Stack {
     pub banner: Option<std::sync::Arc<acacia_render::banner::Banner>>,
 }
 
-/// The text on the side of the sign whose editor the server opened, `None` without an editor.
-pub fn open_sign_text(bot: &Bot) -> Option<String> {
+/// The text on the side of the sign whose editor the server opened, and whether that sign hangs;
+/// `None` without an editor.
+pub fn open_sign(bot: &Bot) -> Option<(String, bool)> {
     let editor = bot.state().signs.editor?;
-    Some(bot.state().block_entities.sign_text(editor.position, editor.front).unwrap_or_default().to_owned())
+    let entities = &bot.state().block_entities;
+    let hanging = entities.sign(editor.position).is_some_and(|nbt| matches!(nbt.value.get("id"), Some(acacia_bot::proto::nbt::Value::String(id)) if &**id == "HangingSign"));
+    Some((entities.sign_text(editor.position, editor.front).unwrap_or_default().to_owned(), hanging))
 }
 
 /// What a grid or workstation still holds goes back into the inventory first.
@@ -243,7 +246,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::DropCursor { one } => bot.drop_cursor(one).await,
         Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),
         Command::WriteSign(text) => {
-            let text = text.or_else(|| open_sign_text(bot)).unwrap_or_default();
+            let text = text.or_else(|| open_sign(bot).map(|(text, _)| text)).unwrap_or_default();
             bot.write_open_sign(&text)
         }
         Command::Controls(c) => {

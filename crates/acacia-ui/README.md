@@ -94,8 +94,8 @@ wrapped at spaces to the width, and the first four lines drawn.
 `§` codes colour the text as the font does everywhere; the outline ignores them.
 
 The sign editor (`sign_editor.rs`) follows Java's `AbstractSignEditScreen` in both themes: a flat
-oak board with the four lines, the typed one between `>` and `<`, and Done. Lines are capped at a
-standing sign's 90 px, also on hanging signs.
+oak board with the four lines, the typed one between `>` and `<`, and Done. A hanging sign gets a smaller
+board on two chains; lines are capped at the sign's own width (90 px, or 60 hanging).
 
 ## Not yet
 
