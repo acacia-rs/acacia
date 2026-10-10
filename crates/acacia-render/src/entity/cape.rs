@@ -35,7 +35,11 @@ fn mesh() -> Mesh {
 /// The cape's pose under a wearer posed as `wearer`.
 pub fn pose(wearer: &Pose) -> Pose {
     let mut pose = Pose(["waist", "body"].into_iter().filter_map(|bone| wearer.get(bone).cloned()).collect());
-    pose.turn(BONE, [-REST, 0.0, 0.0]);
+    // The pack's sneaking pose turns both legs back under a leaning body: the sheet clears them.
+    let leg = |bone| wearer.get(bone).map_or(0.0, |leg| leg.rotation[0]);
+    let (left, right) = (leg("leftleg"), leg("rightleg"));
+    let bent = if left * right > 0.0 { left.abs().min(right.abs()) } else { 0.0 };
+    pose.turn(BONE, [-REST - bent, 0.0, 0.0]);
     pose
 }
 

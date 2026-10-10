@@ -16,7 +16,7 @@ const COW: &str = "minecraft:cow";
 /// The held banner's layers on white: pattern code and dye.
 const BANNER: [(&str, &str); 2] = [("cr", "red_dye"), ("bo", "blue_dye")];
 /// Ticks the pose is held for a screenshot.
-const HOLD: u32 = 1200;
+const HOLD: u32 = 2400;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Error> {
