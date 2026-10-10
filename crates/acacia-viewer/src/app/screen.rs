@@ -196,7 +196,7 @@ impl App {
         let picked = self.shown.pick[0].and_then(|i| self.inventory.picks.get(i));
         let command = match inventory::hit(layout, size, at) {
             Some(Slot::Result) if !self.inventory.patterns.is_empty() => match self.shown.pick[0].and_then(|i| self.inventory.patterns.get(i)) {
-                Some(pattern) => Command::Loom((*pattern).to_owned()),
+                Some((pattern, _)) => Command::Loom((*pattern).to_owned()),
                 None => return,
             },
             Some(Slot::Result) if !self.inventory.picks.is_empty() => match picked {

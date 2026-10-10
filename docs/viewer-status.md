@@ -48,8 +48,8 @@ unit or pack tests only.
 | Screens | Anvil with its name box, smithing table, stonecutter, enchanting table | live |
 | Screens | Grindstone, cartography table (no renaming) | tests only, never opened live |
 | Screens | Sign editor: the board with its four lines, Done or Esc writes; a hanging sign's smaller board and narrower lines | live (Java look) |
-| Screens | Books: a right-click opens the held book's pages; a book and quill takes typing at a page's end and new pages (no signing) | live (Java look) |
-| Screens | Loom: patterns as buttons (the pattern item's one, else the plain 32); the result's icon shows no patterns | live |
+| Screens | Books: a right-click opens the held book's pages; a book and quill takes typing at a page's end and new pages, and is signed under a title | live |
+| Screens | Loom: patterns as buttons (the pattern item's one, else the plain 32); the result shows the banner it makes | live |
 | Screens | Beacon: powers, second power and confirm as buttons (not either game's own screen) | live |
 | Screens | Creative inventory (E in creative mode): four tabs, a click takes one, Shift a stack | live |
 | Screens | Trading: the offers of a villager or wandering trader, a click trades once | live (wandering trader) |
@@ -59,10 +59,10 @@ unit or pack tests only.
 
 ## Not done
 
-- **Screens:** the loom's banner preview; the beacon's own art and which powers its pyramid allows; trader levels; a
+- **Screens:** the loom's large banner preview; the beacon's own art and which powers its pyramid allows; trader levels; a
   cartography table's name box, the anvil's level cost; a scroll bar on the stonecutter's and
-  trader's lists (the wheel scrolls them); enchanting hints and the galactic text; signing a book,
-  its art and a caret inside the text; maps; the creative inventory's search, its survival-inventory tab and
+  trader's lists (the wheel scrolls them); enchanting hints and the galactic text; a book's
+  art and a caret inside its text; maps; the creative inventory's search, its survival-inventory tab and
   deleting items into it.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
