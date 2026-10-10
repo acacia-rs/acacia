@@ -64,7 +64,8 @@ unit or pack tests only.
   deleting items into it.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
-- **Entities:** patterns on held banners and shields, capes, camels. Another player's blocking
+- **Entities:** patterns on held banners and shields, capes. A camel was seen
+  standing and saddled (2026-10-10) but not ridden, sitting or dashing. Another player's blocking
   follows the same flag as the own player's but was never seen (needs a second player); the Bedrock attachable's own shield placement (Java's is used in both
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
 - **Capes:** the bot keeps no cape images (acacia-bot `state/skins.rs`), and no account on the
