@@ -5,6 +5,7 @@
 mod animation;
 mod armor;
 pub mod bake;
+pub mod boat;
 mod block_models;
 mod controller;
 pub mod geometry;
@@ -131,7 +132,8 @@ impl EntityModels {
         }
         let geometries = geometry::load_all(root, &texture_sizes);
         let worn = armor.iter().map(|p| p.geometry.as_str());
-        let used = out.kinds.values().flat_map(|d| d.geometry.values()).map(String::as_str).chain(PLAYER_GEOMETRIES).chain(worn);
+        let masks = geometries.keys().map(String::as_str).filter(|id| id.ends_with(boat::MASK));
+        let used = out.kinds.values().flat_map(|d| d.geometry.values()).map(String::as_str).chain(PLAYER_GEOMETRIES).chain(worn).chain(masks);
         for id in used {
             if let Some(geometry) = geometries.get(id).filter(|_| !out.by_geometry.contains_key(id)) {
                 out.by_geometry.insert(id.to_owned(), out.models.len() as ModelId);
@@ -212,6 +214,7 @@ impl EntityModels {
         if layers.is_empty() {
             layers.extend(self.plain(definition));
         }
+        layers.extend(self.mask(definition).filter(|_| !layers.is_empty()));
         (!layers.is_empty()).then(|| (layers.into(), scale))
     }
 

@@ -112,6 +112,10 @@ fn render_controllers_follow_the_entity_state() {
     assert_eq!(texture(&models, &creeper[1], 0), "creeper_armor");
     let ((lo, hi), (aura_lo, aura_hi)) = (bounds(&models, creeper[0].model), bounds(&models, creeper[1].model));
     assert!((lo - aura_lo - Vec3::splat(0.125)).abs().max_element() < 1e-4 && (aura_hi - hi - Vec3::splat(0.125)).abs().max_element() < 1e-4, "{aura_lo}..{aura_hi}");
+    // The boat's built-in model has its paddles, and its water patch as a depth-only layer.
+    assert_eq!(blends("minecraft:boat", &[]), [Blend::Opaque, Blend::Mask]);
+    let boat = look(&models, "minecraft:boat", &[]).0[0].model;
+    assert!(models.models()[boat as usize].mesh.bones.iter().any(|b| b == "left_paddle"));
     // Kinds whose controllers are missing or all overlays still draw their default.
     for kind in ["minecraft:iron_golem", "minecraft:ender_dragon"] {
         assert_eq!(look(&models, kind, &[]).0.len(), 1, "{kind}");

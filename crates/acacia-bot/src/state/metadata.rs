@@ -52,6 +52,14 @@ impl Metadata {
         }
     }
 
+    /// Float value of `key` (a boat's paddle times), 0 when unset.
+    pub fn float(&self, key: Key) -> f32 {
+        match self.plain(key) {
+            Some(Plain::Float(v)) => *v,
+            _ => 0.0,
+        }
+    }
+
     /// Dye colour index (sheep wool, collars, shulkers).
     pub fn color(&self) -> i8 {
         match self.plain(Key::Color) {

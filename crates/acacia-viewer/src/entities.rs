@@ -8,6 +8,7 @@ use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
 use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 as Flags};
 use acacia_bot::state::{Entity, ITEM_KIND, ItemStack, Metadata, PlayerSkin};
+use acacia_render::entity::boat::ROW_TIME;
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Pose, Skin, SkinSource, Value};
 use acacia_render::item::ItemKey;
 use glam::{DVec3, Vec3};
@@ -84,6 +85,8 @@ pub struct Facts {
     skin_id: i32,
     trade_tier: i32,
     color: i8,
+    /// A boat's `PaddleTimeLeft` and `PaddleTimeRight`.
+    row_time: [f32; 2],
 }
 
 const FLAGS: [(&str, Flags); 12] = [
@@ -111,6 +114,7 @@ impl Facts {
             skin_id: meta.int(Key::SkinId),
             trade_tier: meta.int(Key::TradeTier),
             color: meta.color(),
+            row_time: [Key::PaddleTimeLeft, Key::PaddleTimeRight].map(|key| meta.float(key)),
         }
     }
 
@@ -124,6 +128,8 @@ impl Facts {
             "skin_id" => self.skin_id as f32,
             "trade_tier" => self.trade_tier as f32,
             "color" => f32::from(self.color),
+            _ if name == ROW_TIME[0] => self.row_time[0],
+            _ if name == ROW_TIME[1] => self.row_time[1],
             _ => FLAGS.iter().position(|(flag, _)| *flag == name).map_or(0.0, |i| f32::from(self.flags >> i & 1)),
         })
     }

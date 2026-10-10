@@ -4,24 +4,29 @@ use crate::entity::{Blend, Vertex};
 use crate::gpu::pipeline::DEPTH_FORMAT;
 
 /// In the order of [`index`].
-pub const BLENDS: [Blend; 3] = [Blend::Opaque, Blend::Alpha, Blend::Swirl];
+pub const BLENDS: [Blend; 4] = [Blend::Opaque, Blend::Mask, Blend::Alpha, Blend::Swirl];
 
 pub fn index(blend: Blend) -> usize {
     BLENDS.iter().position(|b| *b == blend).unwrap_or(0)
 }
 
-pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat, layout: &wgpu::PipelineLayout, shader: &wgpu::ShaderModule) -> [wgpu::RenderPipeline; 3] {
+pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat, layout: &wgpu::PipelineLayout, shader: &wgpu::ShaderModule) -> [wgpu::RenderPipeline; 4] {
     let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Uint32, 2 => Float32x3, 3 => Float32x2];
     let additive = wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add };
     BLENDS.map(|blend| {
         // Blended layers leave the depth alone, so what they cover (a slime's core) still shows.
         let (entry, blend_state, write_depth, cull_mode) = match blend {
             // Models hold single planes (wings, fins) and the placement mirrors z: no culling.
-            Blend::Opaque => ("fs_main", None, true, None),
+            Blend::Opaque | Blend::Mask => ("fs_main", None, true, None),
             Blend::Alpha => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false, None),
             // Only the shell's outside, or its far side would add a second time. Baked faces
             // wind counter-clockwise in model space and the placement's z mirror turns them over.
             Blend::Swirl => ("fs_swirl", Some(wgpu::BlendState { color: additive, alpha: additive }), false, Some(wgpu::Face::Front)),
+        };
+        let write_mask = match blend {
+            Blend::Opaque => wgpu::ColorWrites::ALL,
+            Blend::Mask => wgpu::ColorWrites::empty(),
+            Blend::Alpha | Blend::Swirl => wgpu::ColorWrites::COLOR,
         };
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("entity"),
@@ -46,7 +51,7 @@ pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat, layout: &wgpu::Pip
                 module: shader,
                 entry_point: Some(entry),
                 compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format: color, blend: blend_state, write_mask: if blend_state.is_some() { wgpu::ColorWrites::COLOR } else { wgpu::ColorWrites::ALL } })],
+                targets: &[Some(wgpu::ColorTargetState { format: color, blend: blend_state, write_mask })],
             }),
             multiview_mask: None,
             cache: None,

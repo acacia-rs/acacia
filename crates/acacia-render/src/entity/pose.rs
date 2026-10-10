@@ -224,6 +224,9 @@ impl EntityModels {
             }
             pose = play.pose;
         }
+        if let Some(model) = self.models.get(model as usize) {
+            pose.0.extend(super::boat::paddles(&model.mesh, query));
+        }
         if pose.get("head").is_none() {
             // Kinds without a look animation still turn their head.
             let rotation = [query("target_x_rotation").num(), query("target_y_rotation").num(), 0.0];

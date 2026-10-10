@@ -25,6 +25,8 @@ pub enum Blend {
     Alpha,
     /// Added to the frame, unlit, its texture sliding (a charged creeper's aura).
     Swirl,
+    /// Written to the depth only, after the opaque layers: hides the water behind it (a boat's hull).
+    Mask,
 }
 
 /// Materials blended by their texture's alpha: the shells of slimes and sulfur cubes.
