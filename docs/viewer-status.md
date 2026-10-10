@@ -11,7 +11,7 @@ unit or pack tests only.
 | Area | What | Checked |
 |---|---|---|
 | World | Both looks' blocks, biomes' colours, lighting, liquids, block-entity models | live; Java blocks by `lookbake java-check` |
-| Sky | Sun, moon, stars, sky disc, sunrise glow, fancy clouds | live |
+| Sky | Sun, moon, stars, sky disc, sunrise glow, fancy and fast clouds (Options) | live (fast clouds: Java look) |
 | Weather | Rain, storm sky and clouds, lightning bolts and flash | live |
 | Weather | Snow by biome, none in dry biomes | tests (the test worlds have no cold biome) |
 | In fluids | Water, lava and powder snow fog per look; Java's underwater overlay | live (powder snow: not seen) |
@@ -69,8 +69,7 @@ unit or pack tests only.
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
 - **A raised shield in first person** was never seen: the one sneaking shot with a shield had
   the eye inside a scene object (dark red screen at 700/700; sneaking at 120/120 looks normal).
-- **Sky:** Java's fast clouds are in (Options, Clouds: Fast) but by tests only, never seen
-  live. The Nether's per-biome fog is in (unit-tested; only the crimson
+- **Sky:** The Nether's per-biome fog is in (unit-tested; only the crimson
   forest was seen live, before it landed).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
   own are unmeasured.

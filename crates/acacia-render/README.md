@@ -376,8 +376,8 @@ each, hides the sun, moon and stars with the rain and whitens the sky for a flas
 (`ClientLevel.getSkyColor`, `Level.updateSkyBrightness`).
 
 **Clouds** (`clouds.rs`, `gpu/clouds.rs`, `Renderer::clouds`, `set_cloud_texture`): Java's
-clouds, fancy or fast (`CloudLayer::fancy`; fast is one flat face a cell at the layer's foot,
-never seen live). Fancy: each opaque texel of `clouds.png` is a box 12 blocks square and 4 thick, faces
+clouds, fancy or fast (`CloudLayer::fancy`; fast is one flat face a cell at the layer's foot).
+Fancy: each opaque texel of `clouds.png` is a box 12 blocks square and 4 thick, faces
 between neighbours left out, shaded by side (1.0, 0.9, 0.8, 0.7), drifting 0.03 blocks a tick, 32
 cells round the camera; the mesh is rebuilt when the camera's cell changes. Translucent as
 Java's: a depth-only pass, then colour where the depth matches. `sky::cloud_tint` greys them in
