@@ -67,7 +67,8 @@ unit or pack tests only.
 - **Entities:** patterns on held banners and shields, capes, camels. Another player's blocking
   follows the same flag as the own player's but was never seen (needs a second player); the Bedrock attachable's own shield placement (Java's is used in both
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
-- **The shield's slot icon** is its plate seen flat; both games draw the tilted model there.
+- **Capes:** the bot keeps no cape images (acacia-bot `state/skins.rs`), and no account on the
+  test servers has one to check against.
 - **Sky:** The Nether's per-biome fog is in (unit-tested; only the crimson
   forest was seen live, before it landed).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's

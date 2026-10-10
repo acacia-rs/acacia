@@ -315,7 +315,7 @@ entity-pass mesh with its own texture, built on first use and cached.
 - **Icons** (`icon.rs`): `block_icon` rasterises any block's faces (cube, boxes or model) as
   Java's GUI shows a block, with a depth buffer; `model_icon` covers the items both
   games draw as models in a slot: a banner's flag from the composed banner texture (see
-  "Banners") in the item's dye, without the stack's patterns, and a shield's plate, seen flat.
+  "Banners") in the item's dye, without the stack's patterns, and a shield's plate, turned as Java's `gui` display turns the model.
 - **Worn** (`entity/armor.rs`, `EntityModels::armor`): the pack's attachables give each armour
   item a geometry and texture, drawn as a further instance in the wearer's pose.
 

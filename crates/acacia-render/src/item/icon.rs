@@ -69,15 +69,29 @@ fn banner_icon(root: &std::path::Path, aux: u32) -> Option<RgbaImage> {
 }
 
 /// A shield, which has no item texture either: the plate's front from the entity texture
-/// (`ShieldModel`'s UV: 12×22 at 1, 1), seen flat.
+/// (`ShieldModel`'s UV: 12×22 at 1, 1), turned as Java's `gui` display turns the model
+/// (15° down, 25° aside, rolled 5°, at 0.65). The plate's thin edge is left out.
 fn shield_icon(root: &std::path::Path) -> Option<RgbaImage> {
     let sheet = image::open(crate::assets::image_file(root, "textures/entity/shield")?).ok()?.to_rgba8();
     let scale = sheet.width() / 64;
     let plate = image::imageops::crop_imm(&sheet, scale, scale, 12 * scale, 22 * scale).to_image();
-    let plate = image::imageops::resize(&plate, 16, 29, image::imageops::FilterType::Nearest);
-    let mut icon = RgbaImage::new(SIZE, SIZE);
-    image::imageops::replace(&mut icon, &plate, 8, 1);
-    Some(icon)
+    Some(RgbaImage::from_fn(SIZE, SIZE, |x, y| {
+        let [u, v] = shield_plate_at(Vec2::new(x as f32 + 0.5, y as f32 + 0.5));
+        let inside = (0.0..1.0).contains(&u) && (0.0..1.0).contains(&v);
+        if inside { *plate.get_pixel((u * plate.width() as f32) as u32, (v * plate.height() as f32) as u32) } else { image::Rgba([0; 4]) }
+    }))
+}
+
+/// Where on the shield's plate (0 to 1 across and down) an icon pixel looks.
+fn shield_plate_at(pixel: Vec2) -> [f32; 2] {
+    // The plate at Java's 0.65 in a 32-pixel slot, before it is turned.
+    const PLATE: Vec2 = Vec2::new(12.0 * 0.65 * 2.0, 22.0 * 0.65 * 2.0);
+    let (tilt, turn, roll) = (15f32.to_radians(), 25f32.to_radians(), 5f32.to_radians());
+    let d = Vec2::from_angle(roll).rotate(pixel - Vec2::splat(SIZE as f32 / 2.0));
+    // Turned aside the plate narrows; tilted, its far side drops.
+    let across = d.x / turn.cos();
+    let down = (d.y - across * turn.sin() * tilt.sin()) / tilt.cos();
+    [across / PLATE.x + 0.5, down / PLATE.y + 0.5]
 }
 
 /// The icon of an item both games draw as its model in a slot; `None` for any other item.
@@ -137,6 +151,15 @@ fn draw(icon: &mut RgbaImage, nearest: &mut [f32], face: &Face, rgba: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_shield_s_plate_sits_turned_in_the_middle_of_its_slot() {
+        let [u, v] = shield_plate_at(Vec2::splat(16.0));
+        assert!((u - 0.5).abs() < 1e-6 && (v - 0.5).abs() < 1e-6);
+        // 15.6 pixels wide before the turn: narrower after it, and the slot's corners are empty.
+        assert!(shield_plate_at(Vec2::new(22.5, 16.0))[0] < 1.0 && shield_plate_at(Vec2::new(24.5, 16.0))[0] > 1.0);
+        assert!(shield_plate_at(Vec2::new(1.0, 1.0)).iter().any(|c| !(0.0..1.0).contains(c)));
+    }
 
     #[test]
     fn the_cube_fills_the_hexagon() {
