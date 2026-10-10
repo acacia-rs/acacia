@@ -66,8 +66,7 @@ unit or pack tests only.
   command dyes armour), capes, camels, leads, fishing lines. A blocking holder's raised arm and
   shield (third person); the Bedrock attachable's own shield placement (Java's is used in both
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
-- **The shield's slot icon** is a white square (seen 2026-10-10): it has no flat item texture,
-  both games draw its model there.
+- **The shield's slot icon** is its plate seen flat; both games draw the tilted model there.
 - **Sky:** The Nether's per-biome fog is in (unit-tested; only the crimson
   forest was seen live, before it landed).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's

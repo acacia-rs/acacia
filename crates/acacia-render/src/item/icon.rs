@@ -53,7 +53,7 @@ pub fn block_icon(block: &RenderBlock, atlas: &Atlas) -> Option<RgbaImage> {
 /// A banner, which has no item texture (both games draw the entity): the flag's front from the
 /// composed texture (Java's UV: 20×40 at 1, 1), dyed by the item's aux (legacy dye order,
 /// 15 white) and without the stack's patterns, with the crossbar above it.
-pub fn banner_icon(root: &std::path::Path, aux: u32) -> Option<RgbaImage> {
+fn banner_icon(root: &std::path::Path, aux: u32) -> Option<RgbaImage> {
     let base = crate::banner::compose(root, &crate::banner::Banner::from_bedrock(aux as i32, [], 0))?;
     let scale = base.width() / 64;
     let flag = image::imageops::crop_imm(&base, scale, scale, 20 * scale, 40 * scale).to_image();
@@ -66,6 +66,27 @@ pub fn banner_icon(root: &std::path::Path, aux: u32) -> Option<RgbaImage> {
         }
     }
     Some(icon)
+}
+
+/// A shield, which has no item texture either: the plate's front from the entity texture
+/// (`ShieldModel`'s UV: 12×22 at 1, 1), seen flat.
+fn shield_icon(root: &std::path::Path) -> Option<RgbaImage> {
+    let sheet = image::open(crate::assets::image_file(root, "textures/entity/shield")?).ok()?.to_rgba8();
+    let scale = sheet.width() / 64;
+    let plate = image::imageops::crop_imm(&sheet, scale, scale, 12 * scale, 22 * scale).to_image();
+    let plate = image::imageops::resize(&plate, 16, 29, image::imageops::FilterType::Nearest);
+    let mut icon = RgbaImage::new(SIZE, SIZE);
+    image::imageops::replace(&mut icon, &plate, 8, 1);
+    Some(icon)
+}
+
+/// The icon of an item both games draw as its model in a slot; `None` for any other item.
+pub fn model_icon(root: &std::path::Path, name: &str, aux: u32) -> Option<RgbaImage> {
+    match name {
+        "minecraft:banner" => banner_icon(root, aux),
+        super::shield::ITEM => shield_icon(root),
+        _ => None,
+    }
 }
 
 /// A loom's button for pattern `code`: the pattern in white on a grey flag (6×12 GUI pixels), as

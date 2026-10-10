@@ -503,7 +503,7 @@ way from the Bedrock one (docs/java-look.md).
 ## Not yet
 
 GPU occlusion culling (Hi-Z). Block
-models: bells, open lids, piglin heads, the banner's sway, patterns on held banners and shields.
+models: bells, open lids, piglin heads, patterns on held banners and shields.
 Entities: animation
 state between frames (attacks, grazing, swimming), controller
 colours (creeper flash, collar dyes), the other overlay materials (guardian ghost, wither

@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use acacia_render::LookPack;
 use acacia_render::blocks::BlockTable;
-use acacia_render::item::{ItemIcons, banner_icon, block_icon, pattern_icon};
+use acacia_render::item::{ItemIcons, block_icon, model_icon, pattern_icon};
 use acacia_ui::chat::{self, Chat};
 use acacia_ui::effects::Active;
 use acacia_render::glint::Foil;
@@ -280,9 +280,8 @@ impl Skin {
         if let Some(sprite) = self.added.get(&key) {
             return *sprite;
         }
-        let image = self.icons.path(name, aux).and_then(|p| image_file(&self.root, p)).and_then(|f| image::open(f).ok()).map(|i| i.to_rgba8());
-        let banner = || banner_icon(&self.root, aux).or_else(|| banner_icon(&acacia_render::assets::Pack::default_dir(), aux));
-        let image = image.or_else(|| (name == "minecraft:banner").then(banner).flatten());
+        let model = model_icon(&self.root, name, aux).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, aux));
+        let image = model.or_else(|| self.icons.path(name, aux).and_then(|p| image_file(&self.root, p)).and_then(|f| image::open(f).ok()).map(|i| i.to_rgba8()));
         let sprite = match image {
             Some(i) => {
                 let side = i.width().min(i.height());
