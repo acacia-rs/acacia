@@ -54,8 +54,8 @@ pub struct Geometry {
     pub bones: Vec<Bone>,
 }
 
-/// Geometries the game has in code and packs only name: the boat's hull (Java's `BoatModel`, no paddles;
-/// a boat's position is 0.375 above its bottom, and its bow points 90° left of its yaw).
+/// Geometries the game has in code and packs only name: the boat (Java's `BoatModel`; see
+/// [`super::boat`]; a boat's position is 0.375 above its bottom, and its bow points 90° left of its yaw).
 const HARD_CODED: &str = include_str!("hardcoded.geo.json");
 /// The texture size of geometries in the old layout that state none.
 const LEGACY_TEXTURE: [f32; 2] = [64.0, 32.0];

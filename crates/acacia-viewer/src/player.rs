@@ -202,10 +202,15 @@ impl Play {
         self.swung.map_or(0.0, |s| ((now - s).as_secs_f32() / SWING.as_secs_f32()).min(1.0) % 1.0)
     }
 
-    /// The held stack in first person; `None` from behind or in front.
-    pub fn held_first_person(&self) -> Option<&crate::control::Stack> {
-        let me = self.me.as_ref().filter(|_| self.perspective == 0)?;
-        me.items.get(usize::from(me.hotbar))?.as_ref()
+    /// The stacks in the main and the off hand in first person; none from behind or in front.
+    pub fn held_first_person(&self) -> [Option<&crate::control::Stack>; 2] {
+        let Some(me) = self.me.as_ref().filter(|_| self.perspective == 0) else { return [None; 2] };
+        [me.items.get(usize::from(me.hotbar)).and_then(Option::as_ref), me.offhand.as_ref()]
+    }
+
+    /// Not when seated: Shift leaves the vehicle (`Play::key`), and BDS refuses mounts while sneaking.
+    pub fn sneaking(&self) -> bool {
+        self.held.contains(&KeyCode::ShiftLeft) && !self.riding()
     }
 
     /// Seconds the held item has been in use in the air, if it is.
@@ -277,8 +282,7 @@ impl Play {
             forward: axis(KeyCode::KeyW, KeyCode::KeyS),
             strafe: axis(KeyCode::KeyA, KeyCode::KeyD),
             jump: down(KeyCode::Space) || self.jumped.is_some_and(|t| t.elapsed() < JUMP_LATCH),
-            // Seated, Shift leaves the vehicle (`Play::key`); BDS refuses mounts while sneaking.
-            sneak: down(KeyCode::ShiftLeft) && !self.riding(),
+            sneak: self.sneaking(),
             sprint: down(KeyCode::ControlLeft),
             glide: false,
             fly: false,

@@ -1,19 +1,25 @@
 //! Draws [`EntityInstance`]s: one vertex buffer holding every model, one instance record per
 //! layer of an entity, one bind group per texture (a layer's composed textures or a player skin).
 
+mod pipelines;
+
 use std::collections::HashMap;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use glam::{DVec3, Mat4, Vec3};
 
 use super::entity_buffers::{BONES, INSTANCES, storage_buffer, upload, vertex_buffer};
 use super::entity_textures;
 use super::glint::GlintTextures;
-use super::pipeline::DEPTH_FORMAT;
-use crate::entity::{EntityInstance, EntityModels, Skin, TextureId, Vertex};
+use crate::entity::{Blend, EntityInstance, EntityModels, Skin, TextureId, Vertex};
 use crate::glint::Glint;
+
+/// A swirl's texture slides by this share of itself per tick, both ways (Java's
+/// `EnergySwirlLayer` for the creeper; the pack's `uv_anim` says the same and is not read).
+const SWIRL_PER_SEC: f32 = 0.01 * 20.0;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -26,7 +32,8 @@ struct Instance {
     hidden: [u32; 4],
     /// x: index of the layer's first matrix in the bone buffer.
     bones: [u32; 4],
-    /// xy: the glint's scale over the UVs, zw: how far it has slid ([`crate::glint`]).
+    /// xy: the glint's scale over the UVs, zw: how far it has slid ([`crate::glint`]); on a
+    /// [`Blend::Swirl`] layer, how far its texture has.
     glint: [f32; 4],
 }
 
@@ -42,9 +49,10 @@ enum TextureKey {
 }
 
 pub struct EntityPass {
-    pipeline: wgpu::RenderPipeline,
-    /// For [`Layer::blend`] layers.
-    blend_pipeline: wgpu::RenderPipeline,
+    /// By [`pipelines::index`] of a layer's [`Blend`].
+    pipelines: [wgpu::RenderPipeline; 4],
+    /// The clock a swirl scrolls by.
+    started: Instant,
     layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
@@ -56,8 +64,8 @@ pub struct EntityPass {
     vertices: Option<wgpu::Buffer>,
     ranges: Vec<Range<u32>>,
     looks: HashMap<TextureKey, Look>,
-    /// Vertices, texture and whether the layer is blended, per instance record.
-    draws: Vec<(Range<u32>, TextureKey, bool)>,
+    /// Vertices, texture and how the layer is drawn, per instance record.
+    draws: Vec<(Range<u32>, TextureKey, Blend)>,
     /// How many of `draws` are in the world; the rest go over the UI.
     world_draws: usize,
 }
@@ -99,50 +107,13 @@ impl EntityPass {
             bind_group_layouts: &[Some(&layout), Some(&texture_layout)],
             immediate_size: 0,
         });
-        let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Uint32, 2 => Float32x3, 3 => Float32x2];
-        let pipeline = |entry: &str, target: wgpu::ColorTargetState, write_depth: bool| device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("entity"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[Some(wgpu::VertexBufferLayout {
-                    array_stride: size_of::<Vertex>() as u64,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &attributes,
-                })],
-            },
-            // Models hold single planes (wings, fins) and the placement mirrors z: no culling.
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: Some(write_depth),
-                // Or equal: an entity's later layers lie exactly on its first.
-                depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some(entry),
-                compilation_options: Default::default(),
-                targets: &[Some(target)],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-        // Blended layers leave the depth alone, so what they cover (a slime's core) still shows.
-        let blended = wgpu::ColorTargetState { format: color, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::COLOR };
-        let (pipeline, blend_pipeline) = (pipeline("fs_main", color.into(), true), pipeline("fs_blend", blended, false));
         let instances = storage_buffer(device, INSTANCES, 64 * size_of::<Instance>() as u64);
         let bones = storage_buffer(device, BONES, 1024 * size_of::<BoneMatrix>() as u64);
         let glint = GlintTextures::new(device);
         let bind_group = Self::bind_group(device, &layout, globals, &instances, &bones, &glint);
         EntityPass {
-            pipeline,
-            blend_pipeline,
+            pipelines: pipelines::new(device, color, &pipeline_layout, &shader),
+            started: Instant::now(),
             layout,
             texture_layout,
             sampler: entity_textures::sampler(device),
@@ -212,6 +183,7 @@ impl EntityPass {
         self.looks.retain(|_, look| look.skin.as_ref().is_none_or(|s| Arc::strong_count(s) > 1));
         let mut records = Vec::new();
         let mut bones: Vec<BoneMatrix> = Vec::new();
+        let swirl = (self.started.elapsed().as_secs_f32() * SWIRL_PER_SEC).fract();
         let all = entities.map(|e| (e, false)).chain(over.iter().map(|e| (e, true)));
         for (e, layer, over) in all.flat_map(|(e, over)| e.layers.iter().map(move |l| (e, l, over))) {
             let shared = self.models.models().get(layer.model as usize).zip(self.ranges.get(layer.model as usize));
@@ -252,7 +224,8 @@ impl EntityPass {
             let texture = e.glint.map_or(0.0, |g| if g == Glint::Item { 1.0 } else { 2.0 });
             // Only a skin's size is known here; armour's scale does not ask for it.
             let [sx, sy] = e.glint.map_or([0.0; 2], |g| g.scale(e.skin.as_ref().map_or([16; 2], |s| [s.width, s.height])));
-            let glint = [sx, sy, glint_scroll[0], glint_scroll[1]];
+            let slide = if layer.blend == Blend::Swirl { [swirl; 2] } else { glint_scroll };
+            let glint = [sx, sy, slide[0], slide[1]];
             records.push(Instance { light: [block, sky, f32::from(u8::from(e.hurt)), texture], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0], glint });
             self.draws.push((range, key, layer.blend));
             if !over {
@@ -265,27 +238,30 @@ impl EntityPass {
         }
     }
 
-    /// The world's opaque layers.
+    /// The world's opaque layers, then the depth-only ones, before anything translucent.
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw_range(pass, 0..self.world_draws, false);
+        self.draw_range(pass, 0..self.world_draws, Blend::Opaque);
+        self.draw_range(pass, 0..self.world_draws, Blend::Mask);
     }
 
     /// The world's blended layers, after everything opaque.
     pub fn draw_blended(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw_range(pass, 0..self.world_draws, true);
+        self.draw_range(pass, 0..self.world_draws, Blend::Alpha);
+        self.draw_range(pass, 0..self.world_draws, Blend::Swirl);
     }
 
     /// The instances given to [`EntityPass::prepare`] as `over`.
     pub fn draw_over(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw_range(pass, self.world_draws..self.draws.len(), false);
-        self.draw_range(pass, self.world_draws..self.draws.len(), true);
+        for blend in pipelines::BLENDS {
+            self.draw_range(pass, self.world_draws..self.draws.len(), blend);
+        }
     }
 
-    fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, draws: Range<usize>, blended: bool) {
+    fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, draws: Range<usize>, blend: Blend) {
         let Some(vertices) = self.vertices.as_ref().filter(|_| !draws.is_empty()) else { return };
-        pass.set_pipeline(if blended { &self.blend_pipeline } else { &self.pipeline });
+        pass.set_pipeline(&self.pipelines[pipelines::index(blend)]);
         pass.set_bind_group(0, &self.bind_group, &[]);
-        let chosen = self.draws.iter().enumerate().skip(draws.start).take(draws.len()).filter(|(_, d)| d.2 == blended);
+        let chosen = self.draws.iter().enumerate().skip(draws.start).take(draws.len()).filter(|(_, d)| d.2 == blend);
         for (index, (range, key, _)) in chosen {
             let look = &self.looks[key];
             pass.set_bind_group(1, &look.texture, &[]);

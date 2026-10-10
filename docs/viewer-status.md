@@ -22,6 +22,10 @@ unit or pack tests only.
 | Entities | Death topple | tests |
 | Entities | Round shadows on the ground (radius from the hitbox) | live |
 | Entities | Translucent shells (slime, sulfur cube) | live (slime) |
+| Entities | The shield as its model in either hand; first person draws both hands | live, both looks: an armour stand's main hand, first person at rest; Java look only: the player's two hands from behind. Raised while sneaking: tests (see Not done) |
+| Entities | The charged creeper's aura | live, both looks, beside a plain creeper |
+| Entities | Boat paddles and a dry hull | live, both looks (an empty boat on a pool) |
+| Entities | Paddles rowing by the boat's paddle times | live in the Java look (one frame, from behind); the cadence is assumed |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
 | Banners | Standing and wall banners with their dye and patterns, the ominous banner; no sway | live, both looks (20 of 42 patterns seen; composition by tests) |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
@@ -58,9 +62,14 @@ unit or pack tests only.
   deleting items into it.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
-- **Entities:** the charged creeper's aura, patterns on held banners and shields, the banner's
+- **Entities:** patterns on held banners and shields, the banner's
   sway, a leather
-  stack's own dye, a shield's blocking pose, capes, boat paddles, camels, leads, fishing lines.
+  stack's own dye, capes, camels, leads, fishing lines. A blocking holder's raised arm and
+  shield (third person); the Bedrock attachable's own shield placement (Java's is used in both
+  looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
+- **First person while sneaking** shows a dark red screen with two bars, with or without a
+  shield (seen 2026-10-10, `ACACIA_KEYS="12 +Shift"`; not looked into), so the raised shield
+  was never seen.
 - **Sky:** Java's fast clouds. The Nether's per-biome fog is in (unit-tested; only the crimson
   forest was seen live, before it landed).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
@@ -84,3 +93,10 @@ unit or pack tests only.
 - Patterned banners: no command writes them, so `cargo run -p acacia-bot --example banners -- <server> [x y z]`
   looms and places a row (it runs commands only on itself and within 40 blocks).
 - `RUST_LOG=chat=debug` logs each chat line's raw packet.
+- The action-test pack (BDS 19174) rebuilds its scene around wherever the player joins, which
+  is where it last left: stay there, summon on a stage some 40 blocks off and shoot it with
+  `ACACIA_AT`. A charged creeper left near the join point blows up at the next join.
+- `testbox-shot.sh` keeps local mtimes: a file edited while the first build of a directory ran
+  is older than that build and never rebuilt. `touch` it there (2026-10-10: three shots showed
+  the old binary).
+- A boat's paddle times are in the `riding` log line (`src/ride.rs`).

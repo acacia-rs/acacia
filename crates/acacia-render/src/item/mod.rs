@@ -7,6 +7,7 @@ mod extrude;
 pub mod hand;
 mod icon;
 mod icons;
+mod shield;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -31,14 +32,24 @@ pub struct ItemKey {
     pub block: u32,
 }
 
+/// What a model is, for how it is held, dropped and stacked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Form {
+    /// An extruded sprite.
+    Flat,
+    /// A unit cube's worth.
+    Block,
+    /// The shield's own model ([`shield`]).
+    Shield,
+}
+
 /// An item's mesh and texture, drawn through the entity pass like a persona skin.
 #[derive(Clone)]
 pub struct ItemModel {
     pub skin: Arc<Skin>,
     /// One layer that draws nothing of its own, so the skin's mesh is all there is.
     pub layers: Arc<[Layer]>,
-    /// Drawn as a block (a unit cube's worth), not a flat sprite: they sit and stack differently.
-    pub block: bool,
+    pub form: Form,
     /// Shimmers: the stack is enchanted, or the look's game always draws the item so.
     pub glint: bool,
 }
@@ -54,7 +65,7 @@ pub struct ItemModels {
 impl ItemModels {
     /// `table` is the look pack's for the world's registry ([`LookPack::block_table`]).
     pub fn new(pack: Arc<LookPack>, table: Arc<BlockTable>) -> ItemModels {
-        let layers = [Layer { model: NO_MODEL, textures: [NO_TEXTURE; 3], tint: None, hidden: [0; 4], blend: false }].into();
+        let layers = [Layer::plain(NO_MODEL, NO_TEXTURE)].into();
         ItemModels { icons: ItemIcons::load(pack.files()), pack, table, layers, cache: HashMap::new() }
     }
 
@@ -79,10 +90,13 @@ impl ItemModels {
 
     fn build(&self, key: &ItemKey) -> Option<ItemModel> {
         let glint = self.pack.look.foil.always(&key.name);
-        let model = |skin: Skin, block| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), block, glint });
+        let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint });
+        if let Some(skin) = Some(self.pack.files()).filter(|_| key.name == shield::ITEM).and_then(shield::skin) {
+            return model(skin, Form::Shield);
+        }
         // An item with an icon of its own shows it, even when it places a block (doors, beds).
         if let Some(skin) = self.icons.path(&key.name, key.aux).and_then(|path| icon(self.pack.files(), path)) {
-            return model(skin, false);
+            return model(skin, Form::Flat);
         }
         if key.block == 0 {
             return None;
@@ -90,9 +104,9 @@ impl ItemModels {
         let block = self.table.get(key.block);
         if block.shape == Shape::Cross {
             let rgba = block::texels(self.pack.atlas.layers.get(block.textures[0] as usize), block::tile_of(block, 0));
-            return model(flat(16, 16, rgba), false);
+            return model(flat(16, 16, rgba), Form::Flat);
         }
-        model(block::skin(block, &self.pack.atlas)?, true)
+        model(block::skin(block, &self.pack.atlas)?, Form::Block)
     }
 }
 

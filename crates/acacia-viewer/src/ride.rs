@@ -2,6 +2,7 @@
 //! checks of steering.
 
 use acacia_bot::Bot;
+use acacia_bot::proto::types::MetadataDictionaryItemKey as Key;
 
 /// Ticks between log lines while seated.
 const EVERY_TICKS: u32 = 10;
@@ -31,9 +32,11 @@ impl RideLog {
         };
         self.riding = true;
         if self.seated_ticks.is_multiple_of(EVERY_TICKS) {
-            let at = vehicle.runtime_id.and_then(|id| bot.state().entities.get(id)).map(|e| ([e.position.x, e.position.y, e.position.z], e.yaw));
+            let entity = vehicle.runtime_id.and_then(|id| bot.state().entities.get(id));
+            let at = entity.map(|e| ([e.position.x, e.position.y, e.position.z], e.yaw));
+            let paddles = entity.map(|e| [Key::PaddleTimeLeft, Key::PaddleTimeRight].map(|key| e.metadata.float(key)));
             let (vehicle_corrections, corrections) = bot.movement().map_or((0, 0), |m| (m.vehicle_corrections, m.corrections));
-            tracing::info!(kind = vehicle.kind.as_deref(), driver = vehicle.driver, ?at, eye = ?bot.eye_position(), seat = ?bot.state().riding.seat_offset, seat_turn = ?bot.state().riding.seat_turn(), vehicle_corrections, corrections, "riding");
+            tracing::info!(kind = vehicle.kind.as_deref(), driver = vehicle.driver, ?at, ?paddles, eye = ?bot.eye_position(), seat = ?bot.state().riding.seat_offset, seat_turn = ?bot.state().riding.seat_turn(), vehicle_corrections, corrections, "riding");
         }
         self.seated_ticks += 1;
     }

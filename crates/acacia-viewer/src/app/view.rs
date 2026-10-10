@@ -74,15 +74,30 @@ impl App {
             .collect()
     }
 
-    /// The held item in first person, swinging with clicks.
-    pub(super) fn hand(&mut self, now: Instant) -> Option<EntityInstance> {
-        let stack = self.play.held_first_person().filter(|_| self.mode == Mode::Play)?.clone();
+    /// The items in both hands in first person: the main one swings with clicks and is used, and
+    /// a shield is raised while sneaking (Bedrock's way to block; the off hand's before the main one's).
+    pub(super) fn hand(&mut self, now: Instant) -> Vec<EntityInstance> {
+        if self.mode != Mode::Play {
+            return Vec::new();
+        }
+        let [main, off] = self.play.held_first_person().map(|stack| stack.cloned());
         let swing = self.play.swing(now);
-        let using = self.play.item_use_secs(now).and_then(|secs| using(&stack.name, secs * 20.0));
-        let model = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block }, stack.enchanted)?;
-        Some(hand::first_person(&model, hand::Display::of(&stack.name, model.block), &self.camera, swing, using))
+        let using = main.as_ref().and_then(|stack| using(&stack.name, self.play.item_use_secs(now)? * 20.0));
+        let off_shield = off.as_ref().is_some_and(|stack| stack.name == SHIELD);
+        let sneaking = self.play.sneaking();
+        let mut out = Vec::new();
+        for (left, stack) in [(false, main), (true, off)] {
+            let Some(stack) = stack else { continue };
+            let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block }, stack.enchanted) else { continue };
+            let display = hand::Display::first_person(&stack.name, model.form, left, sneaking && (left || !off_shield));
+            let (swing, using) = if left { (0.0, None) } else { (swing, using) };
+            out.push(hand::first_person(&model, display, &self.camera, left, swing, using));
+        }
+        out
     }
 }
+
+const SHIELD: &str = "minecraft:shield";
 
 /// How an item in use looks held: a bow drawn, or food and drink eaten (again each `duration`).
 fn using(name: &str, ticks: f32) -> Option<hand::Using> {

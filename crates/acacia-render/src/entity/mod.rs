@@ -5,9 +5,11 @@
 mod animation;
 mod armor;
 pub mod bake;
+pub mod boat;
 mod block_models;
 mod controller;
 pub mod geometry;
+mod layer;
 pub mod molang;
 mod pose;
 mod skin;
@@ -22,6 +24,7 @@ use glam::DVec3;
 use crate::assets::image_file;
 pub use bake::{Mesh, Vertex};
 use controller::{Controller, Definition};
+pub use layer::{Blend, Layer};
 use molang::{Loading, Scope};
 pub use molang::Value;
 pub use pose::{BonePose, Pose};
@@ -37,26 +40,6 @@ pub struct Model {
     pub mesh: Mesh,
 }
 
-/// One draw of an entity: a render controller's choice of mesh and textures.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Layer {
-    pub model: ModelId,
-    /// Laid over each other, bottom first; unused slots hold [`NO_TEXTURE`].
-    pub textures: [TextureId; 3],
-    /// Linear colour multiplied in where the texture's alpha is 0 (sheep wool).
-    pub tint: Option<[f32; 3]>,
-    /// Bit per bone of [`Mesh::bones`] that is not drawn.
-    pub hidden: [u32; 4],
-    /// Blended over what is behind by the texture's alpha (a slime's shell), after the opaque layers.
-    pub blend: bool,
-}
-
-/// Materials blended by their texture's alpha: the shells of slimes and sulfur cubes.
-const BLENDED_MATERIALS: [&str; 1] = ["outer"];
-/// Materials with effects the entity pass does not draw (the charged creeper's scrolling aura,
-/// the guardian's ghost): their layers are left out. `enchanted` layers too: the glint is the
-/// instance's ([`EntityInstance::glint`]).
-const OVERLAY_MATERIALS: [&str; 7] = ["charged", "ghost", "wind", "bioluminescent", "dissolve", "spectator", "enchanted"];
 const PLAYER_GEOMETRIES: [&str; 3] = ["geometry.humanoid.custom", "geometry.humanoid.customSlim", "geometry.humanoid"];
 /// sRGB dye colours by the `color` data value, white first.
 pub(crate) const DYES: [u32; 16] = [
@@ -149,7 +132,8 @@ impl EntityModels {
         }
         let geometries = geometry::load_all(root, &texture_sizes);
         let worn = armor.iter().map(|p| p.geometry.as_str());
-        let used = out.kinds.values().flat_map(|d| d.geometry.values()).map(String::as_str).chain(PLAYER_GEOMETRIES).chain(worn);
+        let masks = geometries.keys().map(String::as_str).filter(|id| id.ends_with(boat::MASK));
+        let used = out.kinds.values().flat_map(|d| d.geometry.values()).map(String::as_str).chain(PLAYER_GEOMETRIES).chain(worn).chain(masks);
         for id in used {
             if let Some(geometry) = geometries.get(id).filter(|_| !out.by_geometry.contains_key(id)) {
                 out.by_geometry.insert(id.to_owned(), out.models.len() as ModelId);
@@ -171,12 +155,12 @@ impl EntityModels {
         let steve = out.kinds.get("minecraft:player").and_then(|d| out.texture_ids.get(d.textures.get("default")?)).copied();
         let player = |geometry: &str| -> Option<Arc<[Layer]>> {
             let model = *out.by_geometry.get(geometry)?;
-            Some([Layer { model, textures: [steve.unwrap_or(NO_TEXTURE), NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: false }].into())
+            Some([Layer::plain(model, steve.unwrap_or(NO_TEXTURE))].into())
         };
         out.armor = armor
             .iter()
             .filter_map(|p| {
-                let layer = Layer { model: *out.by_geometry.get(&p.geometry)?, textures: [*out.texture_ids.get(&p.texture)?, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: false };
+                let layer = Layer::plain(*out.by_geometry.get(&p.geometry)?, *out.texture_ids.get(&p.texture)?);
                 Some((p.item.clone(), Arc::from([layer])))
             })
             .collect();
@@ -230,6 +214,7 @@ impl EntityModels {
         if layers.is_empty() {
             layers.extend(self.plain(definition));
         }
+        layers.extend(self.mask(definition).filter(|_| !layers.is_empty()));
         (!layers.is_empty()).then(|| (layers.into(), scale))
     }
 
@@ -238,9 +223,7 @@ impl EntityModels {
         let named = |resource: Option<&str>, table: &HashMap<String, String>| table.get(resource?.split_once('.')?.1).cloned();
         let model = *self.by_geometry.get(&named(scope.resource(&controller.geometry), &definition.geometry)?)?;
         let material = controller.material.as_ref().and_then(|m| named(scope.resource(m), &definition.materials)).unwrap_or_default();
-        if OVERLAY_MATERIALS.iter().any(|m| material.contains(m)) {
-            return None;
-        }
+        let blend = Blend::of(&material)?;
         let mut textures = [NO_TEXTURE; 3];
         for (slot, texture) in textures.iter_mut().zip(&controller.textures) {
             let path = named(scope.resource(texture), &definition.textures);
@@ -261,7 +244,6 @@ impl EntityModels {
             }
         }
         let tint = (material == "sheep").then(|| dye((scope.query)("color").num()));
-        let blend = BLENDED_MATERIALS.iter().any(|m| material.contains(m));
         (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, hidden, blend })
     }
 
@@ -270,13 +252,13 @@ impl EntityModels {
         let pick = |table: &HashMap<String, String>| table.get("default").or_else(|| table.values().min()).cloned();
         let model = *self.by_geometry.get(&pick(&definition.geometry)?)?;
         let texture = *self.texture_ids.get(&pick(&definition.textures)?)?;
-        Some(Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: false })
+        Some(Layer::plain(model, texture))
     }
 
     /// The one layer of a block model ([`crate::blocks::model`]), if its geometry and texture loaded.
     pub fn block_layers(&self, geometry: &str, texture: &str) -> Option<Arc<[Layer]>> {
         let (model, texture) = (*self.by_geometry.get(geometry)?, *self.texture_ids.get(texture)?);
-        Some([Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: false }].into())
+        Some([Layer::plain(model, texture)].into())
     }
 
     /// The humanoid for a skin: slim or wide arms, or the old layout when the skin is half height.

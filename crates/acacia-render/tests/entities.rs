@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use acacia_render::entity::{BonePose, EntityModels, Layer, NO_TEXTURE, Pose, Value};
+use acacia_render::entity::{Blend, BonePose, EntityModels, Layer, NO_TEXTURE, Pose, Value};
 use glam::Vec3;
 
 fn models() -> Option<EntityModels> {
@@ -103,8 +103,19 @@ fn render_controllers_follow_the_entity_state() {
     assert!(cat(0.0) != cat(1.0) && cat(1.0) != cat(3.0));
 
     // The slime's body is opaque and its shell a blended layer after it.
-    let slime: Vec<bool> = look(&models, "minecraft:slime", &[]).0.iter().map(|l| l.blend).collect();
-    assert_eq!(slime, [false, true]);
+    let blends = |kind, state: &[(&str, f32)]| look(&models, kind, state).0.iter().map(|l| l.blend).collect::<Vec<Blend>>();
+    assert_eq!(blends("minecraft:slime", &[]), [Blend::Opaque, Blend::Alpha]);
+    // A charged creeper wears its aura: the armour texture on a shell 2 px out all round.
+    assert_eq!(blends("minecraft:creeper", &[]), [Blend::Opaque]);
+    assert_eq!(blends("minecraft:creeper", &[("is_powered", 1.0)]), [Blend::Opaque, Blend::Swirl]);
+    let (creeper, _) = look(&models, "minecraft:creeper", &[("is_powered", 1.0)]);
+    assert_eq!(texture(&models, &creeper[1], 0), "creeper_armor");
+    let ((lo, hi), (aura_lo, aura_hi)) = (bounds(&models, creeper[0].model), bounds(&models, creeper[1].model));
+    assert!((lo - aura_lo - Vec3::splat(0.125)).abs().max_element() < 1e-4 && (aura_hi - hi - Vec3::splat(0.125)).abs().max_element() < 1e-4, "{aura_lo}..{aura_hi}");
+    // The boat's built-in model has its paddles, and its water patch as a depth-only layer.
+    assert_eq!(blends("minecraft:boat", &[]), [Blend::Opaque, Blend::Mask]);
+    let boat = look(&models, "minecraft:boat", &[]).0[0].model;
+    assert!(models.models()[boat as usize].mesh.bones.iter().any(|b| b == "left_paddle"));
     // Kinds whose controllers are missing or all overlays still draw their default.
     for kind in ["minecraft:iron_golem", "minecraft:ender_dragon"] {
         assert_eq!(look(&models, kind, &[]).0.len(), 1, "{kind}");
@@ -195,7 +206,8 @@ fn humanoids_hold_items_in_their_right_hand() {
     let model = look(&models, "minecraft:zombie", &[]).0[0].model;
     let raised = Pose(vec![BonePose { bone: "rightarm".into(), rotation: [-90.0, 0.0, 0.0], position: [0.0; 3], scale: [1.0; 3] }]);
     let hand = models.models()[model as usize].mesh.right_hand(&raised).unwrap();
-    let frame = acacia_render::item::hand::held_frame(false, hand, false);
+    let display = acacia_render::item::hand::Display::third_person(acacia_render::item::Form::Flat, false);
+    let frame = acacia_render::item::hand::held_frame(display, hand, false);
     let (hilt, tip) = (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
     assert!((tip - hilt).normalize().y > 0.8 && (hilt + tip).z < -1.0, "hilt {hilt}, tip {tip}");
 }
