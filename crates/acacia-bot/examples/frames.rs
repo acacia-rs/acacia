@@ -1,6 +1,7 @@
 //! Hangs a row of item frames on a stone wall and fills them, on a flat-world server where the
 //! bot is operator, as a scene for viewer screenshots: no command puts an item into a frame.
 //! The frames face north along x from the origin; the last holds a map the bot fills there.
+//! Three blocks north of the row one lies on the floor and one hangs under a stone.
 //! `cargo run -p acacia-bot --example frames -- <server> [x y z of the first frame's block]`
 use acacia_bot::client::Client;
 use acacia_bot::interact::Face;
@@ -54,6 +55,22 @@ async fn main() -> Result<(), Error> {
             bot.wait_ticks(5).await?;
         }
         bot.use_item_on_block([column, y, z], Face::North).await?;
+        bot.wait_ticks(10).await?;
+    }
+    // One on the floor behind the bot and one under a stone over it, each with a sword.
+    let lying = [(x, y - 1, 1, Face::Up), (x + 2, y + 1, 0, Face::Down)];
+    run(&mut bot, &[format!("/setblock {} {} {} stone", x + 2, y + 2, z - 3)], 10).await?;
+    for (column, level, facing, face) in lying {
+        let hang = [
+            format!("/tp @s {} {} {} 180 0", column as f32 + 0.5, y - 1, z as f32 - 1.5),
+            format!("/setblock {column} {level} {} frame [\"facing_direction\"={facing}]", z - 3),
+            "/clear @s".to_owned(),
+            "/replaceitem entity @s slot.hotbar 0 diamond_sword".to_owned(),
+        ];
+        run(&mut bot, &hang, 20).await?;
+        bot.select_hotbar(0)?;
+        bot.wait_ticks(5).await?;
+        bot.use_item_on_block([column, level, z - 3], face).await?;
         bot.wait_ticks(10).await?;
     }
     for (position, nbt) in bot.state().block_entities.iter() {

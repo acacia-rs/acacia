@@ -23,8 +23,15 @@ pub const PLAYER_HEAD: [&str; 2] = ["geometry.acacia.player_head", "geometry.aca
 pub const DRAGON_HEAD: [&str; 2] = ["geometry.acacia.dragon_head", "geometry.acacia.dragon_head.wall"];
 /// Standing and on a wall.
 pub const BANNERS: [&str; 2] = ["geometry.acacia.banner", "geometry.acacia.banner.wall"];
-/// An item frame on a wall: its back plate, and the wooden border drawn with it.
-pub const FRAME: [&str; 2] = ["geometry.acacia.item_frame", "geometry.acacia.item_frame.border"];
+/// An item frame's back plate and the wooden border drawn with it: on a wall, on a floor and
+/// under a ceiling ([`FRAME_TILTS`]).
+pub const FRAME: [[&str; 2]; 3] = [
+    ["geometry.acacia.item_frame", "geometry.acacia.item_frame.border"],
+    ["geometry.acacia.item_frame.floor", "geometry.acacia.item_frame.border.floor"],
+    ["geometry.acacia.item_frame.ceiling", "geometry.acacia.item_frame.border.ceiling"],
+];
+/// Degrees each of [`FRAME`] is tipped back from the wall's about the block's middle.
+pub const FRAME_TILTS: [f32; 3] = [0.0, 90.0, -90.0];
 pub const FRAME_BORDER_TEXTURE: &str = "textures/blocks/planks_birch";
 pub const FRAME_TEXTURES: [&str; 2] = ["textures/blocks/itemframe_background", "textures/blocks/glow_item_frame"];
 /// What a banner draws until its texture is composed ([`crate::banner`]).
@@ -93,7 +100,7 @@ impl BlockModel {
         let mut placed = Placement { geometry: self.geometry, texture: self.texture.clone(), position: centre, yaw: self.yaw, banner: None, with: None };
         match self.kind {
             Kind::BedFoot => return None,
-            Kind::Frame => placed.with = Some((FRAME[1], FRAME_BORDER_TEXTURE)),
+            Kind::Frame => placed.with = FRAME.iter().find(|pair| pair[0] == self.geometry).map(|pair| (pair[1], FRAME_BORDER_TEXTURE)),
             Kind::Banner => placed.banner = Some(data.and_then(|d| d.banner.clone()).unwrap_or_default()),
             Kind::BedHead => {
                 let color = data.and_then(|d| d.color).unwrap_or(RED);
@@ -157,9 +164,11 @@ pub fn classify(state: &BlockState) -> Option<BlockModel> {
     match name {
         "standing_banner" => return model(Kind::Banner, BANNERS[0], BANNER_TEXTURE.into(), f32::from(int("ground_sign_direction")) * 22.5),
         "wall_banner" => return model(Kind::Banner, BANNERS[1], BANNER_TEXTURE.into(), facing_yaw(int("facing_direction"))),
-        // TODO: frames on a floor or ceiling (`facing_direction` 0 and 1) are not drawn.
-        "frame" | "glow_frame" if int("facing_direction") >= 2 => {
-            return model(Kind::Frame, FRAME[0], FRAME_TEXTURES[usize::from(name == "glow_frame")].into(), facing_yaw(int("facing_direction")));
+        "frame" | "glow_frame" => {
+            // `facing_direction` 0 looks down from a ceiling, 1 up from a floor.
+            let (facing, texture) = (int("facing_direction"), FRAME_TEXTURES[usize::from(name == "glow_frame")]);
+            let (shape, yaw) = if facing >= 2 { (FRAME[0], facing_yaw(facing)) } else { (FRAME[2 - usize::from(facing)], 0.0) };
+            return model(Kind::Frame, shape[0], texture.into(), yaw);
         }
         _ => {}
     }

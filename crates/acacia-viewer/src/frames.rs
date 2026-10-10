@@ -17,8 +17,7 @@ use crate::smooth::Smoother;
 
 struct Framed {
     block: [i32; 3],
-    /// The frame's, as its block model is turned.
-    yaw: f32,
+    hung: framed::Hung,
     /// `ItemRotation`, degrees.
     turn: f32,
     key: ItemKey,
@@ -51,13 +50,14 @@ fn framed_item(bot: &Bot, block: [i32; 3], nbt: &Nbt) -> Option<Framed> {
     let Value::String(name) = item.get("Name")? else { return None };
     let view = bot.world()?.view()?;
     let state = view.world().registry().get(acacia_world::BlockAccess::block(view, block[0], block[1], block[2]))?;
-    // Floor and ceiling frames have no block model yet.
-    let yaw = match state.property("facing_direction")? {
-        "2" => 180.0,
-        "3" => 0.0,
-        "4" => 90.0,
-        "5" => 270.0,
-        _ => return None,
+    // As `acacia_render::blocks::model` turns the frame's block model.
+    let (yaw, tilt) = match state.property("facing_direction")? {
+        "0" => (0.0, -90.0),
+        "1" => (0.0, 90.0),
+        "2" => (180.0, 0.0),
+        "4" => (90.0, 0.0),
+        "5" => (270.0, 0.0),
+        _ => (0.0, 0.0),
     };
     let aux = match item.get("Damage") {
         Some(Value::Short(damage)) => *damage as u32,
@@ -80,7 +80,7 @@ fn framed_item(bot: &Bot, block: [i32; 3], nbt: &Nbt) -> Option<Framed> {
     }
     let block_id = view.world().registry().states_of(name).next().map_or(0, |(id, _)| id);
     let key = ItemKey { name: name.to_string(), aux, block: block_id, dye: None, banner: None };
-    Some(Framed { block, yaw, turn, key, enchanted: tag.is_some_and(|tag| tag.get("ench").is_some()), map })
+    Some(Framed { block, hung: framed::Hung { yaw, tilt }, turn, key, enchanted: tag.is_some_and(|tag| tag.get("ench").is_some()), map })
 }
 
 fn picture(image: &Arc<MapImage>) -> Option<Arc<Skin>> {
@@ -102,9 +102,9 @@ pub fn instances(items: &mut Smoother, camera: DVec3, reach: f64) -> Vec<EntityI
     near.filter_map(|f| {
         let block = IVec3::from(f.block);
         if let Some(picture) = f.map.as_ref().and_then(picture) {
-            return Some(framed::map_picture(&picture, block, f.yaw, f.turn, camera));
+            return Some(framed::map_picture(&picture, block, f.hung, f.turn, camera));
         }
-        Some(framed::item(&items.item(&f.key, f.enchanted)?, block, f.yaw, f.turn, camera))
+        Some(framed::item(&items.item(&f.key, f.enchanted)?, block, f.hung, f.turn, camera))
     })
     .collect()
 }
