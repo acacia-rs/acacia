@@ -29,8 +29,9 @@ unit or pack tests only.
 | Entities | Paddles rowing by the boat's paddle times | live in the Java look (one frame, from behind); the cadence is assumed |
 | Entities | Fishing lines (hook to its owner's rod) and leads (mob to its holder or fence knot), sagging as Java's | fishing line: live, first person (Java look); a lead from a cow to another player's hand: live (Java look); other players' fishing lines: tests; other holders' hand anchors are approximate |
 | Entities | Players crouch while sneaking (the server's flag; the own player's input) and raise a shield with it, the arm in Java's blocking pose | live for another player (Java look, the `props` bot). BDS did not set the blocking flag on it: a sneaking shield holder counts as blocking |
-| Entities | Capes: the skin's cape image on the game's cape sheet, hung at Java's rest angle, leaning with a sneaking wearer and lifting with its pace | live on a standing, sneaking player from behind and the side (Java look, `props`); the lift by tests (any direction lifts it, no sideways sway); a persona skin's cape image would arrive the same way but none of the pool skins has one |
+| Entities | Capes: the skin's cape image on the game's cape sheet, hung at Java's rest angle, leaning with a sneaking wearer and lifting with its pace | live on a standing, sneaking player from behind and the side (Java look, `props`); lifted behind a walking one (`props … pace`; any direction lifts it, no sideways sway); a persona skin's cape image would arrive the same way but none of the pool skins has one |
 | Entities | A shield's banner: the cloth and patterns from `shield_patterns`, on the model and the slot icon | tests only (no command makes one) |
+| Maps | A filled map held in first person shows the picture the server sends, on the map sheet: in both hands lying flat until the holder looks down (Java's placement), or beside the view when the other hand is full | live (Java look): lying flat and one-handed; upright by tests. Not drawn: the arms under it, markers, maps in item frames; other hands and slots show the item's icon |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
 | Banners | Standing and wall banners with their dye and patterns, the ominous banner; the flag sways | live, both looks (20 of 42 patterns seen; composition and sway by tests) |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
@@ -62,7 +63,7 @@ unit or pack tests only.
 - **Screens:** the loom's banner preview; the beacon's own art and which powers its pyramid allows; trader levels; a
   cartography table's name box, the anvil's level cost; a scroll bar on the stonecutter's and
   trader's lists (the wheel scrolls them); enchanting hints and the galactic text; signing a book,
-  its art and a caret inside the text; maps; the creative inventory's search, its survival-inventory tab and
+  its art and a caret inside the text; the creative inventory's search, its survival-inventory tab and
   deleting items into it.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
