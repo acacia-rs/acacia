@@ -29,7 +29,7 @@ async fn main() -> Result<(), Error> {
     let scene = [
         "/gamemode creative @s".to_owned(),
         format!("/tp @s {} {y} {} 180 0", x as f32 + 0.5, z as f32 + 0.5),
-        format!("/kill @e[type=cow,x={x},y={y},z={z},r=12]"),
+        format!("/kill @e[type=cow,x={x},y={y},z={z},r=40]"),
         "/clear @s".to_owned(),
         "/replaceitem entity @s slot.weapon.offhand 0 shield".to_owned(),
         "/replaceitem entity @s slot.hotbar 0 lead".to_owned(),
@@ -41,7 +41,9 @@ async fn main() -> Result<(), Error> {
     }
     bot.select_hotbar(0)?;
     bot.wait_ticks(20).await?;
-    let cow = bot.state().entities.iter().find(|e| e.kind == COW).map(|e| e.runtime_id).ok_or("no cow was tracked")?;
+    let off = |e: &acacia_bot::state::Entity| (e.position.x - (x as f32 + 2.5)).abs() + (e.position.z - (z as f32 + 0.5)).abs();
+    let cows = bot.state().entities.iter().filter(|e| e.kind == COW);
+    let cow = cows.min_by(|a, b| off(a).total_cmp(&off(b))).map(|e| e.runtime_id).ok_or("no cow was tracked")?;
     bot.interact_entity(cow).await?;
     bot.wait_ticks(10).await?;
     println!("leashed cow {cow}; holding {:?}", bot.state().inventory_summary());
