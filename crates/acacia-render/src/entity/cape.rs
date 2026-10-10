@@ -9,7 +9,8 @@ use super::{Layer, Mesh, NO_MODEL, NO_TEXTURE, Pose, Skin, bake, geometry};
 const GEOMETRY: &str = r#"{"format_version": "1.12.0", "minecraft:geometry": [{
     "description": {"identifier": "geometry.cape", "texture_width": 64, "texture_height": 32},
     "bones": [
-        {"name": "waist", "pivot": [0, 12, 0]},
+        {"name": "root", "pivot": [0, 0, 0]},
+        {"name": "waist", "parent": "root", "pivot": [0, 12, 0]},
         {"name": "body", "parent": "waist", "pivot": [0, 24, 0]},
         {"name": "cape", "parent": "body", "pivot": [0, 24, 3], "rotation": [0, 180, 0],
          "cubes": [{"origin": [-5, 8, 3], "size": [10, 16, 1], "uv": [0, 0]}]}]}]}"#;
@@ -34,12 +35,9 @@ fn mesh() -> Mesh {
 
 /// The cape's pose under a wearer posed as `wearer`.
 pub fn pose(wearer: &Pose) -> Pose {
-    let mut pose = Pose(["waist", "body"].into_iter().filter_map(|bone| wearer.get(bone).cloned()).collect());
-    // The pack's sneaking pose turns both legs back under a leaning body: the sheet clears them.
-    let leg = |bone| wearer.get(bone).map_or(0.0, |leg| leg.rotation[0]);
-    let (left, right) = (leg("leftleg"), leg("rightleg"));
-    let bent = if left * right > 0.0 { left.abs().min(right.abs()) } else { 0.0 };
-    pose.turn(BONE, [-REST - bent, 0.0, 0.0]);
+    // The pack's sneaking pose leans the whole model from `root`.
+    let mut pose = Pose(["root", "waist", "body"].into_iter().filter_map(|bone| wearer.get(bone).cloned()).collect());
+    pose.turn(BONE, [-REST, 0.0, 0.0]);
     pose
 }
 
