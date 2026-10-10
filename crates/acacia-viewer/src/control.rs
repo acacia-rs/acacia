@@ -128,8 +128,7 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
-    let banner = crate::item_look::banner(&name, s);
-    let map = s.map_id().and_then(|id| bot.state().maps.get(id).cloned());
+    let (banner, map) = (crate::item_look::banner(&name, s), s.map_id().and_then(|id| bot.state().maps.get(id).cloned()));
     Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color(), banner, map })
 }
 
