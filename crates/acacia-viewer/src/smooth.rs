@@ -14,6 +14,7 @@ use glam::DVec3;
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
 use crate::pick::EntityBox;
 
+mod arm;
 mod motion;
 pub mod ropes;
 

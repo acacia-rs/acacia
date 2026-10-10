@@ -87,6 +87,9 @@ impl App {
         let sneaking = self.play.sneaking();
         let mut out = Vec::new();
         let alone = off.is_none();
+        if main.is_none() {
+            out.extend(self.entities.own_arm(&self.camera, swing));
+        }
         for (left, stack) in [(false, main), (true, off)] {
             let Some(stack) = stack else { continue };
             let root = self.looks.get(self.settings.look).files();

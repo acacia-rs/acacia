@@ -1,6 +1,7 @@
 //! Items as the world shows them: a flat item is its icon extruded, a block item is its block.
 //! See README "Items".
 
+pub mod arm;
 mod block;
 pub mod drop;
 mod extrude;
