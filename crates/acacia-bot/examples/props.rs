@@ -3,6 +3,7 @@
 //! shield in its off hand (Bedrock's way to block) for a minute.
 //! `cargo run -p acacia-bot --example props -- <server> [x y z of its feet]`
 use acacia_bot::client::Client;
+use acacia_bot::state::Trackers;
 use acacia_bot::{Bot, BotConfig};
 
 type Error = Box<dyn std::error::Error>;
@@ -17,7 +18,8 @@ async fn main() -> Result<(), Error> {
     let server = args.next().unwrap_or_else(|| "127.0.0.1:19174".into());
     let mut coordinate = |default: i32| args.next().and_then(|a| a.parse().ok()).unwrap_or(default);
     let [x, y, z] = [coordinate(240), coordinate(-60), coordinate(104)];
-    let config = BotConfig { physics: true, ..BotConfig::default() };
+    let trackers = Trackers { entities: true, ..Trackers::default() };
+    let config = BotConfig { physics: true, trackers, ..BotConfig::default() };
     let mut bot = Bot::connect(Client::builder(&server).offline("Prop"), config).await?;
     while bot.movement().is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
