@@ -194,9 +194,11 @@ impl Play {
         }
     }
 
-    /// How far through a swing the arm is (0 at rest); a held attack or use keeps it swinging.
+    /// How far through a swing the arm is (0 at rest); a held attack, or a held use on a block or
+    /// an entity, keeps it swinging. Not a use in the air: eating has its own pose.
     pub fn swing(&mut self, now: Instant) -> f32 {
-        if (self.attacking || self.using.is_some()) && self.swung.is_none_or(|s| now - s >= SWING) {
+        let using = self.using.is_some() && self.using_item.is_none() && self.aims_at_something();
+        if (self.attacking || using) && self.swung.is_none_or(|s| now - s >= SWING) {
             self.swung = Some(now);
         }
         self.swung.map_or(0.0, |s| ((now - s).as_secs_f32() / SWING.as_secs_f32()).min(1.0) % 1.0)

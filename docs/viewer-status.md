@@ -35,7 +35,7 @@ unit or pack tests only.
 | Moving | Riding: boat, horse, pig, minecart; seat camera, sitting pose | live (pig pose: not seen) |
 | Camera | View bobbing, sprint and flight FOV, hurt roll, death tilt, F5 views | live (death tilt: tests) |
 | Acting | Mining with cracks and predicted break, placing, using, attacking | live |
-| Acting | Eating, drinking and the bow in first person | bow pose live, not compared with the game; eating and drinking: the pose by test (bottom centre through the use), the rise seen live; one frame later in a drink showed no bottle at all (2026-10-10, unexplained) |
+| Acting | Eating, drinking and the bow in first person | bow pose live, not compared with the game; eating and drinking: the pose by test (bottom centre through the use), the rise and the emptied bottle seen live |
 | HUD | Hotbar, hearts, food, armour, air, XP, item name, effects, boss bars, titles, action bar | live |
 | HUD | Chat with translations (rawtext and keys), Tab list, sidebar, F3 | live |
 | Screens | Inventory with the player's figure, chests, recipe book and crafting by click | live |
