@@ -46,6 +46,9 @@ pub enum Command {
     Name(Option<String>),
     /// A click on the stonecutter's result with recipe `id` picked: one cut, or all.
     TakeCut { id: u32, all: bool },
+    /// The right-click that opens the held book, and a page of a book and quill as typed.
+    OpenBook,
+    EditBook(acacia_bot::books::PageEdit),
     /// A click on the loom's result with this pattern picked.
     Loom(String),
     /// A click on the enchanting table's option of this index.
@@ -220,6 +223,11 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::TakeCrafted { all, name } => bot.take_station_result(all, name.as_deref()).await,
         Command::Name(_) => Ok(()),
         Command::TakeCut { id, all } => bot.take_stonecut(id, all).await,
+        Command::OpenBook => {
+            bot.open_held_book();
+            Ok(())
+        }
+        Command::EditBook(edit) => bot.edit_book(&edit),
         Command::Loom(pattern) => bot.take_loom(&pattern).await,
         Command::Enchant(option) => bot.take_enchant(option).await,
         Command::Trade(offer) => bot.trade_once(offer).await,

@@ -3,6 +3,7 @@
 //! headless. Design: README.md.
 
 pub mod atlas;
+pub mod book;
 pub mod chat;
 pub mod debug;
 pub mod draw;
@@ -21,6 +22,7 @@ pub mod players;
 pub mod recipes;
 pub mod scale;
 pub mod sidebar;
+pub mod sign_editor;
 pub mod signs;
 pub mod theme;
 pub mod widget;

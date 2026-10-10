@@ -41,6 +41,8 @@ pub struct Me {
     pub xp_progress: f32,
     /// The nine hotbar stacks.
     pub items: [Option<Stack>; 9],
+    /// The held book's pages, and whether it is a book and quill.
+    pub book: Option<(Vec<String>, bool)>,
     /// Active effects: id, the ticks left when the server sent it (-1 for endless), the tick it
     /// was stamped with, and whether it is ambient.
     pub effects: Vec<(i32, i32, u64, bool)>,
@@ -81,6 +83,7 @@ pub fn me(bot: &Bot) -> Me {
         xp_level: p.xp_level,
         xp_progress: p.xp_progress,
         items,
+        book: bot.held_book_pages(),
         effects: p.effects.iter().map(|e| (e.id, e.duration, e.tick, e.ambient)).collect(),
         bosses: state.environment.boss_bars.values().map(|b| (b.title.clone(), b.progress, boss_colour(b.color))).collect(),
     }

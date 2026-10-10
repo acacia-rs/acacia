@@ -15,6 +15,18 @@ impl App {
             }
             return;
         }
+        if self.shown.sign.is_some() {
+            if pressed {
+                self.sign_key(code);
+            }
+            return;
+        }
+        if self.shown.book.is_some() {
+            if pressed {
+                self.book_key(code);
+            }
+            return;
+        }
         if self.form.is_some() {
             return self.form_key(code, pressed);
         }
@@ -71,7 +83,11 @@ impl App {
 
     /// Text typed while the chat was already open (the key that opens it types nothing).
     pub(super) fn text(&mut self, text: &str, chat_was_open: bool) {
-        if self.form.is_some() && self.menu.is_none() {
+        if self.shown.book.is_some() && self.menu.is_none() {
+            self.book_text(text);
+        } else if self.shown.sign.is_some() && self.menu.is_none() {
+            self.sign_text(text);
+        } else if self.form.is_some() && self.menu.is_none() {
             self.form_text(text);
         } else if self.names() && self.menu.is_none() {
             self.screen_text(text);
@@ -96,6 +112,18 @@ impl App {
             }
             return;
         }
+        if self.shown.sign.is_some() {
+            if pressed && button == MouseButton::Left {
+                self.sign_click();
+            }
+            return;
+        }
+        if self.shown.book.is_some() {
+            if pressed && button == MouseButton::Left {
+                self.book_click();
+            }
+            return;
+        }
         if self.form.is_some() {
             return self.form_button(button, pressed);
         }
@@ -110,6 +138,9 @@ impl App {
                 self.grab(true);
             }
             return;
+        }
+        if self.mode == Mode::Play && pressed && button == MouseButton::Right && self.holds_book() {
+            return self.open_book();
         }
         if self.mode == Mode::Play {
             self.play.button(button, pressed);

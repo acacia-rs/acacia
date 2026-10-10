@@ -21,9 +21,6 @@ use crate::settings::LookChoice;
 const INPUT_MAX: usize = 100;
 /// Button images are drawn 32×32 (Bedrock) or 16×16 (Java); kept at 32 in the atlas.
 const IMAGE_SIDE: u32 = 32;
-/// The id of [`FormScreen::sign_editor`]; ids from here up are the viewer's own forms.
-pub const SIGN_EDITOR_ID: u32 = u32::MAX - 1;
-const SIGN_LINES: usize = 4;
 const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
 const FETCH_MAX_BYTES: usize = 1 << 20;
 
@@ -44,14 +41,6 @@ impl FormScreen {
     pub fn new(form: &Form) -> FormScreen {
         let (spec, sources) = spec(form);
         FormScreen { id: form.id, title: form.title.clone(), spec, imaged: vec![false; sources.len()], sources, view: None }
-    }
-
-    /// The sign editor as a form: an input per line holding `text`'s, under Java's title.
-    pub fn sign_editor(text: &str) -> FormScreen {
-        let mut lines = text.split('\n');
-        let line = |_| Widget::Input { label: String::new(), placeholder: String::new(), edit: TextEdit::new(lines.next().unwrap_or(""), INPUT_MAX) };
-        let spec = Spec::Custom { elements: (0..SIGN_LINES).map(line).collect(), submit: "Done".into() };
-        FormScreen { id: SIGN_EDITOR_ID, title: "Edit Sign Message".into(), spec, sources: Vec::new(), view: None, imaged: Vec::new() }
     }
 
     /// Lays the form out for `look` and the GUI `size`, and adds button images that have loaded.
@@ -132,13 +121,6 @@ pub fn reply(outcome: Outcome) -> FormReply {
                 .collect(),
         ),
     }
-}
-
-/// The sign editor's lines as the sign's text; `None` when it was closed without Done.
-pub fn sign_text(outcome: Outcome) -> Option<String> {
-    let Outcome::Submit(values) = outcome else { return None };
-    let lines: Vec<String> = values.into_iter().filter_map(|v| if let Value::Text(line) = v { Some(line) } else { None }).collect();
-    Some(lines.join("\n").trim_end_matches('\n').to_owned())
 }
 
 /// Button images by source: pack paths read at once, URLs fetched on a thread of their own.
@@ -223,17 +205,6 @@ mod tests {
         let out = Outcome::Submit(vec![Value::Text("a".into()), Value::Toggle(true), Value::Number(2.5), Value::Choice(1)]);
         let want = FormReply::Custom(vec![FormValue::Text("a".into()), FormValue::Toggle(true), FormValue::Slider(2.5), FormValue::Choice(1)]);
         assert_eq!(reply(out), want);
-    }
-
-    #[test]
-    fn the_sign_editor_holds_a_line_per_input() {
-        let Spec::Custom { elements, submit } = FormScreen::sign_editor("a\nb").spec else { panic!() };
-        let lines: Vec<Option<Value>> = elements.iter().map(Widget::value).collect();
-        assert_eq!(lines, ["a", "b", "", ""].map(|l| Some(Value::Text(l.into()))));
-        assert_eq!(submit, "Done");
-        let typed = Outcome::Submit(vec![Value::Text("a".into()), Value::Text(String::new()), Value::Text("c".into()), Value::Text(String::new())]);
-        assert_eq!(sign_text(typed), Some("a\n\nc".into()));
-        assert_eq!(sign_text(Outcome::Close), None);
     }
 
     #[test]

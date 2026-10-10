@@ -7,7 +7,7 @@ use super::enchant::enchant_plan;
 use super::BeaconEffect;
 use super::occupied;
 use super::smithing::stonecut_plan;
-use crate::items::{ui, SlotRef};
+use crate::items::{onto_cursor, ui, SlotRef};
 use crate::state::ItemStack;
 use crate::{ActionError, Bot};
 
@@ -22,11 +22,12 @@ impl Bot {
         cuts.filter_map(|r| Some((r.network_id, r.outputs.first()?.clone()))).collect()
     }
 
-    /// The click on the stonecutter's result for recipe `network_id`: one cut, or with `all` as
-    /// many as the input and a stack allow.
+    /// The click on the stonecutter's result for recipe `network_id`: one cut onto the cursor, or
+    /// with `all` as many as the input and a stack allow into the inventory.
     pub async fn take_stonecut(&mut self, network_id: u32, all: bool) -> Result<(), ActionError> {
         let recipe = self.state.recipes.book().get(network_id).ok_or_else(|| ActionError::NotPossible("the recipe is gone".into()))?;
         let (craft, ops) = stonecut_plan(&self.state, recipe, if all { u32::MAX } else { 1 })?;
+        let ops = if all { ops } else { onto_cursor(&self.state, &craft.created(), ops) };
         self.craft_request(&craft, &ops).await
     }
 

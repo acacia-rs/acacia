@@ -1,6 +1,6 @@
 //! A craft from the grid as a player filled it by hand (the viewer's screens): which recipe the
 //! cells make and the click on the result. A shaped recipe may sit anywhere in the grid, also
-//! mirrored; results go into the inventory, as a shift-click's do.
+//! mirrored.
 
 use acacia_client::proto::types::WindowType;
 
@@ -10,7 +10,7 @@ use super::craft::{grid_cells, result_ops, results};
 use super::grindstone::grindstone_plan;
 use super::smithing::smithing_plan;
 use crate::items::craft::{Craft, CraftAction};
-use crate::items::{is_own_screen, ui, Op, SlotRef};
+use crate::items::{is_own_screen, onto_cursor, ui, Op, SlotRef};
 use crate::state::{GameState, Ingredient, ItemStack, Recipe, RecipeKind};
 use crate::{ActionError, Bot};
 
@@ -28,9 +28,11 @@ impl Bot {
         station_plan(&self.state, false, name).ok()?.0.created().into_iter().next()
     }
 
-    /// The click on that result: one craft, or with `all` as many as a crafting grid's cells hold.
+    /// The click on that result: one craft onto the cursor, or with `all` (a shift-click) as many
+    /// as a crafting grid's cells hold into the inventory.
     pub async fn take_station_result(&mut self, all: bool, name: Option<&str>) -> Result<(), ActionError> {
         let (craft, ops) = station_plan(&self.state, all, name)?;
+        let ops = if all { ops } else { onto_cursor(&self.state, &craft.created(), ops) };
         self.craft_request(&craft, &ops).await
     }
 

@@ -57,6 +57,20 @@ pub(crate) fn to_inventory_ops_after(state: &GameState, from: SlotRef, stack: &I
     Ok(ops)
 }
 
+/// A hand's plain click on a craft's result: `ops` with their moves of the created stack into the
+/// inventory replaced by one onto the cursor, when the cursor is empty or holds that item with room.
+pub(crate) fn onto_cursor(state: &GameState, created: &[ItemStack], mut ops: Vec<Op>) -> Vec<Op> {
+    let [result] = created else { return ops };
+    let cursor = state.inventory.cursor();
+    let merges = stacks_with(cursor, result) && (cursor.count > 1 || result.count > 1) && cursor.count + result.count <= MAX_STACK;
+    let takes_result = |op: &Op| matches!(op, Op::Transfer { from, .. } if *from == SlotRef::CREATED_OUTPUT);
+    if (cursor.is_empty() || merges) && ops.iter().any(takes_result) {
+        ops.retain(|op| !takes_result(op));
+        ops.push(Op::Transfer { from: SlotRef::CREATED_OUTPUT, to: SlotRef::Cursor, count: clamp(result.count) });
+    }
+    ops
+}
+
 /// Partial stacks of the same item in slot order, then the rest into the first empty slot.
 fn move_ops(from: SlotRef, stack: &ItemStack, targets: &[(SlotRef, ItemStack)]) -> Vec<Op> {
     // Only a count above one proves the item stacks: two unenchanted swords look alike but never merge.

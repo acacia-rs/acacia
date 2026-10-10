@@ -44,6 +44,8 @@ player state. Layout is tested headless.
 - `sidebar.rs`: the scoreboard sidebar in Java's `displayScoreboardSidebar` layout, for both looks.
 - `overlay.rs`: title (scale 4) and subtitle (scale 2) with Java's 10/70/20-tick fade, the action
   bar 68 px up for 3 s, boss bars 19 px apart from the top.
+- `book.rs`: a book's page in Java's `BookViewScreen` layout (14 lines of 114 px, the page number,
+  turn buttons, Done) on flat parchment, for both looks; `fits` is the limit on what a page takes.
 - `signs.rs`: a sign side's text as quads in font pixels around its centre, for the renderer to put
   on the board (see "Signs").
 - `nine.rs`: nine-slice sprites with their borders from the file beside them (`.mcmeta`, Bedrock's
@@ -91,8 +93,9 @@ wrapped at spaces to the width, and the first four lines drawn.
 
 `§` codes colour the text as the font does everywhere; the outline ignores them.
 
-The sign editor is not a screen of its own: the viewer shows it as a custom form of four inputs
-and Done (`Spec::Custom`'s `submit`), not as either game's sign screen.
+The sign editor (`sign_editor.rs`) follows Java's `AbstractSignEditScreen` in both themes: a flat
+oak board with the four lines, the typed one between `>` and `<`, and Done. Lines are capped at a
+standing sign's 90 px, also on hanging signs.
 
 ## Not yet
 
