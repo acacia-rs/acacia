@@ -307,8 +307,9 @@ entity-pass mesh with its own texture, built on first use and cached.
   takes the `ground` display. Both looks place it by Java's rules: the Bedrock attachable's own
   `animation.shield.wield_*` offsets are not applied.
 - **Icons** (`icon.rs`): `block_icon` rasterises any block's faces (cube, boxes or model) as
-  Java's GUI shows a block, with a depth buffer; `banner_icon` draws the flag from the composed
-  banner texture (see "Banners") in the item's dye, without the stack's patterns.
+  Java's GUI shows a block, with a depth buffer; `model_icon` covers the items both
+  games draw as models in a slot: a banner's flag from the composed banner texture (see
+  "Banners") in the item's dye, without the stack's patterns, and a shield's plate, seen flat.
 - **Worn** (`entity/armor.rs`, `EntityModels::armor`): the pack's attachables give each armour
   item a geometry and texture, drawn as a further instance in the wearer's pose.
 
