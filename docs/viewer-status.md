@@ -35,7 +35,7 @@ unit or pack tests only.
 | Moving | Riding: boat, horse, pig, minecart; seat camera, sitting pose | live (pig pose: not seen) |
 | Camera | View bobbing, sprint and flight FOV, hurt roll, death tilt, F5 views | live (death tilt: tests) |
 | Acting | Mining with cracks and predicted break, placing, using, attacking | live |
-| Acting | Eating, drinking and the bow in first person | bow pose live, not compared with the game; eating and drinking are wrong (seen 2026-10-10: the item slides to the bottom-left corner, Java brings it to the bottom centre; `item/hand.rs` `eat_transform`) |
+| Acting | Eating, drinking and the bow in first person | bow pose live, not compared with the game; eating and drinking: the pose by test (bottom centre through the use), the rise seen live; one frame later in a drink showed no bottle at all (2026-10-10, unexplained) |
 | HUD | Hotbar, hearts, food, armour, air, XP, item name, effects, boss bars, titles, action bar | live |
 | HUD | Chat with translations (rawtext and keys), Tab list, sidebar, F3 | live |
 | Screens | Inventory with the player's figure, chests, recipe book and crafting by click | live |
@@ -63,13 +63,12 @@ unit or pack tests only.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
 - **Entities:** patterns on held banners and shields, the banner's
-  sway, a leather
-  stack's own dye, capes, camels, leads, fishing lines. A blocking holder's raised arm and
+  sway, a dyed leather item's colour in the hand and in slots (worn, it is dyed: tests only, no
+  command dyes armour), capes, camels, leads, fishing lines. A blocking holder's raised arm and
   shield (third person); the Bedrock attachable's own shield placement (Java's is used in both
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
-- **First person while sneaking** shows a dark red screen with two bars, with or without a
-  shield (seen 2026-10-10, `ACACIA_KEYS="12 +Shift"`; not looked into), so the raised shield
-  was never seen.
+- **A raised shield in first person** was never seen: the one sneaking shot with a shield had
+  the eye inside a scene object (dark red screen at 700/700; sneaking at 120/120 looks normal).
 - **Sky:** Java's fast clouds. The Nether's per-biome fog is in (unit-tested; only the crimson
   forest was seen live, before it landed).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
