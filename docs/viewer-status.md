@@ -72,8 +72,8 @@ unit or pack tests only.
   crimson forest); the way back and the end portal were checked in the bot's drill only. An
   arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
   The end portal's surface is the Bedrock pack's still image in both looks (seen live; the
-  Java game draws it with a shader). A Java look baked before 2026-10-10 lacks it and the
-  frames' textures: run `lookbake java` again.
+  Java game draws it with a shader). A Java look baked before 2026-10-10 lacks it: run
+  `lookbake java` again.
 - **Entities:** a banner stack's patterns were seen on the model in another player's hand
   (2026-10-10, Java look); its slot icon and a shield's banner are by tests only. A camel was seen standing, saddled and ridden (2026-10-10), not
   sitting or dashing. The Bedrock attachable's own shield placement (Java's is used in both
