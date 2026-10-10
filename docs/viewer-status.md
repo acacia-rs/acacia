@@ -71,8 +71,9 @@ unit or pack tests only.
 - **Dimensions:** a nether portal was walked through in the viewer (2026-10-10, creative, to a
   crimson forest); the way back and the end portal were checked in the bot's drill only. An
   arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
-  The end portal's surface is not drawn; in the Bedrock look a nether portal shows seams
-  between its blocks.
+  The end portal's surface is the pack's still image in the Bedrock look (seen live) and is
+  not drawn in the Java look, whose baked pack has no model for it (the game draws it with a
+  shader).
 - **Entities:** a banner stack's patterns were seen on the model in another player's hand
   (2026-10-10, Java look); its slot icon and a shield's banner are by tests only. A camel was seen standing, saddled and ridden (2026-10-10), not
   sitting or dashing. The Bedrock attachable's own shield placement (Java's is used in both
