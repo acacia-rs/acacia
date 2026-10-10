@@ -120,6 +120,7 @@ mod tests {
     fn the_arms_under_a_map_come_from_either_side() {
         // Looking down, the map is upright before the face: a fist to each side of its middle.
         let (right, left) = (seen(under_map(60.0, 1.0), -6.0, 12.0), seen(under_map(60.0, -1.0), 6.0, 12.0));
-        assert!(right.x > 0.0 && (right.x + left.x).abs() < 1e-3 && (right.y - left.y).abs() < 1e-3 && right.z < 0.0, "{right} {left}");
+        // Java turns them 92°, not 90°: not quite mirrored.
+        assert!(right.x > 0.2 && (right.x + left.x).abs() < 0.05 && (right.y - left.y).abs() < 1e-3 && right.z < 0.0, "{right} {left}");
     }
 }
