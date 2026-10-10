@@ -15,15 +15,16 @@ const LINE_MAX: usize = 100;
 pub(super) struct SignEdit {
     pub lines: [TextEdit; LINES],
     pub line: usize,
+    pub hanging: bool,
 }
 
 impl App {
-    /// The sign editor the server opened, on the side's `text` so far; `None` once it is closed.
-    pub(super) fn show_sign_editor(&mut self, text: Option<String>) {
-        match text {
-            Some(text) => {
+    /// The sign editor the server opened, on the side's text so far; `None` once it is closed.
+    pub(super) fn show_sign_editor(&mut self, sign: Option<(String, bool)>) {
+        match sign {
+            Some((text, hanging)) => {
                 let mut lines = text.split('\n');
-                self.shown.sign = Some(SignEdit { lines: std::array::from_fn(|_| TextEdit::new(lines.next().unwrap_or(""), LINE_MAX)), line: 0 });
+                self.shown.sign = Some(SignEdit { lines: std::array::from_fn(|_| TextEdit::new(lines.next().unwrap_or(""), LINE_MAX)), line: 0, hanging });
                 self.play.release_all();
                 self.grab(false);
             }
@@ -68,7 +69,7 @@ impl App {
         let Some(sign) = &mut self.shown.sign else { return };
         let mut line = sign.lines[sign.line].clone();
         line.insert(text);
-        if sign_editor::fits(self.ui.theme(look), &line.text()) {
+        if sign_editor::fits(self.ui.theme(look), &line.text(), sign.hanging) {
             sign.lines[sign.line] = line;
         }
     }

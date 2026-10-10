@@ -84,7 +84,12 @@ pub fn outline_boxes(state: &BlockState, shape: &Shape) -> Vec<[f32; 6]> {
         return Vec::new();
     }
     if !state.boxes.is_empty() {
-        return state.boxes.iter().map(|b| [b.min[0], b.min[1], b.min[2], b.max[0], b.max[1], b.max[2]]).collect();
+        let mut boxes: Vec<[f32; 6]> = state.boxes.iter().map(|b| [b.min[0], b.min[1], b.min[2], b.max[0], b.max[1], b.max[2]]).collect();
+        // A wall hanging sign collides with its bracket only; the board under it is clicked too.
+        if state.name.ends_with("hanging_sign") {
+            boxes.extend(boxes.first().map(|bar| [bar[0], 0.0, bar[2], bar[3], bar[1], bar[5]]));
+        }
+        return boxes;
     }
     match shape {
         Shape::Liquid => Vec::new(),
@@ -160,6 +165,18 @@ mod tests {
         assert!((t - 1.2).abs() < 1e-6, "{t}");
         assert_eq!(pick_entity(&[at(1, 4.0)], eye, Vec3::X, 3.0), None, "out of reach");
         assert_eq!(pick_entity(&[at(1, 2.0)], eye, Vec3::NEG_X, 3.0), None, "behind");
+    }
+
+    #[test]
+    fn a_wall_hanging_sign_is_clicked_on_its_board() {
+        let registry = acacia_world::BlockRegistry::vanilla();
+        let signs = (0..registry.len() as u32).filter_map(|id| registry.get(id)).filter(|s| s.name.ends_with("oak_hanging_sign") && !s.boxes.is_empty());
+        let mut seen = 0;
+        for sign in signs {
+            seen += 1;
+            assert!(outline_boxes(sign, &Shape::None).iter().any(|b| b[1] == 0.0 && b[4] > 0.5), "{:?}", sign.boxes);
+        }
+        assert!(seen > 0, "no hanging sign collides");
     }
 
     #[test]

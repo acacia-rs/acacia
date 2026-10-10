@@ -57,8 +57,8 @@ pub enum NetEvent {
     Creative(Vec<control::CreativeEntry>),
     /// The server form now open, when that changed (`None`: it closed).
     Form(Option<acacia_bot::forms::Form>),
-    /// The server opened a sign's editor, on this text; `None`: it closed.
-    SignEditor(Option<String>),
+    /// The server opened a sign's editor, on this text (and whether the sign hangs); `None`: it closed.
+    SignEditor(Option<(String, bool)>),
     /// The scoreboard sidebar, when it changed (`None`: none shown).
     Sidebar(Option<acacia_ui::sidebar::Sidebar>),
     /// A chat line, with `§` codes; `message` may be a `%key` that `params` fill.
@@ -225,7 +225,7 @@ async fn run(
                         form = open;
                         send(NetEvent::Form(bot.state().forms.latest().cloned()))?;
                     }
-                    let editing = control::open_sign_text(&bot);
+                    let editing = control::open_sign(&bot);
                     if editing.is_some() != sign_open {
                         sign_open = editing.is_some();
                         send(NetEvent::SignEditor(editing))?;
