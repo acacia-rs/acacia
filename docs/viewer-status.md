@@ -68,11 +68,11 @@ unit or pack tests only.
   trader's lists (the wheel scrolls them); enchanting hints and the galactic text; a book's
   art and a caret inside its text; the creative inventory's search, its survival-inventory tab and
   deleting items into it.
-- **Dimensions:** portals were checked in the bot's drill only. Walked into in the viewer
-  (2026-10-10, creative, five seconds inside a lit portal) the player was not sent to the Nether;
-  not looked into. An arrival can take one correction when the server lags (docs/DESIGN.md
-  "Dimension travel"). The end portal's surface is not drawn; in the Bedrock look a nether
-  portal shows seams between its blocks.
+- **Dimensions:** a nether portal was walked through in the viewer (2026-10-10, creative, to a
+  crimson forest); the way back and the end portal were checked in the bot's drill only. An
+  arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
+  The end portal's surface is not drawn; in the Bedrock look a nether portal shows seams
+  between its blocks.
 - **Entities:** a banner stack's patterns were seen on the model in another player's hand
   (2026-10-10, Java look); its slot icon and a shield's banner are by tests only. A camel was seen standing, saddled and ridden (2026-10-10), not
   sitting or dashing. The Bedrock attachable's own shield placement (Java's is used in both
