@@ -223,6 +223,11 @@ impl Movement {
         self.physics.as_ref().is_some_and(|p| p.sprinting)
     }
 
+    /// The simulation is sneaking.
+    pub fn sneaking(&self) -> bool {
+        self.physics.as_ref().is_some_and(|p| p.sneaking)
+    }
+
     /// Tracks the effects that change movement; they also arrive at login, before movement starts.
     fn apply_effect(&mut self, p: &MobEffect) {
         let level = (p.event_id != MobEffectEventId::Remove).then_some(p.amplifier);

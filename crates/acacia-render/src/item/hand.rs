@@ -14,8 +14,8 @@ const ARM: Vec3 = Vec3::new(0.56, -0.52, -0.72);
 
 /// An item in another entity's hand: `body` is the entity's model space to camera-relative
 /// world space (as the entity pass places it), `hand` from [`crate::entity::bake::Mesh::hand`].
-pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, left: bool, light_at: glam::DVec3) -> EntityInstance {
-    let frame = body * held_frame(Display::third_person(model.form, left), hand, left);
+pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, left: bool, blocking: bool, light_at: glam::DVec3) -> EntityInstance {
+    let frame = body * held_frame(Display::third_person(model.form, left, blocking), hand, left);
     let glint = model.glint.then_some(Glint::Item);
     EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
 }
@@ -46,7 +46,7 @@ mod tests {
     fn a_resting_arm_holds_a_sword_forward_at_the_fist() {
         // Shoulder of a humanoid's right arm, in model space (blocks).
         let hand = Mat4::from_translation(Vec3::new(-5.0, 22.0, 0.0) / 16.0);
-        let frame = held_frame(Display::third_person(Form::Flat, false), hand, false);
+        let frame = held_frame(Display::third_person(Form::Flat, false, false), hand, false);
         // A sword sprite: hilt bottom-left, tip top-right (item mesh space).
         let ends = |frame: Mat4| (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
         let (hilt, tip) = ends(frame);
@@ -56,7 +56,7 @@ mod tests {
         let fist = (hilt + tip) / 2.0;
         assert!((fist.x + 0.375).abs() < 0.15 && (0.6..0.95).contains(&fist.y), "{fist}");
         // The left hand holds it pointing the same way, at the other fist.
-        let (left_hilt, left_tip) = ends(held_frame(Display::third_person(Form::Flat, true), Mat4::from_translation(Vec3::new(5.0, 22.0, 0.0) / 16.0), true));
+        let (left_hilt, left_tip) = ends(held_frame(Display::third_person(Form::Flat, true, false), Mat4::from_translation(Vec3::new(5.0, 22.0, 0.0) / 16.0), true));
         assert!((left_tip - left_hilt).normalize().abs_diff_eq(blade, 1e-4), "{left_hilt} {left_tip}");
         let left_fist = (left_hilt + left_tip) / 2.0;
         assert!((left_fist.x + fist.x).abs() < 1e-4 && (left_fist.y - fist.y).abs() < 1e-4, "{left_fist} {fist}");
@@ -146,10 +146,11 @@ impl Display {
     }
 
     /// `thirdperson_righthand` or `thirdperson_lefthand`. Flat items take `item/handheld`'s,
-    /// which mobs mostly hold; its left entry mirrors back to the right one's turn.
-    pub fn third_person(form: Form, left: bool) -> Display {
+    /// which mobs mostly hold; its left entry mirrors back to the right one's turn. `blocking`
+    /// raises a shield.
+    pub fn third_person(form: Form, left: bool, blocking: bool) -> Display {
         let listed = match (form, left) {
-            (Form::Shield, _) => shield::display(false, left, false),
+            (Form::Shield, _) => shield::display(false, left, blocking),
             (Form::Block, _) => Display::px([75.0, 45.0, 0.0], [0.0, 2.5, 0.0], 0.375),
             (Form::Flat, false) => Display::px([0.0, -90.0, 55.0], [0.0, 4.0, 0.5], 0.85),
             (Form::Flat, true) => Display::px([0.0, 90.0, -55.0], [0.0, 4.0, 0.5], 0.85),

@@ -27,6 +27,7 @@ mod entities;
 mod forms;
 #[cfg(feature = "profile")]
 mod heap;
+mod facts;
 mod input;
 mod keyscript;
 mod looks;

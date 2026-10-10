@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use acacia_render::Outline;
 use acacia_render::entity::EntityInstance;
-use acacia_render::item::{ItemKey, hand};
+use acacia_render::item::{ItemKey, SHIELD, hand};
 use acacia_ui::nametags::Tag;
 
 use super::{App, Mode};
@@ -96,8 +96,6 @@ impl App {
         out
     }
 }
-
-const SHIELD: &str = "minecraft:shield";
 
 /// How an item in use looks held: a bow drawn, or food and drink eaten (again each `duration`).
 fn using(name: &str, ticks: f32) -> Option<hand::Using> {

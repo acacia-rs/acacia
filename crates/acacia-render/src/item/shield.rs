@@ -47,8 +47,10 @@ fn mesh(geometry: &geometry::Geometry) -> Mesh {
 /// The shield models' `display` for a hand, as the files list it (the left one not yet mirrored).
 pub(super) fn display(first_person: bool, left: bool, blocking: bool) -> Display {
     match (first_person, left, blocking) {
-        (false, false, _) => Display::px([0.0, 90.0, 0.0], [10.0, 6.0, -4.0], 1.0),
-        (false, true, _) => Display::px([0.0, 90.0, 0.0], [10.0, 6.0, 12.0], 1.0),
+        (false, false, false) => Display::px([0.0, 90.0, 0.0], [10.0, 6.0, -4.0], 1.0),
+        (false, true, false) => Display::px([0.0, 90.0, 0.0], [10.0, 6.0, 12.0], 1.0),
+        (false, false, true) => Display::px([45.0, 155.0, 0.0], [-3.49, 11.0, -2.0], 1.0),
+        (false, true, true) => Display::px([45.0, 155.0, 0.0], [11.51, 7.0, 2.5], 1.0),
         (true, false, false) => Display::px([0.0, 180.0, 5.0], [-10.0, 1.75, -10.0], 1.25),
         (true, true, false) => Display::px([0.0, 180.0, 5.0], [10.0, 0.0, -10.0], 1.25),
         (true, false, true) => Display::px([0.0, 180.0, -5.0], [-15.0, 3.25, -11.0], 1.25),
@@ -98,7 +100,10 @@ mod tests {
         for (left, side) in [(false, -1.0), (true, 1.0)] {
             // The shoulder of a humanoid's arm, in model space (blocks): the entity's right is -x.
             let hand = Mat4::from_translation(Vec3::new(5.0 * side, 22.0, 0.0) / 16.0);
-            let frame = held_frame(Display::third_person(Form::Shield, left), hand, left);
+            // Raised, the plate turns across the body and tips: no longer flat to the side.
+            let (lo, hi) = bounds(&plate, held_frame(Display::third_person(Form::Shield, left, true), hand, left));
+            assert!((hi.x - lo.x) * 16.0 > 6.0, "{left}: {lo} {hi}");
+            let frame = held_frame(Display::third_person(Form::Shield, left, false), hand, left);
             // Facing sideways with its long side level (as a sword points forward out of the
             // fist), 4.5 px out from the shoulder and centred 6 px below it.
             let (lo, hi) = bounds(&plate, frame);

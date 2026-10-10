@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use acacia_render::entity::{EntityInstance, EntityModels, Value};
 use acacia_render::item::drop::{self, Drop};
-use acacia_render::item::{ItemModel, ItemModels, hand};
+use acacia_render::item::{ItemModel, ItemModels, SHIELD, hand};
 use acacia_render::shadows::Shadow;
 use glam::DVec3;
 
@@ -192,7 +192,9 @@ impl Smoother {
             let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
             let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
             if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.hand(&pose, left)) {
-                out.push(hand::third_person(item, body, hand, left, m.position + DVec3::Y));
+                // The off hand's shield is raised before the main one's.
+                let blocking = e.facts.blocking() && (left || e.held[1].as_ref().is_none_or(|(key, _)| key.name != SHIELD));
+                out.push(hand::third_person(item, body, hand, left, blocking, m.position + DVec3::Y));
             }
         }
         let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);
