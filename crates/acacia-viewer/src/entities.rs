@@ -43,6 +43,7 @@ pub struct Tracked {
     pub hurts: u32,
     pub dying: bool,
     pub seat: Option<Seat>,
+    pub tether: Option<crate::smooth::ropes::Tether>,
 }
 
 /// Where a rider sits.
@@ -195,7 +196,7 @@ impl Feed {
             let held = [held_key(bot, state.inventory.held()), held_key(bot, &state.inventory.offhand)];
             let armor = self.armor(bot, state.inventory.armor.iter());
             let (hurts, dying) = (state.hurts.count(me.runtime_entity_id), state.hurts.dying(me.runtime_entity_id));
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat });
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat, tether: None });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
@@ -240,7 +241,7 @@ impl Feed {
         let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));
         let hurts = &bot.state().hurts;
         let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));
-        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying, seat })
+        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying, seat, tether: crate::smooth::ropes::tether(bot, e) })
     }
 
     /// The layers of the armour pieces among `worn` that the pack has attachables for, each with

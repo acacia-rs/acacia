@@ -14,6 +14,8 @@ use glam::DVec3;
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
 use crate::pick::EntityBox;
 
+pub mod ropes;
+
 /// The bot's own body is hidden while the camera is this close to its eyes.
 const OWN_HEAD_RADIUS: f64 = 0.6;
 /// `query.is_riding_any_entity_of_type` with one of its kinds, as the entity code asks it.

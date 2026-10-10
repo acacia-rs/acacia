@@ -52,6 +52,15 @@ impl Metadata {
         }
     }
 
+    /// The unique id of the entity `key` names (a hook's owner, a lead's holder); `None` when
+    /// unset or -1.
+    pub fn entity(&self, key: Key) -> Option<i64> {
+        match self.plain(key)? {
+            Plain::Long(id) if *id != -1 => Some(*id),
+            _ => None,
+        }
+    }
+
     /// Float value of `key` (a boat's paddle times), 0 when unset.
     pub fn float(&self, key: Key) -> f32 {
         match self.plain(key) {
