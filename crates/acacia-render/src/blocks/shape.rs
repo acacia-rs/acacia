@@ -45,11 +45,33 @@ pub struct ModelFace {
 }
 
 const INVISIBLE: &[&str] = &[
-    "air", "light_block", "structure_void", "barrier", "bubble_column", "tripwire", "lever",
+    "air", "light_block", "structure_void", "barrier", "bubble_column", "tripwire",
     "frame", "glow_frame", "moving_block", "piston_arm_collision", "sticky_piston_arm_collision",
 ];
-/// Rendered as nothing for now: they need a model of their own or attachment faces.
-const UNSUPPORTED: &[&str] = &["vine","glow_lichen", "sculk_vein", "resin_clump", "piglin_head"];
+/// Rendered as nothing for now: it needs a model of its own.
+const UNSUPPORTED: &[&str] = &["piglin_head"];
+/// Blocks that cling to the faces `multi_face_direction_bits` names.
+const SPREADING: &[&str] = &["glow_lichen", "sculk_vein", "resin_clump"];
+
+/// Sheets without thickness a pixel off the faces a block clings to: down, up, north, south,
+/// west, east.
+fn sheets(on: [bool; 6]) -> Shape {
+    const SHEETS: [Box16; 6] = [[0, 1, 0, 16, 1, 16], [0, 15, 0, 16, 15, 16], [0, 0, 1, 16, 16, 1], [0, 0, 15, 16, 16, 15], [1, 0, 0, 1, 16, 16], [15, 0, 0, 15, 16, 16]];
+    Shape::Boxes(SHEETS.into_iter().zip(on).filter_map(|(sheet, on)| on.then_some(sheet)).collect())
+}
+
+/// A lever's plate against the block it is on and its handle standing out of it (not thrown
+/// either way). `lever_direction` names the face the handle points out of.
+fn lever(direction: &str) -> [Box16; 2] {
+    match direction {
+        "east" => [[0, 4, 5, 3, 12, 11], [3, 7, 7, 13, 9, 9]],
+        "west" => [[13, 4, 5, 16, 12, 11], [3, 7, 7, 13, 9, 9]],
+        "south" => [[5, 4, 0, 11, 12, 3], [7, 7, 3, 9, 9, 13]],
+        "north" => [[5, 4, 13, 11, 12, 16], [7, 7, 3, 9, 9, 13]],
+        d if d.starts_with("down") => [[5, 13, 4, 11, 16, 12], [7, 3, 7, 9, 13, 9]],
+        _ => [[5, 0, 4, 11, 3, 12], [7, 3, 7, 9, 13, 9]],
+    }
+}
 
 pub fn classify(state: &BlockState) -> Shape {
     let name = short_name(state.name);
@@ -69,7 +91,20 @@ pub fn classify(state: &BlockState) -> Shape {
         return Shape::None;
     }
     let flat = |h: u8| Shape::Boxes(Box::new([[0, 0, 0, 16, h, 16]]));
+    let bits = |key: &str| state.property(key).and_then(|v| v.parse::<u8>().ok()).unwrap_or(0);
+    let bit = |bits: u8, n: u8| bits >> n & 1 == 1;
     match name {
+        // South, west, north, east; none of them hangs it under the block above.
+        "vine" => {
+            let b = bits("vine_direction_bits");
+            sheets([false, b == 0, bit(b, 2), bit(b, 0), bit(b, 1), bit(b, 3)])
+        }
+        // Down, up, south, west, north, east.
+        n if SPREADING.contains(&n) => {
+            let b = bits("multi_face_direction_bits");
+            sheets([bit(b, 0), bit(b, 1), bit(b, 4), bit(b, 2), bit(b, 3), bit(b, 5)])
+        }
+        "lever" => Shape::Boxes(Box::new(lever(state.property("lever_direction").unwrap_or("up_north_south")))),
         "powder_snow" | "end_gateway" => Shape::Cube,
         // Sheets without thickness: edges would show as seams between a portal's blocks.
         "portal" if state.property("portal_axis") == Some("z") => Shape::Boxes(Box::new([[8, 0, 0, 8, 16, 16]])),
@@ -116,6 +151,10 @@ fn collisionless_blocks_that_are_not_plants_get_boxes() {
     assert_eq!(shape("portal", &["portal_axis=z"]), Shape::Boxes(Box::new([[8, 0, 0, 8, 16, 16]])));
     assert_eq!(shape("portal", &["portal_axis=x"]), Shape::Boxes(Box::new([[0, 0, 8, 16, 16, 8]])));
     assert_eq!(shape("end_portal", &[]), Shape::Boxes(Box::new([[0, 12, 0, 16, 12, 16]])));
+    // A vine on the south and east faces; lichen on the floor and the north face.
+    assert_eq!(shape("vine", &["vine_direction_bits=9"]), Shape::Boxes(Box::new([[0, 0, 15, 16, 16, 15], [15, 0, 0, 15, 16, 16]])));
+    assert_eq!(shape("glow_lichen", &["multi_face_direction_bits=17"]), Shape::Boxes(Box::new([[0, 1, 0, 16, 1, 16], [0, 0, 1, 16, 16, 1]])));
+    assert_eq!(shape("lever", &["lever_direction=up_north_south", "open_bit=0"]), Shape::Boxes(Box::new([[5, 0, 4, 11, 3, 12], [7, 3, 7, 9, 13, 9]])));
 }
 
 /// Rounds to 1/16 and clamps to the block (fence and wall collision reaches 1.5 high).
