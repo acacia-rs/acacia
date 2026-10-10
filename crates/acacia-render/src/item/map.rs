@@ -108,16 +108,24 @@ pub enum Hold {
     One { left: bool },
 }
 
+/// Where a map in both hands (and the arms under it) lies in view space.
+pub(super) fn lying(pitch: f32) -> Mat4 {
+    // `calculateMapTilt`: 1 lying flat (looking ahead) to 0 upright (49.5° down or more).
+    let tilt = 0.5 - ((1.0 - pitch / 45.0 + 0.1).clamp(0.0, 1.0) * std::f32::consts::PI).cos() * 0.5;
+    Mat4::from_translation(Vec3::new(0.0, 0.04 - tilt * 0.5, -0.72)) * Mat4::from_rotation_x((tilt * -85.0).to_radians())
+}
+
+/// Degrees the camera looks down.
+pub(super) fn pitch(camera: &Camera) -> f32 {
+    -camera.forward().y.clamp(-1.0, 1.0).asin().to_degrees()
+}
+
 /// The sheet's unit square to view space (x right, y up, looking down -z). `pitch` in degrees,
 /// positive looking down.
 fn frame(hold: Hold, pitch: f32) -> Mat4 {
     let sheet = Mat4::from_scale(Vec3::splat(SIDE * SHEET as f32 / PICTURE as f32));
     match hold {
-        Hold::Both => {
-            // `calculateMapTilt`: 1 lying flat (looking ahead) to 0 upright (49.5° down or more).
-            let tilt = 0.5 - ((1.0 - pitch / 45.0 + 0.1).clamp(0.0, 1.0) * std::f32::consts::PI).cos() * 0.5;
-            Mat4::from_translation(Vec3::new(0.0, 0.04 - tilt * 0.5, -0.72)) * Mat4::from_rotation_x((tilt * -85.0).to_radians()) * Mat4::from_scale(Vec3::splat(2.0)) * sheet
-        }
+        Hold::Both => lying(pitch) * Mat4::from_scale(Vec3::splat(2.0)) * sheet,
         Hold::One { left } => Mat4::from_translation(Vec3::new(if left { -0.635 } else { 0.635 }, -0.205, -0.75)) * sheet,
     }
 }
@@ -125,7 +133,7 @@ fn frame(hold: Hold, pitch: f32) -> Mat4 {
 pub fn first_person(skin: &Arc<Skin>, camera: &Camera, hold: Hold) -> EntityInstance {
     let (forward, right) = (camera.forward(), camera.right());
     let view = Mat4::from_mat3(Mat3::from_cols(right, right.cross(forward), -forward));
-    let pitch = -forward.y.clamp(-1.0, 1.0).asin().to_degrees();
+    let pitch = pitch(camera);
     EntityInstance {
         layers: [Layer::plain(NO_MODEL, NO_TEXTURE)].into(),
         skin: Some(skin.clone()),

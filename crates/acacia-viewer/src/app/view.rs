@@ -95,6 +95,7 @@ impl App {
             let root = self.looks.get(self.settings.look).files();
             if let Some(sheet) = stack.map.as_ref().and_then(|picture| crate::held_map::sheet(root, picture)) {
                 let hold = if alone && !left { map::Hold::Both } else { map::Hold::One { left } };
+                out.extend(self.entities.map_arms(&self.camera, hold));
                 out.push(map::first_person(&sheet, &self.camera, hold));
                 continue;
             }
