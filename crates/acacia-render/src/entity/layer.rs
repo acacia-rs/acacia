@@ -11,6 +11,8 @@ pub struct Layer {
     pub textures: [TextureId; 3],
     /// Linear colour multiplied in where the texture's alpha is 0 (sheep wool).
     pub tint: Option<[f32; 3]>,
+    /// Leather armour's dye (sRGB) when the stack carries one; undyed leather's otherwise.
+    pub dye: Option<[u8; 3]>,
     /// Bit per bone of [`super::Mesh::bones`] that is not drawn.
     pub hidden: [u32; 4],
     pub blend: Blend,
@@ -50,7 +52,7 @@ impl Blend {
 impl Layer {
     /// `model` in one texture, opaque.
     pub fn plain(model: ModelId, texture: TextureId) -> Layer {
-        Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, hidden: [0; 4], blend: Blend::Opaque }
+        Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, dye: None, hidden: [0; 4], blend: Blend::Opaque }
     }
 }
 

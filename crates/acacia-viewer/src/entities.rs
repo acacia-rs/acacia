@@ -244,9 +244,13 @@ impl Feed {
     }
 
     /// The layers of the armour pieces among `worn` that the pack has attachables for, each with
-    /// whether it is enchanted.
+    /// whether it is enchanted; dyed leather takes its stack's colour.
     fn armor<'a>(&self, bot: &Bot, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<(Arc<[Layer]>, bool)> {
-        let layers = |s: &ItemStack| self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")));
+        let layers = |s: &ItemStack| {
+            let layers = self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")))?;
+            let Some(dye) = s.custom_color() else { return Some(layers) };
+            Some(layers.iter().map(|l| Layer { dye: Some(dye), ..l.clone() }).collect())
+        };
         worn.filter(|s| !s.is_empty()).filter_map(|s| Some((layers(s)?, s.is_enchanted()))).collect()
     }
 

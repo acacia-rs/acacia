@@ -244,7 +244,7 @@ impl EntityModels {
             }
         }
         let tint = (material == "sheep").then(|| dye((scope.query)("color").num()));
-        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, hidden, blend })
+        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, dye: None, hidden, blend })
     }
 
     /// The default geometry in the default texture, for kinds whose controllers yield nothing.

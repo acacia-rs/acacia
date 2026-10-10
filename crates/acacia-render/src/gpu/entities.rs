@@ -42,8 +42,8 @@ type BoneMatrix = [[f32; 4]; 4];
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum TextureKey {
-    /// A layer's textures, and whether they compose as a tint mask.
-    Layers([TextureId; 3], bool),
+    /// A layer's textures, whether they compose as a tint mask, and its leather dye.
+    Layers([TextureId; 3], bool, Option<[u8; 3]>),
     /// Address of the shared [`Skin`]; the map keeps the `Arc` alive, so it stays unique.
     Skin(usize),
 }
@@ -192,14 +192,14 @@ impl EntityPass {
             }
             let key = match &e.skin {
                 Some(skin) => TextureKey::Skin(Arc::as_ptr(skin) as usize),
-                None => TextureKey::Layers(layer.textures, layer.tint.is_some()),
+                None => TextureKey::Layers(layer.textures, layer.tint.is_some(), layer.dye),
             };
             let look = self.looks.entry(key).or_insert_with(|| {
                 let view = match &e.skin {
                     Some(s) => entity_textures::upload(device, queue, s.width, s.height, &s.rgba),
                     None => {
                         let files: Vec<&PathBuf> = layer.textures.iter().filter_map(|&t| self.models.textures().get(t as usize)).collect();
-                        entity_textures::load(device, queue, &files, layer.tint.is_some())
+                        entity_textures::load(device, queue, &files, layer.tint.is_some(), layer.dye)
                     }
                 };
                 let own_mesh = e.skin.as_ref().and_then(|s| s.mesh.as_ref()).map(|m| vertex_buffer(device, &m.vertices));

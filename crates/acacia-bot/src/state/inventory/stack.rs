@@ -42,6 +42,14 @@ impl ItemStack {
         matches!(self.nbt.as_ref().and_then(|n| n.value.get("ench")), Some(Value::List(list)) if !list.items.is_empty())
     }
 
+    /// The dye of leather armour: `customColor` in the item NBT (ARGB), as red, green, blue.
+    pub fn custom_color(&self) -> Option<[u8; 3]> {
+        match self.nbt.as_ref()?.value.get("customColor")? {
+            Value::Int(argb) => Some([(argb >> 16) as u8, (argb >> 8) as u8, *argb as u8]),
+            _ => None,
+        }
+    }
+
     /// Applies one slot of a successful `ItemStackResponse`. The response carries no item type, so
     /// a slot that was empty stays empty here until the request sender records its prediction.
     pub(crate) fn apply_response(&mut self, slot: &ResponseSlot) {

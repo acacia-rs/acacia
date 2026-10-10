@@ -61,6 +61,18 @@ mod tests {
         let left_fist = (left_hilt + left_tip) / 2.0;
         assert!((left_fist.x + fist.x).abs() < 1e-4 && (left_fist.y - fist.y).abs() < 1e-4, "{left_fist} {fist}");
     }
+
+    #[test]
+    fn a_drunk_potion_stays_in_view_at_the_bottom_centre() {
+        let display = Display::first_person("minecraft:potion", Form::Flat, false, false);
+        // Half the view's height over its depth at Java's 70° hand field of view.
+        let half = 35.0f32.to_radians().tan();
+        for ticks in [8.0, 16.0, 22.0, 30.0] {
+            let centre = (eat_transform(ticks, 32.0) * Mat4::from_translation(ARM) * display.frame()).transform_point3(Vec3::ZERO);
+            let (x, y) = (centre.x / -centre.z / half, centre.y / -centre.z / half);
+            assert!(centre.z < -0.3 && x.abs() < 0.4 && (-0.95..-0.3).contains(&y), "{ticks}: {centre} at {x} {y}");
+        }
+    }
 }
 
 /// The held item in use, for Java's first-person use animations; `ticks` since the use began.
