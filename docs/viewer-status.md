@@ -27,7 +27,9 @@ unit or pack tests only.
 | Entities | The charged creeper's aura | live, both looks, beside a plain creeper |
 | Entities | Boat paddles and a dry hull | live, both looks (an empty boat on a pool) |
 | Entities | Paddles rowing by the boat's paddle times | live in the Java look (one frame, from behind); the cadence is assumed |
-| Entities | Fishing lines (hook to its owner's rod) and leads (mob to its holder or fence knot), sagging as Java's | fishing line: live, first person (Java look); leads and other players' lines: tests, their hand anchors approximate |
+| Entities | Fishing lines (hook to its owner's rod) and leads (mob to its holder or fence knot), sagging as Java's | fishing line: live, first person (Java look); a lead from a cow to another player's hand: live (Java look); other players' fishing lines: tests; other holders' hand anchors are approximate |
+| Entities | Players crouch while sneaking (the server's flag; the own player's input) and raise a shield with it | live for another player (Java look, the `props` bot) |
+| Entities | A shield's banner: the cloth and patterns from `shield_patterns`, on the model and the slot icon | tests only (no command makes one) |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
 | Banners | Standing and wall banners with their dye and patterns, the ominous banner; the flag sways | live, both looks (20 of 42 patterns seen; composition and sway by tests) |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
@@ -65,10 +67,9 @@ unit or pack tests only.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
 - **Entities:** a banner stack's patterns in its slot icon and on the
-  held model are by tests only (no command makes a patterned banner item); a shield's banner
-  pattern is not drawn; capes. A camel was seen standing, saddled and ridden (2026-10-10), not
-  sitting or dashing. Another player's blocking
-  follows the same flag as the own player's but was never seen (needs a second player); the Bedrock attachable's own shield placement (Java's is used in both
+  held model are by tests only (no command makes a patterned banner item), as is a shield's
+  banner; capes. A camel was seen standing, saddled and ridden (2026-10-10), not
+  sitting or dashing. The Bedrock attachable's own shield placement (Java's is used in both
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
 - **Capes:** the bot keeps no cape images (acacia-bot `state/skins.rs`), and no account on the
   test servers has one to check against.
@@ -94,6 +95,8 @@ unit or pack tests only.
   it works. Armour is put on by holding it and `ACACIA_KEYS="18 +Use; 18.3 -Use"`.
 - Patterned banners: no command writes them, so `cargo run -p acacia-bot --example banners -- <server> [x y z]`
   looms and places a row (it runs commands only on itself and within 40 blocks).
+- A second player: `cargo run -p acacia-bot --example props -- <server> [x y z]` stands there
+  facing north, leashes a cow and sneaks with a shield for a minute.
 - `RUST_LOG=chat=debug` logs each chat line's raw packet.
 - The action-test pack (BDS 19174) rebuilds its scene around wherever the player joins, which
   is where it last left: stay there, summon on a stage some 40 blocks off and shoot it with
