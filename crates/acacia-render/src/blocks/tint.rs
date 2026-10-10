@@ -54,6 +54,7 @@ pub fn faces(name: &str) -> [Tint; 6] {
         // Sides only tint where their overlay alpha says (see Material::Overlay); the bottom is dirt.
         "grass_block" | "grass" => [Tint::Grass, Tint::Grass, Tint::Grass, Tint::None, Tint::Grass, Tint::Grass],
         n if GRASS.contains(&n) => all(Tint::Grass),
+        "vine" => all(Tint::Foliage),
         "birch_leaves" => all(Tint::Birch),
         "spruce_leaves" => all(Tint::Spruce),
         n if n.ends_with("leaves") && !UNTINTED_LEAVES.iter().any(|u| n.contains(u)) => all(Tint::Foliage),
