@@ -17,7 +17,8 @@ unit or pack tests only.
 | In fluids | Water, lava and powder snow fog per look; Java's underwater overlay | live (powder snow: not seen) |
 | Particles | Server particles; torches, fires, furnaces, campfires, drips; block chips | live, both looks |
 | Entities | Pack models and animations, skins, name tags, dropped items | live |
-| Entities | Held items in both hands, worn armour (leather dyed its default), hurt flash | live |
+| Entities | Held items in both hands, worn armour, hurt flash | live |
+| Entities | Leather dyed worn, held and in slots: undyed brown, or the stack's own dye | undyed: live; a stack's dye: tests (no command dyes armour) |
 | Entities | Enchantment glint on held items, worn armour and slot icons | live in the Java look (armour: faint on netherite, not told apart on diamond); Bedrock look: faint, its rules assumed; dropped items and other entities' hands: tests |
 | Entities | Death topple | tests |
 | Entities | Round shadows on the ground (radius from the hitbox) | live |
@@ -62,8 +63,7 @@ unit or pack tests only.
   deleting items into it.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
-- **Entities:** patterns on held banners and shields, a dyed leather item's colour in the hand and in slots (worn, it is dyed: tests only, no
-  command dyes armour), capes, camels, leads, fishing lines. A blocking holder's raised arm and
+- **Entities:** patterns on held banners and shields, capes, camels, leads, fishing lines. A blocking holder's raised arm and
   shield (third person); the Bedrock attachable's own shield placement (Java's is used in both
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
 - **The shield's slot icon** is its plate seen flat; both games draw the tilted model there.
