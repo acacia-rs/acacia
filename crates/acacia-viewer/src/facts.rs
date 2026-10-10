@@ -65,6 +65,13 @@ impl Facts {
         Facts { flags: u16::from(blocking) << BLOCKING_BIT | u16::from(sneaking) << SNEAKING_BIT, ..Facts::default() }
     }
 
+    /// A shield holder blocks while sneaking: BDS left the flag unset on a sneaking player
+    /// with a shield (2026-10-10, 1.26.50).
+    pub fn with_a_shield(self) -> Facts {
+        let sneaking = self.flags >> SNEAKING_BIT & 1;
+        Facts { flags: self.flags | sneaking << BLOCKING_BIT, ..self }
+    }
+
     pub fn blocking(&self) -> bool {
         self.flags >> BLOCKING_BIT & 1 == 1
     }

@@ -175,6 +175,7 @@ impl Feed {
         let seat = seat_of(bot, e.unique_id, e.metadata.seat_position(), e.metadata.seat_turn(), e.is_player());
         let name = e.metadata.name_tag().filter(|n| !n.is_empty()).map(str::to_owned).or_else(|| e.username.clone());
         let held = e.equipment.as_ref().map_or([None, None], |q| [held_key(bot, &q.main_hand), held_key(bot, &q.off_hand)]);
+        let facts = if held.iter().flatten().any(|(key, _)| key.name == SHIELD) { facts.with_a_shield() } else { facts };
         let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));
         let hurts = &bot.state().hurts;
         let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));
