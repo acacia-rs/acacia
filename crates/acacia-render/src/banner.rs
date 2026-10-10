@@ -97,7 +97,8 @@ pub fn onto_shield(root: &Path, mut sheet: RgbaImage, banner: &Banner) -> RgbaIm
     for (name, dye) in std::iter::once(("base", base)).chain(layers.iter().copied().take(MAX_PATTERNS)) {
         if let Some(pattern) = open(name) {
             let pattern = image::imageops::resize(&pattern, sheet.width(), sheet.height(), image::imageops::FilterType::Nearest);
-            lay(&mut plate, &image::imageops::crop_imm(&pattern, 0, 0, plate.width(), plate.height()).to_image(), dye);
+            let over = image::imageops::crop_imm(&pattern, 0, 0, plate.width(), plate.height()).to_image();
+            lay(&mut plate, &over, dye);
         }
     }
     image::imageops::replace(&mut sheet, &plate, 0, 0);
