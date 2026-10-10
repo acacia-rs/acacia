@@ -16,8 +16,14 @@ pub(super) const GROUND: (f32, f32) = (0.25, 1.0 / 16.0);
 
 pub(super) fn skin(root: &Path, cloth: &Banner) -> Option<Skin> {
     let image = banner::compose(root, cloth)?;
-    let mesh = standing_banner()?.fixed(Mat4::from_translation(Vec3::new(0.0, -0.5, 0.0)));
+    let mesh = standing_banner()?.fixed(in_item_space());
     Some(Skin { width: image.width(), height: image.height(), rgba: image.into_raw(), mesh: Some(mesh) })
+}
+
+/// The block's mesh to item mesh space: onto the box's floor, the cloth turned a quarter so the
+/// displays' 90° brings it to face ahead of its holder (fitted to a front view, 2026-10-10).
+fn in_item_space() -> Mat4 {
+    Mat4::from_translation(Vec3::new(0.0, -0.5, 0.0)) * Mat4::from_rotation_y(std::f32::consts::FRAC_PI_2)
 }
 
 /// The same entry for either hand: the file lists the right one only.
@@ -31,7 +37,7 @@ mod tests {
 
     #[test]
     fn the_model_stands_on_the_bottom_of_the_item_s_box() {
-        let mesh = standing_banner().unwrap().fixed(Mat4::from_translation(Vec3::new(0.0, -0.5, 0.0)));
+        let mesh = standing_banner().unwrap().fixed(in_item_space());
         let ys = mesh.vertices.iter().map(|v| v.position[1]);
         let (lo, hi) = ys.fold((f32::MAX, f32::MIN), |(lo, hi), y| (lo.min(y), hi.max(y)));
         // 44 model pixels at two thirds.
