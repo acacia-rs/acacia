@@ -55,6 +55,7 @@ pub struct ClientBuilder {
     via: Via,
     /// The Login `Nonce` a friend's world handed out.
     nonce: Option<String>,
+    skin: Option<acacia_auth::login::Skin>,
     /// Held by the connection; dropping it leaves the friend's Xbox session.
     friend_session: Option<oneshot::Sender<()>>,
     blob_cache: BlobCache,
@@ -79,6 +80,7 @@ impl ClientBuilder {
             server: server.into(),
             via: Via::Address,
             nonce: None,
+            skin: None,
             friend_session: None,
             blob_cache: BlobCache::Memory,
             blob_payloads: false,
@@ -104,6 +106,12 @@ impl ClientBuilder {
 
     pub fn offline(mut self, name: impl Into<String>) -> Self {
         self.login = Login::Offline { name: name.into() };
+        self
+    }
+
+    /// Wears `skin` instead of the account's pool skin.
+    pub fn skin(mut self, skin: acacia_auth::login::Skin) -> Self {
+        self.skin = Some(skin);
         self
     }
 
@@ -256,7 +264,7 @@ impl ClientBuilder {
             Login::Online { credentials, .. } => format!("xbox:{}", credentials.xuid),
         };
         let blob_store = self.blob_cache.open(&account, self.blob_payloads);
-        let (key, login_request, identity) = build_login(self.login, offline_key, &route.server_address, self.nonce);
+        let (key, login_request, identity) = build_login(self.login, offline_key, &route.server_address, self.nonce, self.skin);
         let cfg = SessionConfig {
             link: route.link,
             key,

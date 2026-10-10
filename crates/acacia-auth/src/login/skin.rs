@@ -93,6 +93,19 @@ impl Skin {
             .find(|name| !PERSONA_PIECE_TYPES.contains(name))
     }
 
+    /// The flat classic skin wearing a cape of RGBA8 pixels (64×32 is the game's size). Persona
+    /// skins carry capes as pieces instead.
+    pub fn classic_with_cape(width: u32, height: u32, rgba: &[u8]) -> Self {
+        Self {
+            cape_data: STANDARD.encode(rgba),
+            cape_id: uuid::Uuid::new_v4().to_string(),
+            cape_image_width: width,
+            cape_image_height: height,
+            cape_on_classic_skin: true,
+            ..Self::flat()
+        }
+    }
+
     fn flat() -> Self {
         Self {
             animated_image_data: Vec::new(),

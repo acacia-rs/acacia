@@ -6,6 +6,7 @@ mod animation;
 mod armor;
 pub mod bake;
 pub mod boat;
+pub mod cape;
 pub(crate) mod block_models;
 mod controller;
 pub mod geometry;

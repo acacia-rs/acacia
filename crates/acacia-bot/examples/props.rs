@@ -1,9 +1,11 @@
 //! A second player for viewer screenshots, on a flat-world server where the bot is operator: it
+//! wears the flat skin with a cape,
 //! stands at a spot facing north, leashes a cow it summons beside itself, looms a patterned
 //! banner into its main hand, then sneaks with a shield in its off hand (Bedrock's way to block)
 //! for a minute.
 //! `cargo run -p acacia-bot --example props -- <server> [x y z of its feet]`
 use acacia_bot::client::Client;
+use acacia_bot::client::auth::login::Skin;
 use acacia_bot::items::SlotRef;
 use acacia_bot::state::Trackers;
 use acacia_bot::{Bot, BotConfig};
@@ -24,7 +26,7 @@ async fn main() -> Result<(), Error> {
     let [x, y, z] = [coordinate(240), coordinate(-60), coordinate(104)];
     let trackers = Trackers { entities: true, ..Trackers::default() };
     let config = BotConfig { physics: true, trackers, ..BotConfig::default() };
-    let mut bot = Bot::connect(Client::builder(&server).offline("Prop"), config).await?;
+    let mut bot = Bot::connect(Client::builder(&server).offline("Prop").skin(caped()), config).await?;
     while bot.movement().is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
@@ -60,6 +62,12 @@ async fn main() -> Result<(), Error> {
     }
     println!("posed");
     Ok(bot.wait_ticks(HOLD).await?)
+}
+
+/// The flat skin with a red cape, gold across its top third.
+fn caped() -> Skin {
+    let texel = |index: u32| if index / 64 < 7 { [0xE0, 0xB0, 0x20, 0xFF] } else { [0xB0, 0x20, 0x20, 0xFF] };
+    Skin::classic_with_cape(64, 32, &(0..64 * 32).flat_map(texel).collect::<Vec<u8>>())
 }
 
 /// Looms a patterned banner at a loom set at `loom` and holds it in the main hand: no command

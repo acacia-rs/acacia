@@ -45,6 +45,7 @@ pub struct Tracked {
     pub dying: bool,
     pub seat: Option<Seat>,
     pub tether: Option<crate::smooth::ropes::Tether>,
+    pub cape: Option<Arc<Skin>>,
 }
 
 /// Where a rider sits.
@@ -80,6 +81,8 @@ pub struct Feed {
     models: Arc<EntityModels>,
     /// Render copies of the bot's skins, replaced when the bot's `Arc` changes.
     skins: HashMap<Uuid, (Arc<PlayerSkin>, Arc<Skin>, bool)>,
+    /// The capes of [`Feed::skins`] that have one.
+    capes: HashMap<Uuid, Arc<Skin>>,
     /// Body yaw and position at the last snapshot, by runtime id.
     bodies: HashMap<u64, (f32, DVec3)>,
 }
@@ -109,12 +112,13 @@ fn turn_body(body: f32, moved: bool, yaw: f32, head_yaw: f32) -> f32 {
 
 impl Feed {
     pub fn new(models: Arc<EntityModels>) -> Self {
-        Feed { models, skins: HashMap::new(), bodies: HashMap::new() }
+        Feed { models, skins: HashMap::new(), capes: HashMap::new(), bodies: HashMap::new() }
     }
 
     pub fn snapshot(&mut self, bot: &Bot) -> Vec<Tracked> {
         let state = bot.state();
         self.skins.retain(|uuid, _| state.skins.get(uuid).is_some());
+        self.capes.retain(|uuid, _| self.skins.contains_key(uuid));
         let mut out: Vec<Tracked> = state.entities.iter().filter_map(|e| self.entity(bot, e)).collect();
 
         let me = &state.player;
@@ -133,7 +137,7 @@ impl Feed {
             let (kind, facts) = (PLAYER.to_owned(), Facts::own(sneaking, blocking));
             let armor = self.armor(bot, state.inventory.armor.iter());
             let (hurts, dying) = (state.hurts.count(me.runtime_entity_id), state.hurts.dying(me.runtime_entity_id));
-            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat, tether: None });
+            out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat, tether: None, cape: self.cape(uuid) });
         }
 
         let mut bodies = HashMap::with_capacity(out.len());
@@ -179,7 +183,7 @@ impl Feed {
         let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));
         let hurts = &bot.state().hurts;
         let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));
-        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying, seat, tether: crate::smooth::ropes::tether(bot, e) })
+        Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying, seat, tether: crate::smooth::ropes::tether(bot, e), cape: self.cape(e.uuid.filter(|_| e.is_player())) })
     }
 
     /// The layers of the armour pieces among `worn` that the pack has attachables for, each with
@@ -191,6 +195,11 @@ impl Feed {
             Some(layers.iter().map(|l| Layer { dye: Some(dye), ..l.clone() }).collect())
         };
         worn.filter(|s| !s.is_empty()).filter_map(|s| Some((layers(s)?, s.is_enchanted()))).collect()
+    }
+
+    /// The cape of a player [`Feed::player`] has drawn.
+    fn cape(&self, uuid: Option<Uuid>) -> Option<Arc<Skin>> {
+        self.capes.get(&uuid?).cloned()
     }
 
     fn player(&mut self, bot: &Bot, uuid: Option<Uuid>, position: DVec3, yaw: f32, scale: f32) -> Option<EntityInstance> {
@@ -205,6 +214,9 @@ impl Feed {
                     geometry_data: &source.geometry_data,
                 });
                 self.skins.insert(uuid, (source.clone(), Arc::new(skin), source.slim));
+                let cape = source.cape.as_ref().and_then(|c| acacia_render::entity::cape::skin(c.width, c.height, c.rgba.clone()));
+                self.capes.remove(&uuid);
+                self.capes.extend(cape.map(|cape| (uuid, Arc::new(cape))));
             }
             let (_, skin, slim) = &self.skins[&uuid];
             Some((skin.clone(), *slim))

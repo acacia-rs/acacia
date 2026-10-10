@@ -22,10 +22,11 @@ impl SkinTexture {
     }
 }
 
-/// A player's skin. Capes and body animations are dropped.
+/// A player's skin. Body animations are dropped.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerSkin {
     pub texture: SkinTexture,
+    pub cape: Option<SkinTexture>,
     /// Persona skins keep the face apart: frames stacked top to bottom, for the geometry the
     /// resource patch names `animated_face`.
     pub face: Option<SkinTexture>,
@@ -45,6 +46,7 @@ impl PlayerSkin {
         let face = skin.animations.into_iter().find(|a| a.animation_type == ANIMATION_FACE);
         Some(Self {
             texture: SkinTexture::from_wire(skin.skin_data)?,
+            cape: SkinTexture::from_wire(skin.cape_data),
             face: face.and_then(|a| SkinTexture::from_wire(a.skin_image)),
             slim: skin.arm_size == SkinArmSize::Slim,
             resource_patch: skin.skin_resource_pack,

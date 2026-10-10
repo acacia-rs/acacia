@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use acacia_render::entity::{EntityInstance, EntityModels, Value};
+use acacia_render::entity::{EntityInstance, EntityModels, Value, cape};
 use acacia_render::item::drop::{self, Drop};
 use acacia_render::item::{ItemModel, ItemModels, SHIELD, hand};
 use acacia_render::shadows::Shadow;
@@ -203,6 +203,8 @@ impl Smoother {
         let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);
         let worn = e.armor.iter().map(|(layers, enchanted)| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, glint: glint(*enchanted), ..e.instance.clone() });
         out.extend(worn);
+        let cape = e.cape.iter().map(|cape| EntityInstance { layers: cape::layers(), skin: Some(cape.clone()), position: m.position, yaw: m.yaw, pose: cape::pose(&pose), frame, hurt, ..e.instance.clone() });
+        out.extend(cape);
         out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
         out
     }
