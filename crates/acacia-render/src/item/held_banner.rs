@@ -20,10 +20,11 @@ pub(super) fn skin(root: &Path, cloth: &Banner) -> Option<Skin> {
     Some(Skin { width: image.width(), height: image.height(), rgba: image.into_raw(), mesh: Some(mesh) })
 }
 
-/// The block's mesh to item mesh space: onto the box's floor, the cloth turned a quarter so the
-/// displays' 90° brings it to face ahead of its holder (fitted to a front view, 2026-10-10).
+/// The block's mesh to item mesh space: onto the box's floor, the cloth's front where a slot
+/// shows it (`gui` turns it 20°). The hands' 90° then holds it side-on: seen from behind in
+/// first person, and pointing forward out of another's fist.
 fn in_item_space() -> Mat4 {
-    Mat4::from_translation(Vec3::new(0.0, -0.5, 0.0)) * Mat4::from_rotation_y(std::f32::consts::FRAC_PI_2)
+    Mat4::from_translation(Vec3::new(0.0, -0.5, 0.0))
 }
 
 /// The same entry for either hand: the file lists the right one only.
