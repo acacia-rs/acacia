@@ -4,7 +4,7 @@
 
 use glam::{EulerRot, Mat3, Mat4, Vec3};
 
-use super::{Form, ItemModel, shield};
+use super::{Form, ItemModel, held_banner, shield};
 use crate::Camera;
 use crate::entity::{EntityInstance, Pose};
 use crate::glint::Glint;
@@ -136,6 +136,7 @@ impl Display {
         // Entries without a left hand of their own take the right one (`block/block`).
         let listed = match (name, form, left) {
             (_, Form::Shield, _) => shield::display(true, left, blocking),
+            (_, Form::Banner, _) => held_banner::display(true),
             ("minecraft:bow", _, false) => Display::px([-80.0, 260.0, -40.0], [-1.0, -2.0, 2.5], 0.9),
             ("minecraft:bow", _, true) => Display::px([-80.0, -280.0, 40.0], [-1.0, -2.0, 2.5], 0.9),
             (_, Form::Block, _) => Display::px([0.0, 45.0, 0.0], [0.0; 3], 0.4),
@@ -151,6 +152,7 @@ impl Display {
     pub fn third_person(form: Form, left: bool, blocking: bool) -> Display {
         let listed = match (form, left) {
             (Form::Shield, _) => shield::display(false, left, blocking),
+            (Form::Banner, _) => held_banner::display(false),
             (Form::Block, _) => Display::px([75.0, 45.0, 0.0], [0.0, 2.5, 0.0], 0.375),
             (Form::Flat, false) => Display::px([0.0, -90.0, 55.0], [0.0, 4.0, 0.5], 0.85),
             (Form::Flat, true) => Display::px([0.0, 90.0, -55.0], [0.0, 4.0, 0.5], 0.85),

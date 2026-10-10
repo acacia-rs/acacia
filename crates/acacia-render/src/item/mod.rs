@@ -5,6 +5,7 @@ mod block;
 pub mod drop;
 mod extrude;
 pub mod hand;
+mod held_banner;
 mod icon;
 mod icons;
 pub mod leather;
@@ -46,6 +47,8 @@ pub enum Form {
     Block,
     /// The shield's own model ([`shield`]).
     Shield,
+    /// The standing banner's model ([`held_banner`]).
+    Banner,
 }
 
 /// An item's mesh and texture, drawn through the entity pass like a persona skin.
@@ -99,9 +102,8 @@ impl ItemModels {
         if let Some(skin) = Some(self.pack.files()).filter(|_| key.name == shield::ITEM).and_then(shield::skin) {
             return model(skin, Form::Shield);
         }
-        // A banner is held as its slot icon; both games hold the model.
-        if let Some(icon) = key.banner.as_deref().and_then(|banner| model_icon(self.pack.files(), &key.name, Some(banner))) {
-            return model(flat(icon.width(), icon.height(), icon.into_raw()), Form::Flat);
+        if let Some(skin) = key.banner.as_deref().and_then(|cloth| held_banner::skin(self.pack.files(), cloth)) {
+            return model(skin, Form::Banner);
         }
         // An item with an icon of its own shows it, even when it places a block (doors, beds).
         let dye = leather::dyeable(&key.name).then_some(key.dye);

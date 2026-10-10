@@ -4,7 +4,7 @@ use std::f32::consts::TAU;
 
 use glam::{DVec3, Mat3, Vec3};
 
-use super::{Form, ItemModel, shield};
+use super::{Form, ItemModel, held_banner, shield};
 use crate::blocks::placed::Draw;
 use crate::entity::{EntityInstance, Pose};
 use crate::look::{Dropped, Ground};
@@ -38,6 +38,7 @@ pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop) -> Vec<Entity
     let (ground, aside, bottom) = match model.form {
         Form::Block => (motion.block, Vec3::ZERO, -0.5),
         Form::Flat => (motion.flat, Vec3::ZERO, -0.5),
+        Form::Banner => (Ground { scale: held_banner::GROUND.0, lift: held_banner::GROUND.1 }, Vec3::ZERO, -0.5),
         Form::Shield => (Ground { scale: shield::GROUND.0, lift: shield::GROUND.1.y }, shield::GROUND.1 * Vec3::new(1.0, 0.0, 1.0), shield::LOWEST),
     };
     let depth = if model.form == Form::Flat { 1.0 / 16.0 } else { 1.0 } * ground.scale;

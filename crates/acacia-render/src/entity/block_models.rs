@@ -49,6 +49,11 @@ pub(super) fn meshes(pack: &HashMap<String, Geometry>) -> Vec<(&'static str, Mes
     out
 }
 
+/// The standing banner's mesh on its own, for the banner held as an item.
+pub(crate) fn standing_banner() -> Option<Mesh> {
+    geometry::parse(BUILT_IN).get(BANNERS[0]).map(|g| bake::bake(g).fixed(Mat4::from_scale(Vec3::splat(SIGN_SCALE))))
+}
+
 /// Chest, sign and banner images, which no entity definition names: paths without extension.
 pub(super) fn textures(root: &Path) -> Vec<String> {
     let stems = |dir: &str| {
