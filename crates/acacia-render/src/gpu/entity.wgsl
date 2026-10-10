@@ -11,7 +11,7 @@ struct Instance {
     hidden: vec4<u32>,
     // x: the instance's first matrix in `bones`
     bones: vec4<u32>,
-    // xy: the glint's scale over the UVs, zw: how far it has slid
+    // xy: the glint's scale over the UVs, zw: how far it (or a swirl layer's texture) has slid
     glint: vec4<f32>,
 };
 
@@ -41,6 +41,7 @@ struct VsOut {
     @location(4) @interpolate(flat) hurt: f32,
     @location(5) glint_uv: vec2<f32>,
     @location(6) @interpolate(flat) glint: f32,
+    @location(7) @interpolate(flat) slide: vec2<f32>,
 };
 
 // Java's glint strength, and its texture matrix's turn (rotateZ(π / 18)): see src/glint.rs.
@@ -70,6 +71,7 @@ fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
     let scaled = in.uv * instance.glint.xy;
     out.glint_uv = vec2(scaled.x * GLINT_TURN.y - scaled.y * GLINT_TURN.x, scaled.x * GLINT_TURN.x + scaled.y * GLINT_TURN.y) + instance.glint.zw;
     out.glint = instance.light.w;
+    out.slide = instance.glint.zw;
     return out;
 }
 
@@ -118,4 +120,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
     let texel = textureSample(skin, skin_sampler, in.uv);
     return vec4(shaded(in, texel), texel.a);
+}
+
+// A charged creeper's aura (Java's rendertype_energy_swirl with EnergySwirlLayer's grey): the
+// texture slides over the shell and is added to the frame at half strength, unlit, fading in fog.
+// Java adds sRGB values; this adds linear ones, so it is fainter over a bright background.
+@fragment
+fn fs_swirl(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = textureSample(skin, skin_sampler, fract(in.uv + in.slide));
+    if texel.a < 0.1 {
+        discard;
+    }
+    let clear = fogged(vec3(1.0), in.dist) - fogged(vec3(0.0), in.dist);
+    return vec4(to_linear(to_srgb(texel.rgb) * 0.5) * clear, 0.0);
 }
