@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
-use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 as Flags};
+use acacia_bot::proto::types::{MetadataDictionaryItemKey as Key, MetadataFlags1 as Flags, MetadataFlags2};
 use acacia_bot::state::{Entity, ITEM_KIND, ItemStack, Metadata, PlayerSkin};
 use acacia_render::entity::boat::ROW_TIME;
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Pose, Skin, SkinSource, Value};
@@ -110,11 +110,14 @@ const FLAGS: [(&str, Flags); 12] = [
     ("is_invisible", Flags::INVISIBLE),
 ];
 
+/// The bit of [`Facts::flags`] after [`FLAGS`]': raising a shield, from the extended flags.
+const BLOCKING_BIT: usize = FLAGS.len();
+
 impl Facts {
     fn of(meta: &Metadata) -> Facts {
         let set = meta.flags();
         Facts {
-            flags: FLAGS.iter().enumerate().fold(0, |bits, (i, (_, flag))| bits | u16::from(set.contains(*flag)) << i),
+            flags: FLAGS.iter().enumerate().fold(u16::from(meta.flags_extended().contains(MetadataFlags2::BLOCKING)) << BLOCKING_BIT, |bits, (i, (_, flag))| bits | u16::from(set.contains(*flag)) << i),
             variant: meta.int(Key::Variant),
             mark_variant: meta.int(Key::MarkVariant),
             skin_id: meta.int(Key::SkinId),
@@ -134,6 +137,7 @@ impl Facts {
             "skin_id" => self.skin_id as f32,
             "trade_tier" => self.trade_tier as f32,
             "color" => f32::from(self.color),
+            "blocking" => f32::from(self.flags >> BLOCKING_BIT & 1),
             _ if name == ROW_TIME[0] => self.row_time[0],
             _ if name == ROW_TIME[1] => self.row_time[1],
             _ => FLAGS.iter().position(|(flag, _)| *flag == name).map_or(0.0, |i| f32::from(self.flags >> i & 1)),

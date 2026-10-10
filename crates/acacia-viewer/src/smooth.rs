@@ -14,7 +14,10 @@ use glam::DVec3;
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
 use crate::pick::EntityBox;
 
+mod motion;
 pub mod ropes;
+
+use motion::{Motion, Walk};
 
 /// The bot's own body is hidden while the camera is this close to its eyes.
 const OWN_HEAD_RADIUS: f64 = 0.6;
@@ -23,47 +26,9 @@ const RIDING_KIND: &str = "is_riding_any_entity_of_type:";
 /// Degrees a head turns from its body.
 const MAX_HEAD_TURN: f32 = 90.0;
 
-/// Java's limb swing: how far the legs are through their stride, and how wide they swing.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-struct Walk {
-    distance: f32,
-    speed: f32,
-}
-
-impl Walk {
-    /// One tick on, having moved `blocks` over the ground.
-    fn step(self, blocks: f32) -> Walk {
-        let speed = self.speed + ((blocks * 4.0).min(1.0) - self.speed) * 0.4;
-        Walk { distance: self.distance + speed, speed }
-    }
-}
-
-/// What blends between snapshots.
-#[derive(Clone, Copy)]
-struct Motion {
-    position: DVec3,
-    yaw: f32,
-    head_yaw: f32,
-    pitch: f32,
-    walk: Walk,
-}
-
-impl Motion {
-    fn of(e: &Tracked, walk: Walk) -> Motion {
-        Motion { position: e.instance.position, yaw: e.instance.yaw, head_yaw: e.head_yaw, pitch: e.pitch, walk }
-    }
-
-    fn towards(self, to: Motion, t: f32) -> Motion {
-        let angle = |a: f32, b: f32| a + wrap_degrees(b - a) * t;
-        let mix = |a: f32, b: f32| a + (b - a) * t;
-        Motion {
-            position: self.position.lerp(to.position, f64::from(t)),
-            yaw: angle(self.yaw, to.yaw),
-            head_yaw: angle(self.head_yaw, to.head_yaw),
-            pitch: angle(self.pitch, to.pitch),
-            walk: Walk { distance: mix(self.walk.distance, to.walk.distance), speed: mix(self.walk.speed, to.walk.speed) },
-        }
-    }
+/// The item in a hand as Molang names it: without the namespace, empty for none.
+fn held_name(e: &Tracked, hand: usize) -> Value {
+    Value::Text(e.held[hand].as_ref().map_or("", |(key, _)| key.name.trim_start_matches("minecraft:")).to_owned())
 }
 
 #[derive(Default)]
@@ -206,6 +171,8 @@ impl Smoother {
                 // Blocks per model pixel.
                 "model_scale" => e.instance.scale / 16.0,
                 "is_alive" => f32::from(u8::from(!e.dying)),
+                "get_equipped_item_name" | "get_equipped_item_name:main_hand" => return held_name(e, 0),
+                "get_equipped_item_name:off_hand" => return held_name(e, 1),
                 _ => return e.facts.query(name),
             })
         };

@@ -51,8 +51,8 @@ struct Asked<'a> {
 impl Host for Asked<'_> {
     fn query(&self, query: Query, args: &[acacia_molang::Value], _structs: &mut Structs<'_>) -> acacia_molang::Value {
         let name = self.compiler.query_name(query);
-        // No equipment is tracked: nothing is held or worn, and nothing is named.
-        if matches!(name, "get_equipped_item_name" | "get_name") {
+        // Nothing is named.
+        if name == "get_name" {
             return acacia_molang::Value::Str(Symbol::EMPTY);
         }
         // Asked once per kind listed.
@@ -68,7 +68,10 @@ impl Host for Asked<'_> {
             _ => (self.query)(name),
         };
         match answer {
+            // An item's name the host does not answer is no item.
+            Value::Num(_) if name == "get_equipped_item_name" => acacia_molang::Value::Str(Symbol::EMPTY),
             Value::Num(n) => acacia_molang::Value::Num(n),
+            Value::Text(text) if text.is_empty() => acacia_molang::Value::Str(Symbol::EMPTY),
             Value::Text(text) => acacia_molang::Value::Str(self.compiler.find(&text).unwrap_or(Symbol::OTHER)),
         }
     }
