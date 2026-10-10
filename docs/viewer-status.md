@@ -27,6 +27,7 @@ unit or pack tests only.
 | Entities | The charged creeper's aura | live, both looks, beside a plain creeper |
 | Entities | Boat paddles and a dry hull | live, both looks (an empty boat on a pool) |
 | Entities | Paddles rowing by the boat's paddle times | live in the Java look (one frame, from behind); the cadence is assumed |
+| Entities | Fishing lines (hook to its owner's rod) and leads (mob to its holder or fence knot), sagging as Java's | fishing line: live, first person (Java look); leads and other players' lines: tests, their hand anchors approximate |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
 | Banners | Standing and wall banners with their dye and patterns, the ominous banner; the flag sways | live, both looks (20 of 42 patterns seen; composition and sway by tests) |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
@@ -63,7 +64,7 @@ unit or pack tests only.
   deleting items into it.
 - **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
-- **Entities:** patterns on held banners and shields, capes, camels, leads, fishing lines. A blocking holder's raised arm and
+- **Entities:** patterns on held banners and shields, capes, camels. A blocking holder's raised arm and
   shield (third person); the Bedrock attachable's own shield placement (Java's is used in both
   looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
 - **The shield's slot icon** is its plate seen flat; both games draw the tilted model there.

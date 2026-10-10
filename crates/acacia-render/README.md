@@ -208,6 +208,12 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
   over one stacked texture.
 - **Light**: block and sky level at the entity's position from `LightData`, through the terrain's
   curve (`gpu/globals.wgsl`), times a directional shade from the normal.
+- **Ropes** (`rope.rs`): fishing lines and leads are runs of thin boxes through the entity pass
+  (one shared one-texel skin each), along Java's curves: the line `(t² + t) / 2` of the rise
+  from the bobber, the lead a parabola hanging from its higher end. Java draws the line a pixel
+  wide and the lead in two alternating browns; here each has a width in blocks and one colour.
+  The viewer says which entity hangs from which (`OwnerEid`, `LeadHolderEid`) and where the
+  hand is.
 
 ## Block models (`blocks/model.rs`, `entity/block_models.rs`, `block_models.rs`)
 
