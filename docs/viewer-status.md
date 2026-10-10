@@ -31,7 +31,7 @@ unit or pack tests only.
 | Moving | Riding: boat, horse, pig, minecart; seat camera, sitting pose | live (pig pose: not seen) |
 | Camera | View bobbing, sprint and flight FOV, hurt roll, death tilt, F5 views | live (death tilt: tests) |
 | Acting | Mining with cracks and predicted break, placing, using, attacking | live |
-| Acting | Eating, drinking and the bow in first person | bow pose live, not compared with the game; eating: untested, never caught in a shot |
+| Acting | Eating, drinking and the bow in first person | bow pose live, not compared with the game; eating and drinking are wrong (seen 2026-10-10: the item slides to the bottom-left corner, Java brings it to the bottom centre; `item/hand.rs` `eat_transform`) |
 | HUD | Hotbar, hearts, food, armour, air, XP, item name, effects, boss bars, titles, action bar | live |
 | HUD | Chat with translations (rawtext and keys), Tab list, sidebar, F3 | live |
 | Screens | Inventory with the player's figure, chests, recipe book and crafting by click | live |
