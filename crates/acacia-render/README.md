@@ -516,7 +516,7 @@ state between frames (attacks, grazing, swimming), controller
 colours (creeper flash, collar dyes), the other overlay materials (guardian ghost, wither
 armour), queries that need untracked state
 (synced properties such as the climate variant), babies' own proportions where the pack has no
-baby geometry, a cape's swing behind a moving wearer (`entity/cape.rs` hangs it at rest).
+baby geometry, a cape's sideways sway and bob (`entity/cape.rs` lifts it with the wearer's pace only).
 Held items take the displays of `item/hand.rs` `Display` (generated or handheld, block, bow,
 shield, banner); other models' own are not read. A raised shield uses Java's blocking display
 and arm (`item/shield.rs` `raise_arm`), not the pack's `shield_block_*` animations.

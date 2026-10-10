@@ -203,7 +203,7 @@ impl Smoother {
         let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);
         let worn = e.armor.iter().map(|(layers, enchanted)| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, glint: glint(*enchanted), ..e.instance.clone() });
         out.extend(worn);
-        let cape = e.cape.iter().map(|cape| EntityInstance { layers: cape::layers(), skin: Some(cape.clone()), position: m.position, yaw: m.yaw, pose: cape::pose(&pose), frame, hurt, ..e.instance.clone() });
+        let cape = e.cape.iter().map(|cape| EntityInstance { layers: cape::layers(), skin: Some(cape.clone()), position: m.position, yaw: m.yaw, pose: cape::pose(&pose, m.walk.speed), frame, hurt, ..e.instance.clone() });
         out.extend(cape);
         out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
         out

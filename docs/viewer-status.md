@@ -29,7 +29,7 @@ unit or pack tests only.
 | Entities | Paddles rowing by the boat's paddle times | live in the Java look (one frame, from behind); the cadence is assumed |
 | Entities | Fishing lines (hook to its owner's rod) and leads (mob to its holder or fence knot), sagging as Java's | fishing line: live, first person (Java look); a lead from a cow to another player's hand: live (Java look); other players' fishing lines: tests; other holders' hand anchors are approximate |
 | Entities | Players crouch while sneaking (the server's flag; the own player's input) and raise a shield with it, the arm in Java's blocking pose | live for another player (Java look, the `props` bot). BDS did not set the blocking flag on it: a sneaking shield holder counts as blocking |
-| Entities | Capes: the skin's cape image on the game's cape sheet, hung at Java's rest angle, clear of a sneaking wearer's legs | live on another player from behind (Java look, `props`); no swing when the wearer moves; persona capes (pieces) are not read |
+| Entities | Capes: the skin's cape image on the game's cape sheet, hung at Java's rest angle, leaning with a sneaking wearer and lifting with its pace | live on a standing, sneaking player from behind and the side (Java look, `props`); the lift by tests (any direction lifts it, no sideways sway); persona capes (pieces) are not read |
 | Entities | A shield's banner: the cloth and patterns from `shield_patterns`, on the model and the slot icon | tests only (no command makes one) |
 | Signs | Text on standing, wall and hanging signs, dye and glow | live, both looks |
 | Banners | Standing and wall banners with their dye and patterns, the ominous banner; the flag sways | live, both looks (20 of 42 patterns seen; composition and sway by tests) |
