@@ -127,7 +127,7 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
-    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted() })
+    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color() })
 }
 
 /// One entry of the creative inventory: its id, the item, and its tab (an index into acacia-ui's
@@ -190,6 +190,8 @@ pub struct Stack {
     /// Block runtime id of a block item, else 0.
     pub block: u32,
     pub enchanted: bool,
+    /// Dyed leather's colour.
+    pub dye: Option<[u8; 3]>,
 }
 
 /// The text on the side of the sign whose editor the server opened, `None` without an editor.

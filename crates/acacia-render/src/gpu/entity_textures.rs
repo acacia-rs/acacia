@@ -55,20 +55,6 @@ pub fn upload(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u3
     texture.create_view(&Default::default())
 }
 
-/// Leather armour's TGA: alpha 0 is a hole, 255 greyscale leather to dye, anything between trim
-/// in its own colour. `dye` is the stack's, undyed leather's (0xA06540) without one.
-fn dye_leather(image: &mut image::RgbaImage, dye: Option<[u8; 3]>) {
-    let dye = dye.unwrap_or([0xA0, 0x65, 0x40]);
-    for p in image.pixels_mut().filter(|p| p.0[3] > 0) {
-        if p.0[3] == 255 {
-            for (c, dye) in p.0.iter_mut().zip(dye) {
-                *c = (u16::from(*c) * u16::from(dye) / 255) as u8;
-            }
-        }
-        p.0[3] = 255;
-    }
-}
-
 /// Texture layers, the later ones laid over the first where they are opaque; the missing-texture
 /// checkerboard without a readable first layer. `tint_mask` keeps the first layer's alpha, which
 /// then marks the texels to tint.
@@ -85,7 +71,7 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue, layers: &[&PathBuf], tin
     };
     let armor = layers[0].components().any(|c| c.as_os_str() == "armor");
     if mask_alpha && armor {
-        dye_leather(&mut image, dye);
+        crate::item::leather::dye(&mut image, dye);
     } else if mask_alpha && !tint_mask {
         // TGA alpha marks tinted or overlaid texels (sheep wool, horse markings), not holes.
         image.pixels_mut().for_each(|p| p.0[3] = 255);
@@ -97,21 +83,4 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue, layers: &[&PathBuf], tin
         }
     }
     upload(device, queue, image.width(), image.height(), &image)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn leather_takes_the_stacks_dye_and_trim_keeps_its_colour() {
-        let texels = [[200, 200, 200, 255], [90, 60, 30, 1], [7, 7, 7, 0]];
-        let dyed = |dye| {
-            let mut image = image::RgbaImage::from_fn(3, 1, |x, _| image::Rgba(texels[x as usize]));
-            dye_leather(&mut image, dye);
-            image.into_raw()
-        };
-        assert_eq!(dyed(Some([255, 0, 127])), [200, 0, 99, 255, 90, 60, 30, 255, 7, 7, 7, 0]);
-        assert_eq!(dyed(None)[..4], [125, 79, 50, 255]);
-    }
 }

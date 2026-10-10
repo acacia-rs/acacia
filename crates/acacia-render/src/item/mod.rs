@@ -7,13 +7,13 @@ mod extrude;
 pub mod hand;
 mod icon;
 mod icons;
+pub mod leather;
 mod shield;
 
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::assets::image_file;
 use crate::blocks::{BlockTable, Shape};
 use crate::entity::{Layer, NO_MODEL, NO_TEXTURE, Skin};
 use crate::LookPack;
@@ -30,6 +30,8 @@ pub struct ItemKey {
     pub aux: u32,
     /// Block runtime id in the world's registry; 0 for items that are not blocks.
     pub block: u32,
+    /// Dyed leather's colour ([`leather`]).
+    pub dye: Option<[u8; 3]>,
 }
 
 /// What a model is, for how it is held, dropped and stacked.
@@ -95,7 +97,8 @@ impl ItemModels {
             return model(skin, Form::Shield);
         }
         // An item with an icon of its own shows it, even when it places a block (doors, beds).
-        if let Some(skin) = self.icons.path(&key.name, key.aux).and_then(|path| icon(self.pack.files(), path)) {
+        let dye = leather::dyeable(&key.name).then_some(key.dye);
+        if let Some(skin) = self.icons.path(&key.name, key.aux).and_then(|path| icon(self.pack.files(), path, dye)) {
             return model(skin, Form::Flat);
         }
         if key.block == 0 {
@@ -110,10 +113,10 @@ impl ItemModels {
     }
 }
 
-/// The icon's first frame (strips stack frames downwards) as an extruded sprite.
-fn icon(root: &Path, path: &str) -> Option<Skin> {
-    let file = image_file(root, path)?;
-    let image = image::open(&file).inspect_err(|e| tracing::warn!(?file, %e, "item icon")).ok()?.to_rgba8();
+/// The icon's first frame (strips stack frames downwards) as an extruded sprite; a leather
+/// piece's with its `dye` (`Some(None)` undyed).
+fn icon(root: &Path, path: &str, dye: Option<Option<[u8; 3]>>) -> Option<Skin> {
+    let image = leather::icon(root, path, dye)?;
     let (width, height) = (image.width(), image.height().min(image.width()));
     let rgba = image.into_raw()[..(width * height * 4) as usize].to_vec();
     Some(flat(width, height, rgba))

@@ -164,7 +164,7 @@ pub fn wrap_degrees(angle: f32) -> f32 {
 /// The item model key of a held stack and whether it is enchanted; `None` for an empty hand.
 fn held_key(bot: &Bot, stack: &ItemStack) -> Option<(ItemKey, bool)> {
     let name = bot.state().item_name(stack).filter(|_| !stack.is_empty())?.to_owned();
-    Some((ItemKey { name, aux: stack.metadata, block: crate::control::block_of(bot, stack) }, stack.is_enchanted()))
+    Some((ItemKey { name, aux: stack.metadata, block: crate::control::block_of(bot, stack), dye: stack.custom_color() }, stack.is_enchanted()))
 }
 
 fn turn_body(body: f32, moved: bool, yaw: f32, head_yaw: f32) -> f32 {
@@ -222,7 +222,7 @@ impl Feed {
             (PLAYER.to_owned(), self.player(bot, e.uuid, position, e.yaw, e.metadata.scale())?)
         } else if e.kind == ITEM_KIND {
             let stack = e.item.as_ref().filter(|s| !s.is_empty())?;
-            let key = ItemKey { name: bot.state().item_name(stack)?.to_owned(), aux: stack.metadata, block: crate::control::block_of(bot, stack) };
+            let key = ItemKey { name: bot.state().item_name(stack)?.to_owned(), aux: stack.metadata, block: crate::control::block_of(bot, stack), dye: stack.custom_color() };
             dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32), enchanted: stack.is_enchanted() });
             let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None, hurt: false, glint: None };
             (e.kind.clone(), instance)

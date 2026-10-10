@@ -7,12 +7,11 @@ use std::path::Path;
 use std::time::Instant;
 
 use acacia_bot::proto::types::GameMode;
-use acacia_render::assets::image_file;
 use std::sync::Arc;
 
 use acacia_render::LookPack;
 use acacia_render::blocks::BlockTable;
-use acacia_render::item::{ItemIcons, block_icon, model_icon, pattern_icon};
+use acacia_render::item::{ItemIcons, block_icon, leather, model_icon, pattern_icon};
 use acacia_ui::chat::{self, Chat};
 use acacia_ui::effects::Active;
 use acacia_render::glint::Foil;
@@ -241,7 +240,7 @@ impl Skin {
 
     /// A stack as a slot shows it; `None` for an item without an icon.
     fn item(&mut self, s: &Stack) -> Option<Item> {
-        Some(Item { icon: self.icon(&s.name, s.aux, s.block)?, count: s.count, glint: s.enchanted || self.foil.always(&s.name) })
+        Some(Item { icon: self.icon(s)?, count: s.count, glint: s.enchanted || self.foil.always(&s.name) })
     }
 
     fn state(&mut self, me: &Me) -> HudState {
@@ -275,18 +274,20 @@ impl Skin {
 
     /// The item's icon (its first frame) in the atlas, added on first use; a block item without one
     /// shows its block.
-    fn icon(&mut self, name: &str, aux: u32, block: u32) -> Option<Sprite> {
-        let key = (name.to_owned(), aux);
+    fn icon(&mut self, s: &Stack) -> Option<Sprite> {
+        let (name, aux, block) = (s.name.as_str(), s.aux, s.block);
+        let dyed = leather::dyeable(name).then_some(s.dye);
+        let key = (dyed.flatten().map_or_else(|| name.to_owned(), |[r, g, b]| format!("{name}/{r:02x}{g:02x}{b:02x}")), aux);
         if let Some(sprite) = self.added.get(&key) {
             return *sprite;
         }
         let model = model_icon(&self.root, name, aux).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, aux));
-        let image = model.or_else(|| self.icons.path(name, aux).and_then(|p| image_file(&self.root, p)).and_then(|f| image::open(f).ok()).map(|i| i.to_rgba8()));
+        let image = model.or_else(|| self.icons.path(name, aux).and_then(|p| leather::icon(&self.root, p, dyed)));
         let sprite = match image {
             Some(i) => {
                 let side = i.width().min(i.height());
                 let frame = image::imageops::crop_imm(&i, 0, 0, side, side).to_image();
-                Some(self.theme.atlas.add(&format!("item/{name}/{aux}"), &frame))
+                Some(self.theme.atlas.add(&format!("item/{}/{aux}", key.0), &frame))
             }
             None => self.blocks.as_ref().filter(|_| block != 0).and_then(|(pack, table)| block_icon(table.get(block), &pack.atlas)).map(|icon| {
                 self.theme.atlas.add(&format!("block/{}/{block}", self.generation), &icon)

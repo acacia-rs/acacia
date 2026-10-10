@@ -36,7 +36,7 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &S
     picks.drain(..first.min(picks.len()));
     let shown = picked.map(|p| p.and_then(|i| i.checked_sub(first)));
     for stack in creative.iter().flat_map(|(stacks, ..)| *stacks) {
-        picks.push(Pick { icons: skin.icon(&stack.name, stack.aux, stack.block).map(|icon| (icon, 1, 1.0)).into_iter().collect(), label: String::new() });
+        picks.push(Pick { icons: skin.icon(stack).map(|icon| (icon, 1, 1.0)).into_iter().collect(), label: String::new() });
     }
     let contents = Contents { slot: &|slot| icons.get(&slot).copied(), cursor, progress: inventory.progress, picks: &picks, picked: shown, name, creative: creative.map(|(_, tab, scrolled)| (tab, scrolled)) };
     let title = match (&inventory.trade, &inventory.container) {
@@ -56,7 +56,7 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &S
 
 /// The open screen's pick list: only one of the kinds is ever filled.
 fn picks(skin: &mut Skin, inventory: &Inventory) -> Vec<Pick> {
-    let mut at = |s: &Stack, x: f32| skin.icon(&s.name, s.aux, s.block).map(|icon| (icon, s.count, x));
+    let mut at = |s: &Stack, x: f32| skin.icon(s).map(|icon| (icon, s.count, x));
     let mut picks: Vec<Pick> = inventory.picks.iter().map(|(_, s)| Pick { icons: at(&Stack { count: 1, ..s.clone() }, 0.0).into_iter().collect(), label: String::new() }).collect();
     picks.extend(inventory.enchants.iter().enumerate().map(|(i, level)| Pick { icons: Vec::new(), label: format!("{}  Level {level}", i + 1) }));
     for offer in inventory.trade.iter().flat_map(|t| &t.offers) {
