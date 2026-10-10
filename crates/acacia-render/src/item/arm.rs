@@ -66,8 +66,10 @@ mod tests {
         // The arm's box in the pack's space: 4 px wide from the shoulder at 22 px down to 12.
         let at = |x: f32, y: f32| (placed(0.0) * to_java()).transform_point3(Vec3::new(x, y, 0.0) / 16.0);
         let (shoulder, fist) = (at(-6.0, 23.0), at(-6.0, 12.0));
-        // The fist is nearer the middle of the view and further in than the shoulder.
+        // The fist is further in than the shoulder and, on the screen, nearer the middle.
         assert!(fist.z < -0.3 && fist.z < shoulder.z, "{shoulder} {fist}");
-        assert!(fist.x > 0.0 && fist.x < shoulder.x && fist.y < 0.0 && fist.y > shoulder.y, "{shoulder} {fist}");
+        let on_screen = |p: Vec3| (p.x / -p.z, p.y / -p.z);
+        let ((sx, sy), (fx, fy)) = (on_screen(shoulder), on_screen(fist));
+        assert!(fx > 0.0 && fx < sx && fy < 0.0 && fy > sy, "{shoulder} {fist}");
     }
 }
