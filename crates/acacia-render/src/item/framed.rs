@@ -45,7 +45,8 @@ fn placed(block: IVec3, hung: Hung, turn: f32, depth: f32, scale: f32, camera: D
 }
 
 fn instance(layers: Arc<[Layer]>, skin: Arc<Skin>, block: IVec3, frame: Mat4, glint: Option<Glint>) -> EntityInstance {
-    EntityInstance { layers, skin: Some(skin), position: block.as_dvec3() + 0.5, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
+    // The entity pass reads the light half a block over this: the frame's own cell.
+    EntityInstance { layers, skin: Some(skin), position: block.as_dvec3() + DVec3::new(0.5, 0.0, 0.5), yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
 }
 
 pub fn item(model: &ItemModel, block: IVec3, hung: Hung, turn: f32, camera: DVec3) -> EntityInstance {
