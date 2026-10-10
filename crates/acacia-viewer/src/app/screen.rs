@@ -10,6 +10,8 @@ use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
 use super::App;
+
+mod book;
 use crate::control::{Command, CreativeEntry, Inventory};
 
 /// An anvil takes names this long.
@@ -26,13 +28,15 @@ pub(super) struct Shown {
     pub creative: Option<(usize, usize)>,
     /// Rows a stonecutter's or trader's list is scrolled by.
     pub scroll: usize,
+    /// The open book's page.
+    pub book: Option<book::Open>,
     /// The open sign editor.
     pub sign: Option<super::sign::SignEdit>,
 }
 
 impl Default for Shown {
     fn default() -> Self {
-        Shown { pick: [None; 2], name: acacia_ui::widget::TextEdit::new("", NAME_MAX), items: Vec::new(), creative: None, scroll: 0, sign: None }
+        Shown { pick: [None; 2], name: acacia_ui::widget::TextEdit::new("", NAME_MAX), items: Vec::new(), creative: None, scroll: 0, book: None, sign: None }
     }
 }
 

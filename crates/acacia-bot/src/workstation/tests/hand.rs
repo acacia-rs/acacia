@@ -2,7 +2,7 @@ use acacia_client::proto::types::{ItemStackRequestActionsItemContent as Content,
 
 use super::crafting::{with_recipes, STICKS, TABLE};
 use super::*;
-use crate::items::SlotRef;
+use crate::items::{Op, SlotRef};
 use crate::workstation::hand::{grid_match, hand_craft_plan};
 
 fn planks(count: u16, stack_id: i32) -> ItemStack {
@@ -26,6 +26,13 @@ fn a_shaped_recipe_is_found_anywhere_in_the_grid() {
     assert_eq!(consumed, [(3, 29), (3, 31)]);
     let Content::CraftRecipe(craft) = &encode(&state, &hand_craft_plan(&state, false, false).unwrap()).actions[0].content else { panic!() };
     assert_eq!(craft.times_crafted, 1, "a plain click crafts once");
+    let (craft, ops) = hand_craft_plan(&state, false, false).unwrap();
+    let taken = crate::items::onto_cursor(&state, &craft.created(), ops.clone());
+    assert_eq!(taken.last(), Some(&Op::Transfer { from: SlotRef::CREATED_OUTPUT, to: SlotRef::Cursor, count: 4 }), "onto the empty cursor");
+    assert_eq!(taken.iter().filter(|op| matches!(op, Op::Transfer { .. })).count(), 1);
+    state.inventory.ui[0] = planks(1, 70);
+    assert_eq!(crate::items::onto_cursor(&state, &craft.created(), ops.clone()), ops, "the cursor holds something else");
+    state.inventory.ui[0] = ItemStack::default();
 
     state.inventory.ui[31] = ItemStack::default();
     state.inventory.ui[28] = planks(3, 51);

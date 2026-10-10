@@ -30,9 +30,10 @@ impl Bot {
         loom_choices(&self.state)
     }
 
-    /// The click on the loom's result with `pattern` picked: one banner into the inventory.
+    /// The click on the loom's result with `pattern` picked: one banner onto the cursor.
     pub async fn take_loom(&mut self, pattern: &str) -> Result<(), ActionError> {
         let (craft, ops) = loom_plan(&self.state, pattern)?;
+        let ops = crate::items::onto_cursor(&self.state, &craft.created(), ops);
         self.craft_request(&craft, &ops).await
     }
 

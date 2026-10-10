@@ -57,6 +57,7 @@ pub struct Frame<'a> {
     /// An open server form.
     pub form: Option<&'a FormScreen>,
     pub sign: Option<acacia_ui::sign_editor::Editing<'a>>,
+    pub book: Option<acacia_ui::book::Page<'a>>,
     /// The player list, while Tab is held.
     pub players: Option<&'a [String]>,
     /// Name tags, projected onto the screen.
@@ -167,7 +168,7 @@ impl Ui {
     /// This frame's quads for a window `size` pixels big at GUI `scale`, and the atlas they sample.
     /// This frame's quads and the atlas they sample.
     pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad]) {
-        let Frame { look, me, debug, screen, menu, form, sign, players, tags, mouse, size, scale, now } = frame;
+        let Frame { look, me, debug, screen, menu, form, sign, book, players, tags, mouse, size, scale, now } = frame;
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
             LookChoice::Java => &mut self.java,
@@ -177,7 +178,7 @@ impl Ui {
         // In the world, so under the HUD.
         acacia_ui::nametags::draw(&mut list, &skin.theme, &tags);
         if let Some(me) = me {
-            let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none(), ..skin.state(me) };
+            let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
             hud::draw(&mut list, &skin.theme, &state, gui);
             let selected = me.items[me.hotbar as usize % 9].as_ref().map(|stack| (me.hotbar, stack.name.clone()));
             if selected != self.selected {
@@ -218,6 +219,9 @@ impl Ui {
         }
         if let Some(form) = form {
             form.draw(&mut list, &skin.theme, now);
+        }
+        if let Some(page) = book {
+            acacia_ui::book::draw(&mut list, &skin.theme, page, mouse, gui);
         }
         if let Some(sign) = sign {
             acacia_ui::sign_editor::draw(&mut list, &skin.theme, sign, mouse, gui);

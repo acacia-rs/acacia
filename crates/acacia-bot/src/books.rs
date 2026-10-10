@@ -36,6 +36,29 @@ pub enum PageEdit {
 }
 
 impl Bot {
+    /// The pages of the held written book or book and quill, and whether it can be written in;
+    /// `None` holding anything else.
+    pub fn held_book_pages(&self) -> Option<(Vec<String>, bool)> {
+        let held = self.state.inventory.held();
+        let writable = match self.state.items.name(held.network_id) {
+            Some(WRITABLE_BOOK) => true,
+            Some(WRITTEN_BOOK) => false,
+            _ => return None,
+        };
+        let Some(Value::List(pages)) = held.nbt.as_ref().and_then(|n| n.value.get("pages")) else { return Some((Vec::new(), writable)) };
+        let text = |page: &Value| if let Some(Value::String(text)) = page.get("text") { text.to_string() } else { String::new() };
+        Some((pages.items.iter().map(text).collect(), writable))
+    }
+
+    /// The right-click that opens the held book: vanilla's opening packets for a book and quill,
+    /// a plain use of anything else.
+    pub fn open_held_book(&mut self) {
+        match self.held_book() {
+            Ok(slot) => self.open_book(slot),
+            Err(_) => self.use_item(),
+        }
+    }
+
     /// Sends one page edit for the held book and quill.
     pub fn edit_book(&mut self, edit: &PageEdit) -> Result<(), ActionError> {
         let slot = self.held_book()?;

@@ -34,6 +34,7 @@ impl App {
                             self.button(winit::event::MouseButton::Left, false);
                         }
                         // Straight to the player: an unattended window never grabs the mouse.
+                        Step::Use(true) if self.holds_book() => self.open_book(),
                         Step::Use(pressed) => self.play.button(winit::event::MouseButton::Right, pressed),
                     }
                 }
