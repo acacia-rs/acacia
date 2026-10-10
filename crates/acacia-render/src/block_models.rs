@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 
 use crate::banner::{self, Banner};
 use crate::blocks::model::{BlockData, BlockModel};
-use crate::entity::{EntityInstance, EntityModels, Layer, Pose, Skin};
+use crate::entity::{BonePose, EntityInstance, EntityModels, Layer, Pose, Skin};
 use crate::sign_text::{self, SignTextMap};
 use crate::workers::SectionKey;
 
@@ -28,6 +28,8 @@ pub struct BlockModels {
     signs: Vec<sign_text::Placed>,
     /// Each distinct banner's composed texture in the models' pack; `None` when it has no base image.
     banners: HashMap<Arc<Banner>, Option<Arc<Skin>>>,
+    /// The banners among `instances`, each with its place's phase in ticks (see [`sway`]).
+    swaying: Vec<(usize, i32)>,
     stale: bool,
 }
 
@@ -69,10 +71,13 @@ impl BlockModels {
         &self.signs
     }
 
-    /// Instances within `reach` blocks of `camera`.
-    pub fn near(&mut self, camera: DVec3, reach: f64) -> impl Iterator<Item = &EntityInstance> {
+    /// Instances within `reach` blocks of `camera`, the banners swaying as at `ticks`.
+    pub fn near(&mut self, camera: DVec3, reach: f64, ticks: f64) -> impl Iterator<Item = &EntityInstance> {
         if std::mem::take(&mut self.stale) {
             self.rebuild();
+        }
+        for &(index, phase) in &self.swaying {
+            self.instances[index].pose.0[0].rotation[0] = sway(phase, ticks);
         }
         self.instances.iter().filter(move |e| e.position.distance_squared(camera) < reach * reach)
     }
@@ -89,6 +94,7 @@ impl BlockModels {
         };
         self.instances.clear();
         self.signs.clear();
+        self.swaying.clear();
         for (&(cx, sy, cz), models) in &self.sections {
             for (local, model) in models {
                 let pos = IVec3::new(cx, sy, cz) * 16 + IVec3::from(local.map(i32::from));
@@ -99,9 +105,32 @@ impl BlockModels {
                 let look = layers.entry((placed.geometry, placed.texture)).or_insert_with_key(|(geometry, texture)| self.models.block_layers(geometry, texture));
                 let Some(layers) = look.clone() else { continue };
                 let skin = placed.banner.and_then(&mut flag);
-                self.instances.push(EntityInstance { layers, skin, position: placed.position, yaw: placed.yaw, scale: 1.0, pose: Pose::default(), frame: None, hurt: false, glint: None });
+                let mut pose = Pose::default();
+                if placed.geometry.contains("banner") {
+                    self.swaying.push((self.instances.len(), pos.x * 7 + pos.y * 9 + pos.z * 13));
+                    pose.0.push(BonePose { bone: "flag".into(), rotation: [0.0; 3], position: [0.0; 3], scale: [1.0; 3] });
+                }
+                self.instances.push(EntityInstance { layers, skin, position: placed.position, yaw: placed.yaw, scale: 1.0, pose, frame: None, hurt: false, glint: None });
             }
         }
         self.banners = banners;
+    }
+}
+
+/// Degrees a banner's flag swings from its rest tilt: Java's `BannerRenderer`, a 100-tick cycle
+/// of ±1.8° offset by the block's place.
+fn sway(phase: i32, ticks: f64) -> f32 {
+    let cycle = (f64::from(phase) + ticks).rem_euclid(100.0) / 100.0;
+    (1.8 * (std::f64::consts::TAU * cycle).cos()) as f32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_banner_sways_over_a_hundred_ticks_out_of_step_with_its_neighbour() {
+        assert!((sway(0, 0.0) - 1.8).abs() < 1e-5 && (sway(0, 50.0) + 1.8).abs() < 1e-5 && (sway(0, 100.0) - 1.8).abs() < 1e-5);
+        assert!((sway(7, 43.0) + 1.8).abs() < 1e-5 && (sway(-7, 7.0) - 1.8).abs() < 1e-5);
     }
 }

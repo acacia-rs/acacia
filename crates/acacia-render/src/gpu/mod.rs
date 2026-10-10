@@ -226,7 +226,7 @@ impl Renderer {
             let byte = light.as_ref().and_then(|l| l.light(p.x, p.y, p.z)).unwrap_or(15);
             [f32::from(byte >> 4), f32::from(byte & 15)]
         };
-        let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance));
+        let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance), self.started.elapsed().as_secs_f64() * 20.0);
         self.screen_effect.prepare(&self.queue, camera, fog.underwater, light_at(camera.position));
         self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), &self.ui_entities, camera.position, crate::glint::scroll(self.started.elapsed().as_millis() as u64), light_at);
         self.outline_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);

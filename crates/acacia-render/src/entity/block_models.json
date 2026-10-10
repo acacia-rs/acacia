@@ -48,7 +48,7 @@
     "bones": [
       { "name": "pole", "cubes": [ { "origin": [ -1, 0, -1 ], "size": [ 2, 42, 2 ], "uv": [ 44, 0 ] } ] },
       { "name": "bar", "cubes": [ { "origin": [ -10, 42, -1 ], "size": [ 20, 2, 2 ], "uv": [ 0, 42 ] } ] },
-      { "name": "flag", "cubes": [ { "origin": [ -10, 4, -2 ], "size": [ 20, 40, 1 ], "pivot": [ 0, 44, 0 ], "rotation": [ -2.25, 0, 0 ], "uv": [ 0, 0 ] } ] }
+      { "name": "flag", "pivot": [ 0, 44, 0 ], "cubes": [ { "origin": [ -10, 4, -2 ], "size": [ 20, 40, 1 ], "pivot": [ 0, 44, 0 ], "rotation": [ -2.25, 0, 0 ], "uv": [ 0, 0 ] } ] }
     ]
   },
   "geometry.acacia.banner.wall": {
@@ -56,7 +56,7 @@
     "textureheight": 64,
     "bones": [
       { "name": "bar", "cubes": [ { "origin": [ -10, 18.5, 9.5 ], "size": [ 20, 2, 2 ], "uv": [ 0, 42 ] } ] },
-      { "name": "flag", "cubes": [ { "origin": [ -10, -19.5, 8.5 ], "size": [ 20, 40, 1 ], "pivot": [ 0, 20.5, 10.5 ], "rotation": [ -2.25, 0, 0 ], "uv": [ 0, 0 ] } ] }
+      { "name": "flag", "pivot": [ 0, 20.5, 10.5 ], "cubes": [ { "origin": [ -10, -19.5, 8.5 ], "size": [ 20, 40, 1 ], "pivot": [ 0, 20.5, 10.5 ], "rotation": [ -2.25, 0, 0 ], "uv": [ 0, 0 ] } ] }
     ]
   },
   "geometry.acacia.hanging_sign": {
