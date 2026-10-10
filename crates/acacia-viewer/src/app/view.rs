@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use acacia_render::Outline;
 use acacia_render::entity::EntityInstance;
-use acacia_render::item::{ItemKey, SHIELD, hand};
+use acacia_render::item::{ItemKey, SHIELD, hand, map};
 use acacia_ui::nametags::Tag;
 
 use super::{App, Mode};
@@ -86,8 +86,15 @@ impl App {
         let off_shield = off.as_ref().is_some_and(|stack| stack.name == SHIELD);
         let sneaking = self.play.sneaking();
         let mut out = Vec::new();
+        let alone = off.is_none();
         for (left, stack) in [(false, main), (true, off)] {
             let Some(stack) = stack else { continue };
+            let root = self.looks.get(self.settings.look).files();
+            if let Some(sheet) = stack.map.as_ref().and_then(|picture| crate::held_map::sheet(root, picture)) {
+                let hold = if alone && !left { map::Hold::Both } else { map::Hold::One { left } };
+                out.push(map::first_person(&sheet, &self.camera, hold));
+                continue;
+            }
             let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block, dye: stack.dye, banner: stack.banner.clone() }, stack.enchanted) else { continue };
             let display = hand::Display::first_person(&stack.name, model.form, left, sneaking && (left || !off_shield));
             let (swing, using) = if left { (0.0, None) } else { (swing, using) };

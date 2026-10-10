@@ -137,7 +137,7 @@ async fn run(
     send(NetEvent::Status(format!("connecting to {}", options.server)))?;
     let builder = login(Client::builder(&options.server).chunk_radius(options.radius), &options.name).await?;
     let subscribe = packets::forwarded().fold(PacketFilter::none(), PacketFilter::with);
-    let trackers = Trackers { entities: true, skins: true, ..Trackers::default() };
+    let trackers = Trackers { entities: true, skins: true, maps: true, ..Trackers::default() };
     let events = Events::TICKS | Events::CHAT | Events::TITLES;
     // The death screen respawns (control::Command::Respawn), as a player does.
     let config = BotConfig { physics: true, auto_respawn: false, subscribe, trackers, events, mouse_input: true, ..BotConfig::default() };

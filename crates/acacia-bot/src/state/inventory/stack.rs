@@ -50,6 +50,14 @@ impl ItemStack {
         }
     }
 
+    /// The map a filled map shows: `map_uuid` in the item NBT, the key into [`crate::state::Maps`].
+    pub fn map_id(&self) -> Option<i64> {
+        match self.nbt.as_ref()?.value.get("map_uuid")? {
+            Value::Long(id) => Some(*id),
+            _ => None,
+        }
+    }
+
     /// Applies one slot of a successful `ItemStackResponse`. The response carries no item type, so
     /// a slot that was empty stays empty here until the request sender records its prediction.
     pub(crate) fn apply_response(&mut self, slot: &ResponseSlot) {

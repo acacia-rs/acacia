@@ -128,7 +128,8 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
     let banner = crate::item_look::banner(&name, s);
-    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color(), banner })
+    let map = s.map_id().and_then(|id| bot.state().maps.get(id).cloned());
+    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color(), banner, map })
 }
 
 /// One entry of the creative inventory: its id, the item, and its tab (an index into acacia-ui's
@@ -195,6 +196,8 @@ pub struct Stack {
     pub dye: Option<[u8; 3]>,
     /// A banner's cloth.
     pub banner: Option<std::sync::Arc<acacia_render::banner::Banner>>,
+    /// A filled map's picture, once the server has sent it.
+    pub map: Option<std::sync::Arc<acacia_bot::state::MapImage>>,
 }
 
 /// The text on the side of the sign whose editor the server opened, and whether that sign hangs;

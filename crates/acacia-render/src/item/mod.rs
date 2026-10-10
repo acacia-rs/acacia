@@ -9,6 +9,7 @@ mod held_banner;
 mod icon;
 mod icons;
 pub mod leather;
+pub mod map;
 mod shield;
 
 use std::collections::HashMap;
