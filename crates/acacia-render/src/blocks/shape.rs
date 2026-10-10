@@ -45,7 +45,7 @@ pub struct ModelFace {
 }
 
 const INVISIBLE: &[&str] = &[
-    "air", "light_block", "structure_void", "barrier", "bubble_column", "tripwire", "lever", "end_portal", "portal",
+    "air", "light_block", "structure_void", "barrier", "bubble_column", "tripwire", "lever", "end_portal",
     "frame", "glow_frame", "moving_block", "piston_arm_collision", "sticky_piston_arm_collision",
 ];
 /// Rendered as nothing for now: they need a model of their own or attachment faces.
@@ -71,6 +71,9 @@ pub fn classify(state: &BlockState) -> Shape {
     let flat = |h: u8| Shape::Boxes(Box::new([[0, 0, 0, 16, h, 16]]));
     match name {
         "powder_snow" | "end_gateway" => Shape::Cube,
+        // A sheet a quarter block thick across the frame.
+        "portal" if state.property("portal_axis") == Some("z") => Shape::Boxes(Box::new([[6, 0, 0, 10, 16, 16]])),
+        "portal" => Shape::Boxes(Box::new([[0, 0, 6, 16, 16, 10]])),
         "snow_layer" => flat(2),
         n if FLAT.contains(&n) || n.contains("carpet") || n.contains("rail") => flat(1),
         n if n.ends_with("fence_gate") => Shape::Boxes(Box::new(open_gate(state))),
@@ -109,6 +112,8 @@ fn collisionless_blocks_that_are_not_plants_get_boxes() {
     assert_eq!(shape("snow_layer", &["height=0"]), Shape::Boxes(Box::new([[0, 0, 0, 16, 2, 16]])));
     assert_eq!(shape("powder_snow", &[]), Shape::Cube);
     assert_eq!(shape("poppy", &[]), Shape::Cross);
+    assert_eq!(shape("portal", &["portal_axis=z"]), Shape::Boxes(Box::new([[6, 0, 0, 10, 16, 16]])));
+    assert_eq!(shape("portal", &["portal_axis=x"]), Shape::Boxes(Box::new([[0, 0, 6, 16, 16, 10]])));
 }
 
 /// Rounds to 1/16 and clamps to the block (fence and wall collision reaches 1.5 high).

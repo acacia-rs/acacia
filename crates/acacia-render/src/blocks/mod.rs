@@ -197,7 +197,7 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
         _ if state.is_lava() => Fluid::Lava,
         _ => Fluid::None,
     };
-    let translucent = fluid == Fluid::Water || TRANSLUCENT.iter().any(|t| name.contains(t)) || name == "ice";
+    let translucent = fluid == Fluid::Water || TRANSLUCENT.iter().any(|t| name.contains(t)) || matches!(name, "ice" | "portal");
     let cutout_cube = CUTOUT_CUBES.iter().any(|c| name.contains(c));
     let layer = match shape {
         Shape::None => Layer::Invisible,
