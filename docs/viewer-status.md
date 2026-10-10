@@ -17,7 +17,7 @@ unit or pack tests only.
 | In fluids | Water, lava and powder snow fog per look; Java's underwater overlay | live (powder snow: not seen) |
 | Particles | Server particles; torches, fires, furnaces, campfires, drips; block chips | live, both looks |
 | Entities | Pack models and animations, skins, name tags, dropped items | live |
-| Entities | Held items, worn armour (leather dyed its default), hurt flash | live |
+| Entities | Held items in both hands, worn armour (leather dyed its default), hurt flash | live |
 | Entities | Enchantment glint on held items, worn armour and slot icons | live in the Java look (armour: faint on netherite, not told apart on diamond); Bedrock look: faint, its rules assumed; dropped items and other entities' hands: tests |
 | Entities | Death topple | tests |
 | Entities | Round shadows on the ground (radius from the hitbox) | live |
@@ -26,7 +26,7 @@ unit or pack tests only.
 | Banners | Standing and wall banners with their dye and patterns, the ominous banner; no sway | live, both looks (20 of 42 patterns seen; composition by tests) |
 | Moving | Walking, sprinting, sneaking, jumping, swimming (acacia-physics, server-checked) | bot traces |
 | Moving | Creative flight (Space twice) | live, 0 corrections on a strict BDS |
-| Moving | Dimension travel: by command, joining in another dimension | live |
+| Moving | Dimension travel: by command, joining in another dimension | live, Nether and End, with their fog and sky |
 | Moving | Dimension travel through Nether and End portals | bot drill `dimensions` (0 corrections); not seen in the viewer |
 | Moving | Riding: boat, horse, pig, minecart; seat camera, sitting pose | live (pig pose: not seen) |
 | Camera | View bobbing, sprint and flight FOV, hurt roll, death tilt, F5 views | live (death tilt: tests) |
@@ -58,13 +58,15 @@ unit or pack tests only.
   an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
 - **Entities:** the charged creeper's aura, patterns on held banners and shields, the banner's
   sway, a leather
-  stack's own dye, the off hand, capes, boat paddles, camels, leads, fishing lines.
-- **Sky:** Java's fast clouds; the Nether's fog per biome (the nether wastes' is used; never seen
-  live); the End's sky was seen live, its terrain was not (see Dimensions).
+  stack's own dye, a shield's blocking pose, capes, boat paddles, camels, leads, fishing lines.
+- **Sky:** Java's fast clouds. The Nether's per-biome fog is in (unit-tested; only the crimson
+  forest was seen live, before it landed).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
   own are unmeasured.
 - **Sound:** music, ambience, and Java's event mapping where a Bedrock sound has no Java file.
-- **Performance:** only measured on lavapipe (CPU); no GPU frame times recorded.
+- **Performance:** only measured on lavapipe (CPU, 25 to 40 fps at 1280×720 on testbox); no GPU
+  frame times recorded. The dev machine has an Intel Arc but too little free memory to build the
+  viewer beside the other sessions (2026-10-10).
 
 ## Testing it
 
