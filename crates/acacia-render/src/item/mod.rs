@@ -99,7 +99,8 @@ impl ItemModels {
     fn build(&self, key: &ItemKey) -> Option<ItemModel> {
         let glint = self.pack.look.foil.always(&key.name);
         let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint });
-        if let Some(skin) = Some(self.pack.files()).filter(|_| key.name == shield::ITEM).and_then(shield::skin) {
+        let shield = |root| shield::skin(root, key.banner.as_deref());
+        if let Some(skin) = Some(self.pack.files()).filter(|_| key.name == shield::ITEM).and_then(shield) {
             return model(skin, Form::Shield);
         }
         if let Some(skin) = key.banner.as_deref().and_then(|cloth| held_banner::skin(self.pack.files(), cloth)) {

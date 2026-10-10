@@ -128,8 +128,9 @@ impl Feed {
         if let Some(instance) = self.player(bot, uuid, eyes - DVec3::Y * EYE_HEIGHT, head_yaw, 1.0) {
             let held = [held_key(bot, state.inventory.held()), held_key(bot, &state.inventory.offhand)];
             // Bedrock raises a held shield while sneaking.
-            let blocking = bot.movement().is_some_and(|m| m.sneaking()) && held.iter().flatten().any(|(key, _)| key.name == SHIELD);
-            let (kind, facts) = (PLAYER.to_owned(), Facts::own(blocking));
+            let sneaking = bot.movement().is_some_and(|m| m.sneaking());
+            let blocking = sneaking && held.iter().flatten().any(|(key, _)| key.name == SHIELD);
+            let (kind, facts) = (PLAYER.to_owned(), Facts::own(sneaking, blocking));
             let armor = self.armor(bot, state.inventory.armor.iter());
             let (hurts, dying) = (state.hurts.count(me.runtime_entity_id), state.hurts.dying(me.runtime_entity_id));
             out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat, tether: None });

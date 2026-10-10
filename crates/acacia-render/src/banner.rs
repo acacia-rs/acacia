@@ -14,6 +14,9 @@ const MAX_PATTERNS: usize = 16;
 /// The flag's unfolded box in a 64×64 texture: 20×40×1 at 0, 0.
 const FLAG: [u32; 2] = [42, 41];
 const WHITE: u8 = 0;
+const SHIELD_DIR: &str = "textures/entity/shield_patterns";
+/// The shield plate's unfolded box in its 64×64 texture: 12×22×1 at 0, 0.
+const SHIELD_PLATE: [u32; 2] = [26, 23];
 
 /// Pattern codes of the block entity (`Pattern`) to the pattern's name in both games' files.
 const CODES: [(&str, &str); 42] = [
@@ -54,6 +57,11 @@ impl Banner {
         let layer = |(code, colour): (&str, i32)| Some((CODES.iter().find(|(c, _)| *c == code)?.1, dye(colour)));
         Banner { base: dye(base), layers: patterns.into_iter().filter_map(layer).collect(), ominous: kind == 1 }
     }
+
+    /// The cloth's dye and the patterns laid on it.
+    fn cloth(&self) -> (u8, &[(&'static str, u8)]) {
+        if self.ominous { (WHITE, &OMINOUS[..]) } else { (self.base, &self.layers[..]) }
+    }
 }
 
 /// The banner model's texture: the pack's `banner_base` with the cloth dyed and each pattern laid
@@ -66,7 +74,7 @@ pub fn compose(root: &Path, banner: &Banner) -> Option<RgbaImage> {
         return Some(ominous);
     }
     let mut out = open("banner_base")?;
-    let (base, layers) = if banner.ominous { (WHITE, &OMINOUS[..]) } else { (banner.base, &banner.layers[..]) };
+    let (base, layers) = banner.cloth();
     match cloth {
         Some(cloth) => lay(&mut out, &cloth, base),
         None => dye_flag(&mut out, base),
@@ -77,6 +85,23 @@ pub fn compose(root: &Path, banner: &Banner) -> Option<RgbaImage> {
         }
     }
     Some(out)
+}
+
+/// A shield's texture carrying `banner`: both games keep the patterns redrawn for the plate
+/// (`shield_patterns`, under Java's names), the cloth among them, and lay them on the plate only.
+pub fn onto_shield(root: &Path, mut sheet: RgbaImage, banner: &Banner) -> RgbaImage {
+    let open = |name: &str| Some(image::open(image_file(root, &format!("{SHIELD_DIR}/{name}"))?).ok()?.into_rgba8());
+    let scale = sheet.width() / 64;
+    let mut plate = image::imageops::crop_imm(&sheet, 0, 0, SHIELD_PLATE[0] * scale, SHIELD_PLATE[1] * scale).to_image();
+    let (base, layers) = banner.cloth();
+    for (name, dye) in std::iter::once(("base", base)).chain(layers.iter().copied().take(MAX_PATTERNS)) {
+        if let Some(pattern) = open(name) {
+            let pattern = image::imageops::resize(&pattern, sheet.width(), sheet.height(), image::imageops::FilterType::Nearest);
+            lay(&mut plate, &image::imageops::crop_imm(&pattern, 0, 0, plate.width(), plate.height()).to_image(), dye);
+        }
+    }
+    image::imageops::replace(&mut sheet, &plate, 0, 0);
+    sheet
 }
 
 /// Bedrock's file for a pattern: the four diagonals hold the image Java keeps under the other
@@ -169,6 +194,20 @@ mod tests {
         assert_eq!((diagonals("diagonal_left"), diagonals("diagonal_up_left")), ([0x1D, 0x1D, 0x21, 255], [138, 36, 29, 255]));
         assert_eq!(compose(&root, &Banner { ominous: true, ..red }).unwrap().get_pixel(5, 5).0, [1, 2, 3, 255]);
         assert_eq!(compose(&pack("empty", &[]), &Banner::default()), None);
+    }
+
+    #[test]
+    fn a_shield_takes_the_cloth_and_patterns_on_its_plate_only() {
+        let root = pack("shield", &[]);
+        std::fs::create_dir_all(root.join(SHIELD_DIR)).unwrap();
+        for (file, colour) in [("base.png", [255; 4]), ("border.png", [255, 255, 255, 128])] {
+            RgbaImage::from_pixel(64, 64, Rgba(colour)).save(root.join(SHIELD_DIR).join(file)).unwrap();
+        }
+        let wood = RgbaImage::from_pixel(64, 64, Rgba([100, 100, 100, 255]));
+        let out = onto_shield(&root, wood, &Banner { base: 14, layers: vec![("border", 15), ("globe", 3)], ominous: false });
+        // Red (0xB02E26), then black (0x1D1D21) at 128/255; the handle's texels keep the wood.
+        assert_eq!((out.get_pixel(5, 5).0, out.get_pixel(25, 22).0), ([102, 37, 35, 255], [102, 37, 35, 255]));
+        assert_eq!((out.get_pixel(26, 5).0, out.get_pixel(5, 23).0), ([100, 100, 100, 255], [100, 100, 100, 255]));
     }
 
     #[test]

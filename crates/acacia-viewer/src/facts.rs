@@ -24,7 +24,10 @@ pub struct Facts {
 /// stroke is assumed, the Bedrock client's own factor is unmeasured.
 const ROW_SWEEP: f32 = std::f32::consts::TAU / 0.4;
 
-const FLAGS: [(&str, Flags); 12] = [
+const SNEAKING_BIT: usize = 0;
+
+const FLAGS: [(&str, Flags); 13] = [
+    ("is_sneaking", Flags::SNEAKING),
     ("is_baby", Flags::BABY),
     ("is_sheared", Flags::SHEARED),
     ("is_saddled", Flags::SADDLED),
@@ -57,9 +60,9 @@ impl Facts {
         }
     }
 
-    /// The own player's, whose metadata the server does not send back: only whether it blocks.
-    pub fn own(blocking: bool) -> Facts {
-        Facts { flags: u16::from(blocking) << BLOCKING_BIT, ..Facts::default() }
+    /// The own player's, whose metadata the server does not send back: only what its input says.
+    pub fn own(sneaking: bool, blocking: bool) -> Facts {
+        Facts { flags: u16::from(blocking) << BLOCKING_BIT | u16::from(sneaking) << SNEAKING_BIT, ..Facts::default() }
     }
 
     pub fn blocking(&self) -> bool {

@@ -38,6 +38,11 @@ pub fn item_banner(aux: u32, nbt: Option<&Nbt>) -> Banner {
     banner(nbt.map_or(&none, |nbt| &nbt.value), Some(aux as i32)).unwrap_or_default()
 }
 
+/// The banner on a shield, whose NBT keeps it as a block entity does; `None` for a bare shield.
+pub fn shield_banner(nbt: &Nbt) -> Option<Banner> {
+    banner(&nbt.value, None)
+}
+
 /// A banner's `Base` dye (`base` for an item, which keeps it in its aux), `Patterns` (each a
 /// `Pattern` code and `Color`) and `Type` (1: ominous).
 fn banner(nbt: &Value, base: Option<i32>) -> Option<Banner> {

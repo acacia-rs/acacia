@@ -72,8 +72,8 @@ fn banner_icon(root: &std::path::Path, banner: &Banner) -> Option<RgbaImage> {
 /// A shield, which has no item texture either: the plate's front from the entity texture
 /// (`ShieldModel`'s UV: 12×22 at 1, 1), turned as Java's `gui` display turns the model
 /// (15° down, 25° aside, rolled 5°, at 0.65). The plate's thin edge is left out.
-fn shield_icon(root: &std::path::Path) -> Option<RgbaImage> {
-    let sheet = image::open(crate::assets::image_file(root, "textures/entity/shield")?).ok()?.to_rgba8();
+fn shield_icon(root: &std::path::Path, cloth: Option<&Banner>) -> Option<RgbaImage> {
+    let sheet = super::shield::sheet(root, cloth)?;
     let scale = sheet.width() / 64;
     let plate = image::imageops::crop_imm(&sheet, scale, scale, 12 * scale, 22 * scale).to_image();
     Some(RgbaImage::from_fn(SIZE, SIZE, |x, y| {
@@ -96,11 +96,11 @@ fn shield_plate_at(pixel: Vec2) -> [f32; 2] {
 }
 
 /// The icon of an item both games draw as its model in a slot; `None` for any other item.
-/// `banner` is a banner stack's cloth.
+/// `banner` is a banner stack's cloth, or the one on a shield.
 pub fn model_icon(root: &std::path::Path, name: &str, banner: Option<&Banner>) -> Option<RgbaImage> {
     match name {
         "minecraft:banner" => banner_icon(root, banner?),
-        super::shield::ITEM => shield_icon(root),
+        super::shield::ITEM => shield_icon(root, banner),
         _ => None,
     }
 }

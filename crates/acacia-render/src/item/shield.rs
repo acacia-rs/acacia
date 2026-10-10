@@ -6,9 +6,11 @@
 use std::path::Path;
 
 use glam::{Mat4, Vec3};
+use image::RgbaImage;
 
 use super::hand::Display;
 use crate::assets::{image_file, json};
+use crate::banner::{self, Banner};
 use crate::entity::bake::{self, Mesh};
 use crate::entity::{Skin, geometry};
 
@@ -29,9 +31,18 @@ pub(super) const GROUND: (f32, Vec3) = (0.25, Vec3::new(0.125, 0.25, 0.125));
 /// The plate's bottom edge in item mesh space.
 pub(super) const LOWEST: f32 = -0.5 - 11.0 / 16.0;
 
-pub(super) fn skin(root: &Path) -> Option<Skin> {
+/// The model's texture, with the banner a shield was crafted with.
+pub(super) fn sheet(root: &Path, cloth: Option<&Banner>) -> Option<RgbaImage> {
     let file = image_file(root, TEXTURE)?;
     let image = image::open(&file).inspect_err(|e| tracing::warn!(?file, %e, "shield texture")).ok()?.to_rgba8();
+    Some(match cloth {
+        Some(cloth) => banner::onto_shield(root, image, cloth),
+        None => image,
+    })
+}
+
+pub(super) fn skin(root: &Path, cloth: Option<&Banner>) -> Option<Skin> {
+    let image = sheet(root, cloth)?;
     let pack = json::read(&root.join("models/entity/shield.geo.json")).ok().and_then(|file| geometry::parse(&file.to_string()).remove(GEOMETRY));
     let mesh = mesh(&pack.or_else(|| geometry::parse(BUILT_IN).remove(GEOMETRY))?);
     Some(Skin { width: image.width(), height: image.height(), rgba: image.into_raw(), mesh: Some(mesh) })
@@ -87,7 +98,7 @@ mod tests {
     #[test]
     fn the_pack_s_shield_is_the_built_in_one() {
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/vanilla");
-        let Some(skin) = skin(&dir) else { return eprintln!("skipped: no shield in {}", dir.display()) };
+        let Some(skin) = skin(&dir, None) else { return eprintln!("skipped: no shield in {}", dir.display()) };
         let built_in = mesh(&geometry::parse(BUILT_IN)[GEOMETRY]);
         assert_eq!((skin.width, skin.height), (64, 64));
         assert_eq!(bounds(&skin.mesh.unwrap(), Mat4::IDENTITY), bounds(&built_in, Mat4::IDENTITY));
