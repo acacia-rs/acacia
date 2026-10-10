@@ -3,7 +3,8 @@
 //! stands at a spot facing north, leashes a cow it summons beside itself, looms a patterned
 //! banner into its main hand, then sneaks with a shield in its off hand (Bedrock's way to block)
 //! for a minute.
-//! `cargo run -p acacia-bot --example props -- <server> [x y z of its feet]`
+//! With `pace` it walks east and back instead of sneaking.
+//! `cargo run -p acacia-bot --example props -- <server> [x y z of its feet] [pace]`
 use acacia_bot::client::Client;
 use acacia_bot::client::auth::login::Skin;
 use acacia_bot::items::SlotRef;
@@ -17,13 +18,16 @@ const COW: &str = "minecraft:cow";
 const BANNER: [(&str, &str); 2] = [("cr", "red_dye"), ("bo", "blue_dye")];
 /// Ticks the pose is held for a screenshot.
 const HOLD: u32 = 2400;
+/// Ticks of each leg when it paces instead (some six blocks).
+const PACE: u32 = 30;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Error> {
-    let mut args = std::env::args().skip(1);
-    let server = args.next().unwrap_or_else(|| "127.0.0.1:19174".into());
-    let mut coordinate = |default: i32| args.next().and_then(|a| a.parse().ok()).unwrap_or(default);
-    let [x, y, z] = [coordinate(240), coordinate(-60), coordinate(104)];
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let server = args.first().cloned().unwrap_or_else(|| "127.0.0.1:19174".into());
+    let coordinate = |index: usize, default: i32| args.get(index).and_then(|a| a.parse().ok()).unwrap_or(default);
+    let [x, y, z] = [coordinate(1, 240), coordinate(2, -60), coordinate(3, 104)];
+    let pacing = args.get(4).is_some_and(|a| a == "pace");
     let trackers = Trackers { entities: true, ..Trackers::default() };
     let config = BotConfig { physics: true, trackers, ..BotConfig::default() };
     let mut bot = Bot::connect(Client::builder(&server).offline("Prop").skin(caped()), config).await?;
@@ -57,11 +61,17 @@ async fn main() -> Result<(), Error> {
     println!("holding {:?}", bot.state().inventory_summary());
     // Turned back to face north after aiming at the cow and the loom.
     bot.client().command(&format!("/tp @s {} {y} {} 180 0", x as f32 + 0.5, z as f32 + 0.5));
-    if let Some(controls) = bot.controls() {
-        controls.sneak = true;
-    }
+    bot.wait_ticks(10).await?;
     println!("posed");
-    Ok(bot.wait_ticks(HOLD).await?)
+    for leg in 0..HOLD / PACE {
+        if let Some(controls) = bot.controls() {
+            (controls.sneak, controls.forward) = (!pacing, if pacing { 1.0 } else { 0.0 });
+            // East, then back west.
+            controls.yaw = if !pacing { 180.0 } else if leg % 2 == 0 { -90.0 } else { 90.0 };
+        }
+        bot.wait_ticks(PACE).await?;
+    }
+    Ok(())
 }
 
 /// The flat skin with a red cape, gold across its top third.
