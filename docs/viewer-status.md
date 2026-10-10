@@ -11,6 +11,7 @@ unit or pack tests only.
 | Area | What | Checked |
 |---|---|---|
 | World | Both looks' blocks, biomes' colours, lighting, liquids, block-entity models | live; Java blocks by `lookbake java-check` |
+| World | Nether portal blocks: a translucent sheet across the frame, with the pack's swirl | live, both looks (a frame lit with fire) |
 | Sky | Sun, moon, stars, sky disc, sunrise glow, fancy and fast clouds (Options) | live (fast clouds: Java look) |
 | Weather | Rain, storm sky and clouds, lightning bolts and flash | live |
 | Weather | Snow by biome, none in dry biomes | tests (the test worlds have no cold biome) |
@@ -67,12 +68,15 @@ unit or pack tests only.
   trader's lists (the wheel scrolls them); enchanting hints and the galactic text; a book's
   art and a caret inside its text; the creative inventory's search, its survival-inventory tab and
   deleting items into it.
-- **Dimensions:** portals were checked in the bot's drill only, not walked through in the viewer;
-  an arrival can take one correction when the server lags (docs/DESIGN.md "Dimension travel").
+- **Dimensions:** portals were checked in the bot's drill only. Walked into in the viewer
+  (2026-10-10, creative, five seconds inside a lit portal) the player was not sent to the Nether;
+  not looked into. An arrival can take one correction when the server lags (docs/DESIGN.md
+  "Dimension travel"). The end portal's surface is not drawn; in the Bedrock look a nether
+  portal shows seams between its blocks.
 - **Entities:** a banner stack's patterns were seen on the model in another player's hand
   (2026-10-10, Java look); its slot icon and a shield's banner are by tests only. A camel was seen standing, saddled and ridden (2026-10-10), not
   sitting or dashing. The Bedrock attachable's own shield placement (Java's is used in both
-  looks); an armour stand's off-hand shield did not show (2026-10-10, not looked into).
+  looks).
 - **Sky:** The Nether's per-biome fog is in (unit-tested; only the crimson
   forest was seen live, before it landed).
 - **Bedrock look:** weather, clouds, sky colours and first-person poses use Java's rules; Bedrock's
