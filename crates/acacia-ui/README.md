@@ -45,7 +45,7 @@ player state. Layout is tested headless.
 - `overlay.rs`: title (scale 4) and subtitle (scale 2) with Java's 10/70/20-tick fade, the action
   bar 68 px up for 3 s, boss bars 19 px apart from the top.
 - `book.rs`: a book's page in Java's `BookViewScreen` layout (14 lines of 114 px, the page number,
-  turn buttons, Done) on flat parchment, for both looks; `fits` is the limit on what a page takes.
+  turn buttons, Done; Sign and the title prompt for a book and quill) on flat parchment, for both looks; `fits` is the limit on what a page takes.
 - `signs.rs`: a sign side's text as quads in font pixels around its centre, for the renderer to put
   on the board (see "Signs").
 - `nine.rs`: nine-slice sprites with their borders from the file beside them (`.mcmeta`, Bedrock's

@@ -118,12 +118,17 @@ impl Bot {
     /// as in the game: BDS answers with a full resync, other servers may send nothing. The new
     /// `MobEquipment` follows from `crate::reflex`, as vanilla's comes after the server's resync.
     pub async fn sign_book(&mut self, title: &str) -> Result<(), ActionError> {
-        let slot = self.held_book()?;
-        if title.trim().is_empty() || title.chars().count() > MAX_TITLE_CHARS {
-            return Err(ActionError::NotPossible(format!("a book title has 1 to {MAX_TITLE_CHARS} characters")));
-        }
+        self.held_book()?;
+        check_title(title)?;
         let typing = self.human.typing(title.chars().count()) + self.human.between(BOOK_SIGN);
         self.pause(typing).await?;
+        self.sign_typed_book(title)
+    }
+
+    /// [`Self::sign_book`] at once, for a title a person has typed already.
+    pub fn sign_typed_book(&mut self, title: &str) -> Result<(), ActionError> {
+        let slot = self.held_book()?;
+        check_title(title)?;
         let xuid = self.client.xuid().to_owned();
         let written = self.state.items.id(WRITTEN_BOOK).ok_or_else(|| ActionError::NotPossible("no written book in the item registry".into()))?;
         let old = self.state.inventory.main[usize::from(slot)].clone();
@@ -151,6 +156,13 @@ impl Bot {
             other => Err(ActionError::NotPossible(format!("holding {other:?}, not a book and quill"))),
         }
     }
+}
+
+fn check_title(title: &str) -> Result<(), ActionError> {
+    if title.trim().is_empty() || title.chars().count() > MAX_TITLE_CHARS {
+        return Err(ActionError::NotPossible(format!("a book title has 1 to {MAX_TITLE_CHARS} characters")));
+    }
+    Ok(())
 }
 
 fn check_edit(edit: &PageEdit) -> Result<(), ActionError> {

@@ -30,6 +30,11 @@ impl Bot {
         loom_choices(&self.state)
     }
 
+    /// The banner `pattern` makes of what is in the loom's slots, as its result slot shows it.
+    pub fn loom_result(&self, pattern: &str) -> Option<ItemStack> {
+        patterned(&self.state, pattern).ok().map(|(result, ..)| result)
+    }
+
     /// The click on the loom's result with `pattern` picked: one banner onto the cursor.
     pub async fn take_loom(&mut self, pattern: &str) -> Result<(), ActionError> {
         let (craft, ops) = loom_plan(&self.state, pattern)?;
@@ -56,12 +61,17 @@ pub(crate) fn loom_choices(state: &GameState) -> Vec<&'static str> {
     ITEM_PATTERNS.iter().filter(|(item, _)| Some(*item) == kind).map(|(_, code)| *code).collect()
 }
 
-pub(crate) fn loom_plan(state: &GameState, pattern: &str) -> Result<(Craft, Vec<Op>), ActionError> {
+/// One banner with `pattern` added in the dye's colour, and the banner and dye slots it comes from.
+fn patterned(state: &GameState, pattern: &str) -> Result<(ItemStack, SlotRef, SlotRef), ActionError> {
     let (banner_slot, dye_slot) = (SlotRef::Ui(ui::LOOM_BANNER), SlotRef::Ui(ui::LOOM_DYE));
     let (banner, dye) = (occupied(state, banner_slot)?, occupied(state, dye_slot)?);
     let dye_name = state.items.name(dye.network_id).unwrap_or_default();
     let color = dye_color(dye_name).ok_or_else(|| ActionError::NotPossible(format!("{dye_name} is not a dye")))?;
-    let result = ItemStack { count: 1, nbt: Some(with_pattern(banner.nbt.as_ref(), pattern, color)), ..banner.clone() };
+    Ok((ItemStack { count: 1, nbt: Some(with_pattern(banner.nbt.as_ref(), pattern, color)), ..banner.clone() }, banner_slot, dye_slot))
+}
+
+pub(crate) fn loom_plan(state: &GameState, pattern: &str) -> Result<(Craft, Vec<Op>), ActionError> {
+    let (result, banner_slot, dye_slot) = patterned(state, pattern)?;
     let craft = Craft::new(CraftAction::Loom { pattern: pattern.to_owned(), times: 1 }, vec![named(state, &result)?]).with_results_action();
     let mut ops = vec![Op::Consume { from: banner_slot, count: 1 }, Op::Consume { from: dye_slot, count: 1 }];
     ops.extend(to_inventory_ops(state, SlotRef::CREATED_OUTPUT, &result)?);

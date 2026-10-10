@@ -49,6 +49,7 @@ pub enum Command {
     /// The right-click that opens the held book, and a page of a book and quill as typed.
     OpenBook,
     EditBook(acacia_bot::books::PageEdit),
+    SignBook(String),
     /// A click on the loom's result with this pattern picked.
     Loom(String),
     /// A click on the enchanting table's option of this index.
@@ -92,8 +93,8 @@ pub struct Inventory {
     pub bench: Option<Bench>,
     /// What a stonecutter offers for its input: recipe ids and one cut's result.
     pub picks: Vec<(u32, Stack)>,
-    /// The patterns an open loom offers.
-    pub patterns: Vec<&'static str>,
+    /// The patterns an open loom offers, each with the banner it makes.
+    pub patterns: Vec<(&'static str, Option<Stack>)>,
     /// The level each option of an enchanting table needs.
     pub enchants: Vec<u8>,
     /// An open trading screen.
@@ -175,7 +176,7 @@ pub fn inventory(bot: &Bot) -> Inventory {
         craftable: Vec::new(),
         crafted: None,
         bench: bot.open_container().and_then(|c| crate::stations::bench(c.window_type)),
-        patterns: bot.loom_choices(),
+        patterns: bot.loom_choices().into_iter().map(|code| (code, bot.loom_result(code).and_then(|s| stack_of(bot, &s)))).collect(),
         enchants: bot.enchant_costs(),
         trade: crate::stations::trade(bot),
         picks: bot.stonecutter_choices().into_iter().filter_map(|(id, s)| Some((id, stack_of(bot, &s)?))).collect(),
@@ -239,6 +240,7 @@ pub async fn apply(bot: &mut Bot, command: Command) {
             Ok(())
         }
         Command::EditBook(edit) => bot.edit_book(&edit),
+        Command::SignBook(title) => bot.sign_typed_book(&title),
         Command::Loom(pattern) => bot.take_loom(&pattern).await,
         Command::Enchant(option) => bot.take_enchant(option).await,
         Command::Trade(offer) => bot.trade_once(offer).await,
