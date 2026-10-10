@@ -514,13 +514,12 @@ models: bells, open lids, piglin heads, patterns on held banners and shields.
 Entities: animation
 state between frames (attacks, grazing, swimming), controller
 colours (creeper flash, collar dyes), the other overlay materials (guardian ghost, wither
-armour), a leather stack's own dye (undyed leather's
-colour is baked, `gpu/entity_textures.rs`), queries that need untracked state
+armour), queries that need untracked state
 (synced properties such as the climate variant), babies' own proportions where the pack has no
-baby geometry, capes. Held items take four displays (`item/hand.rs` `Display`: generated or
-handheld, block, bow, shield); other models' own are not read. A blocking holder's raised arm
-and the shield's third-person blocking display (the player's `shield_block_*` animations ask
-`query.get_equipped_item_name`, which nothing answers).
+baby geometry, a cape's swing behind a moving wearer (`entity/cape.rs` hangs it at rest).
+Held items take the displays of `item/hand.rs` `Display` (generated or handheld, block, bow,
+shield, banner); other models' own are not read. A raised shield uses Java's blocking display
+and arm (`item/shield.rs` `raise_arm`), not the pack's `shield_block_*` animations.
 
 Approximate: water loses 2 light per block (the wiki's Bedrock opacity note; its table is ambiguous),
 so seabeds deeper than ~7 blocks go dark. Each section change relights its whole column.
