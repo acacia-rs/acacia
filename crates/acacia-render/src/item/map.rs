@@ -62,7 +62,7 @@ fn frame(hold: Hold, pitch: f32) -> Mat4 {
     let sheet = Mat4::from_scale(Vec3::splat(SIDE * SHEET as f32 / PICTURE as f32));
     match hold {
         Hold::Both => {
-            // `calculateMapTilt`: 1 lying flat (looking ahead) to 0 upright (45° down or more).
+            // `calculateMapTilt`: 1 lying flat (looking ahead) to 0 upright (49.5° down or more).
             let tilt = 0.5 - ((1.0 - pitch / 45.0 + 0.1).clamp(0.0, 1.0) * std::f32::consts::PI).cos() * 0.5;
             Mat4::from_translation(Vec3::new(0.0, 0.04 - tilt * 0.5, -0.72)) * Mat4::from_rotation_x((tilt * -85.0).to_radians()) * Mat4::from_scale(Vec3::splat(2.0)) * sheet
         }
@@ -110,7 +110,8 @@ mod tests {
         let (flat, upright) = (top(0.0), top(60.0));
         assert!(flat.z < -1.0 && flat.y < -0.4, "{flat}");
         assert!((upright.z + 0.72).abs() < 1e-4 && upright.y > 0.4, "{upright}");
-        assert_eq!(centre(Hold::Both, 45.0), centre(Hold::Both, 80.0));
+        // Upright from 49.5° down (the 0.1 in `calculateMapTilt`).
+        assert_eq!(centre(Hold::Both, 50.0), centre(Hold::Both, 80.0));
         // One hand holds it half the size, to its side.
         let (right, left) = (centre(Hold::One { left: false }, 0.0), centre(Hold::One { left: true }, 0.0));
         assert!(right.x > 0.5 && (right.x + left.x).abs() < 1e-6, "{right} {left}");
