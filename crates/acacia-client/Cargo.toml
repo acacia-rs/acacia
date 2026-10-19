@@ -22,7 +22,7 @@ acacia-auth.workspace = true
 tokio = { version = "1.53.1", features = ["rt", "net", "time", "sync", "macros", "io-util"] }
 bytes = "1.12.1"
 thiserror = "2.0.21"
-p384 = { version = "0.13", features = ["ecdsa"] }
+p384 = { version = "0.14", features = ["ecdsa"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 tracing = "0.1.44"
 sha2 = "0.10"
