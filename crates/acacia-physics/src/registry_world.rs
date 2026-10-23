@@ -96,10 +96,6 @@ impl<T: Terrain + ?Sized> WorldView for RegistryWorld<'_, T> {
     fn block_collisions(&self, [x, y, z]: BlockPos, out: &mut Vec<Aabb>) {
         if let Some(s) = self.registry.get(self.view.block(x, y, z)) {
             out.extend(s.boxes.iter().map(|b| Aabb { min: b.min, max: b.max }));
-            // The block table gives a piston's arm no box; BDS's armour stand stood on one (sapling bds-shove.txt).
-            if s.boxes.is_empty() && s.name.ends_with("piston_arm_collision") {
-                out.push(Aabb::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0));
-            }
         }
     }
 

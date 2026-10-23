@@ -26,7 +26,7 @@ bedsim files (`movement.rs` = `simulateMovement`, `collide.rs` = `tryCollisions`
   registry }` is the `WorldView` of any `Terrain` (acacia-world's `BlockAccess` plus loaded columns) whose ids
   an acacia-world `BlockRegistry` names: the bot's `ChunkView`, or a server's level (sapling).
   `block_physics(registry, id, liquid_layer)` is the per-cell rule on its own; `liquid_of(state)` decodes a
-  liquid's state. A piston arm, which the block table gives no box, collides as a full cube.
+  liquid's state.
 - `collide_box(world, &Aabb, motion) -> Vec3`: how far a box that is not a player's (an item, orb, falling block
   or mob, as sapling moves them) gets, swept Y, X, Z with the player's clip and no step-up.
 - Vehicles a player drives, not from bedsim but fitted to strict BDS (docs/research/riding-fishing-elytra.md
