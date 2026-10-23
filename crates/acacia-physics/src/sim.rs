@@ -5,6 +5,7 @@ use crate::constants::*;
 use crate::input::{Input, Surroundings};
 use crate::math::Vec3;
 use crate::state::PlayerState;
+use crate::tick_cache::TickCache;
 use crate::world::{LiquidKind, WorldView};
 
 pub(crate) struct Sim<'w, W: WorldView + ?Sized> {
@@ -66,6 +67,7 @@ pub fn apply_current<W: WorldView + ?Sized>(st: &mut PlayerState, world: &W) {
 
 /// Simulates one 50 ms client tick.
 pub fn tick<W: WorldView + ?Sized>(st: &mut PlayerState, input: &Input, world: &W) -> TickOutput {
+    let world = &TickCache::new(world, &probe_area(st.bounding_box().extend(st.vel)));
     let sim = Sim { w: world };
     st.jumped = false;
     let stand_fits = !st.swimming || sim.can_fit_height_known(st, st.standing_height) != (false, true);

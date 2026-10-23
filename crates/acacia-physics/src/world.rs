@@ -2,7 +2,7 @@
 
 use crate::aabb::Aabb;
 use crate::constants::SOUL_SAND_ACCELERATION_FRICTION_MULTIPLIER;
-use crate::math::{BlockPos, Vec3};
+use crate::math::{BlockPos, Vec3, block_pos};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Bounce {
@@ -146,9 +146,10 @@ pub trait WorldView {
     /// The default scans cells x, y, z (y starting one below `area` for 1.5-tall blocks).
     fn collisions(&self, area: &Aabb, out: &mut Vec<Aabb>) {
         let mut local = Vec::new();
-        for x in area.min[0].floor() as i32..=area.max[0].floor() as i32 {
-            for y in area.min[1].floor() as i32 - 1..=area.max[1].floor() as i32 {
-                for z in area.min[2].floor() as i32..=area.max[2].floor() as i32 {
+        let (min, max) = (block_pos(area.min), block_pos(area.max));
+        for x in min[0]..=max[0] {
+            for y in min[1] - 1..=max[1] {
+                for z in min[2]..=max[2] {
                     local.clear();
                     self.block_collisions([x, y, z], &mut local);
                     let offset: Vec3 = [x as f32, y as f32, z as f32];

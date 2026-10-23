@@ -36,8 +36,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         let was_swim_pose = st.swim_pose();
         let grace = DEFAULT_SWIM_WATER_GRACE_TICKS;
         st.swim_water_grace_ticks = st.swim_water_grace_ticks.min(grace);
-        let water = self.touching_liquid_blocks(st, LiquidKind::Water);
-        let lava = self.touching_liquid_blocks(st, LiquidKind::Lava);
+        let (water, lava) = self.touching_water_and_lava(st);
         let in_water = !water.is_empty();
         st.swim_water_contact = in_water;
         if was_swim_pose && !st.swim_pose() && !st.gliding {

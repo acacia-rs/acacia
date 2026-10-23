@@ -3,7 +3,7 @@
 use crate::aabb::Aabb;
 use crate::clip::{auto_step, clip_all};
 use crate::constants::STEP_HEIGHT;
-use crate::math::{BlockPos, Vec3, add, block_pos, hz_dist_sqr, len_sqr, pos_vec, sub};
+use crate::math::{BlockPos, Vec3, add, block_pos, ceil_i32, hz_dist_sqr, len_sqr, pos_vec, sub};
 use crate::motion::sprint_movement_blocked;
 use crate::sim::Sim;
 use crate::state::PlayerState;
@@ -11,8 +11,7 @@ use crate::world::WorldView;
 
 /// Cells from floor(min) to ceil(max) inclusive, y outermost (bedsim `nearbyBlocks`).
 pub(crate) fn nearby_cells(bb: &Aabb) -> impl Iterator<Item = BlockPos> {
-    let min = block_pos(bb.min);
-    let max = [bb.max[0].ceil() as i32, bb.max[1].ceil() as i32, bb.max[2].ceil() as i32];
+    let (min, max) = (block_pos(bb.min), bb.max.map(ceil_i32));
     (min[1]..=max[1]).flat_map(move |y| {
         (min[0]..=max[0]).flat_map(move |x| (min[2]..=max[2]).map(move |z| [x, y, z]))
     })
@@ -20,8 +19,7 @@ pub(crate) fn nearby_cells(bb: &Aabb) -> impl Iterator<Item = BlockPos> {
 
 /// Cells overlapped by `bb` (floor(min) to ceil(max) exclusive), x outermost.
 pub(crate) fn overlapped_cells(bb: &Aabb) -> impl Iterator<Item = BlockPos> {
-    let min = block_pos(bb.min);
-    let max = [bb.max[0].ceil() as i32, bb.max[1].ceil() as i32, bb.max[2].ceil() as i32];
+    let (min, max) = (block_pos(bb.min), bb.max.map(ceil_i32));
     (min[0]..max[0]).flat_map(move |x| {
         (min[1]..max[1]).flat_map(move |y| (min[2]..max[2]).map(move |z| [x, y, z]))
     })

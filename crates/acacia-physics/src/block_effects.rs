@@ -2,7 +2,7 @@
 
 use crate::collide::inside_cells;
 use crate::constants::{FREEZE_GAIN, FREEZE_LOSS};
-use crate::math::{Vec3, len_sqr};
+use crate::math::{BlockPos, Vec3, len_sqr};
 use crate::sim::Sim;
 use crate::state::PlayerState;
 use crate::world::{InsideMovement, LiquidKind, Traversal, WorldView};
@@ -93,16 +93,15 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
     /// Slows the player once per honey block whose side it touches (not in water, see README).
     pub(crate) fn apply_honey_wall_slide(&self, st: &mut PlayerState) {
-        if !self.liquid_blocks_touching(st.bounding_box(), LiquidKind::Water).is_empty() {
-            return;
-        }
         // An inside-block effect: honey's box is inset 1/16, so a box against it is in its cell, while one
         // flush against a full block beside it is not. (Contact with the inset box itself is too strict: a
         // box walking along a honey wall is slowed by each cell it is in.)
-        for pos in inside_cells(&st.bounding_box()) {
-            if !self.w.block(pos).honey {
-                continue;
-            }
+        let honey: Vec<BlockPos> = inside_cells(&st.bounding_box()).filter(|pos| self.w.block(*pos).honey).collect();
+        // Honey first: it is rare, and the water scan is a tick's most repeated lookup.
+        if honey.is_empty() || !self.liquid_blocks_touching(st.bounding_box(), LiquidKind::Water).is_empty() {
+            return;
+        }
+        for pos in honey {
             // Any contact with its side, airborne or not, rising or falling (strict BDS fuzz: 0.4 per
             // touched honey cell on the ground too, as bedsim); not from on top of it.
             if st.pos[1] > pos[1] as f32 + 1.0 - 1e-7 {

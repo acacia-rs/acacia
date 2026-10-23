@@ -9,6 +9,7 @@ mod error;
 pub mod pack_store;
 pub mod server;
 mod session;
+mod small_deflate;
 
 pub use acacia_proto as proto;
 pub use acacia_raknet as raknet;

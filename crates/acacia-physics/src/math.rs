@@ -120,10 +120,39 @@ pub fn hz_dist_sqr(a: Vec3) -> f32 {
     a[0] * a[0] + a[2] * a[2]
 }
 
+/// `v.floor() as i32`, NaN and saturation included; baseline x86-64 compiles `f32::floor` to a libm call.
+#[inline]
+pub fn floor_i32(v: f32) -> i32 {
+    let t = v as i32;
+    t.saturating_sub((v < t as f32) as i32)
+}
+
+/// `v.ceil() as i32`, as [`floor_i32`].
+#[inline]
+pub fn ceil_i32(v: f32) -> i32 {
+    let t = v as i32;
+    t.saturating_add((v > t as f32) as i32)
+}
+
 pub fn block_pos(v: Vec3) -> BlockPos {
-    [v[0].floor() as i32, v[1].floor() as i32, v[2].floor() as i32]
+    v.map(floor_i32)
 }
 
 pub fn pos_vec(p: BlockPos) -> Vec3 {
     [p[0] as f32, p[1] as f32, p[2] as f32]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ceil_i32, floor_i32};
+
+    #[test]
+    fn floor_and_ceil_i32_match_std() {
+        let edges = [0.0, -0.0, 0.5, -0.5, 1.0, -1.0, -1e-7, 63.999_996, -64.000_01, 3e9, -3e9, 2_147_483_648.0, -2_147_483_904.0, f32::INFINITY, f32::NEG_INFINITY, f32::NAN];
+        let sweep = (-20_000..20_000).map(|i| i as f32 * 0.003_7 - 0.25);
+        for v in edges.into_iter().chain(sweep) {
+            assert_eq!(floor_i32(v), v.floor() as i32, "floor {v}");
+            assert_eq!(ceil_i32(v), v.ceil() as i32, "ceil {v}");
+        }
+    }
 }

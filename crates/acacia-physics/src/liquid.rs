@@ -37,6 +37,13 @@ fn shrink(bb: Aabb, o: Vec3) -> Aabb {
     Aabb::new(min[0], min[1], min[2], max[0], max[1], max[2])
 }
 
+/// The cells, `min` inclusive to `max` exclusive, a player box touches liquid of `kind` in.
+fn touched_cells(player_box: Aabb, kind: LiquidKind) -> (BlockPos, BlockPos) {
+    let o = if kind == LiquidKind::Lava { [0.1, 0.4, 0.1] } else { [0.001, 0.401, 0.001] };
+    let bb = shrink(player_box, o);
+    (block_pos(bb.min), block_pos(add(bb.max, [1.0; 3])))
+}
+
 impl<W: WorldView + ?Sized> Sim<'_, W> {
     fn liquid_at(&self, pos: BlockPos) -> Option<Liquid> {
         self.w.block(pos).liquid
@@ -48,12 +55,31 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         self.liquid_blocks_touching(st.liquid_box.unwrap_or_else(|| st.bounding_box()), kind)
     }
 
+    /// [`Self::touching_liquid_blocks`] for both kinds, each cell looked up once.
+    pub(crate) fn touching_water_and_lava(&self, st: &PlayerState) -> (Vec<BlockPos>, Vec<BlockPos>) {
+        let player_box = st.liquid_box.unwrap_or_else(|| st.bounding_box());
+        let (water, lava) = (touched_cells(player_box, LiquidKind::Water), touched_cells(player_box, LiquidKind::Lava));
+        let (min, max) = ([0, 1, 2].map(|a| water.0[a].min(lava.0[a])), [0, 1, 2].map(|a| water.1[a].max(lava.1[a])));
+        let within = |(lo, hi): (BlockPos, BlockPos), p: BlockPos| (0..3).all(|a| lo[a] <= p[a] && p[a] < hi[a]);
+        let (mut w, mut l) = (Vec::new(), Vec::new());
+        for x in min[0]..max[0] {
+            for y in min[1]..max[1] {
+                for z in min[2]..max[2] {
+                    let pos = [x, y, z];
+                    match self.liquid_at(pos).map(|l| l.kind) {
+                        Some(LiquidKind::Water) if within(water, pos) => w.push(pos),
+                        Some(LiquidKind::Lava) if within(lava, pos) => l.push(pos),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        (w, l)
+    }
+
     /// [`Self::touching_liquid_blocks`] for an explicit player box.
     pub(crate) fn liquid_blocks_touching(&self, player_box: Aabb, kind: LiquidKind) -> Vec<BlockPos> {
-        let o = if kind == LiquidKind::Lava { [0.1, 0.4, 0.1] } else { [0.001, 0.401, 0.001] };
-        let bb = shrink(player_box, o);
-        let min = block_pos(bb.min);
-        let max = [(bb.max[0] + 1.0).floor() as i32, (bb.max[1] + 1.0).floor() as i32, (bb.max[2] + 1.0).floor() as i32];
+        let (min, max) = touched_cells(player_box, kind);
         let mut out = Vec::new();
         for x in min[0]..max[0] {
             for y in min[1]..max[1] {
