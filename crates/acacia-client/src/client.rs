@@ -280,7 +280,7 @@ impl ClientBuilder {
         let session = Session::new(cfg, addr, Instant::now());
 
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let (ev_tx, ev_rx) = mpsc::channel(self.event_capacity);
+        let (ev_tx, ev_rx) = crate::event_queue::channel(self.event_capacity);
         let (spawn_tx, spawn_rx) = oneshot::channel();
         let trace = PacketTrace::default();
         let driver = Driver {

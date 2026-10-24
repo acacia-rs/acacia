@@ -10,6 +10,7 @@ use crate::signaling::Keepalive;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot};
 
+use crate::event_queue::EventSender;
 use crate::filter::PacketFilter;
 use crate::pack_fetch;
 use crate::packet_trace::PacketTrace;
@@ -44,7 +45,7 @@ pub(crate) struct Driver {
     pub wire: Wire,
     pub transport: Transport,
     pub commands: mpsc::UnboundedReceiver<Command>,
-    pub events: mpsc::Sender<Event>,
+    pub events: EventSender,
     pub spawned: Option<oneshot::Sender<SpawnResult>>,
     pub filter: PacketFilter,
     pub trace: PacketTrace,
@@ -77,6 +78,7 @@ impl Driver {
             if let Some(reason) = self.wire_closed() {
                 return self.finish(pending, reason).await;
             }
+            let now = Instant::now();
             while let Some(event) = self.session.poll_event() {
                 match event {
                     SessionEvent::Spawned { runtime_entity_id } => {
@@ -85,7 +87,7 @@ impl Driver {
                         }
                     }
                     SessionEvent::Packet(p) => {
-                        self.trace.record(p.id, Instant::now());
+                        self.trace.record(p.id, now);
                         if self.filter.allows(p.id) {
                             pending.push_back(Event::Packet(p));
                         }
@@ -102,16 +104,9 @@ impl Driver {
             while let Some(pack) = self.session.poll_pack_fetch() {
                 tokio::spawn(fetch_pack(pack, self.proxy.clone(), fetched_tx.clone()));
             }
-            // A batch's events go out in one pass; the select below only waits for room in a full channel.
-            while !pending.is_empty() {
-                match self.events.try_reserve() {
-                    Ok(permit) => permit.send(pending.pop_front().expect("non-empty")),
-                    Err(mpsc::error::TrySendError::Full(())) => break,
-                    Err(mpsc::error::TrySendError::Closed(())) => {
-                        self.session.close(Instant::now());
-                        break;
-                    }
-                }
+            // A pass's events go out as one message; the select below only waits for room in a full queue.
+            if !pending.is_empty() && self.events.try_send(&mut pending).is_err() {
+                self.session.close(Instant::now());
             }
             let can_read = self.spawned.is_some() || pending.len() < self.capacity;
             match self.poll_timeout() {
@@ -121,10 +116,9 @@ impl Driver {
                 _ => {}
             }
             let failed = tokio::select! {
-                permit = self.events.reserve(), if !pending.is_empty() => {
-                    match permit {
-                        Ok(permit) => permit.send(pending.pop_front().expect("non-empty")),
-                        Err(_) => self.session.close(Instant::now()),
+                sent = self.events.send(&mut pending), if !pending.is_empty() => {
+                    if sent.is_err() {
+                        self.session.close(Instant::now());
                     }
                     None
                 }
@@ -215,12 +209,7 @@ impl Driver {
             let _ = tx.send(Err(reason));
             return;
         }
-        for event in pending {
-            if self.events.send(event).await.is_err() {
-                return;
-            }
-        }
-        let _ = self.events.send(Event::Disconnected(reason)).await;
+        let _ = self.events.send_final(pending.into_iter().chain([Event::Disconnected(reason)]).collect());
     }
 }
 
