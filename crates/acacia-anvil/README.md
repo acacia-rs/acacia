@@ -170,11 +170,51 @@ render 4 374 744 of 4 374 744 faces identical to the fresh one, lowres 0 pixels 
 |---|---|---|---|
 | a 48×48 volume per column | ~9 500/s | 570/s | 4 600/s |
 | groups over one shared volume (`store/write.rs`) | ~9 500/s | 1 340/s | 8 600/s |
+| groups, before the light work (below), rerun interleaved with the next row on a loaded machine | ~6 900/s | 877/s | 4 640/s |
+| groups, after the light work | ~6 400/s | 985/s | 5 490/s |
 
 Dirty columns are lit in aligned 8×8 groups over one volume padded by a column (10×10 columns filled for 64
 lit, against 9 per column), 4×4 or 2×2 when that leaves workers idle; a sparse group is lit column by
 column. The region file is byte-identical either way (`light::tests::a_lit_area_matches_lighting_each_column_alone`
 proves the light part on rough terrain).
+
+### Light
+
+`cargo run --release -p acacia-anvil --example light -- [side=32] [iters=5] [mode=area|column|par]
+[threads=N] [group=8]` lights the scale harness's terrain (below), converted once up front, and prints a
+hash of the extracted light (`7f9a0770720b6e6f` for area, `792de70165426f4d` per column on Linux; equal
+hashes = identical light). `tools/profile_light.sh <stat|record|annotate|heaptrack|time> <light|bench>`
+profiles it on Linux, `tools/ab_light.sh <checkout A> <checkout B>` runs interleaved `perf stat` A/B.
+
+Testbox (Xeon E-2136, 6 cores / 12 threads), 2026-10-24, before the light work → now:
+
+| | instructions | cycles | L1d misses | LLC misses | columns/s |
+|---|---|---|---|---|---|
+| light, 8×8 groups, 1 thread (with extract) | 37.1G → 16.7G | 15.5G → 7.2G | 529M → 188M | 7.9M → 3M | 1 840 → 4 600 |
+| light, column by column, 1 thread | 31.9G → 13.3G | 11.5G → 5.2G | 224M → 124M | — | 409 → 979 |
+| light, 8×8 groups, 12 threads (`mode=par side=64`) | 55.8G → 26.9G | 48.5G → 29.2G | 810M → 306M | 47.6M → 29.9M | 7 660 → 14 400 |
+| full bench 32, 1 thread (light + encode + compress + write) | 19.9G → 17.5G | 8.6G → 7.6G | 112M → 80M | — | 932 → 1 128 |
+
+The scale harness at 4096² on the testbox (12 threads, run back to back): light 123 → 61 thread-seconds,
+render 23.4 → 17.7 s wall, store time 1 179 → 1 402 columns/s, peak working set 1 550 → 1 443 MB.
+
+Extracting a column's light allocated 49 boxes; it now refills the worker's (light bench 49 → 0.1
+allocations per column, full bench 233k → 183k allocations, peak RSS 113 → 105 MB). What the light pass
+does, in profile order (`light/engine.rs`):
+
+- One 16-bit cell per block: dampening class (Java 26.3 dampens by 0, 1 or 15 only), six full-face bits,
+  sky and block level, so a BFS step loads one word and the volume is 2 bytes a block. At 12 threads the
+  pass was memory-bound (one thread 4.1k columns/s, twelve 9.2k with 32-bit cells; 14.7k with 16-bit).
+- The volume has a one-cell opaque border, so the bucketed BFS needs no coordinates (three divisions a
+  pop before) and no bounds tests; the six steps are unrolled; level-1 cells are not queued.
+- fill writes every cell exactly once (no clearing), with the `Blocks` match outside the per-cell loop.
+- Sky light's straight-down pass walks layer by layer from the top (column by column it touched a cache
+  line a step) and stops once every column is shut.
+
+Tried and dropped: skipping uniform opaque sections (−0.3% instructions: deep sections carry ores, so
+they are never uniform); cropping the volume to the 14 blocks of the outer columns that light can cross
+(−3% per column, +5% for 8×8 groups); filling and walking sky light in one top-down pass (+20%
+instructions: the separate walk stops at the surface).
 
 ## Scale
 
