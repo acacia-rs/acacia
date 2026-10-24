@@ -17,6 +17,7 @@ fn terrain(reg: &BlockRegistry, cx: i32, cz: i32) -> Chunk {
         id("minecraft:torch"),
     );
     let mut c = Chunk::empty(cx, cz, Dimension::overworld(reg.air_id()));
+    c.set_air_from(0);
     for x in cx * 16..cx * 16 + 16 {
         for z in cz * 16..cz * 16 + 16 {
             let h = (x.wrapping_mul(7919) ^ z.wrapping_mul(104_729)).rem_euclid(5);

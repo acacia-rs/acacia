@@ -2,6 +2,7 @@
 
 use acacia_world::{BlockFlags, BlockRegistry, Chunk, SECTION_VOLUME};
 
+use crate::dimension::java_dimension;
 use crate::mapping::{self, AIR, JavaState, StateMap};
 use crate::section::{Blocks, VOLUME, index};
 
@@ -53,6 +54,10 @@ impl JavaColumn {
             }
             *section = Blocks::from_full(buf);
         }
+    }
+
+    pub fn is_air(&self) -> bool {
+        self.sections.iter().all(|s| s.uniform() == Some(AIR))
     }
 
     pub fn heap_bytes(&self) -> usize {
@@ -127,6 +132,16 @@ impl Converter {
         self.map.java(block)
     }
 
+    /// Geyser's stand-in for a chunk it has no data for (a Java unload, the edge of the view): every
+    /// section air and every biome Bedrock id 0 (ocean), or none sent.
+    pub fn is_filler(&self, chunk: &Chunk, s: &mut Scratch) -> bool {
+        let air = chunk.dimension().air;
+        (0..chunk.section_count()).all(|i| {
+            chunk.section_uniform(i) == Some(air)
+                && (!chunk.copy_biomes(i, &mut s.biomes) || s.biomes.iter().all(|&b| b == 0))
+        })
+    }
+
     pub fn convert(&self, chunk: &Chunk, s: &mut Scratch) -> JavaColumn {
         let dim = chunk.dimension();
         let count = chunk.section_count();
@@ -144,6 +159,11 @@ impl Converter {
             }
             biomes.push(prev_biomes);
         }
+        // Java's nether goes up to 256: the part Bedrock never sees is air with the top section's biomes.
+        let java = java_dimension(dim);
+        let java_top = ((java.min_y + java.height - dim.min_y) / 16) as usize;
+        sections.resize(java_top.max(count), Blocks::Uniform(AIR));
+        biomes.resize(sections.len(), prev_biomes);
         JavaColumn {
             x: chunk.x,
             z: chunk.z,

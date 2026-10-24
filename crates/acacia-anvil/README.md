@@ -9,16 +9,21 @@ renders the server's own world, and so `bluemap -u` picks up changes as the bots
 
 1. `AnvilStore::update(chunk, block_entities)`: each Bedrock runtime id becomes a Java state (`mapping`),
    the liquid layer becomes `waterlogged=true` (or the water itself), biomes are sampled per 4×4×4 cell
-   (`column.rs`). Then the block-entity pass (`blockentity.rs`) applies what Bedrock keeps in block entities.
-   The column and its eight neighbours are marked dirty.
+   (`column.rs`), and the column is padded to Java's height (the nether is 128 high in Bedrock, 256 in Java;
+   `dimension.rs`). Then the block-entity pass (`blockentity.rs`) applies what Bedrock keeps in block
+   entities. The column and its eight neighbours are marked dirty.
 2. `AnvilStore::flush(force)`: a dirty column is written once all eight neighbours are in memory, or after
    `max_wait` (edge of the explored area), and a region file at most every `region_interval`. Per region:
-   neighbour fixups (`fixup.rs`, sequential), then light, encode and zlib on `threads` workers, then
-   temp-file + rename of the whole region (`region.rs`).
-3. A chunk whose NBT is byte-identical to what was last written keeps its slot and timestamp. A changed one
-   gets `max(now, old + 1)` seconds: bluemap-rs re-renders a tile when any chunk timestamp under it differs
-   from the last render's (file mtime is not compared; crates/bm-engine `actions.rs` there).
-4. Memory: columns stay as neighbours until `memory_limit`, then the oldest written ones are dropped.
+   neighbour fixups (`fixup.rs`, sequential), then light (groups of nearby columns over one volume),
+   encode and zlib on `threads` workers, then temp-file + rename of the whole region (`region.rs`).
+3. A chunk whose NBT is byte-identical to what was last written (or, for one this store has not written,
+   to what the region file holds) keeps its slot and timestamp. A changed one gets `max(now, old + 1)`
+   seconds: bluemap-rs re-renders a tile when any chunk timestamp under it differs from the last render's
+   (file mtime is not compared; crates/bm-engine `actions.rs` there).
+4. Memory: columns stay as neighbours until `memory_limit`, then the oldest written ones are dropped. A
+   dropped column is read back from its region file (`store/disk.rs`: a presence bitmap per region, the last
+   region's offset table, one slot read per column) when a dirty column needs it as a neighbour, or when a
+   neighbour of it changes and it must be relit.
 
 `examples/crawl.rs` is the ingest loop: subscribe to the bot's `World`, read `chunk_positions()` once,
 coalesce `ChunkChange`s every 500 ms, feed the store, flush. Block entities come from the bot's
@@ -78,10 +83,22 @@ Since Bedrock 26.50, fences, panes, bars, walls, stairs and tripwire carry their
 - Light treats a neighbour column never seen as opaque (the edge of the explored area). Evicted columns are
   read back from the region files (`store/disk.rs`), as neighbours and to be relit when a neighbour changes.
 - Light occlusion uses full faces only; Java also blocks light where two partial faces together cover a face.
+- The nether above its roof (y 128–255) is air: Geyser gives Bedrock only y 0–127, so roof mushrooms and
+  anything built up there are lost. With Geyser's `above-bedrock-nether-building` the nether arrives shaped
+  like the End and would be filed (and lit) as the End; the converter has no switch for that yet.
+- All End biomes arrive as `the_end` (Geyser gives them one Bedrock id); they share their colours, so the
+  map does not change.
+- Not written: a column with sections the server never sent (request mode) until it is complete, Geyser's
+  filler chunks (all air, every biome Bedrock id 0: what Geyser sends for a Java unload or a chunk it has
+  no data for), and any all-air column where one was already seen. A real all-air chunk (End void) comes
+  with its biomes and is written. A world edit that empties a whole column to air would not be picked up.
 
 ## Oracle
 
-`py -3 crates/acacia-anvil/tools/oracle.py` (steps `server|crawl|trim|golden|candidate|diff`, default all):
+`py -3 crates/acacia-anvil/tools/oracle.py [--dims all] [--memory 0]` (steps
+`server|crawl|trim|golden|candidate|diff`, default all; `--dims` also crawls the nether at (0, 64, 0) and the
+End at (0, 70, 0), each its own map with BlueMap's own nether/end map config; `--memory 0` evicts every
+written column, so neighbours come back from the region files):
 
 1. Lab in `.testserver/anvil-lab` (git-ignored): Paper 26.3 build 159 + Geyser-Spigot (offline auth,
    `validate-bedrock-login: false`, Bedrock :19150), seed `acacia-anvil`, peaceful, no whitelist.
@@ -90,13 +107,16 @@ Since Bedrock 26.50, fences, panes, bars, walls, stairs and tripwire carry their
    pairs per facing, 16 bed/banner/wall-banner/shulker colours, 12 pots, 16 skull rotations, redstone lines,
    corners, steps, snowy grass, a mushroom cap, a kelp tank, weeping vines, an extended piston, stair corners,
    fence/wall/pane/bar lines, a closed torch-lit room, a slab-roofed room, a leaf canopy, lit blocks).
-   Random ticks, fire, daylight and mob spawning are off so the world holds still.
-3. `examples/crawl.rs` joins as `Anvil` at the scene and writes `candidate/world`.
+   Random ticks, fire, daylight and mob spawning are off, and `tick freeze` before the crawl keeps fresh
+   chunks (nether lava falls) from flowing on after the bot has left, so the world holds still.
+3. `examples/crawl.rs` joins as `Anvil` at the scene and writes `candidate/world`, then visits the other
+   dimensions (`ANVIL_TP="the_nether 0 64 0;…"`).
 4. The server's own world is cut to the chunks the bot saw (`golden/world`), rendered by Java BlueMap 5.29;
    the candidate is rendered by bluemap-rs (built from that checkout into the lab's own target dir).
-5. `bm-golden diff-render <java web> <rs web> --inset 16`; `tools/lowres_diff.py` compares lowres pixels.
-   `tools/scene.py x,y,z …` names the grid block at a diff cell; `tools/mca_block.py <world>… -- x,y,z …`
-   prints state and light at a position in both worlds; `ANVIL_PROBE="x,y,z;…"` on the crawl prints the
+5. Per map, `bm-golden diff-render <java web> <rs web> --map <id> --inset 16` and `tools/lowres_diff.py`
+   (lowres pixels). `tools/scene.py x,y,z …` names the grid block at a diff cell;
+   `[ANVIL_DIM=the_nether] tools/mca_block.py <world>… -- x,y,z …` prints state and light at a position in
+   both worlds; `ANVIL_PROBE="x,y,z;…"` on the crawl prints the
    Bedrock states the bot held there.
 
 Results (2026-10-24, about 400 columns around the scene):
@@ -107,6 +127,16 @@ Results (2026-10-24, about 400 columns around the scene):
 | scene, Bedrock-derived light, no `geyser_custom` | 809 538 | 99.95% | 434: mushroom blocks/obsidian as air (`geyser_custom`), cauldron/shelf/shelf_mushroom light, artificial strict-placed plant bodies and dust dots | — |
 | scene, Java light dump, `geyser_custom` mapped | 689 492 | 100.00% | 96: only the artificial cases above | 0 |
 | scene without the artificial cases, area cleared first | 689 468 (911 890 without `--inset`) | 100.00% | 0 | 0 |
+| same, `--memory 0` (every neighbour read back from disk) | 809 490 | 100.00% | 0 | 0 |
+| same, grouped light | 697 686 | 100.00% | 0 | 0 |
+| `--dims all`: overworld | 809 490 | 100.00% | 0 | 0 |
+| `--dims all`: nether, 401 columns | 899 453 | 99.99% | 88: red mushrooms on the roof (y 128, above what Geyser sends) | 12 of 8 032 032 (lod 1), the same mushrooms |
+| `--dims all`: End, 401 columns | 93 846 | 100.00% | 0 | 0 |
+
+Face counts vary between runs with how far the bot's view reached. Fixed on the way to the nether and End
+rows: Java's nether is 256 high (columns padded, heightmaps at 9 bits); Java 26.3's End has sky light
+(`has_skylight: true` in its dimension type, unlike Bedrock's); Geyser's filler chunks (all air, biome id 0,
+sent for a Java unload or the edge of the view) had overwritten seen terrain with air (53 nether columns).
 
 ## Live updates
 
@@ -128,7 +158,15 @@ render 4 374 744 of 4 374 744 faces identical to the fresh one, lowres 0 pixels 
 
 ## Throughput
 
-`cargo run --release -p acacia-anvil --example bench -- 32` (synthetic terrain, 1024 columns, 2026-10-24, this
-machine under load): convert ~3 600 columns/s on one thread; light + encode + compress + write ~200 columns/s
-per thread, ~1 800/s with all cores (`threads: 0`). Light is most of it: each column fills a 48×48 block
-neighbourhood.
+`cargo run --release -p acacia-anvil --example bench -- 32` (synthetic terrain, 1024 columns in one region,
+2026-10-24, 22 threads, `ANVIL_THREADS=1` for one):
+
+| | convert | light + encode + compress + write, 1 thread | same, all cores |
+|---|---|---|---|
+| a 48×48 volume per column | ~9 500/s | 570/s | 4 600/s |
+| groups over one shared volume (`store/write.rs`) | ~9 500/s | 1 340/s | 8 600/s |
+
+Dirty columns are lit in aligned 8×8 groups over one volume padded by a column (10×10 columns filled for 64
+lit, against 9 per column), 4×4 or 2×2 when that leaves workers idle; a sparse group is lit column by
+column. The region file is byte-identical either way (`light::tests::a_lit_area_matches_lighting_each_column_alone`
+proves the light part on rough terrain).

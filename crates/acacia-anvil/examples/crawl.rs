@@ -1,16 +1,28 @@
 //! Joins a server (offline), keeps every chunk it is sent as a Java world under `<world>`, and leaves once no
 //! chunk has changed for `quiet` seconds. `cargo run --release -p acacia-anvil --example crawl --
 //! <server> <world dir> [name] [radius=8] [quiet s=10] [limit s=300]`. `ANVIL_TP="x y z;x y z"` visits points
-//! in turn by `/tp` (the bot must be op), saving each area before moving on. `ANVIL_MEMORY=<bytes>` sets the
+//! in turn by `/tp` (the bot must be op; `the_nether x y z` changes dimension), saving each area before moving
+//! on; each dimension goes to its own `dimensions/minecraft/<name>/region`. `ANVIL_MEMORY=<bytes>` sets the
 //! store's memory limit (0 evicts every written column, so neighbours come back from the region files).
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acacia_anvil::{AnvilStore, StoreConfig};
 use acacia_bot::client::Client;
 use acacia_bot::{Bot, BotConfig, BotEvent};
-use acacia_world::ChunkChange;
+use acacia_world::{ChunkChange, World};
+
+/// `x y z`, or `<dimension> x y z` (`the_nether 0 64 0`) to change dimension on the way.
+fn tp_command(stop: &str) -> String {
+    match stop.split_once(' ') {
+        Some((dim, at)) if dim.starts_with(|c: char| c.is_ascii_alphabetic()) => {
+            format!("/execute in minecraft:{dim} run tp @s {at}")
+        }
+        _ => format!("/tp @s {stop}"),
+    }
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -44,8 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
     let start = Instant::now();
-    let (mut store, mut changes, mut pending) = (None, None, HashSet::new());
-    let (mut last_change, mut converted) = (Instant::now(), 0usize);
+    let (mut store, mut changes, mut pending) = (None::<AnvilStore>, None, HashSet::new());
+    let mut current: Option<Arc<World>> = None;
+    let (mut last_change, mut converted, mut skipped) = (Instant::now(), 0usize, 0usize);
     let mut tick = tokio::time::interval(Duration::from_millis(500));
     let outcome = loop {
         tokio::select! {
@@ -57,12 +70,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ = tick.tick() => {
                 let Some(view) = bot.world().and_then(|w| w.view()) else { continue };
                 let world = view.world().clone();
-                if changes.is_none() {
+                // A new dimension is a new World: finish the old one's store, start one for this.
+                if current.as_ref().is_none_or(|c| !Arc::ptr_eq(c, &world)) {
+                    if let Some(old) = store.as_mut() {
+                        old.flush(true)?;
+                    }
+                    current = Some(world.clone());
+                    pending.clear();
                     changes = Some(world.subscribe());
                     pending.extend(world.chunk_positions());
                     let cfg = StoreConfig {
                         region_dir: acacia_anvil::region_dir(&world_dir, world.dimension()),
-                        has_sky: world.dimension().sky,
+                        has_sky: acacia_anvil::dimension::java_dimension(world.dimension()).has_sky,
                         max_wait: quiet,
                         region_interval: Duration::from_secs(2),
                         memory_limit: std::env::var("ANVIL_MEMORY").ok().and_then(|m| m.parse().ok()).unwrap_or(1 << 30),
@@ -84,8 +103,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for (x, z) in pending.drain() {
                     let Some(chunk) = world.get(x, z) else { continue };
                     let bes = block_entities.iter().filter(|(p, _)| p[0] >> 4 == x && p[2] >> 4 == z).map(|(p, n)| (*p, &n.value));
-                    store.update(&chunk.read(), bes);
-                    converted += 1;
+                    if store.update(&chunk.read(), bes) {
+                        converted += 1;
+                    } else {
+                        skipped += 1;
+                    }
                 }
                 let stats = store.flush(false)?;
                 if stats.columns > 0 {
@@ -95,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match stops.pop() {
                         Some(stop) => {
                             store.flush(true)?;
-                            bot.client().command(&format!("/tp @s {stop}"));
+                            bot.client().command(&tp_command(&stop));
                             last_change = Instant::now();
                         }
                         None => break "quiet".to_owned(),
@@ -111,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         store.flush(true)?;
     }
     println!(
-        "crawl {outcome}: {converted} conversions in {:.1}s",
+        "crawl {outcome}: {converted} conversions ({skipped} skipped: incomplete, or empty over a seen column) in {:.1}s",
         start.elapsed().as_secs_f32()
     );
     // ANVIL_PROBE="x,y,z;…": the Bedrock states the bot holds there, for chasing a diff-render cell

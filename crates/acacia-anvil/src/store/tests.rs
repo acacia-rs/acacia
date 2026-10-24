@@ -30,6 +30,7 @@ fn terrain(cx: i32, cz: i32, changed: bool) -> Chunk {
     let reg = BlockRegistry::vanilla();
     let id = |n: &str| reg.states_of(n).next().unwrap().0;
     let mut c = Chunk::empty(cx, cz, Dimension::overworld(reg.air_id()));
+    c.set_air_from(0);
     let (bx, bz) = (cx * 16, cz * 16);
     for x in bx..bx + 16 {
         for z in bz..bz + 16 {
@@ -82,6 +83,28 @@ fn relight_centre(dir: &Path, memory_limit: usize) -> (Chunks, Chunks) {
 }
 
 #[test]
+fn nether_columns_are_java_height() {
+    let reg = BlockRegistry::vanilla();
+    let dim = Dimension::nether(reg.air_id());
+    let dir = temp_dir("nether");
+    let mut s = store_with(&region_dir(&dir, dim), 1 << 30);
+    let mut c = Chunk::empty(0, 0, dim);
+    assert!(!s.update(&c, []), "sections not received yet: skipped");
+    c.set_air_from(0);
+    c.set(1, 127, 1, 0, reg.states_of("minecraft:bedrock").next().unwrap().0);
+    s.update(&c, []);
+    s.flush(true).unwrap();
+    let path = dir.join("dimensions/minecraft/the_nether/region").join(region_file_name(0, 0));
+    let col = crate::decode::decode_chunk(&Region::load(&path).unwrap().chunk_nbt(0, 0).unwrap()).unwrap();
+    assert_eq!((col.min_section, col.sections.len()), (0, 16));
+    assert_ne!(col.block(1, 127, 1), crate::mapping::AIR);
+    let mut unloaded = Chunk::empty(0, 0, dim);
+    unloaded.set_air_from(0);
+    assert!(!s.update(&unloaded, []), "an empty chunk does not replace a seen one");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn relighting_next_to_evicted_columns_matches_all_in_memory() {
     let (a, b) = (temp_dir("held"), temp_dir("evicted"));
     let (_, held) = relight_centre(&a, 1 << 30);
@@ -107,6 +130,7 @@ fn relighting_next_to_evicted_columns_matches_all_in_memory() {
 fn chunk(stone_at: i32) -> Chunk {
     let reg = BlockRegistry::vanilla();
     let mut c = Chunk::empty(3, -2, Dimension::overworld(reg.air_id()));
+    c.set_air_from(0);
     let stone = reg.find("minecraft:stone", "").unwrap();
     for x in 48..64 {
         for z in -32..-16 {

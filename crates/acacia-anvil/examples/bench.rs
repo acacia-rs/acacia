@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|i| {
             let (cx, cz) = (i % side, i / side);
             let mut c = Chunk::empty(cx, cz, Dimension::overworld(reg.air_id()));
+            c.set_air_from(0);
             for x in cx * 16..cx * 16 + 16 {
                 for z in cz * 16..cz * 16 + 16 {
                     let top = 56 + (next() % 8) as i32;

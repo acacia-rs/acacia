@@ -19,6 +19,7 @@ use acacia_world::{BlockRegistry, Chunk, Dimension};
 use crate::Error;
 use crate::blockentity;
 use crate::column::{Converter, JavaColumn, Scratch};
+use crate::dimension::java_dimension;
 use crate::fixup::Fixups;
 use crate::mapping::JavaState;
 use crate::props::PropsTable;
@@ -29,6 +30,7 @@ use write::{Worker, hash_bytes};
 pub struct StoreConfig {
     /// The dimension's `region/` folder ([`region_dir`]).
     pub region_dir: PathBuf,
+    /// Java's answer, not Bedrock's: `dimension::java_dimension(dim).has_sky` (the End has sky light).
     pub has_sky: bool,
     /// Longest a column waits for missing neighbours before it is lit without them.
     pub max_wait: Duration,
@@ -73,15 +75,12 @@ pub struct AnvilStore {
     workers: Vec<Worker>,
 }
 
-/// `<world>/dimensions/minecraft/<dimension>/region`, the 26.x layout BlueMap looks in first. Bedrock
-/// dimensions differ only in height here, which is what tells them apart.
+/// `<world>/dimensions/minecraft/<dimension>/region`, the 26.x layout BlueMap looks in first.
 pub fn region_dir(world: &Path, dim: Dimension) -> PathBuf {
-    let name = match (dim.min_y, dim.height) {
-        (0, 128) => "the_nether",
-        (0, 256) => "the_end",
-        _ => "overworld",
-    };
-    world.join("dimensions/minecraft").join(name).join("region")
+    world
+        .join("dimensions/minecraft")
+        .join(java_dimension(dim).name)
+        .join("region")
 }
 
 fn region_of((x, z): (i32, i32)) -> (i32, i32) {
@@ -122,11 +121,20 @@ impl AnvilStore {
 
     /// Converts a chunk (new or changed) with its block entities (world position, Bedrock NBT) and queues
     /// it and its neighbours for writing.
+    /// Skipped, returning false: a column with sections the server has not sent yet (request mode; written
+    /// as air they would be holes, the missing sections' `ChunkChange`s bring it back complete), Geyser's
+    /// filler for chunks it has no data for (`Converter::is_filler`), and any all-air column where one
+    /// was already seen.
     pub fn update<'a>(
         &mut self,
         chunk: &Chunk,
         block_entities: impl IntoIterator<Item = ([i32; 3], &'a Value)>,
-    ) {
+    ) -> bool {
+        if !(0..chunk.section_count()).all(|i| chunk.section_known(i))
+            || self.conv.is_filler(chunk, &mut self.scratch)
+        {
+            return false;
+        }
         let mut col = self.conv.convert(chunk, &mut self.scratch);
         blockentity::apply(
             &mut col,
@@ -136,6 +144,9 @@ impl AnvilStore {
             &mut self.buf,
         );
         let pos = (col.x, col.z);
+        if col.is_air() && (self.columns.contains_key(&pos) || self.disk.has(pos).unwrap_or(false)) {
+            return false;
+        }
         let now = Instant::now();
         self.bytes += col.heap_bytes();
         let mut entry = Entry {
@@ -158,6 +169,7 @@ impl AnvilStore {
                 }
             }
         }
+        true
     }
 
     /// Brings back from disk the stale columns (to be relit) and every neighbour a dirty column lacks.

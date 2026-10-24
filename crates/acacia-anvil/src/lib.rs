@@ -3,6 +3,7 @@
 pub mod blockentity;
 pub mod column;
 pub mod decode;
+pub mod dimension;
 pub mod encode;
 pub mod fixup;
 pub mod light;

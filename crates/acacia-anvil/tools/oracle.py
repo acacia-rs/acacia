@@ -2,6 +2,7 @@
 bluemap-rs's render of what an acacia bot, joined through Geyser, saw of it.
 
 Usage: py -3 crates/acacia-anvil/tools/oracle.py [all|server|crawl|trim|golden|candidate|diff] [--radius 8]
+  [--dims overworld,the_nether,the_end|all] [--memory BYTES]
 
 Lab: <repo>/.testserver/anvil-lab (git-ignored): Paper 26.3 + Geyser-Spigot (offline, Bedrock :19150),
 fixed seed. Java, BlueMap 5.29 and the MC client jar are read from the bluemap-rs checkout (BLUEMAP_RS).
@@ -10,7 +11,6 @@ import argparse
 import json
 import os
 import shutil
-import struct
 import subprocess
 import sys
 import threading
@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 import scene
+from regions import read_region, write_region
 
 REPO = Path(__file__).resolve().parents[3]
 REPORT = Path(__file__).resolve().parent / ".cache/java-26.3-blocks.json"
@@ -27,10 +28,20 @@ BMRS = Path(os.environ.get("BLUEMAP_RS", "C:/Users/hexay/bluemap-rs"))
 JAVA = BMRS / "work/downloads/jdk25/bin" / ("java.exe" if os.name == "nt" else "java")
 BLUEMAP_JAR = BMRS / "work/downloads/bluemap-5.29-cli.jar"
 CLIENT_JAR = BMRS / "work/bluemap/vanilla/data/minecraft-client-26.3.jar"
-MAP_TEMPLATE = BMRS / "work/bluemap/vanilla/config/maps/vanilla.conf"
 # bluemap-rs binaries built from that checkout into the lab (its own target dir stays untouched)
 BM_TARGET = LAB / "bm-target"
+# per dimension: map id, BlueMap's own map config for it (from bluemap-rs's fixtures), where the bot goes
+DIMS = {
+    "overworld": ("lab", BMRS / "work/bluemap/vanilla/config/maps/vanilla.conf", None),
+    "the_nether": ("lab_nether", BMRS / "work/bluemap/nether/config/maps/nether.conf", "the_nether 0 64 0"),
+    "the_end": ("lab_end", BMRS / "work/bluemap/end/config/maps/end.conf", "the_end 0 70 0"),
+}
 OVERWORLD = "dimensions/minecraft/overworld/region"
+
+
+def region_rel(dim):
+    return f"dimensions/minecraft/{dim}/region"
+
 SEED = "acacia-anvil"
 PROPERTIES = {
     "online-mode": "false", "server-port": "25570", "level-seed": SEED, "view-distance": "12",
@@ -132,62 +143,35 @@ def crawl(args):
     cand = LAB / "candidate/world"
     shutil.rmtree(cand, ignore_errors=True)
     env = {**os.environ, **({"ANVIL_MEMORY": args.memory} if args.memory is not None else {})}
+    stops = [DIMS[d][2] for d in args.dims if DIMS[d][2]]
+    if stops:
+        env["ANVIL_TP"] = ";".join(stops)
     run(["cargo", "run", "--release", "-p", "acacia-anvil", "--example", "crawl", "--",
          f"127.0.0.1:{GEYSER_PORT}", cand, "Anvil", args.radius, args.quiet, args.limit], cwd=REPO, env=env)
 
 
-def server_region_dir():
-    for d in [SERVER / "world" / OVERWORLD, SERVER / "world/region"]:
-        if d.is_dir():
-            return d
-    raise SystemExit("no server region dir")
-
-
-def read_region(path):
-    data = path.read_bytes()
-    chunks = {}
-    for i in range(1024):
-        loc = struct.unpack_from(">I", data, i * 4)[0]
-        off, count = (loc >> 8) * 4096, loc & 0xFF
-        if count and off + 4 <= len(data):
-            length = struct.unpack_from(">I", data, off)[0]
-            ts = struct.unpack_from(">I", data, 4096 + i * 4)[0]
-            chunks[i] = (data[off + 4: off + 4 + length], ts)
-    return chunks
-
-
-def write_region(path, chunks):
-    header, body, sector = bytearray(8192), bytearray(), 2
-    for i, (payload, ts) in sorted(chunks.items()):
-        blob = struct.pack(">I", len(payload)) + payload
-        blob += b"\0" * (-len(blob) % 4096)
-        struct.pack_into(">I", header, i * 4, (sector << 8) | (len(blob) // 4096))
-        struct.pack_into(">I", header, 4096 + i * 4, ts)
-        body += blob
-        sector += len(blob) // 4096
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(bytes(header + body))
+def crawled_dims():
+    return [d for d in DIMS if (LAB / "candidate/world" / region_rel(d)).is_dir()]
 
 
 def trim():
     """The server's world cut to the chunks the bot saw, so both renders cover one area."""
-    cand = LAB / "candidate/world" / OVERWORLD
-    out = LAB / "golden/world" / OVERWORLD
     shutil.rmtree(LAB / "golden/world", ignore_errors=True)
-    kept = 0
-    for f in sorted(cand.glob("r.*.mca")):
-        keep = read_region(f).keys()
-        src = server_region_dir() / f.name
-        chunks = {i: c for i, c in read_region(src).items() if i in keep} if src.exists() else {}
-        missing = len(keep) - len(chunks)
-        if missing:
-            print(f"{f.name}: {missing} chunks the server never saved")
-        write_region(out / f.name, chunks)
-        kept += len(chunks)
-    print(f"golden world: {kept} chunks")
+    for dim in crawled_dims():
+        out, src_dir, kept = LAB / "golden/world" / region_rel(dim), SERVER / "world" / region_rel(dim), 0
+        for f in sorted((LAB / "candidate/world" / region_rel(dim)).glob("r.*.mca")):
+            keep = read_region(f).keys()
+            src = src_dir / f.name
+            chunks = {i: c for i, c in read_region(src).items() if i in keep} if src.exists() else {}
+            missing = len(keep) - len(chunks)
+            if missing:
+                print(f"{dim} {f.name}: {missing} chunks the server never saved")
+            write_region(out / f.name, chunks)
+            kept += len(chunks)
+        print(f"golden {dim}: {kept} chunks")
 
 
-def bluemap_dir(name, world):
+def bluemap_dir(name, world, dims=("overworld",)):
     base = LAB / name
     cfg = base / "config"
     if not (cfg / "core.conf").exists():
@@ -200,10 +184,11 @@ def bluemap_dir(name, world):
         shutil.copy(CLIENT_JAR, base / "data" / CLIENT_JAR.name)
     for f in (cfg / "maps").glob("*.conf"):
         f.unlink()
-    conf = MAP_TEMPLATE.read_text().splitlines()
-    conf = [f'world: {json.dumps(world.as_posix())}' if l.startswith("world:") else
-            'name: "lab"' if l.startswith("name:") else l for l in conf]
-    (cfg / "maps/lab.conf").write_text("\n".join(conf) + "\n")
+    for dim in dims:
+        map_id, template, _ = DIMS[dim]
+        conf = [f'world: {json.dumps(world.as_posix())}' if l.startswith("world:") else
+                f'name: "{map_id}"' if l.startswith("name:") else l for l in template.read_text().splitlines()]
+        (cfg / f"maps/{map_id}.conf").write_text("\n".join(conf) + "\n")
     shutil.rmtree(base / "web/maps", ignore_errors=True)
     return base
 
@@ -215,20 +200,25 @@ def build_bluemap_rs():
 
 
 def golden():
-    base = bluemap_dir("bm-java", LAB / "golden/world")
+    base = bluemap_dir("bm-java", LAB / "golden/world", crawled_dims())
     run([JAVA, "-jar", BLUEMAP_JAR, "-c", "config", "-v", "26.3", "-r", "-f"], cwd=base)
 
 
 def candidate():
     exe = build_bluemap_rs() / ("bluemap.exe" if os.name == "nt" else "bluemap")
-    base = bluemap_dir("bm-rs", LAB / "candidate/world")
+    base = bluemap_dir("bm-rs", LAB / "candidate/world", crawled_dims())
     run([exe, "-c", "config", "-v", "26.3", "-r", "-f"], cwd=base)
 
 
 def diff(args):
     exe = build_bluemap_rs() / ("bm-golden.exe" if os.name == "nt" else "bm-golden")
-    run([exe, "diff-render", LAB / "bm-java/web", LAB / "bm-rs/web", "--inset", "16", "--json",
-         LAB / "diff.json", "--top", args.top])
+    for dim in crawled_dims():
+        map_id = DIMS[dim][0]
+        print(f"== {dim} (map {map_id})", flush=True)
+        run([exe, "diff-render", LAB / "bm-java/web", LAB / "bm-rs/web", "--map", map_id, "--inset", "16",
+             "--json", LAB / f"diff-{map_id}.json", "--top", args.top])
+        run([sys.executable, Path(__file__).parent / "lowres_diff.py", LAB / "bm-java/web/maps" / map_id,
+             LAB / "bm-rs/web/maps" / map_id])
 
 
 def main():
@@ -240,7 +230,9 @@ def main():
     ap.add_argument("--top", default="30")
     ap.add_argument("--memory", help="crawl store memory limit in bytes (0: neighbours come back from disk)")
     ap.add_argument("--no-scene", dest="scene", action="store_false", help="crawl natural terrain only")
+    ap.add_argument("--dims", default="overworld", help="dimensions to crawl, comma-separated, or all")
     args = ap.parse_args()
+    args.dims = list(DIMS) if args.dims == "all" else args.dims.split(",")
     if args.step in ("all", "server", "crawl"):
         server = start_server()
         try:
@@ -249,6 +241,8 @@ def main():
                     server.command(cmd)
                 server.command("save-all flush")
                 server.wait_for("Saved the game", timeout=600)
+            # chunks generated while the bot looks (nether lava falls) must not flow on after it has left
+            server.command("tick freeze")
             if args.step != "server":
                 crawl(args)
             else:

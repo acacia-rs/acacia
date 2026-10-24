@@ -2,7 +2,9 @@
 a diff-render cell between the server's world and the converted one.
 
 Usage: py -3 crates/acacia-anvil/tools/mca_block.py <world> [<world> ...] -- x,y,z [x,y,z ...]
+(ANVIL_DIM=the_nether|the_end for another dimension)
 """
+import os
 import struct
 import sys
 import zlib
@@ -52,7 +54,7 @@ def nbt(buf: bytes):
 
 
 def chunk(world: Path, cx: int, cz: int):
-    for d in ("dimensions/minecraft/overworld/region", "region"):
+    for d in (f"dimensions/minecraft/{os.environ.get('ANVIL_DIM', 'overworld')}/region", "region"):
         f = world / d / f"r.{cx >> 5}.{cz >> 5}.mca"
         if f.exists():
             data = f.read_bytes()
