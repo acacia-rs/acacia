@@ -15,8 +15,12 @@ use crate::column::JavaColumn;
 use crate::mapping::{AIR, JavaState};
 use crate::props::PropsTable;
 
-/// A cell: dampening in the low byte, full occluding faces in the high byte.
-const OPAQUE: u16 = 15;
+/// A cell, one word so a step loads one cache line: dampening in bits 0–3, full occluding faces from bit
+/// `FACE` (one per direction), sky level at bit `SKY`, block level at bit `BLOCK`.
+const OPAQUE: u32 = 15;
+const FACE: u32 = 4;
+const SKY: u32 = 16;
+const BLOCK: u32 = 24;
 
 /// Nibble arrays of one section, in Java's layout (`(y << 8) | (z << 4) | x`, even index low nibble).
 #[derive(Clone)]
@@ -60,9 +64,8 @@ pub struct Lighter {
     /// Sections lit (from the bottom); the ones above are open sky.
     lit: usize,
     has_sky: bool,
-    cell: Vec<u16>,
-    level: Vec<u8>,
-    sky: Vec<u8>,
+    cols_x: usize,
+    vox: Vec<u32>,
     emitters: Vec<(u32, u8)>,
     buckets: [Vec<u32>; 16],
     bottom: Vec<u32>,
@@ -104,17 +107,14 @@ impl Lighter {
         self.px = self.sx + 2;
         self.pl = self.px * (self.sz + 2);
         self.has_sky = has_sky;
-        self.fill(cols, cols_x, props);
+        self.cols_x = cols_x;
+        self.fill(cols, props);
         if has_sky && self.height > 0 {
             self.seed_sky();
-            self.propagate::<true>();
-            std::mem::swap(&mut self.sky, &mut self.level);
-        } else {
-            self.sky.clear();
-            self.sky.resize(self.cells(), 0);
+            self.propagate::<SKY, true>();
         }
         self.seed_block();
-        self.propagate::<false>();
+        self.propagate::<BLOCK, false>();
     }
 
     /// Cells in the bordered volume.
@@ -153,8 +153,9 @@ impl Lighter {
                 for z in 0..16 {
                     let d = self.at(ox, s * 16 + y, oz + z);
                     let o = (y << 7) | (z << 3);
-                    light.sky[o..o + 8].copy_from_slice(&pack_row(&self.sky[d..d + 16]));
-                    light.block[o..o + 8].copy_from_slice(&pack_row(&self.level[d..d + 16]));
+                    let row: &[u32; 16] = self.vox[d..d + 16].try_into().unwrap();
+                    light.sky[o..o + 8].copy_from_slice(&pack_row::<SKY>(row));
+                    light.block[o..o + 8].copy_from_slice(&pack_row::<BLOCK>(row));
                 }
             }
         }
@@ -163,9 +164,9 @@ impl Lighter {
 
 /// 16 levels to 8 nibble pairs, even x in the low nibble.
 #[inline]
-fn pack_row(levels: &[u8]) -> [u8; 8] {
-    let l: &[u8; 16] = levels.try_into().unwrap();
-    std::array::from_fn(|x| l[2 * x] | (l[2 * x + 1] << 4))
+fn pack_row<const S: u32>(cells: &[u32; 16]) -> [u8; 8] {
+    let level = |c: u32| (c >> S & 15) as u8;
+    std::array::from_fn(|x| level(cells[2 * x]) | level(cells[2 * x + 1]) << 4)
 }
 
 #[cfg(test)]
