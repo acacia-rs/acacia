@@ -171,15 +171,13 @@ impl Entities {
             }
             SetEntityData::ID => {
                 // Peek the leading runtime id: most metadata is for entities out of view.
-                let id = acacia_client::proto::codec::read_varint64(&mut &packet.body[..])?;
-                if let Some(e) = self.by_runtime.get_mut(&id) {
+                if let Some(e) = super::leading_entity(packet).and_then(|id| self.by_runtime.get_mut(&id)) {
                     e.metadata.merge(packet.decode::<SetEntityData>()?.metadata);
                 }
             }
             UpdateAttributes::ID => {
-                let p: UpdateAttributes = packet.decode()?;
-                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
-                    e.attributes.extend(p.attributes.into_iter().map(|a| (a.name, a.current)));
+                if let Some(e) = super::leading_entity(packet).and_then(|id| self.by_runtime.get_mut(&id)) {
+                    e.attributes.extend(packet.decode::<UpdateAttributes>()?.attributes.into_iter().map(|a| (a.name, a.current)));
                 }
             }
             MobEffect::ID => {

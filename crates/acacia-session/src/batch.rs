@@ -14,6 +14,8 @@ pub struct BatchCodec {
     compression: Option<(Algorithm, usize)>,
     encryption: Option<Encryption>,
     max_decompressed: usize,
+    /// Scratch for a batch's uncompressed packets, kept across batches.
+    plain: BytesMut,
 }
 
 /// A batch body (after the 0xfe byte, before encryption) built once for many receivers: a server
@@ -24,33 +26,37 @@ pub struct SharedBatch(Bytes);
 impl SharedBatch {
     /// `compression` must be what the receiving codecs use ([`BatchCodec::compression`]).
     pub fn new<'a>(packets: impl IntoIterator<Item = &'a [u8]>, compression: Option<(Algorithm, usize)>) -> Self {
-        let mut plain = BytesMut::new();
-        for p in packets {
-            put_varuint32(&mut plain, p.len() as u32);
-            plain.put_slice(p);
-        }
-        let body = match compression {
-            Some((alg, threshold)) if plain.len() >= threshold => {
-                let mut out = BytesMut::with_capacity(plain.len() / 2 + 1);
-                out.put_u8(alg.batch_id());
-                alg.compress(&plain, &mut out);
-                out
-            }
-            Some(_) => {
-                let mut out = BytesMut::with_capacity(plain.len() + 1);
-                out.put_u8(NONE_ID);
-                out.put_slice(&plain);
-                out
-            }
-            None => plain,
-        };
+        let mut body = BytesMut::new();
+        put_body(packets, compression, &mut BytesMut::new(), &mut body);
         Self(body.freeze())
+    }
+}
+
+/// Appends a batch body to `out`, with `plain` as scratch for the uncompressed packets.
+fn put_body<'a>(packets: impl IntoIterator<Item = &'a [u8]>, compression: Option<(Algorithm, usize)>, plain: &mut BytesMut, out: &mut BytesMut) {
+    plain.clear();
+    for p in packets {
+        put_varuint32(plain, p.len() as u32);
+        plain.put_slice(p);
+    }
+    match compression {
+        Some((alg, threshold)) if plain.len() >= threshold => {
+            // The fixed-Huffman encoder reserves this much; deflate grows its own way.
+            out.reserve(plain.len() * 9 / 8 + 16);
+            out.put_u8(alg.batch_id());
+            alg.compress(plain, out);
+        }
+        Some(_) => {
+            out.put_u8(NONE_ID);
+            out.put_slice(plain);
+        }
+        None => out.put_slice(plain),
     }
 }
 
 impl Default for BatchCodec {
     fn default() -> Self {
-        Self { header: true, compression: None, encryption: None, max_decompressed: DEFAULT_MAX_DECOMPRESSED }
+        Self { header: true, compression: None, encryption: None, max_decompressed: DEFAULT_MAX_DECOMPRESSED, plain: BytesMut::new() }
     }
 }
 
@@ -79,17 +85,31 @@ impl BatchCodec {
 
     /// Encodes already-serialized packets (header + body) into one game message.
     pub fn encode<'a>(&mut self, packets: impl IntoIterator<Item = &'a [u8]>) -> Bytes {
-        let shared = SharedBatch::new(packets, self.compression);
-        self.encode_shared(&shared)
+        let mut out = self.start_message(0);
+        put_body(packets, self.compression, &mut self.plain, &mut out);
+        if self.plain.capacity() > 1 << 16 {
+            self.plain = BytesMut::new();
+        }
+        self.seal(out)
     }
 
     /// Frames (and encrypts) a batch body built for this codec's compression setting.
     pub fn encode_shared(&mut self, batch: &SharedBatch) -> Bytes {
-        let mut out = BytesMut::with_capacity(batch.0.len() + 16);
+        let mut out = self.start_message(batch.0.len());
+        out.put_slice(&batch.0);
+        self.seal(out)
+    }
+
+    fn start_message(&self, body: usize) -> BytesMut {
+        // Room for the 0xfe byte and the encryption checksum.
+        let mut out = BytesMut::with_capacity(body + 16);
         if self.header {
             out.put_u8(GAME_MESSAGE_ID);
         }
-        out.put_slice(&batch.0);
+        out
+    }
+
+    fn seal(&mut self, mut out: BytesMut) -> Bytes {
         if let Some(enc) = &mut self.encryption {
             enc.seal(&mut out, usize::from(self.header));
         }

@@ -47,7 +47,7 @@ pub enum Event {
 
 /// Whether an [`ANALYSIS_PACKETS`] packet concerns this runtime id.
 pub fn about(packet: &RawPacket, runtime_id: u64) -> bool {
-    packet.decode::<SetEntityData>().is_ok_and(|p| p.runtime_entity_id == runtime_id)
+    packet.is::<SetEntityData>() && crate::state::leading_entity(packet) == Some(runtime_id)
 }
 
 /// The server's actor flags, when this `SetEntityData` sets them.

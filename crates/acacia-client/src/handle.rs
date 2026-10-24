@@ -57,7 +57,8 @@ impl Client {
     /// Queues a packet; returns false if the connection has closed.
     pub fn send<T: Packet + std::fmt::Debug>(&self, packet: &T) -> bool {
         tracing::trace!(target: "acacia_client::send", ?packet);
-        let mut buf = BytesMut::new();
+        // Fits a PlayerAuthInput, the packet sent every tick.
+        let mut buf = BytesMut::with_capacity(128);
         encode_packet(packet, &mut buf);
         self.send_raw(buf.freeze())
     }

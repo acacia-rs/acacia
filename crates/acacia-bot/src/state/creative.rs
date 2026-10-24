@@ -35,7 +35,7 @@ impl Creative {
     pub const PACKETS: &'static [u32] = &[CreativeContent::ID];
 
     pub fn apply(&mut self, packet: &RawPacket) {
-        self.packet = Some(packet.clone());
+        self.packet = Some(super::kept::keep(packet));
         self.items = OnceLock::new();
     }
 

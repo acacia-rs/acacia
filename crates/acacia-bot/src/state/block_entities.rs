@@ -4,7 +4,7 @@ mod chunks;
 
 use std::collections::HashMap;
 
-use acacia_client::proto::nbt::{Nbt, Value};
+use acacia_client::proto::nbt::{self, root_string, Nbt, Network, Value};
 use acacia_client::proto::packets::{
     BlockEntityData, ChangeDimension, LevelChunk, NetworkChunkPublisherUpdate, StartGame, Subchunk, UpdateBlock, UpdateBlockSynced,
     UpdateSubchunkBlocks,
@@ -80,7 +80,10 @@ impl BlockEntities {
 
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
         match packet.id {
-            BlockEntityData::ID => self.block_entity(packet.decode()?)?,
+            BlockEntityData::ID => {
+                let (position, nbt) = super::block_entity_parts(packet)?;
+                self.block_entity(position, nbt)?;
+            }
             ChangeDimension::ID => self.columns.clear(),
             StartGame::ID => self.air = Some(crate::world::air_wire_id(&packet.decode()?)),
             LevelChunk::ID => self.level_chunk(packet.decode()?),
@@ -140,10 +143,10 @@ impl BlockEntities {
         self.columns.values().all(HashMap::is_empty)
     }
 
-    pub(crate) fn block_entity(&mut self, p: BlockEntityData) -> Result<(), DecodeError> {
+    pub(crate) fn block_entity(&mut self, position: BlockCoordinates, mut nbt: &[u8]) -> Result<(), DecodeError> {
         // A piston or hopper sends this every move: look at the id before decoding it all.
-        if self.keeps_id(p.nbt.root_string("id")?.as_deref()) {
-            self.insert(coords(p.position), p.nbt.decode()?);
+        if self.keeps_id(root_string::<Network>(nbt, "id")?.as_deref()) {
+            self.insert(coords(position), nbt::read::<Network>(&mut nbt)?);
         }
         Ok(())
     }

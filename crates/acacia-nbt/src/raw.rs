@@ -68,10 +68,6 @@ impl<F: Flavor> Raw<F> {
 
     /// `self.decode()?.value.get(key)` when that is a string, without decoding the rest.
     pub fn root_string(&self, key: &str) -> Result<Option<std::borrow::Cow<'_, str>>> {
-        // A key whose bytes appear nowhere is absent; walking the tags would only prove it.
-        if !key.is_empty() && memchr::memmem::find(self.as_bytes(), key.as_bytes()).is_none() {
-            return Ok(None);
-        }
         crate::skip::root_string::<F>(self.as_bytes(), key)
     }
 
