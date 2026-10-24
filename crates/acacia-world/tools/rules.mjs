@@ -91,6 +91,18 @@ export const shapeOverride = (name) => SHAPE_OVERRIDES[short(name)];
 
 export const isDoor = (name) => /_door$/.test(short(name));
 
+// BDS PistonArmBlock::addCollisionShapes (bdsre 1465f8960, tables in 1465f8ec0), by facing_direction:
+// the collar reaching 0.25 into the base, the rod, the plate. BDS adds none without the base's piston actor.
+const ARM = [
+  [[0.3125, 0.75, 0.3125, 0.6875, 1.25, 0.6875], [0.375, 0.25, 0.375, 0.625, 0.75, 0.625], [0, 0, 0, 1, 0.25, 1]],
+  [[0.3125, -0.25, 0.3125, 0.6875, 0.25, 0.6875], [0.375, 0.25, 0.375, 0.625, 0.75, 0.625], [0, 0.75, 0, 1, 1, 1]],
+  [[0.3125, 0.3125, -0.25, 0.6875, 0.6875, 0.25], [0.375, 0.375, 0.25, 0.625, 0.625, 0.75], [0, 0, 0.75, 1, 1, 1]],
+  [[0.3125, 0.3125, 0.75, 0.6875, 0.6875, 1.25], [0.375, 0.375, 0.25, 0.625, 0.625, 0.75], [0, 0, 0, 1, 1, 0.25]],
+  [[-0.25, 0.3125, 0.3125, 0.25, 0.6875, 0.6875], [0.25, 0.375, 0.375, 0.75, 0.625, 0.625], [0.75, 0, 0, 1, 1, 1]],
+  [[0.75, 0.3125, 0.3125, 1.25, 0.6875, 0.6875], [0.25, 0.375, 0.375, 0.75, 0.625, 0.625], [0, 0, 0, 0.25, 1, 1]],
+];
+export const pistonArmShape = (name, props) => (/piston_arm_collision$/.test(short(name)) ? ARM[props.facing_direction] : undefined);
+
 // Boar door shapes keyed by Java facing / open / hinge (BedrockCollision.java).
 const T = 0.1825, U = 1 - T;
 const DOOR = {

@@ -24,7 +24,8 @@ pub struct RegistryWorld<'a, T: ?Sized> {
     pub registry: &'a BlockRegistry,
 }
 
-fn liquid_of(state: &BlockState) -> Option<Liquid> {
+/// The liquid a block state is, if it is one.
+pub fn liquid_of(state: &BlockState) -> Option<Liquid> {
     let kind = if state.is_water() {
         LiquidKind::Water
     } else if state.is_lava() {

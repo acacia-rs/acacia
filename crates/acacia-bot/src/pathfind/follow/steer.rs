@@ -1,5 +1,6 @@
 //! Classic steering: the controls that walk, jump and sprint towards the current node.
 
+use acacia_physics::constants::DEFAULT_GROUND_DRAG as GROUND_DRAG;
 use acacia_physics::{Vec3, WorldView};
 
 use super::{Follower, SETTLED, Sense, center, dir, hdist};
@@ -8,8 +9,6 @@ use crate::pathfind::PathNode;
 use crate::pathfind::moves::MoveKind;
 use crate::pathfind::rollout::Spend;
 
-/// Ground drag per tick (block friction 0.6 × 0.91): coasting from speed `v` covers `v·k/(1-k)`.
-const GROUND_DRAG: f32 = 0.546;
 /// A coast must end this far inside the arrival tolerance.
 const SETTLE_MARGIN: f32 = 0.05;
 /// Ticks a coast is simulated for at most.

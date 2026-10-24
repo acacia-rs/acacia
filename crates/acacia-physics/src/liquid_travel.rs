@@ -112,7 +112,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             // drags at the full level); the speed above by the one before it.
             let strider = (st.equipment.depth_strider as f32).clamp(0.0, 3.0) * if st.on_ground { 1.0 } else { 0.5 };
             if strider > 0.0 && swim_multiplier <= 1.0 {
-                drag += (0.54600006 - drag) * (strider / 3.0);
+                drag += (DEFAULT_GROUND_DRAG - drag) * (strider / 3.0);
             }
             v[0] *= drag;
             v[1] *= 0.8;

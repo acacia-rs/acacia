@@ -2,6 +2,7 @@
 //! simulates sprinting (and sprint-jumping) straight at nodes further on and runs the fastest clean one
 //! instead of the 8-direction staircase between them.
 
+use acacia_physics::constants::DEFAULT_GROUND_DRAG;
 use acacia_physics::{Aabb, BlockPos, WorldView};
 
 use super::PathNode;
@@ -27,8 +28,8 @@ const HELD_AIM_DEG: f32 = 1.0;
 const OVERSHOOT: f32 = 2.0;
 /// Slower than this (blocks/tick), a shortcut has stopped on a target it may not overshoot.
 const FINAL_SPEED: f32 = 0.05;
-/// Ground coast per unit of speed: friction 0.6 × drag 0.91 per tick, k / (1 − k).
-const GROUND_COAST: f32 = 0.546 / (1.0 - 0.546);
+/// Ground coast per unit of speed, k / (1 − k).
+const GROUND_COAST: f32 = DEFAULT_GROUND_DRAG / (1.0 - DEFAULT_GROUND_DRAG);
 /// Flat nodes after the target a shortcut that may overshoot needs: one per block it may land past, and one more.
 const OVERSHOOT_AHEAD: usize = 3;
 
