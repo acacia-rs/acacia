@@ -6,7 +6,7 @@ use crate::mapping::{self, JavaState};
 use crate::nbt::{self, NbtWriter};
 use crate::pack::{biome_bits, block_bits, pack_into};
 use crate::props::{self, PropsTable};
-use crate::section::VOLUME;
+use crate::section::{Blocks, VOLUME};
 
 /// `world_version` of Java 26.3, the version the state table comes from.
 pub const DATA_VERSION: i32 = 5023;
@@ -20,7 +20,6 @@ pub struct BlockEntity {
 
 #[derive(Default)]
 pub struct EncodeScratch {
-    states: Vec<JavaState>,
     /// Palette slot + 1 per Java state, reset after each section.
     slot: Vec<u16>,
     palette: Vec<JavaState>,
@@ -89,9 +88,7 @@ fn write_section(
     let j = mapping::java();
     w.byte("Y", (col.min_section + i as i32) as i8);
 
-    s.states.resize(VOLUME, 0);
-    col.sections[i].copy_to((&mut s.states[..]).try_into().unwrap());
-    build_palette(s, j.state_count());
+    build_palette(s, &col.sections[i], j.state_count());
     w.compound("block_states");
     w.list("palette", nbt::COMPOUND, s.palette.len());
     for &state in &s.palette {
@@ -145,19 +142,43 @@ fn write_state(w: &mut NbtWriter, state: JavaState) {
     w.end();
 }
 
-fn build_palette(s: &mut EncodeScratch, state_count: usize) {
+/// The section's palette in first-occurrence order and each block's index into it (left stale for a
+/// one-entry palette, which writes no data).
+fn build_palette(s: &mut EncodeScratch, blocks: &Blocks, state_count: usize) {
     if s.slot.len() != state_count {
         s.slot = vec![0; state_count];
     }
     s.palette.clear();
-    s.indices.clear();
-    for &st in &s.states {
-        let slot = &mut s.slot[st as usize];
+    s.indices.resize(VOLUME, 0);
+    let (slots, palette) = (&mut s.slot, &mut s.palette);
+    let mut slot_of = |st: JavaState| {
+        let slot = &mut slots[st as usize];
         if *slot == 0 {
-            s.palette.push(st);
-            *slot = s.palette.len() as u16;
+            palette.push(st);
+            *slot = palette.len() as u16;
         }
-        s.indices.push(*slot - 1);
+        *slot - 1
+    };
+    match blocks {
+        Blocks::Uniform(st) => {
+            slot_of(*st);
+        }
+        // Mapped per small index, so a section's own palette (even with repeats) costs one lookup each.
+        Blocks::Small { palette: small, idx } => {
+            let mut map = [u16::MAX; 256];
+            for (o, &i) in s.indices.iter_mut().zip(idx.iter()) {
+                let m = &mut map[i as usize];
+                if *m == u16::MAX {
+                    *m = slot_of(small[i as usize]);
+                }
+                *o = *m;
+            }
+        }
+        Blocks::Full(states) => {
+            for (o, &st) in s.indices.iter_mut().zip(states.iter()) {
+                *o = slot_of(st);
+            }
+        }
     }
     for &st in &s.palette {
         s.slot[st as usize] = 0;
