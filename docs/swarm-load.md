@@ -52,7 +52,8 @@ mobs -31% / -21%, wander -19% / -13%. From:
   per packet); entity maps Fx-hashed.
 
 Tried, no gain: an exact float floor in `probe_area` and an inlined `block_pos` (wander -0.3%); a repr(C) `Entity`
-with the move fields beside the map key (mobs cycles 1.008 over three rounds; the miss is the bucket itself).
+with the move fields beside the map key (mobs cycles 1.008 over three rounds; the miss is the bucket itself); sha2's `asm` backend on testbox's Xeon
+E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%).
 
 ## Left, by owner
 
