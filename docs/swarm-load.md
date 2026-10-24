@@ -39,15 +39,20 @@ with a Monitor. Local polls get reaped on this machine when memory runs short.
 
 ## Results
 
-7c3ff59 (before) against 8f4d01b, instructions / cycles: crowd -4.3% / -12%, redstone -34% / -26%,
-mobs -8.9% / -11%, wander -15% / -10%. From:
+7c3ff59 (before) against dfdb8c2, instructions / cycles: crowd -3.7% / -8%, redstone -59% / -47%,
+mobs -31% / -21%, wander -19% / -13%. From:
 - physics: one tick's block lookups memoised in a dense box; integer floor/ceil instead of libm; one liquid scan.
 - session: batches up to 256 bytes deflated by a fixed-Huffman encoder (zlib reset a 128 KiB table per batch).
-- block entities: the root `id`/`CustomName` read from raw NBT, decoded only when kept; a key whose bytes are
-  absent skips the walk (pistons and observers send BlockEntityData every move).
-- client driver: one timer reset instead of a new sleep per loop pass; entity maps Fx-hashed.
+- block entities: decoded once for both trackers; the root `id`/`CustomName` read from raw NBT, the rest
+  decoded only when kept; a key whose bytes are absent (memmem) skips the walk. Pistons and observers send
+  BlockEntityData every move.
+- client driver: a batch's events go to the bot in one pass (one `select!` per packet before); one timer reset
+  instead of a new sleep per pass.
+- bot: `step` takes a queued event without `select!` while no tick is due (the tick timer was armed and dropped
+  per packet); entity maps Fx-hashed.
 
-Tried, no gain: an exact float floor in `probe_area` and an inlined `block_pos` (wander -0.3%, in the noise).
+Tried, no gain: an exact float floor in `probe_area` and an inlined `block_pos` (wander -0.3%); a repr(C) `Entity`
+with the move fields beside the map key (mobs cycles 1.008 over three rounds; the miss is the bucket itself).
 
 ## Left, by owner
 
