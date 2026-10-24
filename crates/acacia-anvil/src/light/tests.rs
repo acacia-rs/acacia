@@ -210,6 +210,14 @@ fn a_lit_area_matches_lighting_each_column_alone() {
 }
 
 #[test]
+fn every_dampening_fits_a_cell() {
+    let props = props();
+    for s in 0..java().state_count() {
+        super::engine::cell_of(props.get(s as JavaState));
+    }
+}
+
+#[test]
 fn missing_neighbour_reads_opaque() {
     let mut cols = [None; 9];
     let c = ground(0, 0);

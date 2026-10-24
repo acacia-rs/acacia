@@ -15,12 +15,13 @@ use crate::column::JavaColumn;
 use crate::mapping::{AIR, JavaState};
 use crate::props::PropsTable;
 
-/// A cell, one word so a step loads one cache line: dampening in bits 0–3, full occluding faces from bit
-/// `FACE` (one per direction), sky level at bit `SKY`, block level at bit `BLOCK`.
-const OPAQUE: u32 = 15;
-const FACE: u32 = 4;
-const SKY: u32 = 16;
-const BLOCK: u32 = 24;
+/// A cell, everything a step reads in 16 bits: dampening class in bits 0–1 (`engine::cell_of`), full
+/// occluding faces from bit `FACE` (one per direction), sky level at bit `SKY`, block level at `BLOCK`.
+type Cell = u16;
+const OPAQUE: Cell = 3;
+const FACE: u32 = 2;
+const SKY: u32 = 8;
+const BLOCK: u32 = 12;
 
 /// Nibble arrays of one section, in Java's layout (`(y << 8) | (z << 4) | x`, even index low nibble).
 #[derive(Clone)]
@@ -65,7 +66,7 @@ pub struct Lighter {
     lit: usize,
     has_sky: bool,
     cols_x: usize,
-    vox: Vec<u32>,
+    vox: Vec<Cell>,
     emitters: Vec<(u32, u8)>,
     buckets: [Vec<u32>; 16],
     bottom: Vec<u32>,
@@ -153,7 +154,7 @@ impl Lighter {
                 for z in 0..16 {
                     let d = self.at(ox, s * 16 + y, oz + z);
                     let o = (y << 7) | (z << 3);
-                    let row: &[u32; 16] = self.vox[d..d + 16].try_into().unwrap();
+                    let row: &[Cell; 16] = self.vox[d..d + 16].try_into().unwrap();
                     let sky: &mut [u8; 8] = (&mut light.sky[o..o + 8]).try_into().unwrap();
                     let block: &mut [u8; 8] = (&mut light.block[o..o + 8]).try_into().unwrap();
                     pack_row(row, sky, block);
@@ -165,13 +166,12 @@ impl Lighter {
 
 /// 16 levels to 8 nibble pairs, even x in the low nibble.
 #[inline]
-fn pack_row(cells: &[u32; 16], sky: &mut [u8; 8], block: &mut [u8; 8]) {
-    const LEVELS: u32 = 15 << SKY | 15 << BLOCK;
+fn pack_row(cells: &[Cell; 16], sky: &mut [u8; 8], block: &mut [u8; 8]) {
     for x in 0..8 {
-        // Odd x's levels land in the high nibbles: sky in bits 16-23, block in 24-31.
-        let t = cells[2 * x] & LEVELS | (cells[2 * x + 1] & LEVELS) << 4;
-        sky[x] = (t >> SKY) as u8;
-        block[x] = (t >> BLOCK) as u8;
+        // The pair's levels side by side: even sky, even block, odd sky, odd block from bit SKY.
+        let t = (cells[2 * x] >> SKY | cells[2 * x + 1] & 0xFF00) as u32;
+        sky[x] = (t & 0xF | t >> 4 & 0xF0) as u8;
+        block[x] = (t >> 4 & 0xF | t >> 8 & 0xF0) as u8;
     }
 }
 

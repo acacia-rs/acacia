@@ -19,5 +19,6 @@ for r in $(seq "$rounds"); do
     run area "$dir" "$bin/light" side=32 iters=5 mode=area
     run column "$dir" "$bin/light" side=16 iters=3 mode=column
     run bench "$dir" "$bin/bench" 32 "$dir/target/prof/bench-world"
+    run par12 "$dir" "$bin/light" mode=par side=64 iters=2 threads=12
   done
 done

@@ -1,13 +1,21 @@
 //! The volume a [`Lighter`] fills and floods: cells from block states, sky and block light seeds, and
 //! Java's bucketed propagation.
 
-use super::{BLOCK, FACE, Lighter, OPAQUE, SKY};
+use super::{BLOCK, Cell, FACE, Lighter, OPAQUE, SKY};
 use crate::column::JavaColumn;
 use crate::props::{self, DOWN, EAST, NORTH, PropsTable, SOUTH, StateProps, UP, WEST};
 use crate::section::Blocks;
 
-fn cell_of(p: StateProps) -> u32 {
-    p.opacity as u32 | (p.faces as u32) << FACE
+/// Java 26.3 dampens by 0, 1 or 15 only (`light::tests`), kept as classes 0, 1 and 3; `step` turns a
+/// class back into its cost.
+pub(super) fn cell_of(p: StateProps) -> Cell {
+    let class = match p.opacity {
+        0 => 0,
+        1 => 1,
+        15 => 3,
+        o => panic!("light dampening {o} has no cell class"),
+    };
+    class | (p.faces as Cell) << FACE
 }
 
 impl Lighter {
@@ -41,7 +49,7 @@ impl Lighter {
                         }
                     }
                     Blocks::Small { palette, idx } => {
-                        let mut pal = [0u32; 256];
+                        let mut pal: [Cell; 256] = [0; 256];
                         for (c, &st) in pal.iter_mut().zip(palette) {
                             *c = cell_of(props.get(st));
                         }
@@ -102,7 +110,7 @@ impl Lighter {
         self.bottom.resize(pl, (h + 1) as u32);
         self.open.clear();
         self.open.resize(pl, 1);
-        let (blocks, down) = (0xF | 1 << (FACE + UP as u32), 1 << (FACE + DOWN as u32));
+        let (blocks, down): (Cell, Cell) = (3 | 1 << (FACE + UP as u32), 1 << (FACE + DOWN as u32));
         // Layer by layer from the top, so the walk reads memory in order; stops once every column is shut.
         let mut y = h + 1;
         while y > 1 {
@@ -111,7 +119,7 @@ impl Lighter {
             let mut any = 0;
             for ((c, op), bt) in row.iter_mut().zip(&mut self.open).zip(&mut self.bottom) {
                 let lit = *op & (*c & blocks == 0) as u8;
-                *c |= (lit as u32 * 15) << SKY;
+                *c |= (lit as Cell * 15) << SKY;
                 *bt = if lit != 0 { y as u32 } else { *bt };
                 *op = lit & (*c & down == 0) as u8;
                 any |= *op;
@@ -148,7 +156,7 @@ impl Lighter {
 
     pub(super) fn seed_block(&mut self) {
         for &(d, e) in &self.emitters {
-            self.vox[d as usize] |= (e as u32) << BLOCK;
+            self.vox[d as usize] |= (e as Cell) << BLOCK;
             self.buckets[e as usize].push(d);
         }
     }
@@ -160,7 +168,7 @@ impl Lighter {
         for l in (2..16).rev() {
             while let Some(d) = self.buckets[l as usize].pop() {
                 let d = d as usize;
-                let c = self.vox[d];
+                let c = self.vox[d] as u32;
                 if c >> S & 15 != l {
                     continue;
                 }
@@ -189,18 +197,19 @@ impl Lighter {
             return;
         }
         let nb = d.wrapping_add_signed(off);
-        let c = self.vox[nb];
+        let c = self.vox[nb] as u32;
         if c & 1 << (FACE as usize + props::opposite(dir)) != 0 {
             return;
         }
-        let o = c & 15;
-        let nl = if SKY_RULE && l == 15 && o == 0 && dir == DOWN {
+        let class = c & 3;
+        let nl = if SKY_RULE && l == 15 && class == 0 && dir == DOWN {
             15
         } else {
-            l.saturating_sub(o.max(1))
+            // max(1, dampening): 1 for classes 0 and 1, 15 for class 3.
+            l.saturating_sub(1 + (class >> 1) * 14)
         };
         if nl > c >> S & 15 {
-            self.vox[nb] = c & !(15 << S) | nl << S;
+            self.vox[nb] = (c & !(15 << S) | nl << S) as Cell;
             if nl > 1 {
                 self.buckets[nl as usize].push(nb as u32);
             }
