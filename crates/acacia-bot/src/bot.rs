@@ -243,7 +243,8 @@ impl Bot {
         let lagged = self.lag.as_ref().and_then(LagLine::next_at);
         tokio::select! {
             event = self.client.recv() => self.on_event(event?),
-            _ = tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)), if lagged.is_some() => Some(Step::Idle),
+            // In an async block: select! builds a disabled branch's future too, and a bare sleep looks up the timer.
+            _ = async { tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)).await }, if lagged.is_some() => Some(Step::Idle),
             ticks = self.ticker.wait() => {
                 (0..ticks).for_each(|_| self.on_tick());
                 Some(Step::Tick)

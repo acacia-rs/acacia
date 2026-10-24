@@ -68,6 +68,8 @@ impl Driver {
         let mut buf = vec![0u8; RECV_BUFFER];
         let mut pending: VecDeque<Event> = VecDeque::new();
         let (fetched_tx, mut fetched) = mpsc::unbounded_channel();
+        // Downloads not yet reported; the channel is polled only while there are some.
+        let mut fetching = 0usize;
         // One timer for the task's life: a fresh sleep each pass registered and cleared a wheel entry per datagram.
         let sleep = tokio::time::sleep(IDLE_TIMEOUT);
         tokio::pin!(sleep);
@@ -102,6 +104,7 @@ impl Driver {
                 }
             }
             while let Some(pack) = self.session.poll_pack_fetch() {
+                fetching += 1;
                 tokio::spawn(fetch_pack(pack, self.proxy.clone(), fetched_tx.clone()));
             }
             // A pass's events go out as one message; the select below only waits for room in a full queue.
@@ -139,7 +142,8 @@ impl Driver {
                     }
                     None
                 }
-                Some((id, ok)) = fetched.recv() => {
+                Some((id, ok)) = fetched.recv(), if fetching > 0 => {
+                    fetching -= 1;
                     self.session.pack_fetched(Instant::now(), &id, ok);
                     None
                 }
