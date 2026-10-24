@@ -94,10 +94,11 @@ impl Entity {
 }
 
 /// Entities by runtime id, excluding the local player. Off by default (see [`crate::BotConfig`]).
-/// Fx-hashed: every entity move looks one up (~300 k/s across a 50-bot swarm among 300 mobs).
+/// Fx-hashed and boxed: every entity move looks one up (~300 k/s across a 50-bot swarm among 300 mobs),
+/// and a table of whole entities missed the cache on its buckets.
 #[derive(Debug, Default)]
 pub struct Entities {
-    by_runtime: FxHashMap<u64, Entity>,
+    by_runtime: FxHashMap<u64, Box<Entity>>,
     runtime_by_unique: FxHashMap<i64, u64>,
 }
 
@@ -120,7 +121,7 @@ impl Entities {
     ];
 
     pub fn get(&self, runtime_id: u64) -> Option<&Entity> {
-        self.by_runtime.get(&runtime_id)
+        self.by_runtime.get(&runtime_id).map(|e| &**e)
     }
 
     /// Moves a tracked entity the bot itself simulates (a vehicle it drives, which the server does not
@@ -134,7 +135,7 @@ impl Entities {
     }
 
     pub fn by_unique(&self, unique_id: i64) -> Option<&Entity> {
-        self.runtime_by_unique.get(&unique_id).and_then(|r| self.by_runtime.get(r))
+        self.runtime_by_unique.get(&unique_id).and_then(|&r| self.get(r))
     }
 
     pub fn len(&self) -> usize {
@@ -146,7 +147,7 @@ impl Entities {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Entity> {
-        self.by_runtime.values()
+        self.by_runtime.values().map(|e| &**e)
     }
 
     pub fn players(&self) -> impl Iterator<Item = &Entity> {
@@ -247,7 +248,7 @@ impl Entities {
             self.runtime_by_unique.remove(&old.unique_id);
         }
         self.runtime_by_unique.insert(entity.unique_id, entity.runtime_id);
-        self.by_runtime.insert(entity.runtime_id, entity);
+        self.by_runtime.insert(entity.runtime_id, Box::new(entity));
     }
 
     // Hot path (~300/s on busy servers): no allocation. Despite the name, all fields are absolute.
