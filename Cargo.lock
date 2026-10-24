@@ -141,6 +141,7 @@ dependencies = [
  "bytes",
  "compact_str",
  "criterion",
+ "memchr",
  "thiserror 2.0.21",
 ]
 

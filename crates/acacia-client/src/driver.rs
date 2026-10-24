@@ -102,6 +102,17 @@ impl Driver {
             while let Some(pack) = self.session.poll_pack_fetch() {
                 tokio::spawn(fetch_pack(pack, self.proxy.clone(), fetched_tx.clone()));
             }
+            // A batch's events go out in one pass; the select below only waits for room in a full channel.
+            while !pending.is_empty() {
+                match self.events.try_reserve() {
+                    Ok(permit) => permit.send(pending.pop_front().expect("non-empty")),
+                    Err(mpsc::error::TrySendError::Full(())) => break,
+                    Err(mpsc::error::TrySendError::Closed(())) => {
+                        self.session.close(Instant::now());
+                        break;
+                    }
+                }
+            }
             let can_read = self.spawned.is_some() || pending.len() < self.capacity;
             match self.poll_timeout() {
                 Some(deadline) if sleep.deadline() != deadline.into() => sleep.as_mut().reset(deadline.into()),
