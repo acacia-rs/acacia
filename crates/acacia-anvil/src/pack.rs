@@ -31,9 +31,32 @@ pub fn pack_into(indices: &[u16], bits: u32, out: &mut Vec<u64>) {
     }
 }
 
+/// The inverse of [`pack_into`]: fills `out` from `longs`; false if `longs` is too short.
+pub fn unpack(longs: &[u64], bits: u32, out: &mut [u16]) -> bool {
+    let per_long = (64 / bits) as usize;
+    if longs.len() < out.len().div_ceil(per_long) {
+        return false;
+    }
+    let mask = (1u64 << bits) - 1;
+    for (i, o) in out.iter_mut().enumerate() {
+        *o = ((longs[i / per_long] >> ((i % per_long) as u32 * bits)) & mask) as u16;
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unpack_inverts_pack() {
+        let idx: Vec<u16> = (0..100).map(|i| i % 23).collect();
+        let mut longs = Vec::new();
+        pack_into(&idx, 5, &mut longs);
+        let mut back = vec![0; 100];
+        assert!(unpack(&longs, 5, &mut back));
+        assert_eq!(back, idx);
+    }
 
     #[test]
     fn bits() {

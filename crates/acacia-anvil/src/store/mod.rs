@@ -2,8 +2,10 @@
 //!
 //! A column is lit once all eight neighbours are in memory, or when it has waited `max_wait` (an edge of
 //! the explored area). Columns lit without some neighbour are relit when one arrives. Written columns stay
-//! as neighbours until the memory bound evicts the least recently converted ones.
+//! as neighbours until the memory bound evicts the least recently converted ones; an evicted column is
+//! read back from its region file when it is needed as a neighbour or must be relit (`disk.rs`).
 
+mod disk;
 mod write;
 
 use std::collections::{HashMap, HashSet};
@@ -21,7 +23,8 @@ use crate::fixup::Fixups;
 use crate::mapping::JavaState;
 use crate::props::PropsTable;
 use crate::section::VOLUME;
-use write::Worker;
+use disk::Disk;
+use write::{Worker, hash_bytes};
 
 pub struct StoreConfig {
     /// The dimension's `region/` folder ([`region_dir`]).
@@ -60,6 +63,9 @@ pub struct AnvilStore {
     columns: HashMap<(i32, i32), Entry>,
     /// Columns to (re)light and write, with when they first became dirty.
     dirty: HashMap<(i32, i32), Instant>,
+    /// Neighbours of updated columns that were not in memory: relit if they are on disk.
+    stale: HashMap<(i32, i32), Instant>,
+    disk: Disk,
     region_written: HashMap<(i32, i32), Instant>,
     bytes: usize,
     scratch: Scratch,
@@ -95,11 +101,13 @@ impl AnvilStore {
         Ok(Self {
             conv: Converter::new(&registry),
             registry,
+            disk: Disk::new(cfg.region_dir.clone()),
             cfg,
             props: PropsTable::new(),
             fixups: Fixups::new(),
             columns: HashMap::new(),
             dirty: HashMap::new(),
+            stale: HashMap::new(),
             region_written: HashMap::new(),
             bytes: 0,
             scratch: Scratch::default(),
@@ -145,9 +153,52 @@ impl AnvilStore {
                 let p = (pos.0 + dx, pos.1 + dz);
                 if self.columns.contains_key(&p) {
                     self.dirty.entry(p).or_insert(now);
+                } else {
+                    self.stale.entry(p).or_insert(now);
                 }
             }
         }
+    }
+
+    /// Brings back from disk the stale columns (to be relit) and every neighbour a dirty column lacks.
+    fn reload(&mut self) -> Result<(), Error> {
+        for (p, since) in std::mem::take(&mut self.stale) {
+            if self.load(p)? {
+                self.dirty.entry(p).or_insert(since);
+            }
+        }
+        let mut missing: Vec<(i32, i32)> = self
+            .dirty
+            .keys()
+            .flat_map(|&(x, z)| {
+                (-1..=1).flat_map(move |dz| (-1..=1).map(move |dx| (x + dx, z + dz)))
+            })
+            .filter(|p| !self.columns.contains_key(p))
+            .collect();
+        missing.sort_unstable();
+        missing.dedup();
+        for p in missing {
+            self.load(p)?;
+        }
+        Ok(())
+    }
+
+    /// Whether `pos` is in memory, reading it back from its region file if needed.
+    fn load(&mut self, pos: (i32, i32)) -> Result<bool, Error> {
+        if self.columns.contains_key(&pos) {
+            return Ok(true);
+        }
+        let Some((col, nbt)) = self.disk.load(pos)? else {
+            return Ok(false);
+        };
+        self.bytes += col.heap_bytes();
+        let entry = Entry {
+            col,
+            converted: Instant::now(),
+            written: Some(hash_bytes(&nbt)),
+        };
+        self.columns.insert(pos, entry);
+        Ok(true)
     }
 
     fn present(&self, (x, z): (i32, i32)) -> u16 {
@@ -164,6 +215,7 @@ impl AnvilStore {
 
     /// Lights and writes ready columns; `force` writes everything dirty now (shutdown).
     pub fn flush(&mut self, force: bool) -> Result<FlushStats, Error> {
+        self.reload()?;
         let now = Instant::now();
         let mut by_region: HashMap<(i32, i32), Vec<(i32, i32)>> = HashMap::new();
         for (&pos, &since) in &self.dirty {

@@ -131,8 +131,9 @@ def start_server():
 def crawl(args):
     cand = LAB / "candidate/world"
     shutil.rmtree(cand, ignore_errors=True)
+    env = {**os.environ, **({"ANVIL_MEMORY": args.memory} if args.memory is not None else {})}
     run(["cargo", "run", "--release", "-p", "acacia-anvil", "--example", "crawl", "--",
-         f"127.0.0.1:{GEYSER_PORT}", cand, "Anvil", args.radius, args.quiet, args.limit], cwd=REPO)
+         f"127.0.0.1:{GEYSER_PORT}", cand, "Anvil", args.radius, args.quiet, args.limit], cwd=REPO, env=env)
 
 
 def server_region_dir():
@@ -237,6 +238,7 @@ def main():
     ap.add_argument("--quiet", default="15")
     ap.add_argument("--limit", default="300")
     ap.add_argument("--top", default="30")
+    ap.add_argument("--memory", help="crawl store memory limit in bytes (0: neighbours come back from disk)")
     ap.add_argument("--no-scene", dest="scene", action="store_false", help="crawl natural terrain only")
     args = ap.parse_args()
     if args.step in ("all", "server", "crawl"):

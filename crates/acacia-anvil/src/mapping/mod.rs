@@ -1,7 +1,10 @@
 //! Java 26.3 block states and the Bedrock → Java maps, generated from Geyser's mappings
 //! (tools/gen-mapping.mjs; ambiguities in README.md "Mapping").
 
+mod biomes;
 mod blob;
+
+pub use biomes::{Biomes, biomes};
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -246,48 +249,6 @@ fn nearest_mapped(
         })
         .max()
         .map(|(_, _, java)| java)
-}
-
-/// Java biome names by Bedrock biome id; ids Geyser does not map read as plains.
-pub struct Biomes {
-    names: Vec<&'static str>,
-    by_bedrock: HashMap<u32, u16>,
-    plains: u16,
-}
-
-pub fn biomes() -> &'static Biomes {
-    static B: OnceLock<Biomes> = OnceLock::new();
-    B.get_or_init(|| {
-        let list = &java().t.biomes;
-        let names: Vec<&'static str> = list.iter().map(|&(_, n)| n).collect();
-        let by_bedrock = list
-            .iter()
-            .enumerate()
-            .map(|(i, &(id, _))| (id, i as u16))
-            .collect();
-        let plains = names
-            .iter()
-            .position(|n| *n == "minecraft:plains")
-            .expect("plains") as u16;
-        Biomes {
-            names,
-            by_bedrock,
-            plains,
-        }
-    })
-}
-
-impl Biomes {
-    pub fn java(&self, bedrock_id: u32) -> u16 {
-        self.by_bedrock
-            .get(&bedrock_id)
-            .copied()
-            .unwrap_or(self.plains)
-    }
-
-    pub fn name(&self, index: u16) -> &'static str {
-        self.names[index as usize]
-    }
 }
 
 #[cfg(test)]

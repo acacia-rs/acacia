@@ -1,7 +1,8 @@
 //! Joins a server (offline), keeps every chunk it is sent as a Java world under `<world>`, and leaves once no
 //! chunk has changed for `quiet` seconds. `cargo run --release -p acacia-anvil --example crawl --
 //! <server> <world dir> [name] [radius=8] [quiet s=10] [limit s=300]`. `ANVIL_TP="x y z;x y z"` visits points
-//! in turn by `/tp` (the bot must be op), saving each area before moving on.
+//! in turn by `/tp` (the bot must be op), saving each area before moving on. `ANVIL_MEMORY=<bytes>` sets the
+//! store's memory limit (0 evicts every written column, so neighbours come back from the region files).
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -64,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         has_sky: world.dimension().sky,
                         max_wait: quiet,
                         region_interval: Duration::from_secs(2),
-                        memory_limit: 1 << 30,
+                        memory_limit: std::env::var("ANVIL_MEMORY").ok().and_then(|m| m.parse().ok()).unwrap_or(1 << 30),
                         threads: 0,
                     };
                     store = Some(AnvilStore::new(world.registry().clone(), cfg)?);

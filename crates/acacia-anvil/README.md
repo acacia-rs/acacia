@@ -75,8 +75,8 @@ Since Bedrock 26.50, fences, panes, bars, walls, stairs and tripwire carry their
   campfire `signal_fire`, sculk sensor power, scaffolding `bottom`.
 - Huge mushroom blocks through `geyser_custom` lose their faces; the neighbour rule rebuilds Java's
   `updateShape` result (inside faces hidden), not worldgen's (cap undersides are pores in Java worldgen).
-- Light treats a missing neighbour column as opaque. A column relit after a neighbour was evicted from
-  memory loses that neighbour's light; reading evicted neighbours back from the region files is still open.
+- Light treats a neighbour column never seen as opaque (the edge of the explored area). Evicted columns are
+  read back from the region files (`store/disk.rs`), as neighbours and to be relit when a neighbour changes.
 - Light occlusion uses full faces only; Java also blocks light where two partial faces together cover a face.
 
 ## Oracle

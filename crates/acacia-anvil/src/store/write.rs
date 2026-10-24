@@ -35,8 +35,13 @@ impl Worker {
         let light = self.lighter.light(&n, props, has_sky);
         encode_chunk(n.centre(), &light, &[], props, &mut self.enc, &mut self.nbt);
         let hash = hash_bytes(&self.nbt);
-        let unchanged =
-            columns[&pos].written == Some(hash) && region.has_chunk(local(pos.0), local(pos.1));
+        let (lx, lz) = (local(pos.0), local(pos.1));
+        // Not written by this store yet (evicted before, or a previous run): compare with the file.
+        let unchanged = region.has_chunk(lx, lz)
+            && match columns[&pos].written {
+                Some(h) => h == hash,
+                None => region.chunk_nbt(lx, lz).is_some_and(|old| old == self.nbt),
+            };
         Ok((
             pos,
             hash,
@@ -53,7 +58,7 @@ fn local(c: i32) -> usize {
     (c & 31) as usize
 }
 
-fn hash_bytes(b: &[u8]) -> u64 {
+pub(super) fn hash_bytes(b: &[u8]) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     b.hash(&mut h);
@@ -135,6 +140,10 @@ impl AnvilStore {
             self.columns.get_mut(&pos).unwrap().written = Some(hash);
             changed = true;
         }
-        if changed { region.save(&path) } else { Ok(()) }
+        if changed {
+            region.save(&path)?;
+            self.disk.saved((rx, rz), &region);
+        }
+        Ok(())
     }
 }

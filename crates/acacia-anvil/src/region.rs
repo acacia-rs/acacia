@@ -204,6 +204,56 @@ pub fn decode_payload(payload: &[u8]) -> io::Result<Vec<u8>> {
     Ok(out)
 }
 
+/// A region file's offset table (`(sector << 8) | count` per slot); `None` when the file is missing.
+pub fn read_offsets(path: &Path) -> Result<Option<Box<[u32; 1024]>>, Error> {
+    use std::io::Read;
+    let mut f = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(Error::Io(path.to_owned(), e)),
+    };
+    let mut raw = vec![0u8; SECTOR];
+    match f.read_exact(&mut raw) {
+        Ok(()) => {}
+        Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
+        Err(e) => return Err(Error::Io(path.to_owned(), e)),
+    }
+    let mut table = Box::new([0u32; 1024]);
+    for (t, b) in table.iter_mut().zip(raw.as_chunks::<4>().0) {
+        *t = u32::from_be_bytes(*b);
+    }
+    Ok(Some(table))
+}
+
+/// One chunk's decompressed NBT, read at its offset-table entry without loading the rest of the file;
+/// `None` for an empty or unreadable slot.
+pub fn read_chunk_at(path: &Path, loc: u32) -> Result<Option<Vec<u8>>, Error> {
+    use std::io::{Read, Seek, SeekFrom};
+    let (offset, count) = ((loc >> 8) as u64 * SECTOR as u64, (loc & 0xFF) as usize);
+    if offset < 2 * SECTOR as u64 || count == 0 {
+        return Ok(None);
+    }
+    let io_err = |e| Error::Io(path.to_owned(), e);
+    let mut f = fs::File::open(path).map_err(io_err)?;
+    f.seek(SeekFrom::Start(offset)).map_err(io_err)?;
+    let mut len = [0u8; 4];
+    let mut payload = Vec::new();
+    let read = f.read_exact(&mut len).and_then(|()| {
+        let n = u32::from_be_bytes(len) as usize;
+        if n == 0 || n + 4 > count * SECTOR {
+            return Ok(false);
+        }
+        payload.resize(n, 0);
+        f.read_exact(&mut payload).map(|()| true)
+    });
+    match read {
+        Ok(true) => Ok(decode_payload(&payload).ok()),
+        Ok(false) => Ok(None),
+        Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
+        Err(e) => Err(io_err(e)),
+    }
+}
+
 impl Region {
     /// The stored chunk's decompressed NBT, if present.
     pub fn chunk_nbt(&self, local_x: usize, local_z: usize) -> Option<Vec<u8>> {
