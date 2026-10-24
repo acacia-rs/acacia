@@ -182,8 +182,9 @@ proves the light part on rough terrain).
 
 `cargo run --release -p acacia-anvil --example light -- [side=32] [iters=5] [mode=area|column|par]
 [threads=N] [group=8]` lights the scale harness's terrain (below), converted once up front, and prints a
-hash of the extracted light (`7f9a0770720b6e6f` for area, `792de70165426f4d` per column on Linux; equal
-hashes = identical light). `tools/profile_light.sh <stat|record|annotate|heaptrack|time> <light|bench>`
+hash of the extracted light (`side=32 iters=5`: `7f9a0770720b6e6f` for area; `side=16`:
+`792de70165426f4d` per column; the same on Windows and Linux; equal hashes for equal arguments =
+identical light). `tools/profile_light.sh <stat|record|annotate|heaptrack|time> <light|bench>`
 profiles it on Linux, `tools/ab_light.sh <checkout A> <checkout B>` runs interleaved `perf stat` A/B.
 
 Testbox (Xeon E-2136, 6 cores / 12 threads), 2026-10-24, before the light work → now:
