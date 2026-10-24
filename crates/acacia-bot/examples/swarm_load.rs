@@ -2,6 +2,7 @@
 //! first `wanderers` of them walking with physics between random spots near spawn, the rest
 //! standing. Every bot tracks entities, so each sees the others. Prints swarm events as JSON lines.
 //! `cargo run --release -p acacia-bot --example swarm_load -- <server> <bots> <wanderers> [seconds] [shards]`
+//! `JOIN_MS` replaces the swarm's 500 ms join spacing.
 use std::time::Duration;
 
 use acacia_bot::pathfind::{Goal, GotoOpts, NavStatus, Navigator};
@@ -66,6 +67,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         trackers: Trackers { entities: true, ..Trackers::default() },
         ..BotConfig::default()
     });
+    if let Some(ms) = std::env::var("JOIN_MS").ok().map(|s| s.parse()).transpose()? {
+        builder = builder.join_spacing(Duration::from_millis(ms), Duration::from_millis(ms / 2));
+    }
     if let Some(shards) = rest.get(1) {
         builder = builder.shards(shards.parse()?);
     }
