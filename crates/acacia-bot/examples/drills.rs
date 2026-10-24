@@ -111,6 +111,8 @@ const fn lane(name: &'static str, fills: &'static [Fill], y: f32) -> Drill {
 }
 
 const SLIME: &[Fill] = &[([-1, -1, -1], [1, -1, 1], "slime")];
+/// A piston at x+3 pushing east (facing_direction 4), powered from the side: its arm fills x+4 at z+1.
+const ARM: &[Fill] = &[([3, 0, 1], [3, 0, 1], "piston [\"facing_direction\"=4]"), ([3, 0, 2], [3, 0, 2], "redstone_block")];
 const BOUNCE: &[Step] = &[(100, 0.0, false, false, 0.0, false)];
 
 /// Dropped onto a slime floor from `y`, then left to bounce out.
@@ -295,6 +297,10 @@ const DRILLS: &[Drill] = &[
     reswim("pinbub5j", BUBBLES_WALL, &pinned_steps(5, true, 180.0)), reswim("pinbub5", BUBBLES_WALL, &pinned_steps(5, false, 180.0)),
     drill("pinland5", WALL3, &pinned_steps(5, false, 180.0)), drill("pinland1", WALL3, &pinned_steps(1, false, 180.0)),
     drill("pinland20", WALL3, &pinned_steps(20, false, 180.0)), drill("pinland5side", WALL3, &pinned_steps(5, false, 80.0)),
+    // Clear of the plate (x+4.75..5): walking +z meets the collar at z+1.3125, a full cube at z+1; dropped, the
+    // collar's top is at y+0.6875 (crates/acacia-world/tools/rules.mjs).
+    Drill { name: "armwalk", fills: ARM, start: [4.35, 0.0, -0.5], settle: 30, steps: &[(30, 1.0, false, false, 90.0, false), STOP], pitch: 0.0 },
+    Drill { name: "armdrop", fills: ARM, start: [4.35, 2.0, 1.5], settle: 30, steps: FALL, pitch: 0.0 },
 ];
 
 #[tokio::main(flavor = "current_thread")]
