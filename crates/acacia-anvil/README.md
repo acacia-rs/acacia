@@ -108,6 +108,24 @@ Results (2026-10-24, about 400 columns around the scene):
 | scene, Java light dump, `geyser_custom` mapped | 689 492 | 100.00% | 96: only the artificial cases above | 0 |
 | scene without the artificial cases, area cleared first | 689 468 (911 890 without `--inset`) | 100.00% | 0 | 0 |
 
+## Live updates
+
+`py -3 crates/acacia-anvil/tools/live.py [--side 40]` runs bluemap-rs `bluemap -u` (built as the oracle builds
+it, `update-cooldown: 1`) on a synthetic world that `examples/live.rs` writes while it watches (40×40
+chunks, four regions), and checks:
+
+- a. a block placed in a chunk's interior re-renders exactly the hires tiles over that chunk (4), and only the
+  one holding the block changes;
+- b. re-sending unchanged chunks writes nothing (region file byte-identical, no update scheduled); rewriting
+  a region for one changed chunk next to unchanged ones re-renders only the changed chunk's tiles;
+- c. four bursts of edits (glowstone, gold, stone, air), each started as bluemap begins a region update, so
+  regions are replaced while bluemap reads them: a reader thread parses every region version it can open
+  (no torn file, no temp file left), bluemap logs no warning, and the incremental map equals a fresh `-r -f`
+  render of the final world (every face, lowres pixels).
+
+Result (2026-10-24): all pass; 716 region reads, 0 torn, 6 writes landed during a region update; incremental
+render 4 374 744 of 4 374 744 faces identical to the fresh one, lowres 0 pixels differ.
+
 ## Throughput
 
 `cargo run --release -p acacia-anvil --example bench -- 32` (synthetic terrain, 1024 columns, 2026-10-24, this
