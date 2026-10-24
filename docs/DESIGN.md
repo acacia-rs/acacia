@@ -121,6 +121,9 @@ the proxy (`crates/acacia-mitm/src/transfer.rs`). What is left: [mitm-next.md](m
   (`reliability/congestion.rs`) and scheduled instead of scanned peers (`schedule.rs`). The client shares the
   code but sends unwindowed: its pacing is part of the fingerprint. Still open: RakNet has no integrity, so a
   spoofed *connected* datagram can still end a session; pings are not rate limited; no per-IP peer limit.
+- A bad link to test against: `cargo run -p acacia-raknet --example lossy_proxy -- <listen> <server>
+  [--delay ms] [--jitter ms] [--loss %] [--up-loss %] [--down-loss %] [--seed n]` relays UDP, delaying,
+  reordering and dropping datagrams each way; a client connects to it in place of the server.
 - Bedrock UUIDs travel as two little-endian u64 halves; `proto::manual::Uuid` keeps wire bytes and converts
   only in `Display`/`FromStr`.
 - Joining BDS sends `Respawn(searching)` without a death; vanilla answers none of them (`handlers.rs`).
