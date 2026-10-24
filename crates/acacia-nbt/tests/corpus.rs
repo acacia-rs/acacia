@@ -1,6 +1,6 @@
 //! Real documents (corpus/, see README.md) and seeded mutations of them.
 
-use acacia_nbt::{Flavor, LittleEndian, Network, read, write};
+use acacia_nbt::{Flavor, LittleEndian, Nbt, Network, Raw, Value, read, write};
 use bytes::BytesMut;
 
 #[path = "common/corpus.rs"]
@@ -32,6 +32,35 @@ fn network_corpus_is_byte_exact() {
 #[test]
 fn le_corpus_is_byte_exact() {
     byte_exact::<LittleEndian>("le");
+}
+
+fn root_strings_match_decoding<F: Flavor>(flavour: &str) {
+    for (name, bytes) in corpus::load(flavour) {
+        let raw = Raw::<F>::read(&mut &bytes[..]).unwrap();
+        let nbt = raw.decode().unwrap();
+        let keys: Vec<String> = match &nbt.value {
+            Value::Compound(entries) => entries.iter().map(|(k, _)| k.to_string()).collect(),
+            _ => Vec::new(),
+        };
+        for key in keys.iter().map(String::as_str).chain(["no such key"]) {
+            let want = match nbt.value.get(key) {
+                Some(Value::String(s)) => Some(s.to_string()),
+                _ => None,
+            };
+            assert_eq!(raw.root_string(key).unwrap().map(|s| s.into_owned()), want, "{name}: {key}");
+        }
+    }
+}
+
+#[test]
+fn root_string_matches_decoding() {
+    root_strings_match_decoding::<Network>("network");
+    root_strings_match_decoding::<LittleEndian>("le");
+    let doubled = Nbt {
+        name: "".into(),
+        value: Value::Compound(vec![("id".into(), Value::Int(1)), ("id".into(), Value::String("Sign".into()))]),
+    };
+    assert_eq!(Raw::<Network>::from(&doubled).root_string("id").unwrap(), None, "the first `id` is not a string");
 }
 
 struct XorShift(u64);

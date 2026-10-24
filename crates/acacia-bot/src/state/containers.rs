@@ -1,6 +1,5 @@
 use std::collections::{HashMap, VecDeque};
 
-use acacia_client::proto::nbt::Value;
 use acacia_client::proto::packets::{
     BlockEntityData, ContainerClose, ContainerOpen, ContainerSetData, InventoryContent, InventorySlot, ItemStackResponse,
     UpdateTrade,
@@ -143,8 +142,8 @@ impl Containers {
             }
             BlockEntityData::ID => {
                 let p: BlockEntityData = packet.decode()?;
-                if let Some(Value::String(name)) = p.nbt.decode()?.value.get("CustomName") {
-                    self.name_block(&p.position, name);
+                if let Some(name) = p.nbt.root_string("CustomName")? {
+                    self.name_block(&p.position, &name);
                 }
             }
             _ => {}

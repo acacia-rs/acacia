@@ -66,6 +66,11 @@ impl<F: Flavor> Raw<F> {
         read::<F>(&mut self.as_bytes())
     }
 
+    /// `self.decode()?.value.get(key)` when that is a string, without decoding the rest.
+    pub fn root_string(&self, key: &str) -> Result<Option<std::borrow::Cow<'_, str>>> {
+        crate::skip::root_string::<F>(self.as_bytes(), key)
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         self.bytes.as_slice()
     }

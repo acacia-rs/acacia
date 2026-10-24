@@ -82,9 +82,9 @@ impl BlockEntities {
         match packet.id {
             BlockEntityData::ID => {
                 let p: BlockEntityData = packet.decode()?;
-                let nbt = p.nbt.decode()?;
-                if self.keeps(&nbt) {
-                    self.insert(coords(p.position), nbt);
+                // A piston or hopper sends this every move: look at the id before decoding it all.
+                if self.keeps_id(p.nbt.root_string("id")?.as_deref()) {
+                    self.insert(coords(p.position), p.nbt.decode()?);
                 }
             }
             ChangeDimension::ID => self.columns.clear(),
@@ -151,7 +151,12 @@ impl BlockEntities {
     }
 
     fn keeps(&self, nbt: &Nbt) -> bool {
-        self.tracking == BlockEntityTracking::All || is_sign(nbt)
+        self.keeps_id(id(nbt))
+    }
+
+    /// [`Self::keeps`] from the block entity's `id` alone.
+    fn keeps_id(&self, id: Option<&str>) -> bool {
+        self.tracking == BlockEntityTracking::All || id.is_some_and(is_sign_id)
     }
 
     /// Only updates to air remove: servers resend the clicked block after a rejected use, which
@@ -169,7 +174,18 @@ impl BlockEntities {
 
 /// `Sign` or `HangingSign` block entity data.
 fn is_sign(nbt: &Nbt) -> bool {
-    matches!(nbt.value.get("id"), Some(Value::String(id)) if id.ends_with("Sign"))
+    id(nbt).is_some_and(is_sign_id)
+}
+
+fn is_sign_id(id: &str) -> bool {
+    id.ends_with("Sign")
+}
+
+fn id(nbt: &Nbt) -> Option<&str> {
+    match nbt.value.get("id") {
+        Some(Value::String(id)) => Some(id),
+        _ => None,
+    }
 }
 
 fn coords(p: BlockCoordinates) -> [i32; 3] {

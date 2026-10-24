@@ -1,4 +1,4 @@
-use acacia_client::proto::nbt::Nbt;
+use acacia_client::proto::nbt::{Nbt, Value};
 use acacia_client::proto::types::{WindowID, WindowIDVarint};
 
 use super::*;
