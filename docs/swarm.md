@@ -61,6 +61,8 @@ Joins to one target are spaced `500 ± 250 ms` across all shards (reconnects too
 restart does not arrive as a burst. Different targets do not wait for each other. Spacing is per node, which is
 enough under the placement rule below; per-IP limits are left to one proxy per account plus each bot's backoff.
 
+Busy-world load profiles and the A/B loop: see docs/swarm-load.md.
+
 ## Horizontal scaling
 The library is the node; placement is the coordinator's job (the AFK service). It gets:
 - `snapshot().shard_load` and per-bot status for placement and health.
