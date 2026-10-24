@@ -80,13 +80,7 @@ impl BlockEntities {
 
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
         match packet.id {
-            BlockEntityData::ID => {
-                let p: BlockEntityData = packet.decode()?;
-                // A piston or hopper sends this every move: look at the id before decoding it all.
-                if self.keeps_id(p.nbt.root_string("id")?.as_deref()) {
-                    self.insert(coords(p.position), p.nbt.decode()?);
-                }
-            }
+            BlockEntityData::ID => self.block_entity(packet.decode()?)?,
             ChangeDimension::ID => self.columns.clear(),
             StartGame::ID => self.air = Some(crate::world::air_wire_id(&packet.decode()?)),
             LevelChunk::ID => self.level_chunk(packet.decode()?),
@@ -144,6 +138,14 @@ impl BlockEntities {
 
     pub fn is_empty(&self) -> bool {
         self.columns.values().all(HashMap::is_empty)
+    }
+
+    pub(crate) fn block_entity(&mut self, p: BlockEntityData) -> Result<(), DecodeError> {
+        // A piston or hopper sends this every move: look at the id before decoding it all.
+        if self.keeps_id(p.nbt.root_string("id")?.as_deref()) {
+            self.insert(coords(p.position), p.nbt.decode()?);
+        }
+        Ok(())
     }
 
     pub(crate) fn insert(&mut self, pos: [i32; 3], nbt: Nbt) {

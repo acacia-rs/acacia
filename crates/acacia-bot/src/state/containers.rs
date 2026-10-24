@@ -140,13 +140,16 @@ impl Containers {
                     }
                 }
             }
-            BlockEntityData::ID => {
-                let p: BlockEntityData = packet.decode()?;
-                if let Some(name) = p.nbt.root_string("CustomName")? {
-                    self.name_block(&p.position, &name);
-                }
-            }
+            BlockEntityData::ID => self.block_entity(&packet.decode()?)?,
             _ => {}
+        }
+        Ok(())
+    }
+
+    /// A block entity's update: remembers its `CustomName` for titling windows.
+    pub(crate) fn block_entity(&mut self, p: &BlockEntityData) -> Result<(), DecodeError> {
+        if let Some(name) = p.nbt.root_string("CustomName")? {
+            self.name_block(&p.position, &name);
         }
         Ok(())
     }

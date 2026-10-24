@@ -47,7 +47,7 @@ pub(crate) use player_list::PlayerChange;
 pub use scoreboard::{Objective, ScoreEntry, Scoreboard, SortOrder, SLOT_BELOW_NAME, SLOT_LIST, SLOT_SIDEBAR};
 pub use signs::{SignEditor, Signs};
 
-use acacia_client::proto::packets::SetEntityData;
+use acacia_client::proto::packets::{BlockEntityData, SetEntityData};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
 use crate::forms::Forms;
@@ -144,6 +144,15 @@ impl GameState {
     /// Routes one packet to every tracker that consumes its ID.
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
         let id = packet.id;
+        // Two trackers read it, and decoding it walks the NBT (pistons send one every move): decode once.
+        if id == BlockEntityData::ID {
+            let p: BlockEntityData = packet.decode()?;
+            self.containers.block_entity(&p)?;
+            if self.trackers.block_entities.packets().contains(&id) {
+                self.block_entities.block_entity(p)?;
+            }
+            return Ok(());
+        }
         if PlayerState::PACKETS.contains(&id) {
             self.player.apply(packet)?;
         }
