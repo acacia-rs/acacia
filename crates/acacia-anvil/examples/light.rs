@@ -1,6 +1,7 @@
 //! Light only, on the scale harness's terrain converted once up front: `cargo run --release -p acacia-anvil
-//! --example light -- [side=32] [iters=5] [mode=both|area|column]`. One thread; prints columns/s, heap
-//! allocations per column and a hash of every extracted light array (equal hashes = identical light).
+//! --example light -- [side=32] [iters=5] [mode=both|area|column|par] [threads=0] [group=8]`. area and
+//! column run on one thread and print columns/s, heap allocations per column and a hash of every
+//! extracted light array (equal hashes = identical light); par lights `group`² areas on `threads` workers.
 #[allow(dead_code)]
 #[path = "scale/terrain.rs"]
 mod terrain;
@@ -98,15 +99,53 @@ fn run_column(w: &World, l: &mut Lighter, p: &PropsTable, mut h: Option<&mut Def
     [t.elapsed(), Duration::ZERO]
 }
 
+/// `threads` workers, each with its own Lighter, take `group`×`group` areas off a shared counter for
+/// `iters` passes: columns per second of wall time, light + extract.
+fn run_par(w: &World, p: &PropsTable, threads: usize, group: i32, iters: u32) -> f64 {
+    let per_row = (w.side + group - 1) / group;
+    let jobs = (per_row * per_row) as usize * iters as usize;
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let t = Instant::now();
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                let (mut l, mut area, mut out) = (Lighter::default(), Vec::new(), Vec::new());
+                loop {
+                    let j = next.fetch_add(1, Relaxed);
+                    if j >= jobs {
+                        break;
+                    }
+                    let g = (j % (per_row * per_row) as usize) as i32;
+                    let (gx, gz) = (g % per_row * group, g / per_row * group);
+                    let (x1, z1) = ((gx + group).min(w.side), (gz + group).min(w.side));
+                    area.clear();
+                    area.extend((gz - 1..=z1).flat_map(|z| (gx - 1..=x1).map(move |x| w.get(x, z))));
+                    l.light_area(&area, (x1 - gx + 2) as usize, p, true);
+                    for z in gz..z1 {
+                        for x in gx..x1 {
+                            let n = w.get(x, z).unwrap().sections.len();
+                            l.extract_into((x - gx + 1) as usize, (z - gz + 1) as usize, n, &mut out);
+                        }
+                    }
+                }
+            });
+        }
+    });
+    (w.side * w.side) as f64 * iters as f64 / t.elapsed().as_secs_f64()
+}
+
 type Run = fn(&World, &mut Lighter, &PropsTable, Option<&mut DefaultHasher>) -> [Duration; 2];
 
 fn main() {
     let (mut side, mut iters, mut mode) = (32i32, 5u32, "both".to_string());
+    let (mut threads, mut group) = (0usize, 8i32);
     for arg in std::env::args().skip(1) {
         match arg.split_once('=') {
             Some(("side", v)) => side = v.parse().expect("side"),
             Some(("iters", v)) => iters = v.parse().expect("iters"),
             Some(("mode", v)) => mode = v.to_string(),
+            Some(("threads", v)) => threads = v.parse().expect("threads"),
+            Some(("group", v)) => group = v.parse().expect("group"),
             _ => panic!("unknown argument {arg}"),
         }
     }
@@ -120,6 +159,12 @@ fn main() {
     let world = World { side, cols };
     let props = PropsTable::new();
     let n = (side * side) as f64 * iters as f64;
+    if mode == "par" {
+        let t = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads };
+        let rate = run_par(&world, &props, t, group, iters);
+        println!("par: {t} threads, {group}x{group} groups: {rate:.0} columns/s light + extract");
+        return;
+    }
     let runs: [(&str, Run); 2] = [("area", run_area), ("column", run_column)];
     for (name, run) in runs {
         if mode != "both" && mode != name {
