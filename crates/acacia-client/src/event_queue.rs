@@ -55,7 +55,8 @@ impl EventSender {
 
     fn send_permitted(&self, pending: &mut Vec<Event>, n: usize) -> Result<(), Closed> {
         // Usually the whole queue goes: hand its buffer over rather than copy it out.
-        let batch = if n == pending.len() { std::mem::replace(pending, Vec::with_capacity(n)) } else { pending.drain(..n).collect() };
+        // Capped: a join burst's size would ride along with every later batch.
+        let batch = if n == pending.len() { std::mem::replace(pending, Vec::with_capacity(n.min(64))) } else { pending.drain(..n).collect() };
         self.tx.send((batch, n)).map_err(|_| Closed)
     }
 }

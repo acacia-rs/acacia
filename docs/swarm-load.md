@@ -57,7 +57,8 @@ mobs -8% / -56%, wander -4% / -44%. From:
   CraftingData and CreativeContent kept as one owned body (each slice pinned the bot's whole 2.5 MB join batch).
   50 bots in crowd: 6.1 MB a bot before.
 - client: a pass's events go to the bot as one message, with `event_capacity` kept by a semaphore
-  (`event_queue.rs`); a pack-fetch channel polled only while downloads run.
+  (`event_queue.rs`); one PacketTrace lock per pass; a pack-fetch channel polled only while downloads run.
+- block entities: with only signs kept, a document without the bytes "Sign" is skipped unwalked.
 - bot: UpdateAttributes and SetEntityData peeked for their entity id before decoding; BlockEntityData NBT read
   in place; one tick timer per bot; entities boxed in their map (mobs cycles -1.7%).
 - session: a batch is encoded into one buffer.
@@ -79,6 +80,8 @@ E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%
   datagram.
 - Bot cadence: a shared tick grid per shard instead of a per-bot 20 Hz timer, estimated crowd -10-20% cycles,
   changes tick phases between bots (a realism call).
+- Client: running the connection in the bot's task (no driver task) was estimated at crowd and mobs -8-12%,
+  but a connection would then live only while its bot is polled; today it outlives any await. An API call.
 - Server: sapling sends every player's skin to each joiner in one PlayerList batch; past ~57 bots that tops
   acacia's 16 MiB batch limit and bots reconnect in a loop.
 - Inherent: sha256 per packet (testbox lacks SHA-NI), one wakeup per datagram.
