@@ -8,6 +8,7 @@
 #   SWARM_BIN=<path> runs that swarm_load build and skips both builds (tools/swarm-load-ab.sh).
 #   PERF=stat counts only (no perf record, no report); PORT, SERVER_CPUS, SWARM_CPUS place a second run.
 #   JOIN_MS (default 100) spaces the joins; SETTLE (default 25 s) runs after the last spawn.
+#   WRAP=<cmd> runs the swarm under it (WRAP="heaptrack -o <file>"); perf still attaches to the swarm.
 #   LOCK=1 takes ~/bench.lock first. Instructions don't need it; cycles do (other sessions hold it for an hour).
 #   Writes <out dir>/report.txt: joins, swarm and server CPU, perf stat over the window, then self time
 #   by module and function, then inclusive. The server has its own cores: its CPU near one core means
@@ -78,8 +79,10 @@ server=$!
 stop() { kill ${swarm:-} 2>/dev/null; kill -INT $server 2>/dev/null; timeout 30 tail --pid=$server -f /dev/null || kill -KILL $server; }
 trap stop EXIT
 timeout 60 bash -c "until grep -q started '$out/server.log'; do sleep 1; done" || { tail "$out/server.log"; exit 1; }
-JOIN_MS=${JOIN_MS:-100} RUST_LOG=warn taskset -c "$swarm_cpus" "$swarm_bin" 127.0.0.1:"$port" "$bots" "$wanderers" 3600 >"$out/swarm.log" 2>&1 &
+JOIN_MS=${JOIN_MS:-100} RUST_LOG=warn taskset -c "$swarm_cpus" ${WRAP:-} "$swarm_bin" 127.0.0.1:"$port" "$bots" "$wanderers" 3600 >"$out/swarm.log" 2>&1 &
 swarm=$!
+# A wrapper (WRAP=heaptrack) is the parent; perf and /proc want the swarm itself.
+[ -z "${WRAP:-}" ] || { for _ in $(seq 30); do child=$(pgrep -nf "^$swarm_bin 127.0.0.1:$port") && break; sleep 1; done; swarm=${child:-$swarm}; }
 spawned() { grep -c '"event":"spawned"' "$out/swarm.log"; }
 start=$SECONDS
 until [ "$(spawned)" -ge "$bots" ] || [ $((SECONDS - start)) -ge $((bots + 60)) ]; do sleep 1; done
@@ -89,6 +92,9 @@ sleep "$settle"
 ticks() { awk '{print $14 + $15}' "/proc/$1/stat"; }
 ms() { echo $(( ($2 - $1) * 1000 / $(getconf CLK_TCK) )); }
 server0=$(ticks $server)
+# Loopback UDP is box-wide; the window's deltas are this run's when nothing else is running.
+udp() { awk '/^Udp:/ && $2 ~ /^[0-9]/ {print $2, $5, $3}' /proc/net/snmp; }
+udp0=$(udp)
 sudo perf stat -e task-clock,cycles,instructions,context-switches -p "$swarm" -o "$out/stat.txt" -- sleep "$window" &
 stat=$!
 if [ "${PERF:-record}" = record ]; then
@@ -96,6 +102,8 @@ if [ "${PERF:-record}" = record ]; then
 fi
 wait $stat
 server1=$(ticks $server)
+udp1=$(udp)
+mem() { awk '/VmHWM|VmRSS/ {printf "%s %d MB  ", $1, $2 / 1024}' "/proc/$1/status"; }
 
 plain() { sed 's/\x1b\[[0-9;]*m//g' "$out/server.log" | grep -o "$1.*" | head -1; }
 {
@@ -103,6 +111,8 @@ plain() { sed 's/\x1b\[[0-9;]*m//g' "$out/server.log" | grep -o "$1.*" | head -1
   echo "spawned: $(spawned) of $bots; disconnects: $(grep -c '"event":"disconnected"' "$out/swarm.log")"
   echo "server: $(plain 'load world built') / $(plain 'lamps lit')"
   echo "swarm CPU: $(awk '/task-clock/ {printf "%d", $1}' "$out/stat.txt") ms; server CPU: $(ms "$server0" "$server1") ms (one core = $((window * 1000)) ms)"
+  echo "swarm memory: $(mem $swarm); server memory: $(mem $server)"
+  echo "$udp0 $udp1" | awk -v w=$window '{printf "box UDP over the window: %d in / %d out datagrams/s, %d no-port\n", ($4-$1)/w, ($5-$2)/w, ($6-$3)/w}'
   echo "box load: $(cut -d' ' -f1-3 /proc/loadavg)"
 } >"$out/summary.txt"
 write_report "$out"
