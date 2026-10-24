@@ -1,9 +1,10 @@
 //! Conversion throughput on synthetic terrain (stone to y 60 with scattered blocks, grass, torches):
 //! `cargo run --release -p acacia-anvil --example bench -- [side=20] [out dir]`. Prints columns/s for
-//! convert (`update`) and for light + encode + write (`flush`).
+//! convert (`update`) and for light + encode + write (`flush`). `ANVIL_THREADS=n` workers,
+//! `ANVIL_COMPRESSION=zlib[:level]|lz4|none` chunk compression.
 use std::time::{Duration, Instant};
 
-use acacia_anvil::{AnvilStore, StoreConfig};
+use acacia_anvil::{AnvilStore, Compression, StoreConfig};
 use acacia_world::{BlockRegistry, Chunk, Dimension};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -69,6 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .ok()
             .and_then(|t| t.parse().ok())
             .unwrap_or(0),
+        compression: Compression::from_env_or_default("ANVIL_COMPRESSION")?,
     };
     let mut store = AnvilStore::new(reg.clone(), cfg)?;
     let t = Instant::now();

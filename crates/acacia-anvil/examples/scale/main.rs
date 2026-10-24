@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use acacia_anvil::{AnvilStore, StoreConfig, StoreStats};
+use acacia_anvil::{AnvilStore, Compression, StoreConfig, StoreStats};
 use acacia_world::BlockRegistry;
 use bots::{Field, Pos};
 use terrain::{Terrain, mix};
@@ -33,6 +33,7 @@ struct Args {
     report: f64,
     check: usize,
     threads: usize,
+    compression: Compression,
     out: PathBuf,
 }
 
@@ -54,6 +55,7 @@ impl Default for Args {
             report: 600.0,
             check: 0,
             threads: 0,
+            compression: Compression::default(),
             out: PathBuf::from("target/scale"),
         }
     }
@@ -83,6 +85,7 @@ fn parse() -> Result<Args, String> {
             "report" => a.report = num(v, &arg)?,
             "check" => a.check = num(v, &arg)?,
             "threads" => a.threads = num(v, &arg)?,
+            "compression" => a.compression = v.parse()?,
             "out" => a.out = v.into(),
             _ => return Err(format!("unknown key: {k}")),
         }
@@ -115,6 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             region_hold: secs(a.hold),
             memory_limit: a.memory_mb << 20,
             threads: a.threads,
+            compression: a.compression,
         },
     )?;
     let field = Field { side: a.side, radius: a.radius, stride: a.stride };
@@ -214,8 +218,9 @@ fn summary(a: &Args, s: &StoreStats, unique: u64, converted: u64, real: f64, t: 
     let ms = |d: Duration| format!("{:.1}s", d.as_secs_f64());
     let (_, peak) = check::memory();
     println!(
-        "side {} ({} blocks), {} bots r{} {} ch/s, scale {}, memory {} MB, interval {} s, hold {} s, wait {} s",
-        a.side, a.side * 16, a.bots, a.radius, a.speed, a.scale, a.memory_mb, a.interval, a.hold, a.wait
+        "side {} ({} blocks), {} bots r{} {} ch/s, scale {}, memory {} MB, interval {} s, hold {} s, wait {} s, {:?}",
+        a.side, a.side * 16, a.bots, a.radius, a.speed, a.scale, a.memory_mb, a.interval, a.hold, a.wait,
+        a.compression
     );
     println!(
         "{unique} chunks ({converted} conversions) in {real:.1}s: {:.0} unique/s wall, {:.0}/s of store time; peak working set {:.0} MB",

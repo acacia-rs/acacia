@@ -19,6 +19,7 @@ fn debounced(dir: &Path, memory_limit: usize, interval: Duration, hold: Duration
         region_hold: hold,
         memory_limit,
         threads: 2,
+        compression: Compression::default(),
     };
     AnvilStore::new(BlockRegistry::vanilla_arc(), cfg).unwrap()
 }
@@ -188,5 +189,33 @@ fn rewrites_bump_the_timestamp_and_unchanged_columns_keep_it() {
         ts().unwrap() > first,
         "a change within the same second still moves it"
     );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_compression_change_rewrites_only_changed_chunks() {
+    let dir = temp_dir("compression");
+    let path = dir.join(region_file_name(0, -1));
+    let stored = || {
+        let r = Region::load(&path).unwrap();
+        (r.compression_type(3, 30).unwrap(), r.timestamp(3, 30).unwrap())
+    };
+    let mut s = store(&dir);
+    s.update(&chunk(5), []);
+    s.flush(true).unwrap();
+    let (kind, first) = stored();
+    assert_eq!(kind, 2);
+
+    let mut s = store(&dir);
+    s.cfg.compression = Compression::Lz4;
+    s.update(&chunk(5), []);
+    s.flush(true).unwrap();
+    assert_eq!(stored(), (2, first), "same NBT as on disk: slot kept as zlib");
+    s.update(&chunk(6), []);
+    s.flush(true).unwrap();
+    let (kind, ts) = stored();
+    assert!(kind == 4 && ts > first, "changed: rewritten as LZ4");
+    let col = crate::decode::decode_chunk(&Region::load(&path).unwrap().chunk_nbt(3, 30).unwrap()).unwrap();
+    assert_eq!((col.x, col.z), (3, -2));
     std::fs::remove_dir_all(&dir).unwrap();
 }

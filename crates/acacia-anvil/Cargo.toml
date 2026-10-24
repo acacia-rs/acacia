@@ -11,9 +11,12 @@ rust-version.workspace = true
 acacia-nbt.workspace = true
 acacia-world.workspace = true
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
+lz4_flex = { version = "0.14", default-features = false, features = ["std", "checked-decode"] }
 thiserror = "2"
+twox-hash = { version = "2.1", default-features = false, features = ["xxhash32", "xxhash3_64"] }
 
 [dev-dependencies]
+libdeflater = "1.26"
 acacia-bot = { path = "../acacia-bot" }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }

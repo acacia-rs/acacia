@@ -7,8 +7,9 @@ Usage: py -3 crates/acacia-anvil/tools/mca_block.py <world> [<world> ...] -- x,y
 import os
 import struct
 import sys
-import zlib
 from pathlib import Path
+
+from regions import decode_payload
 
 
 def nbt(buf: bytes):
@@ -64,7 +65,7 @@ def chunk(world: Path, cx: int, cz: int):
                 return None
             off = (loc >> 8) * 4096
             length = struct.unpack_from(">I", data, off)[0]
-            return nbt(zlib.decompress(data[off + 5: off + 4 + length]))
+            return nbt(decode_payload(data[off + 4: off + 4 + length]))
     return None
 
 

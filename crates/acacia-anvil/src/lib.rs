@@ -1,6 +1,7 @@
 //! Bedrock chunks held by `acacia-world` written out as a Java Edition Anvil world (see README.md).
 
 pub mod blockentity;
+pub mod codec;
 pub mod column;
 pub mod decode;
 pub mod dimension;
@@ -15,6 +16,7 @@ pub mod region;
 pub mod section;
 pub mod store;
 
+pub use codec::Compression;
 pub use store::{AnvilStore, Census, FlushStats, StoreConfig, StoreStats, region_dir};
 
 use std::path::PathBuf;

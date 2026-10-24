@@ -22,6 +22,7 @@ use acacia_world::{BlockRegistry, Chunk, Dimension};
 
 use crate::Error;
 use crate::blockentity;
+use crate::codec::Compression;
 use crate::column::{Converter, JavaColumn, Scratch};
 use crate::dimension::java_dimension;
 use crate::fixup::Fixups;
@@ -47,6 +48,8 @@ pub struct StoreConfig {
     pub memory_limit: usize,
     /// Threads lighting and encoding columns; 0 = one per core.
     pub threads: usize,
+    /// For chunks written from now on; chunks kept unchanged keep the compression they were stored with.
+    pub compression: Compression,
 }
 
 struct Entry {

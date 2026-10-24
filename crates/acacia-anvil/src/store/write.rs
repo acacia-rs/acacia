@@ -12,7 +12,7 @@ use crate::column::JavaColumn;
 use crate::encode::{EncodeScratch, encode_chunk};
 use crate::light::{Lighter, Neighbourhood, SectionLight};
 use crate::props::PropsTable;
-use crate::region::{self, Region, region_file_name};
+use crate::region::{self, Compression, Region, region_file_name};
 
 type Pos = (i32, i32);
 
@@ -34,6 +34,7 @@ struct Shared<'a> {
     columns: &'a HashMap<Pos, Entry>,
     props: &'a PropsTable,
     has_sky: bool,
+    compression: Compression,
     region: &'a Region,
 }
 
@@ -81,7 +82,7 @@ impl Worker {
         let payload = if unchanged {
             None
         } else {
-            Some(region::compress(&self.nbt)?)
+            Some(region::compress(&self.nbt, sh.compression)?)
         };
         lap(&mut self.times.compress, start);
         Ok((pos, hash, payload))
@@ -132,11 +133,9 @@ fn local(c: i32) -> usize {
     (c & 31) as usize
 }
 
+/// XXH3: SipHash over a ~120 KB chunk cost a quarter of encoding it.
 pub(super) fn hash_bytes(b: &[u8]) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    b.hash(&mut h);
-    h.finish()
+    twox_hash::XxHash3_64::oneshot(b)
 }
 
 pub(super) fn neighbourhood(columns: &HashMap<Pos, Entry>, pos: Pos) -> Neighbourhood<'_> {
@@ -175,6 +174,7 @@ impl AnvilStore {
             columns: &self.columns,
             props: &self.props,
             has_sky: self.cfg.has_sky,
+            compression: self.cfg.compression,
             region: &region,
         };
         let next = AtomicUsize::new(0);

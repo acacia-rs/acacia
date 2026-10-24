@@ -2,11 +2,12 @@
 //! `cargo run --release -p acacia-anvil --example live -- <world dir>`. Commands, each answered `ok …`:
 //! `init <side>` (synthetic terrain, chunks 0..side on both axes, written), `set <x> <y> <z> <block>`
 //! (Bedrock name), `touch <cx> <cz>` (the chunk again, unchanged), `flush`, `quit`.
+//! `ANVIL_COMPRESSION=zlib[:level]|lz4|none` sets the chunk compression.
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::time::Duration;
 
-use acacia_anvil::{AnvilStore, StoreConfig};
+use acacia_anvil::{AnvilStore, Compression, StoreConfig};
 use acacia_world::{BlockRegistry, Chunk, Dimension};
 
 fn terrain(reg: &BlockRegistry, cx: i32, cz: i32) -> Chunk {
@@ -46,6 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         region_hold: Duration::ZERO,
         memory_limit: 1 << 30,
         threads: 0,
+        compression: Compression::from_env_or_default("ANVIL_COMPRESSION")?,
     };
     let mut store = AnvilStore::new(reg.clone(), cfg)?;
     let mut chunks: HashMap<(i32, i32), Chunk> = HashMap::new();

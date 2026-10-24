@@ -32,6 +32,7 @@ pub fn regions(
             region_hold: Duration::ZERO,
             memory_limit: usize::MAX,
             threads: 0,
+            compression: Default::default(),
         };
         let mut store = AnvilStore::new(reg.clone(), cfg)?;
         let lo = |r: i32| (r * 32 - 1).max(0);

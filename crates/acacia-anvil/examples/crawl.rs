@@ -3,13 +3,14 @@
 //! <server> <world dir> [name] [radius=8] [quiet s=10] [limit s=300]`. `ANVIL_TP="x y z;x y z"` visits points
 //! in turn by `/tp` (the bot must be op; `the_nether x y z` changes dimension), saving each area before moving
 //! on; each dimension goes to its own `dimensions/minecraft/<name>/region`. `ANVIL_MEMORY=<bytes>` sets the
-//! store's memory limit (0 evicts every written column, so neighbours come back from the region files).
+//! store's memory limit (0 evicts every written column, so neighbours come back from the region files);
+//! `ANVIL_COMPRESSION=zlib[:level]|lz4|none` the chunk compression.
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use acacia_anvil::{AnvilStore, StoreConfig};
+use acacia_anvil::{AnvilStore, Compression, StoreConfig};
 use acacia_bot::client::Client;
 use acacia_bot::{Bot, BotConfig, BotEvent};
 use acacia_world::{ChunkChange, World};
@@ -42,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|v| v.split(';').map(str::to_owned).collect())
         .unwrap_or_default();
     stops.reverse();
+    let compression = Compression::from_env_or_default("ANVIL_COMPRESSION")?;
 
     let builder = Client::builder(&server)
         .offline(&name)
@@ -87,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         region_hold: Duration::from_secs(60),
                         memory_limit: std::env::var("ANVIL_MEMORY").ok().and_then(|m| m.parse().ok()).unwrap_or(1 << 30),
                         threads: 0,
+                        compression,
                     };
                     store = Some(AnvilStore::new(world.registry().clone(), cfg)?);
                 }

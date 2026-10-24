@@ -8,10 +8,12 @@
      thread parses every version it sees, bluemap logs no warning, and its incremental map equals a fresh
      full render of the final world (bm-golden diff-render, lowres pixels).
 
-Usage: py -3 crates/acacia-anvil/tools/live.py [--side 40]. Uses the oracle lab (oracle.py) for paths.
+Usage: py -3 crates/acacia-anvil/tools/live.py [--side 40] [--compression zlib|lz4|none]. Uses the oracle lab
+(oracle.py) for paths.
 """
 import argparse
 import json
+import os
 import random
 import re
 import shutil
@@ -19,10 +21,10 @@ import subprocess
 import sys
 import threading
 import time
-import zlib
 from pathlib import Path
 
 import oracle
+from regions import payload_ok
 
 ROOT = oracle.LAB / "live"
 MAP_LINE = re.compile(r"Map 'lab': \d+ regions, (\d+) tiles rendered")
@@ -112,8 +114,8 @@ def tiles_of_chunk(cx, cz):
     return {(x, z) for x in span(cx) for z in span(cz)}
 
 
-def region_ok(data):
-    """Every chunk the offset table lists lies inside the file and inflates."""
+def region_ok(data, kind):
+    """Every chunk the offset table lists lies inside the file, has compression `kind` and is whole."""
     if len(data) < 8192 or len(data) % 4096:
         return False
     for i in range(1024):
@@ -122,16 +124,15 @@ def region_ok(data):
             continue
         off = (loc >> 8) * 4096
         length = int.from_bytes(data[off:off + 4], "big")
-        if off + 4 + length > len(data) or data[off + 4] != 2:
+        if off + 4 + length > len(data) or data[off + 4] != kind or not payload_ok(data[off + 4:off + 4 + length]):
             return False
-        zlib.decompress(data[off + 5:off + 4 + length])
     return True
 
 
 class Reader(threading.Thread):
-    def __init__(self, paths):
+    def __init__(self, paths, kind):
         super().__init__(daemon=True)
-        self.paths, self.reads, self.bad, self.stop = paths, 0, [], False
+        self.paths, self.kind, self.reads, self.bad, self.stop = paths, kind, 0, [], False
 
     def run(self):
         while not self.stop:
@@ -141,10 +142,7 @@ class Reader(threading.Thread):
                 except OSError:
                     continue
                 self.reads += 1
-                try:
-                    if not region_ok(data):
-                        self.bad.append(p.name)
-                except zlib.error:
+                if not region_ok(data, self.kind):
                     self.bad.append(p.name)
             time.sleep(0.003)
 
@@ -159,7 +157,10 @@ def bluemap_config(name, world):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--side", type=int, default=40, help="chunks per side (40 spans four regions)")
+    ap.add_argument("--compression", default="zlib", help="the store's chunk compression: zlib[:level], lz4, none")
     args = ap.parse_args()
+    os.environ["ANVIL_COMPRESSION"] = args.compression
+    kind = {"zlib": 2, "none": 3, "lz4": 4}[args.compression.split(":")[0]]
     oracle.run(["cargo", "build", "--release", "-p", "acacia-anvil", "--example", "live"], cwd=oracle.REPO)
     bin_dir = oracle.build_bluemap_rs()
     exe = lambda n: bin_dir / (n + (".exe" if sys.platform == "win32" else ""))
@@ -210,7 +211,7 @@ def main():
         check("b. rewrite beside a change", r00.read_bytes() != file_before and rendered == len(want)
               and diff <= want, f"{rendered} tiles rendered (want {len(want)}), files changed {sorted(diff)}")
 
-        reader = Reader(sorted(region_dir.glob("r.*.mca")))
+        reader = Reader(sorted(region_dir.glob("r.*.mca")), kind)
         reader.start()
         rng, mark = random.Random(1), len(bm.lines)
         blocks = ["minecraft:gold_block", "minecraft:glowstone", "minecraft:stone", "minecraft:air"]

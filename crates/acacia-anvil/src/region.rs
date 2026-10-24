@@ -2,18 +2,13 @@
 //! then each chunk as `[len u32 BE][compression u8][data]` padded to whole 4 KiB sectors.
 
 use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 
-use flate2::Compression;
-use flate2::write::ZlibEncoder;
-
 use crate::Error;
+pub use crate::codec::{Compression, compress, decode_payload};
 
 const SECTOR: usize = 4096;
-const COMPRESSION_ZLIB: u8 = 2;
-/// The offset table stores a sector count in one byte; bigger chunks would need an external `.mcc` file.
-const MAX_SECTORS: usize = 255;
 
 /// One chunk as stored: compression byte followed by the compressed NBT.
 #[derive(Clone)]
@@ -37,19 +32,6 @@ impl Default for Region {
 
 pub fn region_file_name(rx: i32, rz: i32) -> String {
     format!("r.{rx}.{rz}.mca")
-}
-
-/// A region slot's payload: compression byte (zlib) and the compressed chunk NBT.
-pub fn compress(nbt: &[u8]) -> Result<Vec<u8>, Error> {
-    let mut payload = Vec::with_capacity(nbt.len() / 4 + 16);
-    payload.push(COMPRESSION_ZLIB);
-    let mut enc = ZlibEncoder::new(payload, Compression::new(6));
-    enc.write_all(nbt).expect("writing to a Vec");
-    let payload = enc.finish().expect("writing to a Vec");
-    if (payload.len() + 4).div_ceil(SECTOR) > MAX_SECTORS {
-        return Err(Error::ChunkTooLarge(payload.len()));
-    }
-    Ok(payload)
 }
 
 fn slot_index(local_x: usize, local_z: usize) -> usize {
@@ -96,22 +78,30 @@ impl Region {
         self.slots[slot_index(local_x, local_z)].is_some()
     }
 
+    /// The chunk's compression byte (2 zlib, 3 none, 4 LZ4).
+    pub fn compression_type(&self, local_x: usize, local_z: usize) -> Option<u8> {
+        self.slots[slot_index(local_x, local_z)]
+            .as_ref()
+            .and_then(|s| s.payload.first().copied())
+    }
+
     pub fn timestamp(&self, local_x: usize, local_z: usize) -> Option<u32> {
         self.slots[slot_index(local_x, local_z)]
             .as_ref()
             .map(|s| s.timestamp)
     }
 
-    /// Compresses `nbt` (an uncompressed chunk root compound) with zlib and stores it with `timestamp`
-    /// (epoch seconds; BlueMap re-renders a chunk whose timestamp moved past its last render).
+    /// Compresses `nbt` (an uncompressed chunk root compound) and stores it with `timestamp` (epoch
+    /// seconds; BlueMap re-renders a chunk whose timestamp moved past its last render).
     pub fn set_chunk(
         &mut self,
         local_x: usize,
         local_z: usize,
         nbt: &[u8],
         timestamp: u32,
+        compression: Compression,
     ) -> Result<(), Error> {
-        let payload = compress(nbt)?;
+        let payload = compress(nbt, compression)?;
         self.set_payload(local_x, local_z, payload, timestamp);
         Ok(())
     }
@@ -191,24 +181,6 @@ fn rename_retrying(from: &Path, to: &Path) -> Result<(), Error> {
     Err(Error::Io(to.to_owned(), last.unwrap()))
 }
 
-/// Decompresses a stored chunk (tests and tools).
-pub fn decode_payload(payload: &[u8]) -> io::Result<Vec<u8>> {
-    use std::io::Read;
-    let mut out = Vec::new();
-    match payload.first() {
-        Some(&COMPRESSION_ZLIB) => {
-            flate2::read::ZlibDecoder::new(&payload[1..]).read_to_end(&mut out)?;
-        }
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "not a zlib chunk",
-            ));
-        }
-    }
-    Ok(out)
-}
-
 pub type Offsets = Box<[u32; 1024]>;
 
 /// A region file, open, and its offset table (`(sector << 8) | count` per slot); `None` when the file is
@@ -284,8 +256,8 @@ mod tests {
         let big: Vec<u8> = (0..20_000u32)
             .map(|i| (i.wrapping_mul(2_654_435_761) >> 24) as u8)
             .collect();
-        r.set_chunk(0, 0, b"hello", 7).unwrap();
-        r.set_chunk(31, 31, &big, 9).unwrap();
+        r.set_chunk(0, 0, b"hello", 7, Compression::default()).unwrap();
+        r.set_chunk(31, 31, &big, 9, Compression::Lz4).unwrap();
         r.save(&path).unwrap();
         let bytes = fs::read(&path).unwrap();
         assert_eq!(bytes.len() % SECTOR, 0);
