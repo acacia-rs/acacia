@@ -7,6 +7,7 @@ use acacia_client::proto::packets::{
 use acacia_client::proto::manual::Uuid;
 use acacia_client::proto::types::Vec3f;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
+use rustc_hash::FxHashMap;
 
 use super::{Effects, ItemStack, Me, Metadata};
 
@@ -93,10 +94,11 @@ impl Entity {
 }
 
 /// Entities by runtime id, excluding the local player. Off by default (see [`crate::BotConfig`]).
+/// Fx-hashed: every entity move looks one up (~300 k/s across a 50-bot swarm among 300 mobs).
 #[derive(Debug, Default)]
 pub struct Entities {
-    by_runtime: HashMap<u64, Entity>,
-    runtime_by_unique: HashMap<i64, u64>,
+    by_runtime: FxHashMap<u64, Entity>,
+    runtime_by_unique: FxHashMap<i64, u64>,
 }
 
 impl Entities {

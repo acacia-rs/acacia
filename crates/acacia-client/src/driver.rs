@@ -19,6 +19,8 @@ use crate::Event;
 
 /// Largest datagram we accept; above the biggest RakNet MTU and the WebRTC (1200-byte) packets.
 const RECV_BUFFER: usize = 2048;
+/// How long the loop sleeps when neither the session nor the wire has a deadline.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub(crate) enum Command {
     Send(Bytes),
@@ -65,6 +67,9 @@ impl Driver {
         let mut buf = vec![0u8; RECV_BUFFER];
         let mut pending: VecDeque<Event> = VecDeque::new();
         let (fetched_tx, mut fetched) = mpsc::unbounded_channel();
+        // One timer for the task's life: a fresh sleep each pass registered and cleared a wheel entry per datagram.
+        let sleep = tokio::time::sleep(IDLE_TIMEOUT);
+        tokio::pin!(sleep);
         loop {
             if let Err(e) = self.flush().await {
                 return self.finish(pending, DisconnectReason::Io(e.to_string())).await;
@@ -98,7 +103,12 @@ impl Driver {
                 tokio::spawn(fetch_pack(pack, self.proxy.clone(), fetched_tx.clone()));
             }
             let can_read = self.spawned.is_some() || pending.len() < self.capacity;
-            let deadline = self.poll_timeout().unwrap_or_else(|| Instant::now() + Duration::from_secs(60));
+            match self.poll_timeout() {
+                Some(deadline) if sleep.deadline() != deadline.into() => sleep.as_mut().reset(deadline.into()),
+                // Nothing due: an earlier deadline still armed only wakes handle_timeout early, which is harmless.
+                None if sleep.is_elapsed() => sleep.as_mut().reset((Instant::now() + IDLE_TIMEOUT).into()),
+                _ => {}
+            }
             let failed = tokio::select! {
                 permit = self.events.reserve(), if !pending.is_empty() => {
                     match permit {
@@ -128,7 +138,7 @@ impl Driver {
                     self.session.pack_fetched(Instant::now(), &id, ok);
                     None
                 }
-                _ = tokio::time::sleep_until(deadline.into()) => {
+                _ = &mut sleep => {
                     handle_timeout(&mut self.session, &mut self.wire, Instant::now());
                     None
                 }
