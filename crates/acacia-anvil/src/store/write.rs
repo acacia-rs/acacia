@@ -20,6 +20,7 @@ type Pos = (i32, i32);
 #[derive(Default)]
 pub(super) struct Worker {
     lighter: Lighter,
+    light: Vec<SectionLight>,
     enc: EncodeScratch,
     nbt: Vec<u8>,
     times: WorkerTimes,
@@ -56,16 +57,18 @@ impl Worker {
         for &pos in group {
             let col = &sh.columns[&pos].col;
             let (cx, cz) = ((pos.0 - x0 + 1) as usize, (pos.1 - z0 + 1) as usize);
-            let light = self.lighter.extract(cx, cz, col.sections.len());
-            out.push(self.encode(sh, pos, &light)?);
+            self.lighter
+                .extract_into(cx, cz, col.sections.len(), &mut self.light);
+            out.push(self.encode(sh, pos)?);
         }
         Ok(())
     }
 
-    fn encode(&mut self, sh: &Shared, pos: Pos, light: &[SectionLight]) -> Result<Rendered, Error> {
+    /// Encodes `pos` with the light last extracted into `self.light`.
+    fn encode(&mut self, sh: &Shared, pos: Pos) -> Result<Rendered, Error> {
         let start = Instant::now();
         let entry = &sh.columns[&pos];
-        encode_chunk(&entry.col, light, &[], sh.props, &mut self.enc, &mut self.nbt);
+        encode_chunk(&entry.col, &self.light, &[], sh.props, &mut self.enc, &mut self.nbt);
         let hash = hash_bytes(&self.nbt);
         let (lx, lz) = (local(pos.0), local(pos.1));
         // Not written by this store yet (evicted before, or a previous run): compare with the file.

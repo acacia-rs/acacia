@@ -19,6 +19,11 @@ case $what in
           -- "$bin" "$@" ;;
   record) perf record -q -F 2000 --call-graph dwarf,16384 -o "$out/$ex.data" -- "$bin" "$@" >/dev/null
           perf report -i "$out/$ex.data" --no-children --stdio --percent-limit 1.5 -g none 2>/dev/null | grep -v '^$' | head -40 ;;
+  annotate) # hottest instructions of the functions matching $ANNOTATE (default propagate), from the last record
+            for sym in $(perf report -i "$out/$ex.data" --no-children --stdio -g none -F sym 2>/dev/null | grep -oE '_R[A-Za-z0-9_]*' | grep -E "${ANNOTATE:-propagate}" | head -3); do
+              echo "== $sym"
+              perf annotate -i "$out/$ex.data" --stdio -l "$sym" 2>/dev/null | grep -E '^ +[0-9]+\.[0-9]+' | sort -rn | head -40
+            done ;;
   heaptrack) heaptrack -o "$out/$ex" "$bin" "$@" >/dev/null
              heaptrack_print "$out/$ex".zst 2>/dev/null | grep -E '^(total runtime|calls to allocation|temporary|peak heap|peak RSS)' ;;
   time) /usr/bin/time -f 'peak RSS %M KB, %e s wall, %U s user' "$bin" "$@" ;;

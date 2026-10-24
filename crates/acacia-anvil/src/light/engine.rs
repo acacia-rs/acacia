@@ -3,8 +3,12 @@
 
 use super::{Lighter, OPAQUE};
 use crate::column::JavaColumn;
-use crate::props::{self, PropsTable};
+use crate::props::{self, PropsTable, StateProps};
 use crate::section::Blocks;
+
+fn cell_of(p: StateProps) -> u16 {
+    p.opacity as u16 | (p.faces as u16) << 8
+}
 
 impl Lighter {
     pub(super) fn fill(
@@ -13,40 +17,58 @@ impl Lighter {
         cols_x: usize,
         props: &PropsTable,
     ) {
-        let (layer, sx, height) = (self.layer, self.sx, self.height);
+        let (pl, px) = (self.pl, self.px);
         self.cell.clear();
-        self.cell.resize(layer * height, OPAQUE);
+        self.cell.resize(self.cells(), OPAQUE);
         self.emitters.clear();
-        let cell_of = |s| {
-            let p = props.get(s);
-            (p.opacity as u16 | (p.faces as u16) << 8, p.emission)
-        };
         for (i, col) in cols.iter().enumerate() {
             let Some(col) = col else { continue };
             let (ox, oz) = ((i % cols_x) * 16, (i / cols_x) * 16);
-            for (s, blocks) in col.sections.iter().enumerate().take(height / 16) {
-                self.palette.clear();
+            for (s, blocks) in col.sections.iter().enumerate().take(self.lit) {
+                let base = self.at(ox, s * 16, oz);
+                let rows = (0..256).map(|r| (r << 4, base + (r >> 4) * pl + (r & 15) * px));
                 match blocks {
-                    Blocks::Uniform(u) => self.palette.push(cell_of(*u)),
-                    Blocks::Small { palette, .. } => {
-                        self.palette.extend(palette.iter().map(|&s| cell_of(s)))
+                    Blocks::Uniform(u) => {
+                        let p = props.get(*u);
+                        for (_, d) in rows.clone() {
+                            self.cell[d..d + 16].fill(cell_of(p));
+                        }
+                        if p.emission > 0 {
+                            for (_, d) in rows {
+                                self.emitters.extend((d..d + 16).map(|d| (d as u32, p.emission)));
+                            }
+                        }
                     }
-                    Blocks::Full(_) => {}
-                }
-                for y in 0..16 {
-                    for z in 0..16 {
-                        let src = (y << 8) | (z << 4);
-                        let dst = (s * 16 + y) * layer + (oz + z) * sx + ox;
-                        let row = &mut self.cell[dst..dst + 16];
-                        for x in 0..16 {
-                            let (c, e) = match blocks {
-                                Blocks::Uniform(_) => self.palette[0],
-                                Blocks::Small { idx, .. } => self.palette[idx[src | x] as usize],
-                                Blocks::Full(f) => cell_of(f[src | x]),
-                            };
-                            row[x] = c;
-                            if e > 0 {
-                                self.emitters.push(((dst + x) as u32, e));
+                    Blocks::Small { palette, idx } => {
+                        let mut pal = [0u16; 256];
+                        for (c, &st) in pal.iter_mut().zip(palette) {
+                            *c = cell_of(props.get(st));
+                        }
+                        for (src, d) in rows.clone() {
+                            let row = &mut self.cell[d..d + 16];
+                            for (c, &i) in row.iter_mut().zip(&idx[src..src + 16]) {
+                                *c = pal[i as usize];
+                            }
+                        }
+                        if palette.iter().any(|&st| props.get(st).emission > 0) {
+                            for (src, d) in rows {
+                                for x in 0..16 {
+                                    let e = props.get(palette[idx[src | x] as usize]).emission;
+                                    if e > 0 {
+                                        self.emitters.push(((d + x) as u32, e));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Blocks::Full(f) => {
+                        for (src, d) in rows {
+                            for x in 0..16 {
+                                let p = props.get(f[src | x]);
+                                self.cell[d + x] = cell_of(p);
+                                if p.emission > 0 {
+                                    self.emitters.push(((d + x) as u32, p.emission));
+                                }
                             }
                         }
                     }
@@ -57,40 +79,56 @@ impl Lighter {
 
     /// Straight-down 15s per column, then queue the ones next to a darker column and each streak's end.
     pub(super) fn seed_sky(&mut self) {
-        let (layer, sx, sz, height) = (self.layer, self.sx, self.sz, self.height);
-        self.level.clear();
-        self.level.resize(layer * height, 0);
+        let (pl, px, h) = (self.pl, self.px, self.height);
+        self.level.resize(self.cells(), 0);
+        self.level[(h + 1) * pl..].fill(0);
+        // Lowest lit row per column (bordered y), h + 1 for none.
         self.bottom.clear();
-        self.bottom.resize(layer, 0);
-        for xz in 0..layer {
-            let mut y = height;
-            while y > 0 {
-                let d = (y - 1) * layer + xz;
-                let c = self.cell[d];
-                if c & 0xFF != 0 || c & (1 << (8 + props::UP)) != 0 {
-                    break;
-                }
-                self.level[d] = 15;
-                y -= 1;
-                if c & (1 << (8 + props::DOWN)) != 0 {
-                    break;
-                }
+        self.bottom.resize(pl, (h + 1) as u32);
+        self.open.clear();
+        self.open.resize(pl, 1);
+        let blocks = 0xFF | 1 << (8 + props::UP);
+        // Layer by layer from the top, so the walk reads memory in order; stops once every column is shut.
+        let mut y = h + 1;
+        while y > 1 {
+            y -= 1;
+            let at = y * pl;
+            let (cells, level) = (&self.cell[at..at + pl], &mut self.level[at..at + pl]);
+            let mut any = 0;
+            let it = cells.iter().zip(level).zip(&mut self.open).zip(&mut self.bottom);
+            for (((&c, lv), op), bt) in it {
+                let lit = *op & (c & blocks == 0) as u8;
+                *lv = lit * 15;
+                *bt = if lit != 0 { y as u32 } else { *bt };
+                *op = lit & (c & 1 << (8 + props::DOWN) == 0) as u8;
+                any |= *op;
             }
-            self.bottom[xz] = y as u32;
+            if any == 0 {
+                break;
+            }
         }
-        for xz in 0..layer {
-            let (x, z) = (xz % sx, xz / sx);
-            let mut reach = self.bottom[xz] + 1;
-            for (dx, dz) in [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)] {
-                let (nx, nz) = (x as i32 + dx, z as i32 + dz);
-                if (0..sx as i32).contains(&nx) && (0..sz as i32).contains(&nz) {
-                    reach = reach.max(self.bottom[nz as usize * sx + nx as usize]);
-                }
-            }
-            for y in self.bottom[xz] as usize..(reach as usize).min(height) {
-                let d = y * layer + xz;
-                if self.level[d] == 15 {
-                    self.buckets[15].push(d as u32);
+        self.level[..y * pl].fill(0);
+        // The border never lights its neighbours.
+        let pz = pl / px;
+        for x in 0..px {
+            self.bottom[x] = 0;
+            self.bottom[(pz - 1) * px + x] = 0;
+        }
+        for z in 0..pz {
+            self.bottom[z * px] = 0;
+            self.bottom[z * px + px - 1] = 0;
+        }
+        for z in 1..pz - 1 {
+            for xz in z * px + 1..z * px + px - 1 {
+                let b = self.bottom[xz];
+                let reach = [xz - 1, xz + 1, xz - px, xz + px]
+                    .iter()
+                    .fold(b + 1, |r, &n| r.max(self.bottom[n]));
+                for y in b as usize..(reach as usize).min(h + 1) {
+                    let d = y * pl + xz;
+                    if self.level[d] == 15 {
+                        self.buckets[15].push(d as u32);
+                    }
                 }
             }
         }
@@ -98,51 +136,55 @@ impl Lighter {
 
     pub(super) fn seed_block(&mut self) {
         self.level.clear();
-        self.level.resize(self.layer * self.height, 0);
+        self.level.resize(self.cells(), 0);
         for &(d, e) in &self.emitters {
             self.level[d as usize] = e;
             self.buckets[e as usize].push(d);
         }
     }
 
-    pub(super) fn propagate(&mut self, sky: bool) {
-        let (layer, sx, sz, height) = (self.layer, self.sx, self.sz, self.height);
-        for l in (1..16).rev() {
+    /// Floods from the queued cells, highest level first. A cell at 1 lights nothing, so none is queued.
+    pub(super) fn propagate<const SKY: bool>(&mut self) {
+        let (pl, px) = (self.pl as isize, self.px as isize);
+        let steps = [
+            (props::DOWN, -pl),
+            (props::UP, pl),
+            (props::NORTH, -px),
+            (props::SOUTH, px),
+            (props::WEST, -1),
+            (props::EAST, 1),
+        ];
+        for l in (2..16).rev() {
             while let Some(d) = self.buckets[l].pop() {
                 let d = d as usize;
                 if self.level[d] as usize != l {
                     continue;
                 }
-                let (x, z, y) = (d % sx, (d / sx) % sz, d / layer);
                 let faces = self.cell[d] >> 8;
-                let steps = [
-                    (props::DOWN, y > 0, d.wrapping_sub(layer)),
-                    (props::UP, y + 1 < height, d + layer),
-                    (props::NORTH, z > 0, d.wrapping_sub(sx)),
-                    (props::SOUTH, z + 1 < sz, d + sx),
-                    (props::WEST, x > 0, d.wrapping_sub(1)),
-                    (props::EAST, x + 1 < sx, d + 1),
-                ];
-                for (dir, inside, nb) in steps {
-                    if !inside || faces & (1 << dir) != 0 {
+                for (dir, off) in steps {
+                    if faces & (1 << dir) != 0 {
                         continue;
                     }
+                    let nb = d.wrapping_add_signed(off);
                     let c = self.cell[nb];
                     if (c >> 8) & (1 << props::opposite(dir)) != 0 {
                         continue;
                     }
                     let o = (c & 0xFF) as usize;
-                    let nl = if sky && l == 15 && o == 0 && dir == props::DOWN {
+                    let nl = if SKY && l == 15 && o == 0 && dir == props::DOWN {
                         15
                     } else {
                         l.saturating_sub(o.max(1))
                     };
                     if nl > self.level[nb] as usize {
                         self.level[nb] = nl as u8;
-                        self.buckets[nl].push(nb as u32);
+                        if nl > 1 {
+                            self.buckets[nl].push(nb as u32);
+                        }
                     }
                 }
             }
         }
+        self.buckets[1].clear();
     }
 }

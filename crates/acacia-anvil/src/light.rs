@@ -46,14 +46,17 @@ impl<'a> Neighbourhood<'a> {
     }
 }
 
-/// Per-thread buffers over one lit volume: `cols_x × cols_z` columns, `height` blocks from the bottom.
+/// Per-thread buffers over one lit volume: `cols_x × cols_z` columns, `height` blocks from the bottom,
+/// wrapped in a one-cell opaque border so propagation never needs coordinates or bounds.
 #[derive(Default)]
 pub struct Lighter {
-    /// Volume size in blocks along x and z, and its x·z layer.
+    /// Volume size in blocks along x and z (inside the border), and its height.
     sx: usize,
     sz: usize,
-    layer: usize,
     height: usize,
+    /// Row and layer strides of the bordered volume: `(sx + 2)` and `(sx + 2) × (sz + 2)`.
+    px: usize,
+    pl: usize,
     /// Sections lit (from the bottom); the ones above are open sky.
     lit: usize,
     has_sky: bool,
@@ -63,7 +66,7 @@ pub struct Lighter {
     emitters: Vec<(u32, u8)>,
     buckets: [Vec<u32>; 16],
     bottom: Vec<u32>,
-    palette: Vec<(u16, u8)>,
+    open: Vec<u8>,
 }
 
 impl Lighter {
@@ -98,47 +101,71 @@ impl Lighter {
         self.height = self.lit * 16;
         self.sx = cols_x * 16;
         self.sz = cols.len().div_ceil(cols_x) * 16;
-        self.layer = self.sx * self.sz;
+        self.px = self.sx + 2;
+        self.pl = self.px * (self.sz + 2);
         self.has_sky = has_sky;
         self.fill(cols, cols_x, props);
-        self.sky.clear();
-        self.sky.resize(self.layer * self.height, 0);
         if has_sky && self.height > 0 {
             self.seed_sky();
-            self.propagate(true);
+            self.propagate::<true>();
             std::mem::swap(&mut self.sky, &mut self.level);
+        } else {
+            self.sky.clear();
+            self.sky.resize(self.cells(), 0);
         }
         self.seed_block();
-        self.propagate(false);
+        self.propagate::<false>();
+    }
+
+    /// Cells in the bordered volume.
+    fn cells(&self) -> usize {
+        self.pl * (self.height + 2)
+    }
+
+    /// Index of block (`x`, `y`, `z`) of the volume.
+    fn at(&self, x: usize, y: usize, z: usize) -> usize {
+        (y + 1) * self.pl + (z + 1) * self.px + x + 1
     }
 
     /// The light of column (`cx`, `cz`) of the last [`Self::light_area`], `sections` high.
     pub fn extract(&self, cx: usize, cz: usize, sections: usize) -> Vec<SectionLight> {
-        let sky_byte = if self.has_sky { 0xFF } else { 0 };
-        let (ox, oz) = (cx * 16, cz * 16);
-        let mut out = Vec::with_capacity(sections);
-        for s in 0..sections {
-            let mut light = SectionLight {
-                sky: Box::new([sky_byte; 2048]),
-                block: Box::new([0; 2048]),
-            };
-            if s < self.lit {
-                for y in 0..16 {
-                    for z in 0..16 {
-                        let d = (s * 16 + y) * self.layer + (oz + z) * self.sx + ox;
-                        let (sky, block) = (&self.sky[d..d + 16], &self.level[d..d + 16]);
-                        let o = (y << 7) | (z << 3);
-                        for x in 0..8 {
-                            light.sky[o + x] = sky[2 * x] | (sky[2 * x + 1] << 4);
-                            light.block[o + x] = block[2 * x] | (block[2 * x + 1] << 4);
-                        }
-                    }
-                }
-            }
-            out.push(light);
-        }
+        let mut out = Vec::new();
+        self.extract_into(cx, cz, sections, &mut out);
         out
     }
+
+    /// [`Self::extract`] into `out`, reusing its arrays.
+    pub fn extract_into(&self, cx: usize, cz: usize, sections: usize, out: &mut Vec<SectionLight>) {
+        let sky_byte = if self.has_sky { 0xFF } else { 0 };
+        let (ox, oz) = (cx * 16, cz * 16);
+        out.truncate(sections);
+        out.resize_with(sections, || SectionLight {
+            sky: Box::new([0; 2048]),
+            block: Box::new([0; 2048]),
+        });
+        for (s, light) in out.iter_mut().enumerate() {
+            if s >= self.lit {
+                light.sky.fill(sky_byte);
+                light.block.fill(0);
+                continue;
+            }
+            for y in 0..16 {
+                for z in 0..16 {
+                    let d = self.at(ox, s * 16 + y, oz + z);
+                    let o = (y << 7) | (z << 3);
+                    light.sky[o..o + 8].copy_from_slice(&pack_row(&self.sky[d..d + 16]));
+                    light.block[o..o + 8].copy_from_slice(&pack_row(&self.level[d..d + 16]));
+                }
+            }
+        }
+    }
+}
+
+/// 16 levels to 8 nibble pairs, even x in the low nibble.
+#[inline]
+fn pack_row(levels: &[u8]) -> [u8; 8] {
+    let l: &[u8; 16] = levels.try_into().unwrap();
+    std::array::from_fn(|x| l[2 * x] | (l[2 * x + 1] << 4))
 }
 
 #[cfg(test)]

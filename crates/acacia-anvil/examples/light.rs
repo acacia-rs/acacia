@@ -49,7 +49,9 @@ impl World {
     }
 }
 
-fn hash_light(h: &mut DefaultHasher, light: &[SectionLight]) {
+/// Only the untimed first pass hashes (`h` is `Some`): SipHash over 96 KB a column would dwarf extract.
+fn hash_light(h: &mut Option<&mut DefaultHasher>, light: &[SectionLight]) {
+    let Some(h) = h else { return };
     for s in light {
         h.write(&s.sky[..]);
         h.write(&s.block[..]);
@@ -57,9 +59,9 @@ fn hash_light(h: &mut DefaultHasher, light: &[SectionLight]) {
 }
 
 /// Aligned 8×8 groups over one volume padded by a column, as `store/write.rs` lights them.
-fn run_area(w: &World, l: &mut Lighter, p: &PropsTable, h: &mut DefaultHasher) -> [Duration; 2] {
+fn run_area(w: &World, l: &mut Lighter, p: &PropsTable, mut h: Option<&mut DefaultHasher>) -> [Duration; 2] {
     let (mut light, mut extract) = (Duration::ZERO, Duration::ZERO);
-    let mut area = Vec::new();
+    let (mut area, mut out) = (Vec::new(), Vec::new());
     for gz in (0..w.side).step_by(GROUP as usize) {
         for gx in (0..w.side).step_by(GROUP as usize) {
             let (x1, z1) = ((gx + GROUP).min(w.side), (gz + GROUP).min(w.side));
@@ -72,8 +74,8 @@ fn run_area(w: &World, l: &mut Lighter, p: &PropsTable, h: &mut DefaultHasher) -
             for z in gz..z1 {
                 for x in gx..x1 {
                     let col = w.get(x, z).unwrap();
-                    let out = l.extract((x - gx + 1) as usize, (z - gz + 1) as usize, col.sections.len());
-                    hash_light(h, &out);
+                    l.extract_into((x - gx + 1) as usize, (z - gz + 1) as usize, col.sections.len(), &mut out);
+                    hash_light(&mut h, &out);
                 }
             }
             extract += t2.elapsed();
@@ -82,7 +84,7 @@ fn run_area(w: &World, l: &mut Lighter, p: &PropsTable, h: &mut DefaultHasher) -
     [light, extract]
 }
 
-fn run_column(w: &World, l: &mut Lighter, p: &PropsTable, h: &mut DefaultHasher) -> [Duration; 2] {
+fn run_column(w: &World, l: &mut Lighter, p: &PropsTable, mut h: Option<&mut DefaultHasher>) -> [Duration; 2] {
     let t = Instant::now();
     for z in 0..w.side {
         for x in 0..w.side {
@@ -90,13 +92,13 @@ fn run_column(w: &World, l: &mut Lighter, p: &PropsTable, h: &mut DefaultHasher)
             for (i, c) in cols.iter_mut().enumerate() {
                 *c = w.get(x + i as i32 % 3 - 1, z + i as i32 / 3 - 1);
             }
-            hash_light(h, &l.light(&Neighbourhood { cols }, p, true));
+            hash_light(&mut h, &l.light(&Neighbourhood { cols }, p, true));
         }
     }
     [t.elapsed(), Duration::ZERO]
 }
 
-type Run = fn(&World, &mut Lighter, &PropsTable, &mut DefaultHasher) -> [Duration; 2];
+type Run = fn(&World, &mut Lighter, &PropsTable, Option<&mut DefaultHasher>) -> [Duration; 2];
 
 fn main() {
     let (mut side, mut iters, mut mode) = (32i32, 5u32, "both".to_string());
@@ -125,11 +127,11 @@ fn main() {
         }
         let mut lighter = Lighter::default();
         let mut h = DefaultHasher::new();
-        run(&world, &mut lighter, &props, &mut h);
+        run(&world, &mut lighter, &props, Some(&mut h));
         let allocs = ALLOCS.load(Relaxed);
         let mut total = [Duration::ZERO; 2];
         for _ in 0..iters {
-            let d = run(&world, &mut lighter, &props, &mut h);
+            let d = run(&world, &mut lighter, &props, None);
             total = [total[0] + d[0], total[1] + d[1]];
         }
         let allocs = ALLOCS.load(Relaxed) - allocs;
