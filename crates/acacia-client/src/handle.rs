@@ -49,6 +49,11 @@ impl Client {
         self.events.recv().await
     }
 
+    /// The next event if one is already queued.
+    pub fn try_recv(&mut self) -> Option<Event> {
+        self.events.try_recv().ok()
+    }
+
     /// Queues a packet; returns false if the connection has closed.
     pub fn send<T: Packet + std::fmt::Debug>(&self, packet: &T) -> bool {
         tracing::trace!(target: "acacia_client::send", ?packet);

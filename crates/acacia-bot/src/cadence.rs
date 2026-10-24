@@ -139,6 +139,11 @@ impl Ticker {
         ticks
     }
 
+    /// Whether the next firing's time has come ([`Self::wait`] would not sleep).
+    pub fn due(&self) -> bool {
+        Instant::now() >= self.start + self.next.at
+    }
+
     /// A frame hitch: the next firing comes `pause` later and carries two ticks, as vanilla's do.
     pub fn stall(&mut self, pause: Duration) {
         self.next.at += scaled(pause);
