@@ -10,6 +10,12 @@ scenario=${1:?usage: tools/swarm-load-ab.sh <scenario> <A bin> <B bin> [rounds]}
 a=${2:?A bin} b=${3:?B bin} rounds=${4:-1}
 out=swarm-load/ab-$scenario
 rm -rf "$out"
+# LOCK=1: wait for ~/bench.lock, so profiles other sessions take under it keep the box to themselves.
+if [ -n "${LOCK:-}" ]; then
+  exec 9>"$HOME/bench.lock"
+  flock 9
+  unset LOCK
+fi
 (cd "${SAPLING:-../sapling-load}" && RUSTFLAGS="-C force-frame-pointers=yes" cargo +stable build -q --release -p sapling --example load_server 2>/dev/null) || exit 1
 # One side's server, port and swarm cores; the other side gets the other set.
 slot() {
