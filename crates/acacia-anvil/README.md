@@ -153,7 +153,7 @@ chunks, four regions), and checks:
   (no torn file, no temp file left), bluemap logs no warning, and the incremental map equals a fresh `-r -f`
   render of the final world (every face, lowres pixels).
 
-Result (2026-10-24): all pass; 716 region reads, 0 torn, 6 writes landed during a region update; incremental
+Result (2026-10-24, final code): all pass; 524 region reads, 0 torn, 5 writes landed during a region update; incremental
 render 4 374 744 of 4 374 744 faces identical to the fresh one, lowres 0 pixels differ.
 
 ## Throughput
