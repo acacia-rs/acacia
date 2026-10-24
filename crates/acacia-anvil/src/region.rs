@@ -135,15 +135,20 @@ impl Region {
         self.slots.iter().all(Option::is_none)
     }
 
-    /// The whole file, chunks packed in slot order.
-    pub fn encode(&self) -> Vec<u8> {
+    /// Size of the file [`Self::encode`] makes.
+    pub fn encoded_len(&self) -> usize {
         let body: usize = self
             .slots
             .iter()
             .flatten()
             .map(|s| (s.payload.len() + 4).div_ceil(SECTOR) * SECTOR)
             .sum();
-        let mut out = vec![0u8; 2 * SECTOR + body];
+        2 * SECTOR + body
+    }
+
+    /// The whole file, chunks packed in slot order.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut out = vec![0u8; self.encoded_len()];
         let mut sector = 2;
         for (i, slot) in self.slots.iter().enumerate() {
             let Some(slot) = slot else { continue };
@@ -204,8 +209,11 @@ pub fn decode_payload(payload: &[u8]) -> io::Result<Vec<u8>> {
     Ok(out)
 }
 
-/// A region file's offset table (`(sector << 8) | count` per slot); `None` when the file is missing.
-pub fn read_offsets(path: &Path) -> Result<Option<Box<[u32; 1024]>>, Error> {
+pub type Offsets = Box<[u32; 1024]>;
+
+/// A region file, open, and its offset table (`(sector << 8) | count` per slot); `None` when the file is
+/// missing.
+pub fn read_offsets(path: &Path) -> Result<Option<(fs::File, Offsets)>, Error> {
     use std::io::Read;
     let mut f = match fs::File::open(path) {
         Ok(f) => f,
@@ -222,19 +230,19 @@ pub fn read_offsets(path: &Path) -> Result<Option<Box<[u32; 1024]>>, Error> {
     for (t, b) in table.iter_mut().zip(raw.as_chunks::<4>().0) {
         *t = u32::from_be_bytes(*b);
     }
-    Ok(Some(table))
+    Ok(Some((f, table)))
 }
 
-/// One chunk's decompressed NBT, read at its offset-table entry without loading the rest of the file;
-/// `None` for an empty or unreadable slot.
-pub fn read_chunk_at(path: &Path, loc: u32) -> Result<Option<Vec<u8>>, Error> {
+/// One chunk's payload ([`decode_payload`] decompresses it) from `f` (the file at `path`, from
+/// [`read_offsets`]), read at its offset-table entry without loading the rest of the file; `None` for an
+/// empty or unreadable slot.
+pub fn read_payload_at(f: &mut fs::File, path: &Path, loc: u32) -> Result<Option<Vec<u8>>, Error> {
     use std::io::{Read, Seek, SeekFrom};
     let (offset, count) = ((loc >> 8) as u64 * SECTOR as u64, (loc & 0xFF) as usize);
     if offset < 2 * SECTOR as u64 || count == 0 {
         return Ok(None);
     }
     let io_err = |e| Error::Io(path.to_owned(), e);
-    let mut f = fs::File::open(path).map_err(io_err)?;
     f.seek(SeekFrom::Start(offset)).map_err(io_err)?;
     let mut len = [0u8; 4];
     let mut payload = Vec::new();
@@ -247,7 +255,7 @@ pub fn read_chunk_at(path: &Path, loc: u32) -> Result<Option<Vec<u8>>, Error> {
         f.read_exact(&mut payload).map(|()| true)
     });
     match read {
-        Ok(true) => Ok(decode_payload(&payload).ok()),
+        Ok(true) => Ok(Some(payload)),
         Ok(false) => Ok(None),
         Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
         Err(e) => Err(io_err(e)),

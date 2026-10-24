@@ -63,6 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         has_sky: true,
         max_wait: Duration::ZERO,
         region_interval: Duration::ZERO,
+        region_hold: Duration::ZERO,
         memory_limit: 1 << 32,
         threads: std::env::var("ANVIL_THREADS")
             .ok()

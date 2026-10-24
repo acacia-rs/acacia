@@ -11,9 +11,12 @@ renders the server's own world, and so `bluemap -u` picks up changes as the bots
    the liquid layer becomes `waterlogged=true` (or the water itself), biomes are sampled per 4×4×4 cell
    (`column.rs`), and the column is padded to Java's height (the nether is 128 high in Bedrock, 256 in Java;
    `dimension.rs`). Then the block-entity pass (`blockentity.rs`) applies what Bedrock keeps in block
-   entities. The column and its eight neighbours are marked dirty.
-2. `AnvilStore::flush(force)`: a dirty column is written once all eight neighbours are in memory, or after
-   `max_wait` (edge of the explored area), and a region file at most every `region_interval`. Per region:
+   entities. The column and its eight neighbours are marked dirty, unless it is in memory exactly as it
+   came last time (a relog or overlapping views send it again).
+2. `AnvilStore::flush(force)`: a dirty column is ready once all eight neighbours are in memory, or after
+   `max_wait` (edge of the explored area). A region file is rewritten at most every `region_interval`, and
+   only once no column in it was dirtied for `region_interval` (the bot has moved on), or once a ready column
+   has waited `region_hold`. Per region:
    neighbour fixups (`fixup.rs`, sequential), then light (groups of nearby columns over one volume),
    encode and zlib on `threads` workers, then temp-file + rename of the whole region (`region.rs`).
 3. A chunk whose NBT is byte-identical to what was last written (or, for one this store has not written,
@@ -21,9 +24,10 @@ renders the server's own world, and so `bluemap -u` picks up changes as the bots
    seconds: bluemap-rs re-renders a tile when any chunk timestamp under it differs from the last render's
    (file mtime is not compared; crates/bm-engine `actions.rs` there).
 4. Memory: columns stay as neighbours until `memory_limit`, then the oldest written ones are dropped. A
-   dropped column is read back from its region file (`store/disk.rs`: a presence bitmap per region, the last
-   region's offset table, one slot read per column) when a dirty column needs it as a neighbour, or when a
-   neighbour of it changes and it must be relit.
+   dropped column is read back from its region file (`store/disk.rs`: a presence bitmap per region for up
+   to 16 384 regions, the last region's offset table, one slot read per column) when a dirty column needs it
+   as a neighbour, or when a neighbour of it changes and it must be relit. Nothing else the store keeps grows
+   with the explored area (see Scale).
 
 `examples/crawl.rs` is the ingest loop: subscribe to the bot's `World`, read `chunk_positions()` once,
 coalesce `ChunkChange`s every 500 ms, feed the store, flush. Block entities come from the bot's

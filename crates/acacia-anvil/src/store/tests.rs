@@ -7,15 +7,38 @@ fn store(dir: &Path) -> AnvilStore {
 }
 
 fn store_with(dir: &Path, memory_limit: usize) -> AnvilStore {
+    debounced(dir, memory_limit, Duration::ZERO, Duration::ZERO)
+}
+
+fn debounced(dir: &Path, memory_limit: usize, interval: Duration, hold: Duration) -> AnvilStore {
     let cfg = StoreConfig {
         region_dir: dir.to_owned(),
         has_sky: true,
         max_wait: Duration::ZERO,
-        region_interval: Duration::ZERO,
+        region_interval: interval,
+        region_hold: hold,
         memory_limit,
         threads: 2,
     };
     AnvilStore::new(BlockRegistry::vanilla_arc(), cfg).unwrap()
+}
+
+#[test]
+fn a_region_is_written_once_quiet_or_held_too_long() {
+    let dir = temp_dir("debounce");
+    let ms = Duration::from_millis;
+    let mut s = debounced(&dir, 1 << 30, ms(300), Duration::from_secs(3600));
+    s.update(&terrain(0, 0, false), []);
+    assert_eq!(s.flush(false).unwrap().columns, 0, "just changed: held");
+    std::thread::sleep(ms(350));
+    assert_eq!(s.flush(false).unwrap().columns, 1, "quiet for the interval");
+
+    let mut s = debounced(&dir, 1 << 30, ms(300), Duration::ZERO);
+    s.update(&terrain(1, 0, false), []);
+    assert!(s.flush(false).unwrap().columns > 0, "held its limit (zero)");
+    s.update(&terrain(2, 0, false), []);
+    assert_eq!(s.flush(false).unwrap().columns, 0, "written within the interval");
+    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 fn temp_dir(tag: &str) -> PathBuf {

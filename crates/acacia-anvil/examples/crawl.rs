@@ -83,7 +83,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         region_dir: acacia_anvil::region_dir(&world_dir, world.dimension()),
                         has_sky: acacia_anvil::dimension::java_dimension(world.dimension()).has_sky,
                         max_wait: quiet,
-                        region_interval: Duration::from_secs(2),
+                        region_interval: Duration::from_secs(10),
+                        region_hold: Duration::from_secs(60),
                         memory_limit: std::env::var("ANVIL_MEMORY").ok().and_then(|m| m.parse().ok()).unwrap_or(1 << 30),
                         threads: 0,
                     };

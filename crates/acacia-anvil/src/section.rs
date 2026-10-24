@@ -10,7 +10,7 @@ pub fn index(x: usize, y: usize, z: usize) -> usize {
     (y << 8) | (z << 4) | x
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum Blocks {
     Uniform(JavaState),
     Small {

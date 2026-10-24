@@ -6,9 +6,13 @@
 //! read back from its region file when it is needed as a neighbour or must be relit (`disk.rs`).
 
 mod disk;
+mod memory;
+mod stats;
 mod write;
 
-use std::collections::{HashMap, HashSet};
+pub use stats::{Census, StoreStats};
+
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -25,7 +29,7 @@ use crate::mapping::JavaState;
 use crate::props::PropsTable;
 use crate::section::VOLUME;
 use disk::Disk;
-use write::{Worker, hash_bytes};
+use write::Worker;
 
 pub struct StoreConfig {
     /// The dimension's `region/` folder ([`region_dir`]).
@@ -34,8 +38,11 @@ pub struct StoreConfig {
     pub has_sky: bool,
     /// Longest a column waits for missing neighbours before it is lit without them.
     pub max_wait: Duration,
-    /// A region file is rewritten at most this often (BlueMap's watcher re-renders a whole region).
+    /// A region file is rewritten at most this often, and only once no column in it has changed for this
+    /// long (a bot still crossing it): every rewrite is the whole file, and BlueMap rescans it.
     pub region_interval: Duration,
+    /// Longest a region's ready columns wait for it to go quiet before it is written anyway.
+    pub region_hold: Duration,
     /// Rough cap on converted columns held in memory.
     pub memory_limit: usize,
     /// Threads lighting and encoding columns; 0 = one per core.
@@ -47,6 +54,8 @@ struct Entry {
     converted: Instant,
     /// Hash of the chunk NBT last written, so an unchanged relight keeps the chunk's timestamp.
     written: Option<u64>,
+    /// `col` is no longer the conversion as it came (neighbour fixups edited it, or it was read back).
+    fixed: bool,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -68,11 +77,14 @@ pub struct AnvilStore {
     /// Neighbours of updated columns that were not in memory: relit if they are on disk.
     stale: HashMap<(i32, i32), Instant>,
     disk: Disk,
+    /// Regions written, and regions a column was dirtied in, within the last `region_interval`.
     region_written: HashMap<(i32, i32), Instant>,
+    touched: HashMap<(i32, i32), Instant>,
     bytes: usize,
     scratch: Scratch,
     buf: Box<[JavaState; VOLUME]>,
     workers: Vec<Worker>,
+    stats: StoreStats,
 }
 
 /// `<world>/dimensions/minecraft/<dimension>/region`, the 26.x layout BlueMap looks in first.
@@ -82,6 +94,8 @@ pub fn region_dir(world: &Path, dim: Dimension) -> PathBuf {
         .join(java_dimension(dim).name)
         .join("region")
 }
+
+type Pos = (i32, i32);
 
 fn region_of((x, z): (i32, i32)) -> (i32, i32) {
     (x >> 5, z >> 5)
@@ -108,10 +122,12 @@ impl AnvilStore {
             dirty: HashMap::new(),
             stale: HashMap::new(),
             region_written: HashMap::new(),
+            touched: HashMap::new(),
             bytes: 0,
             scratch: Scratch::default(),
             buf: Box::new([0; VOLUME]),
             workers: (0..threads).map(|_| Worker::default()).collect(),
+            stats: StoreStats::default(),
         })
     }
 
@@ -147,12 +163,18 @@ impl AnvilStore {
         if col.is_air() && (self.columns.contains_key(&pos) || self.disk.has(pos).unwrap_or(false)) {
             return false;
         }
+        // Sent again as it was (relog, overlapping views): nothing around it changes.
         let now = Instant::now();
+        if let Some(e) = self.columns.get_mut(&pos).filter(|e| !e.fixed && e.col == col) {
+            e.converted = now;
+            return true;
+        }
         self.bytes += col.heap_bytes();
         let mut entry = Entry {
             col,
             converted: now,
             written: None,
+            fixed: false,
         };
         if let Some(old) = self.columns.remove(&pos) {
             self.bytes -= old.col.heap_bytes();
@@ -167,50 +189,10 @@ impl AnvilStore {
                 } else {
                     self.stale.entry(p).or_insert(now);
                 }
+                self.touched.insert(region_of(p), now);
             }
         }
         true
-    }
-
-    /// Brings back from disk the stale columns (to be relit) and every neighbour a dirty column lacks.
-    fn reload(&mut self) -> Result<(), Error> {
-        for (p, since) in std::mem::take(&mut self.stale) {
-            if self.load(p)? {
-                self.dirty.entry(p).or_insert(since);
-            }
-        }
-        let mut missing: Vec<(i32, i32)> = self
-            .dirty
-            .keys()
-            .flat_map(|&(x, z)| {
-                (-1..=1).flat_map(move |dz| (-1..=1).map(move |dx| (x + dx, z + dz)))
-            })
-            .filter(|p| !self.columns.contains_key(p))
-            .collect();
-        missing.sort_unstable();
-        missing.dedup();
-        for p in missing {
-            self.load(p)?;
-        }
-        Ok(())
-    }
-
-    /// Whether `pos` is in memory, reading it back from its region file if needed.
-    fn load(&mut self, pos: (i32, i32)) -> Result<bool, Error> {
-        if self.columns.contains_key(&pos) {
-            return Ok(true);
-        }
-        let Some((col, nbt)) = self.disk.load(pos)? else {
-            return Ok(false);
-        };
-        self.bytes += col.heap_bytes();
-        let entry = Entry {
-            col,
-            converted: Instant::now(),
-            written: Some(hash_bytes(&nbt)),
-        };
-        self.columns.insert(pos, entry);
-        Ok(true)
     }
 
     fn present(&self, (x, z): (i32, i32)) -> u16 {
@@ -229,59 +211,34 @@ impl AnvilStore {
     pub fn flush(&mut self, force: bool) -> Result<FlushStats, Error> {
         self.reload()?;
         let now = Instant::now();
-        let mut by_region: HashMap<(i32, i32), Vec<(i32, i32)>> = HashMap::new();
+        // Per region: its ready columns and when the first of them became dirty.
+        let mut by_region: HashMap<Pos, (Vec<Pos>, Instant)> = HashMap::new();
         for (&pos, &since) in &self.dirty {
-            let ready =
-                force || now.duration_since(since) >= self.cfg.max_wait || self.present(pos) == ALL;
-            let region = region_of(pos);
-            let due = force
-                || self
-                    .region_written
-                    .get(&region)
-                    .is_none_or(|t| now.duration_since(*t) >= self.cfg.region_interval);
-            if ready && due {
-                by_region.entry(region).or_default().push(pos);
+            if force || now.duration_since(since) >= self.cfg.max_wait || self.present(pos) == ALL {
+                let e = by_region.entry(region_of(pos)).or_insert((Vec::new(), since));
+                e.0.push(pos);
+                e.1 = e.1.min(since);
             }
         }
+        let (interval, hold) = (self.cfg.region_interval, self.cfg.region_hold);
+        let quiet = |t: Option<&Instant>| t.is_none_or(|t| now.duration_since(*t) >= interval);
+        by_region.retain(|r, (_, first)| {
+            force
+                || quiet(self.region_written.get(r))
+                    && (quiet(self.touched.get(r)) || now.duration_since(*first) >= hold)
+        });
         let mut stats = FlushStats::default();
-        for (region, cols) in by_region {
+        for (region, (cols, _)) in by_region {
             self.write_region(region, &cols)?;
             self.region_written.insert(region, now);
             stats.columns += cols.len();
             stats.regions += 1;
         }
+        self.region_written.retain(|_, t| now.duration_since(*t) < interval);
+        self.touched.retain(|_, t| now.duration_since(*t) < interval);
         stats.waiting = self.dirty.len();
         self.evict();
         Ok(stats)
-    }
-
-    /// Drops the oldest written columns above the memory bound; dirty ones and their neighbours stay.
-    fn evict(&mut self) {
-        if self.bytes <= self.cfg.memory_limit {
-            return;
-        }
-        let keep: HashSet<(i32, i32)> = self
-            .dirty
-            .keys()
-            .flat_map(|&(x, z)| {
-                (-1..=1).flat_map(move |dz| (-1..=1).map(move |dx| (x + dx, z + dz)))
-            })
-            .collect();
-        let mut old: Vec<((i32, i32), Instant)> = self
-            .columns
-            .iter()
-            .filter(|(p, _)| !keep.contains(p))
-            .map(|(p, e)| (*p, e.converted))
-            .collect();
-        old.sort_by_key(|&(_, t)| t);
-        for (pos, _) in old {
-            if self.bytes <= self.cfg.memory_limit * 9 / 10 {
-                break;
-            }
-            if let Some(e) = self.columns.remove(&pos) {
-                self.bytes -= e.col.heap_bytes();
-            }
-        }
     }
 
     pub fn columns(&self) -> usize {
@@ -290,6 +247,20 @@ impl AnvilStore {
 
     pub fn heap_bytes(&self) -> usize {
         self.bytes
+    }
+
+    pub fn stats(&self) -> &StoreStats {
+        &self.stats
+    }
+
+    pub fn census(&self) -> Census {
+        Census {
+            columns: self.columns.len(),
+            dirty: self.dirty.len(),
+            stale: self.stale.len(),
+            regions_known: self.disk.regions_known(),
+            regions_debounced: self.region_written.len(),
+        }
     }
 }
 

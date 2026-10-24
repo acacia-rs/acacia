@@ -9,6 +9,7 @@ use crate::section::{Blocks, VOLUME, index};
 /// Biome cells of a section: 4×4×4, index `(qy << 4) | (qz << 2) | qx`.
 pub type SectionBiomes = [u16; 64];
 
+#[derive(PartialEq)]
 pub struct JavaColumn {
     pub x: i32,
     pub z: i32,

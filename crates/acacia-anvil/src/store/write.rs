@@ -3,8 +3,9 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use super::stats::{WorkerTimes, lap};
 use super::{AnvilStore, Entry};
 use crate::Error;
 use crate::column::JavaColumn;
@@ -21,6 +22,7 @@ pub(super) struct Worker {
     lighter: Lighter,
     enc: EncodeScratch,
     nbt: Vec<u8>,
+    times: WorkerTimes,
 }
 
 /// A column's chunk payload, or `None` when its NBT is what was last written.
@@ -48,7 +50,9 @@ impl Worker {
             .flat_map(|z| (x0 - 1..=x1 + 1).map(move |x| (x, z)))
             .map(|p| sh.columns.get(&p).map(|e| &e.col))
             .collect();
+        let start = Instant::now();
         self.lighter.light_area(&area, w, sh.props, sh.has_sky);
+        lap(&mut self.times.light, start);
         for &pos in group {
             let col = &sh.columns[&pos].col;
             let (cx, cz) = ((pos.0 - x0 + 1) as usize, (pos.1 - z0 + 1) as usize);
@@ -59,6 +63,7 @@ impl Worker {
     }
 
     fn encode(&mut self, sh: &Shared, pos: Pos, light: &[SectionLight]) -> Result<Rendered, Error> {
+        let start = Instant::now();
         let entry = &sh.columns[&pos];
         encode_chunk(&entry.col, light, &[], sh.props, &mut self.enc, &mut self.nbt);
         let hash = hash_bytes(&self.nbt);
@@ -69,11 +74,13 @@ impl Worker {
                 Some(h) => h == hash,
                 None => sh.region.chunk_nbt(lx, lz).is_some_and(|old| old == self.nbt),
             };
+        let start = lap(&mut self.times.encode, start);
         let payload = if unchanged {
             None
         } else {
             Some(region::compress(&self.nbt)?)
         };
+        lap(&mut self.times.compress, start);
         Ok((pos, hash, payload))
     }
 }
@@ -141,7 +148,10 @@ pub(super) fn neighbourhood(columns: &HashMap<Pos, Entry>, pos: Pos) -> Neighbou
 impl AnvilStore {
     pub(super) fn write_region(&mut self, (rx, rz): Pos, cols: &[Pos]) -> Result<(), Error> {
         let path = self.cfg.region_dir.join(region_file_name(rx, rz));
+        let start = Instant::now();
         let mut region = Region::load(&path)?;
+        self.stats.region_load_bytes += region.encoded_len() as u64;
+        let start = lap(&mut self.stats.region_load, start);
         for &pos in cols {
             self.dirty.remove(&pos);
             let mut edits = self
@@ -151,10 +161,12 @@ impl AnvilStore {
                 let entry = self.columns.get_mut(&pos).unwrap();
                 self.bytes -= entry.col.heap_bytes();
                 entry.col.apply_edits(&mut edits, &mut self.buf);
+                entry.fixed = true;
                 self.bytes += entry.col.heap_bytes();
             }
         }
 
+        let start = lap(&mut self.stats.fixup, start);
         let groups = grouping(cols, self.workers.len());
         let sh = Shared {
             columns: &self.columns,
@@ -185,6 +197,10 @@ impl AnvilStore {
                 .map(|j| j.join().expect("render worker panicked"))
                 .collect()
         });
+        let start = lap(&mut self.stats.render_wall, start);
+        for w in &mut self.workers {
+            self.stats.add_worker(&mut w.times);
+        }
 
         let secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -196,7 +212,11 @@ impl AnvilStore {
             .into_iter()
             .flatten()
         {
-            let Some(payload) = payload else { continue };
+            let Some(payload) = payload else {
+                self.stats.chunks_unchanged += 1;
+                continue;
+            };
+            self.stats.chunks_written += 1;
             let (lx, lz) = (local(pos.0), local(pos.1));
             // BlueMap re-renders a chunk only when its timestamp differs from the last render's.
             let ts = region
@@ -207,9 +227,13 @@ impl AnvilStore {
             changed = true;
         }
         if changed {
+            self.disk.close((rx, rz));
             region.save(&path)?;
             self.disk.saved((rx, rz), &region);
+            self.stats.region_writes += 1;
+            self.stats.bytes_written += region.encoded_len() as u64;
         }
+        lap(&mut self.stats.save, start);
         Ok(())
     }
 }
