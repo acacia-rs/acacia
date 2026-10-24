@@ -1,8 +1,8 @@
 # acacia-anvil
 
 Turns the Bedrock chunks an acacia bot holds (`acacia-world`) into a Java Edition world on disk: Anvil
-`.mca` region files, zlib-compressed chunk NBT in Java 26.3's format (DataVersion 5023), with sky and block
-light computed here. Built so bluemap-rs (or Java BlueMap) renders a Geyser-crawled server like Java BlueMap
+`.mca` region files, chunk NBT in Java 26.3's format (DataVersion 5023, zlib by default; see Compression),
+with sky and block light computed here. Built so bluemap-rs (or Java BlueMap) renders a Geyser-crawled server like Java BlueMap
 renders the server's own world, and so `bluemap -u` picks up changes as the bots see them.
 
 ## Pipeline
@@ -18,7 +18,7 @@ renders the server's own world, and so `bluemap -u` picks up changes as the bots
    only once no column in it was dirtied for `region_interval` (the bot has moved on), or once a ready column
    has waited `region_hold`. Per region:
    neighbour fixups (`fixup.rs`, sequential), then light (groups of nearby columns over one volume),
-   encode and zlib on `threads` workers, then temp-file + rename of the whole region (`region.rs`).
+   encode and compress on `threads` workers, then temp-file + rename of the whole region (`region.rs`).
 3. A chunk whose NBT is byte-identical to what was last written (or, for one this store has not written,
    to what the region file holds) keeps its slot and timestamp. A changed one gets `max(now, old + 1)`
    seconds: bluemap-rs re-renders a tile when any chunk timestamp under it differs from the last render's
@@ -137,6 +137,7 @@ Results (2026-10-24, about 400 columns around the scene):
 | `--dims all`: nether, 401 columns | 899 453 | 99.99% | 88: red mushrooms on the roof (y 128, above what Geyser sends) | 12 of 8 032 032 (lod 1), the same mushrooms |
 | `--dims all`: End, 401 columns | 93 846 | 100.00% | 0 | 0 |
 | after the scale changes (debounce, parallel read-back) | 702 850 | 100.00% | 0 | 0 |
+| after the compression setting and encode change (zlib 6) | 809 490 | 100.00% | 0 | 0 |
 
 Face counts vary between runs with how far the bot's view reached. Fixed on the way to the nether and End
 rows: Java's nether is 256 high (columns padded, heightmaps at 9 bits); Java 26.3's End has sky light
@@ -160,6 +161,9 @@ chunks, four regions), and checks:
 
 Result (2026-10-24, after the scale changes): all pass; 392 region reads, 0 torn, 6 writes landed during a region update; incremental
 render 4 374 744 of 4 374 744 faces identical to the fresh one, lowres 0 pixels differ.
+After the compression setting, zlib (2026-10-24): all pass; 568 region reads, 0 torn, 7 writes during a region
+update, every face and lowres pixel identical. `--compression lz4`: all pass; 9 103 region reads, 0 torn (the reader walks each LZ4Block stream
+to its end block), 6 writes during a region update, 4 374 744 of 4 374 744 faces, lowres 0 pixels.
 
 ## Throughput
 
@@ -217,6 +221,63 @@ they are never uniform); cropping the volume to the 14 blocks of the outer colum
 (−3% per column, +5% for 8×8 groups); filling and walking sky light in one top-down pass (+20%
 instructions: the separate walk stops at the surface).
 
+### Encode
+
+`encode.rs` built each section's palette by copying its 4096 states out and pushing one index per block; it
+now maps the stored section directly (per small-palette index; nothing per block for a uniform section), and
+the unchanged-NBT hash is XXH3 instead of SipHash. Output byte-identical; `encode_chunk` 10.1% → 2.9% of the
+full bench's cycles (`tools/profile_light.sh record bench`); bench 32 on one thread: 17.5G → 15.2G
+instructions with zlib, 14.5G → 12.1G with LZ4. What is left in the bench profile is terrain generation
+(`acacia-world` `Storage::set`), zlib, light, and SipHash of the store's `HashMap<(i32, i32), _>` lookups
+(2.8%).
+
+## Compression
+
+`StoreConfig::compression` (`zlib[:level]` default level 6, `lz4`, `none`; examples read
+`ANVIL_COMPRESSION`, the scale harness `compression=`, `tools/live.py --compression`) sets the type of chunks
+written from then on: 2 zlib (zlib-rs), 4 LZ4 in lz4-java's `LZ4BlockOutputStream` framing (Minecraft's
+type 4, not the LZ4 frame format: 64 KiB blocks, xxh32 checksums) or 3 none. A chunk whose NBT is unchanged
+keeps its slot as stored, so switching never rewrites a world. Java BlueMap 5.29 reads all three
+(`MCARegion.CHUNK_COMPRESSION_MAP` in the 5.29 jar: 0/3 none, 1 gzip, 2 zlib, 4 lz4-java), as does
+bluemap-rs (`bm-compress` `from_chunk_type`).
+
+`tools/codec_bench.sh [lab corpus]` (testbox, one thread, fastest of 5 passes) runs `examples/codec` on the
+oracle's 401 crawled chunks (real terrain, 124 KB of NBT each) and a 128² scale-harness world (synthetic,
+122 KB), then `perf stat`s the bench per option. Disk counts whole 4 KiB sectors, which is what a region
+file spends: real terrain needs two at zlib 6, synthetic one, so a level that crosses a sector boundary costs
+far more than its bytes. `tools/readcost` (bluemap-rs's `Region::read_chunk_into` + `Chunk::parse`, one
+thread, Windows) gives bluemap-rs's side.
+
+| Option | Compress, real / synthetic | Disk per chunk, real / synthetic | 88M chunks, real / synthetic | bluemap-rs read, real / synthetic | bluemap-rs parse |
+|---|---|---|---|---|---|
+| zlib 6 (default) | 415 / 349 µs | 8 080 / 4 389 B | 711 / 386 GB | 56 / 40 µs | 41–53 µs |
+| zlib 3 | 276 / 225 µs | 8 274 / 6 522 B | 728 / 574 GB | — | — |
+| zlib 1 | 187 / 182 µs | 10 020 / 8 192 B | 882 / 721 GB | — | — |
+| lz4 | 64 / 58 µs | 10 613 / 8 192 B | 934 / 721 GB | 58 / 60 µs | 45–48 µs |
+| none | 13 / 17 µs | 126 302 / 124 498 B | 11.1 / 11.0 TB | 9 / 11 µs | 47–48 µs |
+| libdeflate 6 (not used) | 379 / 303 µs | 8 008 / 4 360 B | 705 / 384 GB | — | — |
+
+- Converter: bench 32 on one thread (light + encode + compress + write): 15.2G instructions with zlib 6, 12.1G
+  with LZ4 (−20%). The scale harness at 4096² on the testbox (12 threads, HDD), zlib 6 twice vs LZ4: compress
+  41.0 / 36.7 → 6.2 thread-seconds and render 16.5 / 14.5 → 11.4 s wall, but 0.79 / 0.75 → 1.55 GB written
+  (4 404 → 8 200 B a chunk on disk) and save 7.4 / 13.4 → 18.3 s, so store time went 1 290 / 1 243 → 1 173
+  columns/s. At 16384² compress was 774 of ~2 800 worker thread-seconds; the store runs at ~10% load either way.
+- bluemap-rs: LZ4 does not read faster than zlib (its decoder is lz4_flex's safe decoder plus an xxh32 check
+  of every block; libdeflate inflates as fast). A `-r -f` render of the 128² world takes ~74 s CPU (Windows,
+  74–114 s between runs on a loaded machine), of which chunk read + parse is ~16 384 × 85 µs ≈ 1.4 s (~2%);
+  none would save ~0.5 s of it at 16–28× the disk. zlib, LZ4 and none render identically (`bm-golden
+  diff-render`: 0 of 73 838 690 faces differ, lowres 0 pixels).
+- Real crawled terrain (lab) compresses to 5.5 KB, not the synthetic 3.6 KB: DonutSMP at 300k² (88M chunks)
+  is ~711 GB with zlib 6, not ~390 GB, plus ~2.6× that written during the crawl.
+
+Recommendation for DonutSMP: zlib 6, the default. Disk is the scarce side: LZ4 would add ~220 GB on disk
+(+31% on real terrain, +87% on synthetic) and as much again per crawl pass in writes, to save ~350 µs of
+compress per chunk on a store that already idles at ~10% load, with no gain in bluemap-rs. Lower zlib levels
+save 30–55% of compress CPU but cross sector boundaries (+2% disk on real terrain, +49% on synthetic for
+level 3). LZ4 is worth switching to only if the converter, not the disk, becomes the limit (few cores, a
+fast SSD); none never is. libdeflate 6 would be ~10% faster than zlib-rs and 1–2% smaller, not worth a C
+dependency here.
+
 ## Scale
 
 `cargo run --release -p acacia-anvil --example scale -- side=<chunks> [key=value…]` (keys and defaults in
@@ -224,7 +285,7 @@ instructions: the separate walk stops at the surface).
 a view radius of 8, 1.4 chunks/s ≈ 22 blocks/s, so 17 new columns a step), relog every 15 min (whole view
 sent again), and players edit 0.5 chunks/s; time runs 4× real time, the store's durations scaled to match.
 Synthetic terrain from 16 templates (cliffs between chunks, ores, torches, edge redstone, snow, a lit cave
-at a chunk edge, ponds), ~4.4 KB a chunk compressed. `check=<n>` converts n sample regions again with
+at a chunk edge, ponds), ~4.4 KB a chunk on disk (real crawled terrain takes ~8 KB: see Compression). `check=<n>` converts n sample regions again with
 everything in memory and compares every chunk's NBT.
 
 Results (2026-10-24, 22 threads, memory limit 1 GB, `region_interval` 10 s, `region_hold` 60 s, as
