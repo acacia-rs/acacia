@@ -136,6 +136,7 @@ Results (2026-10-24, about 400 columns around the scene):
 | `--dims all`: overworld | 809 490 | 100.00% | 0 | 0 |
 | `--dims all`: nether, 401 columns | 899 453 | 99.99% | 88: red mushrooms on the roof (y 128, above what Geyser sends) | 12 of 8 032 032 (lod 1), the same mushrooms |
 | `--dims all`: End, 401 columns | 93 846 | 100.00% | 0 | 0 |
+| after the scale changes (debounce, parallel read-back) | 702 850 | 100.00% | 0 | 0 |
 
 Face counts vary between runs with how far the bot's view reached. Fixed on the way to the nether and End
 rows: Java's nether is 256 high (columns padded, heightmaps at 9 bits); Java 26.3's End has sky light
@@ -157,7 +158,7 @@ chunks, four regions), and checks:
   (no torn file, no temp file left), bluemap logs no warning, and the incremental map equals a fresh `-r -f`
   render of the final world (every face, lowres pixels).
 
-Result (2026-10-24, final code): all pass; 524 region reads, 0 torn, 5 writes landed during a region update; incremental
+Result (2026-10-24, after the scale changes): all pass; 392 region reads, 0 torn, 6 writes landed during a region update; incremental
 render 4 374 744 of 4 374 744 faces identical to the fresh one, lowres 0 pixels differ.
 
 ## Throughput
@@ -174,3 +175,43 @@ Dirty columns are lit in aligned 8×8 groups over one volume padded by a column 
 lit, against 9 per column), 4×4 or 2×2 when that leaves workers idle; a sparse group is lit column by
 column. The region file is byte-identical either way (`light::tests::a_lit_area_matches_lighting_each_column_alone`
 proves the light part on rough terrain).
+
+## Scale
+
+`cargo run --release -p acacia-anvil --example scale -- side=<chunks> [key=value…]` (keys and defaults in
+`examples/scale/main.rs`): 8 bots each mow an equal band of a `side`² world (passes along x, 15 chunks apart,
+a view radius of 8, 1.4 chunks/s ≈ 22 blocks/s, so 17 new columns a step), relog every 15 min (whole view
+sent again), and players edit 0.5 chunks/s; time runs 4× real time, the store's durations scaled to match.
+Synthetic terrain from 16 templates (cliffs between chunks, ores, torches, edge redstone, snow, a lit cave
+at a chunk edge, ponds), ~4.4 KB a chunk compressed. `check=<n>` converts n sample regions again with
+everything in memory and compares every chunk's NBT.
+
+Results (2026-10-24, 22 threads, memory limit 1 GB, `region_interval` 10 s, `region_hold` 60 s, as
+`examples/crawl.rs` sets them; "store time" is `update` + `flush`):
+
+| World | Chunks | Peak working set | Store time | Written per chunk | Bytes written / final world |
+|---|---|---|---|---|---|
+| 4096² | 65 536 | 1 424 MB | 2 155 columns/s | 9.2 KB | 2.1× |
+| 8192² | 262 144 | 1 436 MB | 2 270 columns/s | 12.8 KB | 2.9× |
+| 16384² | 1 048 576 | 1 427 MB | 2 143 columns/s | 11.4 KB | 2.6× |
+| 8192², before (`region_interval` 2 s, no hold) | 262 144 | 1 371 MB | 615 columns/s | 155 KB | 35× |
+
+- Memory is flat past the limit: the column heap stays at the bound (the working set is ~1.4× it:
+  allocator and map overhead), and the bookkeeping is bounded: presence bitmaps for at most 16 384 regions
+  (2 MB, rebuilt from the offset table when forgotten), debounce times only for regions touched within
+  `region_interval`. At 300k² (~341k regions) nothing else grows.
+- Where store time goes at 16384² (1.26M conversions, 317k columns read back): render 191 s wall (light
+  1 437, encode 567, compress 774 thread-seconds), update (conversion) 142 s, read-back 82 s (22 s of it
+  decompress + decode on all workers, the rest serial file reads), fixups 40 s, region reads before a
+  rewrite 6 s, saves 14 s. The crawl needs ~200 columns/s for 8 bots, so the store runs at ~10% load.
+- Write amplification came from rewriting whole regions every 2 s while a bot crossed them (each pass takes
+  ~35 s per region): 35× the final world. A region now waits until nothing in it changed for
+  `region_interval` (the bot has moved on), or `region_hold` at most, so a pass writes it about once.
+  Whole-file temp + rename stays: bluemap-rs reads the header once and then sectors from its open handle,
+  so in-place slot updates could hand it a torn chunk.
+- A column sent again unchanged while held (relog, overlapping views) dirties nothing; one evicted is read
+  back and relit with its neighbours, and its slot is kept when the NBT is the same (`relit unchanged`).
+- Correctness across eviction: 8192² with a 128 MB limit (116k columns read back) and `check=8`: 8 192 of
+  8 192 chunks in 8 sample regions byte-identical to the all-in-memory conversion. bluemap-rs renders 5 of
+  its regions (1 186 hires tiles) with no warning. A limit far below the crawl's working set is not
+  reached: dirty columns and their neighbours are never evicted (196 MB held at 128 MB, 669 MB peak).
