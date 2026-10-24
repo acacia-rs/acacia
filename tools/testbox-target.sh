@@ -26,3 +26,5 @@ for used in $(ls -tr "$base"/*/.used 2>/dev/null); do
   roomy && break
   [ "$victim" = "$mine" ] || busy "$victim" || { rm -rf "$victim"; echo "testbox-target: evicted $(basename "$victim")"; }
 done
+# Only idle targets can go: busy ones keep growing, and a build past the tmpfs then fails with ENOSPC.
+roomy || echo "testbox-target: only $(df -m --output=avail /dev/shm | tail -1) MB of tmpfs free with the rest busy; a large build may fail with ENOSPC" >&2
