@@ -51,7 +51,21 @@ mobs -31% / -21%, wander -19% / -13%. From:
 - bot: `step` takes a queued event without `select!` while no tick is due (the tick timer was armed and dropped
   per packet); entity maps Fx-hashed.
 
-Tried, no gain: an exact float floor in `probe_area` and an inlined `block_pos` (wander -0.3%); a repr(C) `Entity`
+dfdb8c2 against 6ef624b (2026-10-24, second pass), instructions / peak RSS: crowd -7% / -64%, redstone -23% / -69%,
+mobs -8% / -56%, wander -4% / -44%. From:
+- memory: one block registry per custom-block list (a vanilla-only list is vanilla itself), one item registry,
+  CraftingData and CreativeContent kept as one owned body (each slice pinned the bot's whole 2.5 MB join batch).
+  50 bots in crowd: 6.1 MB a bot before.
+- client: a pass's events go to the bot as one message, with `event_capacity` kept by a semaphore
+  (`event_queue.rs`); a pack-fetch channel polled only while downloads run.
+- bot: UpdateAttributes and SetEntityData peeked for their entity id before decoding; BlockEntityData NBT read
+  in place; one tick timer per bot; entities boxed in their map (mobs cycles -1.7%).
+- session: a batch is encoded into one buffer.
+
+`WRAP=heaptrack` profiles allocations; summaries carry peak RSS and box UDP rates. Peak RSS moves ±20% run to run
+(it catches the join burst): judge memory by large changes or heaptrack.
+
+Tried, no gain: jemalloc (±5% RSS) and `MALLOC_ARENA_MAX=2` (wander -86 MB, mobs +60 MB); an exact float floor in `probe_area` and an inlined `block_pos` (wander -0.3%); a repr(C) `Entity`
 with the move fields beside the map key (mobs cycles 1.008 over three rounds; the miss is the bucket itself); sha2's `asm` backend on testbox's Xeon
 E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%).
 
@@ -59,5 +73,12 @@ E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%
 
 - Pathfinding (wander ~55% of the swarm): `CellMemo::get` ~10% self, `CellMemo::default` 1.7% (a memo built per
   search), `cell::state_flags` matches block names with `str` searches per cell (1.4% in `StrSearcher::new`).
-- RakNet: kernel UDP sends are 11% of mobs (one `sendto` per datagram; `sendmmsg` would batch them).
-- Inherent: sha256 per packet (testbox lacks SHA-NI), tokio wakers and channels.
+- RakNet: each connection's 10 ms ACK grid starts at its connect time, so a shard wakes once per bot per
+  grid; one shared grid per shard keeps each wire pattern and was estimated at crowd -6-8%, mobs -4%. ACKs are
+  half the outbound datagrams (one per server tick). `sendmmsg` would gain under 1%: each flush has about one
+  datagram.
+- Bot cadence: a shared tick grid per shard instead of a per-bot 20 Hz timer, estimated crowd -10-20% cycles,
+  changes tick phases between bots (a realism call).
+- Server: sapling sends every player's skin to each joiner in one PlayerList batch; past ~57 bots that tops
+  acacia's 16 MiB batch limit and bots reconnect in a loop.
+- Inherent: sha256 per packet (testbox lacks SHA-NI), one wakeup per datagram.
