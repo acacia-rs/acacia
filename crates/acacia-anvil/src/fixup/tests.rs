@@ -1,8 +1,7 @@
 use super::*;
 use crate::column::JavaColumn;
-use crate::mapping::{AIR, StateMap, java};
+use crate::mapping::{AIR, java};
 use crate::section::{VOLUME, index};
-use acacia_world::BlockRegistry;
 
 fn st(name: &str, p: &[(&str, &str)]) -> JavaState {
     java().state(&format!("minecraft:{name}"), p).unwrap()
@@ -25,8 +24,7 @@ fn column(blocks: &[([usize; 3], JavaState)]) -> JavaColumn {
 }
 
 fn fixed(blocks: &[([usize; 3], JavaState)]) -> Vec<([usize; 3], JavaState)> {
-    let reg = BlockRegistry::vanilla();
-    let props = PropsTable::new(reg, &StateMap::new(reg));
+    let props = PropsTable::new();
     let c = column(blocks);
     let mut cols = [None; 9];
     cols[4] = Some(&c);

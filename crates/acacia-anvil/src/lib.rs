@@ -13,7 +13,7 @@ pub mod region;
 pub mod section;
 pub mod store;
 
-pub use store::{AnvilStore, FlushStats, StoreConfig};
+pub use store::{AnvilStore, FlushStats, StoreConfig, region_dir};
 
 use std::path::PathBuf;
 

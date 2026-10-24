@@ -12,6 +12,7 @@ const OUT = path.join(HERE, '..', 'data', 'mapping.bin');
 const GEYSER = 'https://raw.githubusercontent.com/GeyserMC/mappings/81700ab543c1f4e9f9041f58dac4154ecb0d0c8b';
 // Vanilla 26.3 data report: java -DbundlerMainClass=net.minecraft.data.Main -jar server-26.3.jar --reports
 const JAVA_REPORT = 'java-26.3-blocks.json';
+const LIGHT_DUMP = 'java-26.3-light.json';
 // Java biomes sharing one Bedrock id: the one a Bedrock id most likely came from.
 const BIOME_PREFERRED = new Set(['minecraft:river', 'minecraft:the_end']);
 
@@ -30,6 +31,21 @@ async function load(name, url) {
 const report = JSON.parse(await load(JAVA_REPORT));
 const geyser = readNbt(await load('blocks.nbt', `${GEYSER}/blocks.nbt`)).bedrock_mappings;
 const biomes = JSON.parse(await load('biomes.json', `${GEYSER}/biomes.json`));
+// Java's own per-state light data (tools/javadump/LightDump.java) and block tags (unzipped from the jar).
+const light = JSON.parse(await load(LIGHT_DUMP));
+const tagCache = new Map();
+const tag = (name) => {
+  if (tagCache.has(name)) return tagCache.get(name);
+  const file = path.join(CACHE, 'tags/data/minecraft/tags/block', `${name.replace('minecraft:', '')}.json`);
+  const set = new Set();
+  for (const v of JSON.parse(fs.readFileSync(file, 'utf8')).values) {
+    const id = typeof v === 'string' ? v : v.id;
+    if (id.startsWith('#')) tag(id.slice(1)).forEach((b) => set.add(b));
+    else set.add(id);
+  }
+  tagCache.set(name, set);
+  return set;
+};
 
 // The report lists properties by name, not in the order states are enumerated: order them by stride.
 const stride = (states, k) => { let n = 1; while (n < states.length && states[n].properties[k] === states[0].properties[k]) n++; return n; };
@@ -108,6 +124,7 @@ for (const [name, { bedrock_id: id }] of Object.entries(biomes).sort()) {
 //   java blocks: u32 n, n×(u32 name, u32 default index, u8 props, props×(u32 key, u8 values, values×u32))
 //   bedrock → java: u32 n, n×(u32 name, u32 props, u32 java state id)
 //   java → bedrock (Geyser's forward map): u32 java states, each u16 index into the list above
+//   per java state: u8 light dampening, u8 emission, u8 occluding faces, u8 flags (src/props.rs)
 //   biomes: u32 n, n×(u32 bedrock id, u32 java name)
 const strings = new Map();
 const str = (s) => { if (!strings.has(s)) strings.set(s, strings.size); return strings.get(s); };
@@ -128,6 +145,19 @@ for (const [key, id] of bedrockList) {
 const bedrockIndex = new Map(bedrockList.map(([key], i) => [key, i]));
 u32(geyser.length);
 geyser.forEach((entry, id) => { const b = Buffer.alloc(2); b.writeUInt16LE(bedrockIndex.get(bedrockKey(entry, javaStates[id]))); body.push(b); });
+// Heightmaps: OCEAN_FLOOR tests #blocks_motion, MOTION_BLOCKING adds fluids, _NO_LEAVES drops #leaves.
+if (light.length !== javaStates.length) throw new Error(`light dump has ${light.length} states`);
+const motion = tag('blocks_motion');
+const noLeaves = tag('blocks_motion_no_leaves');
+light.forEach(([dampening, emission, faces, bits], id) => {
+  const name = javaStates[id].block.name;
+  let flags = 0;
+  if (!(bits & 1)) flags |= 1;
+  if (motion.has(name)) flags |= 2;
+  if (bits & 2) flags |= 4;
+  if (motion.has(name) && !noLeaves.has(name)) flags |= 8;
+  body.push(Buffer.from([dampening, emission, faces, flags]));
+});
 u32(biomeById.size);
 for (const [id, name] of [...biomeById].sort((a, b) => a[0] - b[0])) { u32(id); u32(str(name)); }
 

@@ -1,12 +1,10 @@
 use super::*;
 use crate::column::JavaColumn;
-use crate::mapping::{AIR, JavaState, StateMap, java};
-use crate::section::VOLUME;
-use acacia_world::BlockRegistry;
+use crate::mapping::{AIR, JavaState, java};
+use crate::section::{VOLUME, index};
 
 fn props() -> PropsTable {
-    let reg = BlockRegistry::vanilla();
-    PropsTable::new(reg, &StateMap::new(reg))
+    PropsTable::new()
 }
 
 fn state(name: &str, p: &[(&str, &str)]) -> JavaState {

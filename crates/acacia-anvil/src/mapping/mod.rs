@@ -13,12 +13,15 @@ pub type JavaState = u16;
 
 pub const AIR: JavaState = 0;
 
+/// A property name and its values in enumeration order.
+type Property = (&'static str, Box<[&'static str]>);
+
 pub struct JavaBlock {
     pub name: &'static str,
     base: u32,
     default_index: u32,
     /// In state-enumeration order: the last property varies fastest.
-    props: Box<[(&'static str, Box<[&'static str]>)]>,
+    props: Box<[Property]>,
 }
 
 impl JavaBlock {
@@ -41,6 +44,8 @@ struct Tables {
     bedrock: Vec<(&'static str, &'static str, u32)>,
     /// Per Java state: index into `bedrock` of the state Geyser sends for it.
     forward: Vec<u16>,
+    /// Per Java state, from Java itself: dampening, emission, occluding faces, flags (props.rs).
+    light: Vec<[u8; 4]>,
     biomes: Vec<(u32, &'static str)>,
 }
 
@@ -108,6 +113,11 @@ impl JavaBlocks {
             .map(move |(i, (k, vals))| (*k, vals[picked[i] as usize]))
     }
 
+    /// `[light dampening, emission, occluding faces, flags]` as Java computes them (props.rs).
+    pub fn light_data(&self, state: JavaState) -> [u8; 4] {
+        self.t.light[state as usize]
+    }
+
     pub fn property(&self, state: JavaState, key: &str) -> Option<&'static str> {
         self.properties(state)
             .find(|(k, _)| *k == key)
@@ -168,7 +178,10 @@ impl StateMap {
                     .unwrap_or_else(|| {
                         unmapped.push(id);
                         nearest_mapped(registry, &by_bedrock, s.name, s.properties)
-                            .or_else(|| j.find_block(s.name).map(JavaBlock::default_state))
+                            .or_else(|| {
+                                j.find_block(&java_name_of_custom(s.name))
+                                    .map(JavaBlock::default_state)
+                            })
                             .unwrap_or(AIR)
                     })
             })
@@ -199,6 +212,15 @@ impl StateMap {
     /// The runtime id Geyser would send for a Java state (where per-state light and shape data come from).
     pub fn bedrock(&self, state: JavaState) -> u32 {
         self.to_bedrock[state as usize]
+    }
+}
+
+/// Geyser sends some Java blocks as its own custom blocks (`geyser_custom:obsidian`, the huge mushroom
+/// blocks, ...; seen on Geyser-Spigot 2.12): the Java block of the same path, in its default state.
+fn java_name_of_custom(name: &str) -> String {
+    match name.strip_prefix("geyser_custom:") {
+        Some(path) => format!("minecraft:{path}"),
+        None => name.to_owned(),
     }
 }
 

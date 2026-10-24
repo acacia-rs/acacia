@@ -39,6 +39,19 @@ pub fn region_file_name(rx: i32, rz: i32) -> String {
     format!("r.{rx}.{rz}.mca")
 }
 
+/// A region slot's payload: compression byte (zlib) and the compressed chunk NBT.
+pub fn compress(nbt: &[u8]) -> Result<Vec<u8>, Error> {
+    let mut payload = Vec::with_capacity(nbt.len() / 4 + 16);
+    payload.push(COMPRESSION_ZLIB);
+    let mut enc = ZlibEncoder::new(payload, Compression::new(6));
+    enc.write_all(nbt).expect("writing to a Vec");
+    let payload = enc.finish().expect("writing to a Vec");
+    if (payload.len() + 4).div_ceil(SECTOR) > MAX_SECTORS {
+        return Err(Error::ChunkTooLarge(payload.len()));
+    }
+    Ok(payload)
+}
+
 fn slot_index(local_x: usize, local_z: usize) -> usize {
     (local_x & 31) | ((local_z & 31) << 5)
 }
@@ -98,16 +111,20 @@ impl Region {
         nbt: &[u8],
         timestamp: u32,
     ) -> Result<(), Error> {
-        let mut payload = Vec::with_capacity(nbt.len() / 4 + 16);
-        payload.push(COMPRESSION_ZLIB);
-        let mut enc = ZlibEncoder::new(payload, Compression::new(6));
-        enc.write_all(nbt).expect("writing to a Vec");
-        let payload = enc.finish().expect("writing to a Vec");
-        if (payload.len() + 4).div_ceil(SECTOR) > MAX_SECTORS {
-            return Err(Error::ChunkTooLarge(payload.len()));
-        }
-        self.slots[slot_index(local_x, local_z)] = Some(Slot { payload, timestamp });
+        let payload = compress(nbt)?;
+        self.set_payload(local_x, local_z, payload, timestamp);
         Ok(())
+    }
+
+    /// Stores a payload from [`compress`].
+    pub fn set_payload(
+        &mut self,
+        local_x: usize,
+        local_z: usize,
+        payload: Vec<u8>,
+        timestamp: u32,
+    ) {
+        self.slots[slot_index(local_x, local_z)] = Some(Slot { payload, timestamp });
     }
 
     pub fn remove_chunk(&mut self, local_x: usize, local_z: usize) {

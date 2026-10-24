@@ -74,6 +74,18 @@ fn common_states_map_back() {
 }
 
 #[test]
+fn geyser_custom_blocks_map_by_name() {
+    let custom = [acacia_world::CustomBlock {
+        name: "geyser_custom:obsidian".into(),
+        state_count: 1,
+    }];
+    let reg = BlockRegistry::vanilla().with_custom_blocks(&custom);
+    let map = StateMap::new(&reg);
+    let (id, _) = reg.states_of("geyser_custom:obsidian").next().unwrap();
+    assert_eq!(name_props(map.java(id)), "minecraft:obsidian[]");
+}
+
+#[test]
 fn biomes_invert() {
     let b = biomes();
     assert_eq!(b.name(b.java(1)), "minecraft:plains");

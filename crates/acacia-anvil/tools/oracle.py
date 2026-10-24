@@ -17,7 +17,10 @@ import threading
 import time
 from pathlib import Path
 
+import scene
+
 REPO = Path(__file__).resolve().parents[3]
+REPORT = Path(__file__).resolve().parent / ".cache/java-26.3-blocks.json"
 LAB = REPO / ".testserver" / "anvil-lab"
 SERVER = LAB / "server"
 BMRS = Path(os.environ.get("BLUEMAP_RS", "C:/Users/hexay/bluemap-rs"))
@@ -32,8 +35,10 @@ SEED = "acacia-anvil"
 PROPERTIES = {
     "online-mode": "false", "server-port": "25570", "level-seed": SEED, "view-distance": "12",
     "simulation-distance": "4", "spawn-protection": "0", "difficulty": "peaceful", "gamemode": "creative",
-    "motd": "acacia-anvil lab", "spawn-monsters": "false",
+    "motd": "acacia-anvil lab", "spawn-monsters": "false", "white-list": "false", "enforce-whitelist": "false",
 }
+# Java's offline UUID for "Anvil" (as Geyser offline auth logs it in), opped so ANVIL_TP works
+OPS = [{"uuid": "0cc89651-436f-38c2-a44d-d70fbab49a5c", "name": "Anvil", "level": 4, "bypassesPlayerLimit": False}]
 GEYSER_PORT = 19150
 
 
@@ -46,6 +51,7 @@ def write_server_config():
     SERVER.mkdir(parents=True, exist_ok=True)
     (SERVER / "eula.txt").write_text("eula=true\n")
     (SERVER / "server.properties").write_text("".join(f"{k}={v}\n" for k, v in PROPERTIES.items()))
+    (SERVER / "ops.json").write_text(json.dumps(OPS))
 
 
 def geyser_config():
@@ -63,6 +69,9 @@ def geyser_config():
             line = line[: line.index("port:")] + f"port: {GEYSER_PORT}"
         if stripped.startswith("auth-type:"):
             line = line[: line.index("auth-type:")] + "auth-type: offline"
+        # the bot joins offline: no Xbox chain to validate
+        if stripped.startswith("validate-bedrock-login:"):
+            line = line[: line.index("validate-bedrock-login:")] + "validate-bedrock-login: false"
         lines.append(line)
     cfg.write_text("\n".join(lines) + "\n")
     return True
@@ -105,6 +114,8 @@ class Server:
 
 def start_server():
     write_server_config()
+    # the bot rejoins where it left otherwise; it should spawn at the scene
+    shutil.rmtree(SERVER / "world/players", ignore_errors=True)
     first = not geyser_config()
     server = Server()
     server.wait_for("Done (")
@@ -226,10 +237,16 @@ def main():
     ap.add_argument("--quiet", default="15")
     ap.add_argument("--limit", default="300")
     ap.add_argument("--top", default="30")
+    ap.add_argument("--no-scene", dest="scene", action="store_false", help="crawl natural terrain only")
     args = ap.parse_args()
     if args.step in ("all", "server", "crawl"):
         server = start_server()
         try:
+            if args.scene:
+                for cmd in scene.commands(REPORT):
+                    server.command(cmd)
+                server.command("save-all flush")
+                server.wait_for("Saved the game", timeout=600)
             if args.step != "server":
                 crawl(args)
             else:

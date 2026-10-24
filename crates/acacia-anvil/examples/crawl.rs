@@ -60,11 +60,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     changes = Some(world.subscribe());
                     pending.extend(world.chunk_positions());
                     let cfg = StoreConfig {
-                        region_dir: world_dir.join("dimensions/minecraft/overworld/region"),
+                        region_dir: acacia_anvil::region_dir(&world_dir, world.dimension()),
                         has_sky: world.dimension().sky,
                         max_wait: quiet,
                         region_interval: Duration::from_secs(2),
                         memory_limit: 1 << 30,
+                        threads: 0,
                     };
                     store = Some(AnvilStore::new(world.registry().clone(), cfg)?);
                 }
@@ -112,6 +113,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "crawl {outcome}: {converted} conversions in {:.1}s",
         start.elapsed().as_secs_f32()
     );
+    // ANVIL_PROBE="x,y,z;…": the Bedrock states the bot holds there, for chasing a diff-render cell
+    if let (Ok(probe), Some(view)) = (
+        std::env::var("ANVIL_PROBE"),
+        bot.world().and_then(|w| w.view()),
+    ) {
+        let reg = view.world().registry();
+        for p in probe.split(';') {
+            let v: Vec<i32> = p.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+            let [x, y, z] = v[..] else { continue };
+            let state = |id: u32| {
+                reg.get(id).map_or(format!("#{id}"), |s| {
+                    format!("{}[{}]", s.name, s.properties)
+                })
+            };
+            match view.chunk(x >> 4, z >> 4) {
+                Some(c) => {
+                    let c = c.read();
+                    println!(
+                        "probe {p}: {} / {}",
+                        state(c.block(x, y, z)),
+                        state(c.liquid(x, y, z))
+                    );
+                }
+                None => println!("probe {p}: no chunk"),
+            }
+        }
+    }
     bot.client().close();
     Ok(())
 }

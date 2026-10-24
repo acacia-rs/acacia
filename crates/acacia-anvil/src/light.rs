@@ -1,16 +1,20 @@
-//! Sky and block light for one column from the blocks of its 3×3 neighbourhood.
+//! Sky and block light for one column from the blocks of its 3×3 neighbourhood, with Java's rules
+//! (`LightEngine`): each step costs `max(1, dampening)`, sky light keeps 15 straight down through
+//! undampened blocks, and shape-occluding blocks pass no light through their full faces (props.rs).
 //!
 //! Light reaches at most 15 blocks, so every path that lights the centre column stays inside the 16-block
-//! ring of neighbours: with all eight present the result is exact (for our opacity model, `props.rs`).
-//! A missing neighbour counts as opaque, so light only stops at it; the ingest loop relights a column when
-//! a late neighbour arrives (`store.rs`).
+//! ring of neighbours: with all eight present the result is exact. A missing neighbour counts as opaque,
+//! so light only stops at it; the store relights a column when a late neighbour arrives (`store.rs`).
 
 use crate::column::JavaColumn;
+use crate::mapping::{AIR, JavaState};
 use crate::props::{self, PropsTable};
-use crate::section::{Blocks, index};
+use crate::section::Blocks;
 
 const SIDE: usize = 48;
 const LAYER: usize = SIDE * SIDE;
+/// A cell: dampening in the low byte, full occluding faces in the high byte.
+const OPAQUE: u16 = 15;
 
 /// Nibble arrays of one section, in Java's layout (`(y << 8) | (z << 4) | x`, even index low nibble).
 #[derive(Clone)]
@@ -30,25 +34,24 @@ impl<'a> Neighbourhood<'a> {
     }
 
     /// A block at x/z relative to the centre column (−16..32) and world y; missing columns read as air.
-    pub fn block(&self, x: i32, y: i32, z: i32) -> crate::mapping::JavaState {
+    pub fn block(&self, x: i32, y: i32, z: i32) -> JavaState {
         let (cx, cz) = ((x >> 4) + 1, (z >> 4) + 1);
         if !(0..3).contains(&cx) || !(0..3).contains(&cz) {
-            return crate::mapping::AIR;
+            return AIR;
         }
-        self.cols[(cz * 3 + cx) as usize].map_or(crate::mapping::AIR, |c| {
-            c.block((x & 15) as usize, y, (z & 15) as usize)
-        })
+        self.cols[(cz * 3 + cx) as usize]
+            .map_or(AIR, |c| c.block((x & 15) as usize, y, (z & 15) as usize))
     }
 }
 
 #[derive(Default)]
 pub struct Lighter {
-    opacity: Vec<u8>,
-    faces: Vec<u8>,
-    emission: Vec<u8>,
+    cell: Vec<u16>,
     level: Vec<u8>,
+    emitters: Vec<(u32, u8)>,
     buckets: [Vec<u32>; 16],
     bottom: Vec<u32>,
+    palette: Vec<(u16, u8)>,
 }
 
 impl Lighter {
@@ -59,24 +62,18 @@ impl Lighter {
         props: &PropsTable,
         has_sky: bool,
     ) -> Vec<SectionLight> {
-        let c = n.centre();
-        let sections = c.sections.len();
+        let sections = n.centre().sections.len();
         let top_section = n
             .cols
             .iter()
             .flatten()
-            .filter_map(|col| {
-                col.sections
-                    .iter()
-                    .rposition(|s| s.uniform() != Some(crate::mapping::AIR))
-            })
+            .filter_map(|col| col.sections.iter().rposition(|s| s.uniform() != Some(AIR)))
             .max();
         // Above the highest non-air section anywhere (plus one for light rising off it) is open sky.
         let lit = top_section.map_or(0, |t| (t + 2).min(sections));
         let height = lit * 16;
         self.fill(n, props, height);
 
-        let mut out = Vec::with_capacity(sections);
         let sky_byte = if has_sky { 0xFF } else { 0 };
         let mut sky = vec![0u8; LAYER * height];
         if has_sky && height > 0 {
@@ -86,20 +83,18 @@ impl Lighter {
         }
         self.seed_block(height);
         self.propagate(false);
+        let mut out = Vec::with_capacity(sections);
         for s in 0..sections {
             let mut light = SectionLight {
                 sky: Box::new([sky_byte; 2048]),
                 block: Box::new([0; 2048]),
             };
             if s < lit {
-                for y in 0..16 {
-                    for z in 0..16 {
-                        for x in 0..16 {
-                            let d = (s * 16 + y) * LAYER + (z + 16) * SIDE + x + 16;
-                            set_nibble(&mut light.sky, index(x, y, z), sky[d]);
-                            set_nibble(&mut light.block, index(x, y, z), self.level[d]);
-                        }
-                    }
+                for i in (0..4096).step_by(2) {
+                    let (x, z, y) = (i & 15, (i >> 4) & 15, i >> 8);
+                    let d = (s * 16 + y) * LAYER + (z + 16) * SIDE + x + 16;
+                    light.sky[i >> 1] = sky[d] | (sky[d + 1] << 4);
+                    light.block[i >> 1] = self.level[d] | (self.level[d + 1] << 4);
                 }
             }
             out.push(light);
@@ -108,28 +103,40 @@ impl Lighter {
     }
 
     fn fill(&mut self, n: &Neighbourhood, props: &PropsTable, height: usize) {
-        let cells = LAYER * height;
-        for v in [&mut self.opacity, &mut self.faces, &mut self.emission] {
-            v.clear();
-            v.resize(cells, 0);
-        }
-        self.opacity.fill(15);
+        self.cell.clear();
+        self.cell.resize(LAYER * height, OPAQUE);
+        self.emitters.clear();
+        let cell_of = |s: JavaState| {
+            let p = props.get(s);
+            (p.opacity as u16 | (p.faces as u16) << 8, p.emission)
+        };
         for (i, col) in n.cols.iter().enumerate() {
             let Some(col) = col else { continue };
             let (ox, oz) = ((i % 3) * 16, (i / 3) * 16);
             for (s, blocks) in col.sections.iter().enumerate().take(height / 16) {
+                self.palette.clear();
+                match blocks {
+                    Blocks::Uniform(u) => self.palette.push(cell_of(*u)),
+                    Blocks::Small { palette, .. } => {
+                        self.palette.extend(palette.iter().map(|&s| cell_of(s)))
+                    }
+                    Blocks::Full(_) => {}
+                }
                 for y in 0..16 {
-                    let row = (s * 16 + y) * LAYER;
                     for z in 0..16 {
+                        let src = (y << 8) | (z << 4);
+                        let dst = (s * 16 + y) * LAYER + (oz + z) * SIDE + ox;
+                        let row = &mut self.cell[dst..dst + 16];
                         for x in 0..16 {
-                            let p = props.get(match blocks {
-                                Blocks::Uniform(u) => *u,
-                                b => b.get(index(x, y, z)),
-                            });
-                            let d = row + (oz + z) * SIDE + ox + x;
-                            self.opacity[d] = p.opacity;
-                            self.faces[d] = p.faces;
-                            self.emission[d] = p.emission;
+                            let (c, e) = match blocks {
+                                Blocks::Uniform(_) => self.palette[0],
+                                Blocks::Small { idx, .. } => self.palette[idx[src | x] as usize],
+                                Blocks::Full(f) => cell_of(f[src | x]),
+                            };
+                            row[x] = c;
+                            if e > 0 {
+                                self.emitters.push(((dst + x) as u32, e));
+                            }
                         }
                     }
                 }
@@ -147,12 +154,13 @@ impl Lighter {
             let mut y = height;
             while y > 0 {
                 let d = (y - 1) * LAYER + xz;
-                if self.opacity[d] != 0 || self.faces[d] & (1 << props::UP) != 0 {
+                let c = self.cell[d];
+                if c & 0xFF != 0 || c & (1 << (8 + props::UP)) != 0 {
                     break;
                 }
                 self.level[d] = 15;
                 y -= 1;
-                if self.faces[d] & (1 << props::DOWN) != 0 {
+                if c & (1 << (8 + props::DOWN)) != 0 {
                     break;
                 }
             }
@@ -179,11 +187,9 @@ impl Lighter {
     fn seed_block(&mut self, height: usize) {
         self.level.clear();
         self.level.resize(LAYER * height, 0);
-        for (d, &e) in self.emission.iter().enumerate() {
-            if e > 0 {
-                self.level[d] = e;
-                self.buckets[e as usize].push(d as u32);
-            }
+        for &(d, e) in &self.emitters {
+            self.level[d as usize] = e;
+            self.buckets[e as usize].push(d);
         }
     }
 
@@ -196,6 +202,7 @@ impl Lighter {
                     continue;
                 }
                 let (x, z, y) = (d % SIDE, (d / SIDE) % SIDE, d / LAYER);
+                let faces = self.cell[d] >> 8;
                 let steps = [
                     (props::DOWN, y > 0, d.wrapping_sub(LAYER)),
                     (props::UP, y + 1 < height, d + LAYER),
@@ -205,17 +212,18 @@ impl Lighter {
                     (props::EAST, x + 1 < SIDE, d + 1),
                 ];
                 for (dir, inside, nb) in steps {
-                    if !inside
-                        || self.faces[d] & (1 << dir) != 0
-                        || self.faces[nb] & (1 << props::opposite(dir)) != 0
-                    {
+                    if !inside || faces & (1 << dir) != 0 {
                         continue;
                     }
-                    let o = self.opacity[nb];
+                    let c = self.cell[nb];
+                    if (c >> 8) & (1 << props::opposite(dir)) != 0 {
+                        continue;
+                    }
+                    let o = (c & 0xFF) as usize;
                     let nl = if sky && l == 15 && o == 0 && dir == props::DOWN {
                         15
                     } else {
-                        l.saturating_sub(o.max(1) as usize)
+                        l.saturating_sub(o.max(1))
                     };
                     if nl > self.level[nb] as usize {
                         self.level[nb] = nl as u8;
@@ -225,16 +233,6 @@ impl Lighter {
             }
         }
     }
-}
-
-#[inline]
-fn set_nibble(arr: &mut [u8; 2048], i: usize, v: u8) {
-    let b = &mut arr[i >> 1];
-    *b = if i & 1 == 0 {
-        (*b & 0xF0) | v
-    } else {
-        (*b & 0x0F) | (v << 4)
-    };
 }
 
 #[cfg(test)]

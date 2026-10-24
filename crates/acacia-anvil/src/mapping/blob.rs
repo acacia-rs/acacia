@@ -68,6 +68,7 @@ pub(super) fn parse(b: &'static [u8]) -> Tables {
     let n = r.u32() as usize;
     assert_eq!(n as u32, base, "forward map length");
     let forward: Vec<u16> = (0..n).map(|_| r.u16()).collect();
+    let light: Vec<[u8; 4]> = (0..n).map(|_| r.bytes(4).try_into().unwrap()).collect();
 
     let n = r.u32() as usize;
     let mut biomes = Vec::with_capacity(n);
@@ -81,6 +82,7 @@ pub(super) fn parse(b: &'static [u8]) -> Tables {
         state_count: base,
         bedrock,
         forward,
+        light,
         biomes,
     }
 }

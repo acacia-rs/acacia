@@ -58,8 +58,8 @@ pub fn encode_chunk(
     w.long("InhabitedTime", 0);
     w.byte("isLightOn", 1);
     w.list("sections", nbt::COMPOUND, col.sections.len());
-    for i in 0..col.sections.len() {
-        write_section(&mut w, col, i, &light[i], s);
+    for (i, l) in light.iter().enumerate().take(col.sections.len()) {
+        write_section(&mut w, col, i, l, s);
     }
     w.list("block_entities", nbt::COMPOUND, block_entities.len());
     for be in block_entities {
@@ -168,11 +168,16 @@ fn build_palette(s: &mut EncodeScratch, state_count: usize) {
 /// the bottom of the world, packed at `ceil(log2(height + 1))` bits.
 fn heightmap(col: &JavaColumn, props: &PropsTable, want: u8, exclude: u8, s: &mut EncodeScratch) {
     let (min_y, height) = (col.min_y(), col.height());
+    let top = col
+        .sections
+        .iter()
+        .rposition(|b| b.uniform() != Some(mapping::AIR))
+        .map_or(min_y, |t| min_y + (t as i32 + 1) * 16);
     s.indices.clear();
     for z in 0..16 {
         for x in 0..16 {
             let mut h = 0;
-            for y in (min_y..min_y + height).rev() {
+            for y in (min_y..top).rev() {
                 let f = props.get(col.block(x, y, z)).flags;
                 if f & want != 0 && f & exclude == 0 {
                     h = y - min_y + 1;
