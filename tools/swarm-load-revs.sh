@@ -28,7 +28,8 @@ for rev in "$2" "$3"; do
   src=work/swarm-load-src/$sha
   git -C "$root" archive "$sha" | ssh $opts testbox "rm -rf $src && mkdir -p $src $bins && tar xf - -C $src" || exit 1
   ssh $opts testbox "cat > $src/$example" <"$root/$example" || exit 1
-  builds+="bash tools/swarm-load.sh build ~/$src ~/$bins/$name && "
+  # A throwaway target: sccache keeps the dependencies, and each commit's own crates are GBs of shared tmpfs.
+  builds+="CARGO_TARGET_DIR=\$PWD/target/revs bash tools/swarm-load.sh build ~/$src ~/$bins/$name; s=\$?; rm -rf target/revs; [ \$s = 0 ] && "
 done
 echo "A=${names[0]} B=${names[1]}"
 ab="for s in ${scenario//,/ }; do echo \"== \$s\"; bash tools/swarm-load-ab.sh \$s ~/$bins/${names[0]} ~/$bins/${names[1]} ${4:-1} | grep -E '^B/A|spawned'; done"
