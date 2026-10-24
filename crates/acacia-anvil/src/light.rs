@@ -154,8 +154,9 @@ impl Lighter {
                     let d = self.at(ox, s * 16 + y, oz + z);
                     let o = (y << 7) | (z << 3);
                     let row: &[u32; 16] = self.vox[d..d + 16].try_into().unwrap();
-                    light.sky[o..o + 8].copy_from_slice(&pack_row::<SKY>(row));
-                    light.block[o..o + 8].copy_from_slice(&pack_row::<BLOCK>(row));
+                    let sky: &mut [u8; 8] = (&mut light.sky[o..o + 8]).try_into().unwrap();
+                    let block: &mut [u8; 8] = (&mut light.block[o..o + 8]).try_into().unwrap();
+                    pack_row(row, sky, block);
                 }
             }
         }
@@ -164,9 +165,14 @@ impl Lighter {
 
 /// 16 levels to 8 nibble pairs, even x in the low nibble.
 #[inline]
-fn pack_row<const S: u32>(cells: &[u32; 16]) -> [u8; 8] {
-    let level = |c: u32| (c >> S & 15) as u8;
-    std::array::from_fn(|x| level(cells[2 * x]) | level(cells[2 * x + 1]) << 4)
+fn pack_row(cells: &[u32; 16], sky: &mut [u8; 8], block: &mut [u8; 8]) {
+    const LEVELS: u32 = 15 << SKY | 15 << BLOCK;
+    for x in 0..8 {
+        // Odd x's levels land in the high nibbles: sky in bits 16-23, block in 24-31.
+        let t = cells[2 * x] & LEVELS | (cells[2 * x + 1] & LEVELS) << 4;
+        sky[x] = (t >> SKY) as u8;
+        block[x] = (t >> BLOCK) as u8;
+    }
 }
 
 #[cfg(test)]
