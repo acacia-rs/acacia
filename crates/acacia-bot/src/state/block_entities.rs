@@ -144,7 +144,11 @@ impl BlockEntities {
     }
 
     pub(crate) fn block_entity(&mut self, position: BlockCoordinates, mut nbt: &[u8]) -> Result<(), DecodeError> {
-        // A piston or hopper sends this every move: look at the id before decoding it all.
+        // A piston or hopper sends this every move: look at the id before decoding it all, and when only signs
+        // are kept, skip a document without "Sign" anywhere (every one has an `id`, so its walk always ran).
+        if self.tracking != BlockEntityTracking::All && memchr::memmem::find(nbt, b"Sign").is_none() {
+            return Ok(());
+        }
         if self.keeps_id(root_string::<Network>(nbt, "id")?.as_deref()) {
             self.insert(coords(position), nbt::read::<Network>(&mut nbt)?);
         }

@@ -1,7 +1,6 @@
 //! Events from the connection task to the [`crate::Client`]: one channel message per batch of events, with
 //! at most `capacity` undelivered. A message per packet cost a send, a pop and a semaphore each.
 
-use std::collections::VecDeque;
 use std::sync::Arc;
 
 use tokio::sync::{mpsc, Semaphore};
@@ -26,7 +25,7 @@ pub(crate) struct EventSender {
 
 impl EventSender {
     /// Sends the front of `pending` if there is room for it now.
-    pub fn try_send(&self, pending: &mut VecDeque<Event>) -> Result<(), Closed> {
+    pub fn try_send(&self, pending: &mut Vec<Event>) -> Result<(), Closed> {
         let n = self.batch_len(pending);
         match self.room.try_acquire_many(n as u32) {
             Ok(permit) => {
@@ -39,7 +38,7 @@ impl EventSender {
     }
 
     /// Waits for room for the front of `pending`, then sends it. Cancel-safe: nothing is taken until room is.
-    pub async fn send(&self, pending: &mut VecDeque<Event>) -> Result<(), Closed> {
+    pub async fn send(&self, pending: &mut Vec<Event>) -> Result<(), Closed> {
         let n = self.batch_len(pending);
         self.room.acquire_many(n as u32).await.map_err(|_| Closed)?.forget();
         self.send_permitted(pending, n)
@@ -50,12 +49,14 @@ impl EventSender {
         self.tx.send((events, 0)).map_err(|_| Closed)
     }
 
-    fn batch_len(&self, pending: &VecDeque<Event>) -> usize {
+    fn batch_len(&self, pending: &Vec<Event>) -> usize {
         pending.len().min(self.capacity)
     }
 
-    fn send_permitted(&self, pending: &mut VecDeque<Event>, n: usize) -> Result<(), Closed> {
-        self.tx.send((pending.drain(..n).collect(), n)).map_err(|_| Closed)
+    fn send_permitted(&self, pending: &mut Vec<Event>, n: usize) -> Result<(), Closed> {
+        // Usually the whole queue goes: hand its buffer over rather than copy it out.
+        let batch = if n == pending.len() { std::mem::replace(pending, Vec::with_capacity(n)) } else { pending.drain(..n).collect() };
+        self.tx.send((batch, n)).map_err(|_| Closed)
     }
 }
 
@@ -117,7 +118,7 @@ mod tests {
 
     use super::*;
 
-    fn events(n: usize) -> VecDeque<Event> {
+    fn events(n: usize) -> Vec<Event> {
         (0..n).map(|_| Event::Disconnected(DisconnectReason::LocalClose)).collect()
     }
 

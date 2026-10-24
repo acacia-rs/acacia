@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
@@ -66,7 +65,8 @@ impl Driver {
     /// reads pause while that queue is over capacity (backpressure without deadlock).
     pub async fn run(mut self) {
         let mut buf = vec![0u8; RECV_BUFFER];
-        let mut pending: VecDeque<Event> = VecDeque::new();
+        let mut pending: Vec<Event> = Vec::new();
+        let mut seen: Vec<u32> = Vec::new();
         let (fetched_tx, mut fetched) = mpsc::unbounded_channel();
         // Downloads not yet reported; the channel is polled only while there are some.
         let mut fetching = 0usize;
@@ -89,19 +89,24 @@ impl Driver {
                         }
                     }
                     SessionEvent::Packet(p) => {
-                        self.trace.record(p.id, now);
+                        seen.push(p.id);
                         if self.filter.allows(p.id) {
-                            pending.push_back(Event::Packet(p));
+                            pending.push(Event::Packet(p));
                         }
                     }
-                    SessionEvent::Violation(v) => pending.push_back(Event::Violation(v)),
+                    SessionEvent::Violation(v) => pending.push(Event::Violation(v)),
                     SessionEvent::Disconnected(reason) => {
+                        self.trace.record(&seen, now);
                         let _ = self.flush().await;
                         self.close_wire();
                         let _ = self.flush().await;
                         return self.finish(pending, reason).await;
                     }
                 }
+            }
+            if !seen.is_empty() {
+                self.trace.record(&seen, now);
+                seen.clear();
             }
             while let Some(pack) = self.session.poll_pack_fetch() {
                 fetching += 1;
@@ -208,7 +213,7 @@ impl Driver {
     }
 
     /// Delivers queued packets, then the disconnect (or fails the pending login).
-    async fn finish(mut self, pending: VecDeque<Event>, reason: DisconnectReason) {
+    async fn finish(mut self, pending: Vec<Event>, reason: DisconnectReason) {
         if let Some(tx) = self.spawned.take() {
             let _ = tx.send(Err(reason));
             return;
