@@ -78,10 +78,10 @@ E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%
   grid; one shared grid per shard keeps each wire pattern and was estimated at crowd -6-8%, mobs -4%. ACKs are
   half the outbound datagrams (one per server tick). `sendmmsg` would gain under 1%: each flush has about one
   datagram.
-- Bot cadence: a shared tick grid per shard instead of a per-bot 20 Hz timer, estimated crowd -10-20% cycles,
-  changes tick phases between bots (a realism call).
-- Client: running the connection in the bot's task (no driver task) was estimated at crowd and mobs -8-12%,
-  but a connection would then live only while its bot is polled; today it outlives any await. An API call.
+- Declined (2026-10-24): a shared tick grid per shard (estimated crowd -10-20% cycles) lines bots' input timing
+  up across connections, a fingerprint; bots keep independent vanilla-shaped cadences.
+- Declined (2026-10-24): running the connection in the bot's task (estimated crowd and mobs -8-12%). A
+  connection would live only while its bot is polled; the driver task keeps it alive through any await.
 - Server: sapling sends every player's skin to each joiner in one PlayerList batch; past ~57 bots that tops
   acacia's 16 MiB batch limit and bots reconnect in a loop.
 - Inherent: sha256 per packet (testbox lacks SHA-NI), one wakeup per datagram.
