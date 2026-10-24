@@ -1,7 +1,7 @@
 use super::*;
 use crate::column::JavaColumn;
 use crate::mapping::{AIR, JavaState, java};
-use crate::section::{VOLUME, index};
+use crate::section::{Blocks, VOLUME, index};
 
 fn props() -> PropsTable {
     PropsTable::new()
@@ -130,6 +130,83 @@ fn neighbour_light_crosses_the_border() {
     let l = run(&ground(0, 0), &ring);
     assert_eq!(get(&l, false, 15, 1, 8), 14);
     assert_eq!(get(&l, false, 12, 1, 8), 11);
+}
+
+/// Hills, caves, a tall pillar, water, slabs, leaves, torches and glowstone, from a seed.
+fn rough(cx: i32, cz: i32, seed: u64) -> JavaColumn {
+    let mut rng = seed ^ ((cx as u64) << 32 | cz as u32 as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    let mut next = move || {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        rng
+    };
+    let pick = [
+        state("stone", &[]),
+        state("water", &[]),
+        state("oak_slab", &[("type", "top")]),
+        state("oak_leaves", &[]),
+        state("glass", &[]),
+        state("torch", &[]),
+        state("glowstone", &[]),
+        state("oak_stairs", &[("facing", "north")]),
+    ];
+    let mut col = ground(cx, cz);
+    let mut full = vec![[AIR; VOLUME]; 9];
+    for (s, f) in full.iter_mut().enumerate() {
+        col.sections[s + 4].copy_to(f);
+    }
+    let tall = next() % 5 == 0;
+    for z in 0..16 {
+        for x in 0..16 {
+            let top = 1 + (next() % 12) as i32 + if tall && x < 3 && z < 3 { 120 } else { 0 };
+            for y in 1..top {
+                if next() % 4 != 0 {
+                    let b = pick[(next() % pick.len() as u64) as usize];
+                    let b = if next() % 3 == 0 { b } else { pick[0] };
+                    full[(y >> 4) as usize][index(x, (y & 15) as usize, z)] = b;
+                }
+            }
+        }
+    }
+    for (s, f) in full.iter().enumerate() {
+        col.sections[s + 4] = Blocks::from_full(f);
+    }
+    col
+}
+
+#[test]
+fn a_lit_area_matches_lighting_each_column_alone() {
+    for seed in [1u64, 7, 99] {
+        let (w, d) = (6usize, 5usize);
+        let cols: Vec<Option<JavaColumn>> = (0..w * d)
+            .map(|i| {
+                let (x, z) = ((i % w) as i32, (i / w) as i32);
+                // a hole in the area: its neighbours treat it as opaque either way
+                ((x, z) != (3, 1)).then(|| rough(x, z, seed))
+            })
+            .collect();
+        let refs: Vec<Option<&JavaColumn>> = cols.iter().map(Option::as_ref).collect();
+        let props = props();
+        let mut area = Lighter::default();
+        area.light_area(&refs, w, &props, true);
+        let mut alone = Lighter::default();
+        for cz in 1..d - 1 {
+            for cx in 1..w - 1 {
+                let Some(centre) = refs[cz * w + cx] else { continue };
+                let mut n = [None; 9];
+                for (k, slot) in n.iter_mut().enumerate() {
+                    *slot = refs[(cz + k / 3 - 1) * w + cx + k % 3 - 1];
+                }
+                let one = alone.light(&Neighbourhood { cols: n }, &props, true);
+                let grouped = area.extract(cx, cz, centre.sections.len());
+                for (s, (a, b)) in one.iter().zip(&grouped).enumerate() {
+                    assert!(a.sky == b.sky, "seed {seed} column {cx} {cz} section {s}: sky");
+                    assert!(a.block == b.block, "seed {seed} column {cx} {cz} section {s}: block");
+                }
+            }
+        }
+    }
 }
 
 #[test]
