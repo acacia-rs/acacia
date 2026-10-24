@@ -28,6 +28,17 @@ impl<'a> Neighbourhood<'a> {
     pub fn centre(&self) -> &'a JavaColumn {
         self.cols[4].expect("centre column")
     }
+
+    /// A block at x/z relative to the centre column (−16..32) and world y; missing columns read as air.
+    pub fn block(&self, x: i32, y: i32, z: i32) -> crate::mapping::JavaState {
+        let (cx, cz) = ((x >> 4) + 1, (z >> 4) + 1);
+        if !(0..3).contains(&cx) || !(0..3).contains(&cz) {
+            return crate::mapping::AIR;
+        }
+        self.cols[(cz * 3 + cx) as usize].map_or(crate::mapping::AIR, |c| {
+            c.block((x & 15) as usize, y, (z & 15) as usize)
+        })
+    }
 }
 
 #[derive(Default)]

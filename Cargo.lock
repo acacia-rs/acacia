@@ -22,9 +22,13 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 name = "acacia-anvil"
 version = "0.1.0"
 dependencies = [
+ "acacia-bot",
+ "acacia-nbt",
  "acacia-world",
  "flate2",
  "thiserror 2.0.21",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

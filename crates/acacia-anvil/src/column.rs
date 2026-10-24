@@ -36,6 +36,25 @@ impl JavaColumn {
         }
     }
 
+    /// Sets blocks (local x/z, y above the column's bottom), unpacking each touched section once.
+    pub fn apply_edits(
+        &mut self,
+        edits: &mut [([usize; 3], JavaState)],
+        buf: &mut [JavaState; VOLUME],
+    ) {
+        edits.sort_unstable_by_key(|([_, y, _], _)| *y);
+        for group in edits.chunk_by(|a, b| a.0[1] >> 4 == b.0[1] >> 4) {
+            let Some(section) = self.sections.get_mut(group[0].0[1] >> 4) else {
+                continue;
+            };
+            section.copy_to(buf);
+            for &([x, y, z], s) in group {
+                buf[index(x, y & 15, z)] = s;
+            }
+            *section = Blocks::from_full(buf);
+        }
+    }
+
     pub fn heap_bytes(&self) -> usize {
         self.sections.iter().map(Blocks::heap_bytes).sum::<usize>() + self.biomes.len() * 128 + 64
     }

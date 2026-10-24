@@ -80,6 +80,24 @@ geyser.forEach((entry, id) => {
   if (prev === undefined || distance(javaStates[id]) < distance(javaStates[prev])) b2j.set(key, id);
 });
 
+// Java properties Bedrock does not carry: per block, those that differ among Java states sharing a
+// Bedrock state. Written to data/ambiguous.txt; the converter rebuilds the visible ones (README.md).
+const groups = new Map();
+geyser.forEach((entry, id) => { const key = bedrockKey(entry, javaStates[id]); (groups.get(key) ?? groups.set(key, []).get(key)).push(id); });
+const lost = new Map();
+for (const ids of groups.values()) {
+  if (ids.length < 2) continue;
+  for (const id of ids) {
+    const j = javaStates[id];
+    const first = javaStates[ids[0]];
+    const set = lost.get(j.block.name) ?? lost.set(j.block.name, new Set()).get(j.block.name);
+    j.combo.forEach(([k, v], i) => { if (first.block === j.block && first.combo[i][1] !== v) set.add(k); });
+    if (first.block !== j.block) set.add('<block>');
+  }
+}
+const lostLines = [...lost].filter(([, s]) => s.size).map(([n, s]) => `${n} ${[...s].sort().join(',')}`).sort();
+fs.writeFileSync(path.join(HERE, '..', 'data', 'ambiguous.txt'), `${lostLines.join('\n')}\n`);
+
 const biomeById = new Map();
 for (const [name, { bedrock_id: id }] of Object.entries(biomes).sort()) {
   if (!biomeById.has(id) || BIOME_PREFERRED.has(name)) biomeById.set(id, name);
