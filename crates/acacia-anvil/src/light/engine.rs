@@ -13,15 +13,21 @@ fn cell_of(p: StateProps) -> u32 {
 impl Lighter {
     pub(super) fn fill(&mut self, cols: &[Option<&JavaColumn>], props: &PropsTable) {
         let (pl, px, cols_x) = (self.pl, self.px, self.cols_x);
-        self.vox.clear();
-        self.vox.resize(self.cells(), OPAQUE);
+        self.fill_border();
         self.emitters.clear();
-        for (i, col) in cols.iter().enumerate() {
-            let Some(col) = col else { continue };
+        for i in 0..cols_x * (self.sz / 16) {
+            let col = cols.get(i).copied().flatten();
             let (ox, oz) = ((i % cols_x) * 16, (i / cols_x) * 16);
-            for (s, blocks) in col.sections.iter().enumerate().take(self.lit) {
+            for s in 0..self.lit {
                 let base = self.at(ox, s * 16, oz);
                 let rows = (0..256).map(|r| (r << 4, base + (r >> 4) * pl + (r & 15) * px));
+                // Every cell inside the border is written here: the buffer still holds the last volume.
+                let Some(blocks) = col.and_then(|c| c.sections.get(s)) else {
+                    for (_, d) in rows {
+                        self.vox[d..d + 16].fill(OPAQUE);
+                    }
+                    continue;
+                };
                 match blocks {
                     Blocks::Uniform(u) => {
                         let p = props.get(*u);
@@ -68,6 +74,22 @@ impl Lighter {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /// Sizes the volume and makes its one-cell border opaque.
+    fn fill_border(&mut self) {
+        let (pl, px, h) = (self.pl, self.px, self.height);
+        self.vox.resize(self.cells(), OPAQUE);
+        self.vox[..pl].fill(OPAQUE);
+        self.vox[(h + 1) * pl..].fill(OPAQUE);
+        for layer in self.vox[pl..(h + 1) * pl].chunks_exact_mut(pl) {
+            layer[..px].fill(OPAQUE);
+            layer[pl - px..].fill(OPAQUE);
+            for row in layer[px..pl - px].chunks_exact_mut(px) {
+                row[0] = OPAQUE;
+                row[px - 1] = OPAQUE;
             }
         }
     }
