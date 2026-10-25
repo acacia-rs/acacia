@@ -57,6 +57,7 @@ fn main() -> Result<(), Error> {
             biomes::write(&biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &out)?;
             ui::copy(&jar.assets, &out)?;
             environment::copy(&jar.assets, &out)?;
+            environment::write(&jar.data, &out)?;
             particles::copy(&jar.assets, &out)?;
             banners::copy(&jar.assets, &out)?;
             println!("  Java sounds: {} files", sounds::fetch(&out)?);

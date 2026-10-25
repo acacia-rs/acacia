@@ -63,6 +63,9 @@ pub struct BiomeColors {
     /// Temperature and downfall by id, for [`BiomeColors::fall`].
     climate: FxHashMap<u32, (f32, f32)>,
     fluid_fogs: fog::FluidFogs,
+    names: FxHashMap<u32, String>,
+    /// A Java look's environment attributes ([`crate::sky::Environment::load`]).
+    environment: Option<std::sync::Arc<crate::sky::Environment>>,
 }
 
 /// What falls from the sky in a biome when it rains.
@@ -76,7 +79,14 @@ pub enum Fall {
 impl Default for BiomeColors {
     /// Plains everywhere, until the server's definitions arrive.
     fn default() -> Self {
-        BiomeColors { by_id: FxHashMap::default(), unknown: PLAINS, climate: FxHashMap::default(), fluid_fogs: Default::default() }
+        BiomeColors {
+            by_id: FxHashMap::default(),
+            unknown: PLAINS,
+            climate: FxHashMap::default(),
+            fluid_fogs: Default::default(),
+            names: FxHashMap::default(),
+            environment: None,
+        }
     }
 }
 
@@ -106,7 +116,9 @@ impl BiomeColors {
             .collect();
         let climate = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), (d.temperature, d.downfall)))).collect();
         let fluid_fogs = fog::FluidFogs::load(root, defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), d.name.as_str()))));
-        BiomeColors { by_id, unknown, climate, fluid_fogs }
+        let names = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), d.name.clone()))).collect();
+        let environment = crate::sky::Environment::load(root).map(std::sync::Arc::new);
+        BiomeColors { by_id, unknown, climate, fluid_fogs, names, environment }
     }
 
     #[cfg(test)]
@@ -116,6 +128,15 @@ impl BiomeColors {
 
     pub fn fluid_fogs(&self) -> &fog::FluidFogs {
         &self.fluid_fogs
+    }
+
+    pub fn environment(&self) -> Option<&crate::sky::Environment> {
+        self.environment.as_deref()
+    }
+
+    /// The server's name for biome `id`, without namespace.
+    pub fn name(&self, id: u32) -> Option<&str> {
+        self.names.get(&id).map(String::as_str)
     }
 
     /// Java's `Biome.getPrecipitationAt`: none where it never rains (no downfall: deserts,
