@@ -31,15 +31,24 @@ fn words(out: &QuadOut) -> [u32; 4] {
 
 /// Face `face` (the renderer's axis face) of the cube at `p`, in the plain quad's corner order.
 pub(super) fn cube_face(lighter: &SectionLighter, p: [i32; 3], face: u8) -> VertexLight {
+    box_face(lighter, p, face, [0; 3], [16; 3])
+}
+
+/// Face `face` of the box `min`..`max` (1/16 block) of the block at `p`, in the plain quad's
+/// corner order; culled by its neighbour when it lies on the block's side.
+pub(super) fn box_face(lighter: &SectionLighter, p: [i32; 3], face: u8, min: [u8; 3], max: [u8; 3]) -> VertexLight {
     let d = OF_FACE[usize::from(face)];
-    let positions = FACE_INFO[usize::from(d)];
+    let (axis, ua, va) = AXES[usize::from(face)];
+    let at = |i: usize, unit: f32| f32::from(if unit > 0.5 { max[i] } else { min[i] }) / 16.0;
+    let positions = FACE_INFO[usize::from(d)].map(|v| [at(0, v[0]), at(1, v[1]), at(2, v[2])]);
+    let on_side = if face.is_multiple_of(2) { max[axis] == 16 } else { min[axis] == 0 };
     let ctx = lighter.world.ctx;
     let ambient_occlusion = ctx.drawn(p, ctx.block(p)).light.ambient_occlusion;
-    let out = words(&lighter.light(&QuadIn { pos: p, positions, shade: d, cull: Some(d), ambient_occlusion }));
-    let (_, ua, va) = AXES[usize::from(face)];
+    let q = QuadIn { pos: p, positions, shade: d, cull: on_side.then_some(d), ambient_occlusion };
+    let out = words(&lighter.light(&q));
     let mut light = [0; 4];
     let mut first = 0;
-    for (k, v) in positions.iter().enumerate() {
+    for (k, v) in FACE_INFO[usize::from(d)].iter().enumerate() {
         let corner = match (v[ua] > 0.5, v[va] > 0.5) {
             (false, false) => 0,
             (true, false) => 1,
@@ -65,6 +74,22 @@ pub(super) fn model_face(lighter: &SectionLighter, p: [i32; 3], f: &ModelFace) -
     let shade: Dir = f.shade.map_or(UP, |s| OF_FACE[usize::from(s)]);
     let q = QuadIn { pos: p, positions: [c0, c1, c2, c3], shade, cull: f.cull.map(|s| OF_FACE[usize::from(s)]), ambient_occlusion: f.ambient_occlusion };
     words(&lighter.light(&q))
+}
+
+/// The diagonal planes of a cross at `p`, as Java lights its cross models: flat, at the block's
+/// own light, unshaded.
+pub(super) fn cross(lighter: &SectionLighter, p: [i32; 3]) -> VertexLight {
+    let plane = ModelFace {
+        corners: [[0.0, 0.0, 0.0], [16.0, 0.0, 16.0], [0.0, 16.0, 0.0]],
+        uv: [[0.0; 2]; 3],
+        texture: 0,
+        tint: crate::blocks::Tint::None,
+        material: crate::blocks::Material::Cutout,
+        shade: None,
+        ambient_occlusion: false,
+        cull: None,
+    };
+    model_face(lighter, p, &plane)
 }
 
 /// Whether a merged run of faces can share this face's light: the same at every corner.

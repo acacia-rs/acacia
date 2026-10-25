@@ -129,8 +129,8 @@ Emission and filter per state come from `acacia-world` (`BlockState::light_emiss
   opaque ones, and without the diagonal when both edges are opaque), interpolated across the face.
   "In front" is the next cell for a face on its block's side and the block's own cell for a model
   face inside it. Cross planes and faces whose front cell is opaque use their own cell. Brightness is
-  the lightmap's. Quads keep their AO and directional shade. Under Java lighting, cubes and model
-  faces take their vertices' light instead; liquids and cross planes still sample the volume.
+  the lightmap's. Quads keep their AO and directional shade. Under Java lighting every face takes
+  its vertices' light instead (cross planes flat from their own cell, as Java's cross models).
 - **Light-only updates** (`Volume` only): when a section's light changes but its blocks don't, a light job re-gathers
   the volume into its slot without remeshing. Volumes carry the light generation, and the store keeps
   the newest.

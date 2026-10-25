@@ -3,7 +3,7 @@
 use super::greedy::corner_ao;
 use super::liquid::liquid;
 use super::quad::{AXES, DIRS, Quad, Surface, quantize};
-use super::vertex_light::model_face;
+use super::vertex_light::{box_face, cross, model_face};
 use super::{Ctx, SectionMesh, model};
 use crate::blocks::placed::Random;
 use crate::blocks::{Box16, Layer, Material, ModelFace, RenderBlock, Shape};
@@ -59,7 +59,10 @@ fn emit_box(ctx: &Ctx, p: [i32; 3], bx: &Box16, b: &RenderBlock, out: &mut Secti
         pos[axis] = (p[axis] * 16) as u32 + u32::from(if positive { max[axis] } else { min[axis] });
         pos[ua] = (p[ua] * 16) as u32 + u32::from(min[ua]);
         pos[va] = (p[va] * 16) as u32 + u32::from(min[va]);
-        let quad = Quad::new(pos, face as u8, [u32::from(size[0]), u32::from(size[1])], ctx.surface(p, b, face), NO_AO);
+        let mut quad = Quad::new(pos, face as u8, [u32::from(size[0]), u32::from(size[1])], ctx.surface(p, b, face), NO_AO);
+        if let Some(l) = &ctx.lighter() {
+            quad = quad.lit(box_face(l, p, face as u8, min, max));
+        }
         push(out, b, quad);
     }
 }
@@ -107,8 +110,10 @@ fn model_ao(ctx: &Ctx, p: [i32; 3], f: &ModelFace, side: u8) -> [u8; 4] {
 fn emit_cross(ctx: &Ctx, p: [i32; 3], b: &RenderBlock, out: &mut SectionMesh) {
     let pos = p.map(|c| (c * 16) as u32);
     let surface = Surface { material: Material::Cutout, ..ctx.surface(p, b, 0) };
+    let light = ctx.lighter().map(|l| cross(&l, p));
     for face in 6..10 {
-        push(out, b, Quad::new(pos, face, [16, 16], surface, NO_AO));
+        let quad = Quad::new(pos, face, [16, 16], surface, NO_AO);
+        push(out, b, light.map_or(quad, |light| quad.lit(light)));
     }
 }
 

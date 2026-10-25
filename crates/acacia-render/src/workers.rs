@@ -97,7 +97,7 @@ fn build((cx, sy, cz): SectionKey, s: &Shared) -> Option<SectionMesh> {
         return Some(SectionMesh { visibility: visibility::ALL, ..Default::default() });
     }
     drop(column);
-    let volume = Volume::gather(&s.world, cx, sy, cz)?;
+    let volume = Volume::gather_lit(&s.world, cx, sy, cz, s.table.lighting)?;
     let cells = (s.table.lighting == Lighting::Java).then(|| s.light.read().gather_cells((cx, sy, cz)));
     let mut mesh = mesh_section_lit(&volume, &s.table, &s.biomes, cells.as_ref());
     if !mesh.is_empty() {
