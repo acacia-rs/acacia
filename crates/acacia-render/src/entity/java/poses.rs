@@ -14,6 +14,8 @@ pub struct Poses {
     /// `ModelPart.skipDraw`: the part's own cubes do not draw, its children do.
     skip_draw: Vec<bool>,
     by_name: HashMap<String, usize>,
+    /// Part names in walk order.
+    names: Vec<String>,
     /// What writes to a part the model lacks land on, as Java's would on a part it never looks up.
     scratch: PartPose,
     /// Pixels `translateToHand` moves the right arm out in x (the left one in) while it places a
@@ -33,6 +35,7 @@ impl Poses {
             visible: vec![true; parts.len()],
             skip_draw: vec![false; parts.len()],
             by_name,
+            names: parts.iter().map(|(_, p)| p.name.clone()).collect(),
             scratch: PartPose::default(),
             hand_offset: 0.0,
         }
@@ -76,6 +79,27 @@ impl Poses {
         if let Some(&index) = self.by_name.get(name) {
             self.skip_draw[index] = v;
         }
+    }
+
+    /// Laid out for `model`'s parts (same names in [`Part::walk`] order).
+    pub fn fits(&self, model: &Part) -> bool {
+        let parts = model.walk();
+        parts.len() == self.names.len() && parts.iter().zip(&self.names).all(|((_, p), name)| p.name == *name)
+    }
+
+    /// These poses on `model`'s parts by name; parts these lack keep `model`'s initial pose. As
+    /// `setupAnim` on a model of the same class and initial poses: an armour layer on its wearer.
+    pub fn retarget(&self, model: &Part) -> Poses {
+        let mut out = Poses::new(model);
+        for (name, &i) in &out.by_name {
+            if let Some(&j) = self.by_name.get(name) {
+                out.poses[i] = self.poses[j];
+                out.visible[i] = self.visible[j];
+                out.skip_draw[i] = self.skip_draw[j];
+            }
+        }
+        out.hand_offset = self.hand_offset;
+        out
     }
 
     /// By index in [`Part::walk`] order.

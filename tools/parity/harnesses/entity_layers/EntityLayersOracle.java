@@ -4,7 +4,10 @@ import acacia.parity.EntityModels;
 import acacia.parity.Game;
 import acacia.parity.Out;
 import acacia.parity.RenderStates;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import net.minecraft.client.model.Model;
+import net.minecraft.client.model.geom.ModelPart;
 import com.mojang.math.Axis;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,7 +21,8 @@ import net.minecraft.world.entity.HumanoidArm;
  * Render layers on posed models (docs/parity.md, harness entity_layers). args[1] holds
  * RenderStates cases; per case args[0]/layers.jsonl gets `hands`: for each arm, the matrix
  * ItemInHandLayer.submitArmWithItem hands the item (translateToHand, -90° x, 180° y, the fist
- * offset), under LivingEntityRenderer's root transform at yaw 0, column-major.
+ * offset), under LivingEntityRenderer's root transform at yaw 0, column-major; `armor`: per slot
+ * the armour layer's posed parts and drawn corners, as EntityPosesOracle's.
  */
 public final class EntityLayersOracle {
     public static void main(String[] args) throws Exception {
@@ -36,6 +40,7 @@ public final class EntityLayersOracle {
                         for (HumanoidArm arm : HumanoidArm.values()) hands.put(arm.name(), hand(armed, posed.state(), arm));
                     }
                     record.put("hands", hands);
+                    record.put("armor", armor(kase, posed.state()));
                 } catch (Throwable error) {
                     var cause = error.getCause() != null ? error.getCause() : error;
                     record.put("error", cause.toString());
@@ -43,6 +48,32 @@ public final class EntityLayersOracle {
                 out.write(record);
             }
         }
+    }
+
+    /**
+     * Per armour slot the case's layer has (`<entity>#helmet`...), the slot's model as
+     * HumanoidArmorLayer draws it: ArmorModelSet bakes it with the body model's class (BoggedModel's
+     * armour is a SkeletonModel) and the dispatcher runs its setupAnim on the wearer's state.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> armor(JsonObject kase, EntityRenderState state) throws Exception {
+        var out = new TreeMap<String, Object>();
+        var base = kase.get("layer").getAsString().replace("#main", "#");
+        var name = kase.get("model").getAsString();
+        var cls = Class.forName(name.endsWith(".BoggedModel") ? "net.minecraft.client.model.monster.skeleton.SkeletonModel" : name);
+        for (String slot : new String[] {"helmet", "chestplate", "leggings", "boots"}) {
+            var layer = EntityModels.layers().get(base + slot);
+            if (layer == null) continue;
+            var root = layer.getValue().bakeRoot();
+            var model = (Model<EntityRenderState>) cls.getConstructor(ModelPart.class).newInstance(root);
+            model.setupAnim(state);
+            var parts = new TreeMap<String, Object>();
+            EntityModels.poses("", root, parts);
+            var drawn = new TreeMap<String, List<float[]>>();
+            EntityModels.draw("", root, EntityModels.livingRoot(0.0F, new float[] {1, 1, 1}), drawn);
+            out.put(slot, Out.map("layer", base + slot, "parts", parts, "drawn", drawn));
+        }
+        return out;
     }
 
     @SuppressWarnings("unchecked")
