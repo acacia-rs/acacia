@@ -40,11 +40,12 @@ pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop, camera: DVec3
     let java = model.java.as_deref().and_then(|d| Some((d.get(super::java::context::GROUND)?, d.ground?)));
     if let Some((display, [lo, hi])) = java {
         let feet = Mat4::from_translation((drop.feet - camera).as_vec3());
+        let skin = model.ground_skin();
         return java_frames([lo.y, hi.z - lo.z], drop)
             .into_iter()
             .map(|frame| EntityInstance {
                 layers: model.layers.clone(),
-                skin: Some(model.skin.clone()),
+                skin: Some(skin.clone()),
                 position: drop.feet,
                 yaw: 0.0,
                 scale: 1.0,

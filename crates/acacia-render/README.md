@@ -466,8 +466,9 @@ names the Java item for a Bedrock item and aux; unlisted names are taken as they
   after the display, with what `ItemStackRenderState.submit` hands the game's renderer, the
   dropped and framed poses and boxes, potion tints and trimmed images; `item_transforms` the
   first-person placement.
-- Not yet: dyed items other than leather; the dropped and framed mesh is the right hand's (items whose `ground` or
-  `fixed` model differs, like the trident and spyglass, show their held model).
+- Dropped and framed items draw their `ground` and `fixed` meshes where those differ from the
+  hand's (`JavaItems::drawn_context`; the trident and spyglass).
+- Not yet: dyed items other than leather.
 
 ### Enchantment glint (`glint.rs`, `gpu/glint.rs`)
 

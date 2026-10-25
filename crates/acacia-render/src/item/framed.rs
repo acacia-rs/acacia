@@ -86,7 +86,7 @@ pub fn item(model: &ItemModel, block: IVec3, hung: Hung, turn: f32, camera: DVec
     if let Some(fixed) = model.java.as_deref().and_then(|d| d.get(super::java::context::FIXED)) {
         let centre = Mat4::from_translation((block.as_dvec3() + DVec3::splat(0.5) - camera).as_vec3());
         let frame = centre * java_frame(facing(hung), (turn / 45.0).round() as i32, false) * fixed.mesh_frame();
-        return instance(model.layers.clone(), model.skin.clone(), block, frame, model.glint.then_some(Glint::Item));
+        return instance(model.layers.clone(), model.fixed_skin(), block, frame, model.glint.then_some(Glint::Item));
     }
     let scale = if model.form == Form::Block { ITEM_SCALE * 0.5 } else { ITEM_SCALE };
     let frame = placed(block, hung, turn, ITEM_DEPTH, scale, camera);

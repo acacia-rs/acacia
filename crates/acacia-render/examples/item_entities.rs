@@ -1,5 +1,6 @@
 //! Probe of the parity harness item_models' dropped and framed items: `drop::java_frames`,
-//! `framed::java_frame` and `JavaItems::bounds`. Prints `CASES\t<n>` and `DIVERGENCE\t...`.
+//! `framed::java_frame` and `JavaItems::bounds`, and the images of the mesh
+//! `JavaItems::drawn_context` picks. Prints `CASES\t<n>` and `DIVERGENCE\t...`.
 //!
 //! cargo run -p acacia-render --example item_entities -- <look dir> <item_entities.jsonl>
 
@@ -67,6 +68,18 @@ fn main() {
         let got: Vec<f32> = placed.iter().flat_map(|m| std::iter::repeat_n(m.to_cols_array(), layers)).flatten().collect();
         let want: Vec<f32> = expected.iter().flat_map(compare::floats).collect();
         case.numbers("frames", &want, &got, 1e-5);
+        let mut images: Vec<&str> = Vec::new();
+        for layer in items.layers(item, items.drawn_context(item, display)).unwrap_or_default() {
+            for quad in items.quads(layer) {
+                if !images.contains(&quad.image.as_str()) {
+                    images.push(&quad.image);
+                }
+            }
+        }
+        let want: Vec<&str> = r["images"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+        if want != images {
+            case.diverge("images", format!("{want:?}"), format!("{images:?}"));
+        }
     }
     out.print();
 }

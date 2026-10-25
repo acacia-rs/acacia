@@ -73,6 +73,21 @@ pub struct ItemModel {
     pub glint: bool,
     /// A Java look's item: its own displays ([`hand::Display::held`]).
     pub java: Option<Arc<java::Displays>>,
+    /// A Java item's `ground` and `fixed` meshes where they differ from the hand's (`skin`).
+    pub ground: Option<Arc<Skin>>,
+    pub fixed: Option<Arc<Skin>>,
+}
+
+impl ItemModel {
+    /// The skin dropped on the ground.
+    pub fn ground_skin(&self) -> Arc<Skin> {
+        self.ground.clone().unwrap_or_else(|| self.skin.clone())
+    }
+
+    /// The skin hung in an item frame.
+    pub fn fixed_skin(&self) -> Arc<Skin> {
+        self.fixed.clone().unwrap_or_else(|| self.skin.clone())
+    }
 }
 
 pub struct ItemModels {
@@ -112,7 +127,7 @@ impl ItemModels {
 
     fn build(&self, key: &ItemKey) -> Option<ItemModel> {
         let glint = self.pack.look.foil.always(&key.name);
-        let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint, java: None });
+        let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint, java: None, ground: None, fixed: None });
         let shield = |root| shield::skin(root, key.banner.as_deref());
         if let Some(skin) = Some(self.pack.files()).filter(|_| key.name == shield::ITEM).and_then(shield) {
             return model(skin, Form::Shield);
@@ -142,10 +157,13 @@ impl ItemModels {
     /// The Java item's held geometry (the right hand's, as worn, dropped and framed too).
     fn java_model(&self, java: &JavaItems, key: &ItemKey, glint: bool) -> Option<ItemModel> {
         let name = &java.stack_name(&key.name, key.aux, key.trim.as_deref());
-        let mesh = java.mesh(name, java::context::hand(false, false), first_tint(&key.name, key.aux, key.dye))?;
+        let (hand, tint) = (java::context::hand(false, false), first_tint(&key.name, key.aux, key.dye));
+        let mesh = java.mesh(name, hand, tint)?;
         let form = if mesh.solid { Form::Block } else { Form::Flat };
-        let java = Some(Arc::new(java.displays(name)));
-        Some(ItemModel { skin: Arc::new(mesh.skin), layers: self.layers.clone(), form, glint: glint || mesh.foil, java })
+        let own = |context| (java.drawn_context(name, context) != hand).then(|| java.mesh(name, context, tint)).flatten().map(|m| Arc::new(m.skin));
+        let (ground, fixed) = (own(java::context::GROUND), own(java::context::FIXED));
+        let displays = Some(Arc::new(java.displays(name)));
+        Some(ItemModel { skin: Arc::new(mesh.skin), layers: self.layers.clone(), form, glint: glint || mesh.foil, java: displays, ground, fixed })
     }
 }
 
