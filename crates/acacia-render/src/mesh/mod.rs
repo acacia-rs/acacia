@@ -7,7 +7,7 @@ mod liquid;
 pub mod model;
 pub mod quad;
 mod shapes;
-mod smooth;
+pub mod smooth;
 #[cfg(test)]
 mod smooth_tests;
 mod vertex_light;

@@ -1,4 +1,3 @@
-use super::adjacency::{DOWN, EAST, UP};
 use super::quad::{LIT, SPLIT_13};
 use super::smooth::*;
 use super::vertex_light::cube_face;

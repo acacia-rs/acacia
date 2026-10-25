@@ -146,7 +146,7 @@ impl BlockTable {
             fluid: Fluid::None,
             fluid_height: 0,
             model: None,
-            light: LightFacts { solid_render: true, full_collision: true, dampening: 15, ambient_occlusion: true, ..LightFacts::default() },
+            light: LightFacts { solid_render: true, full_collision: true, dampening: 15, dark: true, ambient_occlusion: true, ..LightFacts::default() },
         }
     }
 }
@@ -227,6 +227,7 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
             solid_render: occludes,
             full_collision: state.is_full_cube(),
             emissive: false,
+            dark: occludes,
             ambient_occlusion: state.light_emission == 0,
         },
     }

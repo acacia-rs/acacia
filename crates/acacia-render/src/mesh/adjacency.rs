@@ -2,14 +2,7 @@
 //! face-shape factors that weigh them at each vertex of a partial face, and which vertex each
 //! computed corner lands on. Copied from Horizon's `mesher/lighting.rs` as is.
 
-use super::smooth::Dir;
-
-pub(super) const DOWN: Dir = 0;
-pub(super) const UP: Dir = 1;
-pub(super) const NORTH: Dir = 2;
-pub(super) const SOUTH: Dir = 3;
-pub(super) const WEST: Dir = 4;
-pub(super) const EAST: Dir = 5;
+use super::smooth::{DOWN, Dir, EAST, NORTH, SOUTH, UP, WEST};
 // Indices into `Shape::bounds`: a direction's bound, or 6 + it for one minus that bound.
 const FLIP_DOWN: u8 = 6;
 const FLIP_UP: u8 = 7;

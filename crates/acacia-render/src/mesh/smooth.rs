@@ -7,11 +7,18 @@
 //! << 4 | sky level << 20, each in 1/16 level after blending.
 
 use super::Ctx;
-use super::adjacency::{ADJACENCY, DOWN, EAST, NORTH, SOUTH, UP, WEST};
-use crate::blocks::LightFacts;
+use super::adjacency::ADJACENCY;
+pub use crate::blocks::LightFacts;
 use crate::light::data::LightCells;
 
-pub(super) type Dir = u8;
+/// Java's `Direction`, by ordinal.
+pub type Dir = u8;
+pub const DOWN: Dir = 0;
+pub const UP: Dir = 1;
+pub const NORTH: Dir = 2;
+pub const SOUTH: Dir = 3;
+pub const WEST: Dir = 4;
+pub const EAST: Dir = 5;
 
 const FULL_BRIGHT: u32 = 0x00F0_00F0;
 const NORMALS: [[i32; 3]; 6] = [[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0]];
@@ -35,7 +42,7 @@ pub(super) fn step(p: [i32; 3], d: Dir) -> [i32; 3] {
 }
 
 /// `Direction.getApproximateNearest` of a quad's normal, up when it has none.
-pub(super) fn facing(positions: &[[f32; 3]; 4]) -> Dir {
+pub fn facing(positions: &[[f32; 3]; 4]) -> Dir {
     let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     let (a, b) = (sub(positions[1], positions[0]), sub(positions[2], positions[0]));
     let n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -51,7 +58,7 @@ pub(super) fn facing(positions: &[[f32; 3]; 4]) -> Dir {
 
 /// A quad of the block at section-local `pos` to light: `positions` in block units, in Java's
 /// vertex order.
-pub(super) struct QuadIn {
+pub struct QuadIn {
     pub pos: [i32; 3],
     pub positions: [[f32; 3]; 4],
     /// The direction it is shaded as.
@@ -61,25 +68,49 @@ pub(super) struct QuadIn {
 }
 
 /// What Java's vertices carry: light coords and grey per vertex, in vertex order.
-pub(super) struct QuadOut {
+pub struct QuadOut {
     pub coords: [u32; 4],
     pub grey: [u32; 4],
 }
 
-pub(super) struct Lighter<'a> {
+/// The blocks and light around the quads a [`Lighter`] lights, at section-local positions.
+pub trait LightWorld {
+    fn facts(&self, p: [i32; 3]) -> LightFacts;
+    /// Block and sky level.
+    fn light(&self, p: [i32; 3]) -> (u8, u8);
+}
+
+/// A section's blocks and the light gathered around it.
+#[derive(Clone, Copy)]
+pub(super) struct SectionLight<'a> {
     pub ctx: &'a Ctx<'a>,
     pub cells: &'a LightCells,
+}
+
+impl LightWorld for SectionLight<'_> {
+    fn facts(&self, p: [i32; 3]) -> LightFacts {
+        self.ctx.block(p).light
+    }
+
+    fn light(&self, p: [i32; 3]) -> (u8, u8) {
+        self.cells.at(p)
+    }
+}
+
+pub struct Lighter<W> {
+    pub world: W,
+    /// `CardinalLighting.NETHER` rather than `DEFAULT`.
     pub nether: bool,
 }
 
-impl Lighter<'_> {
-    fn facts(&self, p: [i32; 3]) -> &LightFacts {
-        &self.ctx.block(p).light
+impl<W: LightWorld> Lighter<W> {
+    fn facts(&self, p: [i32; 3]) -> LightFacts {
+        self.world.facts(p)
     }
 
     /// `getShadeBrightness`.
     fn shade(&self, p: [i32; 3]) -> f32 {
-        if self.ctx.block(p).shades { 0.2 } else { 1.0 }
+        if self.facts(p).dark { 0.2 } else { 1.0 }
     }
 
     /// `LightCoordsUtil.getLightCoords`: light at `p` as seen through `state`.
@@ -87,13 +118,13 @@ impl Lighter<'_> {
         if state.emissive {
             return FULL_BRIGHT;
         }
-        let (block, sky) = self.cells.at(p);
+        let (block, sky) = self.world.light(p);
         u32::from(block.max(state.emission)) << 4 | u32::from(sky) << 20
     }
 
     pub fn light(&self, q: &QuadIn) -> QuadOut {
         let directional = cardinal(self.nether, q.shade);
-        let own = self.facts(q.pos);
+        let own = &self.facts(q.pos);
         let facing = facing(&q.positions);
         if q.ambient_occlusion && own.emission == 0 {
             let (brightness, coords) = self.ambient_occlusion(own, q.pos, &q.positions, facing);
@@ -116,7 +147,7 @@ impl Lighter<'_> {
         let base = if shape.cubic { step(pos, face) } else { pos };
         let adjacency = &ADJACENCY[usize::from(face)];
         let corner = |i: usize| step(base, adjacency.corners[i]);
-        let sample = |p: [i32; 3]| (self.coords(self.facts(p), p), self.shade(p));
+        let sample = |p: [i32; 3]| (self.coords(&self.facts(p), p), self.shade(p));
         let [(light0, shade0), (light1, shade1), (light2, shade2), (light3, shade3)] = [0, 1, 2, 3].map(|i| sample(corner(i)));
         let permeable = |i: usize| self.facts(step(corner(i), face)).permeable();
         let (p0, p1, p2, p3) = (permeable(0), permeable(1), permeable(2), permeable(3));
@@ -128,7 +159,7 @@ impl Lighter<'_> {
         let (light13, shade13) = diagonal(1, 3, p3 || p1);
         let next = step(pos, face);
         let next_state = self.facts(next);
-        let light_center = if shape.cubic || !next_state.solid_render { self.coords(next_state, next) } else { self.coords(own, pos) };
+        let light_center = if shape.cubic || !next_state.solid_render { self.coords(&next_state, next) } else { self.coords(own, pos) };
         let shade_center = if shape.cubic { self.shade(base) } else { self.shade(pos) };
         let ao = [
             (shade3 + shade0 + shade03 + shade_center) * 0.25,

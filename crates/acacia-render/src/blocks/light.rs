@@ -15,6 +15,8 @@ pub struct LightFacts {
     pub full_collision: bool,
     /// `emissiveRendering`: drawn at full brightness whatever the light.
     pub emissive: bool,
+    /// `getShadeBrightness` is 0.2, not 1: it darkens the ambient occlusion of faces next to it.
+    pub dark: bool,
     /// A cube drawn with ambient occlusion: its model's `ambientocclusion`, and no emission. Model
     /// faces carry their own ([`super::ModelFace::ambient_occlusion`]).
     pub ambient_occlusion: bool,

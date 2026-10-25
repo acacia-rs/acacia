@@ -2,8 +2,10 @@
 
 use super::Ctx;
 use super::quad::{AXES, LIT, SPLIT_13, VertexLight, vertex_light};
-use super::smooth::{Dir, Lighter, OF_FACE, QuadIn, QuadOut};
+use super::smooth::{Dir, Lighter, OF_FACE, QuadIn, QuadOut, SectionLight, UP};
 use crate::blocks::ModelFace;
+
+pub(super) type SectionLighter<'a> = Lighter<SectionLight<'a>>;
 
 /// Vanilla `FaceInfo`: a full face's vertices in Java's order, per Java direction.
 const FACE_INFO: [[[f32; 3]; 4]; 6] = [
@@ -17,9 +19,9 @@ const FACE_INFO: [[[f32; 3]; 4]; 6] = [
 
 impl Ctx<'_> {
     /// Java's light for vertices, when the table's look lights that way and the light is known.
-    pub(super) fn lighter(&self) -> Option<Lighter<'_>> {
+    pub(super) fn lighter(&self) -> Option<SectionLighter<'_>> {
         let cells = self.cells.filter(|_| self.table.lighting == crate::look::Lighting::Java)?;
-        Some(Lighter { ctx: self, cells, nether: self.v.nether })
+        Some(Lighter { world: SectionLight { ctx: self, cells }, nether: self.v.nether })
     }
 }
 
@@ -28,10 +30,11 @@ fn words(out: &QuadOut) -> [u32; 4] {
 }
 
 /// Face `face` (the renderer's axis face) of the cube at `p`, in the plain quad's corner order.
-pub(super) fn cube_face(lighter: &Lighter, p: [i32; 3], face: u8) -> VertexLight {
+pub(super) fn cube_face(lighter: &SectionLighter, p: [i32; 3], face: u8) -> VertexLight {
     let d = OF_FACE[usize::from(face)];
     let positions = FACE_INFO[usize::from(d)];
-    let ambient_occlusion = lighter.ctx.drawn(p, lighter.ctx.block(p)).light.ambient_occlusion;
+    let ctx = lighter.world.ctx;
+    let ambient_occlusion = ctx.drawn(p, ctx.block(p)).light.ambient_occlusion;
     let out = words(&lighter.light(&QuadIn { pos: p, positions, shade: d, cull: Some(d), ambient_occlusion }));
     let (_, ua, va) = AXES[usize::from(face)];
     let mut light = [0; 4];
@@ -55,10 +58,11 @@ pub(super) fn cube_face(lighter: &Lighter, p: [i32; 3], face: u8) -> VertexLight
 }
 
 /// A model face of the block at `p`: corner k is Java's vertex k.
-pub(super) fn model_face(lighter: &Lighter, p: [i32; 3], f: &ModelFace) -> VertexLight {
+pub(super) fn model_face(lighter: &SectionLighter, p: [i32; 3], f: &ModelFace) -> VertexLight {
     let [c0, c1, c3] = f.corners.map(|c| c.map(|v| v / 16.0));
     let c2 = [0, 1, 2].map(|i| c1[i] + c3[i] - c0[i]);
-    let shade: Dir = f.shade.map_or(super::adjacency::UP, |s| OF_FACE[usize::from(s)]);
+    // An unshaded face is one shaded as up (lookbake's bake), which the nether still dims.
+    let shade: Dir = f.shade.map_or(UP, |s| OF_FACE[usize::from(s)]);
     let q = QuadIn { pos: p, positions: [c0, c1, c2, c3], shade, cull: f.cull.map(|s| OF_FACE[usize::from(s)]), ambient_occlusion: f.ambient_occlusion };
     words(&lighter.light(&q))
 }
