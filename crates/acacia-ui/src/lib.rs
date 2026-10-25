@@ -13,6 +13,7 @@ pub mod form;
 pub mod hud;
 pub mod input;
 pub mod inventory;
+pub mod java;
 pub mod lang;
 pub mod menu;
 pub mod nametags;

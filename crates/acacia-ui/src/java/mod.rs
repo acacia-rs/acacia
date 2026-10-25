@@ -1,0 +1,10 @@
+//! The Java look's GUI, written as Java 26.3's own code draws it: layouts emit
+//! `GuiGraphicsExtractor` calls ([`gui::GuiDraw`]) from the same state the game reads, the parity
+//! probes compare those calls with the game's, and `paint` turns them into quads. Design:
+//! README.md "Java GUI".
+
+pub mod encode;
+pub mod gui;
+pub mod hud;
+pub mod mth;
+pub mod text;
