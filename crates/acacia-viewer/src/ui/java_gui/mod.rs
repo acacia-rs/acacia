@@ -1,6 +1,7 @@
 //! The Java look's GUI as the game draws it: `acacia_ui::java` layouts emit the game's draw calls,
 //! painted here with the pack's sprites and fonts in the game's order (`acacia_ui::java::paint`).
 
+mod beside;
 mod hud;
 mod inputs;
 pub mod menus;

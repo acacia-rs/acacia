@@ -30,6 +30,10 @@ pub enum View {
     Win { ticks: f32 },
     /// `LevelLoadingScreen`: the player has not arrived yet.
     Loading,
+    /// `SignEditScreen` (or the hanging sign's) on the lines typed so far; `cursor` is in bytes.
+    Sign { lines: [String; 4], line: usize, cursor: usize, hanging: bool },
+    /// `BookViewScreen`, or `BookEditScreen` while `writing` with the caret `caret` bytes in.
+    Book { pages: Vec<String>, page: usize, writing: bool, caret: usize },
     /// `ticks` since the player died.
     Death { ticks: u32 },
     /// `DeathScreen.TitleConfirmScreen`, `ticks` after it opened.

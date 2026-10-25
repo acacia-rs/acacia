@@ -256,10 +256,11 @@ impl Ui {
         if let Some(form) = form {
             form.draw(&mut list, &skin.theme, now);
         }
-        if let Some(page) = book {
+        // The Java look draws these as its screens (java_screens), but for the book's signing prompt.
+        if let Some(page) = book.filter(|p| look == LookChoice::Bedrock || p.signing.is_some()) {
             acacia_ui::book::draw(&mut list, &skin.theme, page, mouse, gui);
         }
-        if let Some(sign) = sign {
+        if let Some(sign) = sign.filter(|_| look == LookChoice::Bedrock) {
             acacia_ui::sign_editor::draw(&mut list, &skin.theme, sign, mouse, gui);
         }
         java_screens::draw(&mut self.java_gui, skin, menu, java_screens, mouse, size, scale, now, &mut list, &mut self.pictures);
