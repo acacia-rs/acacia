@@ -103,7 +103,7 @@ pub fn split_wrapped(m: &dyn Metrics, t: &Text, max: i32) -> Vec<(Text, bool)> {
         wrapped = !new_line;
     }
     if !parts.is_empty() {
-        let line = Text { spans: parts.into_iter().map(|(c, style)| Span { text: c.into_iter().collect(), style }).collect() };
+        let line = Text { spans: parts.into_iter().map(|(c, style)| Span { text: c.into_iter().collect(), style }).collect(), forward: false };
         lines.push((line, wrapped));
     } else if force_new_line {
         lines.push((Text::default(), false));

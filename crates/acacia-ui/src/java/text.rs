@@ -116,6 +116,9 @@ pub struct Span {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Text {
     pub spans: Vec<Span>,
+    /// Already in visual order (`FormattedCharSequence.forward` / `composite`, as `EditBox` draws):
+    /// drawn as it is. Otherwise it is a `FormattedText` that `Language.getVisualOrder` reorders.
+    pub forward: bool,
 }
 
 impl From<&str> for Text {
@@ -139,7 +142,12 @@ impl Text {
         if text.is_empty() {
             return Text::default();
         }
-        Text { spans: vec![Span { text, style: Style::default() }] }
+        Text { spans: vec![Span { text, style: Style::default() }], forward: false }
+    }
+
+    /// These spans as a `FormattedCharSequence` (`forward` of each), not reordered when drawn.
+    pub fn as_forward(self) -> Text {
+        Text { forward: true, ..self }
     }
 
     pub fn styled(s: impl Into<String>, style: &Style) -> Text {
@@ -188,7 +196,7 @@ impl Text {
         if !self.spans.iter().any(|s| s.text.contains('§')) {
             return self.clone();
         }
-        let mut out = Text::default();
+        let mut out = Text { forward: self.forward, ..Text::default() };
         for span in &self.spans {
             let mut style = span.style.clone();
             let mut current = String::new();
@@ -234,7 +242,7 @@ impl Text {
             }
             (!text.is_empty()).then(|| Span { text, style: span.style.clone() })
         });
-        Text { spans: spans.collect() }
+        Text { spans: spans.collect(), forward: self.forward }
     }
 
     /// Characters with their styles.
