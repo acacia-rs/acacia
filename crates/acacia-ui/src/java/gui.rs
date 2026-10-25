@@ -93,6 +93,10 @@ pub enum GuiDraw {
     Scissor { x0: i32, y0: i32, x1: i32, y1: i32 },
     /// `disableScissor()`.
     Unscissor,
+    /// `nextStratum()`: what follows draws over everything before, whatever its bounds.
+    Stratum,
+    /// `blurBeforeThisStratum()`: the strata before this one are blurred (a screen's background).
+    Blur,
 }
 
 /// A screen `width` × `height` GUI pixels big being drawn into.
@@ -163,6 +167,14 @@ impl Gui {
 
     pub fn unscissor(&mut self) {
         self.draws.push(GuiDraw::Unscissor);
+    }
+
+    pub fn next_stratum(&mut self) {
+        self.draws.push(GuiDraw::Stratum);
+    }
+
+    pub fn blur(&mut self) {
+        self.draws.push(GuiDraw::Blur);
     }
 }
 
