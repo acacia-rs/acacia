@@ -56,6 +56,21 @@ impl Enchanting {
         self.base.slots[1].item.as_ref().filter(|s| !s.is_empty()).map_or(0, |s| s.count)
     }
 
+    /// `mouseClicked`'s own part: the option `clickMenuButton` takes (lapis, levels and an item
+    /// to enchant enough for it).
+    pub fn mouse_clicked(&self, mouse: [f64; 2]) -> Option<usize> {
+        let b = &self.base;
+        let (xo, yo) = ((b.width - b.image_width) / 2, (b.height - b.image_height) / 2);
+        let s = &self.station;
+        (0..3).find(|&i| {
+            let (xx, yy) = (mouse[0] - f64::from(xo + 60), mouse[1] - f64::from(yo + 14 + 19 * i as i32));
+            let cost = i as i32 + 1;
+            let paid = s.creative || self.gold() >= cost;
+            let able = s.data(i) > 0 && b.slots[0].has_item() && (s.creative || s.xp >= cost && s.xp >= s.data(i));
+            xx >= 0.0 && yy >= 0.0 && xx < 108.0 && yy < 19.0 && paid && able
+        })
+    }
+
     fn options(&self, gui: &mut Gui, env: &Env, mouse: [i32; 2], xo: i32, yo: i32) {
         let mut names = EnchantmentNames::new(i64::from(self.station.data(3)));
         let gold = self.gold();

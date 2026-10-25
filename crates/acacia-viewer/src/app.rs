@@ -4,6 +4,7 @@
 mod creative;
 mod events;
 mod fluid;
+mod java_screen;
 mod form;
 mod java_menu;
 mod keys;
@@ -12,6 +13,7 @@ mod portrait;
 mod screen;
 mod sign;
 mod sky;
+mod title;
 mod view;
 mod window;
 
@@ -38,8 +40,8 @@ use crate::shot::Shot;
 use crate::smooth::Smoother;
 use crate::ui::{Frame, Ui};
 use menu::Menu;
+use title::Overlay;
 
-const TITLE_EVERY: Duration = Duration::from_millis(500);
 /// A frame's work before drawing that takes longer than this is logged, by stage.
 const SLOW_FRAME: Duration = Duration::from_millis(250);
 
@@ -116,16 +118,6 @@ pub struct App {
     signs: crate::sign_text::Signs,
 }
 
-/// Frame-rate and memory figures shown in the title.
-struct Overlay {
-    since: Instant,
-    frames: u32,
-    reports: u32,
-}
-
-/// Title updates between stats lines in the log (5 s).
-const LOG_EVERY_TITLES: u32 = 10;
-
 impl App {
     pub fn new(net: Net, radius: i32, sky: Option<SkyTextures>, settings: Settings, looks: Looks) -> Self {
         let play = Play::new(net.commands.clone());
@@ -181,7 +173,7 @@ impl App {
             bob: Default::default(),
             status: "starting".into(),
             last_frame: Instant::now(),
-            overlay: Overlay { since: Instant::now(), frames: 0, reports: 0 },
+            overlay: Overlay::new(),
             shot,
             failed: None,
             form: App::shot_form(),
@@ -253,7 +245,7 @@ impl App {
         let name = name.as_ref().map(|(before, all)| (before.as_str(), &all[before.len()..]));
         let creative = self.creative_view();
         let creative = creative.as_ref().map(|(stacks, tab, scrolled)| (stacks.as_slice(), *tab, *scrolled));
-        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.shown.pick, first: self.first_pick(), name, creative });
+        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.shown.pick, first: self.first_pick(), name, creative, java: (crate::ui::JavaScreen { entries: &self.shown.items, creative: self.shown.creative.map(|c| c.0), name: &self.shown.name }, &self.shown.java) });
         let java = self.java_look();
         let menu = self.menu.filter(|_| !java).map(|m| self.menu_content(m));
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice()));
@@ -275,22 +267,8 @@ impl App {
         if drawing.elapsed() > SLOW_FRAME {
             tracing::warn!(ui = ?(drawing - held), render = ?drawing.elapsed(), "slow draw");
         }
+        self.count_frame(&stats, now);
         self.stats = stats;
-        self.overlay.frames += 1;
-        let elapsed = self.overlay.since.elapsed();
-        if elapsed >= TITLE_EVERY {
-            let fps = self.overlay.frames as f32 / elapsed.as_secs_f32();
-            self.fps = fps;
-            let line = crate::overlay::title(fps, &stats, &self.status);
-            if let Some(w) = &self.window {
-                w.set_title(&line);
-            }
-            self.overlay.reports += 1;
-            if self.overlay.reports.is_multiple_of(LOG_EVERY_TITLES) {
-                tracing::info!("{line}");
-            }
-            self.overlay = Overlay { since: now, frames: 0, reports: self.overlay.reports };
-        }
     }
 
     fn grab(&mut self, on: bool) {

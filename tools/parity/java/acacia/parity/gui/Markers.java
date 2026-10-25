@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientBundleTooltip;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
@@ -14,14 +15,17 @@ import net.minecraft.client.renderer.state.MapRenderState;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
+import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import org.joml.Quaternionfc;
 import org.joml.Vector3fc;
 
 /**
  * GuiCapture's marker calls: pictures-in-picture (an entity, the enchanting book, a banner, a map)
- * and tooltip images, recorded by their parameters instead of drawn. Their draw rules belong to
- * other harnesses (entity, item and map rendering; bundle tooltips' own kind).
+ * and tooltip images other than a bundle's, recorded by their parameters instead of drawn. Their
+ * draw rules belong to other harnesses (entity, item and map rendering).
  */
 final class Markers {
     private Markers() {}
@@ -116,6 +120,10 @@ final class Markers {
                 out.add(line);
                 continue;
             }
+            if (line instanceof ClientBundleTooltip bundle) {
+                out.add(bundleKeyed(g, bundle));
+                continue;
+            }
             out.add(new ClientTooltipComponent() {
                 @Override public int getHeight(Font font) { return line.getHeight(font); }
                 @Override public int getWidth(Font font) { return line.getWidth(font); }
@@ -131,5 +139,36 @@ final class Markers {
             });
         }
         return out;
+    }
+
+    /** The first content key: a bundle's item `i` (by ItemStack.matches, so equal stacks share it) is `CONTENT_KEY + i`. */
+    static final int CONTENT_KEY = 10000;
+
+    /** A bundle image drawn for real, the stacks it creates keyed by their place in its contents. */
+    static ClientTooltipComponent bundleKeyed(GuiCapture g, ClientBundleTooltip line) {
+        return new ClientTooltipComponent() {
+            @Override public int getHeight(Font font) { return line.getHeight(font); }
+            @Override public int getWidth(Font font) { return line.getWidth(font); }
+            @Override public boolean showTooltipWithItemInHand() { return line.showTooltipWithItemInHand(); }
+            @Override public void extractImage(Font font, int x, int y, int w, int h, GuiGraphicsExtractor graphics) {
+                BundleContents contents;
+                try {
+                    contents = (BundleContents) Stub.get(line, ClientBundleTooltip.class, "contents");
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+                var items = contents.items().stream().map(ItemStackTemplate::create).toList();
+                var outer = g.keyOf;
+                g.keyOf = s -> {
+                    for (int i = 0; i < items.size(); i++) if (ItemStack.matches(items.get(i), s)) return CONTENT_KEY + i;
+                    return outer.applyAsInt(s);
+                };
+                try {
+                    line.extractImage(font, x, y, w, h, graphics);
+                } finally {
+                    g.keyOf = outer;
+                }
+            }
+        };
     }
 }

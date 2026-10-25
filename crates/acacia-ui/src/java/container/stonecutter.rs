@@ -1,6 +1,7 @@
 //! `StonecutterScreen`: the recipes the input can be cut into, a 4 × 3 grid of buttons with
 //! their results over a scroller.
 
+use super::input::{Press, drag_scroll};
 use super::{Base, Env, Screen, Slot, blit, carried, contents, hovered_tooltip, item_tooltip, menus, transparent_background};
 use crate::java::gui::Gui;
 use crate::java::mth::clamp;
@@ -48,6 +49,47 @@ impl Stonecutter {
             let rows = self.offscreen_rows();
             self.scroll_offs = clamp(self.scroll_offs - dy as f32 / rows as f32, 0.0, 1.0);
             self.start_index = (f64::from(self.scroll_offs * rows as f32) + 0.5) as usize * 4;
+        }
+    }
+
+    /// `scrollOffs`, to carry to the next frame's screen.
+    pub fn scroll_offs(&self) -> f32 {
+        self.scroll_offs
+    }
+
+    /// `scrollOffs` as an earlier frame left it, with `startIndex` from it.
+    pub fn set_scroll(&mut self, offs: f32) {
+        if self.scroll_bar_active() {
+            self.scroll_offs = offs;
+            self.start_index = (f64::from(offs * self.offscreen_rows() as f32) + 0.5) as usize * 4;
+        }
+    }
+
+    /// `mouseClicked`'s own part: a recipe button `clickMenuButton` takes (not the selected one),
+    /// or the scroller.
+    pub fn mouse_clicked(&self, mouse: [f64; 2]) -> Option<Press> {
+        if !self.display_recipes {
+            return None;
+        }
+        let (xo, yo) = (self.base.left + 52, self.base.top + 14);
+        for index in self.start_index..self.start_index + 12 {
+            let pos = (index - self.start_index) as i32;
+            let (xx, yy) = (mouse[0] - f64::from(xo + pos % 4 * 16), mouse[1] - f64::from(yo + pos / 4 * 18));
+            if xx >= 0.0 && yy >= 0.0 && xx < 16.0 && yy < 18.0 && self.selected != index as i32 {
+                // Taken past the last recipe too, selecting nothing.
+                return Some(Press::Button(index));
+            }
+        }
+        let (x, y) = (self.base.left + 119, self.base.top + 9);
+        let on = mouse[0] >= f64::from(x) && mouse[0] < f64::from(x + 12) && mouse[1] >= f64::from(y) && mouse[1] < f64::from(y + 54);
+        on.then_some(Press::Scroller)
+    }
+
+    /// `mouseDragged` while the scroller is held.
+    pub fn mouse_dragged(&mut self, mouse: [f64; 2]) {
+        if self.scroll_bar_active() {
+            self.scroll_offs = drag_scroll(mouse[1], self.base.top + 14, 54, 7.5);
+            self.start_index = (f64::from(self.scroll_offs * self.offscreen_rows() as f32) + 0.5) as usize * 4;
         }
     }
 

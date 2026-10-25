@@ -209,6 +209,18 @@ impl EntityModels {
         })
     }
 
+    /// The body transform (model space to the entity's place, without its position) of a `kind`
+    /// drawn by a Java model; `None` for Bedrock geometry. See [`java::library::Library::body`].
+    pub fn body(&self, kind: &str, query: &dyn Fn(&str) -> Value, yaw: f32, scale: f32, death_ticks: f32) -> Option<glam::Mat4> {
+        self.java.drawn(kind).then(|| self.java.body(kind, query, yaw, scale, death_ticks)).flatten()
+    }
+
+    /// The layers a Java-drawn `kind`'s gear adds over its body; none for Bedrock geometry. See
+    /// [`java::library::Library::gear`].
+    pub fn gear(&self, kind: &str, query: &dyn Fn(&str) -> Value, body: Option<java::gear::Body>) -> Vec<Layer> {
+        self.java.gear(kind, query, body)
+    }
+
     /// Whether `model` is a Java model, posed by its own `setupAnim`.
     pub fn is_java(&self, model: ModelId) -> bool {
         self.models.get(model as usize).is_some_and(|m| m.mesh.java.is_some())

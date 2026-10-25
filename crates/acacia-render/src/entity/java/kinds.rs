@@ -72,9 +72,9 @@ pub const OVERLAYS: [(&str, Overlay); 15] = [
     ("minecraft:creeper", overlay("armor", "creeper/creeper_armor", None, When::Powered)),
 ];
 
-// TODO: climate variants (cold/warm cows, pigs, chickens), wolf and panda variants, wolf collars,
-// llama decor, tropical fish shapes and patterns, puffed pufferfish, salmon sizes, horse markings and saddles, snowy sleeping foxes, breeze wind and eyes, creaking and warden layers, angry bees with nectar,
-// shulker colours and attachment, cold striders, the wither's invulnerable blink.
+// TODO: climate variants (cold/warm cows, pigs, chickens), wolf and panda variants, tropical fish
+// shapes and patterns, puffed pufferfish, salmon sizes, snowy sleeping foxes, breeze wind, creaking
+// and warden layers, angry bees with nectar, shulker colours, cold striders, the wither's blink.
 pub const KINDS: [(&str, Kind); 89] = [
     ("minecraft:ender_dragon", adult("minecraft:ender_dragon#main", "enderdragon/dragon")),
     ("minecraft:happy_ghast", both("minecraft:happy_ghast#main", "ghast/happy_ghast", "minecraft:happy_ghast_baby#main", "ghast/happy_ghast_baby")),
@@ -218,6 +218,18 @@ pub const VARIANTS: [(&str, &str, i32, &str, &str); 46] = [
     ("minecraft:ghast", "is_charging", 1, "ghast/ghast_shooting", "ghast/ghast_shooting"),
     ("minecraft:vex", "is_charging", 1, "illager/vex_charging", "illager/vex_charging"),
 ];
+
+/// The Java entity id (no namespace) of a Bedrock `identifier`.
+pub fn java_id(identifier: &str) -> &str {
+    match identifier.trim_start_matches("minecraft:") {
+        "tropicalfish" => "tropical_fish",
+        "zombie_pigman" => "zombified_piglin",
+        "evocation_illager" => "evoker",
+        "villager_v2" => "villager",
+        "zombie_villager_v2" => "zombie_villager",
+        id => id,
+    }
+}
 
 pub fn of(identifier: &str) -> Option<&'static Kind> {
     KINDS.iter().find(|(id, _)| *id == identifier).map(|(_, k)| k)

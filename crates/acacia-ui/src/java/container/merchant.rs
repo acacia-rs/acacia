@@ -1,6 +1,7 @@
 //! `MerchantScreen`: a trader's offers as a list of seven `TradeOfferButton`s with a scroller,
 //! the trade slots, the trader's level in the title and its experience bar.
 
+use super::input::Press;
 use super::{Base, Env, LABEL, Screen, Slot, carried, contents, hovered_tooltip, item_tooltip, menus, text_tooltip, transparent_background};
 use crate::java::gui::{Blend, Gui, GuiDraw};
 use crate::java::mth::{WHITE, floor};
@@ -70,6 +71,39 @@ impl Merchant {
 
     fn can_scroll(&self) -> bool {
         self.offers.len() > BUTTONS
+    }
+
+    /// `mouseClicked`'s own part: the scroller grabbed, or an offer's button (its offer's index;
+    /// `postButtonClick` selects it as `shopItem`).
+    pub fn mouse_clicked(&self, mouse: [f64; 2]) -> Option<Press> {
+        let (xo, yo) = ((self.base.width - self.base.image_width) / 2, (self.base.height - self.base.image_height) / 2);
+        let [x, y] = mouse;
+        if self.can_scroll() && x > f64::from(xo + 94) && x < f64::from(xo + 100) && y > f64::from(yo + 18) && y <= f64::from(yo + 18 + 140) {
+            return Some(Press::Scroller);
+        }
+        let left = self.base.left + 5;
+        (0..BUTTONS.min(self.offers.len()))
+            .find(|&i| {
+                let top = self.base.top + 18 + 20 * i as i32;
+                x >= f64::from(left) && y >= f64::from(top) && x < f64::from(left + 88) && y < f64::from(top + 20)
+            })
+            .map(|i| Press::Button(i + self.scroll_off))
+    }
+
+    /// `mouseDragged` while the scroller is held.
+    pub fn mouse_dragged(&mut self, mouse: [f64; 2]) {
+        let top = self.base.top + 18;
+        let max = self.offers.len() as i32 - BUTTONS as i32;
+        let scrolled = ((mouse[1] as f32 - top as f32 - 13.5) / (139.0 - 27.0)) * max as f32 + 0.5;
+        self.scroll_off = (scrolled as i32).clamp(0, max.max(0)) as usize;
+    }
+
+    /// `mouseScrolled` by `dy` away from any slot.
+    pub fn scroll(&mut self, dy: f64) {
+        if self.can_scroll() {
+            let max = self.offers.len() as i32 - BUTTONS as i32;
+            self.scroll_off = ((self.scroll_off as f64 - dy) as i32).clamp(0, max) as usize;
+        }
     }
 
     fn scroller(&self, gui: &mut Gui, xo: i32, yo: i32) {

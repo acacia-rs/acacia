@@ -35,8 +35,9 @@ use super::text::Text;
 pub enum Line {
     /// `ClientTextTooltip`: 10 high.
     Text(Text),
-    /// An image component (`ClientBundleTooltip`) by its Java class name and size.
-    Image { kind: Cow<'static, str>, w: i32, h: i32 },
+    /// An image component by its Java class name and size; a bundle's draws itself, any other is
+    /// a `Picture::TooltipImage`.
+    Image { kind: Cow<'static, str>, w: i32, h: i32, bundle: Option<Box<bundle::Bundle>> },
 }
 
 impl Line {
@@ -124,8 +125,12 @@ pub fn extract(gui: &mut Gui, font: &dyn Metrics, t: &Tooltip) {
     }
     ly = y;
     for (i, line) in t.lines.iter().enumerate() {
-        if let Line::Image { kind, w: iw, h: ih } = line {
-            gui.draws.push(super::gui::GuiDraw::Picture(Picture::TooltipImage { kind: kind.to_string(), x, y: ly, w: *iw, h: *ih }));
+        match line {
+            Line::Image { bundle: Some(b), .. } => b.extract(gui, font, x, ly, w),
+            Line::Image { kind, w: iw, h: ih, bundle: None } => {
+                gui.draws.push(super::gui::GuiDraw::Picture(Picture::TooltipImage { kind: kind.to_string(), x, y: ly, w: *iw, h: *ih }));
+            }
+            Line::Text(_) => {}
         }
         ly += line.height() + gap(i);
     }
