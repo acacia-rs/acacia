@@ -1,8 +1,8 @@
 //! `gui-probe <harness> <assets> <inputs.jsonl> <output.jsonl>`: each input line is a case of
-//! that harness (`tools/parity/<harness>/cases.py`'s schema, its `kind` picking the replay); each
-//! output line is `{"draws": [...], <state read back>...}` with the draw calls as
+//! that harness (`tools/parity/harnesses/<harness>/cases.py`'s schema, its `kind` picking the replay);
+//! each output line is `{"draws": [...], <state read back>...}` with the draw calls as
 //! `acacia_ui::java::encode` writes them. `assets` is an unpacked jar's `assets/minecraft`. Run by
-//! `tools/parity/gui/run.sh`.
+//! `tools/parity/gui/guiparity.py`.
 
 mod hud;
 
