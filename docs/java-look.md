@@ -177,9 +177,10 @@ files and colormaps, with the dark forest and swamp modifiers, written under Bed
 as the pack's `biomes_client.json`; tints blend over 5×5 columns. Weighted variants
 (stone, dirt, netherrack, fire, 38 blocks) are all baked and picked per position as the game picks
 them; plants stand off the grid by Java's offsets (`lookbake/src/offset.rs`). Kept on Bedrock
-rendering: 382 states drawn as block entities, 193 with no Java geometry, and 182 whose model lays
-one face over another. The grass block is among those, drawn as Bedrock's overlay cube; its faces
-still turn as its Java variants do. Both of Java's fog bands are drawn (`Look::JAVA`). The cutout
+rendering: 382 states drawn as block entities and 193 with no Java geometry. A model that lays one
+face over another (the grass block's overlay) draws both, the second on the first: terrain's depth
+test passes equal depth, as Java's LEQUAL. Faces cull against neighbours as `Block.shouldRenderFace`:
+`BlockShapeExporter` writes every state's face occlusion shapes from the jar (`lookbake/src/occlusion.rs`). Both of Java's fog bands are drawn (`Look::JAVA`). The cutout
 threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), nor the mip cap: a
 16-pixel texture has four levels below it. What is left, in order: [java-look-next.md](java-look-next.md).
 

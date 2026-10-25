@@ -1,5 +1,6 @@
 //! Per-runtime-id render data: shape, render layer, texture-array layer and tint per face.
 
+pub mod cull;
 mod facing;
 pub mod fluid;
 mod lever;
@@ -18,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::assets::Pack;
 use crate::assets::flipbook::{Animation, Atlas};
 use crate::assets::image::{Alpha, Texture};
+pub use cull::{Cull, Skip};
 pub use fluid::FluidRules;
 pub use shape::{Box16, ModelFace, Shape, short_name};
 pub use light::{FaceShapes, LightFacts};
@@ -81,6 +83,10 @@ pub struct RenderBlock {
     #[serde(skip)]
     pub model: Option<Arc<model::BlockModel>>,
     pub light: LightFacts,
+    /// Java's face culling against neighbours; `None` keeps the renderer's own ([`Self::occludes`],
+    /// [`Self::cull_same`]).
+    #[serde(default)]
+    pub cull: Option<Cull>,
 }
 
 pub struct BlockTable {
@@ -153,6 +159,7 @@ impl BlockTable {
             fluid_height: 0,
             fluid_rules: FluidRules::CUBE,
             model: None,
+            cull: None,
             light: LightFacts { solid_render: true, full_collision: true, dampening: 15, dark: true, ambient_occlusion: true, ..LightFacts::default() },
         }
     }
@@ -228,6 +235,7 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
         fluid_height: (state.fluid_height() * 16.0).round() as u8,
         fluid_rules: FluidRules::of(state),
         model,
+        cull: None,
         // Bedrock's own, until a Java bake replaces them.
         light: LightFacts {
             emission: state.light_emission,

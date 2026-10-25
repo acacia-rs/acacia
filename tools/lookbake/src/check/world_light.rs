@@ -1,9 +1,9 @@
-//! The Java look's light on real terrain against the game's: tools/parity harness `world_light`
-//! dumps Bedrock chunks from movement traces (`scenes.jsonl`, world_scene.rs) and the game's
-//! light and quads over them (WorldLightOracle: `light.bin`, `quads.jsonl`). Here the same chunks
-//! go through acacia's light engine and mesher with the Java look: every cell's light is
-//! compared, and every face both draw (same corners), corner by corner: block light, sky light,
-//! grey. Faces only one side draws are counted, not compared.
+//! The Java look's world mesh and light on real terrain against the game's: tools/parity harness
+//! `world_light` dumps Bedrock chunks from movement traces (`scenes.jsonl`, world_scene.rs) and
+//! the game's light and quads over them, liquids included (WorldLightOracle: `light.bin`,
+//! `quads.jsonl`). Here the same chunks go through acacia's light engine and mesher with the Java
+//! look: every cell's light is compared, every face both draw (same corners) corner by corner
+//! (block light, sky light, grey), and a face only one side draws is a divergence.
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::{BufRead, BufReader};
@@ -13,7 +13,7 @@ use acacia_render::LookPack;
 use acacia_render::biome::BiomeColors;
 use acacia_render::light::light_now;
 use acacia_render::mesh::drawn::{DrawnFace, drawn_faces};
-use acacia_render::mesh::quad::{LIQUID, LIT};
+use acacia_render::mesh::quad::LIT;
 use acacia_render::mesh::{Volume, mesh_section_lit};
 use acacia_world::BlockRegistry;
 use serde::Deserialize;
@@ -65,6 +65,15 @@ impl Theirs {
         }
         None
     }
+}
+
+/// The block a face belongs to: the cell just behind its centre (faces point out of their block).
+fn owner(corners: &[[i32; 3]; 4]) -> [i32; 3] {
+    let [p0, p1, p2] = [0, 1, 2].map(|i| corners[i].map(|v| v as f32));
+    let (a, b) = ([0, 1, 2].map(|i| p1[i] - p0[i]), [0, 1, 2].map(|i| p2[i] - p0[i]));
+    let n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    let len = n.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-6);
+    [0, 1, 2].map(|i| ((corners.iter().map(|c| c[i] as f32).sum::<f32>() / 4.0 - n[i] / len) / 256.0).floor() as i32)
 }
 
 fn corners_of(face: &DrawnFace) -> Corners {
@@ -122,13 +131,10 @@ pub fn print(look: &LookPack, scenes: &Path, quads: &Path) -> Result<Outcome, Er
         }
         for face in left {
             let Some((pos, expected)) = theirs.take(&face.corners, |_| true) else {
-                let kind = match face.kind {
-                    None => "model faces",
-                    Some(6..=9) => "cross planes",
-                    Some(k) if k == u32::from(LIQUID) => "liquid faces (the game's are not dumped)",
-                    Some(_) => "cube faces",
-                };
-                *tally.ours_only.entry(kind.to_owned()).or_default() += 1;
+                let pos = owner(&face.corners);
+                let name = block_name(&world, pos);
+                *tally.ours_only.entry(name.clone()).or_default() += 1;
+                outcome.diverge(&format!("{}: {name} at {pos:?}", scene.scene), "drawn only by acacia", "no face", format!("{:?}", face.corners));
                 continue;
             };
             outcome.cases += 1;
@@ -138,13 +144,15 @@ pub fn print(look: &LookPack, scenes: &Path, quads: &Path) -> Result<Outcome, Er
             let got = if face.light[0] & LIT == 0 { "lit from the light volume".to_owned() } else { show(&corners_of(&face)) };
             outcome.diverge(&format!("{}: {name} at {pos:?}", scene.scene), "vertex light", show(&expected), got);
         }
-        for (pos, _) in theirs.0.values().flatten() {
-            *tally.theirs_only.entry(block_name(&world, *pos)).or_default() += 1;
+        for (pos, corners) in theirs.0.values().flatten() {
+            let name = block_name(&world, *pos);
+            *tally.theirs_only.entry(name.clone()).or_default() += 1;
+            outcome.diverge(&format!("{}: {name} at {pos:?}", scene.scene), "drawn only by the game", format!("{:?}", corners.map(|c| c.0)), "no face");
         }
     }
     println!("{} cells and faces compared", outcome.cases);
     list("faces whose light differs, by block", tally.differing);
-    list("faces drawn only by acacia", tally.ours_only);
+    list("faces drawn only by acacia, by block", tally.ours_only);
     list("faces drawn only by the game, by block", tally.theirs_only);
     Ok(outcome)
 }

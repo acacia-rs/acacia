@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use acacia_render::LookPack;
-use acacia_render::blocks::FaceShapes;
+use acacia_render::blocks::{FaceShapes, Skip};
 use acacia_render::lookpack::state_key;
 use acacia_world::BlockRegistry;
 use serde::Deserialize;
@@ -14,6 +14,7 @@ use super::Outcome;
 use super::shade::dump_key;
 use crate::download::Error;
 use crate::mapping::Mapping;
+use crate::occlusion::grid;
 
 #[derive(Deserialize)]
 struct Facts {
@@ -24,22 +25,12 @@ struct Facts {
     emissive: bool,
     dark: bool,
     faces: Option<Vec<String>>,
+    occlusion: Option<Vec<String>>,
+    #[serde(default)]
+    occlusion_whole: Vec<bool>,
+    skip: Option<String>,
 }
 
-/// LightShapes.grid's hex: bit `i` is digit `i / 4`'s bit `3 - i % 4`.
-fn grid(hex: &str) -> [u64; 4] {
-    let mut words = [0u64; 4];
-    for (i, digit) in hex.chars().enumerate() {
-        let nibble = digit.to_digit(16).unwrap_or(0) as u64;
-        for b in 0..4 {
-            if nibble >> (3 - b) & 1 == 1 {
-                let bit = i * 4 + b;
-                words[bit / 64] |= 1 << (bit % 64);
-            }
-        }
-    }
-    words
-}
 
 pub fn print(look: &LookPack, mapping: &Mapping, dump: &Path) -> Result<Outcome, Error> {
     let truth: HashMap<String, Facts> = serde_json::from_slice(&std::fs::read(dump)?)?;
@@ -54,7 +45,17 @@ pub fn print(look: &LookPack, mapping: &Mapping, dump: &Path) -> Result<Outcome,
         let ours = block.light;
         let our_faces: Option<FaceShapes> = (ours.shape != 0).then(|| look.light_shapes()[usize::from(ours.shape) - 1]);
         let their_faces: Option<FaceShapes> = theirs.faces.as_ref().map(|f| std::array::from_fn(|d| grid(&f[d])));
-        let fields: [(&'static str, String, String); 7] = [
+        let cull = block.cull.unwrap_or_default();
+        let our_occlusion: Option<FaceShapes> = (cull.shape != 0).then(|| look.light_shapes()[usize::from(cull.shape) - 1]);
+        let their_occlusion: Option<FaceShapes> = theirs.occlusion.as_ref().map(|f| std::array::from_fn(|d| grid(&f[d])));
+        let our_skip = match cull.skip {
+            Skip::None => None,
+            Skip::Same { .. } => Some("same"),
+            Skip::SameVertical { .. } => Some("same_vertical"),
+            Skip::Bars { tagged: true, .. } => Some("bars_tagged"),
+            Skip::Bars { .. } => Some("bars"),
+        };
+        let fields: [(&'static str, String, String); 10] = [
             ("emission", theirs.emission.to_string(), ours.emission.to_string()),
             ("dampening", theirs.dampening.to_string(), ours.dampening.to_string()),
             ("solid render", theirs.solid_render.to_string(), ours.solid_render.to_string()),
@@ -62,6 +63,9 @@ pub fn print(look: &LookPack, mapping: &Mapping, dump: &Path) -> Result<Outcome,
             ("emissive", theirs.emissive.to_string(), ours.emissive.to_string()),
             ("darkens", theirs.dark.to_string(), ours.dark.to_string()),
             ("light shape", format!("{their_faces:?}"), format!("{our_faces:?}")),
+            ("occlusion shape", format!("{their_occlusion:?}"), format!("{our_occlusion:?}")),
+            ("whole-block faces", format!("{:?}", theirs.occlusion_whole), format!("{:?}", (0..6).filter(|_| cull.shape != 0).map(|d| cull.whole >> d & 1 == 1).collect::<Vec<_>>())),
+            ("skip rendering", format!("{:?}", theirs.skip), format!("{:?}", our_skip.map(str::to_owned))),
         ];
         for (field, expected, got) in fields {
             if expected != got {

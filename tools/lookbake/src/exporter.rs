@@ -10,7 +10,8 @@ use std::process::Command;
 use crate::download::{Error, get, pinned};
 use crate::jar::{VERSION, version_package};
 
-const SOURCES: [(&str, &str); 5] = [
+const SOURCES: [(&str, &str); 6] = [
+    ("BlockShapeExporter.java", include_str!("../exporter/BlockShapeExporter.java")),
     ("EntityModelExporter.java", include_str!("../exporter/EntityModelExporter.java")),
     ("AnimationExporter.java", include_str!("../exporter/AnimationExporter.java")),
     ("ItemModelExporter.java", include_str!("../exporter/ItemModelExporter.java")),

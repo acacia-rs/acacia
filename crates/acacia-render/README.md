@@ -84,6 +84,11 @@ tints like plains, with the water of that file's `default` entry.
   game shows at the same block. Neighbours cull and occlude by the block's first entry, whichever is
   drawn. Blocks with alternatives rarely merge: a look that randomises stone pays one quad per
   visible face for it.
+- Face culling (`mesh/cull.rs`): a face shows unless its neighbour occludes it. A look whose blocks
+  carry `Cull` (the Java look) culls as Java's `Block.shouldRenderFace`: the neighbour's face
+  occlusion shape (16x16 grids in `light_shapes`) must cover the face's own, a side that is
+  `Shapes.block()` hides anything, and `Skip` leaves out faces between like blocks (glass, ice,
+  bars). Otherwise a face hides behind a full opaque cube or the same state (`cull_same`).
 
 ## Lighting (`light/`)
 

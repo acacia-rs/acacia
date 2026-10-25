@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 
 from . import compare, oracle
-from .home import HOME, ROOT
+from .home import HOME, JAVA, ROOT
 
 
 class Harness:
@@ -25,7 +25,9 @@ class Harness:
         command = ["cargo", *map(str, args)]
         self.log.write("$ " + " ".join(command) + "\n")
         self.log.flush()
+        # lookbake runs its Java exporters with the oracle's JDK.
         env = dict(os.environ, CARGO_TERM_COLOR="never")
+        env.setdefault("JAVA_HOME", str(JAVA.parent))
         result = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=self.log, text=True, env=env)
         self.log.write(result.stdout)
         if check and result.returncode:
