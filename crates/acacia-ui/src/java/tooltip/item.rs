@@ -115,9 +115,10 @@ pub fn add_details(stack: &ItemStack, display: &Display, d: &Details, out: &mut 
         }
     }
     if d.advanced {
-        let damage = stack.int("damage", 0);
-        if damage > 0 && stack.has("max_damage") && display.shows("damage") {
-            let max = stack.int("max_damage", 0);
+        // isDamaged: a damageable (max_damage, not unbreakable) stack's damage, clamped to the max.
+        let max = stack.int("max_damage", 0);
+        let damage = stack.int("damage", 0).clamp(0, max.max(0));
+        if damage > 0 && stack.has("max_damage") && !stack.has("unbreakable") && display.shows("damage") {
             out.push(d.tr("item.durability", &[num(max - damage), num(max)]));
         }
         out.push(Text::literal(stack.id.clone()).with_color(DARK_GRAY));
