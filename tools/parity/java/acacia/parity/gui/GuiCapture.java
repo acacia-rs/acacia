@@ -40,6 +40,8 @@ public class GuiCapture extends GuiGraphicsExtractor {
     public Font font;
     /** The key each stack is recorded under (a slot number); -1 for others. */
     public IdentityHashMap<ItemStack, Integer> keys = new IdentityHashMap<>();
+    /** The scissor stack, as GuiGraphicsExtractor.ScissorStack keeps it (widgets hover through it). */
+    java.util.ArrayDeque<net.minecraft.client.gui.navigation.ScreenRectangle> scissors = new java.util.ArrayDeque<>();
     /** Off: itemDecorations is recorded as one call; on: as the fills and text it makes. */
     public boolean realDecorations;
 
@@ -53,6 +55,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
         c.draws = new JsonArray();
         c.stack = new Matrix3x2fStack(16);
         c.keys = new IdentityHashMap<>();
+        c.scissors = new java.util.ArrayDeque<>();
         c.width = width;
         c.height = height;
         c.font = mc.font;
@@ -142,8 +145,19 @@ public class GuiCapture extends GuiGraphicsExtractor {
         var o = call("scissor");
         o.addProperty("x0", x0); o.addProperty("y0", y0); o.addProperty("x1", x1); o.addProperty("y1", y1);
         posed(o, stack);
+        pushScissor(x0, y0, x1, y1);
     }
-    @Override public void disableScissor() { draws.add(call("unscissor")); }
+    @Override public void disableScissor() {
+        if (!scissors.isEmpty()) scissors.removeLast();
+        draws.add(call("unscissor"));
+    }
+    void pushScissor(int x0, int y0, int x1, int y1) {
+        var r = new net.minecraft.client.gui.navigation.ScreenRectangle(x0, y0, x1 - x0, y1 - y0).transformAxisAligned(stack);
+        var last = Objects.requireNonNullElse(scissors.peekLast(), new net.minecraft.client.gui.navigation.ScreenRectangle(0, 0, width, height));
+        scissors.addLast(Objects.requireNonNullElse(r.intersection(last), net.minecraft.client.gui.navigation.ScreenRectangle.empty()));
+    }
+    // ScissorStack.containsPoint tests the first scissor pushed, not the innermost.
+    @Override public boolean containsPointInScissor(int x, int y) { return scissors.isEmpty() || scissors.peekFirst().containsPoint(x, y); }
 
     /** Runs `[text, rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null]`; null when unstyled. */
     static JsonArray runs(FormattedCharSequence str, StringBuilder plain) {
