@@ -136,6 +136,12 @@ public class GuiCapture extends GuiGraphicsExtractor {
         if (p != net.minecraft.client.renderer.RenderPipelines.GUI) o.addProperty("pipeline", p.getLocation().getPath());
         posed(o, stack);
     }
+    /** A shader fill over textures (the end portal's): recorded by its pipeline, as a picture. */
+    @Override public void fill(RenderPipeline p, net.minecraft.client.gui.render.TextureSetup setup, int x0, int y0, int x1, int y1) {
+        var o = call(p == net.minecraft.client.renderer.RenderPipelines.END_PORTAL ? "end_portal" : "textured_fill " + p.getLocation().getPath());
+        Markers.box(o, x0, y0, x1, y1);
+        posed(o, stack);
+    }
     @Override public void fillGradient(int x0, int y0, int x1, int y1, int top, int bottom) {
         var o = call("gradient");
         o.addProperty("x0", x0); o.addProperty("y0", y0); o.addProperty("x1", x1); o.addProperty("y1", y1);

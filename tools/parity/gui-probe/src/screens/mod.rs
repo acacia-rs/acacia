@@ -3,6 +3,7 @@
 
 pub mod layouts;
 pub mod menus;
+pub mod more;
 pub mod options;
 pub mod widgets;
 

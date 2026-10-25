@@ -92,8 +92,11 @@ pub fn encode(draws: &[GuiDraw]) -> Vec<Value> {
                 out.push(fill("pipeline/gui_text_highlight", -16_776_961));
                 continue;
             }
-            GuiDraw::Stratum => json!({"type": "stratum"}),
-            GuiDraw::Blur => json!({"type": "blur"}),
+            // GuiCapture records these two without the pose.
+            GuiDraw::Stratum | GuiDraw::Blur => {
+                out.push(json!({"type": if matches!(d, GuiDraw::Stratum) { "stratum" } else { "blur" }}));
+                continue;
+            }
             GuiDraw::Picture(p) => p.encode(),
         };
         if pose != IDENTITY {
