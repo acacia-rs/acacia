@@ -28,8 +28,6 @@ pub(super) struct FrameFog {
     pub underwater: bool,
     /// Blocks out where the sky and the clouds are fully fogged (`FogData.skyEnd`, `cloudEnd`).
     pub sky_end: f32,
-    // TODO: the cloud pass (the weather fork's) fades clouds out by this.
-    #[allow(dead_code)]
     pub cloud_end: f32,
 }
 

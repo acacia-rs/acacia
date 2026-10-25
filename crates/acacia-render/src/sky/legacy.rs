@@ -41,6 +41,8 @@ pub(super) fn attributes(realm: Realm, time: f32, weather: Weather) -> Attribute
             a.set(Attr::StarBrightness, [stars * stars * 0.5 * (1.0 - weather.rain), 0.0, 0.0, 0.0]);
             a.set(Attr::SunriseSunsetColor, sunrise(height).unwrap_or_default());
             a.set(Attr::SkyLightLevel, [15.0 - (1.0 - daylight) * NIGHT_DARKEN, 0.0, 0.0, 0.0]);
+            let grey = super::cloud_tint(weather).powf(1.0 / 2.2);
+            a.set(Attr::CloudColor, [grey, grey, grey, 0.8]);
         }
     }
     a

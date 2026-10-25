@@ -127,6 +127,14 @@ pub struct CloudLook {
     pub height: f32,
 }
 
+impl CloudLook {
+    /// `layer` with this colour (as ARGB, `ARGB.colorFromFloat`) and height.
+    pub fn layer(&self, layer: crate::clouds::CloudLayer) -> crate::clouds::CloudLayer {
+        let [r, g, b, a] = self.color.map(|c| (c.clamp(0.0, 1.0) * 255.0) as u32);
+        crate::clouds::CloudLayer { color: a << 24 | r << 16 | g << 8 | b, height: self.height, ..layer }
+    }
+}
+
 /// White clouds greyed by the weather (`ClientLevel.getCloudColor`), linear; for a look without
 /// [`Attr::CloudColor`].
 pub fn cloud_tint(weather: Weather) -> f32 {

@@ -223,6 +223,8 @@ impl Renderer {
         let (rain, clouds) = if open_sky { (self.weather.rain, self.clouds) } else { (0.0, None) };
         // TODO: the level's game time; the renderer's clock stands in for it.
         let ticks = self.started.elapsed().as_secs_f64() * 20.0;
+        let (sky, fog) = self.frame_environment(camera);
+        let clouds = clouds.map(|layer| crate::clouds::CloudLayer { fog_end: fog.cloud_end.min((layer.range * 16) as f32), ..sky.clouds().layer(layer) });
         self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, ticks);
         self.bolt_pass.prepare(&self.device, &self.queue, &self.bolts, camera.position);
         self.prepare_shadows(camera.position);
@@ -230,7 +232,6 @@ impl Renderer {
 
         let view_proj = camera.view_proj();
         let realm = self.world().map_or(Realm::Overworld, |w| Realm::of(&w.dimension()));
-        let (sky, fog) = self.frame_environment(camera);
         let conditions = LightConditions { flicker: self.flicker.at((self.started.elapsed().as_secs_f64() * 20.0) as u64), ..self.light_conditions };
         let lightmap = crate::light::environment::frame_lightmap(self.look.lighting, realm, self.time, self.weather, &conditions);
         let sky_pass = self.sky.as_ref().filter(|_| !fog.in_fluid);
