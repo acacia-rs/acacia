@@ -78,4 +78,5 @@ Cases and divergences as of the last merge that touched the harness.
 
 | Harness | What | Cases | Divergences | Owner |
 |---|---|---|---|---|
+| `chat_screen` | the chat input (EditBox: typing, caret, selection, scrolling, word moves, history) and name completion (CommandSuggestions' list: Tab, cycling, clicks, hover); messages only, commands not yet; probe `gui-probe chat_screen` | 3,000 | 33 (non-ASCII advances: the probe's stand-in font) | gui |
 | `bake` | every block state's baked quads (corners, texture, UVs, cull, tint, shade direction, AO) and alternatives (35,723 states, 644 with alternatives picked at 48 positions), off-grid shifts (39 blocks), biome colours (67 biomes, grass at 64 columns), AO shade (22,091 mapped Bedrock states); probe `lookbake java-check` | 57,920 | 0 | lookbake |

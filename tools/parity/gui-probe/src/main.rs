@@ -37,6 +37,7 @@ impl Metrics for Ascii {
 fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
         "hud" => hud::replay,
+        "chat_screen" => chat::replay_screen,
         _ => return None,
     })
 }

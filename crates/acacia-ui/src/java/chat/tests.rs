@@ -31,6 +31,70 @@ fn messages_wrap_newest_at_the_bottom_with_indicators() {
 }
 
 #[test]
+fn the_edit_box_scrolls_to_keep_the_caret_shown() {
+    let m = Fixed(6.0);
+    let mut input = EditBox::new(0, 0, 30, 12);
+    input.bordered = false;
+    input.max_length = 256;
+    // 30 px shows five characters; typing ten leaves the window on the last five.
+    for c in "abcdefghij".chars() {
+        input.char_typed(&m, c);
+    }
+    assert_eq!((input.cursor, input.display), (10, 5));
+    input.key(&m, Key::Home, false, false);
+    assert_eq!((input.cursor, input.display), (0, 0));
+    input.key(&m, Key::End, true, false);
+    assert_eq!((input.cursor, input.highlight, input.display), (10, 0, 5));
+    // Typing over the selection replaces it.
+    input.char_typed(&m, 'z');
+    assert_eq!(input.value(), "z");
+    assert!(!input.char_typed(&m, '§'));
+}
+
+#[test]
+fn words_are_deleted_and_skipped_by_spaces() {
+    let m = Fixed(6.0);
+    let mut input = EditBox::new(0, 0, 300, 12);
+    input.max_length = 256;
+    input.set_value(&m, "one two  three");
+    input.key(&m, Key::Left, false, true);
+    assert_eq!(input.cursor, 9);
+    input.key(&m, Key::Backspace, false, true);
+    assert_eq!(input.value(), "one three");
+    input.key(&m, Key::A, false, true);
+    assert_eq!((input.cursor, input.highlight), (9, 0));
+}
+
+#[test]
+fn names_complete_the_word_at_the_caret() {
+    use super::suggestions::{matches_sub_str, suggest};
+    assert!(matches_sub_str("wa", "sky_walker"));
+    assert!(!matches_sub_str("ky", "sky_walker"));
+    let input: Vec<u16> = "hi st".encode_utf16().collect();
+    let found = suggest(["Steve", "stan", "Alex", "Stone_Age"], &input, 3);
+    assert_eq!(found.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(), ["stan", "Steve", "Stone_Age"]);
+    assert_eq!(found[1].apply(&input), "hi Steve");
+}
+
+#[test]
+fn tab_shows_the_list_then_applies_and_cycles() {
+    let m = Fixed(6.0);
+    let names = vec!["Steve".to_owned(), "Stan".to_owned(), "Alex".to_owned()];
+    let mut screen = ChatScreen::new(&m, "", 0, names, 320, 240);
+    for c in "hi St".chars() {
+        screen.char_typed(&m, c);
+    }
+    screen.key(&m, &[], Key::Tab, false, false);
+    assert_eq!(screen.input.suggestion.as_deref(), Some("an"));
+    screen.key(&m, &[], Key::Tab, false, false);
+    assert_eq!(screen.input.value(), "hi Stan");
+    screen.key(&m, &[], Key::Tab, false, false);
+    assert_eq!(screen.input.value(), "hi Steve");
+    assert_eq!(screen.key(&m, &[], Key::Escape, false, false), ChatAction::None);
+    assert_eq!(screen.key(&m, &[], Key::Escape, false, false), ChatAction::Close);
+}
+
+#[test]
 fn scrolling_stops_at_the_last_page() {
     let m = Fixed(6.0);
     let mut chat = Chat::default();

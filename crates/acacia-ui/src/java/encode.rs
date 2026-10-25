@@ -72,6 +72,17 @@ pub fn encode(draws: &[GuiDraw]) -> Vec<Value> {
             GuiDraw::Unscissor => json!({"type": "unscissor"}),
             GuiDraw::Stratum => json!({"type": "stratum"}),
             GuiDraw::Blur => json!({"type": "blur"}),
+            GuiDraw::Highlight { x0, y0, x1, y1, invert } => {
+                let fill = |pipeline: &str, color: i32| json!({"type": "fill", "x0": x0, "y0": y0, "x1": x1, "y1": y1, "color": color, "pipeline": pipeline});
+                if *invert {
+                    let mut v = fill("pipeline/gui_invert", -1);
+                    if pose != IDENTITY {
+                        v["matrix"] = json!(pose);
+                    }
+                    out.push(v);
+                }
+                fill("pipeline/gui_text_highlight", -16_776_961)
+            }
         };
         if pose != IDENTITY {
             v["matrix"] = json!(pose);
