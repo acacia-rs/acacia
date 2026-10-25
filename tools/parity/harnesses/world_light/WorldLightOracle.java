@@ -78,7 +78,8 @@ public final class WorldLightOracle {
     }
 
     public static void main(String[] args) throws Exception {
-        var mapping = JsonParser.parseString(Files.readString(Path.of(args[2]))).getAsJsonObject();
+        var mapping = new JsonObject();
+        JsonParser.parseString(Files.readString(Path.of(args[2]))).getAsJsonObject().entrySet().forEach(e -> mapping.add(sorted(e.getKey()), e.getValue()));
         var unmapped = new java.util.TreeSet<String>();
         try (var out = new Out.Lines(Path.of(args[0], "quads.jsonl"));
              var light = new java.io.BufferedOutputStream(Files.newOutputStream(Path.of(args[0], "light.bin")));
@@ -96,6 +97,15 @@ public final class WorldLightOracle {
 
     private record Tools(Models models, PalettedContainerFactory factory, FluidRenderer fluids, FluidQuads fluidQuads, JsonObject mapping,
                          java.util.Set<String> unmapped, Out.Lines out, java.io.OutputStream light) {}
+
+    /** The table lists `minecraft:` properties first; the scenes' states sort all by key (lookbake's `mapping::sorted`). */
+    private static String sorted(String state) {
+        int open = state.indexOf('[');
+        if (open < 0) return state;
+        var pairs = new ArrayList<>(List.of(state.substring(open + 1, state.length() - 1).split(",")));
+        pairs.sort(java.util.Comparator.comparing(p -> p.split("=", 2)[0]));
+        return state.substring(0, open) + "[" + String.join(",", pairs) + "]";
+    }
 
     private static BlockState parse(String state) throws Exception {
         return BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, state, false).blockState();
