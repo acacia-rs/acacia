@@ -9,6 +9,7 @@ mod hud;
 mod kit;
 mod screens;
 mod tooltips;
+mod trading;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -43,6 +44,7 @@ fn replay(harness: &str) -> Option<Replay> {
         "hud" => hud::replay,
         "tooltips" => tooltips::replay,
         "screens_widgets" => screens::widgets::replay,
+        "trading" => trading::replay,
         _ => return None,
     })
 }
