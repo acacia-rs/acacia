@@ -1,8 +1,8 @@
 //! `StringSplitter` on plain strings (one style, `§` an ordinary character): heads, tails and word
 //! positions, as text fields use them. Re-exported by `split`.
 
-use super::gui::Metrics;
-use super::text::Style;
+use crate::java::gui::Metrics;
+use crate::java::text::Style;
 
 /// `StringSplitter.plainIndexAtWidth`: the end of the longest head of `s` at most `max_width` wide.
 pub fn plain_index_at_width(m: &dyn Metrics, s: &str, max_width: i32, style: &Style) -> usize {
