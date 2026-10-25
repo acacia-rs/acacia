@@ -1,5 +1,6 @@
 //! The bot's thread: connects, keeps the bot polled, and reports world changes to the window.
 
+mod commands;
 mod packets;
 mod setup;
 
@@ -51,6 +52,8 @@ pub enum NetEvent {
     Title(acacia_bot::events::Title),
     /// The player list's names, sorted, when they changed.
     Players(Vec<String>),
+    /// The commands the server lets the player run, for the Java chat screen's completion.
+    Commands(Arc<acacia_ui::java::command::Tree>),
     /// The player's slots, when they changed.
     Inventory(control::Inventory),
     /// The creative inventory's items, once the server sent them.

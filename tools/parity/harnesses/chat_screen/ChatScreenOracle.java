@@ -48,6 +48,8 @@ public final class ChatScreenOracle {
     private ChatScreenOracle() {}
 
     static List<String> players = List.of();
+    static ClientPacketListener connection;
+    static net.minecraft.client.MouseHandler mouseHandler;
 
     static <T> net.minecraft.client.OptionInstance<T> option(T value) throws Exception {
         @SuppressWarnings("unchecked") net.minecraft.client.OptionInstance<T> o = Stub.alloc(net.minecraft.client.OptionInstance.class);
@@ -158,7 +160,9 @@ public final class ChatScreenOracle {
         Stub.put(mc, Minecraft.class, "keyboardHandler", Stub.alloc(NoKeyboard.class));
         Stub.put(mc, Minecraft.class, "narrator", Stub.alloc(NoNarrator.class));
         Stub.put(mc, Minecraft.class, "gui", gui);
-        var connection = Stub.alloc(ClientPacketListener.class);
+        connection = Stub.alloc(ClientPacketListener.class);
+        mouseHandler = Stub.alloc(net.minecraft.client.MouseHandler.class);
+        Stub.put(mc, Minecraft.class, "mouseHandler", mouseHandler);
         var provider = Stub.alloc(Provider.class);
         Stub.put(provider, ClientSuggestionProvider.class, "minecraft", mc);
         Stub.put(connection, ClientPacketListener.class, "suggestionsProvider", provider);
@@ -192,6 +196,12 @@ public final class ChatScreenOracle {
         var window = Stub.alloc(com.mojang.blaze3d.platform.Window.class);
         Stub.put(window, com.mojang.blaze3d.platform.Window.class, "guiScaledWidth", width);
         Stub.put(window, com.mojang.blaze3d.platform.Window.class, "guiScaledHeight", height);
+        Stub.put(window, com.mojang.blaze3d.platform.Window.class, "width", width);
+        Stub.put(window, com.mojang.blaze3d.platform.Window.class, "height", height);
+        Stub.put(connection, ClientPacketListener.class, "commands", ChatCommands.dispatcher(c));
+        int mx = c.getAsJsonArray("mouse").get(0).getAsInt(), my = c.getAsJsonArray("mouse").get(1).getAsInt();
+        Stub.put(mouseHandler, net.minecraft.client.MouseHandler.class, "xpos", (double) mx);
+        Stub.put(mouseHandler, net.minecraft.client.MouseHandler.class, "ypos", (double) my);
         Stub.put(mc, Minecraft.class, "window", window);
         Stub.put(mc, Minecraft.class, "options", options);
         var screen = new ChatScreen(c.get("initial").getAsString(), false);
@@ -208,6 +218,8 @@ public final class ChatScreenOracle {
                     screen.mouseClicked(event, false);
                     screen.mouseReleased(event);
                 }
+                // The list's half of ChatScreen.mouseScrolled; the chat lines' half reads the keyboard.
+                case "scroll" -> ((CommandSuggestions) Stub.get(screen, ChatScreen.class, "commandSuggestions")).mouseScrolled(o.get("amount").getAsDouble());
                 default -> throw new IllegalArgumentException(o.toString());
             }
         }
@@ -223,7 +235,6 @@ public final class ChatScreenOracle {
         var scissors = Class.forName("net.minecraft.client.gui.GuiGraphicsExtractor$ScissorStack").getDeclaredConstructor(ScreenRectangle.class);
         scissors.setAccessible(true);
         Stub.put(g, GuiGraphicsExtractor.class, "scissorStack", scissors.newInstance(new ScreenRectangle(0, 0, width, height)));
-        int mx = c.getAsJsonArray("mouse").get(0).getAsInt(), my = c.getAsJsonArray("mouse").get(1).getAsInt();
         // ChatScreen.extractRenderState without ChatComponent's lines.
         g.fill(2, height - 14, width - 2, height - 2, options.getBackgroundColor(Integer.MIN_VALUE));
         @SuppressWarnings("unchecked")

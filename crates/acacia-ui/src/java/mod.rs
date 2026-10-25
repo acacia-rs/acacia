@@ -4,6 +4,7 @@
 //! README.md "Java GUI".
 
 pub mod chat;
+pub mod command;
 pub mod container;
 pub mod encode;
 pub mod font;

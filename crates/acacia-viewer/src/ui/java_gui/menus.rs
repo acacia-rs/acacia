@@ -2,10 +2,12 @@
 //! input (`java::chat::ChatScreen`). A menu is rebuilt from the viewer's state for every frame and
 //! every input, with its focus and scroll restored from the caller's [`Interaction`].
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use acacia_ui::DrawList;
-use acacia_ui::java::chat::ChatScreen;
+use acacia_ui::java::chat::{ChatScreen, Completion};
+use acacia_ui::java::command::Tree;
 use acacia_ui::java::gui::{Gui, Metrics};
 use acacia_ui::java::screen::confirm::{Confirm, ConfirmScreen};
 use acacia_ui::java::screen::death::DeathScreen;
@@ -185,5 +187,11 @@ impl Ui {
     /// The Java look's font metrics, which the chat input measures with.
     pub fn java_font(&self) -> &dyn Metrics {
         &self.java_gui.fonts
+    }
+
+    /// What the chat input completes: the online players' names and the server's commands, whose
+    /// errors read the Java look's translations.
+    pub fn java_completion(&self, names: Vec<String>, commands: Arc<Tree>) -> Completion {
+        Completion::new(names, commands, &self.java_gui.lang())
     }
 }

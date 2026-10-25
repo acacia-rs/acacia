@@ -1,9 +1,12 @@
 //! The chat replays: the `hud` harness's `chat` kind (`tools/parity/harnesses/hud/cases.py`) and
 //! the `chat_screen` harness.
 
+use std::sync::Arc;
+
 use serde_json::{Map, Value, json};
 
-use acacia_ui::java::chat::{Chat, ChatAction, ChatOptions, ChatScreen, Key, Tag};
+use acacia_ui::java::chat::{Chat, ChatAction, ChatOptions, ChatScreen, Completion, Key, Tag};
+use acacia_ui::java::command::Tree;
 use acacia_ui::java::gui::{Gui, GuiDraw};
 use acacia_ui::java::mth::as8;
 use acacia_ui::java::text::Text;
@@ -84,9 +87,16 @@ pub fn replay_screen(c: &Value, assets: &Assets, state: &mut Map<String, Value>)
     let m = assets.font.as_ref();
     let (w, h) = (int(c, "width"), int(c, "height"));
     let history = strings(&c["history"]);
-    let mut screen = ChatScreen::new(m, c["initial"].as_str().unwrap_or(""), history.len(), strings(&c["players"]), w, h);
+    let lang = crate::kit::lang(assets);
+    let mut completion = Completion::new(strings(&c["players"]), Arc::new(Tree::from_json(&c["commands"])), &lang);
+    completion.auto_suggest = c["autoSuggest"].as_bool().unwrap_or(true);
+    let mut screen = ChatScreen::new(m, c["initial"].as_str().unwrap_or(""), history.len(), completion, w, h);
+    let mouse = (c["mouse"][0].as_i64().unwrap_or(0) as i32, c["mouse"][1].as_i64().unwrap_or(0) as i32);
     for a in c["actions"].as_array().into_iter().flatten() {
         match a["type"].as_str().unwrap_or_default() {
+            "scroll" => {
+                screen.scroll(mouse, a["amount"].as_f64().unwrap_or(0.0), false);
+            }
             "type" => a["text"].as_str().unwrap_or_default().chars().for_each(|ch| screen.char_typed(m, ch)),
             "click" => screen.click(m, a["x"].as_f64().unwrap_or(0.0), a["y"].as_f64().unwrap_or(0.0)),
             "key" => {
@@ -101,7 +111,6 @@ pub fn replay_screen(c: &Value, assets: &Assets, state: &mut Map<String, Value>)
     }
     // Options.getBackgroundColor(Integer.MIN_VALUE).
     let background = if c["chatOnly"].as_bool().unwrap_or(true) { 0x8000_0000 } else { as8(c["opacity"].as_f64().unwrap_or(0.0) as f32) << 24 };
-    let mouse = (c["mouse"][0].as_i64().unwrap_or(0) as i32, c["mouse"][1].as_i64().unwrap_or(0) as i32);
     let mut gui = Gui::new(w, h);
     screen.extract(&mut gui, m, mouse, c["blink"].as_u64().unwrap_or(0), background);
     let input = &screen.input;
