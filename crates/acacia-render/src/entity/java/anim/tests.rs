@@ -37,7 +37,7 @@ fn blocking_arm_follows_the_head_within_limits() {
             p.x_rot("head", pitch);
             p.y_rot("head", yaw);
             p.x_rot(arm, 0.4);
-            arms::pose_arm(&mut p, ArmPose::Block, right, (0.0, 0.0));
+            arms::pose_arm(&mut p, ArmPose::Block, right, false, (0.0, 0.0));
             let pose = p.read(arm);
             assert!((pose.x_rot - expected_pitch).abs() < 1e-6);
             let side = if right { -FRAC_PI_6 } else { FRAC_PI_6 };
@@ -94,7 +94,7 @@ fn swimming_strokes_the_arms_and_kicks() {
 #[test]
 fn sheep_eating_lowers_the_head() {
     assert_eq!(sheep_eat_scales(0, 0.0, 30.0), (0.0, 30.0f32.to_radians()));
-    assert_eq!(sheep_eat_scales(2, 0.0, 0.0), (0.5, PI / 5.0));
+    assert_eq!(sheep_eat_scales(2, 0.0, 0.0), (0.5, crate::entity::java::mth::pi_div(5.0)));
     assert_eq!(sheep_eat_scales(39, 0.0, 0.0).0, 0.25);
     let mut p = Poses::new(&model(&["head", "right_hind_leg", "left_hind_leg", "right_front_leg", "left_front_leg"]));
     setup(Family::Sheep, &state(&[("headEatPositionScale", Field::Num(1.0)), ("headEatAngleScale", Field::Num(0.6))]), &mut p);
@@ -105,6 +105,7 @@ fn sheep_eating_lowers_the_head() {
 fn families_by_layer() {
     assert_eq!(Family::of_layer("minecraft:cow#main"), Some(Family::Quadruped));
     assert_eq!(Family::of_layer("minecraft:zombie_baby#main"), Some(Family::Zombie));
+    assert_eq!(Family::of_layer("minecraft:chicken_baby#main"), Some(Family::BabyChicken));
     assert_eq!(Family::of_layer("minecraft:sheep#wool"), None);
     assert_eq!(Family::of_layer("minecraft:warden#main"), None);
 }

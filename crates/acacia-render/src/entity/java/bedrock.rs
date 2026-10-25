@@ -9,6 +9,7 @@ use crate::entity::molang::Value;
 /// Ticks per second of `life_time`.
 const TICKS: f32 = 20.0;
 
+/// For an entity drawn by a model of `family`.
 pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderState {
     let num = |name: &str| query(name).num();
     let flag = |name: &str| query(name).truthy();
@@ -30,13 +31,15 @@ pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderStat
         .set("isPassenger", Field::Flag(flag("is_riding")))
         .set("isAggressive", Field::Flag(aggressive));
     if let Some(item) = &held {
-        s.set("mainHandItem", Field::Text(format!("minecraft:{item}")));
+        // Bedrock mobs hold in the right hand (mainArm RIGHT).
+        s.set("rightHandItemStack", Field::Text(format!("minecraft:{item}")));
     }
-    // HumanoidMobRenderer.getArmPose as Horizon's port has it: mobs hold their item at rest
-    // unless a skeleton draws its bow or a drowned raises its trident.
+    // getArmPose: HumanoidMobRenderer's EMPTY, AbstractSkeletonRenderer's bow and
+    // DrownedRenderer's trident, in the main (right) arm of an aggressive mob.
+    // TODO: SPEAR for a held spear or a stab swing.
     let raised = match (family, held.as_deref()) {
         (Family::Skeleton, Some("bow")) if aggressive => Some("BOW_AND_ARROW"),
-        (Family::Zombie, Some("trident")) if aggressive => Some("THROW_TRIDENT"),
+        (Family::Drowned, Some("trident")) if aggressive => Some("THROW_TRIDENT"),
         _ => None,
     };
     if let Some(pose) = raised {

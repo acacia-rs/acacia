@@ -1,16 +1,15 @@
-//! Ports of Java's `EntityModel.setupAnim`, one per model family, applied to a model's
-//! [`Poses`] from its [`RenderState`]. After Horizon's `mobs/anim.rs` (MIT), whose ports its
-//! harness proves against the 26.3 client; ours are proven by `tools/parity/entity_poses`.
+//! Ports of Java's `EntityModel.setupAnim` (26.3 client), one per model family, applied to a
+//! model's [`Poses`] from its [`RenderState`]. Horizon's `mobs/anim.rs` (MIT) was the starting
+//! point; the harness `entity_poses` proves them.
 
 mod arms;
 mod humanoid;
 mod quadruped;
 
 pub use arms::ArmPose;
-pub use humanoid::Humanoid;
+pub use humanoid::{Humanoid, Model};
 pub use quadruped::sheep_eat_scales;
 
-use super::mth::{cos, sin};
 use super::poses::Poses;
 use super::state::RenderState;
 
@@ -20,11 +19,15 @@ pub enum Family {
     /// `QuadrupedModel`: cows, pigs.
     Quadruped,
     Sheep,
+    /// `AdultChickenModel`.
     Chicken,
+    BabyChicken,
     Creeper,
     Spider,
-    /// `ZombieModel`, `DrownedModel`.
+    /// `ZombieModel`.
     Zombie,
+    /// `DrownedModel`.
+    Drowned,
     /// `SkeletonModel`.
     Skeleton,
 }
@@ -40,10 +43,12 @@ impl Family {
         Some(match name.trim_end_matches("_baby") {
             "cow" | "cold_cow" | "warm_cow" | "mooshroom" | "pig" | "cold_pig" | "warm_pig" => Family::Quadruped,
             "sheep" => Family::Sheep,
+            "chicken" | "cold_chicken" | "warm_chicken" if name.ends_with("_baby") => Family::BabyChicken,
             "chicken" | "cold_chicken" | "warm_chicken" => Family::Chicken,
             "creeper" => Family::Creeper,
             "spider" | "cave_spider" => Family::Spider,
-            "zombie" | "husk" | "drowned" | "giant" => Family::Zombie,
+            "zombie" | "husk" | "giant" => Family::Zombie,
+            "drowned" => Family::Drowned,
             "skeleton" | "stray" | "wither_skeleton" | "bogged" | "parched" => Family::Skeleton,
             _ => return None,
         })
@@ -55,15 +60,15 @@ pub fn setup(family: Family, s: &RenderState, p: &mut Poses) {
     match family {
         Family::Quadruped => quadruped::quadruped(p, s),
         Family::Sheep => quadruped::sheep(p, s),
-        Family::Chicken => quadruped::chicken(p, s),
+        Family::Chicken => quadruped::chicken(p, s, true),
+        Family::BabyChicken => quadruped::chicken(p, s, false),
         Family::Creeper => quadruped::creeper(p, s),
         Family::Spider => quadruped::spider(p, s),
-        Family::Zombie => {
-            let h = Humanoid { zombie: Some(s.flag("isAggressive")), ..Humanoid::of(s) };
-            humanoid::humanoid(p, s, &h);
-        }
+        Family::Zombie => humanoid::humanoid(p, s, &Humanoid::of(s), Model::Zombie),
+        Family::Drowned => humanoid::humanoid(p, s, &Humanoid::of(s), Model::Drowned),
         Family::Skeleton => {
-            humanoid::humanoid(p, s, &Humanoid::of(s));
+            humanoid::humanoid(p, s, &Humanoid::of(s), Model::Humanoid);
+            p.hand_offset = 1.0;
             if s.flag("isAggressive") && !s.flag("isHoldingBow") {
                 humanoid::skeleton_melee(p, s);
             }
@@ -73,15 +78,8 @@ pub fn setup(family: Family, s: &RenderState, p: &mut Poses) {
 
 /// The head follows the look: `xRot`, `yRot` in degrees.
 fn head(p: &mut Poses, s: &RenderState) {
-    p.x_rot("head", s.x_rot().to_radians());
-    p.y_rot("head", s.y_rot().to_radians());
-}
-
-/// `AnimationUtils.bobModelPart`.
-fn bob(p: &mut Poses, name: &str, age: f32, scale: f32) {
-    let part = p.get(name);
-    part.z_rot += scale * (cos(age * 0.09) * 0.05 + 0.05);
-    part.x_rot += scale * (sin(age * 0.067) * 0.05);
+    p.x_rot("head", s.x_rot() * super::mth::pi_div(180.0));
+    p.y_rot("head", s.y_rot() * super::mth::pi_div(180.0));
 }
 
 #[cfg(test)]

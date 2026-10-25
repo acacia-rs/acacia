@@ -16,6 +16,9 @@ pub struct Poses {
     by_name: HashMap<String, usize>,
     /// What writes to a part the model lacks land on, as Java's would on a part it never looks up.
     scratch: PartPose,
+    /// Pixels `translateToHand` moves the right arm out in x (the left one in) while it places a
+    /// held item: `SkeletonModel`'s 1, else 0.
+    pub hand_offset: f32,
 }
 
 impl Poses {
@@ -31,6 +34,7 @@ impl Poses {
             skip_draw: vec![false; parts.len()],
             by_name,
             scratch: PartPose::default(),
+            hand_offset: 0.0,
         }
     }
 

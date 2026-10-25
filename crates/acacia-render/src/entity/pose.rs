@@ -61,15 +61,7 @@ impl Mesh {
     /// Per bone, the matrix that moves its rest-pose vertices into `pose`.
     pub fn skin(&self, pose: &Pose) -> Vec<Mat4> {
         if let Some(model) = &self.java {
-            let rest;
-            let poses = match &pose.1 {
-                Some(p) => &**p,
-                None => {
-                    rest = super::java::Poses::new(model);
-                    &rest
-                }
-            };
-            return super::java::mesh::skin(model, poses);
+            return super::java::mesh::skin(model, &java_poses(model, pose));
         }
         let local = |(joint, name): (&Joint, &String)| {
             let posed = pose.get(name);
@@ -97,9 +89,20 @@ impl Mesh {
 
     /// [`Mesh::right_hand`] for either arm.
     pub fn hand(&self, pose: &Pose, left: bool) -> Option<Mat4> {
+        if let Some(model) = &self.java {
+            return super::java::mesh::hand(model, &java_poses(model, pose), left);
+        }
         let index = self.bones.iter().position(|b| b == if left { "leftarm" } else { "rightarm" })?;
         let posed = *self.skin(pose).get(index)?;
         Some(posed * Mat4::from_translation(self.joints[index].pivot))
+    }
+}
+
+/// A Java model's poses in `pose`, or its rest poses when it carries none.
+fn java_poses<'a>(model: &super::java::Part, pose: &'a Pose) -> std::borrow::Cow<'a, super::java::Poses> {
+    match &pose.1 {
+        Some(p) => std::borrow::Cow::Borrowed(&**p),
+        None => std::borrow::Cow::Owned(super::java::Poses::new(model)),
     }
 }
 
@@ -231,7 +234,7 @@ impl EntityModels {
     /// state: `life_time`, `modified_distance_moved`, `modified_move_speed`, `target_x_rotation`
     /// and `target_y_rotation` (the head's pitch and its yaw against the body, in degrees).
     pub fn pose(&self, kind: &str, model: ModelId, query: &dyn Fn(&str) -> Value) -> Pose {
-        if let Some(java) = self.models.get(model as usize).and_then(|m| self.java.pose(&m.mesh, kind, query)) {
+        if let Some(java) = self.models.get(model as usize).and_then(|m| self.java.pose(model, &m.mesh, query)) {
             return java;
         }
         let (time, lerp) = (Cell::new(0.0), Cell::new(0.0));

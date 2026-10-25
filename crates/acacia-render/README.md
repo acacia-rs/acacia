@@ -215,6 +215,46 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
   The viewer says which entity hangs from which (`OwnerEid`, `LeadHolderEid`) and where the
   hand is.
 
+### Java entity models (`entity/java/`)
+
+With the Java look, the kinds in `java/kinds.rs` draw the client's own model layers
+(`java/entity_models.json`, exported by `lookbake`; see docs/java-look.md "Licensing") and its
+textures, in place of the Bedrock geometry; other kinds keep theirs.
+
+- **Parts** (`model.rs`, `poses.rs`): a `ModelPart` tree; each part a pose (x, y, z in pixels,
+  rotations in radians applied Z·Y·X, scale) and quads with their normals. `Poses` holds the
+  per-frame copy `setupAnim` writes, plus `visible` and `skipDraw` (hides the part's own quads, not
+  its children's).
+- **Drawing** (`draw.rs`, `mesh.rs`): `ModelPart.render`'s walk. A hidden part, or one with neither
+  quads nor children, is skipped with its subtree. One bone per part; `skin` gives each bone
+  `S(1,-1,1) · T(0,-1.501,0)` times the walk's matrix, which with the pass's `S(1,1,-1)` placement
+  is `LivingEntityRenderer`'s `rotY(180-yaw) · S(-1,-1,1) · T(0,-1.501,0)`.
+- **Babies**: a kind whose baby has its own layer (`cow_baby#main`) draws it at full size, undoing
+  the 0.5 the server sends (assumed, not yet checked by a harness); others are scaled as Bedrock does.
+- **Math** (`mth.rs`): `Mth.sin`/`cos` are Java's 65536-entry table; `(float)(Math.PI / d)`
+  constants are `pi_div(d)`. Plain `f32` trig drifts past the harness tolerance.
+- **Proof**: parity harnesses `entity_models` (rest pose of every layer) and `entity_poses`
+  (`setupAnim` on a corpus of render states); the probe is `examples/java_entities`.
+
+### Java entity render state (`entity/java/state.rs`, `bedrock.rs`, `anim/`)
+
+`setupAnim` ports read a `RenderState`: fields by their Java names (`walkAnimationPos`,
+`ageInTicks`, `rightArmPose`, `currentSwing`...), so a harness case and the viewer fill the same
+table. `bedrock.rs` is the one mapping from Bedrock queries:
+
+| Java field | From |
+|---|---|
+| `walkAnimationPos`, `walkAnimationSpeed` | `modified_distance_moved`, `modified_move_speed` (capped at 1) |
+| `ageInTicks` | `life_time` × 20 |
+| `yRot`, `xRot` | `target_y_rotation`, `target_x_rotation` |
+| `isBaby`, `ageScale` | `is_baby`; 0.5 for a baby |
+| `isCrouching`, `isPassenger`, `isAggressive` | `is_sneaking`, `is_riding`, `is_angry` |
+| `rightHandItemStack` | `get_equipped_item_name:main_hand` (Bedrock mobs are right-handed) |
+| `rightArmPose` | `getArmPose`: `BOW_AND_ARROW` for an aggressive skeleton's bow, `THROW_TRIDENT` for an aggressive drowned's trident, else empty |
+| `headEatPositionScale`, `headEatAngleScale` | Not synced: a sheep is never grazing |
+
+Not mapped yet: swings (`swingAnimation`, `currentSwing`), swimming, gliding, item use.
+
 ## Block models (`blocks/model.rs`, `entity/block_models.rs`, `block_models.rs`)
 
 Chests, beds, signs, heads and banners have no quads: their `RenderBlock` carries a `BlockModel` (geometry,

@@ -54,6 +54,17 @@ pub fn skin(model: &Part, poses: &Poses) -> Vec<Mat4> {
     matrices.into_iter().enumerate().take(MAX_BONES).map(posed).collect()
 }
 
+/// `translateToHand`: the posed arm's own space in acacia's model space, with y mirrored back to
+/// Bedrock's up (what [`Mesh::hand`] gives for a Bedrock arm). `None` without that arm.
+pub fn hand(model: &Part, poses: &Poses, left: bool) -> Option<Mat4> {
+    let (name, side) = if left { ("left_arm", -1.0) } else { ("right_arm", 1.0) };
+    let index = model.walk().iter().position(|(_, p)| p.name == name)?;
+    let mut shifted = poses.clone();
+    shifted.get(name).x += side * poses.hand_offset;
+    let arm = part_matrices(model, &shifted, to_model_space()).get(index).copied().flatten()?;
+    Some(arm * Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::model::{parse_layers, tests::SAMPLE};
