@@ -92,15 +92,18 @@ def assets():
     return ASSETS
 
 
-def run(h, main, *case_args):
+def run(h, main, *case_args, probe_input=None):
     """A GUI harness's `run(h)` (docs/parity.md): cases, oracle, probe, comparison. GUI_CASES
-    (e.g. `--count 300 --kind chat`) replaces the harness's case arguments while iterating."""
+    (e.g. `--count 300 --kind chat`) replaces the harness's case arguments while iterating.
+    `probe_input` names a file the oracle writes beside vanilla.jsonl for the probe to read instead
+    of the cases (the cases with game data added, e.g. ScreenKit's resolved stacks)."""
     if os.environ.get('GUI_CASES'):
         case_args = os.environ['GUI_CASES'].split()
     inputs = cases(h.dir, h.out, case_args)
     expected = h.oracle(main, inputs, inputs=[inputs])
     rust = h.out / 'rust.jsonl'
-    h.cargo('run', '--release', '-q', '-p', 'acacia-gui-probe', '--', h.name, assets(), inputs, rust)
+    probe = expected / probe_input if probe_input else inputs
+    h.cargo('run', '--release', '-q', '-p', 'acacia-gui-probe', '--', h.name, assets(), probe, rust)
     n, divergences, totals = compare(expected / 'vanilla.jsonl', rust)
     for kind, (ok, total) in sorted(totals.items()):
         h.log.write(f'  {kind:14} {ok}/{total}\n')

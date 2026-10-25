@@ -212,10 +212,36 @@ public class GuiCapture extends GuiGraphicsExtractor {
     @Override public ActiveTextCollector textRenderer(HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) { return collector(1.0F); }
     @Override public ActiveTextCollector textRendererForWidget(AbstractWidget owner, HoveredTextEffects effects) { return collector(owner.getAlpha()); }
 
+    /** The key of a stack not in `keys` (-1 unless an oracle names its stacks otherwise). */
+    public java.util.function.ToIntFunction<ItemStack> keyOf = s -> -1;
+
+    int key(ItemStack stack) {
+        Integer k = keys.get(stack);
+        return k != null ? k : keyOf.applyAsInt(stack);
+    }
+
+    @Override public void entity(net.minecraft.client.renderer.entity.state.EntityRenderState state, float scale, org.joml.Vector3fc translation,
+                                 org.joml.Quaternionfc rotation, org.joml.Quaternionfc camera, int x0, int y0, int x1, int y1) {
+        Markers.entity(this, state, scale, translation, rotation, camera, x0, y0, x1, y1);
+    }
+    @Override public void book(net.minecraft.client.model.object.book.BookModel model, Identifier texture, float scale, float open, float flip,
+                               int x0, int y0, int x1, int y1) {
+        Markers.book(this, texture, scale, open, flip, x0, y0, x1, y1);
+    }
+    @Override public void bannerPattern(net.minecraft.client.model.object.banner.BannerFlagModel flag, net.minecraft.world.item.DyeColor base,
+                                        net.minecraft.world.level.block.entity.BannerPatternLayers layers, int x0, int y0, int x1, int y1) {
+        Markers.banner(this, base, layers, x0, y0, x1, y1);
+    }
+    @Override public void map(net.minecraft.client.renderer.state.MapRenderState state) { Markers.map(this, state); }
+    @Override public void tooltip(Font font, java.util.List<net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent> lines, int x, int y,
+                                  net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner positioner, Identifier style, boolean extraSpace) {
+        super.tooltip(font, Markers.tooltipImages(this, lines), x, y, positioner, style, extraSpace);
+    }
+
     void recordItem(ItemStack stack, int x, int y, int seed) {
         if (stack.isEmpty()) return;
         var o = call("item");
-        o.addProperty("slot", keys.getOrDefault(stack, -1));
+        o.addProperty("slot", key(stack));
         o.addProperty("x", x); o.addProperty("y", y); o.addProperty("seed", seed);
         o.add("matrix", matrix(this.stack));
         draws.add(o);
@@ -231,7 +257,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
             super.itemDecorations(font, stack, x, y, count);
         } else if (!stack.isEmpty()) {
             var o = call("decorations");
-            o.addProperty("slot", keys.getOrDefault(stack, -1));
+            o.addProperty("slot", key(stack));
             o.addProperty("x", x); o.addProperty("y", y);
             if (count == null) o.add("count", JsonNull.INSTANCE); else o.addProperty("count", count);
             posed(o, this.stack);
