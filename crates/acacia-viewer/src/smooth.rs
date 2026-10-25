@@ -194,11 +194,12 @@ impl Smoother {
         let body = place.map_or(stood, |place| place * glam::Mat4::from_scale(glam::Vec3::splat(s)));
         let frame = (dying.is_some() || place.is_some()).then_some(body);
         let held = self.held.get(&e.runtime_id).into_iter().flatten().enumerate();
+        let baby = e.facts.query("is_baby").truthy() && e.kind != "minecraft:armor_stand";
         for (left, item) in held.filter_map(|(side, item)| Some((side == 1, item.as_ref()?))) {
             let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
             let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
             if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.hand(&pose, left)) {
-                out.push(hand::third_person(item, body, hand, left, raised == Some(usize::from(left)), m.position + DVec3::Y));
+                out.push(hand::third_person(item, body, hand, hand::Grip { left, baby }, raised == Some(usize::from(left)), m.position + DVec3::Y));
             }
         }
         let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);

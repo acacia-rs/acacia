@@ -44,7 +44,7 @@ const LIFT: f32 = 37.5;
 /// the sheet; Java lifts it for the forward part only.
 pub fn pose(wearer: &Pose, stride: f32) -> Pose {
     // The pack's sneaking pose leans the whole model from `root`.
-    let mut pose = Pose(["root", "waist", "body"].into_iter().filter_map(|bone| wearer.get(bone).cloned()).collect());
+    let mut pose = Pose::bones(["root", "waist", "body"].into_iter().filter_map(|bone| wearer.get(bone).cloned()).collect());
     pose.turn(BONE, [-REST - LIFT * stride.clamp(0.0, 1.0), 0.0, 0.0]);
     pose
 }
