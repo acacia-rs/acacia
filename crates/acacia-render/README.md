@@ -230,11 +230,17 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
   `S(1,-1,1) · T(0,-1.501,0)` times the walk's matrix, which with the pass's `S(1,1,-1)` placement
   is `LivingEntityRenderer`'s `rotY(180-yaw) · S(-1,-1,1) · T(0,-1.501,0)`.
 - **Babies**: a kind whose baby has its own layer (`cow_baby#main`) draws it at full size, undoing
-  the 0.5 the server sends (assumed, not yet checked by a harness); others are scaled as Bedrock does.
+  the 0.5 the server sends: Java scales an entity by its `SCALE` attribute only, which age leaves
+  at 1 (`LivingEntityRenderer.submit`). Others are scaled as Bedrock does.
+- **Held items** (`mesh::hand`): `translateToHand` (skeletons shift the arm 1 px out,
+  `Poses::hand_offset`), then `item::hand::fist`, `ItemInHandLayer`'s turn and fist offset (a
+  baby's is smaller). Armour, capes and the other layers are still drawn on Bedrock bones: a Java
+  model wears nothing yet.
 - **Math** (`mth.rs`): `Mth.sin`/`cos` are Java's 65536-entry table; `(float)(Math.PI / d)`
   constants are `pi_div(d)`. Plain `f32` trig drifts past the harness tolerance.
-- **Proof**: parity harnesses `entity_models` (rest pose of every layer) and `entity_poses`
-  (`setupAnim` on a corpus of render states); the probe is `examples/java_entities`.
+- **Proof**: parity harnesses `entity_models` (rest pose of every layer), `entity_poses`
+  (`setupAnim` on a corpus of render states) and `entity_layers` (held items); the probe is
+  `examples/java_entities`.
 
 ### Java entity render state (`entity/java/state.rs`, `bedrock.rs`, `anim/`)
 

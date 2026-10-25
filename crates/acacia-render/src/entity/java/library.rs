@@ -58,7 +58,7 @@ impl Library {
     }
 
     /// The layer and scale for `kind`, when it draws a Java model. A baby with its own model is
-    /// drawn at full size, undoing the 0.5 the server sends (assumed; README "Java entity models").
+    /// drawn at full size, undoing the 0.5 the server sends (README "Java entity models").
     pub fn appearance(&self, kind: &str, query: &dyn Fn(&str) -> Value) -> Option<(Arc<[Layer]>, f32)> {
         let (variants, own_baby) = self.kinds.get(kind)?;
         let baby = query("is_baby").truthy();

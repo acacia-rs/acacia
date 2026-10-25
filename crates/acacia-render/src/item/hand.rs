@@ -14,25 +14,43 @@ const ARM: Vec3 = Vec3::new(0.56, -0.52, -0.72);
 
 /// An item in another entity's hand: `body` is the entity's model space to camera-relative
 /// world space (as the entity pass places it), `hand` from [`crate::entity::bake::Mesh::hand`].
-pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, left: bool, blocking: bool, light_at: glam::DVec3) -> EntityInstance {
-    let frame = body * held_frame(Display::third_person(model.form, left, blocking), hand, left);
+pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, grip: Grip, blocking: bool, light_at: glam::DVec3) -> EntityInstance {
+    let frame = body * held_frame(Display::third_person(model.form, grip.left, blocking), hand, grip);
     let glint = model.glint.then_some(Glint::Item);
     EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
 }
 
 /// [`third_person`]'s item mesh to the holder's model space: Java's `ItemInHandLayer` chain, run
 /// in Java's y-down model space (`FLIP_Y` converts at the shoulder: Bedrock geometry is Java's
-/// with y mirrored): out of the arm (-90° x, 180° y), to the fist (1, 2, -10 px; -1 in the left
-/// hand), then the display.
-pub fn held_frame(display: Display, hand: Mat4, left: bool) -> Mat4 {
+/// with y mirrored): out of the arm (-90° x, 180° y), to the fist (1, 2, -10 px, x mirrored in
+/// the left hand; a baby's 0, 1, -4.5), then the display.
+pub fn held_frame(display: Display, hand: Mat4, grip: Grip) -> Mat4 {
+    fist(hand, grip) * display.frame() * Mat4::from_scale(MESH)
+}
+
+/// [`held_frame`] before the display: where `ItemInHandLayer` hands the item to its model.
+pub fn fist(hand: Mat4, grip: Grip) -> Mat4 {
     const FLIP_Y: Vec3 = Vec3::new(1.0, -1.0, 1.0);
-    let side = if left { -1.0 } else { 1.0 };
+    let side = if grip.left { -1.0 } else { 1.0 };
+    let offset = if grip.baby { Vec3::new(0.0, 1.0, -4.5) } else { Vec3::new(side, 2.0, -10.0) };
     hand * Mat4::from_scale(FLIP_Y)
         * Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2)
         * Mat4::from_rotation_y(std::f32::consts::PI)
-        * Mat4::from_translation(Vec3::new(side, 2.0, -10.0) / 16.0)
-        * display.frame()
-        * Mat4::from_scale(MESH)
+        * Mat4::from_translation(offset / 16.0)
+}
+
+/// Which hand holds an item, and whether its holder takes `ItemInHandLayer`'s baby offset (a baby
+/// that is not an armour stand).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Grip {
+    pub left: bool,
+    pub baby: bool,
+}
+
+impl Grip {
+    pub fn hand(left: bool) -> Grip {
+        Grip { left, baby: false }
+    }
 }
 
 /// Meshes are stored with z mirrored (model space faces -z): this mirrors them back into Java's item space.
@@ -46,7 +64,7 @@ mod tests {
     fn a_resting_arm_holds_a_sword_forward_at_the_fist() {
         // Shoulder of a humanoid's right arm, in model space (blocks).
         let hand = Mat4::from_translation(Vec3::new(-5.0, 22.0, 0.0) / 16.0);
-        let frame = held_frame(Display::third_person(Form::Flat, false, false), hand, false);
+        let frame = held_frame(Display::third_person(Form::Flat, false, false), hand, Grip::hand(false));
         // A sword sprite: hilt bottom-left, tip top-right (item mesh space).
         let ends = |frame: Mat4| (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
         let (hilt, tip) = ends(frame);
@@ -56,7 +74,7 @@ mod tests {
         let fist = (hilt + tip) / 2.0;
         assert!((fist.x + 0.375).abs() < 0.15 && (0.6..0.95).contains(&fist.y), "{fist}");
         // The left hand holds it pointing the same way, at the other fist.
-        let (left_hilt, left_tip) = ends(held_frame(Display::third_person(Form::Flat, true, false), Mat4::from_translation(Vec3::new(5.0, 22.0, 0.0) / 16.0), true));
+        let (left_hilt, left_tip) = ends(held_frame(Display::third_person(Form::Flat, true, false), Mat4::from_translation(Vec3::new(5.0, 22.0, 0.0) / 16.0), Grip::hand(true)));
         assert!((left_tip - left_hilt).normalize().abs_diff_eq(blade, 1e-4), "{left_hilt} {left_tip}");
         let left_fist = (left_hilt + left_tip) / 2.0;
         assert!((left_fist.x + fist.x).abs() < 1e-4 && (left_fist.y - fist.y).abs() < 1e-4, "{left_fist} {fist}");
