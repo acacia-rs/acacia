@@ -6,11 +6,13 @@
 pub mod assets;
 pub mod blit;
 pub mod layers;
+mod picture;
 
 use crate::atlas::Sprite;
 use crate::draw::{Blend as QuadBlend, Quad};
 
 use super::gui::{Blend, GuiDraw, IDENTITY, Pose, pose_apply, transform};
+use super::picture::Picture;
 use super::text::Text;
 use blit::{Prim, Scaling};
 use layers::{Layers, Rect};
@@ -42,6 +44,13 @@ pub trait Source {
     fn item(&mut self, key: i32, x: i32, y: i32, seed: i32) -> Vec<Quad>;
     /// What `itemDecorations` draws for the item `key` (count, bar, cooldown) as calls.
     fn decorations(&mut self, key: i32, x: i32, y: i32, count: Option<&str>) -> Vec<GuiDraw>;
+    /// A sprite of a named atlas (`minecraft:entity/banner/creeper` in `banner_patterns`).
+    fn atlas_sprite(&mut self, atlas: &str, sprite: &str) -> Option<Sprite>;
+    /// A picture-in-picture (entity, book, banner) over `window` (window pixels): the quad that
+    /// shows it there, or `None` when it can't be drawn. See [`Quad::picture`].
+    fn picture(&mut self, picture: &Picture, window: [f32; 4]) -> Option<Quad>;
+    /// What a map or a tooltip image draws, as calls at its origin.
+    fn picture_draws(&mut self, picture: &Picture) -> Vec<GuiDraw>;
 }
 
 /// The frame's GUI: quads in window pixels and, when a screen blurs what is under it, how many
@@ -183,8 +192,7 @@ impl Painter<'_> {
                 self.draws(&draws);
             }
             GuiDraw::Scrolling { text, center_x, x0, x1, y0, y1, color } => self.scrolling(text, *center_x, [*x0, *y0, *x1, *y1], *color),
-            // TODO: pictures (entity, book, banner, map, tooltip images, sprite blits).
-            GuiDraw::Picture(_) => {}
+            GuiDraw::Picture(p) => self.picture(p),
         }
     }
 

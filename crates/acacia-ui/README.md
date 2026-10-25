@@ -114,7 +114,18 @@ by `GuiCapture` (`tools/parity/java/acacia/parity/gui`). See the `gui` rows of `
   - Scissors are intersected and poses applied.
   - Highlight blends are invert and additive.
   - Labels scroll by `defaultScrollingHelper`.
-  - Pictures (entity, book, banner, map, tooltip images) are not painted yet.
+- **Pictures:** a picture-in-picture (entity, book, banner) is placed by its rect, without the
+  pose. It becomes a premultiplied blit (`Quad::picture`) after its node's other blits, as
+  `GuiRenderer.preparePictureInPicture` adds it.
+  - The renderer draws picture entities into a window-sized texture with an orthographic
+    projection and Java's `ENTITY_IN_UI` lights (acacia-render `gpu/over.rs`). The viewer poses
+    them as `PictureInPictureRenderer` does (`app/portrait.rs`).
+  - Java's model space is the mesh's flipped in y (`S(1,-1,1)·T(0,-1.501,0)`), so a living
+    entity's place is the PiP pose times `rotY(180° − bodyRot)·S(-1,1,1)`.
+  - Banners are composed flat: their face fills the picture unshaded under `ITEMS_FLAT`.
+  - Atlas sprite blits are ordinary blits.
+  - Not drawn yet: the enchanting book (needs Java's `BookModel`), maps (no map data), and the
+    bundle tooltip's contents.
 - **Not ported:** Brigadier command suggestions, RTL (bidi) text, hover-event tooltips in text,
   creative and recipe-book search trees.
 

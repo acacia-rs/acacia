@@ -39,6 +39,11 @@ const OMINOUS: [(&str, u8); 8] = [
     ("stripe_middle", 15), ("half_horizontal", 8), ("circle", 8), ("border", 15),
 ];
 
+/// `DyeColor`'s names in [`DYES`]'s order.
+const JAVA_DYES: [&str; 16] = [
+    "white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black",
+];
+
 /// One banner's look. Dyes index [`DYES`], white first.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct Banner {
@@ -56,6 +61,18 @@ impl Banner {
         let dye = |legacy: i32| 15 - legacy.clamp(0, 15) as u8;
         let layer = |(code, colour): (&str, i32)| Some((CODES.iter().find(|(c, _)| *c == code)?.1, dye(colour)));
         Banner { base: dye(base), layers: patterns.into_iter().filter_map(layer).collect(), ominous: kind == 1 }
+    }
+
+    /// From Java's names: the base dye (`red`) and layers as `"<pattern id> <dye>"`
+    /// (`minecraft:creeper black`); unknown patterns and dyes are left out.
+    pub fn from_java(base: &str, layers: &[String]) -> Banner {
+        let dye = |name: &str| JAVA_DYES.iter().position(|d| *d == name).map(|i| i as u8);
+        let layer = |l: &String| {
+            let (pattern, colour) = l.split_once(' ')?;
+            let pattern = pattern.split_once(':').map_or(pattern, |(_, p)| p);
+            Some((CODES.iter().find(|(_, name)| *name == pattern)?.1, dye(colour)?))
+        };
+        Banner { base: dye(base).unwrap_or(WHITE), layers: layers.iter().filter_map(layer).collect(), ominous: false }
     }
 
     /// The cloth's dye and the patterns laid on it.
@@ -156,6 +173,13 @@ mod tests {
     use image::Rgba;
 
     use super::*;
+
+    #[test]
+    fn java_names_pick_dyes_and_patterns() {
+        let layers = ["minecraft:creeper black".to_owned(), "minecraft:nope red".to_owned(), "stripe_top light_blue".to_owned()];
+        let b = Banner::from_java("red", &layers);
+        assert_eq!((b.base, b.layers), (14, vec![("creeper", 15), ("stripe_top", 3)]));
+    }
 
     /// A pack directory holding `files`: name and a 64×64 image of one colour in the flag's box.
     fn pack(name: &str, files: &[(&str, [u8; 4])]) -> std::path::PathBuf {

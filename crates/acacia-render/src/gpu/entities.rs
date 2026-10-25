@@ -59,6 +59,10 @@ pub struct EntityPass {
     instances: wgpu::Buffer,
     bones: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
+    /// The globals the instances over the UI are drawn with ([`EntityPass::set_over_globals`]):
+    /// pictures-in-picture have a projection and lights of their own.
+    over_globals: wgpu::Buffer,
+    over_bind_group: wgpu::BindGroup,
     pub glint: GlintTextures,
     models: Arc<EntityModels>,
     vertices: Option<wgpu::Buffer>,
@@ -111,6 +115,13 @@ impl EntityPass {
         let bones = storage_buffer(device, BONES, 1024 * size_of::<BoneMatrix>() as u64);
         let glint = GlintTextures::new(device);
         let bind_group = Self::bind_group(device, &layout, globals, &instances, &bones, &glint);
+        let over_globals = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("entity over globals"),
+            size: size_of::<super::globals::Globals>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let over_bind_group = Self::bind_group(device, &layout, &over_globals, &instances, &bones, &glint);
         EntityPass {
             pipelines: pipelines::new(device, color, &pipeline_layout, &shader),
             started: Instant::now(),
@@ -120,6 +131,8 @@ impl EntityPass {
             instances,
             bones,
             bind_group,
+            over_globals,
+            over_bind_group,
             glint,
             models: Arc::default(),
             vertices: None,
@@ -146,7 +159,16 @@ impl EntityPass {
 
     pub fn set_glint(&mut self, device: &wgpu::Device, globals: &wgpu::Buffer, glint: GlintTextures) {
         self.glint = glint;
+        self.rebind(device, globals);
+    }
+
+    fn rebind(&mut self, device: &wgpu::Device, globals: &wgpu::Buffer) {
         self.bind_group = Self::bind_group(device, &self.layout, globals, &self.instances, &self.bones, &self.glint);
+        self.over_bind_group = Self::bind_group(device, &self.layout, &self.over_globals, &self.instances, &self.bones, &self.glint);
+    }
+
+    pub(super) fn set_over_globals(&self, queue: &wgpu::Queue, globals: &super::globals::Globals) {
+        queue.write_buffer(&self.over_globals, 0, bytemuck::bytes_of(globals));
     }
 
     pub fn set_models(&mut self, device: &wgpu::Device, models: Arc<EntityModels>) {
@@ -219,7 +241,8 @@ impl EntityPass {
             });
             let first_bone = bones.len() as u32;
             bones.extend(mesh.skin(&e.pose).iter().map(|posed| (body * *posed).to_cols_array_2d()));
-            let [block, sky] = if over { [15.0, 0.0] } else { light(e.position + DVec3::Y * 0.5) };
+            // Java lights a GUI entity at full block and sky light (15728880).
+            let [block, sky] = if over { [15.0, 15.0] } else { light(e.position + DVec3::Y * 0.5) };
             let tint = layer.tint.map_or([0.0; 4], |[r, g, b]| [r, g, b, 1.0]);
             let texture = e.glint.map_or(0.0, |g| if g == Glint::Item { 1.0 } else { 2.0 });
             // Only a skin's size is known here; armour's scale does not ask for it.
@@ -234,33 +257,33 @@ impl EntityPass {
         }
         let grown = upload(device, queue, &mut self.instances, INSTANCES, &records) | upload(device, queue, &mut self.bones, BONES, &bones);
         if grown {
-            self.bind_group = Self::bind_group(device, &self.layout, globals, &self.instances, &self.bones, &self.glint);
+            self.rebind(device, globals);
         }
     }
 
     /// The world's opaque layers, then the depth-only ones, before anything translucent.
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw_range(pass, 0..self.world_draws, Blend::Opaque);
-        self.draw_range(pass, 0..self.world_draws, Blend::Mask);
+        self.draw_range(pass, 0..self.world_draws, Blend::Opaque, &self.bind_group);
+        self.draw_range(pass, 0..self.world_draws, Blend::Mask, &self.bind_group);
     }
 
     /// The world's blended layers, after everything opaque.
     pub fn draw_blended(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw_range(pass, 0..self.world_draws, Blend::Alpha);
-        self.draw_range(pass, 0..self.world_draws, Blend::Swirl);
+        self.draw_range(pass, 0..self.world_draws, Blend::Alpha, &self.bind_group);
+        self.draw_range(pass, 0..self.world_draws, Blend::Swirl, &self.bind_group);
     }
 
-    /// The instances given to [`EntityPass::prepare`] as `over`.
+    /// The instances given to [`EntityPass::prepare`] as `over`, with the over globals.
     pub fn draw_over(&self, pass: &mut wgpu::RenderPass<'_>) {
         for blend in pipelines::BLENDS {
-            self.draw_range(pass, self.world_draws..self.draws.len(), blend);
+            self.draw_range(pass, self.world_draws..self.draws.len(), blend, &self.over_bind_group);
         }
     }
 
-    fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, draws: Range<usize>, blend: Blend) {
+    fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, draws: Range<usize>, blend: Blend, bind_group: &wgpu::BindGroup) {
         let Some(vertices) = self.vertices.as_ref().filter(|_| !draws.is_empty()) else { return };
         pass.set_pipeline(&self.pipelines[pipelines::index(blend)]);
-        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_bind_group(0, bind_group, &[]);
         let chosen = self.draws.iter().enumerate().skip(draws.start).take(draws.len()).filter(|(_, d)| d.2 == blend);
         for (index, (range, key, _)) in chosen {
             let look = &self.looks[key];

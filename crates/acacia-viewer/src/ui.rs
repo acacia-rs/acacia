@@ -1,7 +1,10 @@
 //! The HUD and chat over the world, in the theme of the chosen look (acacia-ui).
 
+mod figure;
 mod java_gui;
 mod screen;
+
+pub use java_gui::PictureRequest;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -99,6 +102,8 @@ pub struct Ui {
     /// When each effect (as the server sent it) was first seen, to count its time down.
     effects_seen: HashMap<(i32, i32, u64), Instant>,
     java_gui: java_gui::JavaGui,
+    /// This frame's pictures-in-picture, for the renderer.
+    pictures: Vec<PictureRequest>,
 }
 
 impl Ui {
@@ -121,7 +126,7 @@ impl Ui {
         let lang = Lang::load(&bedrock_root.join("texts/en_US.lang"));
         let foil = |look| looks.get(look).look.foil;
         let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root, foil(LookChoice::Bedrock)), Skin::new(java_theme, &java_root, foil(LookChoice::Java)));
-        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None, effects_seen: HashMap::new(), java_gui: java_gui::JavaGui::new(&java_root) }
+        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None, effects_seen: HashMap::new(), java_gui: java_gui::JavaGui::new(&java_root), pictures: Vec::new() }
     }
 
     pub fn show_title(&mut self, title: Title) {
@@ -171,10 +176,11 @@ impl Ui {
         self.chat.push(line, Instant::now());
     }
 
-    /// This frame's quads for a window `size` pixels big at GUI `scale`, and the atlas they sample.
-    /// This frame's quads and the atlas they sample.
-    pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad]) {
+    /// This frame's quads for a window `size` pixels big at GUI `scale`, the atlas they sample,
+    /// and the pictures-in-picture the renderer draws for them.
+    pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad], &[PictureRequest]) {
         let Frame { look, me, debug, screen, menu, form, sign, book, players, tags, mouse, size, scale, now } = frame;
+        self.pictures.clear();
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
             LookChoice::Java => &mut self.java,
@@ -187,7 +193,7 @@ impl Ui {
             let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
             if look == LookChoice::Java && self.java_gui.usable(skin) {
                 let calls = self.java_gui.hud(me, java_gui::gui_size(size, scale), state.crosshair, now);
-                self.java_gui.paint(skin, &|key| java_gui::hotbar_stack(me, key), &calls, &mut list);
+                self.java_gui.paint(skin, &|key| java_gui::hotbar_stack(me, key), &calls, &mut list, &mut self.pictures);
             } else {
                 hud::draw(&mut list, &skin.theme, &state, gui);
             }
@@ -224,6 +230,10 @@ impl Ui {
         }
         if let Some(screen) = screen {
             screen::draw(&mut list, skin, &self.lang, &screen, mouse, gui);
+            if let Some((request, quad)) = (screen.layout == acacia_ui::inventory::Layout::Player).then(|| figure::inventory_figure(gui, mouse, scale as f32)).flatten() {
+                self.pictures.push(request);
+                list.quads.push(quad);
+            }
         }
         if let Some(names) = players {
             acacia_ui::players::draw(&mut list, &skin.theme, names, gui[0]);
@@ -241,7 +251,7 @@ impl Ui {
             acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, backdrop, mouse, gui);
         }
         self.quads = list.quads;
-        (&skin.theme.atlas, &self.quads)
+        (&skin.theme.atlas, &self.quads, &self.pictures)
     }
 }
 

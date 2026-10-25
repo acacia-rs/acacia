@@ -1,5 +1,6 @@
 use super::*;
 use crate::java::gui::{Gui, PoseOp};
+use crate::java::picture::Picture;
 
 struct Fake;
 
@@ -39,6 +40,38 @@ impl Source for Fake {
     fn decorations(&mut self, _: i32, x: i32, y: i32, _: Option<&str>) -> Vec<GuiDraw> {
         vec![GuiDraw::Fill { x0: x, y0: y, x1: x + 1, y1: y + 1, color: 0xFF00_FF00 }]
     }
+    fn atlas_sprite(&mut self, _: &str, _: &str) -> Option<Sprite> {
+        Some(Sprite { x: 64, y: 0, width: 64, height: 64 })
+    }
+    fn picture(&mut self, _: &Picture, window: [f32; 4]) -> Option<Quad> {
+        Some(Quad::picture(window))
+    }
+    fn picture_draws(&mut self, _: &Picture) -> Vec<GuiDraw> {
+        Vec::new()
+    }
+}
+
+#[test]
+fn a_picture_ignores_the_pose_and_follows_its_nodes_blits() {
+    let entity = Picture::Entity { entity: "player".into(), scale: 30.0, translation: [0.0; 3], rotation: [0.0, 0.0, 0.0, 1.0], camera: None, angles: None, rect: [10, 10, 40, 50] };
+    let mut gui = Gui::new(100, 100);
+    gui.push(vec![PoseOp::Translate(50.0, 0.0)]);
+    gui.draws.push(GuiDraw::Picture(entity));
+    gui.sprite("hud/heart", 0, 0, 9, 9);
+    gui.pop();
+    let painted = paint(&gui.draws, [100, 100], 2.0, &mut Fake);
+    // The heart, translated away from the picture, shares its node and is drawn first.
+    assert_eq!(painted.quads[0].rect, [100.0, 0.0, 118.0, 18.0]);
+    let p = painted.quads[1];
+    assert!(p.picture);
+    assert_eq!((p.rect, p.uv), ([20.0, 20.0, 80.0, 100.0], [20.0, 20.0, 80.0, 100.0]));
+}
+
+#[test]
+fn a_banner_pattern_blit_takes_its_part_of_the_atlas_sprite() {
+    let blit = Picture::SpriteBlit { atlas: "banner_patterns".into(), sprite: "minecraft:entity/banner/base".into(), rect: [0, 0, 5, 10], uv: [0.0, 0.5, 0.0, 0.25] };
+    let painted = paint(&[GuiDraw::Picture(blit)], [100, 100], 1.0, &mut Fake);
+    assert_eq!((painted.quads[0].rect, painted.quads[0].uv), ([0.0, 0.0, 5.0, 10.0], [64.0, 0.0, 96.0, 16.0]));
 }
 
 #[test]

@@ -14,15 +14,16 @@ struct Instance {
     rect: [f32; 4],
     uv: [f32; 4],
     color: [u8; 4],
-    /// 1 for an enchanted item's icon.
-    glint: f32,
+    /// 1 for an enchanted item's icon, 2 for a quad of the picture texture.
+    flags: f32,
     bottom: [u8; 4],
     skew: [f32; 2],
 }
 
-const BLENDS: [Blend; 4] = [Blend::Alpha, Blend::Invert, Blend::Darken, Blend::Add];
+const BLENDS: [Blend; 5] = [Blend::Alpha, Blend::Invert, Blend::Darken, Blend::Add, Blend::Premultiplied];
 
-/// Java's blend functions: `TRANSLUCENT`, `INVERT`, the vignette's and `ADDITIVE`.
+/// Java's blend functions: `TRANSLUCENT`, `INVERT`, the vignette's, `ADDITIVE` and
+/// `TRANSLUCENT_PREMULTIPLIED_ALPHA`.
 fn blend_state(blend: Blend) -> wgpu::BlendState {
     use wgpu::{BlendComponent as C, BlendFactor as F, BlendOperation::Add};
     let c = |src_factor, dst_factor| C { src_factor, dst_factor, operation: Add };
@@ -31,7 +32,15 @@ fn blend_state(blend: Blend) -> wgpu::BlendState {
         Blend::Invert => wgpu::BlendState { color: c(F::OneMinusDst, F::OneMinusSrc), alpha: c(F::One, F::Zero) },
         Blend::Darken => wgpu::BlendState { color: c(F::Zero, F::OneMinusSrc), alpha: c(F::Zero, F::One) },
         Blend::Add => wgpu::BlendState { color: c(F::One, F::One), alpha: c(F::One, F::One) },
+        Blend::Premultiplied => wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING,
     }
+}
+
+/// The window-sized texture pictures-in-picture are rendered into (`over.rs`), in the surface's
+/// format so the entity pipelines draw into it.
+struct Pictures {
+    view: wgpu::TextureView,
+    size: [u32; 2],
 }
 
 /// `Screen` in the shader: two `vec4`s.
@@ -54,10 +63,15 @@ pub struct UiPass {
     count: u32,
     /// A non-sRGB format: the UI blends in gamma space, and its colours are sRGB values.
     format: wgpu::TextureFormat,
+    /// The surface's own format, the pictures texture's.
+    surface_format: wgpu::TextureFormat,
+    pictures: Pictures,
 }
 
 impl UiPass {
-    pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat) -> Self {
+    /// `surface` is the surface's format; the pass draws through a non-sRGB view of it.
+    pub fn new(device: &wgpu::Device, surface: wgpu::TextureFormat) -> Self {
+        let color = surface.remove_srgb_suffix();
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("ui"), source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()) });
         let entry = |binding, ty| wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, ty, count: None };
         let [glint_item, glint_armor, glint_sampler] = GlintTextures::layout_entries(3);
@@ -77,6 +91,14 @@ impl UiPass {
                     },
                 ),
                 entry(2, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
+                entry(
+                    6,
+                    wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                ),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("ui"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
@@ -116,7 +138,22 @@ impl UiPass {
             mapped_at_creation: false,
         });
         let instances = instance_buffer(device, 1024);
-        UiPass { pipelines, runs: Vec::new(), layout, sampler, screen, atlas: None, glint: GlintTextures::new(device), texture: None, instances, count: 0, format: color }
+        let pictures = Pictures { view: pictures_texture(device, surface, [1, 1]), size: [1, 1] };
+        UiPass { pipelines, runs: Vec::new(), layout, sampler, screen, atlas: None, glint: GlintTextures::new(device), texture: None, instances, count: 0, format: color, surface_format: surface, pictures }
+    }
+
+    /// The pictures texture at `size` (the window's), made again when that changed.
+    pub fn pictures(&mut self, device: &wgpu::Device, size: [u32; 2]) -> &wgpu::TextureView {
+        if self.pictures.size != size {
+            self.pictures = Pictures { view: pictures_texture(device, self.surface_format, size), size };
+            // The bind group holds the old texture.
+            self.atlas = None;
+        }
+        &self.pictures.view
+    }
+
+    pub fn picture_view(&self) -> &wgpu::TextureView {
+        &self.pictures.view
     }
 
     /// The glint over enchanted items' icons from now on.
@@ -140,6 +177,7 @@ impl UiPass {
                     wgpu::BindGroupEntry { binding: 0, resource: self.screen.as_entire_binding() },
                     wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view) },
                     wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                    wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&self.pictures.view) },
                     glint_item,
                     glint_armor,
                     glint_sampler,
@@ -154,7 +192,7 @@ impl UiPass {
         let screen = [window[0] as f32, window[1] as f32, size[0], size[1], glint_scroll[0], glint_scroll[1], icon_scale, 0.0];
         queue.write_buffer(&self.screen, 0, bytemuck::cast_slice(&screen));
         let data: Vec<Instance> =
-            quads.iter().map(|q| Instance { rect: q.rect, uv: q.uv, color: q.color, glint: f32::from(u8::from(q.glint)), bottom: q.bottom, skew: q.skew }).collect();
+            quads.iter().map(|q| Instance { rect: q.rect, uv: q.uv, color: q.color, flags: flags(q), bottom: q.bottom, skew: q.skew }).collect();
         self.runs = runs(quads);
         let needed = (data.len() * size_of::<Instance>()) as u64;
         if needed > self.instances.size() {
@@ -191,6 +229,29 @@ impl UiPass {
             pass.draw(0..6, range.clone());
         }
     }
+}
+
+fn flags(q: &Quad) -> f32 {
+    if q.picture {
+        2.0
+    } else {
+        f32::from(u8::from(q.glint))
+    }
+}
+
+fn pictures_texture(device: &wgpu::Device, format: wgpu::TextureFormat, [width, height]: [u32; 2]) -> wgpu::TextureView {
+    device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("ui pictures"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+        .create_view(&Default::default())
 }
 
 /// Consecutive quads of one blend, as instance ranges with that blend's index in [`BLENDS`].

@@ -87,7 +87,8 @@ pub struct Renderer {
     store: Store,
     entities: EntityPass,
     entity_list: Vec<EntityInstance>,
-    /// Entities drawn over the UI, fully lit (`over.rs`): each needs a `frame`.
+    /// Pictures-in-picture's entities (`over.rs`): each needs a `frame` from model space to the
+    /// window's pixels (y down, z towards the viewer); the UI's picture quads show them.
     pub ui_entities: Vec<EntityInstance>,
     block_models: BlockModels,
     sign_text: sign_text::SignTextPass,
@@ -149,7 +150,7 @@ impl Renderer {
         let store = Store::new(&device);
         let entities = EntityPass::new(&device, config.format, &globals);
         let outline_pass = OutlinePass::new(&device, config.format, &globals);
-        let ui_pass = UiPass::new(&device, config.format.remove_srgb_suffix());
+        let ui_pass = UiPass::new(&device, config.format);
         let particles = particle_feed::ParticleFeed::new(&device, config.format, &globals);
         let weather_pass = weather::WeatherPass::new(&device, config.format, &globals);
         let cloud_pass = clouds::CloudPass::new(&device, config.format, &globals);
@@ -240,6 +241,9 @@ impl Renderer {
         }
         let globals = Globals::new(view_proj, (cam_block, cam_frac), fog.color, self.fog_distance, &self.look, fog.haze, &lightmap);
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
+        let window = [self.config.width, self.config.height];
+        self.entities.set_over_globals(&self.queue, &globals.in_pictures(window));
+        self.ui_pass.pictures(&self.device, window);
         let light_data = self.scene.as_ref().map(|s| s.light().clone());
         let light = self.light_cache.reader(light_data.as_deref());
         let light_at = |p: DVec3| light.at(p);
@@ -279,10 +283,10 @@ impl Renderer {
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         self.world_pass(&mut encoder, &view, [&solid, &translucent], realm, &fog);
+        self.draw_pictures(&mut encoder);
         if atlas.is_some() {
             self.ui_pass.draw(&mut encoder, &frame.texture);
         }
-        self.draw_over_ui(&mut encoder, &view);
         clock.mark("encode");
         self.queue.submit([encoder.finish()]);
         clock.mark("submit");
