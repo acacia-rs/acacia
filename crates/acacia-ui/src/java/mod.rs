@@ -12,6 +12,7 @@ pub mod hud;
 pub mod mth;
 pub mod paint;
 pub mod picture;
+pub mod screen;
 pub mod split;
 pub mod text;
 pub mod tooltip;

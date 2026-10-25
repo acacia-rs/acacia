@@ -5,6 +5,7 @@
 
 pub mod button;
 pub mod edit_box;
+pub mod header_footer;
 pub mod layout;
 pub mod list;
 pub mod measure;

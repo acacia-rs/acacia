@@ -52,6 +52,8 @@ fn replay(harness: &str) -> Option<Replay> {
         "recipe_book" => recipe_book::replay,
         "stations" => stations::replay,
         "screens_widgets" => screens::widgets::replay,
+        "screens_menus" => screens::menus::replay,
+        "screens_options" => screens::options::replay,
         "subtitles" => subtitles::replay,
         "tooltips" => tooltips::replay,
         "trading" => trading::replay,
