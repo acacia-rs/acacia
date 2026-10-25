@@ -5,6 +5,7 @@
 //! `tools/parity/gui/guiparity.py`.
 
 mod containers;
+mod creative;
 mod hud;
 mod kit;
 mod screens;
@@ -41,6 +42,7 @@ impl Metrics for Ascii {
 fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
         "containers" => containers::replay,
+        "creative" => creative::replay,
         "hud" => hud::replay,
         "tooltips" => tooltips::replay,
         "screens_widgets" => screens::widgets::replay,
