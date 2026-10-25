@@ -16,6 +16,7 @@ pub mod java_icon;
 mod java_mesh;
 pub mod leather;
 pub mod map;
+pub mod potion;
 mod shield;
 
 use std::collections::HashMap;
@@ -139,11 +140,21 @@ impl ItemModels {
     /// The Java item's held geometry (the right hand's, as worn, dropped and framed too).
     fn java_model(&self, java: &JavaItems, key: &ItemKey, glint: bool) -> Option<ItemModel> {
         let name = java.java_name(&key.name, key.aux);
-        let mesh = java.mesh(name, java::context::hand(false, false), leather::dyeable(&key.name).then_some(key.dye).flatten())?;
+        let mesh = java.mesh(name, java::context::hand(false, false), first_tint(&key.name, key.aux, key.dye))?;
         let form = if mesh.solid { Form::Block } else { Form::Flat };
         let java = Some(Arc::new(java.displays(name)));
         Some(ItemModel { skin: Arc::new(mesh.skin), layers: self.layers.clone(), form, glint: glint || mesh.foil, java })
     }
+}
+
+/// What a Java item's first tint becomes for a Bedrock stack ([`JavaItems::mesh`]'s `dye`): a
+/// potion's colour, dyed leather's `dye`.
+pub fn first_tint(item: &str, aux: u32, dye: Option<[u8; 3]>) -> Option<[u8; 3]> {
+    if potion::holds_potion(item) {
+        let [_, r, g, b] = potion::color(&potion::java_potion(item, aux)?).to_be_bytes();
+        return Some([r, g, b]);
+    }
+    leather::dyeable(item).then_some(dye).flatten()
 }
 
 /// The icon's first frame (strips stack frames downwards) as an extruded sprite; a leather

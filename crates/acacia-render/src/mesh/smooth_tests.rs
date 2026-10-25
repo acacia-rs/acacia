@@ -2,7 +2,7 @@ use super::quad::{LIT, SPLIT_13};
 use super::smooth::*;
 use super::vertex_light::cube_face;
 use super::volume::{Volume, cell};
-use super::{Ctx, SectionMesh, greedy};
+use super::{Ctx, SectionMesh, greedy, shapes};
 use crate::biome::BiomeColors;
 use crate::blocks::{BlockTable, LightFacts, RenderBlock, Shape};
 use crate::light::data::{self, LightCells};
@@ -75,6 +75,26 @@ fn a_corner_between_two_blocks_is_darkest() {
 
 fn grey_of(b: f32) -> u32 {
     scale(grey(b), 1.0)
+}
+
+#[test]
+fn crosses_and_boxes_carry_vertex_light() {
+    let (mut v, mut table, mut cells) = lit(&[[5, 4, 5]]);
+    let cross = RenderBlock { shape: Shape::Cross, occludes: false, shades: false, light: LightFacts::default(), ..BlockTable::cube(0) };
+    let slab = RenderBlock { shape: Shape::Boxes([[0, 0, 0, 16, 8, 16]].into()), occludes: false, shades: false, light: LightFacts::default(), ..BlockTable::cube(0) };
+    let mut blocks: Vec<_> = (0..2).map(|id| table.get(id).clone()).collect();
+    blocks.extend([cross, slab]);
+    table = BlockTable::from_blocks(blocks);
+    table.lighting = Lighting::Java;
+    v.blocks[cell(5, 5, 5)] = 2;
+    v.blocks[cell(8, 5, 8)] = 3;
+    cells.0[data::cell(5, 5, 5)] = data::pack(7, 12);
+    let mut out = SectionMesh::default();
+    shapes::others(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default(), cells: Some(&cells) }, &mut out);
+    assert!(!out.solid.is_empty() && out.solid.iter().all(|q| q.1.iter().all(|w| w & LIT != 0)));
+    // A cross is lit flat by its own cell and unshaded.
+    let plane = out.solid.iter().find(|q| q.face() == 6).unwrap();
+    assert!(plane.1.iter().all(|&w| w & 0xFF == 7 * 16 && w >> 8 & 0xFF == 12 * 16 && w >> 16 & 0xFF == 255));
 }
 
 #[test]

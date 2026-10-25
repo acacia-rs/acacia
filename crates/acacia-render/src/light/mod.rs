@@ -62,11 +62,27 @@ impl Lighting {
     }
 }
 
-fn run(world: &World, table: &PropsTable, data: &RwLock<LightData>, changes: &Receiver<ChunkChange>, tx: &Sender<LightEvent>) {
+/// The world's dimension as `table`'s rules light it: Java's End has sky light, Bedrock's none.
+pub fn lit_dimension(world: &World, table: &PropsTable) -> acacia_world::Dimension {
     let mut dim = world.dimension();
-    // Java's End has sky light; Bedrock's has none.
     dim.sky |= table.rules().is_java() && crate::sky::Realm::of(&dim) == crate::sky::Realm::End;
-    let lighter = WorldLighter::new(world, table, dim);
+    dim
+}
+
+/// Every loaded column's light at once by the rules of the look `table` draws, without the light
+/// thread (probes and tools).
+pub fn light_now(world: &World, table: &BlockTable) -> LightData {
+    let props = PropsTable::of_look(world.registry(), table);
+    let lighter = WorldLighter::new(world, &props, lit_dimension(world, &props));
+    let mut data = LightData::default();
+    for (x, z) in world.chunk_positions() {
+        lighter.relight_column(&mut data, x, z);
+    }
+    data
+}
+
+fn run(world: &World, table: &PropsTable, data: &RwLock<LightData>, changes: &Receiver<ChunkChange>, tx: &Sender<LightEvent>) {
+    let lighter = WorldLighter::new(world, table, lit_dimension(world, table));
     let mut batch: Vec<ChunkChange> = world.chunk_positions().into_iter().map(|(x, z)| ChunkChange::Column { x, z }).collect();
     let mut last_unload_check = Instant::now();
     loop {
