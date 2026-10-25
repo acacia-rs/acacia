@@ -16,6 +16,7 @@ pub mod enchanting;
 pub mod enchanting_names;
 pub mod entity;
 pub mod grindstone;
+pub mod input;
 pub mod item_combiner;
 pub mod lectern;
 pub mod loom;
@@ -27,6 +28,8 @@ pub mod simple;
 pub mod slot;
 pub mod smithing;
 pub mod stonecutter;
+#[cfg(test)]
+mod tests;
 
 pub use slot::{QuickCraft, Slot, can_quick_replace, extract_slot, quick_craft_count, same_item};
 
@@ -41,6 +44,9 @@ use super::tooltip::{Deferred, Line, Positioner, Tooltip};
 pub const LABEL: u32 = 0xFF40_4040;
 /// The draw key of the carried stack (slots are keyed by their menu index).
 pub const CARRIED: i32 = -2;
+/// With [`Base::distinct_keys`]: the quick-craft stack over slot `i` is keyed `QUICK + i`, the
+/// carried remainder `QUICK - 1`.
+pub const QUICK: i32 = -1000;
 
 /// What the screens read besides their own state.
 pub struct Env<'a> {
@@ -80,6 +86,8 @@ pub struct Base {
     /// Index into `slots`.
     pub hovered: Option<usize>,
     pub tooltip: Deferred,
+    /// Key stacks the oracle keys -1 (a quick craft's) apart, for a painter that looks them up.
+    pub distinct_keys: bool,
 }
 
 impl Base {
@@ -155,6 +163,13 @@ pub trait Screen {
     /// `extractSlot` of `slots[i]`.
     fn slot(&mut self, gui: &mut Gui, env: &Env, i: usize, _mouse: [i32; 2]) {
         extract_slot(self.base_mut(), gui, env, i);
+    }
+
+    /// `hasClickedOutside`: off the window.
+    fn clicked_outside(&self, mouse: [f64; 2]) -> bool {
+        let b = self.base();
+        let (x, y) = (mouse[0], mouse[1]);
+        x < f64::from(b.left) || y < f64::from(b.top) || x >= f64::from(b.left + b.image_width) || y >= f64::from(b.top + b.image_height)
     }
 
     /// `isHovering(left, top, w, h, x, y)` in window coordinates.
@@ -237,7 +252,7 @@ pub fn carried(b: &Base, gui: &mut Gui, mouse: [i32; 2]) {
     let Some(carried) = b.carried() else { return };
     let (mut key, mut stack, mut count) = (CARRIED, carried.clone(), None);
     if let Some(quick) = b.quick.as_ref().filter(|q| q.slots.len() > 1) {
-        key = -1;
+        key = if b.distinct_keys { QUICK - 1 } else { -1 };
         stack = carried.with_count(quick.remainder);
         if stack.is_empty() {
             count = Some("§e0".to_owned());
@@ -267,7 +282,7 @@ pub fn hovered_tooltip<S: Screen + ?Sized>(s: &mut S, env: &Env, mouse: [i32; 2]
 /// its style, a gap after the name (`tooltip::bundle::stack_tooltip` over the screen's lines).
 pub fn item_tooltip<S: Screen + ?Sized>(s: &S, stack: &ItemStack, env: &Env, mouse: [i32; 2]) -> Tooltip {
     let mut lines: Vec<Line> = s.tooltip_lines(stack, env).into_iter().map(Line::Text).collect();
-    if let Some(image) = super::tooltip::bundle::image(stack, &Display::of(stack), env.font, env.lang) {
+    if let Some(image) = super::tooltip::bundle::image(stack, &Display::of(stack), env.font, env.lang, env.game) {
         lines.insert(lines.len().min(1), image);
     }
     let style = stack.get("tooltip_style").and_then(|v| v.as_str()).map(str::to_owned);

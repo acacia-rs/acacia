@@ -91,7 +91,7 @@ pub fn extract_slot(b: &mut Base, gui: &mut Gui, _env: &Env, i: usize) {
                     count = Some(format!("§e{max}"));
                 }
                 stack = Some(carried.with_count(n)).filter(|s| !s.is_empty());
-                key = -1;
+                key = if b.distinct_keys { super::QUICK + i as i32 } else { -1 };
             } else {
                 let q = b.quick.as_mut().expect("checked");
                 q.slots.retain(|&s| s != i);

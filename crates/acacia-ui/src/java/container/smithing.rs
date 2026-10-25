@@ -69,6 +69,11 @@ impl Smithing {
         Smithing { base, station, ticks }
     }
 
+    /// `SmithingMenu`'s `hasRecipeError` for slots as they are: every input in, no result.
+    pub fn recipe_error(base: &Base) -> bool {
+        (0..3).all(|i| base.slots[i].has_item()) && !base.slots[3].has_item()
+    }
+
     fn template(&self) -> Option<Template> {
         self.base.slots[0].item.as_ref().filter(|s| !s.is_empty()).and_then(|s| Template::of(&s.id))
     }

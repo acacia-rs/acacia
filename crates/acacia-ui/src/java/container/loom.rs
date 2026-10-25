@@ -2,6 +2,7 @@
 //! pattern on a grey flag, a scroller, and the result banner (a picture) or the too-many-patterns
 //! error.
 
+use super::input::{Press, drag_scroll};
 use super::{Base, Env, Screen, Slot, blit, menus, text_tooltip, transparent_background};
 use crate::java::gui::{Gui, GuiDraw, PoseOp};
 use crate::java::mth::clamp;
@@ -81,6 +82,49 @@ impl Loom {
         let rows = self.total_rows() - 4;
         if self.display_patterns && rows > 0 {
             self.scroll_offs = clamp(self.scroll_offs - dy as f32 / rows as f32, 0.0, 1.0);
+            self.start_row = ((self.scroll_offs * rows as f32 + 0.5) as i32).max(0);
+        }
+    }
+
+    /// `scrollOffs`, to carry to the next frame's screen.
+    pub fn scroll_offs(&self) -> f32 {
+        self.scroll_offs
+    }
+
+    /// `scrollOffs` as an earlier frame left it, with `startRow` from it.
+    pub fn set_scroll(&mut self, offs: f32) {
+        let rows = self.total_rows() - 4;
+        if self.display_patterns && rows > 0 {
+            self.scroll_offs = offs;
+            self.start_row = ((offs * rows as f32 + 0.5) as i32).max(0);
+        }
+    }
+
+    /// `mouseClicked`'s own part: a pattern `clickMenuButton` takes, or the scroller.
+    pub fn mouse_clicked(&self, mouse: [f64; 2]) -> Option<Press> {
+        if !self.display_patterns {
+            return None;
+        }
+        let (xo, yo) = (self.base.left + 60, self.base.top + 13);
+        for row in 0..4 {
+            for column in 0..4 {
+                let (xx, yy) = (mouse[0] - f64::from(xo + column * 14), mouse[1] - f64::from(yo + row * 14));
+                let index = ((row + self.start_row) * 4 + column) as usize;
+                if xx >= 0.0 && yy >= 0.0 && xx < 14.0 && yy < 14.0 && index < self.patterns.len() {
+                    return Some(Press::Button(index));
+                }
+            }
+        }
+        let (x, y) = (self.base.left + 119, self.base.top + 9);
+        let on = mouse[0] >= f64::from(x) && mouse[0] < f64::from(x + 12) && mouse[1] >= f64::from(y) && mouse[1] < f64::from(y + 56);
+        on.then_some(Press::Scroller)
+    }
+
+    /// `mouseDragged` while the scroller is held.
+    pub fn mouse_dragged(&mut self, mouse: [f64; 2]) {
+        let rows = self.total_rows() - 4;
+        if self.display_patterns && rows > 0 {
+            self.scroll_offs = drag_scroll(mouse[1], self.base.top + 13, 56, 7.5);
             self.start_row = ((self.scroll_offs * rows as f32 + 0.5) as i32).max(0);
         }
     }

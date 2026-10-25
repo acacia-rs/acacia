@@ -21,6 +21,8 @@ pub enum Picture {
     /// `blit(atlas, x0, y0, x1, y1, u0, u1, v0, v1)` of an atlas sprite (`getSprite(spriteId)`), the
     /// UVs within the sprite (0 to 1 across it) since the atlas's layout is the renderer's.
     SpriteBlit { atlas: String, sprite: String, rect: [i32; 4], uv: [f32; 4] },
+    /// `fill(END_PORTAL, sky + portal textures, x0, y0, x1, y1)`: the end portal shader over a rect.
+    EndPortal { rect: [i32; 4] },
 }
 
 fn rect(v: &mut Value, r: &[i32; 4]) {
@@ -56,6 +58,11 @@ impl Picture {
             Picture::TooltipImage { kind, x, y, w, h } => json!({"type": "tooltip_image", "kind": kind, "x": x, "y": y, "w": w, "h": h}),
             Picture::SpriteBlit { atlas, sprite, rect: r, uv } => {
                 let mut v = json!({"type": "sprite_blit", "atlas": atlas, "sprite": sprite, "uv": uv});
+                rect(&mut v, r);
+                v
+            }
+            Picture::EndPortal { rect: r } => {
+                let mut v = json!({"type": "end_portal"});
                 rect(&mut v, r);
                 v
             }

@@ -7,20 +7,15 @@ use std::time::Instant;
 use acacia_ui::DrawList;
 use acacia_ui::java::chat::ChatScreen;
 use acacia_ui::java::gui::{Gui, Metrics};
-use acacia_ui::java::screen::confirm::{Confirm, ConfirmScreen};
-use acacia_ui::java::screen::death::DeathScreen;
-use acacia_ui::java::screen::message::MessageScreen;
-use acacia_ui::java::screen::options::pages::{self, Client};
-use acacia_ui::java::screen::pause::{Pause, PauseScreen};
-use acacia_ui::java::screen::{Env, Escape, Screen, extract};
-use acacia_ui::java::text::{Style, Text};
+use acacia_ui::java::screen::{Escape, extract};
 use acacia_ui::java::widget::Ctx;
 use acacia_ui::java::widget::input::{Fired, Interaction, Key};
 
 pub use super::gui_size;
 pub use super::options::{apply as apply_option, value as option_value};
 
-use super::{JavaGui, PictureRequest, options};
+use super::views::build;
+use super::{JavaGui, PictureRequest};
 use crate::settings::Settings;
 use crate::ui::{Skin, Ui};
 
@@ -28,8 +23,17 @@ use crate::ui::{Skin, Ui};
 #[derive(Clone, Debug, PartialEq)]
 pub enum View {
     Pause,
-    /// An options page (`pages::build`'s names) over these settings.
+    /// An options page (`pages::build`'s names, or `input::link`'s screens beside them) over these
+    /// settings.
     Options { page: &'static str, settings: Settings },
+    /// The credits roll (`WinScreen`), `ticks` after it opened.
+    Win { ticks: f32 },
+    /// `LevelLoadingScreen`: the player has not arrived yet.
+    Loading,
+    /// `SignEditScreen` (or the hanging sign's) on the lines typed so far; `cursor` is in bytes.
+    Sign { lines: [String; 4], line: usize, cursor: usize, hanging: bool },
+    /// `BookViewScreen`, or `BookEditScreen` while `writing` with the caret `caret` bytes in.
+    Book { pages: Vec<String>, page: usize, writing: bool, caret: usize },
     /// `ticks` since the player died.
     Death { ticks: u32 },
     /// `DeathScreen.TitleConfirmScreen`, `ticks` after it opened.
@@ -62,40 +66,6 @@ pub struct Shown<'a> {
     pub menu: Option<(View, Interaction)>,
 }
 
-/// What the options pages read from a client that is not signed in to Mojang's services: no
-/// telemetry or friends, the vanilla high-contrast pack, the stable feature set.
-const CLIENT: Client = Client { telemetry: false, high_contrast_pack: true, minecart: false, friends: false, friend_requests: false, ticked: true };
-
-/// `minecraft.gui.screen()` for `view` at `size` after `init`.
-fn build(ctx: &Ctx, view: &View, size: [i32; 2]) -> Box<dyn Screen> {
-    let env = Env { width: size[0], height: size[1], in_world: true, blur: true };
-    match view {
-        View::Pause => Box::new(PauseScreen::new(ctx, env, Pause { show_menu: true, topmost: true, local_server: false, friends_available: true, reporting_active: true })),
-        View::Options { page, settings } => {
-            let values = |id: &str| options::value(settings, id);
-            let screen = pages::build(ctx, env, page, &values, CLIENT).or_else(|| pages::build(ctx, env, "options", &values, CLIENT));
-            Box::new(screen.expect("the options screen builds"))
-        }
-        // No death message or score reaches the viewer.
-        View::Death { ticks } => Box::new(DeathScreen::new(ctx, env, None, false, 0, *ticks)),
-        View::TitleConfirm { ticks } => {
-            let confirm = Confirm {
-                title: ctx.tr("deathScreen.quit.confirm"),
-                message: Text::default(),
-                message_style: Style::default(),
-                yes: ctx.tr("deathScreen.titleScreen"),
-                no: ctx.tr("deathScreen.respawn"),
-                delay: Some(20),
-                ticks: *ticks,
-            };
-            let mut screen = ConfirmScreen::new(ctx, env, confirm);
-            screen.death_background = true;
-            Box::new(screen)
-        }
-        View::Disconnected { reason } => Box::new(MessageScreen::disconnected(ctx, Env { in_world: false, ..env }, ctx.tr("disconnect.lost"), Text::legacy(reason), Style::default())),
-    }
-}
-
 impl JavaGui {
     fn lang(&self) -> impl Fn(&str) -> Option<String> + '_ {
         |key| self.lang.get(key).cloned()
@@ -107,7 +77,7 @@ impl JavaGui {
         let lang = self.lang();
         let mut ctx = Ctx::new(&mut gui, &self.fonts, &lang, mouse);
         ctx.millis = self.millis(now);
-        let mut screen = build(&ctx, view, size);
+        let mut screen = build(self, &ctx, view, size);
         screen.restore(s);
         extract(screen.as_mut(), &mut ctx);
         gui
@@ -118,7 +88,7 @@ impl JavaGui {
         let mut gui = Gui::new(size[0], size[1]);
         let lang = self.lang();
         let ctx = Ctx::new(&mut gui, &self.fonts, &lang, (0, 0));
-        let mut screen = build(&ctx, view, size);
+        let mut screen = build(self, &ctx, view, size);
         screen.restore(s);
         let fired = match input {
             Input::Key { key: Key::Escape, .. } => {
@@ -180,6 +150,11 @@ impl Ui {
     /// [`JavaGui::menu_input`].
     pub fn java_menu_input(&self, view: &View, s: &mut Interaction, size: [i32; 2], input: Input) -> Option<Reply> {
         self.java_gui.menu_input(view, s, size, input)
+    }
+
+    /// Whether the credits roll `ticks` after it opened has passed its end at `size`.
+    pub fn java_credits_finished(&self, ticks: f32, size: [i32; 2]) -> bool {
+        super::views::credits_roll(&self.java_gui, size, ticks).finished()
     }
 
     /// The Java look's font metrics, which the chat input measures with.
