@@ -12,6 +12,7 @@ use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 use crate::assets::json;
+use crate::weather::climate::Climate;
 
 /// One entry of the server's `BiomeDefinitionList`.
 #[derive(Debug, Clone)]
@@ -55,25 +56,19 @@ struct Listed {
     grass_patch: Option<[u8; 3]>,
     foliage: Option<[u8; 3]>,
     dry_foliage: Option<[u8; 3]>,
+    climate: Option<Climate>,
 }
+
+pub(crate) const PLAINS_CLIMATE: Climate = Climate { temperature: 0.8, frozen: false, has_precipitation: true };
 
 pub struct BiomeColors {
     by_id: FxHashMap<u32, BiomeTint>,
     unknown: BiomeTint,
-    /// Temperature and downfall by id, for [`BiomeColors::fall`].
-    climate: FxHashMap<u32, (f32, f32)>,
+    climate: FxHashMap<u32, Climate>,
     fluid_fogs: fog::FluidFogs,
     names: FxHashMap<u32, String>,
     /// A Java look's environment attributes ([`crate::sky::Environment::load`]).
     environment: Option<std::sync::Arc<crate::sky::Environment>>,
-}
-
-/// What falls from the sky in a biome when it rains.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Fall {
-    Nothing,
-    Rain,
-    Snow,
 }
 
 impl Default for BiomeColors {
@@ -114,7 +109,10 @@ impl BiomeColors {
                 Some((u32::from(id), tint))
             })
             .collect();
-        let climate = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), (d.temperature, d.downfall)))).collect();
+        // The look's Java climate where it lists one; the server's has no `has_precipitation`, so
+        // no downfall stands for it (deserts, savannas, badlands).
+        let server = |d: &BiomeDef| Climate { temperature: d.temperature, frozen: false, has_precipitation: d.downfall > 0.0 };
+        let climate = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), listed.get(d.name.as_str()).and_then(|l| l.climate).unwrap_or_else(|| server(d))))).collect();
         let fluid_fogs = fog::FluidFogs::load(root, defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), d.name.as_str()))));
         let names = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), d.name.clone()))).collect();
         let environment = crate::sky::Environment::load(root).map(std::sync::Arc::new);
@@ -139,17 +137,9 @@ impl BiomeColors {
         self.names.get(&id).map(String::as_str)
     }
 
-    /// Java's `Biome.getPrecipitationAt`: none where it never rains (no downfall: deserts,
-    /// savannas, badlands), snow where it is cold at `y` (`coldEnoughToSnow`, the temperature
-    /// falling 0.05 per 40 blocks above y 80, its noise left out), else rain. Unknown ids rain.
-    pub fn fall(&self, id: u32, y: i32) -> Fall {
-        let Some(&(temperature, downfall)) = self.climate.get(&id) else { return Fall::Rain };
-        let cooled = temperature - (y - 80).max(0) as f32 * 0.05 / 40.0;
-        match (downfall, cooled) {
-            (d, _) if d <= 0.0 => Fall::Nothing,
-            (_, t) if t < 0.15 => Fall::Snow,
-            _ => Fall::Rain,
-        }
+    /// The climate of `id`; unknown ids get plains'.
+    pub fn climate(&self, id: u32) -> Climate {
+        self.climate.get(&id).copied().unwrap_or(PLAINS_CLIMATE)
     }
 
     /// Unknown ids (and chunks without biomes) tint like plains, with the files' default water.
@@ -226,6 +216,11 @@ fn listed(root: &Path) -> FxHashMap<String, Listed> {
             grass_patch: color("grass_patch_color"),
             foliage: color("foliage_color"),
             dry_foliage: color("dry_foliage_color"),
+            climate: b.get("temperature").and_then(Value::as_f64).map(|t| Climate {
+                temperature: t as f32,
+                frozen: b.get("temperature_modifier").and_then(Value::as_str) == Some("frozen"),
+                has_precipitation: b.get("has_precipitation").and_then(Value::as_bool).unwrap_or(true),
+            }),
         };
         (name.strip_prefix("minecraft:").unwrap_or(name).to_owned(), listed)
     };
@@ -237,11 +232,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn deserts_stay_dry_and_cold_heights_snow() {
-        let def = |id, temperature, downfall| BiomeDef { id, name: String::new(), temperature, downfall };
-        let biomes = BiomeColors::build(&[def(1, 0.8, 0.4), def(2, 2.0, 0.0), def(3, 0.0, 0.5), def(4, 0.2, 0.3)], Path::new(""));
-        assert_eq!((biomes.fall(1, 64), biomes.fall(2, 64), biomes.fall(3, 64)), (Fall::Rain, Fall::Nothing, Fall::Snow));
-        // 0.2 cools below 0.15 forty blocks above y 80.
-        assert_eq!((biomes.fall(4, 100), biomes.fall(4, 121), biomes.fall(99, 64)), (Fall::Rain, Fall::Snow, Fall::Rain));
+    fn the_looks_java_climate_wins_over_the_servers() {
+        let def = |id, name: &str, temperature, downfall| BiomeDef { id, name: name.to_owned(), temperature, downfall };
+        let dir = std::env::temp_dir().join(format!("acacia-climate-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let listed = r#"{"biomes": {"minecraft:frozen_ocean": {"temperature": 0.0, "temperature_modifier": "frozen", "has_precipitation": true}, "minecraft:savanna": {"temperature": 2.0, "has_precipitation": false}}}"#;
+        std::fs::write(dir.join("biomes_client.json"), listed).unwrap();
+        let biomes = BiomeColors::build(&[def(1, "plains", 0.8, 0.4), def(2, "desert", 2.0, 0.0), def(10, "frozen_ocean", 0.5, 0.5), def(35, "savanna", 1.2, 0.4)], &dir);
+        let climate = |id| biomes.climate(id);
+        assert_eq!((climate(1).has_precipitation, climate(2).has_precipitation, climate(35).has_precipitation), (true, false, false));
+        assert_eq!(climate(10), Climate { temperature: 0.0, frozen: true, has_precipitation: true });
+        assert_eq!(climate(99), PLAINS_CLIMATE);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

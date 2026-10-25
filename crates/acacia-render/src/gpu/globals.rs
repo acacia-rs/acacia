@@ -2,10 +2,8 @@
 
 use glam::{IVec3, Mat4, Vec3};
 
-use crate::look::Look;
-
-/// Brightness of unlit blocks, with and without sky light (Java's nether ambient is 0.1).
-const AMBIENT: (f32, f32) = (0.02, 0.1);
+use crate::light::lightmap::{self, Table};
+use crate::look::{Lighting, Look};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -22,8 +20,10 @@ pub(super) struct Globals {
     haze: [f32; 4],
     /// [`Look::ambient_occlusion`].
     ao: [f32; 4],
-    /// x: ambient brightness, y: [`crate::sky::Sky::darken`].
+    /// x: 1 for [`Lighting::Java`].
     light: [f32; 4],
+    /// [`lightmap::packed`].
+    lightmap: [[u32; 4]; 64],
 }
 
 impl Globals {
@@ -37,8 +37,7 @@ impl Globals {
         fog_end: f32,
         look: &Look,
         haze: Option<(f32, f32)>,
-        has_sky: bool,
-        darken: f32,
+        lightmap: &Table,
     ) -> Globals {
         let flag = |on: bool| f32::from(u8::from(on));
         let (haze_start, haze_end) = haze.unwrap_or_default();
@@ -51,7 +50,8 @@ impl Globals {
             fog_shape: [look.fog.start(fog_end), flag(look.fog.cylinder), flag(look.fog.linear), 0.0],
             haze: [haze_start, haze_end, 0.0, 0.0],
             ao: look.ambient_occlusion,
-            light: [if has_sky { AMBIENT.0 } else { AMBIENT.1 }, darken, 0.0, 0.0],
+            light: [flag(look.lighting == Lighting::Java), 0.0, 0.0, 0.0],
+            lightmap: lightmap::packed(lightmap),
         }
     }
 }
@@ -68,7 +68,10 @@ mod tests {
     use super::Globals;
 
     /// Every shader module, as the pipelines assemble them.
-    const MODULES: [(&str, &str); 5] = [
+    const MODULES: [(&str, &str); 8] = [
+        ("weather", concat!(include_str!("globals.wgsl"), include_str!("weather.wgsl"))),
+        ("bolts", concat!(include_str!("globals.wgsl"), include_str!("bolts.wgsl"))),
+        ("clouds", concat!(include_str!("globals.wgsl"), include_str!("clouds.wgsl"))),
         ("sign text", concat!(include_str!("globals.wgsl"), include_str!("sign_text.wgsl"))),
         ("screen effect", concat!(include_str!("globals.wgsl"), include_str!("screen_effect.wgsl"))),
         ("terrain", concat!(include_str!("globals.wgsl"), include_str!("terrain.wgsl"), include_str!("light.wgsl"), include_str!("model.wgsl"))),

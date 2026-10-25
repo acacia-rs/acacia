@@ -28,3 +28,4 @@ wgpu = "30"
 [dev-dependencies]
 acacia-proto = { path = "../acacia-proto" }
 bytes = "1"
+sha2 = "0.10"

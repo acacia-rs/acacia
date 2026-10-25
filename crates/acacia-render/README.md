@@ -87,30 +87,51 @@ tints like plains, with the water of that file's `default` entry.
 
 ## Lighting (`light/`)
 
-Bedrock sends no light, so the client computes it. Emission and filter per state come from
-`acacia-world` (`BlockState::light_emission`, `light_filter`; waterlogged blocks take the stronger of
-both layers).
+Bedrock sends no light, so the client computes it, by the rules of the look's `Lighting`
+(`look.rs`): `Volume` (the Bedrock look) is the renderer's own, `Java` is 26.3's, checked by the
+parity harnesses `lightmap`, `smooth_light`, `light_engine` and `light_facts` (docs/parity.md).
+Emission and filter per state come from `acacia-world` (`BlockState::light_emission`,
+`light_filter`) under `Volume`, and from the look pack's `LightFacts` (lookbake `light.rs`) under
+`Java`; waterlogged blocks take the stronger of both layers.
 
-- **Thread**: `Lighting::new(world)` starts a light thread that subscribes to world changes. Column and
+- **Java's rules** (`rules.rs`, `sky.rs`, `blocks.rs`): a step costs the entered block's dampening
+  but at least 1; light does not cross a face the two blocks' face occlusion shapes cover together
+  (`LightFacts::shape`, a 16x16 grid per face, interned in the pack's light shapes); sky light
+  sources run from the top down to the first edge that stops light coming straight down; a section
+  of air above and below the world carries light as Java's padding sections do. The End has sky light.
+- **Lightmap** (`lightmap.rs`, `environment.rs`): every frame a 16x16 table, sky level × block level
+  to RGB, goes to the shader in `Globals::lightmap`. Java's is `lightmap.fsh` over
+  `LightmapRenderStateExtractor`'s state: the dimension's light attributes, the `day` timeline,
+  weather and lightning, End flashes, the player's `LightConditions` (brightness option, night
+  vision, darkness, boss darkening) and the torch flicker. `Volume`'s is the old curve as a table.
+  Shaders read it with `lightmap(levels)` (RGB, raw factor) and `curve(levels)` (its green, for passes
+  that take one brightness); `lit(rgb, factor)` multiplies in sRGB space under Java lighting, as the
+  game multiplies its unconverted colours.
+- **Light per vertex** (Java, `mesh/smooth.rs`, `mesh/vertex_light.rs`): meshing a section reads its
+  light (`LightData::gather_cells`) and gives each vertex Java's light coords and grey
+  (`BlockModelLighter`: smooth light, ambient occlusion, partial-face weights, directional shade by
+  `CardinalLighting`), carried in a second per-quad buffer (`VertexLight`). A light change remeshes.
+- **Thread**: `Lighting::new(world, table)` starts a light thread that subscribes to world changes. Column and
   section changes relight the whole column, once per batch. Block changes update incrementally. Then
   it forwards the change and every section whose bordered light changed (`LightEvent`), so the scene
   meshes only lit sections.
 - **Data** (`LightData`, `parking_lot::RwLock`): a byte per block for light (block << 4 | sky) and for
   props (emission << 4 | filter), uniform sections stored as one value. Unloaded columns are dropped
   by polling `World::get`.
-- **Propagation** (`propagate.rs`): BFS per channel. A step loses 1 + the entered block's filter; sky
+- **Propagation** (`propagate.rs`): BFS per channel. Under `Volume` a step loses 1 + the entered block's filter; sky
   light at 15 going down loses only the filter. Removal clears what may have come from the old light,
   then refills from the brighter cells it met. Sky enters the top layer. Sky columns fill straight down
   first and spread only from their ends and their sides that face shorter columns or the chunk edge.
-  There's no sky light in the nether and the end; they get a higher ambient instead (`gpu/mod.rs`
-  `AMBIENT`).
+  There's no sky light in the nether and, under `Volume`, the end; they get a higher ambient instead
+  (`environment.rs` `CURVE_AMBIENT`).
 - **GPU**: each section slot has an 18³ light volume (5832 bytes, `OPAQUE_CELL` marks filter-15 blocks).
   `gpu/light.wgsl` smooths per fragment: each face corner averages the 4 cells in front of it (without
   opaque ones, and without the diagonal when both edges are opaque), interpolated across the face.
   "In front" is the next cell for a face on its block's side and the block's own cell for a model
-  face inside it. Cross planes and faces whose front cell is opaque use their own cell. Brightness is Java's curve at
-  50% gamma, `max(block, sky)`, raised by the ambient. Quads keep their AO and directional shade.
-- **Light-only updates**: when a section's light changes but its blocks don't, a light job re-gathers
+  face inside it. Cross planes and faces whose front cell is opaque use their own cell. Brightness is
+  the lightmap's. Quads keep their AO and directional shade. Under Java lighting, cubes and model
+  faces take their vertices' light instead; liquids and cross planes still sample the volume.
+- **Light-only updates** (`Volume` only): when a section's light changes but its blocks don't, a light job re-gathers
   the volume into its slot without remeshing. Volumes carry the light generation, and the store keeps
   the newest.
 
@@ -214,6 +235,52 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
   wide and the lead in two alternating browns; here each has a width in blocks and one colour.
   The viewer says which entity hangs from which (`OwnerEid`, `LeadHolderEid`) and where the
   hand is.
+
+### Java entity models (`entity/java/`)
+
+With the Java look, the kinds in `java/kinds.rs` draw the client's own model layers
+(`java/entity_models.json`, exported by `lookbake`; see docs/java-look.md "Licensing") and its
+textures, in place of the Bedrock geometry; other kinds keep theirs.
+
+- **Parts** (`model.rs`, `poses.rs`): a `ModelPart` tree; each part a pose (x, y, z in pixels,
+  rotations in radians applied Z·Y·X, scale) and quads with their normals. `Poses` holds the
+  per-frame copy `setupAnim` writes, plus `visible` and `skipDraw` (hides the part's own quads, not
+  its children's).
+- **Drawing** (`draw.rs`, `mesh.rs`): `ModelPart.render`'s walk. A hidden part, or one with neither
+  quads nor children, is skipped with its subtree. One bone per part; `skin` gives each bone
+  `S(1,-1,1) · T(0,-1.501,0)` times the walk's matrix, which with the pass's `S(1,1,-1)` placement
+  is `LivingEntityRenderer`'s `rotY(180-yaw) · S(-1,-1,1) · T(0,-1.501,0)`.
+- **Babies**: a kind whose baby has its own layer (`cow_baby#main`) draws it at full size, undoing
+  the 0.5 the server sends: Java scales an entity by its `SCALE` attribute only, which age leaves
+  at 1 (`LivingEntityRenderer.submit`). Others are scaled as Bedrock does.
+- **Held items** (`mesh::hand`): `translateToHand` (skeletons shift the arm 1 px out,
+  `Poses::hand_offset`), then `item::hand::fist`, `ItemInHandLayer`'s turn and fist offset (a
+  baby's is smaller). Armour, capes and the other layers are still drawn on Bedrock bones: a Java
+  model wears nothing yet.
+- **Math** (`mth.rs`): `Mth.sin`/`cos` are Java's 65536-entry table; `(float)(Math.PI / d)`
+  constants are `pi_div(d)`. Plain `f32` trig drifts past the harness tolerance.
+- **Proof**: parity harnesses `entity_models` (rest pose of every layer), `entity_poses`
+  (`setupAnim` on a corpus of render states) and `entity_layers` (held items); the probe is
+  `examples/java_entities`.
+
+### Java entity render state (`entity/java/state.rs`, `bedrock.rs`, `anim/`)
+
+`setupAnim` ports read a `RenderState`: fields by their Java names (`walkAnimationPos`,
+`ageInTicks`, `rightArmPose`, `currentSwing`...), so a harness case and the viewer fill the same
+table. `bedrock.rs` is the one mapping from Bedrock queries:
+
+| Java field | From |
+|---|---|
+| `walkAnimationPos`, `walkAnimationSpeed` | `modified_distance_moved`, `modified_move_speed` (capped at 1) |
+| `ageInTicks` | `life_time` × 20 |
+| `yRot`, `xRot` | `target_y_rotation`, `target_x_rotation` |
+| `isBaby`, `ageScale` | `is_baby`; 0.5 for a baby |
+| `isCrouching`, `isPassenger`, `isAggressive` | `is_sneaking`, `is_riding`, `is_angry` |
+| `rightHandItemStack` | `get_equipped_item_name:main_hand` (Bedrock mobs are right-handed) |
+| `rightArmPose` | `getArmPose`: `BOW_AND_ARROW` for an aggressive skeleton's bow, `THROW_TRIDENT` for an aggressive drowned's trident, else empty |
+| `headEatPositionScale`, `headEatAngleScale` | Not synced: a sheep is never grazing |
+
+Not mapped yet: swings (`swingAnimation`, `currentSwing`), swimming, gliding, item use.
 
 ## Block models (`blocks/model.rs`, `entity/block_models.rs`, `block_models.rs`)
 

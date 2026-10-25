@@ -1,6 +1,6 @@
 package acacia.parity.bake;
 
-import acacia.parity.BlockModels;
+import acacia.parity.Models;
 import acacia.parity.Game;
 import acacia.parity.Out;
 import java.lang.reflect.Field;
@@ -42,7 +42,7 @@ public final class BakeOracle {
 
     public static void main(String[] args) throws Exception {
         var out = Path.of(args[0]);
-        var models = BlockModels.get();
+        var models = Models.get();
         new BakeOracle().dump(models, out);
         biomes(out.resolve("biomes.json"));
         shadeAndColors(out);
@@ -50,14 +50,14 @@ public final class BakeOracle {
 
     // ---- quads and placement ----
 
-    private void dump(BlockModels models, Path out) throws Exception {
+    private void dump(Models models, Path out) throws Exception {
         var positions = positions();
         Map<String, Object> states = new TreeMap<>();
         Map<String, Object> picks = new TreeMap<>();
         int alternatives = 0;
         for (BlockState state : Block.BLOCK_STATE_REGISTRY) {
             var key = Out.stateKey(state);
-            var model = models.model(state);
+            var model = models.blockStateModel(state);
             if (model == null) {
                 states.put(key, Out.map("parts", List.of(), "slots", null));
                 continue;

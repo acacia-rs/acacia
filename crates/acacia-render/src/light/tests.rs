@@ -1,6 +1,7 @@
 use acacia_world::{BlockIds, BlockRegistry, ChunkView, World};
 
-use super::column::{Lighter, PropsTable};
+use super::blocks::PropsTable;
+use super::column::WorldLighter;
 use super::data::LightData;
 
 /// Overworld columns: stone at y 0..16, air above.
@@ -42,7 +43,7 @@ impl Fixture {
 
     fn relight(&mut self, cx: i32, cz: i32) {
         let world = self.view.world().clone();
-        let lighter = Lighter { world: &world, table: &self.table, dim: world.dimension() };
+        let lighter = WorldLighter::new(&world, &self.table, world.dimension());
         assert!(lighter.relight_column(&mut self.data, cx, cz));
     }
 
@@ -50,7 +51,7 @@ impl Fixture {
     fn place(&mut self, x: i32, y: i32, z: i32, block: u32) {
         assert!(self.view.set_block(x, y, z, 0, block));
         let world = self.view.world().clone();
-        let lighter = Lighter { world: &world, table: &self.table, dim: world.dimension() };
+        let lighter = WorldLighter::new(&world, &self.table, world.dimension());
         lighter.update_block(&mut self.data, x, y, z);
     }
 

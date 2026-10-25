@@ -2,6 +2,7 @@
 
 mod facing;
 mod lever;
+pub mod light;
 pub mod model;
 pub mod placed;
 pub mod shape;
@@ -17,6 +18,7 @@ use crate::assets::Pack;
 use crate::assets::flipbook::{Animation, Atlas};
 use crate::assets::image::{Alpha, Texture};
 pub use shape::{Box16, ModelFace, Shape, short_name};
+pub use light::{FaceShapes, LightFacts};
 pub use tint::Tint;
 
 /// How a face's texture alpha is used; the value is the shader's material index.
@@ -74,6 +76,7 @@ pub struct RenderBlock {
     /// look pack does not store it.
     #[serde(skip)]
     pub model: Option<Arc<model::BlockModel>>,
+    pub light: LightFacts,
 }
 
 pub struct BlockTable {
@@ -81,6 +84,10 @@ pub struct BlockTable {
     fallback: RenderBlock,
     /// [`crate::look::Look::biome_blend`] of the look the table draws.
     pub biome_blend: u8,
+    /// [`crate::look::Look::lighting`] of the look the table draws.
+    pub lighting: crate::look::Lighting,
+    /// What [`LightFacts::shape`] indexes (from 1).
+    pub light_shapes: Arc<[FaceShapes]>,
 }
 
 /// What [`BlockTable::build`] could not resolve, for diagnostics.
@@ -112,12 +119,12 @@ impl BlockTable {
         report.blocks_without_textures.dedup();
         report.missing_images = textures.missing;
         let fallback = BlockTable::cube(0);
-        (BlockTable { blocks, fallback, biome_blend: 1 }, textures.atlas, report)
+        (BlockTable { blocks, fallback, biome_blend: 1, lighting: Default::default(), light_shapes: Arc::default() }, textures.atlas, report)
     }
 
     /// One block per runtime id.
-    pub(crate) fn from_blocks(blocks: Vec<RenderBlock>) -> BlockTable {
-        BlockTable { blocks, fallback: BlockTable::cube(0), biome_blend: 1 }
+    pub fn from_blocks(blocks: Vec<RenderBlock>) -> BlockTable {
+        BlockTable { blocks, fallback: BlockTable::cube(0), biome_blend: 1, lighting: Default::default(), light_shapes: Arc::default() }
     }
 
     /// Runtime ids past the registry (unknown custom blocks) render as a missing-texture cube.
@@ -141,6 +148,7 @@ impl BlockTable {
             fluid: Fluid::None,
             fluid_height: 0,
             model: None,
+            light: LightFacts { solid_render: true, full_collision: true, dampening: 15, dark: true, ambient_occlusion: true, ..LightFacts::default() },
         }
     }
 }
@@ -214,6 +222,17 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
         fluid,
         fluid_height: (state.fluid_height() * 16.0).round() as u8,
         model,
+        // Bedrock's own, until a Java bake replaces them.
+        light: LightFacts {
+            emission: state.light_emission,
+            dampening: state.light_filter,
+            solid_render: occludes,
+            full_collision: state.is_full_cube(),
+            emissive: false,
+            dark: occludes,
+            ambient_occlusion: state.light_emission == 0,
+            shape: 0,
+        },
     }
 }
 

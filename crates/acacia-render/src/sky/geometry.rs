@@ -1,6 +1,8 @@
 //! `SkyRenderer`'s geometry, camera-relative in blocks (x east, y up, z south): the sky and dark
 //! discs, the sunrise fan, the sun, moon and stars on their turning frames, and the End's box.
 
+use std::f32::consts::FRAC_PI_2;
+
 use glam::{Mat4, Vec3};
 
 use super::joml;

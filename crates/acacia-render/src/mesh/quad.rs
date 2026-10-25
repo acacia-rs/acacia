@@ -12,6 +12,9 @@
 //! the turn of the surface texture.
 //!
 //! Bit 31 of w0 marks a model face, which takes three records laid out differently (`model.rs`).
+//!
+//! Each record also carries [`VertexLight`], uploaded to a buffer of its own; only a face's first
+//! record's is read.
 
 use super::model::{self, MODEL};
 use crate::blocks::Material;
@@ -31,7 +34,23 @@ pub const AXES: [(usize, usize, usize); 6] = [(0, 2, 1), (0, 2, 1), (1, 0, 2), (
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Quad(pub [u32; 3]);
+pub struct Quad(pub [u32; 3], pub VertexLight);
+
+/// Light and shade per corner, in the corner order of the quad's ambient occlusion, as Java's
+/// vertices carry them ([`crate::look::Lighting::Java`]): block light | sky light << 8 (both in
+/// 1/16 level, Java's light coords) | vertex grey << 16 ([`LIT`] set). All zero: the shader lights
+/// the face from the section's light volume.
+pub type VertexLight = [u32; 4];
+
+/// Set in every corner of a [`VertexLight`] that holds light.
+pub const LIT: u32 = 1 << 24;
+/// Set in corner 0 when the quad splits along its 1-3 diagonal rather than 0-2 (Java's vertex 0-2).
+pub const SPLIT_13: u32 = 1 << 25;
+
+/// One corner of a [`VertexLight`]: light coords `(block, sky)` 0..=240 and the grey 0..=255.
+pub const fn vertex_light(block: u32, sky: u32, grey: u32) -> u32 {
+    LIT | block | sky << 8 | grey << 16
+}
 
 /// What a face looks like, independent of where it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,7 +100,11 @@ impl Quad {
             pos[0] | pos[1] << 9 | pos[2] << 18 | u32::from(face) << 27,
             (size[0] - 1) | (size[1] - 1) << 8 | (turn & 3) << 16 | u32::from(surface.texture) << 18 | surface.tint_kind << 30,
             ao_bits | (turn >> 2 & 1) << 8 | (surface.material as u32) << 9 | r << 11 | g << 18 | b << 25,
-        ])
+        ], [0; 4])
+    }
+
+    pub fn lit(self, light: VertexLight) -> Quad {
+        Quad(self.0, light)
     }
 
     /// Face `face` (from [`LIQUID`]) of a liquid block. `pos` is the face's corner on the block's
@@ -95,7 +118,7 @@ impl Quad {
             pos[0] | pos[1] << 9 | pos[2] << 18 | u32::from(face) << 27,
             heights | u32::from(surface.texture) << 18 | surface.tint_kind << 30,
             u32::from(turn) | (surface.material as u32) << 9 | r << 11 | g << 18 | b << 25,
-        ])
+        ], [0; 4])
     }
 
     /// The axis face or cross plane this quad faces like: liquid faces map to their axis face.

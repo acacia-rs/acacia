@@ -7,7 +7,7 @@ use glam::DVec3;
 
 use super::Renderer;
 use super::globals::srgb_to_linear;
-use crate::biome::{BiomeColors, Fall};
+use crate::biome::BiomeColors;
 use crate::camera::Camera;
 use crate::fluid_view::{self, Fluid};
 use crate::look::FluidFog;
@@ -104,8 +104,7 @@ impl Renderer {
         self.atmosphere.last_tick = Some(now);
         let light_data = self.scene.as_ref().map(|s| s.light().clone());
         let sky_light = self.light_cache.reader(light_data.as_deref()).at(camera.position)[1] as u8;
-        let y = camera.position.y.floor() as i32;
-        let rains = camera.biome.is_none_or(|id| self.biomes.fall(id, y) != Fall::Nothing);
+        let rains = camera.biome.is_none_or(|id| self.biomes.climate(id).has_precipitation);
         self.atmosphere.rain_fog.update(rain, sky_light, rains, delta);
         self.atmosphere.rain_fog.multiplier
     }

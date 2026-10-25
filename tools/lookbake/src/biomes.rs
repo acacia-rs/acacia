@@ -64,6 +64,11 @@ pub struct Colors {
     pub water_fog_end: f32,
     /// The air's fog where the biome sets one (`minecraft:visual/fog_color`: the Nether's biomes).
     pub fog: Option<u32>,
+    /// `ClimateSettings`, for where it rains or snows (`acacia_render::weather::climate`).
+    pub temperature: f32,
+    pub has_precipitation: bool,
+    /// `temperature_modifier: frozen`.
+    pub frozen: bool,
 }
 
 /// The jar's 256×256 colormaps, row by row.
@@ -116,6 +121,9 @@ pub fn colors(biome: &Value, maps: &Colormaps) -> Option<Colors> {
         dry_foliage: color("dry_foliage_color").unwrap_or_else(|| mapped(&maps.dry_foliage)),
         water_fog: water_fog.unwrap_or(DEFAULT_WATER_FOG),
         water_fog_end: modified(&attributes["minecraft:visual/water_fog_end_distance"], WATER_FOG_END),
+        temperature,
+        has_precipitation: biome["has_precipitation"].as_bool().unwrap_or(true),
+        frozen: biome["temperature_modifier"].as_str() == Some("frozen"),
     })
 }
 
@@ -158,7 +166,12 @@ pub fn write(java: &BTreeMap<String, Colors>, look: &Path) -> Result<(), Error> 
             "dry_foliage_color": hex(c.dry_foliage),
             "water_fog_color": hex(c.water_fog),
             "water_fog_distance": [WATER_FOG_START, c.water_fog_end],
+            "temperature": c.temperature,
+            "has_precipitation": c.has_precipitation,
         });
+        if c.frozen {
+            entry["temperature_modifier"] = "frozen".into();
+        }
         if let Some(patch) = c.grass_patch {
             entry["grass_patch_color"] = hex(patch).into();
         }
@@ -193,7 +206,7 @@ mod tests {
         let plains = json!({"temperature": 0.8, "downfall": 0.4, "effects": {"water_color": "#3f76e4"}});
         let at = (((1.0 - 0.8f32 as f64 * 0.4f32 as f64) * 255.0) as u32) << 8 | ((1.0 - 0.8f32 as f64) * 255.0) as u32;
         let water_fog = (DEFAULT_WATER_FOG, WATER_FOG_END);
-        let plains_colors = Colors { water: 0x3F76E4, grass: at, grass_patch: None, foliage: at, dry_foliage: at, water_fog: water_fog.0, water_fog_end: water_fog.1, fog: None };
+        let plains_colors = Colors { water: 0x3F76E4, grass: at, grass_patch: None, foliage: at, dry_foliage: at, water_fog: water_fog.0, water_fog_end: water_fog.1, fog: None, temperature: 0.8, has_precipitation: true, frozen: false };
         assert_eq!(colors(&plains, &maps()), Some(plains_colors));
         let swamp = json!({"temperature": 0.8, "downfall": 0.9, "effects": {"water_color": "#617b64", "foliage_color": "#6a7039", "grass_color_modifier": "swamp"},
             "attributes": {"minecraft:visual/water_fog_color": "#232317", "minecraft:visual/water_fog_end_distance": {"argument": 0.85, "modifier": "multiply"}}});
@@ -202,6 +215,11 @@ mod tests {
         assert_eq!((swamp.water_fog, swamp.water_fog_end), (0x232317, 96.0 * 0.85));
         let dark = json!({"temperature": 2.0, "downfall": 0.0, "effects": {"water_color": "#000000", "grass_color": "#fefefe", "grass_color_modifier": "dark_forest"}});
         assert_eq!(colors(&dark, &maps()).unwrap().grass, (0xFEFEFE + 0x28340A) >> 1);
+        let frozen = json!({"temperature": 0.0, "downfall": 0.5, "has_precipitation": true, "temperature_modifier": "frozen", "effects": {"water_color": "#3938c9"}});
+        let frozen = colors(&frozen, &maps()).unwrap();
+        assert_eq!((frozen.temperature, frozen.has_precipitation, frozen.frozen), (0.0, true, true));
+        let desert = json!({"temperature": 2.0, "downfall": 0.0, "has_precipitation": false, "effects": {"water_color": "#3f76e4"}});
+        assert!(!colors(&desert, &maps()).unwrap().has_precipitation);
         assert_eq!(colors(&json!({"temperature": 0.5, "downfall": 0.5, "effects": {}}), &maps()), None);
     }
 
@@ -210,7 +228,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("lookbake-biomes-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let swamp = Colors { water: 0x617B64, grass: 0x6A7039, grass_patch: Some(0x4C763C), foliage: 1, dry_foliage: 2, water_fog: 0x232317, water_fog_end: 81.0, fog: Some(0x330808) };
+        let swamp = Colors { water: 0x617B64, grass: 0x6A7039, grass_patch: Some(0x4C763C), foliage: 1, dry_foliage: 2, water_fog: 0x232317, water_fog_end: 81.0, fog: Some(0x330808), temperature: 0.8, has_precipitation: true, frozen: true };
         write(&BTreeMap::from([("swamp".to_owned(), swamp)]), &dir).unwrap();
         let written: Value = serde_json::from_slice(&std::fs::read(dir.join("biomes_client.json")).unwrap()).unwrap();
         let of = |name: &str, key: &str| written["biomes"][name][key].as_str().map(str::to_owned);
@@ -220,6 +238,8 @@ mod tests {
         assert_eq!(of("minecraft:swampland", "water_fog_color"), Some("#232317".to_owned()));
         assert_eq!(of("minecraft:swampland", "fog_color"), Some("#330808".to_owned()));
         assert_eq!(written["biomes"]["minecraft:swampland"]["water_fog_distance"], json!([-8.0, 81.0]));
+        let swampland = &written["biomes"]["minecraft:swampland"];
+        assert_eq!((swampland["temperature"].as_f64(), swampland["has_precipitation"].as_bool(), of("minecraft:swampland", "temperature_modifier")), (Some(0.800000011920929), Some(true), Some("frozen".to_owned())));
         assert_eq!((of("default", "water_surface_color"), of("minecraft:swamp", "grass_color")), (Some("#3f76e4".to_owned()), None));
         std::fs::remove_dir_all(&dir).unwrap();
     }

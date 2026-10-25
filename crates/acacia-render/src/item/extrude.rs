@@ -1,9 +1,9 @@
 //! Flat item sprites as 3D meshes, after Java's `ItemModelGenerator`: a front and a back quad over
 //! the whole sprite, and a side face wherever an opaque texel borders a transparent one.
 
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 
-use crate::entity::bake::{Joint, Mesh, Vertex};
+use crate::entity::bake::{Mesh, Vertex};
 
 /// Java's item slab: z 7.5 to 8.5 of 16.
 const HALF_DEPTH: f32 = 0.5 / 16.0;
@@ -39,8 +39,7 @@ pub fn extrude(width: u32, height: u32, rgba: &[u8]) -> Mesh {
             }
         }
     }
-    let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
-    Mesh { vertices, bones: vec!["root".into()], joints: vec![joint] }
+    Mesh::one_bone(vertices)
 }
 
 fn side_face(out: &mut Vec<Vertex>, side: Side, x: i32, y: i32, width: u32, height: u32) {
