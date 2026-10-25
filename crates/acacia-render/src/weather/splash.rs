@@ -8,8 +8,8 @@ use crate::java_random::JavaRandom;
 
 pub trait SplashLevel: WeatherLevel {
     fn min_y(&self) -> i32;
-    /// The higher of the block's collision top at `(x, z)` within it (`VoxelShape.max(Y, x, z)`)
-    /// and its fluid's height, 0 to 1.
+    /// The higher of the block's collision top over `(x, z)` within it (boxes spanning `[min, max)`
+    /// there) and its fluid's height, 0 to 1.
     fn splash_top(&self, p: [i32; 3], x: f64, z: f64) -> f64;
     /// Lava, a magma block or a lit campfire: it smokes instead of splashing.
     fn smokes(&self, p: [i32; 3]) -> bool;
@@ -69,7 +69,8 @@ impl RainTicker {
                 break;
             }
             let (bx, bz) = (random.next_double(), random.next_double());
-            let y = level.splash_top(below, bx, bz);
+            // VoxelShape.max(Y, b, c) reads b along z and c along x: the game's call swaps them.
+            let y = level.splash_top(below, bz, bx);
             let pos = DVec3::new(f64::from(x) + bx, f64::from(below[1]) + y, f64::from(z) + bz);
             splashes.push(Splash { smoke: level.smokes(below), pos });
         }

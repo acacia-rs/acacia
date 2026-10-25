@@ -78,7 +78,7 @@ impl SplashLevel for WorldWeather<'_> {
 
     fn splash_top(&self, p: [i32; 3], x: f64, z: f64) -> f64 {
         let Some((block, liquid)) = self.states(p) else { return 0.0 };
-        let inside = |b: &&Aabb| (f64::from(b.min[0])..=f64::from(b.max[0])).contains(&x) && (f64::from(b.min[2])..=f64::from(b.max[2])).contains(&z);
+        let inside = |b: &&Aabb| (f64::from(b.min[0])..f64::from(b.max[0])).contains(&x) && (f64::from(b.min[2])..f64::from(b.max[2])).contains(&z);
         let top = block.boxes.iter().filter(inside).map(|b| f64::from(b.max[1])).fold(0.0, f64::max);
         let fluid = if block.is_liquid() { block } else { liquid };
         // FluidState.getHeight: a full block under more of the same fluid.

@@ -114,7 +114,7 @@ impl CloudPass {
         if self.mesh.as_ref().is_none_or(|m| m.key != key) {
             self.mesh = Some(build(device, queue, map, &frame, layer.fancy, radius, key));
         }
-        let [a, r, g, b] = layer.color.to_be_bytes().map(|c| f32::from(c) / 255.0);
+        let [r, g, b, a] = clouds::color(layer.color);
         let uniform = [r, g, b, a, frame.offset.x, frame.offset.y, frame.offset.z, layer.fog_end];
         queue.write_buffer(&self.uniform, 0, bytemuck::cast_slice(&uniform));
         self.visible = self.mesh.as_ref().is_some_and(|m| m.index_count > 0);

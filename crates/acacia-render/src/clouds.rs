@@ -49,7 +49,8 @@ impl CloudMap {
         CloudMap { width, height, cells }
     }
 
-    fn cell(&self, x: i32, z: i32) -> u8 {
+    /// 0 for no cloud, else 16 and the empty neighbours (north 8, east 4, south 2, west 1).
+    pub fn cell(&self, x: i32, z: i32) -> u8 {
         self.cells[(x.rem_euclid(self.width) + z.rem_euclid(self.height) * self.width) as usize]
     }
 }
@@ -67,6 +68,12 @@ pub struct CloudLayer {
     pub range: i32,
     /// `FogCloudsEnd`: the range's blocks or `visual/cloud_fog_end_distance`, the nearer.
     pub fog_end: f32,
+}
+
+/// `CloudColor` of an ARGB colour (`ARGB.vector4fFromARGB32`), RGBA.
+pub fn color(argb: u32) -> [f32; 4] {
+    let [a, r, g, b] = argb.to_be_bytes().map(|c| f32::from(c) / 255.0);
+    [r, g, b, a]
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

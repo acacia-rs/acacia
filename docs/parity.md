@@ -79,3 +79,5 @@ Cases and divergences as of the last merge that touched the harness.
 | Harness | What | Cases | Divergences | Owner |
 |---|---|---|---|---|
 | `bake` | every block state's baked quads (corners, texture, UVs, cull, tint, shade direction, AO) and alternatives (35,723 states, 644 with alternatives picked at 48 positions), off-grid shifts (39 blocks), biome colours (67 biomes, grass at 64 columns), AO shade (22,091 mapped Bedrock states); probe `lookbake java-check` | 57,920 | 0 | lookbake |
+| `weather` | rain/snow columns and quads from `extractRenderState` over random scenes (400: heights, biomes, unloaded chunks, light), height-adjusted temperature and precipitation per biome (4,000 positions), `tickWeatherEffects` splashes and rain sound over 8 ticks (400 scenes, 21 ground blocks, all particle options), lightning bolt vertices (400 seeds); probe `weather_probe` | 5,200 | 0 | atmos (weather) |
+| `clouds` | cloud-map cells and empty neighbours (vanilla and 4 made-up maps), per frame `CloudInfo` (colour, offset, cell size) and fancy/fast faces in build order (120 frames, ranges 2–128); probe `clouds_probe` | 125 | 0 | atmos (clouds) |
