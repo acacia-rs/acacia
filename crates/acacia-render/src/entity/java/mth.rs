@@ -33,14 +33,19 @@ pub fn rot_lerp_rad(amount: f32, from: f32, to: f32) -> f32 {
 
 /// `Mth.rotLerp`: wraps the difference as degrees, though models hand it radians.
 pub fn rot_lerp(amount: f32, from: f32, to: f32) -> f32 {
-    let mut diff = (to - from) % 360.0;
-    if diff >= 180.0 {
-        diff -= 360.0;
+    from + amount * wrap_degrees(to - from)
+}
+
+/// `Mth.wrapDegrees(float)`: into [-180, 180).
+pub fn wrap_degrees(angle: f32) -> f32 {
+    let mut angle = angle % 360.0;
+    if angle >= 180.0 {
+        angle -= 360.0;
     }
-    if diff < -180.0 {
-        diff += 360.0;
+    if angle < -180.0 {
+        angle += 360.0;
     }
-    from + amount * diff
+    angle
 }
 
 /// Java's `(float) (Math.PI / d)`: divided in double, then rounded once.

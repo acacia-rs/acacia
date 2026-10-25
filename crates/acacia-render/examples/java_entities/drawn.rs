@@ -1,13 +1,13 @@
 //! A model drawn as the entity pass draws it: the look's mesh, `Mesh::skin`'s bone matrices, the
-//! pass's placement (`gpu/entities.rs`) and the shader's normal (`entity.wgsl`: the bone matrix
-//! times the normal, normalised).
+//! pass's placement (`gpu/entities.rs`) and the shader's normal (`entity.wgsl`: the bone
+//! matrix's inverse transpose times the normal, normalised).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use acacia_render::entity::Pose;
 use acacia_render::entity::java::{Part, Poses, mesh};
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat3, Mat4, Vec3};
 use serde_json::Value;
 
 use crate::compare::{Case, Report, floats};
@@ -24,9 +24,12 @@ pub fn corners(model: &Part, poses: &Poses, yaw: f32, scale: f32) -> BTreeMap<St
             continue;
         }
         let m = body * bone;
+        let (c0, c1, c2) = (m.x_axis.truncate(), m.y_axis.truncate(), m.z_axis.truncate());
+        let flip = if c0.dot(c1.cross(c2)) < 0.0 { -1.0 } else { 1.0 };
+        let normal = Mat3::from_cols(c1.cross(c2), c2.cross(c0), c0.cross(c1));
         let corner = |&[x, y, z, u, v]: &[f32; 5], n: [f32; 3]| {
             let p = m.transform_point3(Vec3::new(x, y, z) / 16.0);
-            let n = (m * Vec4::new(n[0], n[1], n[2], 0.0)).truncate().normalize_or_zero();
+            let n = (normal * Vec3::from(n) * flip).normalize_or_zero();
             [p.x, p.y, p.z, n.x, n.y, n.z, u, v]
         };
         out.insert(path, part.polygons.iter().flat_map(|q| q.vertices.iter().map(move |c| corner(c, q.normal))).collect());
@@ -73,6 +76,10 @@ pub fn compare_posed(case: &mut Case, record: &Value, model: &Part, poses: &Pose
     let expected = record["drawn"].as_object().cloned().unwrap_or_default();
     for (path, list) in &expected {
         let Some(got) = ours.get(path) else {
+            // A part scaled to nothing: Java draws it as a point, the mesh collapses it (mesh.rs).
+            if collapsed(list) {
+                continue;
+            }
             case.diverge(&format!("drawn {path}"), "drawn", "not drawn");
             continue;
         };
@@ -91,4 +98,10 @@ pub fn compare_posed(case: &mut Case, record: &Value, model: &Part, poses: &Pose
     for path in ours.keys().filter(|p| !expected.contains_key(*p)) {
         case.diverge(&format!("drawn {path}"), "not drawn", "drawn");
     }
+}
+
+/// Whether every corner of a part sits at one point.
+fn collapsed(list: &Value) -> bool {
+    let corners: Vec<Vec<f32>> = list.as_array().into_iter().flatten().map(floats).collect();
+    corners.windows(2).all(|w| w[0][..3].iter().zip(&w[1][..3]).all(|(a, b)| (a - b).abs() < 1e-6))
 }

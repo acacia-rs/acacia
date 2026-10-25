@@ -19,6 +19,9 @@ mod critters;
 mod nether;
 mod axolotl;
 mod stand;
+mod keyframed;
+mod layers;
+mod dragon;
 
 pub use arms::ArmPose;
 pub use humanoid::{Humanoid, Model};
@@ -108,78 +111,21 @@ pub enum Family {
     /// `ArmorStandModel` and its armour's `ArmorStandArmorModel`.
     ArmorStand,
     Tadpole,
-}
-
-impl Family {
-    /// The family of a layer (`minecraft:cow#main`, `minecraft:zombie_baby#main`); `None` for
-    /// one not ported yet.
-    pub fn of_layer(layer: &str) -> Option<Family> {
-        let (name, part) = layer.trim_start_matches("minecraft:").split_once('#').unwrap_or((layer, "main"));
-        if (name, part) == ("player", "cape") {
-            return Some(Family::PlayerCape);
-        }
-        if part != "main" {
-            return None;
-        }
-        Some(match name.trim_end_matches("_baby") {
-            "cow" | "cold_cow" | "warm_cow" | "mooshroom" | "pig" | "cold_pig" | "warm_pig" => Family::Quadruped,
-            "sheep" => Family::Sheep,
-            "chicken" | "cold_chicken" | "warm_chicken" if name.ends_with("_baby") => Family::BabyChicken,
-            "chicken" | "cold_chicken" | "warm_chicken" => Family::Chicken,
-            "creeper" => Family::Creeper,
-            "spider" | "cave_spider" => Family::Spider,
-            "zombie" | "husk" | "giant" | "zombie_villager" => Family::Zombie,
-            "tadpole" => Family::Tadpole,
-            "drowned" => Family::Drowned,
-            "skeleton" | "stray" | "wither_skeleton" | "bogged" | "parched" => Family::Skeleton,
-            "player" => Family::Player,
-            "player_slim" => Family::PlayerSlim,
-            "elytra" => Family::Elytra,
-            "silverfish" => Family::Silverfish,
-            "endermite" => Family::Endermite,
-            "blaze" => Family::Blaze,
-            "ghast" => Family::Ghast,
-            "iron_golem" => Family::IronGolem,
-            "snow_golem" => Family::SnowGolem,
-            "villager" | "wandering_trader" => Family::Villager,
-            "piglin" | "piglin_brute" => Family::Piglin,
-            "zombified_piglin" => Family::ZombifiedPiglin,
-            "enderman" => Family::Enderman,
-            "witch" => Family::Witch,
-            "vex" => Family::Vex,
-            "vindicator" | "evoker" | "pillager" | "illusioner" => Family::Illager,
-            "slime" => Family::Slime,
-            "magma_cube" => Family::MagmaCube,
-            "polar_bear" => Family::PolarBear,
-            "goat" => Family::Goat,
-            "turtle" => Family::Turtle,
-            "panda" => Family::Panda,
-            "hoglin" | "zoglin" => Family::Hoglin,
-            "wolf" => Family::Wolf,
-            "llama" | "trader_llama" => Family::Llama,
-            "squid" | "glow_squid" => Family::Squid,
-            "dolphin" => Family::Dolphin,
-            "cat" | "ocelot" => Family::Feline,
-            "cod" | "tropical_fish_large" | "tropical_fish_small" => Family::Fish,
-            "salmon" | "salmon_small" | "salmon_large" => Family::Salmon,
-            "pufferfish_big" | "pufferfish_medium" | "pufferfish_small" => Family::Pufferfish,
-            "guardian" | "elder_guardian" => Family::Guardian,
-            "phantom" => Family::Phantom,
-            "allay" => Family::Allay,
-            "horse" | "skeleton_horse" | "zombie_horse" => Family::Horse,
-            "donkey" | "mule" => Family::Donkey,
-            "bee" => Family::Bee,
-            "parrot" => Family::Parrot,
-            "fox" if !name.ends_with("_baby") => Family::Fox,
-            "strider" => Family::Strider,
-            "ravager" => Family::Ravager,
-            "shulker" => Family::Shulker,
-            "wither" => Family::Wither,
-            "axolotl" if !name.ends_with("_baby") => Family::Axolotl,
-            "armor_stand" | "armor_stand_small" => Family::ArmorStand,
-            _ => return None,
-        })
-    }
+    BabyFox,
+    BabyAxolotl,
+    Bat,
+    Rabbit,
+    Frog,
+    Armadillo,
+    Camel,
+    Sniffer,
+    Breeze,
+    Creaking,
+    Warden,
+    CopperGolem,
+    Nautilus,
+    EnderDragon,
+    HappyGhast,
 }
 
 /// Runs `family`'s `setupAnim` on poses fresh from the model (every part at its initial pose).
@@ -242,7 +188,22 @@ pub fn setup(family: Family, s: &RenderState, p: &mut Poses) {
         Family::Donkey => equine::equine(p, s, true),
         Family::Bee => critters::bee(p, s),
         Family::Parrot => critters::parrot(p, s),
-        Family::Fox => critters::fox(p, s),
+        Family::Fox => critters::fox(p, s, false),
+        Family::BabyFox => critters::fox(p, s, true),
+        Family::BabyAxolotl => keyframed::baby_axolotl(p, s),
+        Family::Bat => keyframed::bat(p, s),
+        Family::Rabbit => keyframed::rabbit(p, s),
+        Family::Frog => keyframed::frog(p, s),
+        Family::Armadillo => keyframed::armadillo(p, s),
+        Family::Camel => keyframed::camel(p, s),
+        Family::Sniffer => keyframed::sniffer(p, s),
+        Family::Breeze => keyframed::breeze(p, s),
+        Family::Creaking => keyframed::creaking(p, s),
+        Family::Warden => keyframed::warden(p, s),
+        Family::CopperGolem => keyframed::copper_golem(p, s),
+        Family::Nautilus => keyframed::nautilus(p, s),
+        Family::EnderDragon => dragon::ender_dragon(p, s),
+        Family::HappyGhast => simple::happy_ghast(p, s),
         Family::Strider => nether::strider(p, s),
         Family::Ravager => nether::ravager(p, s),
         Family::Shulker => nether::shulker(p, s),

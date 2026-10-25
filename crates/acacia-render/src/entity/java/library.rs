@@ -55,6 +55,7 @@ impl Library {
                 return Library::default();
             }
         };
+        super::keyframes::install(root);
         let mut out = Library::default();
         let mut baked: HashMap<&str, ModelId> = HashMap::new();
         let mut variant = |look: &Look, families: &mut HashMap<ModelId, Family>| -> Option<(ModelId, TextureId)> {

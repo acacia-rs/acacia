@@ -54,7 +54,8 @@ const fn overlay(suffix: &'static str, texture: &'static str, baby_texture: Opti
     Overlay { suffix, texture, baby_texture, when }
 }
 
-pub const OVERLAYS: [(&str, Overlay); 12] = [
+pub const OVERLAYS: [(&str, Overlay); 13] = [
+    ("minecraft:ender_dragon", overlay("main", "enderdragon/dragon_eyes", None, When::Eyes)),
     ("minecraft:wither", overlay("armor", "wither/wither_armor", None, When::Powered)),
     ("minecraft:phantom", overlay("main", "phantom/phantom_eyes", None, When::Eyes)),
     ("minecraft:slime", overlay("outer", "slime/slime", None, When::Translucent)),
@@ -70,13 +71,28 @@ pub const OVERLAYS: [(&str, Overlay); 12] = [
 ];
 
 // TODO: climate variants (cold/warm cows, pigs, chickens), wolf and panda variants, wolf collars,
-// llama decor, tropical fish shapes and patterns, puffed pufferfish, salmon sizes, horse markings and saddles, the keyframed baby fox, snowy sleeping foxes, angry bees with nectar,
+// llama decor, tropical fish shapes and patterns, puffed pufferfish, salmon sizes, horse markings and saddles, snowy sleeping foxes, breeze wind and eyes, creaking and warden layers, angry bees with nectar,
 // shulker colours and attachment, cold striders, the wither's invulnerable blink.
-pub const KINDS: [(&str, Kind); 74] = [
+pub const KINDS: [(&str, Kind); 89] = [
+    ("minecraft:ender_dragon", adult("minecraft:ender_dragon#main", "enderdragon/dragon")),
+    ("minecraft:happy_ghast", both("minecraft:happy_ghast#main", "ghast/happy_ghast", "minecraft:happy_ghast_baby#main", "ghast/happy_ghast_baby")),
+    ("minecraft:bat", adult("minecraft:bat#main", "bat/bat")),
+    ("minecraft:rabbit", both("minecraft:rabbit#main", "rabbit/rabbit_brown", "minecraft:rabbit_baby#main", "rabbit/rabbit_brown_baby")),
+    ("minecraft:frog", adult("minecraft:frog#main", "frog/frog_temperate")),
+    ("minecraft:armadillo", both("minecraft:armadillo#main", "armadillo/armadillo", "minecraft:armadillo_baby#main", "armadillo/armadillo_baby")),
+    ("minecraft:camel", both("minecraft:camel#main", "camel/camel", "minecraft:camel_baby#main", "camel/camel_baby")),
+    ("minecraft:camel_husk", adult("minecraft:camel#main", "camel/camel_husk")),
+    ("minecraft:sniffer", both("minecraft:sniffer#main", "sniffer/sniffer", "minecraft:sniffer_baby#main", "sniffer/snifflet")),
+    ("minecraft:breeze", adult("minecraft:breeze#main", "breeze/breeze")),
+    ("minecraft:creaking", adult("minecraft:creaking#main", "creaking/creaking")),
+    ("minecraft:warden", adult("minecraft:warden#main", "warden/warden")),
+    ("minecraft:copper_golem", adult("minecraft:copper_golem#main", "copper_golem/copper_golem")),
+    ("minecraft:nautilus", both("minecraft:nautilus#main", "nautilus/nautilus", "minecraft:nautilus_baby#main", "nautilus/nautilus_baby")),
+    ("minecraft:zombie_nautilus", adult("minecraft:zombie_nautilus#main", "nautilus/zombie_nautilus")),
     ("minecraft:tadpole", adult("minecraft:tadpole#main", "tadpole/tadpole")),
     ("minecraft:zombie_villager_v2", both("minecraft:zombie_villager#main", "zombie_villager/zombie_villager", "minecraft:zombie_villager_baby#main", "zombie_villager/zombie_villager_baby")),
     ("minecraft:zombie_villager", both("minecraft:zombie_villager#main", "zombie_villager/zombie_villager", "minecraft:zombie_villager_baby#main", "zombie_villager/zombie_villager_baby")),
-    ("minecraft:axolotl", adult("minecraft:axolotl#main", "axolotl/axolotl_lucy")),
+    ("minecraft:axolotl", both("minecraft:axolotl#main", "axolotl/axolotl_lucy", "minecraft:axolotl_baby#main", "axolotl/axolotl_lucy_baby")),
     ("minecraft:armor_stand", adult("minecraft:armor_stand#main", "armorstand/armorstand")),
     ("minecraft:strider", both("minecraft:strider#main", "strider/strider", "minecraft:strider_baby#main", "strider/strider_baby")),
     ("minecraft:ravager", adult("minecraft:ravager#main", "illager/ravager")),
@@ -84,7 +100,7 @@ pub const KINDS: [(&str, Kind); 74] = [
     ("minecraft:wither", adult("minecraft:wither#main", "wither/wither")),
     ("minecraft:bee", both("minecraft:bee#main", "bee/bee", "minecraft:bee_baby#main", "bee/bee_baby")),
     ("minecraft:parrot", adult("minecraft:parrot#main", "parrot/parrot_red_blue")),
-    ("minecraft:fox", adult("minecraft:fox#main", "fox/fox")),
+    ("minecraft:fox", both("minecraft:fox#main", "fox/fox", "minecraft:fox_baby#main", "fox/fox_baby")),
     ("minecraft:horse", both("minecraft:horse#main", "horse/horse_white", "minecraft:horse_baby#main", "horse/horse_white_baby")),
     ("minecraft:donkey", both("minecraft:donkey#main", "horse/donkey", "minecraft:donkey_baby#main", "horse/donkey_baby")),
     ("minecraft:mule", both("minecraft:mule#main", "horse/mule", "minecraft:mule_baby#main", "horse/mule_baby")),
@@ -151,7 +167,14 @@ pub const KINDS: [(&str, Kind); 74] = [
 
 /// Textures picked over the kind's own while a query answers a value: (kind, query, value,
 /// adult's, own baby's).
-pub const VARIANTS: [(&str, &str, i32, &str, &str); 39] = [
+pub const VARIANTS: [(&str, &str, i32, &str, &str); 46] = [
+    ("minecraft:frog", "variant", 1, "frog/frog_cold", "frog/frog_cold"),
+    ("minecraft:frog", "variant", 2, "frog/frog_warm", "frog/frog_warm"),
+    ("minecraft:rabbit", "variant", 1, "rabbit/rabbit_white", "rabbit/rabbit_white_baby"),
+    ("minecraft:rabbit", "variant", 2, "rabbit/rabbit_black", "rabbit/rabbit_black_baby"),
+    ("minecraft:rabbit", "variant", 3, "rabbit/rabbit_white_splotched", "rabbit/rabbit_white_splotched_baby"),
+    ("minecraft:rabbit", "variant", 4, "rabbit/rabbit_gold", "rabbit/rabbit_gold_baby"),
+    ("minecraft:rabbit", "variant", 5, "rabbit/rabbit_salt", "rabbit/rabbit_salt_baby"),
     ("minecraft:axolotl", "variant", 1, "axolotl/axolotl_cyan", "axolotl/axolotl_cyan_baby"),
     ("minecraft:axolotl", "variant", 2, "axolotl/axolotl_gold", "axolotl/axolotl_gold_baby"),
     ("minecraft:axolotl", "variant", 3, "axolotl/axolotl_wild", "axolotl/axolotl_wild_baby"),

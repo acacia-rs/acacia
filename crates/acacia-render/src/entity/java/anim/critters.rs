@@ -2,6 +2,7 @@
 
 use std::f32::consts::PI;
 
+use super::super::keyframes;
 use super::super::mth::{cos, pi_div, rot_lerp_rad, sin};
 use super::super::poses::Poses;
 use super::super::state::RenderState;
@@ -99,19 +100,24 @@ pub(super) fn parrot(p: &mut Poses, s: &RenderState) {
     }
 }
 
-/// `AdultFoxModel` (the baby's is keyframed): walking, crouching, sleeping, sitting, pouncing.
+/// `AdultFoxModel` and `BabyFoxModel` (whose walk is keyframed): walking, crouching, sleeping,
+/// sitting, pouncing.
 // TODO: faceplanting; Java keeps its leg motion in the model between frames.
-pub(super) fn fox(p: &mut Poses, s: &RenderState) {
+pub(super) fn fox(p: &mut Poses, s: &RenderState, baby: bool) {
     let (pos, speed, age) = (s.walk_pos(), s.walk_speed(), s.age());
     let legs = ["right_hind_leg", "left_hind_leg", "right_front_leg", "left_front_leg"];
     p.z_rot("head", s.num("headRollAngle"));
     for leg in legs {
         p.set_visible(leg, true);
     }
-    p.x_rot("right_hind_leg", cos(pos * 0.6662) * 1.4 * speed);
-    p.x_rot("left_hind_leg", cos(pos * 0.6662 + PI) * 1.4 * speed);
-    p.x_rot("right_front_leg", cos(pos * 0.6662 + PI) * 1.4 * speed);
-    p.x_rot("left_front_leg", cos(pos * 0.6662) * 1.4 * speed);
+    if baby {
+        keyframes::apply_walk(p, "FoxBabyAnimation.FOX_BABY_WALK", pos, speed, 1.0, 2.5);
+    } else {
+        p.x_rot("right_hind_leg", cos(pos * 0.6662) * 1.4 * speed);
+        p.x_rot("left_hind_leg", cos(pos * 0.6662 + PI) * 1.4 * speed);
+        p.x_rot("right_front_leg", cos(pos * 0.6662 + PI) * 1.4 * speed);
+        p.x_rot("left_front_leg", cos(pos * 0.6662) * 1.4 * speed);
+    }
     let (crouching, sleeping, crouch) = (s.flag("isCrouching"), s.flag("isSleeping"), s.num("crouchAmount"));
     if crouching {
         p.get("body").x_rot += 0.104_719_76;
@@ -122,24 +128,32 @@ pub(super) fn fox(p: &mut Poses, s: &RenderState) {
         p.z_rot("left_hind_leg", wiggle);
         p.z_rot("right_front_leg", wiggle / 2.0);
         p.z_rot("left_front_leg", wiggle / 2.0);
-        p.get("body").y += crouch;
+        p.get("body").y += if baby { crouch / 6.0 } else { crouch };
     } else if sleeping {
         for leg in legs {
             p.set_visible(leg, false);
         }
-        let body = p.get("body");
-        body.z_rot = -PI / 2.0;
-        body.y += 5.0;
-        p.x_rot("tail", (-std::f64::consts::PI * 5.0 / 6.0) as f32);
-        let head = p.get("head");
-        head.x += 2.0;
-        head.y += 2.99;
-        head.y_rot = (-std::f64::consts::PI * 2.0 / 3.0) as f32;
-        head.z_rot = 0.0;
+        if baby {
+            baby_fox_sleeping(p);
+        } else {
+            let body = p.get("body");
+            body.z_rot = -PI / 2.0;
+            body.y += 5.0;
+            p.x_rot("tail", (-std::f64::consts::PI * 5.0 / 6.0) as f32);
+            let head = p.get("head");
+            head.x += 2.0;
+            head.y += 2.99;
+            head.y_rot = (-std::f64::consts::PI * 2.0 / 3.0) as f32;
+            head.z_rot = 0.0;
+        }
     } else if s.flag("isSitting") {
-        fox_sitting(p);
+        if baby {
+            baby_fox_sitting(p, s.age_scale());
+        } else {
+            fox_sitting(p);
+        }
     }
-    if s.flag("isPouncing") {
+    if s.flag("isPouncing") && !baby {
         let half = crouch / 2.0;
         p.get("body").y -= half;
         p.get("head").y -= half;
@@ -151,6 +165,51 @@ pub(super) fn fox(p: &mut Poses, s: &RenderState) {
         let head = p.get("head");
         (head.x_rot, head.y_rot, head.z_rot) = (0.0, (-std::f64::consts::PI * 2.0 / 3.0) as f32, cos(age * 0.027) / 22.0);
     }
+}
+
+fn baby_fox_sitting(p: &mut Poses, scale: f32) {
+    let head = p.get("head");
+    (head.x_rot, head.y_rot) = (0.0, 0.0);
+    head.y -= 0.75;
+    let body = p.get("body");
+    body.x_rot = -0.959_931;
+    body.z -= 4.5 * scale;
+    body.y += 3.0 * scale;
+    let tail = p.get("tail");
+    tail.y -= 0.6;
+    tail.z -= 2.0 * scale;
+    tail.x_rot = 0.959_931_14;
+    for (leg, dx) in [("right_front_leg", 0.01), ("left_front_leg", -0.01)] {
+        let part = p.get(leg);
+        part.x_rot = pi_div(-12.0);
+        part.z -= 1.5;
+        part.x += dx;
+    }
+    for (leg, dx) in [("right_hind_leg", 0.01), ("left_hind_leg", -0.01)] {
+        let part = p.get(leg);
+        part.z -= 3.75;
+        part.x += dx;
+    }
+}
+
+fn baby_fox_sleeping(p: &mut Poses) {
+    let body = p.get("body");
+    body.z_rot = -PI / 2.0;
+    body.x_rot = pi_div(-18.0);
+    body.y += 1.5;
+    body.z -= 1.5;
+    body.x -= 1.5;
+    let tail = p.get("tail");
+    tail.x_rot = -2.181_661_6;
+    tail.x -= 0.7;
+    tail.z += 0.6;
+    tail.y += 0.9;
+    let head = p.get("head");
+    head.x -= 2.0;
+    head.y += 2.8;
+    head.z -= 4.0;
+    head.y_rot = (-std::f64::consts::PI * 2.0 / 3.0) as f32;
+    head.z_rot = 0.0;
 }
 
 fn fox_sitting(p: &mut Poses) {

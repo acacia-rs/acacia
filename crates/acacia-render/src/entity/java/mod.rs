@@ -8,6 +8,7 @@ pub mod bedrock;
 pub mod draw;
 pub mod equipment;
 pub mod joml;
+pub mod keyframes;
 pub mod kinds;
 pub mod library;
 pub mod mesh;
