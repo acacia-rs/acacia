@@ -29,11 +29,37 @@ pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderStat
         .set("ageScale", Field::Num(if baby { 0.5 } else { 1.0 }))
         .set("isCrouching", Field::Flag(flag("is_sneaking")))
         .set("isPassenger", Field::Flag(flag("is_riding")))
-        .set("isAggressive", Field::Flag(aggressive));
+        .set("isAggressive", Field::Flag(aggressive))
+        .set("isAngry", Field::Flag(aggressive))
+        .set("isSitting", Field::Flag(flag("is_sitting")))
+        .set("isSprinting", Field::Flag(flag("is_sprinting")))
+        .set("isMoving", Field::Flag(flag("is_moving")))
+        .set("hasChest", Field::Flag(flag("is_chested")))
+        .set("isOnLand", Field::Flag(!flag("is_in_water")))
+        .set("isInWater", Field::Flag(flag("is_in_water")))
+        .set("isOnGround", Field::Flag(flag("is_on_ground")))
+        .set("isSleeping", Field::Flag(flag("is_sleeping")));
+    if family == Family::Parrot {
+        // ParrotRenderer.getPose.
+        let pose = if !flag("is_on_ground") {
+            "FLYING"
+        } else if flag("is_sitting") {
+            "SITTING"
+        } else if flag("is_dancing") {
+            "PARTY"
+        } else {
+            "STANDING"
+        };
+        s.set("pose", Field::Text(pose.into()));
+    }
     if let Some(item) = &held {
         // Bedrock mobs hold in the right hand (mainArm RIGHT).
-        s.set("rightHandItemStack", Field::Text(format!("minecraft:{item}")));
+        s.set("rightHandItemStack", Field::Text(format!("minecraft:{item}"))).set("rightHandItemState", Field::Flag(true));
     }
+    if let Some(pose) = mob_arm_pose(family, held.as_deref(), aggressive, &flag) {
+        s.set("armPose", Field::Text(pose.into()));
+    }
+    s.set("isCreepy", Field::Flag(family == Family::Enderman && aggressive)).set("isCharging", Field::Flag(flag("is_charging")));
     // getArmPose: HumanoidMobRenderer's EMPTY, AbstractSkeletonRenderer's bow and
     // DrownedRenderer's trident, in the main (right) arm of an aggressive mob.
     // TODO: SPEAR for a held spear or a stab swing.
@@ -52,6 +78,24 @@ pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderStat
         s.set("headEatPositionScale", Field::Num(position)).set("headEatAngleScale", Field::Num(angle));
     }
     s
+}
+
+/// `AbstractIllager.getArmPose` (the pillager's, vindicator's and evoker's together) and
+/// `Piglin.getArmPose`.
+// TODO: crossbow charging and dancing piglins; the viewer answers no query for them yet.
+fn mob_arm_pose(family: Family, held: Option<&str>, aggressive: bool, flag: &dyn Fn(&str) -> bool) -> Option<&'static str> {
+    let crossbow = held == Some("crossbow");
+    Some(match family {
+        Family::Illager if crossbow => "CROSSBOW_HOLD",
+        Family::Illager if flag("is_casting") => "SPELLCASTING",
+        Family::Illager if aggressive => "ATTACKING",
+        Family::Illager if flag("is_celebrating") => "CELEBRATING",
+        Family::Illager => "CROSSED",
+        Family::Piglin if flag("is_admiring") => "ADMIRING_ITEM",
+        Family::Piglin if aggressive && crossbow => "CROSSBOW_HOLD",
+        Family::Piglin if aggressive && held.is_some_and(|item| item.ends_with("_sword") || item.ends_with("_axe")) => "ATTACKING_WITH_MELEE_WEAPON",
+        _ => return None,
+    })
 }
 
 #[cfg(test)]

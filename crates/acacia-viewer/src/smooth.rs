@@ -166,7 +166,7 @@ impl Smoother {
             let (Some(model), Some(items)) = (self.dropped.get(&e.runtime_id), &self.items) else { return Vec::new() };
             let age_ticks = life / SNAPSHOT_SECS;
             let at = Drop { feet: m.position, count: stack.count, seed: stack.seed, age_ticks, bob_offset: drop::bob_offset(e.runtime_id) };
-            return drop::instances(model, items.dropped(), &at);
+            return drop::instances(model, items.dropped(), &at, camera);
         }
         let query = |name: &str| {
             Value::Num(match name {

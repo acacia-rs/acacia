@@ -2,6 +2,7 @@
 //! translucent passes.
 
 mod adjacency;
+pub mod drawn;
 mod greedy;
 pub mod liquid;
 pub mod model;
