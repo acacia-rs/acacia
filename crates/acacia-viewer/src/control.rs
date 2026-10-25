@@ -141,7 +141,10 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
     let (banner, map) = (crate::item_look::banner(&name, s), s.map_id().and_then(|id| bot.state().maps.get(id).cloned()));
-    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color(), banner, map, title: s.custom_name.clone(), enchantments: s.enchantments(), lore: s.lore.clone(), trim: s.trim().map(|(material, _)| material) })
+    let durability = acacia_bot::workstation::max_durability(&name).map(|max| (s.damage(), max));
+    let (block, enchanted, dye, title) = (block_of(bot, s), s.is_enchanted(), s.custom_color(), s.custom_name.clone());
+    let trim = s.trim().map(|(material, _)| material);
+    Some(Stack { name, aux: s.metadata, count: s.count, block, enchanted, dye, banner, map, title, enchantments: s.enchantments(), lore: s.lore.clone(), trim, durability })
 }
 
 /// The player list's names, sorted.
@@ -209,6 +212,8 @@ pub struct Stack {
     pub lore: Vec<String>,
     /// An armour trim's material (`quartz`).
     pub trim: Option<String>,
+    /// Damage taken and the item's maximum, for the items whose durability the bot knows.
+    pub durability: Option<(i32, u16)>,
 }
 
 /// What a grid or workstation still holds goes back into the inventory first.

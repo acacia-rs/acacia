@@ -4,6 +4,7 @@
 //! here: every stack gets its item's name key and [`MAX_STACK`], and no rarity (common).
 
 use acacia_render::item::JavaItems;
+use acacia_ui::java::hud::decor::{self, ItemDecorations};
 use acacia_ui::java::tooltip::game::Game;
 use acacia_ui::java::tooltip::stack::ItemStack;
 use serde_json::{Map, Value, json};
@@ -58,6 +59,10 @@ pub fn item_stack(stack: &Stack, items: Option<&JavaItems>, lang: &JavaLang, key
         let layer = |&(pattern, dye): &(&str, u8)| json!({"pattern": format!("minecraft:{pattern}"), "color": DYES[usize::from(dye) % 16]});
         c.insert("minecraft:banner_patterns".into(), Value::Array(banner.layers.iter().map(layer).collect()));
     }
+    if let Some((damage, max)) = stack.durability {
+        c.insert("minecraft:damage".into(), json!(damage));
+        c.insert("minecraft:max_damage".into(), json!(max));
+    }
     if let Some(color) = path.strip_suffix("_dye").filter(|c| DYES.contains(c)) {
         c.insert("minecraft:dye".into(), json!(color));
     }
@@ -74,7 +79,28 @@ pub fn facts() -> Game {
     Game::new(json!({ "enchantment": Value::Object(ENCHANTMENTS.iter().map(entry).collect()) }))
 }
 
+/// What `itemDecorations` draws over `stack`: its count and damage bar. Bundle contents aren't
+/// in a Bedrock stack, so a bundle shows no weight bar.
+pub fn decorations(stack: &Stack, key: i32, count: Option<&str>) -> ItemDecorations {
+    decor::of_stack(&item_stack(stack, None, &JavaLang::new(), key), &Game::new(Value::Null), count)
+}
+
 /// A stack of one plain item (the beacon's payment icons, tab icons).
 pub fn plain(name: &str) -> Stack {
-    Stack { name: name.to_owned(), aux: 0, count: 1, block: 0, enchanted: false, dye: None, banner: None, map: None, title: None, enchantments: Vec::new(), lore: Vec::new(), trim: None }
+    Stack { name: name.to_owned(), aux: 0, count: 1, block: 0, enchanted: false, dye: None, banner: None, map: None, title: None, enchantments: Vec::new(), lore: Vec::new(), trim: None, durability: None }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_worn_tool_shows_its_bar_and_a_pile_its_count() {
+        let worn = Stack { durability: Some((125, 250)), ..plain("minecraft:iron_pickaxe") };
+        let d = decorations(&worn, 0, None);
+        assert_eq!((d.count, d.bar.map(|b| b.0)), (1, Some(7)));
+        assert_eq!(decorations(&Stack { durability: Some((0, 250)), ..worn }, 0, None).bar, None);
+        let pile = decorations(&Stack { count: 12, ..plain("minecraft:apple") }, 0, None);
+        assert_eq!((pile.count, pile.bar), (12, None));
+    }
 }

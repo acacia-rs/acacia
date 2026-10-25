@@ -13,8 +13,9 @@ pub enum Picture {
     Book { texture: String, scale: f32, open: f32, flip: f32, rect: [i32; 4] },
     /// `bannerPattern(flag, base, layers, x0, y0, x1, y1)`; layers as `"<pattern id> <dye>"`.
     Banner { base: String, patterns: Vec<String>, rect: [i32; 4] },
-    /// `map(state)`, drawn at the pose's origin, 128 pixels square.
-    Map { decorations: usize },
+    /// `map(state)`, drawn at the pose's origin, 128 pixels square; `key` names the map's stack to
+    /// the caller (not recorded).
+    Map { decorations: usize, key: Option<i32> },
     /// A non-text `ClientTooltipComponent`'s `extractImage` at `(x, y)`, `w` × `h` big; `kind` is
     /// its Java class's simple name (`ClientBundleTooltip`).
     TooltipImage { kind: String, x: i32, y: i32, w: i32, h: i32 },
@@ -54,7 +55,7 @@ impl Picture {
                 rect(&mut v, r);
                 v
             }
-            Picture::Map { decorations } => json!({"type": "map", "decorations": decorations}),
+            Picture::Map { decorations, .. } => json!({"type": "map", "decorations": decorations}),
             Picture::TooltipImage { kind, x, y, w, h } => json!({"type": "tooltip_image", "kind": kind, "x": x, "y": y, "w": w, "h": h}),
             Picture::SpriteBlit { atlas, sprite, rect: r, uv } => {
                 let mut v = json!({"type": "sprite_blit", "atlas": atlas, "sprite": sprite, "uv": uv});

@@ -78,7 +78,9 @@ pub(super) fn bench(kit: &mut Kit, bench: Bench) -> (Open, Vec<Target>) {
         }
         Bench::Cartography => {
             // A map's scale and lock are in its item data, not tracked: scale 0, unlocked, extendable.
-            let map = kit.view.inventory.ui.get(usize::from(ui::CARTOGRAPHY_INPUT)).and_then(Option::as_ref).map(|_| MapData { scale: 0, locked: false, decorations: 0 });
+            // Like the client's, the data is there once the server has sent the picture.
+            let picture = kit.view.inventory.ui.get(usize::from(ui::CARTOGRAPHY_INPUT)).and_then(Option::as_ref).and_then(|s| s.map.as_ref());
+            let map = picture.map(|p| MapData { scale: 0, locked: false, decorations: p.markers.len() });
             let mut s = Cartography::new(w, h, kit.title("container.cartography_table"), inv, map, true);
             fill(kit, &mut s.base, &targets);
             Open::Cartography(s)

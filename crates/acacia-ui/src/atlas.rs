@@ -78,6 +78,22 @@ impl Atlas {
         self.version += 1;
         sprite
     }
+
+    /// Packs `image` under `name`, painting over the image there when it is the same size (a
+    /// picture that changes, such as a map's).
+    pub fn replace(&mut self, name: &str, image: &RgbaImage) -> Sprite {
+        match self.sprites.get(name) {
+            Some(&s) if (s.width, s.height) == image.dimensions() => {
+                image::imageops::replace(&mut self.image, image, i64::from(s.x), i64::from(s.y));
+                self.version += 1;
+                s
+            }
+            _ => {
+                self.sprites.remove(name);
+                self.add(name, image)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -98,5 +114,16 @@ mod tests {
         }
         assert_eq!(atlas.get("s2"), Some(sprites[2]));
         assert_eq!(atlas.image().get_pixel(atlas.white().x, atlas.white().y).0, [255; 4]);
+    }
+
+    #[test]
+    fn a_replaced_image_keeps_its_place() {
+        let mut atlas = Atlas::new();
+        let first = atlas.replace("map", &RgbaImage::from_pixel(4, 4, image::Rgba([1; 4])));
+        let version = atlas.version;
+        assert_eq!(atlas.replace("map", &RgbaImage::from_pixel(4, 4, image::Rgba([2; 4]))), first);
+        assert_eq!(atlas.image().get_pixel(first.x + 3, first.y + 3).0, [2; 4]);
+        assert!(atlas.version > version);
+        assert_eq!(atlas.replace("map", &RgbaImage::new(8, 8)).width, 8);
     }
 }

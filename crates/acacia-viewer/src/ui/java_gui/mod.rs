@@ -5,6 +5,7 @@ mod beside;
 mod hud;
 mod inputs;
 mod items;
+mod map;
 pub mod menus;
 mod options;
 mod picture;
@@ -23,6 +24,7 @@ use std::time::Instant;
 
 use acacia_ui::java::font::{FontOptions, Fonts, GlyphTexture, Pen, Resources};
 use acacia_ui::java::gui::{Gui, GuiDraw, Metrics};
+use acacia_ui::java::hud::decor;
 use acacia_ui::java::hud::frame::Hud;
 use acacia_ui::java::mth::JavaRandom;
 use acacia_ui::java::paint::assets::Images;
@@ -53,6 +55,7 @@ pub struct JavaGui {
     game: acacia_ui::java::tooltip::game::Game,
     /// The credits roll's lines from `texts/credits.json`, read when it first opens.
     credits: std::cell::OnceCell<Lines>,
+    map: map::MapPicture,
 }
 
 impl JavaGui {
@@ -66,7 +69,7 @@ impl JavaGui {
         if lang.is_empty() {
             tracing::warn!(looked = %root.display(), "no lang/en_us.json, so screens show translation keys: bake the Java look again (tools/lookbake)");
         }
-        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang, game: items::facts(), credits: Default::default() }
+        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang, game: items::facts(), credits: Default::default(), map: Default::default() }
     }
 
     /// The screens' environment: the fonts, the translations, the registry facts.
@@ -101,7 +104,7 @@ impl JavaGui {
     /// `gui`'s calls as quads into `list`; `stacks` names the stack behind each item call's key.
     /// Entities to draw as pictures go to `pictures`.
     pub fn paint(&mut self, skin: &mut Skin, stacks: &dyn Fn(i32) -> Option<Stack>, gui: &Gui, list: &mut DrawList, pictures: &mut Vec<PictureRequest>) {
-        let mut src = Src { skin, root: &self.root, images: &mut self.images, fonts: &self.fonts, random: &mut self.random, stacks, started: self.started, pictures, gui_scale: list.scale };
+        let mut src = Src { skin, root: &self.root, images: &mut self.images, fonts: &self.fonts, random: &mut self.random, stacks, started: self.started, pictures, gui_scale: list.scale, map: &mut self.map };
         let painted = paint::paint(&gui.draws, [gui.width, gui.height], list.scale, &mut src);
         list.quads.extend(painted.quads);
     }
@@ -122,6 +125,7 @@ struct Src<'a> {
     started: Instant,
     pictures: &'a mut Vec<PictureRequest>,
     gui_scale: f32,
+    map: &'a mut map::MapPicture,
 }
 
 /// A glyph texture in the atlas, packed on first use.
@@ -144,6 +148,9 @@ impl Source for Src<'_> {
     }
 
     fn texture(&mut self, path: &str) -> Option<Sprite> {
+        if path == map::TEXTURE {
+            return self.map.sprite(&self.skin.theme.atlas);
+        }
         self.images.texture(&mut self.skin.theme.atlas, path)
     }
 
@@ -173,15 +180,12 @@ impl Source for Src<'_> {
         list.quads
     }
 
-    /// `itemDecorations`: the count (bars and cooldowns are not known here).
+    /// `itemDecorations`: the count and the damage bar (cooldowns are not tracked).
     fn decorations(&mut self, key: i32, x: i32, y: i32, count: Option<&str>) -> Vec<GuiDraw> {
         let Some(stack) = (self.stacks)(key) else { return Vec::new() };
-        if stack.count == 1 && count.is_none() {
-            return Vec::new();
-        }
-        let amount = count.map_or_else(|| stack.count.to_string(), str::to_owned);
-        let width = Metrics::width(self.fonts, &Text::literal(amount.as_str()));
-        vec![GuiDraw::Text { text: Text::literal(amount), x: x + 19 - 2 - width, y: y + 6 + 3, color: 0xFFFF_FFFF, shadow: true }]
+        let mut gui = Gui::new(0, 0);
+        decor::item_decorations(&mut gui, self.fonts, x, y, &items::decorations(&stack, key, count));
+        gui.draws
     }
 
     fn atlas_sprite(&mut self, _: &str, sprite: &str) -> Option<Sprite> {
@@ -192,8 +196,11 @@ impl Source for Src<'_> {
         picture::quad(&mut self.skin.theme.atlas, self.root, self.pictures, self.gui_scale, p, window)
     }
 
-    // TODO: map pixels (the bot keeps no map data yet) and the bundle tooltip's contents.
-    fn picture_draws(&mut self, _: &Picture) -> Vec<GuiDraw> {
-        Vec::new()
+    // TODO: the bundle tooltip's contents.
+    fn picture_draws(&mut self, p: &Picture) -> Vec<GuiDraw> {
+        let Picture::Map { key: Some(key), .. } = p else { return Vec::new() };
+        let Some(picture) = (self.stacks)(*key).and_then(|s| s.map) else { return Vec::new() };
+        self.map.show(&mut self.skin.theme.atlas, self.root, &picture);
+        map::draws()
     }
 }
