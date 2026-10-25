@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use acacia_render::LookPack;
 use acacia_render::blocks::BlockTable;
-use acacia_render::item::{ItemIcons, block_icon, leather, model_icon, pattern_icon};
+use acacia_render::item::{ItemIcons, JavaItems, block_icon, java_icon, leather, model_icon, pattern_icon};
 use acacia_ui::chat::{self, Chat};
 use acacia_ui::effects::Active;
 use acacia_render::glint::Foil;
@@ -34,6 +34,8 @@ use crate::settings::LookChoice;
 struct Skin {
     theme: Theme,
     icons: ItemIcons,
+    /// A Java look's own items, drawn as its GUI draws them.
+    java_items: Option<Arc<JavaItems>>,
     root: std::path::PathBuf,
     /// Hotbar icons added to the atlas, by item name and aux; `None` for items without one.
     added: HashMap<(String, u32), Option<Sprite>>,
@@ -238,7 +240,7 @@ impl Ui {
 
 impl Skin {
     fn new(theme: Theme, root: &Path, foil: Foil) -> Skin {
-        Skin { theme, icons: ItemIcons::load(root), root: root.to_owned(), added: HashMap::new(), blocks: None, generation: 0, foil }
+        Skin { theme, icons: ItemIcons::load(root), java_items: JavaItems::shared(root), root: root.to_owned(), added: HashMap::new(), blocks: None, generation: 0, foil }
     }
 
     /// A stack as a slot shows it; `None` for an item without an icon.
@@ -284,7 +286,8 @@ impl Skin {
         if let Some(sprite) = self.added.get(&key) {
             return *sprite;
         }
-        let model = model_icon(&self.root, name, banner).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, banner));
+        let java = self.java_items.as_deref().filter(|_| banner.is_none()).and_then(|items| java_icon::icon(items, name, aux, dyed.flatten()));
+        let model = java.or_else(|| model_icon(&self.root, name, banner)).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, banner));
         let image = model.or_else(|| self.icons.path(name, aux).and_then(|p| leather::icon(&self.root, p, dyed)));
         let sprite = match image {
             Some(i) => {

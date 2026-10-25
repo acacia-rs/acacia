@@ -47,7 +47,7 @@ pub fn icon(items: &JavaItems, bedrock: &str, aux: u32, dye: Option<[u8; 3]>) ->
     let mut depth = vec![f32::MIN; (size * size) as usize];
     let half = size as f32 / 2.0;
     for triangle in skin.mesh.as_ref()?.vertices.chunks_exact(3) {
-        let points = triangle.map(|v| {
+        let points = [&triangle[0], &triangle[1], &triangle[2]].map(|v| {
             let p = frame.transform_point3(Vec3::from(v.position));
             (Vec2::new(half + p.x * size as f32, half - p.y * size as f32), p.z, Vec2::from(v.uv))
         });
