@@ -1,0 +1,18 @@
+{
+  "minecraft": {
+    "version": "26.3",
+    "client_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+    "server_sha1": "33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c",
+    "java_major": 25
+  },
+  "jdk": {
+    "release": "jdk-25.0.5+8",
+    "url": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jdk_x64_linux_hotspot_25.0.5_8.tar.gz",
+    "sha256": "68982529869257d0ee6b824ec5aa270ff8b118bb438670da0b97ebdab178d7fb"
+  },
+  "vineflower": {
+    "version": "1.12.0",
+    "url": "https://github.com/Vineflower/vineflower/releases/download/1.12.0/vineflower-1.12.0.jar",
+    "sha256": "1dfcfe974395734fa467ce620661c7623d05ba83670de0529b1fbd63ff548b9d"
+  }
+}

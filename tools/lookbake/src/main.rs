@@ -9,7 +9,8 @@
 //! - `lookbake java-entities [java dir] [out dir]`: only the Java entity models and textures
 //!   (entities.rs; needs a JDK 25).
 //! - `lookbake java-check <quads.json.gz> [java dir]`: our bake of every Java block state against a
-//!   dump of the game's own (check.rs).
+//!   dump of the game's own (check.rs); tools/parity's harness `bake` makes the dump. Exits nonzero
+//!   on any divergence.
 
 mod banners;
 mod biomes;
@@ -87,7 +88,11 @@ fn main() -> Result<(), Error> {
             let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
             let java = dir(jar::default_dir);
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            check::print(&jar.assets, &biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &mapping, &truth)?;
+            let outcome = check::print(&jar.assets, &biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &mapping, &truth)?;
+            outcome.print_for_parity();
+            if !outcome.divergences.is_empty() {
+                return Err(format!("{} divergences from the game", outcome.divergences.len()).into());
+            }
         }
         _ => return Err(USAGE.into()),
     }
