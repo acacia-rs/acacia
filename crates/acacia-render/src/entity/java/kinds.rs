@@ -54,7 +54,9 @@ const fn overlay(suffix: &'static str, texture: &'static str, baby_texture: Opti
     Overlay { suffix, texture, baby_texture, when }
 }
 
-pub const OVERLAYS: [(&str, Overlay); 13] = [
+pub const OVERLAYS: [(&str, Overlay); 15] = [
+    ("minecraft:breeze", overlay("eyes", "breeze/breeze_eyes", None, When::Eyes)),
+    ("minecraft:copper_golem", overlay("main", "copper_golem/copper_golem_eyes", None, When::Eyes)),
     ("minecraft:ender_dragon", overlay("main", "enderdragon/dragon_eyes", None, When::Eyes)),
     ("minecraft:wither", overlay("armor", "wither/wither_armor", None, When::Powered)),
     ("minecraft:phantom", overlay("main", "phantom/phantom_eyes", None, When::Eyes)),
