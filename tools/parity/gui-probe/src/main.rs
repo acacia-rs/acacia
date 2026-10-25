@@ -4,6 +4,7 @@
 //! `acacia_ui::java::encode` writes them. `assets` is an unpacked jar's `assets/minecraft`. Run by
 //! `tools/parity/gui/guiparity.py`.
 
+mod chat;
 mod hud;
 mod lang;
 mod subtitles;

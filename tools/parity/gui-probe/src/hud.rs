@@ -15,6 +15,7 @@ pub fn replay(c: &Value, assets: &Assets, state: &mut Map<String, Value>) -> Vec
     let mut gui = kinds::screen(c);
     match c["kind"].as_str().unwrap_or_default() {
         "decorations" => return decorations(c, assets, state),
+        "chat" => return crate::chat::replay_hud(c, assets, state),
         "effects" => kinds::effects(c, &mut gui),
         "title" => kinds::title(c, assets, &mut gui),
         "selected" => kinds::selected(c, assets, &mut gui),
