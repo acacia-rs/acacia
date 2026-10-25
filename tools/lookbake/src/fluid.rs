@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use acacia_render::blocks::FluidRules;
-use acacia_render::blocks::fluid::plane_coverage;
+use acacia_render::blocks::fluid::{no_occlusion, plane_coverage};
 use serde_json::Value;
 
 use crate::download::Error;
@@ -62,10 +62,22 @@ fn unspaced(id: &str) -> String {
 /// `faces` are the Java model's as the blockstate places it, when Java draws the block.
 pub fn rules(base: FluidRules, java: &JavaState, faces: Option<&[BakedFace]>, tags: &Tags) -> FluidRules {
     let blocks_motion = tags.flow.contains(&java.name);
-    let mut rules = FluidRules { blocks_motion, solid: blocks_motion || SOLID_UNTAGGED.contains(&java.name.as_str()), ..base };
-    if let Some(faces) = faces {
-        rules.cover = std::array::from_fn(|face| cover(faces, face));
-        rules.sturdy = rules.cover.map(|c| c >= 1.0);
+    let solid = blocks_motion || SOLID_UNTAGGED.contains(&java.name.as_str());
+    let mut rules = FluidRules { blocks_motion, solid, occludes: !base.ice && !no_occlusion(&java.name), ..base };
+    match faces {
+        // No geometry: drawn by a block entity (its support shape is the base's) or a bare wall.
+        Some([]) => rules.cover = [0.0; 6],
+        Some(faces) => {
+            rules.cover = std::array::from_fn(|face| cover(faces, face));
+            rules.sturdy = rules.cover.map(|c| c >= 1.0);
+        }
+        None => {}
+    }
+    let bare_wall = java.name.ends_with("_wall")
+        && java.property("up") == Some("false")
+        && ["east", "west", "north", "south"].iter().all(|side| java.property(side) == Some("none"));
+    if bare_wall {
+        rules.sturdy = [false; 6];
     }
     if tags.leaves.contains(&java.name) || NO_SUPPORT.contains(&java.name.as_str()) {
         rules.sturdy = [false; 6];

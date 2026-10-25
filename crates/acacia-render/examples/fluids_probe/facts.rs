@@ -20,7 +20,7 @@ pub fn check(world: &World, table: &BlockTable, path: &str) {
         cases += 1;
         let block = table.get(id);
         let rules = &block.fluid_rules;
-        let mut diverge = |field: String, expected: String, got: String| {
+        let diverge =|field: String, expected: String, got: String| {
             if expected != got {
                 println!("DIVERGENCE\t{key}\t{field}\t{expected}\t{got}");
             }

@@ -102,7 +102,7 @@ fn main() -> Result<(), Error> {
             let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
             let (pack, java) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping);
+            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
             let outcome = check::light::print(&look, &mapping, &truth)?;
             outcome.print_for_parity();
         }

@@ -31,19 +31,22 @@ pub struct FluidRules {
     pub ice: bool,
 }
 
-/// Java blocks that call `noOcclusion` among those with collision: Bedrock names containing these...
-const NO_OCCLUSION_PART: &[&str] = &["glass", "leaves", "door", "bars", "grate", "shulker_box", "carpet", "spawner"];
+/// Java blocks that call `noOcclusion` among those with collision: Bedrock or Java names containing these...
+const NO_OCCLUSION_PART: &[&str] = &["glass", "leaves", "door", "bars", "grate", "shulker_box", "spawner"];
 /// ...and these names.
 const NO_OCCLUSION: &[&str] = &[
-    "slime", "honey_block", "scaffolding", "beacon", "chorus_plant", "chorus_flower", "bell", "bamboo", "mangrove_roots", "vault",
-    "conduit", "barrier", "web", "cobweb", "end_gateway", "powder_snow", "cactus", "bed",
+    "slime", "slime_block", "honey_block", "scaffolding", "beacon", "chorus_plant", "chorus_flower", "bell", "bamboo",
+    "mangrove_roots", "vault", "conduit", "barrier", "web", "cobweb", "end_gateway", "powder_snow", "cactus", "bed", "azalea",
+    "flowering_azalea", "pale_moss_carpet",
 ];
 
-/// `canOcclude` false: [`NO_OCCLUSION_PART`], [`NO_OCCLUSION`], lanterns and chains.
-fn no_occlusion(name: &str) -> bool {
+/// `canOcclude` false, by Bedrock or Java name: [`NO_OCCLUSION_PART`], [`NO_OCCLUSION`], beds,
+/// lanterns and chains.
+pub fn no_occlusion(name: &str) -> bool {
     NO_OCCLUSION_PART.iter().any(|n| name.contains(n))
         || NO_OCCLUSION.contains(&name)
-        || (name.ends_with("lantern") && name != "sea_lantern")
+        || name.ends_with("_bed")
+        || (name.ends_with("lantern") && !matches!(name, "sea_lantern" | "jack_o_lantern"))
         || name.ends_with("chain")
 }
 

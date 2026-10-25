@@ -69,9 +69,9 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping, tags: &fluid::Ta
                     serde_json::from_slice(&std::fs::read(assets.join(format!("blockstates/{}.json", java.name))).ok()?).ok()
                 });
                 let drawn = blockstate::drawn(file.as_ref().ok_or("no blockstate file")?, java);
-                let block = baker.block(&base, &drawn, java, state.light_emission > 0, &mut look.atlas)?;
+                // Before baking: a state Java draws nothing for (a bare wall) covers nothing.
                 faces = Some(baker.first_faces(&drawn));
-                Ok(block)
+                baker.block(&base, &drawn, java, state.light_emission > 0, &mut look.atlas)
             }),
         };
         let mut block = match block {
