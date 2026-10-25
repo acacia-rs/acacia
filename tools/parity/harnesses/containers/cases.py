@@ -84,7 +84,32 @@ def make(kind):
     return gen
 
 
+EFFECTS = ['speed', 'slowness', 'haste', 'mining_fatigue', 'strength', 'jump_boost', 'nausea', 'regeneration', 'resistance',
+           'fire_resistance', 'water_breathing', 'invisibility', 'blindness', 'night_vision', 'hunger', 'weakness', 'poison',
+           'wither', 'health_boost', 'absorption', 'glowing', 'levitation', 'luck', 'unluck', 'slow_falling', 'conduit_power',
+           'dolphins_grace', 'bad_omen', 'hero_of_the_village', 'darkness', 'trial_omen', 'raid_omen', 'wind_charged',
+           'weaving', 'oozing', 'infested']
+
+
+def effects(rng):
+    """EffectsInInventory beside a chest window: [id, duration, amplifier, ambient] per effect."""
+    rows = rng.randint(1, 6)
+    width, height = rng.choice([(427, 240), (480, 270), (640, 360), (961, 501), (379, 250), (400, 240), (360, 240), (900, 300)])
+    left, top = (width - 176) // 2, (height - 114 - rows * 18) // 2
+    durations = [-1, 0, 1, 19, 20, 600, 1199, 3600, 32147, 32148, 72000, 1728000, rng.randint(0, 100000)]
+    chosen = rng.sample(EFFECTS, rng.choice([0, 1, 1, 2, 3, 5, 6, 8, 12]))
+    case = {'kind': 'effects', 'rows': rows, 'width': width, 'height': height, 'title': None,
+            'effects': [['minecraft:' + e, rng.choice(durations), rng.choice([0, 0, 1, 2, 4, 8, 9, 10, 255]), rng.random() < 0.2]
+                        for e in chosen]}
+    if rng.random() < 0.7:
+        case['mouse'] = [rng.randint(left + 170, width), rng.randint(top - 5, top + 170)]
+    else:
+        case['mouse'] = [rng.randint(0, width), rng.randint(0, height)]
+    return case
+
+
 GENERATORS = {k: make(k) for k in KINDS}
+GENERATORS['effects'] = effects
 
 
 def main():

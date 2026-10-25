@@ -62,6 +62,8 @@ public final class ScreenKit {
     public final JsonObject result = new JsonObject();
     /** Resolved stacks by key, written to the probe's input. */
     public final JsonObject items = new JsonObject();
+    /** Further game data for the probe (`game` in its input line). */
+    public final JsonObject game = new JsonObject();
 
     private ScreenKit(JsonObject c) throws Exception {
         this.c = c;
@@ -183,10 +185,12 @@ public final class ScreenKit {
             var c = JsonParser.parseString(line).getAsJsonObject();
             JsonObject result = new JsonObject();
             JsonObject items = new JsonObject();
+            JsonObject game = new JsonObject();
             try {
                 var kit = new ScreenKit(c);
                 result = kit.result;
                 items = kit.items;
+                game = kit.game;
                 kind.run(kit, c);
                 result.add("draws", kit.capture.draws);
             } catch (Throwable error) {
@@ -200,10 +204,34 @@ public final class ScreenKit {
             vanilla.append(gson.toJson(result)).append('\n');
             var p = c.deepCopy();
             p.add("items", items);
+            p.add("game", game);
             probe.append(gson.toJson(p)).append('\n');
         }
         Files.writeString(Path.of(args[0], "vanilla.jsonl"), vanilla.toString(), StandardCharsets.UTF_8);
         Files.writeString(Path.of(args[0], "probe.jsonl"), probe.toString(), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The case's `effects` ([id, duration, amplifier, ambient]) as the player's active effects; each
+     * effect's colour goes to the probe (`game.effectColors`).
+     */
+    public void applyEffects() throws Exception {
+        @SuppressWarnings("unchecked")
+        var active = (java.util.Map<net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect>, net.minecraft.world.effect.MobEffectInstance>)
+            Stub.get(player, LivingEntity.class, "activeEffects");
+        if (active == null) {
+            active = new java.util.HashMap<>();
+            Stub.put(player, LivingEntity.class, "activeEffects", active);
+        }
+        var colors = new JsonObject();
+        for (var e : list("effects")) {
+            var a = e.getAsJsonArray();
+            var holder = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT
+                .get(net.minecraft.resources.Identifier.parse(a.get(0).getAsString())).orElseThrow();
+            active.put(holder, new net.minecraft.world.effect.MobEffectInstance(holder, a.get(1).getAsInt(), a.get(2).getAsInt(), a.get(3).getAsBoolean(), true));
+            colors.addProperty(a.get(0).getAsString(), holder.value().getColor());
+        }
+        game.add("effectColors", colors);
     }
 
     /** The list of a case array, empty when absent. */

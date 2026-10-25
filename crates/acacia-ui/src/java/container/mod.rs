@@ -6,6 +6,7 @@
 
 pub mod brewing;
 pub mod crafter;
+pub mod effects;
 pub mod menus;
 pub mod simple;
 

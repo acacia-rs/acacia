@@ -5,6 +5,7 @@ use serde_json::{Map, Value};
 
 use acacia_ui::java::container::brewing::Brewing;
 use acacia_ui::java::container::crafter::Crafter;
+use acacia_ui::java::container::effects;
 use acacia_ui::java::container::simple::{Kind, Simple};
 use acacia_ui::java::container::{Env, Screen, frame};
 use acacia_ui::java::gui::{Gui, GuiDraw};
@@ -19,6 +20,13 @@ pub fn replay(c: &Value, assets: &Assets, _state: &mut Map<String, Value>) -> Ve
     let (width, height) = (kit::int(c, "width", 0), kit::int(c, "height", 0));
     let inventory = Text::translate("container.inventory", &[], &lang);
     let simple = |kind, fallback| Simple::new(kind, width, height, kit::title(c, fallback, &lang), inventory.clone(), env.font);
+    if c["kind"] == "effects" {
+        let mut screen = simple(Kind::Chest { rows: kit::int(c, "rows", 3) }, "container.chest");
+        let mut gui = Gui::new(width, height);
+        effects::extract(&mut screen.base, &mut gui, env.font, &lang, &kit::effects(c), kit::mouse(c), 20.0);
+        screen.base.tooltip.extract(&mut gui, env.font);
+        return gui.draws;
+    }
     let mut screen: Box<dyn Screen> = match c["kind"].as_str().unwrap_or_default() {
         "chest" => Box::new(simple(Kind::Chest { rows: kit::int(c, "rows", 3) }, "container.chest")),
         "shulker" => Box::new(simple(Kind::Shulker, "container.shulkerBox")),

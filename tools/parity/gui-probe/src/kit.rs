@@ -6,6 +6,7 @@ use std::sync::OnceLock;
 
 use serde_json::Value;
 
+use acacia_ui::java::container::effects::Effect;
 use acacia_ui::java::container::{Base, CARRIED, QuickCraft};
 use acacia_ui::java::text::Text;
 use acacia_ui::java::tooltip::stack::ItemStack;
@@ -50,6 +51,18 @@ pub fn title(c: &Value, fallback: &str, lang: &dyn Fn(&str) -> Option<String>) -
         Value::Null => Text::translate(fallback, &[], lang),
         t => Text::from_json(t, lang),
     }
+}
+
+/// The case's `effects` with their colours from `game.effectColors` (`ScreenKit.applyEffects`).
+pub fn effects(c: &Value) -> Vec<Effect> {
+    let effects = c["effects"].as_array().into_iter().flatten();
+    effects
+        .map(|e| {
+            let id = e[0].as_str().unwrap_or_default().to_owned();
+            let color = c["game"]["effectColors"][&id].as_i64().unwrap_or(0) as i32;
+            Effect { duration: e[1].as_i64().unwrap_or(0) as i32, amplifier: e[2].as_i64().unwrap_or(0) as i32, ambient: e[3].as_bool().unwrap_or(false), color, id }
+        })
+        .collect()
 }
 
 /// `ContainerOracle.fill`: slot contents, the carried stack and a quick-craft drag.

@@ -48,7 +48,21 @@ public final class ContainerOracle {
         }
     }
 
+    /** EffectsInInventory beside a chest screen's window, alone, then its deferred tooltip. */
+    static void effects(ScreenKit kit, JsonObject c) throws Exception {
+        kit.applyEffects();
+        AbstractContainerScreen<?> screen = kit.open(ContainerScreens.create(kit, "chest"));
+        int mx = c.getAsJsonArray("mouse").get(0).getAsInt();
+        int my = c.getAsJsonArray("mouse").get(1).getAsInt();
+        new net.minecraft.client.gui.screens.inventory.EffectsInInventory(screen).extractRenderState(kit.capture, mx, my);
+        kit.capture.extractDeferredElements(mx, my, 0);
+    }
+
     static void run(ScreenKit kit, JsonObject c) throws Exception {
+        if (c.get("kind").getAsString().equals("effects")) {
+            effects(kit, c);
+            return;
+        }
         AbstractContainerScreen<?> screen = ContainerScreens.create(kit, c.get("kind").getAsString());
         kit.open(screen);
         fill(kit, screen);
