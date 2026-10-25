@@ -23,8 +23,10 @@ pub struct JavaScreens {
     /// confirmation opened (so do its).
     died: Option<Instant>,
     confirm: Option<Instant>,
-    /// The options pages open, the innermost last.
+    /// The options pages open, the innermost last, and when the innermost opened (the credits
+    /// roll scrolls from then).
     pub pages: Vec<&'static str>,
+    page_opened: Option<Instant>,
     /// Why the session ended.
     pub reason: String,
     /// The chat input, and when it opened.
@@ -57,16 +59,20 @@ fn ticks(since: Option<Instant>, now: Instant) -> u32 {
 pub fn view(java: &JavaScreens, menu: Menu, settings: &Settings, now: Instant) -> View {
     match menu {
         Menu::Pause => View::Pause,
-        Menu::Options => View::Options { page: java.pages.last().copied().unwrap_or("options"), settings: settings.clone() },
+        Menu::Options => match java.pages.last().copied().unwrap_or("options") {
+            "win" => View::Win { ticks: java.page_opened.map_or(0.0, |s| now.saturating_duration_since(s).as_secs_f32() * 20.0) },
+            page => View::Options { page, settings: settings.clone() },
+        },
         Menu::Death => View::Death { ticks: ticks(java.died, now) },
         Menu::TitleConfirm => View::TitleConfirm { ticks: ticks(java.confirm, now) },
         Menu::Disconnected => View::Disconnected { reason: java.reason.clone() },
     }
 }
 
-/// What the Java look shows this frame: the chat input completing `players`' names, and the menu.
-pub fn shown<'a>(java: &'a mut JavaScreens, menu: Option<Menu>, settings: &Settings, players: &[String], now: Instant) -> Shown<'a> {
-    let menu = menu.map(|m| (view(java, m, settings, now), java.interaction));
+/// What the Java look shows this frame: the chat input completing `players`' names, and the menu,
+/// or else `LevelLoadingScreen` while the player has not `arrived`.
+pub fn shown<'a>(java: &'a mut JavaScreens, menu: Option<Menu>, arrived: bool, settings: &Settings, players: &[String], now: Instant) -> Shown<'a> {
+    let menu = menu.map(|m| (view(java, m, settings, now), java.interaction)).or_else(|| (!arrived).then(|| (View::Loading, Interaction::default())));
     let chat = java.chat.as_mut().map(|(chat, at)| {
         chat.names = players.to_vec();
         (chat, now.saturating_duration_since(*at).as_millis() as u64)
@@ -175,6 +181,7 @@ impl App {
         match event(&values, max_scale, fired) {
             Event::Open(page) => {
                 self.java.pages.push(page);
+                self.java.page_opened = Some(Instant::now());
                 self.java.interaction = Interaction::default();
             }
             Event::Done => self.menu_back(),
@@ -188,6 +195,16 @@ impl App {
                 }
             }
             Event::Pressed(_) => {}
+        }
+    }
+
+    /// `WinScreen.tick`: the credits roll, once past its end, goes back as Esc does.
+    pub(super) fn close_finished_credits(&mut self, now: Instant) {
+        let Some(menu @ Menu::Options) = self.menu else { return };
+        let View::Win { ticks } = view(&self.java, menu, &self.settings, now) else { return };
+        let (size, scale) = self.gui();
+        if self.ui.java_credits_finished(ticks, java_screens::gui_size(size, scale)) {
+            self.menu_back();
         }
     }
 
@@ -276,6 +293,10 @@ mod tests {
         assert_eq!(view(&java, Menu::Options, &settings, Instant::now()), View::Options { page: "video", settings: settings.clone() });
         java.opened(Menu::Options);
         assert_eq!(java.pages, ["options"]);
+        java.pages.push("win");
+        java.page_opened = Some(Instant::now());
+        let later = Instant::now() + std::time::Duration::from_millis(1000);
+        assert!(matches!(view(&java, Menu::Options, &settings, later), View::Win { ticks } if (19.9..=20.1).contains(&ticks)));
         assert_eq!((gui_key(KeyCode::NumpadEnter), gui_key(KeyCode::KeyQ)), (Some(Key::Enter), None));
     }
 }

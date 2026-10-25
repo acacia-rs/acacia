@@ -6,6 +6,7 @@ mod inputs;
 pub mod menus;
 mod options;
 mod picture;
+mod views;
 
 pub use hud::{HudView, hotbar_stack};
 pub use inputs::screen_info;
@@ -23,6 +24,7 @@ use acacia_ui::java::paint::assets::Images;
 use acacia_ui::java::paint::blit::Scaling;
 use acacia_ui::java::paint::{self, Glyphs, Source};
 use acacia_ui::java::picture::Picture;
+use acacia_ui::java::screen::win::Lines;
 use acacia_ui::java::text::Text;
 use acacia_ui::{Atlas, DrawList, Quad, Sprite};
 
@@ -42,6 +44,8 @@ pub struct JavaGui {
     started: Instant,
     /// The game's `en_us` translations.
     lang: HashMap<String, String>,
+    /// The credits roll's lines from `texts/credits.json`, read when it first opens.
+    credits: std::cell::OnceCell<Lines>,
 }
 
 impl JavaGui {
@@ -55,7 +59,20 @@ impl JavaGui {
         if lang.is_empty() {
             tracing::warn!(looked = %root.display(), "no lang/en_us.json, so screens show translation keys: bake the Java look again (tools/lookbake)");
         }
-        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang }
+        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang, credits: Default::default() }
+    }
+
+    /// [`JavaGui::credits`]' lines.
+    pub fn credits(&self) -> &Lines {
+        self.credits.get_or_init(|| {
+            let json = std::fs::read_to_string(self.root.join("texts/credits.json")).ok().and_then(|s| serde_json::from_str(&s).ok());
+            if json.is_none() {
+                tracing::warn!(looked = %self.root.display(), "no texts/credits.json, so the credits roll is empty: bake the Java look again (tools/lookbake)");
+            }
+            let mut lines = Lines::default();
+            lines.credits(&json.unwrap_or_default());
+            lines
+        })
     }
 
     /// Whether the pack has the GUI's sprites.
