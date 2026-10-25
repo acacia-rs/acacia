@@ -43,7 +43,8 @@ import net.minecraft.world.level.lighting.LightEngine;
 /**
  * Java's own LevelLightEngine over the layouts in args[1] (JSON lines: chunks, height, sky or not,
  * blocks by state, then edits applied one by one) into layouts.jsonl: the light facts of every
- * state used, the blocks, and each cell's block and sky light after the edits. Chunks are
+ * state used, the blocks, each cell's block and sky light after the edits (with a section of
+ * padding above and below the world), and which sections store light. Chunks are
  * ProtoChunks lit the way ThreadedLevelLightEngine.initializeLight and lightChunk light them; an
  * edit goes through ProtoChunk.setBlockState's light path (section status, sky sources, checkBlock).
  */
@@ -130,15 +131,25 @@ public final class LightEngineOracle {
         var sky = new StringBuilder();
         for (int x = 0; x < chunkSpan[0] * 16; x++) {
             for (int z = 0; z < chunkSpan[1] * 16; z++) {
-                for (int y = 0; y < height; y++) {
+                for (int y = -16; y < height + 16; y++) {
                     var pos = new BlockPos(x, y, z);
                     block.append(Character.forDigit(engine.getLayerListener(LightLayer.BLOCK).getLightValue(pos), 16));
                     sky.append(Character.forDigit(engine.getLayerListener(LightLayer.SKY).getLightValue(pos), 16));
                 }
             }
         }
+        // Which sections hold light (non-empty ones and their neighbours); others read through.
+        var stored = new StringBuilder();
+        for (int cx = 0; cx < chunkSpan[0]; cx++) {
+            for (int cz = 0; cz < chunkSpan[1]; cz++) {
+                for (int sy = -1; sy <= height / 16; sy++) {
+                    stored.append(engine.getLayerListener(LightLayer.BLOCK).getDataLayerData(SectionPos.of(cx, sy, cz)) != null ? '1' : '0');
+                }
+            }
+        }
         return Out.map("case", row.get("case").getAsString(), "chunks", chunkSpan, "height", height, "sky", row.get("sky").getAsBoolean(),
-            "states", states, "blocks", row.get("blocks"), "edits", row.get("edits"), "block_light", block.toString(), "sky_light", sky.toString());
+            "states", states, "blocks", row.get("blocks"), "edits", row.get("edits"), "block_light", block.toString(), "sky_light", sky.toString(),
+            "stored", stored.toString());
     }
 
     private static void settle(LevelLightEngine engine) {

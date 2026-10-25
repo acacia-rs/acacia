@@ -41,6 +41,9 @@ public final class EntityLayersOracle {
                         for (HumanoidArm arm : HumanoidArm.values()) hands.put(arm.name(), hand(armed, posed.state(), arm));
                     }
                     record.put("hands", hands);
+                    if (posed.model() instanceof net.minecraft.client.model.HeadedModel headed) {
+                        record.put("heads", Out.map("skull", head(posed.model(), headed, true), "item", head(posed.model(), headed, false)));
+                    }
                     record.put("armor", armor(kase, posed.state()));
                     record.put("overlays", overlays(kase, posed.state()));
                 } catch (Throwable error) {
@@ -86,7 +89,13 @@ public final class EntityLayersOracle {
             var layer = EntityModels.layers().get(base + suffix);
             if (layer == null) continue;
             var root = layer.getValue().bakeRoot();
-            var model = (Model<EntityRenderState>) Class.forName(cls).getConstructor(ModelPart.class).newInstance(root);
+            Model<EntityRenderState> model;
+            try {
+                model = (Model<EntityRenderState>) Class.forName(cls).getConstructor(ModelPart.class).newInstance(root);
+            } catch (NoSuchMethodException slimOrWide) {
+                // A player's armour is a PlayerModel(root, slim).
+                model = (Model<EntityRenderState>) Class.forName(cls).getConstructor(ModelPart.class, boolean.class).newInstance(root, base.contains("_slim"));
+            }
             model.setupAnim(state);
             var parts = new TreeMap<String, Object>();
             EntityModels.poses("", root, parts);
@@ -95,6 +104,25 @@ public final class EntityLayersOracle {
             out.put(suffix, Out.map("layer", base + suffix, "parts", parts, "drawn", drawn));
         }
         return out;
+    }
+
+    /**
+     * CustomHeadLayer.submit's matrix with the default transforms, before a worn skull
+     * (SkullBlockRenderer.submitSkull) or a head item (its HEAD display).
+     */
+    private static float[] head(Model<?> model, net.minecraft.client.model.HeadedModel headed, boolean skull) {
+        var stack = EntityModels.livingRoot(0.0F, new float[] {1, 1, 1});
+        var t = net.minecraft.client.renderer.entity.layers.CustomHeadLayer.Transforms.DEFAULT;
+        stack.scale(t.horizontalScale(), t.verticalScale(), t.horizontalScale());
+        model.root().translateAndRotate(stack);
+        headed.translateToHead(stack);
+        if (skull) {
+            stack.translate(0.0F, t.skullYOffset(), 0.0F);
+            stack.scale(1.1875F, 1.1875F, 1.1875F);
+        } else {
+            net.minecraft.client.renderer.entity.layers.CustomHeadLayer.translateToHead(stack, t);
+        }
+        return stack.last().pose().get(new float[16]);
     }
 
     @SuppressWarnings("unchecked")

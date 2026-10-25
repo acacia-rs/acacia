@@ -8,13 +8,13 @@ use std::time::Instant;
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Value, cape};
 use acacia_render::item::drop::{self, Drop};
 use acacia_render::item::{ItemModel, ItemModels, SHIELD, hand};
-use acacia_render::shadows::Shadow;
 use glam::DVec3;
 
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
 use crate::pick::EntityBox;
 
 mod arm;
+mod marks;
 mod motion;
 pub mod ropes;
 
@@ -221,18 +221,6 @@ impl Smoother {
         out
     }
 
-    /// Name tags and where they hang this frame: half a block over the entity's box.
-    pub fn name_tags(&self) -> Vec<(&str, DVec3)> {
-        let t = self.progress();
-        let mut out = Vec::new();
-        for (e, to) in &self.to {
-            let Some(name) = e.name.as_deref() else { continue };
-            let height = e.hitbox.map_or(1.8, |(_, h)| h);
-            out.push((name, self.blend(e.runtime_id, *to, t).position + DVec3::Y * f64::from(height + 0.5)));
-        }
-        out
-    }
-
     /// Where the hittable entities are drawn this frame.
     pub fn hitboxes(&self) -> Vec<EntityBox> {
         let t = self.progress();
@@ -241,26 +229,6 @@ impl Smoother {
             Some(EntityBox { runtime_id: e.runtime_id, feet: self.blend(e.runtime_id, *to, t).position, width, height })
         };
         self.to.iter().filter_map(hittable).collect()
-    }
-
-    /// The round shadows under what is drawn from `camera`. Java gives each kind a radius; the
-    /// pack has none, so it is taken from the hitbox (players 0.5, cows 0.7, chickens 0.3 as in
-    /// Java), 0.15 under dropped items, and none for the kinds Java gives none.
-    pub fn shadows(&self, camera: DVec3) -> Vec<Shadow> {
-        const NONE: [&str; 4] = ["minecraft:armor_stand", "minecraft:painting", "minecraft:lightning_bolt", "minecraft:arrow"];
-        let t = self.progress();
-        let cast = |(e, to): &(Tracked, Motion)| {
-            let radius = match (&e.dropped, e.hitbox, e.own_eyes) {
-                (Some(_), ..) => 0.15,
-                (None, Some((width, _)), _) => (width * 0.8).min(0.8),
-                (None, None, Some(eyes)) if eyes.distance(camera) > OWN_HEAD_RADIUS => 0.5,
-                _ => return None,
-            };
-            let m = self.blend(e.runtime_id, *to, t);
-            let feet = self.seated(e, m, t).map_or(m.position, |(seat, _)| seat.position);
-            (!NONE.contains(&e.kind.as_str())).then_some(Shadow { feet, radius })
-        };
-        self.to.iter().filter_map(cast).collect()
     }
 }
 

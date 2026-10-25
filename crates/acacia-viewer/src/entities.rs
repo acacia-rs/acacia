@@ -8,6 +8,7 @@ use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
 use acacia_bot::proto::types::MetadataFlags1 as Flags;
 use acacia_bot::state::{Entity, ITEM_KIND, ItemStack, PlayerSkin};
+use acacia_render::entity::java::trims::Trim;
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Pose, Skin, SkinSource};
 use acacia_render::item::{ItemKey, SHIELD};
 use glam::{DVec3, Vec3};
@@ -191,7 +192,8 @@ impl Feed {
     fn armor<'a>(&self, bot: &Bot, kind: &str, facts: &Facts, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<(Arc<[Layer]>, bool)> {
         let layers = |s: &ItemStack| {
             let item = format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:"));
-            self.models.armor(kind, &|name| facts.query(name), &item, s.custom_color())
+            let trim = s.trim().map(|(material, pattern)| Trim { material, pattern });
+            self.models.armor(kind, &|name| facts.query(name), &item, s.custom_color(), trim.as_ref())
         };
         worn.filter(|s| !s.is_empty()).filter_map(|s| Some((layers(s)?, s.is_enchanted()))).collect()
     }

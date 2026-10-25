@@ -37,9 +37,9 @@ impl PartPose {
 
     /// `ModelPart.translateAndRotate`'s matrix, in blocks.
     pub fn matrix(&self) -> glam::Mat4 {
-        use glam::{EulerRot, Mat4, Quat, Vec3};
+        use glam::{Mat4, Vec3};
         Mat4::from_translation(Vec3::new(self.x, self.y, self.z) / 16.0)
-            * Mat4::from_quat(Quat::from_euler(EulerRot::ZYX, self.z_rot, self.y_rot, self.x_rot))
+            * Mat4::from_quat(super::joml::rotation_zyx_quat(self.z_rot, self.y_rot, self.x_rot))
             * Mat4::from_scale(Vec3::new(self.x_scale, self.y_scale, self.z_scale))
     }
 }

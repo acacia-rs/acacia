@@ -56,6 +56,7 @@ public final class Headless {
         if (f.getType() == int.class) UNSAFE.putInt(target, offset, (Integer) value);
         else if (f.getType() == float.class) UNSAFE.putFloat(target, offset, (Float) value);
         else if (f.getType() == long.class) UNSAFE.putLong(target, offset, (Long) value);
+        else if (f.getType() == double.class) UNSAFE.putDouble(target, offset, (Double) value);
         else if (f.getType() == boolean.class) UNSAFE.putBoolean(target, offset, (Boolean) value);
         else UNSAFE.putObject(target, offset, value);
     }

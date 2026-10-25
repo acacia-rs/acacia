@@ -33,6 +33,21 @@ pub fn part_matrices(model: &Part, poses: &Poses, base: Mat4) -> Vec<Option<Mat4
     out
 }
 
+/// Every part's `translateAndRotate` chain under `base`, walk order, shown or not: what layers
+/// that place things on a part (`translateToHand`, `translateToHead`) use.
+pub fn part_frames(model: &Part, poses: &Poses, base: Mat4) -> Vec<Mat4> {
+    fn walk(part: &Part, poses: &Poses, parent: Mat4, out: &mut Vec<Mat4>) {
+        let matrix = parent * poses.at(out.len()).0.matrix();
+        out.push(matrix);
+        for child in &part.children {
+            walk(child, poses, matrix, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(model, poses, base, &mut out);
+    out
+}
+
 fn visit(part: &Part, poses: &Poses, parent: Option<Mat4>, out: &mut Vec<Option<Mat4>>) {
     let (pose, visible, _) = poses.at(out.len());
     let collapsed = pose.x_scale == 0.0 && pose.y_scale == 0.0 && pose.z_scale == 0.0;

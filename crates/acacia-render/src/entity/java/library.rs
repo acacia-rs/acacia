@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use super::equipment::{self, Equipment};
 use super::kinds::{self, Look, When};
+use super::trims::{Trim, Trims};
 use super::{Family, Poses, anim, bedrock, mesh};
 use crate::entity::bake::Mesh;
 use crate::entity::molang::Value;
@@ -24,7 +25,8 @@ pub struct Library {
     /// By Bedrock identifier, the adult's and the baby's armour models per slot ([`equipment::SLOTS`]).
     armor: HashMap<&'static str, [[Option<ModelId>; 4]; 2]>,
     equipment: Equipment,
-    /// Equipment textures by path.
+    trims: Trims,
+    /// Equipment and trim textures by path.
     equipment_textures: HashMap<String, TextureId>,
     /// By Bedrock identifier, the second layers' adult and own-baby (model, texture).
     overlays: HashMap<&'static str, Vec<(When, [Option<(ModelId, TextureId)>; 2])>>,
@@ -99,7 +101,9 @@ impl Library {
             out.overlays.entry(identifier).or_default().push((overlay.when, pair));
         }
         out.equipment = Equipment::load(root);
-        out.equipment_textures = out.equipment.textures().filter_map(|path| Some((path.clone(), texture(&path)?))).collect();
+        out.trims = Trims::load(root);
+        let paths = out.equipment.textures().chain(Trims::images(root));
+        out.equipment_textures = paths.filter_map(|path| Some((path.clone(), texture(&path)?))).collect();
         tracing::info!(kinds = out.kinds.len(), layers = layers.len(), "java entity models");
         out
     }
@@ -138,11 +142,11 @@ impl Library {
     }
 
     /// What armour `item` draws on a `kind` that draws a Java model, as one layer (a second texture
-    /// is an overlay); posed by [`Library::pose`] on its own model. `dye` is the stack's.
-    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>) -> Option<Arc<[Layer]>> {
+    /// is an overlay); posed by [`Library::pose`] on its own model. `dye` and `trim` are the stack's.
+    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>, trim: Option<&Trim>) -> Option<Arc<[Layer]>> {
         let (_, own_baby) = self.kinds.get(kind)?;
         let baby = *own_baby && query("is_baby").truthy();
-        let (slot, draws) = self.equipment.worn(item, baby, dye)?;
+        let (slot, draws) = self.equipment.worn(item, baby, dye, trim.map(|t| (&self.trims, t)))?;
         let model = self.armor.get(kind)?[usize::from(baby)][slot]?;
         let mut textures = [NO_TEXTURE; 3];
         for (to, draw) in textures.iter_mut().zip(&draws) {

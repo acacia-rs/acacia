@@ -1,6 +1,7 @@
 //! Parity probe for harness `light_engine` (docs/parity.md): lights the oracle's layouts with the
-//! engine under Java's rules, applies their edits block by block, and compares every cell's block
-//! and sky light. Usage: `light_engine_probe <layouts.jsonl>`; prints CASES and DIVERGENCE lines.
+//! engine under Java's rules, applies their edits block by block, and compares the block and sky
+//! light of every cell (padding included) in the sections Java stores light for; the others are
+//! never read next to a block. Usage: `light_engine_probe <layouts.jsonl>`; prints CASES and DIVERGENCE lines.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -14,8 +15,10 @@ use acacia_render::light::rules::Rules;
 use acacia_world::{Dimension, SECTION_VOLUME};
 use serde_json::Value;
 
-/// Divergent cells shown per case and channel.
-const SHOWN: usize = 3;
+/// Divergent cells shown per case and channel, unless `LIGHT_SHOWN` says otherwise.
+fn shown_limit() -> usize {
+    std::env::var("LIGHT_SHOWN").ok().and_then(|v| v.parse().ok()).unwrap_or(3)
+}
 
 struct Layout {
     chunks: [i32; 2],
@@ -104,23 +107,37 @@ fn main() {
         }
         for edit in row["edits"].as_array().unwrap() {
             let (p, s) = place(edit);
-            lighter.blocks.cells.insert(p, cell_of[s]);
+            if s == "minecraft:air" {
+                lighter.blocks.cells.remove(&p);
+            } else {
+                lighter.blocks.cells.insert(p, cell_of[s]);
+            }
             lighter.update_block(&mut data, p[0], p[1], p[2]);
         }
         cases += 1;
+        let stored = row["stored"].as_str().unwrap().as_bytes();
+        let per_column = height / 16 + 2;
+        let is_stored = |x: i32, y: i32, z: i32| {
+            let column = (x >> 4) * chunks[1] + (z >> 4);
+            stored[(column * per_column + (y >> 4) + 1) as usize] == b'1'
+        };
         for (channel, key, shift) in [("block", "block_light", 4), ("sky", "sky_light", 0)] {
             let expected = row[key].as_str().unwrap().as_bytes();
             let mut i = 0;
             let mut shown = 0;
             for x in 0..chunks[0] * 16 {
                 for z in 0..chunks[1] * 16 {
-                    for y in 0..height {
+                    for y in -16..height + 16 {
+                        if !is_stored(x, y, z) {
+                            i += 1;
+                            continue;
+                        }
                         let want = (expected[i] as char).to_digit(16).unwrap() as u8;
                         let got = data.light(x, y, z).map_or(0, |l| l >> shift & 15);
                         cells_compared += 1;
                         if want != got {
                             cells_wrong += 1;
-                            if shown < SHOWN {
+                            if shown < shown_limit() {
                                 println!("DIVERGENCE\t{case}\t{channel}@{x},{y},{z}\t{want}\t{got}");
                                 shown += 1;
                             }

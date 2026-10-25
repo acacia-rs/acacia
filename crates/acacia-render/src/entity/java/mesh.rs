@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use glam::{Mat4, Vec3};
 
-use super::draw::part_matrices;
+use super::draw::{part_frames, part_matrices};
 use super::model::Part;
 use super::poses::Poses;
 use crate::entity::bake::{Joint, MAX_BONES, Mesh, Vertex};
@@ -61,8 +61,38 @@ pub fn hand(model: &Part, poses: &Poses, left: bool) -> Option<Mat4> {
     let index = model.walk().iter().position(|(_, p)| p.name == name)?;
     let mut shifted = poses.clone();
     shifted.get(name).x += side * poses.hand_offset;
-    let arm = part_matrices(model, &shifted, to_model_space()).get(index).copied().flatten()?;
+    let arm = part_frames(model, &shifted, to_model_space()).get(index).copied()?;
     Some(arm * Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0)))
+}
+
+/// `CustomHeadLayer.Transforms`: a renderer's placing of worn heads.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HeadTransforms {
+    pub y_offset: f32,
+    pub skull_y_offset: f32,
+    pub horizontal: f32,
+    pub vertical: f32,
+}
+
+impl HeadTransforms {
+    pub const DEFAULT: HeadTransforms = HeadTransforms { y_offset: 0.0, skull_y_offset: 0.0, horizontal: 1.0, vertical: 1.0 };
+}
+
+/// `CustomHeadLayer.submit`'s frame for what a posed model wears on its head, in Java's part
+/// space under [`to_model_space`]: a skull's (before `SkullBlockRenderer.submitSkull`) or an
+/// item's (before its `head` display). `None` without a head.
+pub fn head(model: &Part, poses: &Poses, t: HeadTransforms, skull: bool) -> Option<Mat4> {
+    let index = model.walk().iter().position(|(_, p)| p.name == "head")?;
+    let base = to_model_space() * Mat4::from_scale(Vec3::new(t.horizontal, t.vertical, t.horizontal));
+    let head = part_frames(model, poses, base).get(index).copied()?;
+    let worn = if skull {
+        Mat4::from_translation(Vec3::new(0.0, t.skull_y_offset, 0.0)) * Mat4::from_scale(Vec3::splat(1.1875))
+    } else {
+        Mat4::from_translation(Vec3::new(0.0, -0.25 + t.y_offset, 0.0))
+            * super::mth::joml_rotation(Vec3::Y, 180.0)
+            * Mat4::from_scale(Vec3::new(0.625, -0.625, -0.625))
+    };
+    Some(head * worn)
 }
 
 #[cfg(test)]
