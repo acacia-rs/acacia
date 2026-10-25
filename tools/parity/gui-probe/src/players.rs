@@ -52,7 +52,6 @@ pub fn replay(c: &Value, assets: &Assets, _: &mut Map<String, Value>) -> Vec<Gui
         .collect();
     let lang = table(assets);
     let lang = |k: &str| lang.get(k).cloned();
-    let team = |owner: &str| member_of.get(owner).map(|&i| &teams[i]);
     let mut tab = TabList::default();
     let text = |v: &Value| (!v.is_null()).then(|| comp(assets, v));
     (tab.header, tab.footer) = (text(&c["header"]), text(&c["footer"]));
@@ -73,6 +72,8 @@ pub fn replay(c: &Value, assets: &Assets, _: &mut Map<String, Value>) -> Vec<Gui
         gui = Gui::new(width, 240);
         if visible {
             let score = |owner: &str| scores.get(owner).cloned();
+            // Made per frame: TabInputs ties the teams' lifetime to the scores' borrow.
+            let team = |owner: &str| member_of.get(owner).map(|&i| &teams[i]);
             let inputs = TabInputs {
                 players: &players,
                 team: &team,
