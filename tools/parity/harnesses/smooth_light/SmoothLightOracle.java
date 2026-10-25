@@ -1,6 +1,6 @@
 package acacia.parity.smooth_light;
 
-import acacia.parity.BlockModels;
+import acacia.parity.Models;
 import acacia.parity.Out;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -84,7 +84,7 @@ public final class SmoothLightOracle {
     }
 
     public static void main(String[] args) throws Exception {
-        var models = BlockModels.get();
+        var models = Models.get();
         var lighter = new BlockModelLighter();
         try (var out = new Out.Lines(Path.of(args[0], "scenes.jsonl"))) {
             for (String line : Files.readAllLines(Path.of(args[1]), StandardCharsets.UTF_8)) {
@@ -112,7 +112,7 @@ public final class SmoothLightOracle {
                     var p = ints(item.getAsJsonArray());
                     var pos = new BlockPos(p[0], p[1], p[2]);
                     var state = scene.getBlockState(pos);
-                    var model = models.model(state);
+                    var model = models.blockStateModel(state);
                     if (state.getRenderShape() != RenderShape.MODEL || model == null) continue;
                     var parts = new ArrayList<BlockStateModelPart>();
                     model.collectParts(RandomSource.create(state.getSeed(pos)), parts);

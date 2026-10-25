@@ -81,6 +81,11 @@ impl LookPack {
         self.states.insert(state, index);
     }
 
+    /// What the blocks' [`blocks::LightFacts::shape`] index (from 1).
+    pub fn light_shapes(&self) -> &[FaceShapes] {
+        &self.light_shapes
+    }
+
     /// The [`blocks::LightFacts::shape`] of `shapes`, adding them when new.
     pub fn light_shape(&mut self, shapes: FaceShapes) -> u16 {
         let index = self.light_shapes.iter().position(|s| *s == shapes).unwrap_or_else(|| {
