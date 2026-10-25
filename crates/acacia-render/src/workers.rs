@@ -10,7 +10,8 @@ use parking_lot::RwLock;
 use crate::biome::BiomeColors;
 use crate::blocks::BlockTable;
 use crate::light::{LightData, LightVolume};
-use crate::mesh::{SectionMesh, Volume, mesh_section, visibility};
+use crate::look::Lighting;
+use crate::mesh::{SectionMesh, Volume, mesh_section_lit, visibility};
 
 /// Column x, section y (world y >> 4), column z.
 pub type SectionKey = (i32, i32, i32);
@@ -97,7 +98,8 @@ fn build((cx, sy, cz): SectionKey, s: &Shared) -> Option<SectionMesh> {
     }
     drop(column);
     let volume = Volume::gather(&s.world, cx, sy, cz)?;
-    let mut mesh = mesh_section(&volume, &s.table, &s.biomes);
+    let cells = (s.table.lighting == Lighting::Java).then(|| s.light.read().gather_cells((cx, sy, cz)));
+    let mut mesh = mesh_section_lit(&volume, &s.table, &s.biomes, cells.as_ref());
     if !mesh.is_empty() {
         mesh.light = Some(s.light.read().gather((cx, sy, cz)));
     }

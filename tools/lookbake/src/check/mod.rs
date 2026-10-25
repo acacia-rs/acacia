@@ -2,6 +2,7 @@
 //! of its baked quads (written by `tools/parity/harnesses/bake/BakeOracle.java`).
 
 mod biomes;
+pub mod light;
 mod placed;
 mod shade;
 

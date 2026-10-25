@@ -48,7 +48,7 @@ impl Renderer {
     pub fn set_world(&mut self, world: Arc<World>, table: Arc<BlockTable>, atlas: &Atlas) {
         self.textures = BlockTextures::new(&self.device, &self.queue, atlas);
         self.store.replaced = true;
-        let lighting = Lighting::new(world.clone());
+        let lighting = Lighting::new(world.clone(), &table);
         self.rebuild_scene(world, table, lighting);
     }
 

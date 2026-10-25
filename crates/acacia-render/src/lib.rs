@@ -15,6 +15,7 @@ pub mod glint;
 pub mod rope;
 mod gpu;
 pub mod item;
+pub mod java_random;
 pub mod light;
 pub mod lightning;
 pub mod look;

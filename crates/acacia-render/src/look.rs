@@ -52,6 +52,21 @@ pub struct Look {
     /// Packs baked before this field have none: they take Bedrock's.
     #[serde(default)]
     pub foil: crate::glint::Foil,
+    /// Packs baked before this field have none: they take the renderer's own.
+    #[serde(default)]
+    pub lighting: Lighting,
+}
+
+/// How the world is lit. Design: crates/acacia-render/README.md "Lighting".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Lighting {
+    /// Light smoothed per pixel from the section's light volume through the renderer's curve,
+    /// applied in linear colour.
+    #[default]
+    Volume,
+    /// Java's: light and ambient occlusion per vertex (`BlockModelLighter`), its lightmap, its
+    /// light engine rules, and colours multiplied as the game multiplies them (in sRGB).
+    Java,
 }
 
 /// Whose rules set the fog with the camera in water, lava or powder snow ([`crate::fluid_view`]).
@@ -121,6 +136,7 @@ impl Look {
         dropped: Dropped::JAVA,
         fluid_fog: FluidFog::Pack,
         foil: crate::glint::Foil::Bedrock,
+        lighting: Lighting::Volume,
     };
     /// The blend is Java's default `biomeBlendRadius`; the haze its environmental fog
     /// (`fog_start_distance` and `fog_end_distance`: the defaults, and the Nether's), without
@@ -140,6 +156,7 @@ impl Look {
         dropped: Dropped::JAVA,
         fluid_fog: FluidFog::Java,
         foil: crate::glint::Foil::Java,
+        lighting: Lighting::Java,
     };
 }
 

@@ -10,7 +10,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::biome::BiomeColors;
 use crate::blocks::BlockTable;
-use crate::light::{LightData, LightEvent, LightVolume, Lighting};
+use crate::light::{LightData, LightEvent, LightVolume, Lighting as LightThread};
+use crate::look::Lighting;
 use parking_lot::RwLock;
 use crate::mesh::SectionMesh;
 use crate::workers::{Job, Output, SectionKey, Work, Workers};
@@ -30,7 +31,7 @@ const MISSING_NEIGHBOUR_COST: i32 = 4096;
 pub struct Scene {
     workers: Workers,
     table: Arc<BlockTable>,
-    lighting: Lighting,
+    lighting: LightThread,
     tracked: Tracked,
     frame: u64,
 }
@@ -53,7 +54,7 @@ struct Tracked {
 impl Scene {
     /// `lighting` may come from a previous scene of the same world ([`Scene::into_parts`]): its
     /// lit columns are meshed at once.
-    pub fn new(world: Arc<World>, table: Arc<BlockTable>, biomes: Arc<BiomeColors>, lighting: Lighting) -> Self {
+    pub fn new(world: Arc<World>, table: Arc<BlockTable>, biomes: Arc<BiomeColors>, lighting: LightThread) -> Self {
         let dim = world.dimension();
         let min = dim.min_y >> 4;
         let mut t = Tracked {
@@ -84,7 +85,7 @@ impl Scene {
         &self.table
     }
 
-    pub fn into_parts(self) -> (Arc<World>, Arc<BlockTable>, Lighting) {
+    pub fn into_parts(self) -> (Arc<World>, Arc<BlockTable>, LightThread) {
         (self.tracked.world, self.table, self.lighting)
     }
 
@@ -114,6 +115,12 @@ impl Scene {
         for event in self.lighting.events.try_iter() {
             match event {
                 LightEvent::World(change) => t.apply(change),
+                // Light in the vertices takes a remesh.
+                LightEvent::Light(key) if self.table.lighting == Lighting::Java => {
+                    if !t.dirty.contains(&key) {
+                        t.mark(key);
+                    }
+                }
                 LightEvent::Light(key) => t.light_changed(key),
             }
         }
