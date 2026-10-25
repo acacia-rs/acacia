@@ -10,6 +10,8 @@ mod options;
 mod picture;
 pub mod screens;
 mod views;
+#[cfg(test)]
+mod views_tests;
 
 pub use hud::{HudView, hotbar_stack};
 pub use inputs::screen_info;
