@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.client.renderer.block.FluidRenderer;
 import net.minecraft.client.renderer.block.FluidStateModelSet;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
@@ -145,7 +146,7 @@ public final class FluidsOracle {
         var out = Path.of(args[0]);
         Game.init();
         bindBlockTags();
-        var models = FluidStateModelSet.bake(new Materials(UnitAtlas.load(AtlasIds.BLOCKS, TextureAtlas.LOCATION_BLOCKS)));
+        var models = FluidStateModelSet.bake(new Materials(UnitAtlas.load(AtlasIds.BLOCKS, TextureAtlas.LOCATION_BLOCKS, Set.of(), false)));
         var renderer = new FluidRenderer(new FluidStateModelSet(models, models.values().iterator().next()));
         int count = 0;
         try (var cases = new Out.Lines(out.resolve("cases.jsonl")); var quads = new Out.Lines(out.resolve("quads.jsonl"))) {

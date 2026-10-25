@@ -124,7 +124,7 @@ pub(in crate::mesh) fn faces(ctx: &Ctx, p: [i32; 3]) -> Vec<LiquidFace> {
             (Sprite::Flow, uv.map(|t| t.map(|v| 0.5 + v)))
         };
         // FluidState.shouldRenderBackwardUpFace over the 3x3 cells above.
-        let backward = (-1..=1).any(|ox| (-1..=1).any(|oz| !same([x + ox, y + 1, z + oz]) && !ctx.block([x + ox, y + 1, z + oz]).fluid_rules.solid_render()));
+        let backward = (-1..=1).any(|ox| (-1..=1).any(|oz| !same([x + ox, y + 1, z + oz]) && !ctx.block([x + ox, y + 1, z + oz]).light.solid_render));
         let corners = [[fx, fy + nw, fz], [fx, fy + sw, fz + 1.0], [fx + 1.0, fy + se, fz + 1.0], [fx + 1.0, fy + ne, fz]];
         add(corners, uv, sprite, UP, p, backward);
     }

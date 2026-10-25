@@ -12,14 +12,16 @@ mod tests;
 
 use tesselate::{faces as tesselate, fluid_at};
 
+use super::quad::vertex_light;
 use super::shapes::NO_AO;
+use super::smooth::{DOWN, LightWorld, OF_FACE, UP, cardinal};
 use super::{Ctx, SectionMesh, Volume, model};
 use crate::biome::BiomeColors;
 use crate::blocks::{BlockTable, Layer, RenderBlock};
 
 /// The faces of the liquid at section-local `p` (none where there is no liquid).
 pub fn java_faces(volume: &Volume, table: &BlockTable, biomes: &BiomeColors, p: [i32; 3]) -> Vec<LiquidFace> {
-    tesselate(&Ctx { v: volume, table, biomes }, p)
+    tesselate(&Ctx { v: volume, table, biomes, cells: None }, p)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,23 +64,15 @@ pub struct LiquidFace {
     pub face: usize,
     /// sRGB before shading: the biome's water, white for lava.
     pub tint: [u8; 3],
-    /// Section-local cell whose light it takes, as the brighter of that cell and the one above it
-    /// per channel (`FluidRenderer.getLightColor`).
+    /// Section-local cell whose light it takes ([`light_coords`]).
     pub light: [i32; 3],
 }
 
 impl LiquidFace {
-    /// `BlockAndTintGetter.getShade` for the face, the sides also times the up face's; the Nether
-    /// lights up and down alike.
+    /// The `CardinalLighting` shade Java scales the face's colour by: the sides' times the up face's.
     pub fn shade(&self, nether: bool) -> f32 {
-        let up = if nether { 0.9 } else { 1.0 };
-        match self.face {
-            2 => up,
-            3 if nether => 0.9,
-            3 => 0.5,
-            4 | 5 => up * 0.8,
-            _ => up * 0.6,
-        }
+        let d = OF_FACE[self.face];
+        if d == UP || d == DOWN { cardinal(nether, d) } else { cardinal(nether, UP) * cardinal(nether, d) }
     }
 
     /// The vertex colour Java writes (`ARGB.scaleRGB`).
@@ -88,14 +82,36 @@ impl LiquidFace {
     }
 }
 
+/// `FluidRenderer.getLightCoords` of `face`, every vertex's: the brighter of its light cell and the
+/// one above, per channel, as Java's light coords (block << 4 | sky << 20).
+pub fn light_coords(world: &impl LightWorld, face: &LiquidFace) -> u32 {
+    let coords = |p: [i32; 3]| -> (u32, u32) {
+        let facts = world.facts(p);
+        if facts.emissive {
+            return (240, 240);
+        }
+        let (block, sky) = world.light(p);
+        (u32::from(block.max(facts.emission)) << 4, u32::from(sky) << 4)
+    };
+    let [x, y, z] = face.light;
+    let ((b0, s0), (b1, s1)) = (coords([x, y, z]), coords([x, y + 1, z]));
+    b0.max(b1) | s0.max(s1) << 16
+}
+
 pub(super) fn liquid(ctx: &Ctx, p: [i32; 3], out: &mut SectionMesh) {
     let b = fluid_at(ctx, p);
+    let lighter = ctx.lighter();
     for face in tesselate(ctx, p) {
         let surface = ctx.surface(p, b, face.sprite.slot());
         let scale = face.sprite.texels(b);
         let corners = face.corners.map(|c| c.map(|v| v * 16.0));
         let uv = face.uv.map(|t| t.map(|v| v * scale));
-        let records = model::records4(corners, uv, face.face as u8, surface, NO_AO);
+        let mut records = model::records4(corners, uv, face.face as u8, surface, NO_AO);
+        if let Some(l) = &lighter {
+            // Java bakes the shade into the vertex colour; here it is the vertex grey.
+            let (coords, grey) = (light_coords(&l.world, &face), (255.0 * face.shade(ctx.v.nether)) as u32);
+            records[0] = records[0].lit([vertex_light(coords & 0xFF, coords >> 16 & 0xFF, grey); 4]);
+        }
         if b.layer == Layer::Translucent { out.translucent.extend(records) } else { out.solid.extend(records) }
     }
 }

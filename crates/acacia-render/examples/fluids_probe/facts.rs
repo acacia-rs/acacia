@@ -40,7 +40,7 @@ pub fn check(world: &World, table: &BlockTable, path: &str) {
         diverge("blocks_motion".into(), flag("blocks_motion"), rules.blocks_motion.to_string());
         diverge("overlay".into(), flag("overlay"), rules.overlay.to_string());
         diverge("ice".into(), flag("ice"), rules.ice.to_string());
-        diverge("solid_render".into(), flag("solid_render"), rules.solid_render().to_string());
+        diverge("solid_render".into(), flag("solid_render"), block.light.solid_render.to_string());
     }
     println!("CASES\t{cases}");
 }

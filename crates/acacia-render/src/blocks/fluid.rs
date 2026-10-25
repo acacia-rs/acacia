@@ -92,11 +92,6 @@ impl FluidRules {
         if self.occludes { self.cover[face] } else { 0.0 }
     }
 
-    /// `isSolidRender`: occludes with a full block's shape.
-    pub fn solid_render(&self) -> bool {
-        self.occludes && self.cover.iter().all(|&c| c >= 1.0)
-    }
-
     /// `FluidState.getOwnHeight`.
     pub fn own_height(&self) -> f32 {
         f32::from(self.amount) / 9.0

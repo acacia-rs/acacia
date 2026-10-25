@@ -16,14 +16,15 @@ use super::LookPack;
 use crate::Error;
 use crate::assets::flipbook::{Animation, Atlas};
 use crate::assets::image::{TEXEL_BYTES, TEXTURE_SIZE, Texture};
-use crate::blocks::RenderBlock;
+use crate::blocks::{FaceShapes, RenderBlock};
 use crate::entity::EntityModels;
 use crate::look::Look;
 
 /// Packs written as another version are refused; bake again. 2: model faces. 3: their ambient occlusion, fixed tints.
 /// 4: turned faces, alternatives and shifts by position. 5: the look's biome blend. 6: its haze.
 /// 7: `blocks.bin`. 8: ambient occlusion strengths, and the blocks that darken it.
-pub const VERSION: u64 = 9;
+/// 9: the look's lighting, the blocks' light facts and their light shapes. 10: the blocks' fluid rules.
+pub const VERSION: u64 = 10;
 
 #[derive(Serialize, Deserialize)]
 struct PackFile {
@@ -32,6 +33,7 @@ struct PackFile {
     /// Indices into `blocks.bin`.
     states: BTreeMap<String, u32>,
     animations: Vec<AnimationEntry>,
+    light_shapes: Vec<FaceShapes>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -52,6 +54,7 @@ impl LookPack {
             look: self.look,
             states: self.states.iter().map(|(k, v)| (k.clone(), *v)).collect(),
             animations: animations.iter().map(|a| AnimationEntry { layer: a.layer, frames: a.frames.len(), ticks_per_frame: a.ticks_per_frame, blend: a.blend }).collect(),
+            light_shapes: self.light_shapes.clone(),
         };
         let json = dir.join("pack.json");
         std::fs::write(&json, serde_json::to_vec(&file).expect("a pack serializes")).map_err(io(&json))?;
@@ -103,7 +106,8 @@ impl LookPack {
             animations.push(Animation { layer: a.layer, frames, ticks_per_frame: a.ticks_per_frame.max(1), blend: a.blend });
         }
         let states = file.states.into_iter().collect();
-        Ok(LookPack { look: file.look, blocks, states, distinct: Default::default(), atlas: Atlas { layers, animations }, files: dir.to_owned() })
+        let atlas = Atlas { layers, animations };
+        Ok(LookPack { look: file.look, blocks, states, distinct: Default::default(), atlas, light_shapes: file.light_shapes, files: dir.to_owned() })
     }
 }
 
@@ -182,6 +186,7 @@ mod tests {
             states: [("minecraft:air".to_owned(), 0), ("minecraft:oak_log[pillar_axis=y]".to_owned(), 1)].into_iter().collect(),
             distinct: Default::default(),
             atlas: Atlas { layers: vec![Texture::missing(), grey(10)], animations: vec![animation] },
+            light_shapes: vec![[[1, 2, 3, u64::MAX]; 6]],
             files: temp(&format!("{name}-loose")),
         }
     }

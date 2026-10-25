@@ -46,7 +46,7 @@ pub fn records(corners: [[f32; 3]; 3], uv: [[f32; 2]; 3], kind: Face, surface: S
         [MODEL | CONTINUED | r | g << 7 | b << 14, c1[1] | c1[2] << 16, c3[0] | c3[1] << 16],
         [MODEL | CONTINUED | u0 | v0 << 10 | u1 << 20, c3[2] | v1 << 16, u3 | v3 << 10],
     ]
-    .map(Quad)
+    .map(|words| Quad(words, [0; 4]))
 }
 
 /// Set in record 0 of a face whose corner 2 is stored in a fourth record.
@@ -61,7 +61,7 @@ pub fn records4(corners: [[f32; 3]; 4], uv: [[f32; 2]; 4], kind: Face, surface: 
     head.0[0] = (head.0[0] & !(1 << 28)) | CORNER2;
     let [x, y, z] = c2.map(coordinate);
     let [u, v] = t2.map(texel);
-    [head, tint, texels, Quad([MODEL | CONTINUED | u | v << 10, x | y << 16, z])]
+    [head, tint, texels, Quad([MODEL | CONTINUED | u | v << 10, x | y << 16, z], [0; 4])]
 }
 
 /// Corner 0 of a model face's first record along `axis`, in 1/16 block like a plain quad's position.

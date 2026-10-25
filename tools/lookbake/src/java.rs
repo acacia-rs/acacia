@@ -21,7 +21,7 @@ use crate::mapping::{JavaState, Mapping};
 use crate::model::Models;
 use crate::model::bake::{BakedFace, bake};
 use crate::textures::Textures;
-use crate::{fluid, offset, shade, tint};
+use crate::{fluid, light, offset, shade, tint};
 
 /// What became of the vanilla registry's states.
 #[derive(Default)]
@@ -50,8 +50,11 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping, tags: &fluid::Ta
         let base = look.block(&key).expect("the Bedrock bake covers the registry").clone();
         if base.fluid != Fluid::None {
             match liquid(&base, &mut baker.textures, &mut look.atlas) {
-                Some(block) => {
+                Some(mut block) => {
                     report.liquids += 1;
+                    if let Some(java) = mapping.get(&key) {
+                        block.light = light::facts(java, state, &block, |shapes| look.light_shape(shapes));
+                    }
                     look.set_block(key, block);
                 }
                 None => *report.kept.entry("texture missing").or_default() += 1,
@@ -81,10 +84,11 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping, tags: &fluid::Ta
                 base
             }
         };
-        // Whatever draws it, a block darkens the faces around it as Java has it.
+        // Whatever draws it, a block darkens the faces around it and takes light as Java has it.
         if let Some(java) = mapping.get(&key) {
             block.shades = shade::darkens(java, state.is_full_cube());
             block.fluid_rules = fluid::rules(block.fluid_rules, java, faces.as_deref(), tags);
+            block.light = light::facts(java, state, &block, |shapes| look.light_shape(shapes));
         }
         look.set_block(key, block);
     }

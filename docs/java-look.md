@@ -44,8 +44,13 @@ Pomme (PommeMC/Client) is GPL-3.0-or-later; acacia is MIT.
 - DESIGN.md's License row ("never port from GPL/LGPL sources") gains this one exception when
   `lookbake` lands.
 
-Open: entity cube tables transcribed from Pomme's source would carry its text into the pack. Take
-them from the Java models directly, or confirm that is acceptable, before J4.
+Entity models come from the user's own client jar, not from Pomme: `lookbake java` (or
+`java-entities`) compiles `tools/lookbake/exporter/EntityModelExporter.java` (MIT, ours, after
+Horizon's exporter) with a JDK 25, runs it against the jar and writes every baked model layer into the
+look as `java/entity_models.json`. The output stays on the user's machine; neither it nor any cube
+table is committed or shipped. The `setupAnim` ports in `acacia-render/src/entity/java/anim` are
+written against the client's decompiled models, read on the oracle host and never committed, and
+checked by the parity harness `entity_poses`.
 
 ## Crates
 

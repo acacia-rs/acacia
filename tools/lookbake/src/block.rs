@@ -63,6 +63,7 @@ pub fn render_block(base: &RenderBlock, faces: &[BakedFace], model: Vec<ModelFac
         fluid_height: 0,
         fluid_rules: base.fluid_rules,
         model: None,
+        light: base.light,
     };
     match side_turns(faces).filter(|_| cube && full && faces.len() == 6) {
         Some(turns) => {

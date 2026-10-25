@@ -3,9 +3,10 @@ use acacia_world::{BlockRegistry, BlockState};
 use super::super::model::{CORNER2, MODEL};
 use super::super::volume::{Volume, cell};
 use super::super::{Ctx, SectionMesh};
-use super::{LiquidFace, Sprite, java_faces, liquid};
+use super::super::smooth::LightWorld;
+use super::{LiquidFace, Sprite, java_faces, light_coords, liquid};
 use crate::biome::BiomeColors;
-use crate::blocks::{BlockTable, Fluid, FluidRules, Layer, Material, RenderBlock, Shape, Tint};
+use crate::blocks::{BlockTable, Fluid, FluidRules, Layer, LightFacts, Material, RenderBlock, Shape, Tint};
 
 const AIR: u32 = 0;
 const STONE: u32 = 1;
@@ -30,7 +31,7 @@ fn block(s: &BlockState, base: RenderBlock) -> RenderBlock {
 
 fn table() -> BlockTable {
     let cube = BlockTable::cube(0);
-    let none = RenderBlock { shape: Shape::None, layer: Layer::Invisible, occludes: false, shades: false, ..cube.clone() };
+    let none = RenderBlock { shape: Shape::None, layer: Layer::Invisible, occludes: false, shades: false, light: LightFacts::default(), ..cube.clone() };
     let water = |depth: u8| {
         let s = state(if depth == 0 { "minecraft:water" } else { "minecraft:flowing_water" }, &[&format!("liquid_depth={depth}")]);
         let base = RenderBlock {
@@ -45,8 +46,8 @@ fn table() -> BlockTable {
         block(s, base)
     };
     let lava = RenderBlock { shape: Shape::Liquid, layer: Layer::Solid, textures: [20, 20, 21, 21, 20, 20], fluid: Fluid::Lava, ..none.clone() };
-    let see_through = RenderBlock { layer: Layer::Translucent, occludes: false, ..cube.clone() };
-    let boxes = RenderBlock { shape: Shape::Boxes(Box::new([])), occludes: false, ..cube.clone() };
+    let see_through = RenderBlock { layer: Layer::Translucent, occludes: false, light: LightFacts::default(), ..cube.clone() };
+    let boxes = RenderBlock { shape: Shape::Boxes(Box::new([])), occludes: false, light: LightFacts::default(), ..cube.clone() };
     let stairs = |d: &str| block(state("minecraft:oak_stairs", &[&format!("weirdo_direction={d}"), "upside_down_bit=0", "minecraft:corner=none"]), boxes.clone());
     let mut blocks = vec![block(state("minecraft:air", &[]), none.clone()), block(state("minecraft:stone", &[]), cube.clone())];
     blocks.extend((0..=8).map(water));
@@ -175,10 +176,30 @@ fn lava_is_white_flowing_and_solid() {
     assert_eq!(by_face(&f, 2)[0].color(true), [229; 3]);
     let table = table();
     let mut out = SectionMesh::default();
-    liquid(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default() }, [5, 5, 5], &mut out);
+    liquid(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default(), cells: None }, [5, 5, 5], &mut out);
     assert!(out.translucent.is_empty() && out.solid.len() == 4 * f.len());
     let head = out.solid[0].0[0];
     assert_eq!(head & (MODEL | CORNER2), MODEL | CORNER2);
     // The layer of each sprite: flowing sides read slot 4, the still top slot 2.
     assert_eq!(head >> 16 & 4095, 21);
+}
+
+/// Block light rising with y, sky light with x; glowing (emission 12) at y 6.
+struct Lights;
+
+impl LightWorld for Lights {
+    fn facts(&self, [_, y, _]: [i32; 3]) -> LightFacts {
+        LightFacts { emission: if y == 6 { 12 } else { 0 }, ..LightFacts::default() }
+    }
+
+    fn light(&self, [x, y, _]: [i32; 3]) -> (u8, u8) {
+        (y as u8, x as u8)
+    }
+}
+
+#[test]
+fn a_face_takes_the_brighter_of_its_light_cell_and_the_one_above() {
+    let face = |light| LiquidFace { corners: [[0.0; 3]; 4], uv: [[0.0; 2]; 4], sprite: Sprite::Still, face: 2, tint: [255; 3], light };
+    assert_eq!(light_coords(&Lights, &face([3, 2, 0])), 3 << 4 | 3 << 20);
+    assert_eq!(light_coords(&Lights, &face([3, 5, 0])), 12 << 4 | 3 << 20, "the cell above emits");
 }

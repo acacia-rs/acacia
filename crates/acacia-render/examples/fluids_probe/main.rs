@@ -9,9 +9,10 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 
 use acacia_render::biome::{BiomeColors, BiomeDef};
-use acacia_render::blocks::{BlockTable, Fluid, Layer};
+use acacia_render::blocks::{BlockTable, Fluid, Layer, LightFacts};
 use acacia_render::lookpack::{LookPack, state_key};
-use acacia_render::mesh::liquid::{LiquidFace, Sprite, java_faces};
+use acacia_render::mesh::liquid::{LiquidFace, Sprite, java_faces, light_coords};
+use acacia_render::mesh::smooth::LightWorld;
 use acacia_render::mesh::volume::{Volume, cell};
 use acacia_world::BlockRegistry;
 use serde_json::{Value, json};
@@ -20,11 +21,6 @@ const USAGE: &str = "usage: fluids_probe <cases.jsonl> <blockstate_mappings.json
 /// The oracle's section: world y 64..80.
 const MIN_Y: i32 = 64;
 const BIOME: u16 = 1;
-
-/// The oracle's light field (`Scene.sky`, `Scene.block`), by world position.
-fn raw_light([x, y, z]: [i32; 3]) -> (i32, i32) {
-    ((x * 3 + y * 5 + z * 11 + 3) & 15, (x * 7 + y * 3 + z * 5) & 15)
-}
 
 /// Bedrock state keys by Java state key, both with properties sorted by name.
 fn java_to_bedrock(path: &str) -> HashMap<String, String> {
@@ -47,13 +43,12 @@ fn sorted(state: &str) -> String {
     format!("{name}[{}]", pairs.join(","))
 }
 
-struct World<'a> {
+struct World {
     ids: HashMap<String, u32>,
     mapping: HashMap<String, String>,
-    registry: &'a BlockRegistry,
 }
 
-impl World<'_> {
+impl World {
     /// A Java state as the Bedrock world would hold it; waterlogging is the liquid layer's business.
     /// States the table never produces (it folds some properties away) take the state of the same
     /// block sharing the most property values.
@@ -119,7 +114,7 @@ fn record(world: &World, table: &BlockTable, case: &Value, look: &str) -> Value 
         for z in 0..16 {
             for x in 0..16 {
                 for face in java_faces(&v, table, &biomes, [x, y, z]) {
-                    quads.push(quad(world, table, &v, [x, y, z], &face, nether));
+                    quads.push(quad(table, &v, [x, y, z], &face, nether));
                 }
             }
         }
@@ -127,17 +122,28 @@ fn record(world: &World, table: &BlockTable, case: &Value, look: &str) -> Value 
     json!({"case": case["case"], "quads": quads, "unmapped": unmapped})
 }
 
-fn quad(world: &World, table: &BlockTable, v: &Volume, p: [i32; 3], face: &LiquidFace, nether: bool) -> Value {
+/// The oracle's light over the section's blocks, as the mesher's lighter sees a section's.
+struct OracleLight<'a> {
+    table: &'a BlockTable,
+    v: &'a Volume,
+}
+
+impl LightWorld for OracleLight<'_> {
+    fn facts(&self, [x, y, z]: [i32; 3]) -> LightFacts {
+        self.table.get(self.v.block(x, y, z)).light
+    }
+
+    /// `Scene.block` and `Scene.sky` at the world position.
+    fn light(&self, [x, y, z]: [i32; 3]) -> (u8, u8) {
+        let y = y + MIN_Y;
+        (((x * 3 + y * 5 + z * 11 + 3) & 15) as u8, ((x * 7 + y * 3 + z * 5) & 15) as u8)
+    }
+}
+
+fn quad(table: &BlockTable, v: &Volume, p: [i32; 3], face: &LiquidFace, nether: bool) -> Value {
     let me = table.get(v.block(p[0], p[1], p[2]));
     let me = if me.fluid == Fluid::None { table.get(v.liquid(p[0], p[1], p[2])) } else { me };
-    let light = |[x, y, z]: [i32; 3]| {
-        let emission = world.registry.get(v.block(x, y, z)).map_or(0, |s| i32::from(s.light_emission));
-        let (block, sky) = raw_light([x, y + MIN_Y, z]);
-        (block.max(emission), sky)
-    };
-    let [x, y, z] = face.light;
-    let ((b0, s0), (b1, s1)) = (light([x, y, z]), light([x, y + 1, z]));
-    let packed = b0.max(b1) << 4 | s0.max(s1) << 20;
+    let packed = light_coords(&OracleLight { table, v }, face);
     let [r, g, b] = face.color(nether);
     let rgb = i64::from(r) << 16 | i64::from(g) << 8 | i64::from(b);
     let sprite = sprite_name(me.fluid, face.sprite);
@@ -152,7 +158,7 @@ fn main() {
     let [cases, mapping, look, out, facts] = &args[..] else { panic!("{USAGE}") };
     let registry = BlockRegistry::vanilla();
     let ids = (0..registry.len() as u32).filter_map(|id| Some((state_key(registry.get(id)?), id))).collect();
-    let world = World { ids, mapping: java_to_bedrock(mapping), registry };
+    let world = World { ids, mapping: java_to_bedrock(mapping) };
     let table = LookPack::load(std::path::Path::new(look)).expect("look pack").block_table(registry);
     let mut writer = BufWriter::new(std::fs::File::create(out).expect("out"));
     let mut count = 0;
