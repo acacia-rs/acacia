@@ -99,7 +99,7 @@ public final class ItemModelsOracle {
     }
 
     private static synchronized SpriteLoader.Preparations atlas(Identifier sheet) {
-        return ATLAS.computeIfAbsent(sheet, s -> UnitAtlas.load(Objects.requireNonNull(ATLASES.get(s), s::toString), s));
+        return ATLAS.computeIfAbsent(sheet, s -> UnitAtlas.load(Objects.requireNonNull(ATLASES.get(s), s::toString), s, Set.of(), false));
     }
 
     /** ModelManager's discovery and ModelBakery's bake, for item models only. */
