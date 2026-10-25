@@ -1,4 +1,3 @@
-use acacia_client::proto::nbt::Value;
 use acacia_physics::BlockPos;
 use acacia_world::{Mining, Tool};
 
@@ -45,13 +44,7 @@ impl Bot {
 
 /// Durability left before `tool` breaks: its maximum minus the stack's `Damage` tag.
 pub(crate) fn durability_left(stack: &ItemStack, tool: Tool) -> u16 {
-    let damage = match stack.nbt.as_ref().and_then(|n| n.value.get("Damage")) {
-        Some(Value::Int(d)) => *d,
-        Some(Value::Short(d)) => i32::from(*d),
-        Some(Value::Byte(d)) => i32::from(*d),
-        _ => 0,
-    };
-    let left = i32::from(tool.max_durability()) - damage.max(0);
+    let left = i32::from(tool.max_durability()) - stack.damage().max(0);
     u16::try_from(left.max(0)).unwrap_or(0)
 }
 

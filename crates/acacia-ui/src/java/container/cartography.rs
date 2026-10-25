@@ -34,7 +34,8 @@ impl Cartography {
     fn map(&self, gui: &mut Gui, x: i32, y: i32, scale: f32) {
         if let Some(data) = self.map {
             gui.push(vec![PoseOp::Translate(x as f32, y as f32), PoseOp::Scale(scale, scale)]);
-            gui.draws.push(GuiDraw::Picture(Picture::Map { decorations: data.decorations }));
+            let key = self.base.slots[0].item.as_ref().and_then(|s| s.key);
+            gui.draws.push(GuiDraw::Picture(Picture::Map { decorations: data.decorations, key }));
             gui.pop();
         }
     }
