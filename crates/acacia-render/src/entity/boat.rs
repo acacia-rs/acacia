@@ -84,7 +84,7 @@ mod tests {
         assert_eq!(paddles(&mesh, &rowing(0.0)).count(), 0);
         // A quarter of a stroke on: the left blade has lifted and swung; the right one has not moved.
         let quarter = std::f32::consts::FRAC_PI_2;
-        let pose = Pose(paddles(&mesh, &rowing(quarter)).collect());
+        let pose = Pose::bones(paddles(&mesh, &rowing(quarter)).collect());
         assert_eq!(pose.0.len(), 1);
         let [x, y] = turn(quarter, 0);
         assert!((x + 60.0).abs() < 1e-3 && (y + 45.0 - 90.0 * ((1.0 - quarter).sin() + 1.0) / 2.0).abs() < 1e-3, "{x} {y}");
@@ -92,7 +92,7 @@ mod tests {
         assert!(swept.distance(rest) > 4.0, "{rest} {swept}");
         assert_eq!(blade(&mesh, &pose, 1), blade(&mesh, &Pose::default(), 1));
         // A whole stroke later it is back where it was.
-        let again = Pose(paddles(&mesh, &rowing(quarter + std::f32::consts::TAU)).collect());
+        let again = Pose::bones(paddles(&mesh, &rowing(quarter + std::f32::consts::TAU)).collect());
         assert!(blade(&mesh, &again, 0).distance(swept) < 0.01);
     }
 }

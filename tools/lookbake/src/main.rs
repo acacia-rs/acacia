@@ -6,6 +6,8 @@
 //! - `lookbake fetch-java [java dir]`: downloads the pinned Java client jar, unpacks its assets
 //!   (jar.rs) and downloads the Bedrock-to-Java block table (mapping.rs).
 //! - `lookbake java-report [java dir]`: the same, then how many Bedrock block states reach a Java model.
+//! - `lookbake java-entities [java dir] [out dir]`: only the Java entity models and textures
+//!   (entities.rs; needs a JDK 25).
 //! - `lookbake java-check <quads.json.gz> [java dir]`: our bake of every Java block state against a
 //!   dump of the game's own (check.rs).
 
@@ -15,6 +17,7 @@ mod block;
 mod blockstate;
 mod check;
 mod download;
+mod entities;
 mod environment;
 mod jar;
 mod java;
@@ -36,7 +39,7 @@ use acacia_render::{Look, LookPack};
 
 use download::Error;
 
-const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-report [java dir] | java-check <quads.json.gz> [java dir]";
+const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-entities [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir]";
 
 fn main() -> Result<(), Error> {
     let mut args = std::env::args().skip(1);
@@ -59,10 +62,18 @@ fn main() -> Result<(), Error> {
             environment::copy(&jar.assets, &out)?;
             particles::copy(&jar.assets, &out)?;
             banners::copy(&jar.assets, &out)?;
+            if let Some(layers) = entities::bake(&java, &jar.assets, &out)? {
+                println!("  Java entity models: {layers} layers");
+            }
             println!("  Java sounds: {} files", sounds::fetch(&out)?);
             println!("{}", summary(&look, &out));
             println!("  Java: {} states as cubes, {} as models, {} liquids; kept from Bedrock: {:?}", report.cubes, report.models, report.liquids, report.kept);
             println!("  textures missing: {:?}; models invalid: {:?}", report.missing_textures, report.invalid_models);
+        }
+        Some("java-entities") => {
+            let (java, out) = (dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
+            let layers = entities::bake(&java, &jar::fetch(&java)?.assets, &out)?.ok_or("no JDK 25")?;
+            println!("{}: {layers} entity model layers", out.join(entities::MODELS).display());
         }
         Some(command @ ("fetch-java" | "java-report")) => {
             let java = dir(jar::default_dir);
