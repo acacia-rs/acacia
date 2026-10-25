@@ -18,8 +18,17 @@ const DATA: &str = "data/minecraft/";
 const BIOMES: &str = "data/minecraft/worldgen/biome/";
 const BLOCK_TAGS: &str = "data/minecraft/tags/block/";
 /// What is unpacked: assets, biomes, block tags, and what the environment attributes are read from
-/// ([`crate::environment::write`]).
-const PARTS: [&str; 6] = [ASSETS, BIOMES, BLOCK_TAGS, "data/minecraft/timeline/", "data/minecraft/tags/timeline/", "data/minecraft/dimension_type/"];
+/// ([`crate::environment::write`]), and armour trims' materials and patterns (`entities::bake`).
+const PARTS: [&str; 8] = [
+    ASSETS,
+    BIOMES,
+    BLOCK_TAGS,
+    "data/minecraft/timeline/",
+    "data/minecraft/tags/timeline/",
+    "data/minecraft/dimension_type/",
+    "data/minecraft/trim_material/",
+    "data/minecraft/trim_pattern/",
+];
 
 pub struct Jar {
     /// `assets/minecraft`.

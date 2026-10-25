@@ -197,10 +197,10 @@ impl EntityModels {
     /// What armour item `item` (`minecraft:diamond_helmet`) draws when worn by a `kind`: on a Java
     /// model its equipment layer, posed by [`EntityModels::pose`] on its own model
     /// ([`EntityModels::is_java`]); otherwise the pack's attachable, posed as its wearer. `dye` is
-    /// the stack's.
-    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>) -> Option<Arc<[Layer]>> {
+    /// the stack's, and its trim (Java models only).
+    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>, trim: Option<&java::trims::Trim>) -> Option<Arc<[Layer]>> {
         if self.java.drawn(kind) {
-            return self.java.armor(kind, query, item, dye);
+            return self.java.armor(kind, query, item, dye, trim);
         }
         let layers = self.armor.get(item)?;
         Some(match dye {

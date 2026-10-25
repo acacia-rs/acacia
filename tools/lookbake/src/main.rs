@@ -39,6 +39,7 @@ mod shade;
 mod sounds;
 mod textures;
 mod tint;
+mod trims;
 mod ui;
 
 use std::path::PathBuf;
@@ -72,7 +73,7 @@ fn main() -> Result<(), Error> {
             environment::write(&jar.data, &out)?;
             particles::copy(&jar.assets, &out)?;
             banners::copy(&jar.assets, &out)?;
-            exported(&java, &jar.assets, &out)?;
+            exported(&java, &jar, &out)?;
             println!("  Java sounds: {} files", sounds::fetch(&out)?);
             println!("{}", summary(&look, &out));
             println!("  Java: {} states as cubes, {} as models, {} liquids; kept from Bedrock: {:?}", report.cubes, report.models, report.liquids, report.kept);
@@ -80,7 +81,7 @@ fn main() -> Result<(), Error> {
         }
         Some("java-exported") => {
             let (java, out) = (dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
-            if !exported(&java, &jar::fetch(&java)?.assets, &out)? {
+            if !exported(&java, &jar::fetch(&java)?, &out)? {
                 return Err("no JDK 25 (JAVA_HOME or PATH)".into());
             }
         }
@@ -122,13 +123,14 @@ fn main() -> Result<(), Error> {
 }
 
 /// The exporters' entity and item models into the look; false (and the Bedrock ones kept) without a JDK 25.
-fn exported(java: &std::path::Path, assets: &std::path::Path, out: &std::path::Path) -> Result<bool, Error> {
+fn exported(java: &std::path::Path, jar: &jar::Jar, out: &std::path::Path) -> Result<bool, Error> {
     let Some(exporter) = exporter::Exporter::prepare(java)? else {
         println!("  Java entity and item models: no JDK 25 (JAVA_HOME or PATH), Bedrock's kept");
         return Ok(false);
     };
-    println!("  Java entity models: {} layers", entities::bake(&exporter, assets, out)?);
-    let items = items::bake(&exporter, java, assets, out)?;
+    println!("  Java entity models: {} layers", entities::bake(&exporter, jar, out)?);
+    println!("  Java armour trims: {} images", trims::bake(&jar.assets, out)?);
+    let items = items::bake(&exporter, java, &jar.assets, out)?;
     println!("  Java item models: {} items, {} images, {} Bedrock names", items.items, items.images, items.names);
     Ok(true)
 }

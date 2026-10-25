@@ -50,6 +50,16 @@ impl ItemStack {
         }
     }
 
+    /// An armour trim: `Trim.Material` and `Trim.Pattern` in the item NBT (`iron`, `coast`).
+    pub fn trim(&self) -> Option<(String, String)> {
+        let trim = self.nbt.as_ref()?.value.get("Trim")?;
+        let text = |key| match trim.get(key)? {
+            Value::String(s) => Some(s.to_string()),
+            _ => None,
+        };
+        Some((text("Material")?, text("Pattern")?))
+    }
+
     /// The map a filled map shows: `map_uuid` in the item NBT, the key into [`crate::state::Maps`].
     pub fn map_id(&self) -> Option<i64> {
         match self.nbt.as_ref()?.value.get("map_uuid")? {
