@@ -31,7 +31,7 @@ pub struct Library {
     /// By Bedrock identifier, the second layers' adult and own-baby (model, texture).
     overlays: HashMap<&'static str, Vec<(When, [Option<(ModelId, TextureId)>; 2])>>,
     /// [`kinds::VARIANTS`]' adult and baby textures.
-    variants: HashMap<(&'static str, i32), [TextureId; 2]>,
+    variants: HashMap<&'static str, Vec<(&'static str, i32, [TextureId; 2])>>,
 }
 
 /// `ColorLerper.Type.SHEEP`'s colour of the wool dyed `color` (white first): white is 0xE6E6E6,
@@ -102,10 +102,10 @@ impl Library {
             }
             out.overlays.entry(identifier).or_default().push((overlay.when, pair));
         }
-        for (identifier, variant, adult, baby) in kinds::VARIANTS {
+        for (identifier, query, value, adult, baby) in kinds::VARIANTS {
             let mut path = |p: &str| texture(&format!("java/textures/entity/{p}"));
             let Some(adult) = path(adult) else { continue };
-            out.variants.insert((identifier, variant), [adult, path(baby).unwrap_or(adult)]);
+            out.variants.entry(identifier).or_default().push((query, value, [adult, path(baby).unwrap_or(adult)]));
         }
         out.equipment = Equipment::load(root);
         out.trims = Trims::load(root);
@@ -121,7 +121,8 @@ impl Library {
         let (variants, own_baby) = self.kinds.get(kind)?;
         let baby = query("is_baby").truthy();
         let (model, texture) = variants[usize::from(baby)];
-        let texture = self.variants.get(&(kind, query("variant").num() as i32)).map_or(texture, |t| t[usize::from(baby && *own_baby)]);
+        let variant = self.variants.get(kind).into_iter().flatten().find(|(q, value, _)| query(q).num() as i32 == *value);
+        let texture = variant.map_or(texture, |(_, _, t)| t[usize::from(baby && *own_baby)]);
         let scale = if baby && *own_baby { 2.0 } else { 1.0 };
         let mut layers = vec![Layer::plain(model, texture)];
         let color = query("color").num().max(0.0) as usize % DYES.len();
@@ -134,6 +135,7 @@ impl Library {
                 When::Undercoat if !baby && color != 0 => Layer { dye: Some(wool(color)), ..plain },
                 When::Powered if query("is_powered").truthy() => Layer { blend: Blend::Swirl, ..plain },
                 When::Eyes => Layer { blend: Blend::Eyes, ..plain },
+                When::Translucent => Layer { blend: Blend::Alpha, ..plain },
                 _ => continue,
             });
         }

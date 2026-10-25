@@ -74,7 +74,56 @@ WING_EXTRAS = [
     {"elytraRotX": 0.31, "elytraRotY": 0.02, "elytraRotZ": -1.3},
 ]
 
-EVERY = [(QUADRUPEDS, QUADRUPED_EXTRAS), (HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS), (CAPES, CAPE_EXTRAS), (WINGS, WING_EXTRAS)]
+OTHERS = {
+    "silverfish": M + "monster.silverfish.SilverfishModel", "endermite": M + "monster.endermite.EndermiteModel",
+    "blaze": M + "monster.blaze.BlazeModel", "ghast": M + "monster.ghast.GhastModel",
+    "iron_golem": M + "animal.golem.IronGolemModel", "snow_golem": M + "animal.golem.SnowGolemModel",
+    "villager": M + "npc.VillagerModel", "villager_baby": M + "npc.BabyVillagerModel", "wandering_trader": M + "npc.VillagerModel",
+    "witch": M + "monster.witch.WitchModel", "vex": M + "monster.vex.VexModel",
+    "slime": M + "monster.slime.SlimeModel",
+    "magma_cube": M + "monster.slime.MagmaCubeModel",
+}
+OTHER_EXTRAS = [
+    {},
+    {"?attackTicksRemaining": 6.5},
+    {"?attackTicksRemaining": 0.0, "?offerFlowerTick": 33},
+    {"?isUnhappy": True},
+    {"?isCharging": True},
+    {"?isCharging": True, "?rightHandItemState": True},
+    {"?entityId": 17, "?isHoldingItem": True},
+    {"?squish": 0.6},
+    {"?squish": -0.4},
+]
+PIGLINS = {
+    "piglin": M + "monster.piglin.AdultPiglinModel", "piglin_baby": M + "monster.piglin.BabyPiglinModel",
+    "piglin_brute": M + "monster.piglin.AdultPiglinModel",
+    "zombified_piglin": M + "monster.piglin.AdultZombifiedPiglinModel", "zombified_piglin_baby": M + "monster.piglin.BabyZombifiedPiglinModel",
+    "enderman": M + "monster.enderman.EndermanModel",
+}
+PIGLIN_EXTRAS = HUMANOID_EXTRAS[:6] + [
+    {"?armPose": "DANCING"},
+    {"?armPose": "ATTACKING_WITH_MELEE_WEAPON", "rightHandItemStack": "minecraft:golden_sword"},
+    {"?armPose": "CROSSBOW_HOLD"},
+    {"?armPose": "CROSSBOW_CHARGE", "?maxCrossbowChageDuration": 25.0, "ticksUsingItem": 9.0},
+    {"?armPose": "ADMIRING_ITEM", "mainArm": "LEFT"},
+    {"?carriedBlock": True, "?isCreepy": True},
+]
+ILLAGERS = {name: M + "monster.illager.IllagerModel" for name in ["vindicator", "evoker", "pillager", "illusioner"]}
+ILLAGER_EXTRAS = [
+    {"?armPose": "CROSSED"},
+    {"?armPose": "NEUTRAL", "isRiding": True},
+    {"?armPose": "ATTACKING", "swingAnimation": 0.4},
+    # IllagerRenderState.mainArm hides ArmedEntityRenderState's, which getMainHandItemState reads.
+    {"?armPose": "ATTACKING", "rightHandItemState": True, "leftHandItemState": True, "swingAnimation": 0.4, "mainArm": "LEFT"},
+    {"?armPose": "ATTACKING", "rightHandItemState": True, "swingAnimation": 0.7},
+    {"?armPose": "SPELLCASTING"},
+    {"?armPose": "BOW_AND_ARROW"},
+    {"?armPose": "CROSSBOW_HOLD"},
+    {"?armPose": "CROSSBOW_CHARGE", "maxCrossbowChargeDuration": 25.0, "ticksUsingItem": 9.0},
+    {"?armPose": "CELEBRATING"},
+]
+
+EVERY = [(QUADRUPEDS, QUADRUPED_EXTRAS), (HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS), (CAPES, CAPE_EXTRAS), (WINGS, WING_EXTRAS), (OTHERS, OTHER_EXTRAS), (PIGLINS, PIGLIN_EXTRAS), (ILLAGERS, ILLAGER_EXTRAS)]
 ARMED = [(HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS)]
 
 
@@ -86,6 +135,8 @@ def cases(groups):
                 state = {"walkAnimationPos": pos, "walkAnimationSpeed": speed, "yRot": yaw, "xRot": pitch, "ageInTicks": age,
                          "isBaby": name.endswith("_baby")}
                 state.update({k: v for k, v in extra.items() if not k.startswith("@")})
+                # Not every state class has the living or humanoid fields.
+                state = {k if k.startswith("?") else "?" + k: v for k, v in state.items()}
                 layer = f"minecraft:{name}" if "#" in name else f"minecraft:{name}#main"
                 case = {"case": f"{name} #{len(out)}", "layer": layer, "model": model, "state": state}
                 case.update({k[1:]: v for k, v in extra.items() if k.startswith("@")})

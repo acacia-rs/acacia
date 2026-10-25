@@ -9,7 +9,9 @@ import java.lang.reflect.TypeVariable;
 import java.util.*;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.entity.state.ArmedEntityRenderState;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.PatchedDataComponentMap;
@@ -109,6 +111,11 @@ public final class RenderStates {
             var ctor = ItemStack.class.getDeclaredConstructor(net.minecraft.core.Holder.class, int.class, PatchedDataComponentMap.class);
             ctor.setAccessible(true);
             f.set(state, ctor.newInstance(item, 1, new PatchedDataComponentMap(DataComponentMap.EMPTY)));
+        } else if (t == ItemStackRenderState.class && value.getAsBoolean()) {
+            // Models test only that it is not empty.
+            ((ItemStackRenderState) f.get(state)).newLayer();
+        } else if (t == BlockModelRenderState.class && value.getAsBoolean()) {
+            ((BlockModelRenderState) f.get(state)).setupModel(new org.joml.Matrix4f(), false);
         } else throw new IllegalArgumentException("unsupported type " + t + " for " + name);
     }
 }
