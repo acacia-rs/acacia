@@ -6,6 +6,10 @@ mod arms;
 mod humanoid;
 mod player;
 mod quadruped;
+mod simple;
+mod piglin;
+mod monsters;
+mod illager;
 
 pub use arms::ArmPose;
 pub use humanoid::{Humanoid, Model};
@@ -39,6 +43,25 @@ pub enum Family {
     PlayerCape,
     /// `ElytraModel`.
     Elytra,
+    Silverfish,
+    Endermite,
+    Blaze,
+    Ghast,
+    IronGolem,
+    SnowGolem,
+    /// `VillagerModel`: villagers, their babies, wandering traders.
+    Villager,
+    Piglin,
+    /// `ZombifiedPiglinModel`.
+    ZombifiedPiglin,
+    Enderman,
+    Witch,
+    Vex,
+    /// `IllagerModel`.
+    Illager,
+    /// `SlimeModel`: no animation of its own.
+    Slime,
+    MagmaCube,
 }
 
 impl Family {
@@ -65,6 +88,21 @@ impl Family {
             "player" => Family::Player,
             "player_slim" => Family::PlayerSlim,
             "elytra" => Family::Elytra,
+            "silverfish" => Family::Silverfish,
+            "endermite" => Family::Endermite,
+            "blaze" => Family::Blaze,
+            "ghast" => Family::Ghast,
+            "iron_golem" => Family::IronGolem,
+            "snow_golem" => Family::SnowGolem,
+            "villager" | "wandering_trader" => Family::Villager,
+            "piglin" | "piglin_brute" => Family::Piglin,
+            "zombified_piglin" => Family::ZombifiedPiglin,
+            "enderman" => Family::Enderman,
+            "witch" => Family::Witch,
+            "vex" => Family::Vex,
+            "vindicator" | "evoker" | "pillager" | "illusioner" => Family::Illager,
+            "slime" => Family::Slime,
+            "magma_cube" => Family::MagmaCube,
             _ => return None,
         })
     }
@@ -95,6 +133,21 @@ pub fn setup(family: Family, s: &RenderState, p: &mut Poses) {
         }
         Family::PlayerCape => player::cape(p, s),
         Family::Elytra => player::elytra(p, s),
+        Family::Silverfish => simple::silverfish(p, s),
+        Family::Endermite => simple::endermite(p, s),
+        Family::Blaze => simple::blaze(p, s),
+        Family::Ghast => simple::ghast(p, s),
+        Family::IronGolem => simple::iron_golem(p, s),
+        Family::SnowGolem => simple::snow_golem(p, s),
+        Family::Villager => simple::villager(p, s),
+        Family::Piglin => piglin::piglin(p, s),
+        Family::ZombifiedPiglin => piglin::zombified(p, s),
+        Family::Enderman => monsters::enderman(p, s),
+        Family::Witch => monsters::witch(p, s),
+        Family::Vex => monsters::vex(p, s),
+        Family::Illager => illager::illager(p, s),
+        Family::Slime => {}
+        Family::MagmaCube => simple::magma_cube(p, s),
     }
 }
 

@@ -176,7 +176,7 @@ fn attack(p: &mut Poses, s: &RenderState, h: &Humanoid) {
 }
 
 /// `AnimationUtils.animateZombieArms`.
-fn zombie_arms(p: &mut Poses, s: &RenderState, h: &Humanoid, aggressive: bool) {
+pub(super) fn zombie_arms(p: &mut Poses, s: &RenderState, h: &Humanoid, aggressive: bool) {
     if h.right == ArmPose::Spear || h.left == ArmPose::Spear {
         return;
     }

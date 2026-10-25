@@ -36,6 +36,8 @@ pub enum When {
     Powered,
     /// `EyesLayer`: always, unlit (`suffix` is the body's own).
     Eyes,
+    /// Always, blended (`SlimeOuterLayer`).
+    Translucent,
 }
 
 /// A second layer over the body: its own model (`<layer>#<suffix>`, beside the body's) and texture.
@@ -52,7 +54,9 @@ const fn overlay(suffix: &'static str, texture: &'static str, baby_texture: Opti
     Overlay { suffix, texture, baby_texture, when }
 }
 
-pub const OVERLAYS: [(&str, Overlay); 8] = [
+pub const OVERLAYS: [(&str, Overlay); 10] = [
+    ("minecraft:slime", overlay("outer", "slime/slime", None, When::Translucent)),
+    ("minecraft:enderman", overlay("main", "enderman/enderman_eyes", None, When::Eyes)),
     ("minecraft:spider", overlay("main", "spider/spider_eyes", None, When::Eyes)),
     ("minecraft:cave_spider", overlay("main", "spider/spider_eyes", None, When::Eyes)),
     ("minecraft:sheep", overlay("wool", "sheep/sheep_wool", Some("sheep/sheep_wool_baby"), When::Wool)),
@@ -63,8 +67,28 @@ pub const OVERLAYS: [(&str, Overlay); 8] = [
     ("minecraft:creeper", overlay("armor", "creeper/creeper_armor", None, When::Powered)),
 ];
 
-// TODO: climate variants (cold/warm cows, pigs, chickens), the brown mooshroom.
-pub const KINDS: [(&str, Kind); 15] = [
+// TODO: climate variants (cold/warm cows, pigs, chickens).
+pub const KINDS: [(&str, Kind); 35] = [
+    ("minecraft:slime", adult("minecraft:slime#main", "slime/slime")),
+    ("minecraft:magma_cube", adult("minecraft:magma_cube#main", "slime/magmacube")),
+    ("minecraft:piglin", both("minecraft:piglin#main", "piglin/piglin", "minecraft:piglin_baby#main", "piglin/piglin_baby")),
+    ("minecraft:piglin_brute", adult("minecraft:piglin_brute#main", "piglin/piglin_brute")),
+    ("minecraft:zombie_pigman", both("minecraft:zombified_piglin#main", "piglin/zombified_piglin", "minecraft:zombified_piglin_baby#main", "piglin/zombified_piglin_baby")),
+    ("minecraft:enderman", adult("minecraft:enderman#main", "enderman/enderman")),
+    ("minecraft:witch", adult("minecraft:witch#main", "witch/witch")),
+    ("minecraft:vex", adult("minecraft:vex#main", "illager/vex")),
+    ("minecraft:vindicator", adult("minecraft:vindicator#main", "illager/vindicator")),
+    ("minecraft:evocation_illager", adult("minecraft:evoker#main", "illager/evoker")),
+    ("minecraft:pillager", adult("minecraft:pillager#main", "illager/pillager")),
+    ("minecraft:silverfish", adult("minecraft:silverfish#main", "silverfish/silverfish")),
+    ("minecraft:endermite", adult("minecraft:endermite#main", "endermite/endermite")),
+    ("minecraft:blaze", adult("minecraft:blaze#main", "blaze/blaze")),
+    ("minecraft:ghast", adult("minecraft:ghast#main", "ghast/ghast")),
+    ("minecraft:iron_golem", adult("minecraft:iron_golem#main", "iron_golem/iron_golem")),
+    ("minecraft:snow_golem", adult("minecraft:snow_golem#main", "snow_golem/snow_golem")),
+    ("minecraft:villager_v2", both("minecraft:villager#main", "villager/villager", "minecraft:villager_baby#main", "villager/villager_baby")),
+    ("minecraft:villager", both("minecraft:villager#main", "villager/villager", "minecraft:villager_baby#main", "villager/villager_baby")),
+    ("minecraft:wandering_trader", adult("minecraft:wandering_trader#main", "wandering_trader/wandering_trader")),
     ("minecraft:cow", both("minecraft:cow#main", "cow/cow_temperate", "minecraft:cow_baby#main", "cow/cow_temperate_baby")),
     ("minecraft:mooshroom", both("minecraft:mooshroom#main", "cow/mooshroom_red", "minecraft:mooshroom_baby#main", "cow/mooshroom_red_baby")),
     ("minecraft:pig", both("minecraft:pig#main", "pig/pig_temperate", "minecraft:pig_baby#main", "pig/pig_temperate_baby")),
@@ -82,8 +106,13 @@ pub const KINDS: [(&str, Kind); 15] = [
     ("minecraft:bogged", adult("minecraft:bogged#main", "skeleton/bogged")),
 ];
 
-/// Textures a Bedrock `variant` picks over the kind's own: (kind, variant, adult's, own baby's).
-pub const VARIANTS: [(&str, i32, &str, &str); 1] = [("minecraft:mooshroom", 1, "cow/mooshroom_brown", "cow/mooshroom_brown_baby")];
+/// Textures picked over the kind's own while a query answers a value: (kind, query, value,
+/// adult's, own baby's).
+pub const VARIANTS: [(&str, &str, i32, &str, &str); 3] = [
+    ("minecraft:mooshroom", "variant", 1, "cow/mooshroom_brown", "cow/mooshroom_brown_baby"),
+    ("minecraft:ghast", "is_charging", 1, "ghast/ghast_shooting", "ghast/ghast_shooting"),
+    ("minecraft:vex", "is_charging", 1, "illager/vex_charging", "illager/vex_charging"),
+];
 
 pub fn of(identifier: &str) -> Option<&'static Kind> {
     KINDS.iter().find(|(id, _)| *id == identifier).map(|(_, k)| k)

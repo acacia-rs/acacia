@@ -32,8 +32,12 @@ pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderStat
         .set("isAggressive", Field::Flag(aggressive));
     if let Some(item) = &held {
         // Bedrock mobs hold in the right hand (mainArm RIGHT).
-        s.set("rightHandItemStack", Field::Text(format!("minecraft:{item}")));
+        s.set("rightHandItemStack", Field::Text(format!("minecraft:{item}"))).set("rightHandItemState", Field::Flag(true));
     }
+    if let Some(pose) = mob_arm_pose(family, held.as_deref(), aggressive, &flag) {
+        s.set("armPose", Field::Text(pose.into()));
+    }
+    s.set("isCreepy", Field::Flag(family == Family::Enderman && aggressive)).set("isCharging", Field::Flag(flag("is_charging")));
     // getArmPose: HumanoidMobRenderer's EMPTY, AbstractSkeletonRenderer's bow and
     // DrownedRenderer's trident, in the main (right) arm of an aggressive mob.
     // TODO: SPEAR for a held spear or a stab swing.
@@ -52,6 +56,24 @@ pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderStat
         s.set("headEatPositionScale", Field::Num(position)).set("headEatAngleScale", Field::Num(angle));
     }
     s
+}
+
+/// `AbstractIllager.getArmPose` (the pillager's, vindicator's and evoker's together) and
+/// `Piglin.getArmPose`.
+// TODO: crossbow charging and dancing piglins; the viewer answers no query for them yet.
+fn mob_arm_pose(family: Family, held: Option<&str>, aggressive: bool, flag: &dyn Fn(&str) -> bool) -> Option<&'static str> {
+    let crossbow = held == Some("crossbow");
+    Some(match family {
+        Family::Illager if crossbow => "CROSSBOW_HOLD",
+        Family::Illager if flag("is_casting") => "SPELLCASTING",
+        Family::Illager if aggressive => "ATTACKING",
+        Family::Illager if flag("is_celebrating") => "CELEBRATING",
+        Family::Illager => "CROSSED",
+        Family::Piglin if flag("is_admiring") => "ADMIRING_ITEM",
+        Family::Piglin if aggressive && crossbow => "CROSSBOW_HOLD",
+        Family::Piglin if aggressive && held.is_some_and(|item| item.ends_with("_sword") || item.ends_with("_axe")) => "ATTACKING_WITH_MELEE_WEAPON",
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
