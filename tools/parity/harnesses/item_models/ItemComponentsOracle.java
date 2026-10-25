@@ -5,7 +5,18 @@ import acacia.parity.Out;
 import java.nio.file.Path;
 import java.util.*;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.item.ItemModel;
+import net.minecraft.client.resources.model.ModelBakery;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.geometry.ItemQuads;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderOwner;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.equipment.trim.ArmorTrim;
+import net.minecraft.world.item.equipment.trim.TrimMaterial;
+import net.minecraft.world.item.equipment.trim.TrimMaterials;
+import net.minecraft.world.item.equipment.trim.TrimPattern;
+import net.minecraft.world.item.equipment.trim.TrimPatterns;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.component.PatchedDataComponentMap;
@@ -58,7 +69,56 @@ public final class ItemComponentsOracle {
                     out.write(record);
                 }
             }
+            trims(baked, out);
         }
+    }
+
+    private static final HolderOwner<TrimMaterial> MATERIALS = new HolderOwner<>() {};
+    private static final HolderOwner<TrimPattern> PATTERNS = new HolderOwner<>() {};
+
+    /**
+     * `trim|<item>|<material>`: every item whose GUI images change with an ArmorTrim of a
+     * TrimMaterials material, per layer the images its quads sample, in order of first use.
+     */
+    private static void trims(ModelBakery.BakingResult baked, Out.Lines out) throws Exception {
+        var pattern = Holder.Reference.createStandAlone(PATTERNS, TrimPatterns.COAST);
+        for (var id : new TreeSet<>(BuiltInRegistries.ITEM.keySet())) {
+            var model = baked.itemStackModels().get(id);
+            if (model == null) continue;
+            var plain = images(model, ItemModelsOracle.stack(id));
+            for (var field : TrimMaterials.class.getFields()) {
+                if (!(field.get(null) instanceof ResourceKey<?> key)) continue;
+                @SuppressWarnings("unchecked")
+                var material = Holder.Reference.createStandAlone(MATERIALS, (ResourceKey<TrimMaterial>) key);
+                var stack = ItemModelsOracle.stack(id);
+                stack.set(DataComponents.TRIM, new ArmorTrim(material, pattern));
+                var images = images(model, stack);
+                if (images.equals(plain)) continue;
+                var name = key.identifier().getPath();
+                out.write(Out.map("case", "trim|" + id + "|" + name, "item", id.toString(), "material", name, "images", images));
+            }
+        }
+    }
+
+    private static List<List<String>> images(ItemModel model, ItemStack stack) throws Exception {
+        var state = new ItemStackRenderState();
+        state.clear();
+        ItemModelsOracle.field(ItemStackRenderState.class, "displayContext").set(state, ItemDisplayContext.GUI);
+        model.update(state, stack, null, ItemDisplayContext.GUI, null, null, 0);
+        int count = (int) ItemModelsOracle.field(ItemStackRenderState.class, "activeLayerCount").get(state);
+        var all = (Object[]) ItemModelsOracle.field(ItemStackRenderState.class, "layers").get(state);
+        var out = new ArrayList<List<String>>();
+        for (int i = 0; i < count; i++) {
+            var names = new LinkedHashSet<String>();
+            if (ItemModelsOracle.field(all[i].getClass(), "quads").get(all[i]) instanceof ItemQuads quads) {
+                for (BakedQuad quad : quads.all()) {
+                    var sprite = quad.materialInfo().sprite().contents().name();
+                    names.add(sprite.withPath("textures/" + sprite.getPath() + ".png").toString());
+                }
+            }
+            out.add(new ArrayList<>(names));
+        }
+        return out;
     }
 
     /** Per active layer, its tint layers as ARGB. */

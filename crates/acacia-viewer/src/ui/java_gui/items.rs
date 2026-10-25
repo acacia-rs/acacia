@@ -76,5 +76,5 @@ pub fn facts() -> Game {
 
 /// A stack of one plain item (the beacon's payment icons, tab icons).
 pub fn plain(name: &str) -> Stack {
-    Stack { name: name.to_owned(), aux: 0, count: 1, block: 0, enchanted: false, dye: None, banner: None, map: None, title: None, enchantments: Vec::new(), lore: Vec::new() }
+    Stack { name: name.to_owned(), aux: 0, count: 1, block: 0, enchanted: false, dye: None, banner: None, map: None, title: None, enchantments: Vec::new(), lore: Vec::new(), trim: None }
 }

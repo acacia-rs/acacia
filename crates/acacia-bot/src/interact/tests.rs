@@ -181,6 +181,7 @@ fn player_at(feet: [f32; 3]) -> Entity {
         on_ground: true,
         uuid: None,
         metadata: Default::default(),
+        properties: Default::default(),
         attributes: Default::default(),
         effects: Default::default(),
         equipment: None,

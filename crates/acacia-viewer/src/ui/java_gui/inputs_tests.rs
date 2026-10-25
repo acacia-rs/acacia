@@ -2,7 +2,7 @@ use super::*;
 use crate::control::Stack;
 
 fn stack(name: &str) -> Stack {
-    Stack { name: name.into(), aux: 0, count: 1, block: 0, enchanted: false, dye: None, banner: None, map: None, title: None, enchantments: Vec::new(), lore: Vec::new() }
+    Stack { name: name.into(), aux: 0, count: 1, block: 0, enchanted: false, dye: None, banner: None, map: None, title: None, enchantments: Vec::new(), lore: Vec::new(), trim: None }
 }
 
 fn me() -> Me {

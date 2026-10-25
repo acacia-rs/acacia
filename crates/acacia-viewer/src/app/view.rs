@@ -103,7 +103,7 @@ impl App {
                 out.push(map::first_person(&sheet, &self.camera, hold));
                 continue;
             }
-            let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block, dye: stack.dye, banner: stack.banner.clone() }, stack.enchanted) else { continue };
+            let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block, dye: stack.dye, banner: stack.banner.clone(), trim: stack.trim.clone() }, stack.enchanted) else { continue };
             let display = hand::Display::held(&model, &stack.name, true, left, sneaking && (left || !off_shield));
             let crossbow = (stack.name == CROSSBOW).then_some(false);
             let hold = if left {

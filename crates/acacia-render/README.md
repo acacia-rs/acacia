@@ -293,7 +293,9 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
 - **Kind looks** (`variants.rs`, `extras.rs`): textures by state (a query `a&b` needs both: a
   snowy sleeping fox, an angry bee with nectar; cats, pandas, shulker dyes, cold striders by
   `is_shaking`) and what kinds' own renderers change: `entity_translucent` bodies
-  (`Blend::Translucent`, depth-writing), the pufferfish's model by puff (`variant`), the tropical
+  (`Blend::Translucent`, depth-writing), climate variants' models and textures (the
+  `climate_variant` property), the coral zombie nautilus (`variant`), copper golem oxidation
+  (`oxidation_level`, eyes included), the pufferfish's model by puff (`variant`), the tropical
   fish's shape, base colour and pattern layer (`variant`, `mark_variant`, `color`, `color2`), iron
   golem cracks (`health`), the breeze's wind (`Blend::Wind`, sliding), the creaking's eyes (its
   `creaking_state` property) and the warden's emissive layers (`Fade::Pulse` for the spots; the
@@ -458,12 +460,13 @@ names the Java item for a Bedrock item and aux; unlisted names are taken as they
   from the wall, the eighth-turns, half size, then the `fixed` display.
 - Potions (`item::potion`, `item::first_tint`): a Bedrock potion's aux names the Java potion
   (a tipped arrow's less one); its `PotionContents` colour replaces the first tint.
+- Trimmed items (`JavaItems::stack_name`, `ItemKey::trim`): Bedrock's `Trim.Material` picks the
+  `<id>#trim=<material>` model lookbake exports. Java 26.3 maps have no marking tint.
 - Proof: harness `item_models` (docs/parity.md) compares every quad of every item and context,
   after the display, with what `ItemStackRenderState.submit` hands the game's renderer, the
-  dropped and framed poses and boxes, and potion tints; `item_transforms` the first-person
-  placement.
-- Not yet: the other stack components (maps' marking colour, trimmed armour items, dyed items
-  other than leather); the dropped and framed mesh is the right hand's (items whose `ground` or
+  dropped and framed poses and boxes, potion tints and trimmed images; `item_transforms` the
+  first-person placement.
+- Not yet: dyed items other than leather; the dropped and framed mesh is the right hand's (items whose `ground` or
   `fixed` model differs, like the trident and spyglass, show their held model).
 
 ### Enchantment glint (`glint.rs`, `gpu/glint.rs`)

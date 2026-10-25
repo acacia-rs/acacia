@@ -28,9 +28,9 @@ fn brightness(lights: &[Vec3; 2], normal: Vec3) -> f32 {
     ((lights[0].dot(normal).max(0.0) + lights[1].dot(normal).max(0.0)) * 0.6 + 0.4).min(1.0)
 }
 
-/// The Bedrock item's icon; `dye` as [`JavaItems::mesh`] takes it.
-pub fn icon(items: &JavaItems, bedrock: &str, aux: u32, dye: Option<[u8; 3]>) -> Option<RgbaImage> {
-    let name = items.java_name(bedrock, aux);
+/// The Bedrock item's icon; `trim` as [`JavaItems::stack_name`], `dye` as [`JavaItems::mesh`] take them.
+pub fn icon(items: &JavaItems, bedrock: &str, aux: u32, trim: Option<&str>, dye: Option<[u8; 3]>) -> Option<RgbaImage> {
+    let name = &items.stack_name(bedrock, aux, trim);
     let block_light = items.block_light(name, context::GUI)?;
     let mesh = items.mesh(name, context::GUI, dye)?;
     let frame = items.display(name, context::GUI)?.mesh_frame();
