@@ -1,0 +1,16 @@
+[package]
+name = "acacia-gui-probe"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+rust-version.workspace = true
+description = "Replays GUI parity cases through acacia-ui's Java look and writes its draw calls"
+
+[[bin]]
+name = "gui-probe"
+path = "src/main.rs"
+
+[dependencies]
+acacia-ui = { path = "../../../crates/acacia-ui" }
+serde_json = "1"

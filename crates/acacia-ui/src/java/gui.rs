@@ -5,8 +5,8 @@
 
 use std::borrow::Cow;
 
-use super::mth::WHITE;
-use super::text::Text;
+use super::mth::{WHITE, ceil};
+use super::text::{Style, Text};
 
 /// A `Matrix3x2fStack` operation.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -164,6 +164,22 @@ impl Gui {
 
 /// Measures text in the font the calls are drawn with.
 pub trait Metrics {
-    /// `Font.width` of styled text, legacy codes resolved.
-    fn width(&self, text: &Text) -> i32;
+    /// `Font.getGlyphSource(style.font).getGlyph(c).info().getAdvance(style.isBold())`.
+    fn advance(&self, c: char, style: &Style) -> f32;
+
+    /// `Font.width` of styled text: the advances summed as floats, then `Mth.ceil`; legacy codes
+    /// resolved first.
+    fn width(&self, text: &Text) -> i32 {
+        let text = text.resolve_legacy();
+        ceil(text.chars().map(|(c, s)| self.advance(c, s)).sum())
+    }
+}
+
+/// Every character as wide as the field, plus 1 for bold; for tests.
+pub struct Fixed(pub f32);
+
+impl Metrics for Fixed {
+    fn advance(&self, _: char, style: &Style) -> f32 {
+        self.0 + f32::from(u8::from(style.is_bold()))
+    }
 }
