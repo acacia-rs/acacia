@@ -5,6 +5,8 @@ mod biomes;
 pub mod light;
 mod placed;
 mod shade;
+pub mod world_light;
+mod world_scene;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
@@ -185,6 +187,9 @@ fn compare(ours: &[BakedFace], theirs: &[Quad]) -> BTreeSet<&'static str> {
         let face = left.swap_remove(at);
         if face.texture != sprite {
             found.insert("texture");
+        }
+        if turn != 0 {
+            found.insert("vertex order");
         }
         if (0..4).any(|i| !near(&face.uvs[(i + turn) % 4], &quad.uvs[i])) {
             found.insert("texture coordinates");

@@ -15,6 +15,8 @@
 //!   (environment.rs); tools/parity's harnesses `sky` and `fog` read it.
 //! - `lookbake java-light-check <facts.json> [pack dir] [java dir]`: the Java look's light facts
 //!   (light.rs) against the game's; tools/parity's harness `light_facts` makes the dump.
+//! - `lookbake java-world-light <scenes.jsonl> <quads.jsonl> [pack dir] [java dir]`: the Java
+//!   look's vertex light on real chunks against the game's (check/world_light.rs; harness `world_light`).
 
 mod banners;
 mod biomes;
@@ -48,7 +50,7 @@ use acacia_render::{Look, LookPack};
 
 use download::Error;
 
-const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-exported [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir] | java-light-check <facts.json> [pack dir] [java dir] | java-environment [java dir] [out dir]";
+const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-exported [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir] | java-light-check <facts.json> [pack dir] [java dir] | java-environment [java dir] [out dir] | java-world-light <scenes.jsonl> <quads.jsonl> [pack dir] [java dir]";
 
 fn main() -> Result<(), Error> {
     let mut args = std::env::args().skip(1);
@@ -116,6 +118,13 @@ fn main() -> Result<(), Error> {
             let (look, _) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
             let outcome = check::light::print(&look, &mapping, &truth)?;
             outcome.print_for_parity();
+        }
+        Some("java-world-light") => {
+            let (scenes, quads) = (dir(PathBuf::new), dir(PathBuf::new));
+            let (pack, java) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir));
+            let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
+            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
+            check::world_light::print(&look, &scenes, &quads)?.print_for_parity();
         }
         _ => return Err(USAGE.into()),
     }
