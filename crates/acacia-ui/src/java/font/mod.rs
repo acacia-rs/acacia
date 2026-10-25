@@ -116,6 +116,12 @@ impl Metrics for Fonts {
     fn advance(&self, c: char, style: &Style) -> f32 {
         self.glyph(u32::from(c), style).advance(style.is_bold())
     }
+
+    fn active_areas(&self, text: &Text, x: f32, y: f32, color: u32, shadow: bool) -> super::active::TextAreas {
+        // Obfuscated glyphs take Font.random's next; hovering does not need the same ones drawn.
+        let p = self.prepare(text, Pen::gui(x, y, color, shadow), &mut super::mth::JavaRandom::new(0));
+        super::active::TextAreas { bounds: p.bounds, areas: p.areas }
+    }
 }
 
 #[cfg(test)]

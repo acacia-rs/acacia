@@ -44,6 +44,9 @@ public class GuiCapture extends GuiGraphicsExtractor {
     java.util.ArrayDeque<net.minecraft.client.gui.navigation.ScreenRectangle> scissors = new java.util.ArrayDeque<>();
     /** Off: itemDecorations is recorded as one call; on: as the fills and text it makes. */
     public boolean realDecorations;
+    /** On: text collectors also find the style under (hoverX, hoverY) as RenderingTextCollector does. */
+    public boolean scanHover;
+    public int hoverX, hoverY;
 
     private GuiCapture() {
         super(null, null, 0, 0);
@@ -202,6 +205,25 @@ public class GuiCapture extends GuiGraphicsExtractor {
 
     /** Text collectors record what they would add: text at their parameters' pose and opacity. */
     ActiveTextCollector collector(float opacity) {
+        return collector(opacity, HoveredTextEffects.NONE, null);
+    }
+
+    /** RenderingTextCollector's style scan: the hovered style kept for the deferred tooltip, every hit to `consumer`. */
+    void scan(GuiTextRenderStateArgs a, HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) {
+        if (!scanHover || (!effects.allowTooltip && !effects.allowCursorChanges && consumer == null)) return;
+        var state = new net.minecraft.client.renderer.state.gui.GuiTextRenderState(font, a.text, a.pose, a.x, a.y, a.color, 0, true, true, a.scissor);
+        ActiveTextCollector.findElementUnderCursor(state, hoverX, hoverY, style -> {
+            if (effects.allowTooltip && style.getHoverEvent() != null) {
+                try { Stub.put(this, GuiGraphicsExtractor.class, "hoveredTextStyle", style); } catch (Exception e) { throw new RuntimeException(e); }
+            }
+            if (consumer != null) consumer.accept(style);
+        });
+    }
+
+    record GuiTextRenderStateArgs(FormattedCharSequence text, Matrix3x2fc pose, int x, int y, int color,
+                                  net.minecraft.client.gui.navigation.ScreenRectangle scissor) {}
+
+    ActiveTextCollector collector(float opacity, HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) {
         var self = this;
         return new ActiveTextCollector() {
             Parameters parameters = new Parameters(new Matrix3x2f(stack), opacity, null);
@@ -210,6 +232,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
             @Override public void accept(TextAlignment alignment, int anchorX, int y, Parameters p, FormattedCharSequence text) {
                 int left = alignment.calculateLeft(anchorX, self.font, text);
                 if (ARGB.as8BitChannel(p.opacity()) != 0) self.text(text, left, y, ARGB.white(p.opacity()), true, p.pose());
+                self.scan(new GuiTextRenderStateArgs(text, p.pose(), left, y, ARGB.white(p.opacity()), p.scissor()), effects, consumer);
             }
             @Override public void acceptScrolling(Component m, int cx, int l, int r, int t, int b, Parameters p) {
                 var o = call("scrolling");
@@ -224,7 +247,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
         };
     }
 
-    @Override public ActiveTextCollector textRenderer(HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) { return collector(1.0F); }
+    @Override public ActiveTextCollector textRenderer(HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) { return collector(1.0F, effects, consumer); }
     @Override public ActiveTextCollector textRendererForWidget(AbstractWidget owner, HoveredTextEffects effects) { return collector(owner.getAlpha()); }
 
     /** The key of a stack not in `keys` (-1 unless an oracle names its stacks otherwise). */

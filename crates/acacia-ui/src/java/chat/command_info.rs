@@ -53,7 +53,7 @@ impl CommandSuggestions {
             }
             self.usage.extend(entries);
         }
-        self.usage_width = self.usage.iter().map(|l| s.m.width(l)).max().unwrap_or(0);
+        self.usage_width = self.usage.iter().map(|l| s.m.visual_width(l)).max().unwrap_or(0);
         self.usage_x = if self.usage.is_empty() { 0 } else { clamp(input.screen_x(s.m, start), 0, input.screen_x(s.m, 0) + input.inner_width() - self.usage_width) };
         self.list = None;
         if self.allow_suggestions && s.c.auto_suggest {

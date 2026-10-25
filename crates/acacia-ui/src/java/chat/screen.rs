@@ -1,12 +1,23 @@
-//! `ChatScreen` without the chat lines (`ChatComponent` draws those): the input along the bottom,
-//! its background, sent-message history on Up/Down, and the suggestions. Ported from Horizon's
+//! `ChatScreen`: the input along the bottom, its background, sent-message history on Up/Down, the
+//! suggestions, and the chat's lines (`ChatComponent`) with hover tooltips. Ported from Horizon's
 //! `chat.rs` (MIT).
 
+use super::component::Chat;
+use super::component_draw::Focus;
 use super::edit_box::{EditBox, Key};
 use super::suggestions::{CommandSuggestions, Completion, Sources, java_whitespace};
 use super::suggestions_list::SuggestionsList;
 use crate::java::gui::{Gui, Metrics};
 use crate::java::text::Text;
+use crate::java::tooltip::item::Details;
+
+/// The chat the screen draws above its input: its lines at `ticks` (`Hud.getGuiTicks`); `details`
+/// describe hovered items and whether tooltips are advanced.
+pub struct ChatLines<'a> {
+    pub chat: &'a Chat,
+    pub ticks: i32,
+    pub details: &'a Details<'a>,
+}
 
 /// What a key did to the screen.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -203,14 +214,25 @@ impl ChatScreen {
         (if shift { amount } else { amount * 7.0 }) as i32
     }
 
-    /// `ChatScreen.extractRenderState` without the chat lines: the input's background
-    /// (`background`, `Options.getBackgroundColor(Integer.MIN_VALUE)`), the input, then the
-    /// suggestions. `blink_ms` is the time since the input was focused.
-    pub fn extract(&mut self, gui: &mut Gui, m: &dyn Metrics, mouse: (i32, i32), blink_ms: u64, background: u32) {
+    /// `ChatScreen.extractRenderState` then `extractDeferredElements`: the input's background
+    /// (`background`, `Options.getBackgroundColor(Integer.MIN_VALUE)`), the chat's `lines` when
+    /// given, the input, the suggestions, then the hovered text's or tag's tooltip. `blink_ms`
+    /// is the time since the input was focused.
+    pub fn extract(&mut self, gui: &mut Gui, m: &dyn Metrics, mouse: (i32, i32), blink_ms: u64, background: u32, lines: Option<ChatLines>) {
         let (w, h) = (self.width, self.height);
         gui.fill(2, h - 14, w - 2, h - 2, background);
+        let mut focus = lines.as_ref().map(|l| Focus::new(m, l.details.lang, mouse));
+        if let (Some(l), Some(f)) = (&lines, &mut focus) {
+            l.chat.extract_focused(gui, l.ticks, f);
+        }
         let suggestions = &self.suggestions;
         self.input.extract(gui, m, blink_ms, &|s, offset| suggestions.format(s, offset).unwrap_or_else(|| Text::literal(s).as_forward()));
         self.suggestions.extract(gui, &mut self.input, mouse, h);
+        let (Some(l), Some(mut f)) = (lines, focus) else { return };
+        let hover = f.hovered.as_ref().and_then(|s| s.hover.clone());
+        if let Some(tooltip) = hover.and_then(|e| e.tooltip(m, w, mouse, l.details)) {
+            f.tooltip.set(tooltip, false);
+        }
+        f.tooltip.extract(gui, m);
     }
 }

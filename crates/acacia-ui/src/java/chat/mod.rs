@@ -3,15 +3,17 @@
 
 mod command_info;
 pub mod component;
+mod component_draw;
 pub mod edit_box;
 mod edit_box_draw;
 pub mod screen;
 pub mod suggestions;
 pub mod suggestions_list;
 
-pub use component::{Chat, ChatOptions, Tag};
+pub use component::{Chat, ChatOptions, Tag, TagText};
+pub use component_draw::Focus;
 pub use edit_box::{EditBox, Key};
-pub use screen::{ChatAction, ChatScreen};
+pub use screen::{ChatAction, ChatLines, ChatScreen};
 pub use suggestions::Completion;
 
 #[cfg(test)]

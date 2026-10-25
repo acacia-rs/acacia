@@ -42,7 +42,7 @@ pub enum Line {
 impl Line {
     pub fn width(&self, font: &dyn Metrics) -> i32 {
         match self {
-            Line::Text(t) => font.width(t),
+            Line::Text(t) => font.visual_width(t),
             Line::Image { w, .. } => *w,
         }
     }

@@ -5,6 +5,7 @@
 
 use super::provider::{Bitmap, GlyphTexture};
 use super::{Fonts, VisualChar};
+use crate::java::active::ActiveArea;
 use crate::atlas::Sprite;
 use crate::draw::Quad;
 use crate::java::paint::{Glyphs, argb};
@@ -50,6 +51,8 @@ impl GlyphQuad {
 pub struct Prepared {
     pub quads: Vec<GlyphQuad>,
     pub bounds: Option<[f32; 4]>,
+    /// The glyphs' active areas, then (as with `includeEmpty`) the empty glyphs'.
+    pub areas: Vec<ActiveArea>,
 }
 
 impl Prepared {
@@ -96,6 +99,9 @@ struct Builder {
     background: [f32; 4],
     glyphs: Vec<GlyphQuad>,
     effects: Vec<GlyphQuad>,
+    areas: Vec<ActiveArea>,
+    /// `includeEmpty`'s areas, visited after the glyphs.
+    empty: Vec<ActiveArea>,
 }
 
 impl Builder {
@@ -131,7 +137,14 @@ impl Fonts {
     /// `Font.prepareText(text, x, y, color, shadow, includeEmpty = false, background)` and the
     /// quads its glyphs and effects render; `random` picks obfuscated glyphs (`Font.random`).
     pub fn prepare(&self, text: &Text, pen: Pen, random: &mut JavaRandom) -> Prepared {
-        let mut b = Builder { bounds: [f32::MAX, f32::MAX, -f32::MAX, -f32::MAX], background: [f32::MAX, f32::MAX, -f32::MAX, -f32::MAX], glyphs: Vec::new(), effects: Vec::new() };
+        let mut b = Builder {
+            bounds: [f32::MAX, f32::MAX, -f32::MAX, -f32::MAX],
+            background: [f32::MAX, f32::MAX, -f32::MAX, -f32::MAX],
+            glyphs: Vec::new(),
+            effects: Vec::new(),
+            areas: Vec::new(),
+            empty: Vec::new(),
+        };
         let has_background = alpha(pen.background) != 0;
         let mark_background = |b: &mut Builder, x: f32, y: f32, advance: f32| {
             if has_background {
@@ -171,6 +184,7 @@ impl Fonts {
                 let right = x + bitmap.right + if has_shadow { shadow_offset } else { 0.0 } + if italic { shear_top.max(shear_bottom) } else { 0.0 } + thick;
                 let bottom = y + bitmap.down + if has_shadow { shadow_offset } else { 0.0 } + thick;
                 b.mark(left, top, right, bottom);
+                b.areas.push(ActiveArea { rect: [left, top, x + advance, bottom], style: style.clone() });
                 let render = |x: f32, y: f32, z: f32, color: u32, bold: bool| {
                     let e = if bold { 0.1 } else { 0.0 };
                     GlyphQuad {
@@ -197,6 +211,8 @@ impl Fonts {
                 if bold {
                     b.glyphs.push(render(x + bold_offset, y, depth + z_fighter, color, true));
                 }
+            } else {
+                b.empty.push(ActiveArea { rect: [x, y, x + advance, y + 9.0], style: style.clone() });
             }
             mark_background(&mut b, x, y, advance);
             let mut effects = Vec::new();
@@ -221,6 +237,7 @@ impl Fonts {
         quads.append(&mut b.glyphs);
         quads.append(&mut b.effects);
         let [l, t, r, bt] = b.bounds;
-        Prepared { quads, bounds: (l < r && t < bt).then_some(b.bounds) }
+        b.areas.append(&mut b.empty);
+        Prepared { quads, bounds: (l < r && t < bt).then_some(b.bounds), areas: b.areas }
     }
 }

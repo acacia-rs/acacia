@@ -1,12 +1,12 @@
 //! `ChatComponent`: messages wrapped to the chat width into the 100 newest lines, each fading 200
-//! ticks after it arrived, drawn scaled at the bottom left with its tag's indicator; with the chat
-//! screen open (focused) every line shows, the page is taller and a scroll bar marks the offset.
-//! Ported from Horizon's `chat.rs` (MIT).
+//! ticks after it arrived, drawn scaled at the bottom left with its tag's indicator (`draw`); with
+//! the chat screen open (focused) every line shows, the page is taller and a scroll bar marks the
+//! offset. Ported from Horizon's `chat.rs` (MIT).
 
-use crate::java::gui::{Gui, Metrics, PoseOp};
-use crate::java::mth::{as8, ceil, floor, floor_d, white, with_alpha};
+use crate::java::gui::Metrics;
+use crate::java::mth::floor_d;
 use crate::java::split::wrap_components;
-use crate::java::text::Text;
+use crate::java::text::{Lang, Text};
 
 /// The chat options, doubles as `Options` keeps them.
 #[derive(Clone, Copy, Debug)]
@@ -65,18 +65,42 @@ pub struct TagIcon {
 
 pub const CHAT_MODIFIED: TagIcon = TagIcon { sprite: "icon/chat_modified", width: 9, height: 9 };
 
-/// `GuiMessageTag`: the indicator bar's colour and an optional icon.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A tag's tooltip text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TagText {
+    Key(&'static str),
+    /// `chatModified`: the notice, then the original message in grey.
+    Modified(String),
+}
+
+/// `GuiMessageTag`: the indicator bar's colour, an optional icon and tooltip text.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tag {
     pub indicator: u32,
     pub icon: Option<TagIcon>,
+    pub text: Option<TagText>,
 }
 
 impl Tag {
-    pub const SYSTEM: Tag = Tag { indicator: 0xD0D0D0, icon: None };
-    pub const CHAT_NOT_SECURE: Tag = Tag { indicator: 0xD0D0D0, icon: None };
-    pub const CHAT_ERROR: Tag = Tag { indicator: 0xFF5555, icon: None };
-    pub const CHAT_MODIFIED: Tag = Tag { indicator: 0x606060, icon: Some(CHAT_MODIFIED) };
+    pub const SYSTEM: Tag = Tag { indicator: 0xD0D0D0, icon: None, text: Some(TagText::Key("chat.tag.system")) };
+    /// `addServerSystemMessage`'s.
+    pub const SYSTEM_SINGLE_PLAYER: Tag = Tag { indicator: 0xD0D0D0, icon: None, text: Some(TagText::Key("chat.tag.system_single_player")) };
+    pub const CHAT_NOT_SECURE: Tag = Tag { indicator: 0xD0D0D0, icon: None, text: Some(TagText::Key("chat.tag.not_secure")) };
+    pub const CHAT_ERROR: Tag = Tag { indicator: 0xFF5555, icon: None, text: Some(TagText::Key("chat.tag.error")) };
+
+    pub fn modified(original: &str) -> Tag {
+        Tag { indicator: 0x606060, icon: Some(CHAT_MODIFIED), text: Some(TagText::Modified(original.to_owned())) }
+    }
+
+    /// `text()`.
+    pub fn text(&self, lang: Lang) -> Option<Text> {
+        Some(match self.text.as_ref()? {
+            TagText::Key(key) => Text::translate(key, &[], lang),
+            TagText::Modified(original) => {
+                Text::translate("chat.tag.modified", &[], lang).append("\n").append(Text::literal(original.clone()).with_color(0xAAAAAA))
+            }
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -88,10 +112,12 @@ struct Message {
 
 /// `GuiMessage.Line`.
 #[derive(Clone, Debug)]
-struct Line {
-    added: i32,
-    content: Text,
-    tag: Option<Tag>,
+pub(super) struct Line {
+    pub added: i32,
+    pub content: Text,
+    pub tag: Option<Tag>,
+    /// The message's last line (`endOfEntry`).
+    pub end: bool,
 }
 
 /// `AlphaCalculator.timeBased`: opaque for 180 ticks, then fading out quadratically over 20.
@@ -105,9 +131,9 @@ pub struct Chat {
     /// Newest first.
     messages: Vec<Message>,
     /// Wrapped lines, newest first.
-    lines: Vec<Line>,
-    scroll: i32,
-    new_since_scroll: bool,
+    pub(super) lines: Vec<Line>,
+    pub(super) scroll: i32,
+    pub(super) new_since_scroll: bool,
     pub options: ChatOptions,
 }
 
@@ -133,15 +159,17 @@ impl Chat {
     /// `addMessageToDisplayQueue`.
     fn add_lines(&mut self, m: &dyn Metrics, message: &Message, focused: bool) {
         let mut width = floor_d(f64::from(self.options.width_px()) / self.options.scale);
-        if let Some(icon) = message.tag.and_then(|t| t.icon) {
+        if let Some(icon) = message.tag.as_ref().and_then(|t| t.icon) {
             width -= icon.width + 4 + 2;
         }
-        for line in wrap_components(m, &message.content, width, self.options.colors) {
+        let lines = wrap_components(m, &message.content, width, self.options.colors);
+        let count = lines.len();
+        for (i, line) in lines.into_iter().enumerate() {
             if focused && self.scroll > 0 {
                 self.new_since_scroll = true;
                 self.scroll_chat(1, focused);
             }
-            self.lines.insert(0, Line { added: message.added, content: line, tag: message.tag });
+            self.lines.insert(0, Line { added: message.added, content: line, tag: message.tag.clone(), end: i + 1 == count });
         }
         self.lines.truncate(MAX_LINES);
     }
@@ -175,58 +203,5 @@ impl Chat {
         if self.scroll <= 0 {
             self.reset_scroll();
         }
-    }
-
-    /// `ChatComponent.extractRenderState` in `BACKGROUND` mode, or `FOREGROUND` when `focused`,
-    /// at tick `ticks`. The mouse is not tracked, so tag tooltips and icons (shown on hover) are
-    /// not drawn; nor are the delayed-message queue line and the restricted prompt.
-    pub fn extract(&self, gui: &mut Gui, ticks: i32, focused: bool) {
-        let total = self.lines.len() as i32;
-        if total == 0 {
-            return;
-        }
-        let o = &self.options;
-        let scale = o.scale as f32;
-        let max_width = ceil(o.width_px() as f32 / scale);
-        let chat_bottom = floor((gui.height - 40) as f32 / scale);
-        let text_opacity = o.opacity as f32 * 0.9 + 0.1;
-        let background_opacity = o.background_opacity as f32;
-        let entry_height = o.line_height();
-        let bottom_to_text = (8.0 * (o.line_spacing + 1.0) - 4.0 * o.line_spacing).round() as i32;
-        // forEachLine: oldest visible first, the transparent ones skipped.
-        let per_page = self.lines_per_page(focused);
-        let visible: Vec<(i32, &Line, f32)> = (0..(total - self.scroll).min(per_page))
-            .rev()
-            .map(|i| (i, &self.lines[(i + self.scroll) as usize]))
-            .map(|(i, line)| (i, line, if focused { 1.0 } else { time_alpha(ticks, line.added) }))
-            .filter(|l| l.2 > 1.0e-5)
-            .collect();
-        gui.push(vec![PoseOp::Scale(scale, scale), PoseOp::Translate(4.0, 0.0)]);
-        for &(i, _, alpha) in &visible {
-            let bottom = chat_bottom - i * entry_height;
-            gui.fill(-4, bottom - entry_height, max_width + 4 + 4, bottom, as8(alpha * background_opacity) << 24);
-        }
-        for &(i, line, alpha) in &visible {
-            let bottom = chat_bottom - i * entry_height;
-            let opacity = alpha * text_opacity;
-            gui.text(line.content.clone(), 0, bottom - bottom_to_text, white(opacity), true);
-            if let Some(tag) = line.tag {
-                gui.fill(-4, bottom - entry_height, -2, bottom, with_alpha(as8(opacity), tag.indicator));
-            }
-        }
-        if focused {
-            let chat_height = visible.len() as i32 * entry_height;
-            let virtual_height = total * entry_height;
-            let y = self.scroll * chat_height / total - chat_bottom;
-            let height = chat_height * chat_height / virtual_height;
-            if virtual_height != chat_height {
-                let alpha = if y > 0 { 170 } else { 96 };
-                let color = if self.new_since_scroll { 0xCC3333 } else { 0x3333AA };
-                let x = max_width + 4;
-                gui.fill(x, -y, x + 2, -y - height, with_alpha(alpha, color));
-                gui.fill(x + 2, -y, x + 1, -y - height, with_alpha(alpha, 0xCCCCCC));
-            }
-        }
-        gui.pop();
     }
 }

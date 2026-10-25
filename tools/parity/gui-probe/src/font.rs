@@ -133,4 +133,8 @@ impl Metrics for Shared {
     fn advance(&self, c: char, style: &Style) -> f32 {
         self.0.advance(c, style)
     }
+
+    fn active_areas(&self, text: &Text, x: f32, y: f32, color: u32, shadow: bool) -> acacia_ui::java::active::TextAreas {
+        self.0.active_areas(text, x, y, color, shadow)
+    }
 }

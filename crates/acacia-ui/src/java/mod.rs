@@ -4,12 +4,14 @@
 //! README.md "Java GUI".
 
 pub mod bidi;
+pub mod active;
 pub mod chat;
 pub mod command;
 pub mod container;
 pub mod encode;
 pub mod font;
 pub mod gui;
+pub mod hover;
 pub mod hud;
 pub mod lang;
 pub mod mth;

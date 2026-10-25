@@ -124,6 +124,64 @@ def command_case(rng):
             'actions': actions, 'mouse': list(mouse), 'blink': rng.choice([0, 400]), 'kind': 'command'}
 
 
+def show_text(value):
+    return {'action': 'show_text', 'value': value}
+
+
+HOVERS = [
+    show_text('A tooltip'),
+    show_text({'text': 'Line one\nLine two', 'color': 'aqua'}),
+    show_text('a long tooltip that has to be split because it is much wider than two hundred pixels on any screen at all'),
+    show_text({'translate': 'chat.tag.error'}),
+    show_text({'text': 'שלום עולם and more', 'bold': True}),
+    {'action': 'show_entity', 'id': 'minecraft:pig', 'uuid': '0102030a-0000-4000-8000-00000000abcd', 'name': 'Babe'},
+    {'action': 'show_entity', 'id': 'creeper', 'uuid': [1, -2, 3, -4]},
+    {'action': 'show_entity', 'id': 'minecraft:villager', 'uuid': 'A1B2C3D4-0001-0002-0003-0000000000FF', 'name': {'text': 'Bob', 'color': 'green'}},
+    {'action': 'show_item', 'id': 'minecraft:stone', 'count': 3},
+    {'action': 'show_item', 'id': 'minecraft:diamond', 'components': {'minecraft:custom_name': 'Shiny', 'minecraft:lore': ['first lore']}},
+]
+MESSAGES = [
+    lambda h: {'text': 'Hover me', 'hover_event': h},
+    lambda h: {'text': 'Hello ', 'extra': [{'text': 'world', 'color': 'gold', 'hover_event': h}, ' and more']},
+    lambda h: {'translate': 'chat.type.text', 'with': ['Steve', {'text': 'look here', 'underlined': True, 'hover_event': h}]},
+    lambda h: {'text': 'all of it hovers ', 'hover_event': h, 'extra': [{'text': 'even this', 'italic': True}]},
+    lambda h: {'text': 'a long message that wraps onto a second line in the chat box because it keeps going and going ' * 2,
+               'hover_event': h},
+    lambda h: {'text': 'שלום ', 'extra': [{'text': 'עולם', 'hover_event': h}, ' abc']},
+    lambda h: 'plain words, no hover',
+    lambda h: {'text': '   spaced   out   ', 'hover_event': h},
+]
+TAGS = [None, None, 'system', 'error', 'not_secure', 'modified']
+
+
+def hover_case(rng):
+    width, height = rng.choice(SIZES)
+    advanced = rng.random() < 0.5
+    # An advanced item tooltip counts the prototype's components, which the probe has no table of.
+    hovers = [h for h in HOVERS if not advanced or h['action'] != 'show_item']
+    messages = []
+    for _ in range(rng.choice([1, 2, 3, 6, 25])):
+        tag = rng.choice(TAGS)
+        m = {'text': rng.choice(MESSAGES)(rng.choice(hovers)), 'tag': tag, 'at': 0}
+        if tag == 'modified':
+            m['original'] = rng.choice(['the original', 'a longer original message that needs to wrap in the tooltip box'])
+        messages.append(m)
+    scale = rng.choice([1.0, 1.0, 0.5, 0.75])
+    bottom = int((height - 40) / scale)
+    lines = rng.randint(1, 8)
+    mouse = rng.choice([(rng.randint(0, 340), rng.randint(int((bottom - 9 * lines) * scale), height - 38)),
+                        (rng.randint(0, 6), rng.randint(int((bottom - 9 * lines) * scale), height - 38)),
+                        (rng.randint(0, width - 1), rng.randint(0, height - 1))])
+    case = {'width': width, 'height': height, 'initial': '', 'history': [], 'players': PLAYERS, 'autoSuggest': True,
+            'chatOnly': True, 'opacity': rng.choice([0.0, 0.5]), 'actions': [], 'mouse': list(mouse), 'blink': 0,
+            'kind': 'hover', 'messages': messages, 'now': 10, 'advanced': advanced,
+            'chatScale': scale, 'chatWidth': rng.choice([1.0, 0.5]), 'chatOpacity': rng.choice([1.0, 0.4]),
+            'chatLineSpacing': rng.choice([0.0, 0.0, 0.5]), 'chatHeightUnfocused': 0.44366195797920227, 'chatHeightFocused': 1.0}
+    if len(messages) > 20 and rng.random() < 0.5:
+        case['scroll'] = rng.randint(1, 30)
+    return case
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--count', type=int, default=3000)
@@ -133,6 +191,8 @@ def main():
     cases += [random_case(rng) for _ in range(max(args.count - len(cases), 0))]
     crng = random.Random(0x434D4453)
     cases += [command_case(crng) for _ in range(args.count // 2)]
+    hrng = random.Random(0x484F5652)
+    cases += [hover_case(hrng) for _ in range(args.count // 2)]
     for case in cases:
         print(json.dumps(case, ensure_ascii=False))
 
