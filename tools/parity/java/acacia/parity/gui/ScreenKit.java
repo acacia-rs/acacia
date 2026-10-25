@@ -88,6 +88,8 @@ public final class ScreenKit {
             new net.minecraft.client.multiplayer.ClientRecipeContainer(recipes().getSynchronizedItemProperties(), recipes().getSynchronizedStonecutterRecipes()));
         Stub.put(connection, net.minecraft.client.multiplayer.ClientPacketListener.class, "playerInfoMap", new java.util.HashMap<>());
         Stub.put(connection, net.minecraft.client.multiplayer.ClientPacketListener.class, "scoreboard", new net.minecraft.world.scores.Scoreboard());
+        Stub.put(mc, Minecraft.class, "userPropertiesFuture",
+            java.util.concurrent.CompletableFuture.completedFuture(com.mojang.authlib.minecraft.UserApiService.OFFLINE_PROPERTIES));
         Stub.put(level, ClientLevel.class, "connection", connection);
         player = Stub.alloc(LocalPlayer.class);
         Stub.put(player, net.minecraft.world.entity.Entity.class, "level", level);

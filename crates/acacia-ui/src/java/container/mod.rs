@@ -8,6 +8,7 @@ pub mod brewing;
 pub mod crafter;
 pub mod effects;
 pub mod entity;
+pub mod lectern;
 pub mod mount;
 pub mod menus;
 pub mod simple;

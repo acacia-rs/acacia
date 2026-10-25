@@ -133,14 +133,60 @@ def mount(rng):
     return case
 
 
+WORDS = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'lazy', 'dog', 'Minecraft', 'lectern', 'a', 'I',
+         'supercalifragilisticexpialidocious', 'WWWWWWWWWWWWWWWWWWWWWWWWWW', 'iiiiii', 'page', '42', '...', 'end.']
+
+
+def page_text(rng):
+    words = [rng.choice(WORDS) for _ in range(rng.choice([0, 1, 5, 20, 60, 140]))]
+    text = ''
+    for w in words:
+        text += w + rng.choice([' ', ' ', ' ', '\n', '  ', '\n\n'])
+    return text
+
+
+def page_component(rng):
+    text = page_text(rng)
+    if rng.random() < 0.4:
+        return text
+    parts = [{'text': page_text(rng)[:rng.randint(0, 60)], 'color': rng.choice(['red', 'dark_blue', '#00ff88', 'black'])}]
+    if rng.random() < 0.5:
+        parts.append({'text': ' bold words ', 'bold': True})
+    return {'text': text[:rng.randint(0, len(text))], 'extra': parts}
+
+
+def lectern(rng):
+    """LecternScreen: a written or writable book (or none) open at a page; may build or not."""
+    width, height = rng.choice(SIZES + [(192, 230), (220, 216)])
+    count = rng.choice([0, 1, 2, 3, 7, 30])
+    book = rng.choice(['written', 'written', 'writable', 'plain', None])
+    case = {'kind': 'lectern', 'width': width, 'height': height, 'page': rng.choice([0, 0, 1, 2, 5, 29, 40, -1]),
+            'build': rng.random() < 0.7, 'partial': 0.0}
+    if book == 'written':
+        case['book'] = {'id': 'minecraft:written_book', 'components': {'minecraft:written_book_content': {
+            'title': 'A Book', 'author': 'Someone', 'resolved': True, 'pages': [page_component(rng) for _ in range(count)]}}}
+    elif book == 'writable':
+        case['book'] = {'id': 'minecraft:writable_book', 'components': {'minecraft:writable_book_content': {
+            'pages': [page_text(rng)[:1024] for _ in range(count)]}}}
+    elif book == 'plain':
+        case['book'] = {'id': 'minecraft:book'}
+    left = (width - 192) // 2
+    if rng.random() < 0.6:
+        case['mouse'] = [rng.randint(left + 30, left + 150), rng.randint(150, 220)]
+    else:
+        case['mouse'] = [rng.randint(0, width), rng.randint(0, height)]
+    return case
+
+
 GENERATORS = {k: make(k) for k in KINDS}
+GENERATORS['lectern'] = lectern
 GENERATORS['effects'] = effects
 GENERATORS['mount'] = mount
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--count', type=int, default=2400)
+    parser.add_argument('--count', type=int, default=2700)
     parser.add_argument('--kind', action='append', choices=sorted(GENERATORS))
     parser.add_argument('--seed', type=int, default=0x636f6e74)
     args = parser.parse_args()

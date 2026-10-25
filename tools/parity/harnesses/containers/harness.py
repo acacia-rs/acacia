@@ -5,4 +5,4 @@ OWNER = "gui (Java look GUI)"
 
 
 def run(h):
-    guiparity.run(h, "acacia.parity.gui.ContainerOracle", "--count", 2400, probe_input="probe.jsonl")
+    guiparity.run(h, "acacia.parity.gui.ContainerOracle", "--count", 2700, probe_input="probe.jsonl")

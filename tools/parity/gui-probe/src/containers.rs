@@ -7,6 +7,7 @@ use acacia_ui::java::container::brewing::Brewing;
 use acacia_ui::java::container::crafter::Crafter;
 use acacia_ui::java::container::effects;
 use acacia_ui::java::container::entity::Figure;
+use acacia_ui::java::container::lectern::Lectern;
 use acacia_ui::java::container::mount::{self, Mount};
 use acacia_ui::java::container::simple::{Kind, Simple};
 use acacia_ui::java::container::{Env, Screen, frame};
@@ -22,6 +23,13 @@ pub fn replay(c: &Value, assets: &Assets, _state: &mut Map<String, Value>) -> Ve
     let (width, height) = (kit::int(c, "width", 0), kit::int(c, "height", 0));
     let inventory = Text::translate("container.inventory", &[], &lang);
     let simple = |kind, fallback| Simple::new(kind, width, height, kit::title(c, fallback, &lang), inventory.clone(), env.font);
+    if c["kind"] == "lectern" {
+        let pages = c["game"]["pages"].as_array().into_iter().flatten().map(|p| Text::from_json(p, &lang)).collect();
+        let lectern = Lectern { width, height, pages, page: kit::int(&c["game"], "page", 0), may_build: c["build"].as_bool().unwrap_or(true) };
+        let mut gui = Gui::new(width, height);
+        lectern.frame(&mut gui, env.font, &lang, kit::mouse(c));
+        return gui.draws;
+    }
     if c["kind"] == "effects" {
         let mut screen = simple(Kind::Chest { rows: kit::int(c, "rows", 3) }, "container.chest");
         let mut gui = Gui::new(width, height);

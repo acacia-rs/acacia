@@ -63,6 +63,10 @@ public final class ContainerOracle {
             effects(kit, c);
             return;
         }
+        if (c.get("kind").getAsString().equals("lectern")) {
+            Lectern.run(kit, c);
+            return;
+        }
         AbstractContainerScreen<?> screen = ContainerScreens.create(kit, c.get("kind").getAsString());
         kit.open(screen);
         fill(kit, screen);
