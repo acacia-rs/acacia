@@ -13,6 +13,11 @@ public final class LightShapes {
     /** Null where the engine ignores the shape (`LightEngine.isEmptyShape`), else the six faces by `grid`. */
     public static List<String> of(BlockState s) {
         if (!s.canOcclude() || !s.useShapeForLightOcclusion()) return null;
+        return faces(s);
+    }
+
+    /** The six `getFaceOcclusionShape`s by `grid`, `DOWN`..`EAST`. */
+    public static List<String> faces(BlockState s) {
         var faces = new ArrayList<String>();
         for (var d : Direction.values()) faces.add(grid(s.getFaceOcclusionShape(d), d));
         return faces;

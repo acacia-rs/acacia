@@ -59,8 +59,8 @@ public final class FluidRendering {
         }
     }
 
-    /** Binds the jar's block tags (FlowingFluid.getFlow reads #blocks_fluid_flow). */
-    private static void bindBlockTags() {
+    /** Binds the jar's block tags (FlowingFluid.getFlow reads #blocks_fluid_flow, IronBarsBlock #bars). */
+    public static void bindBlockTags() {
         var info = new net.minecraft.server.packs.PackLocationInfo(net.minecraft.server.packs.repository.BuiltInPackSource.VANILLA_ID,
             net.minecraft.network.chat.Component.literal("vanilla"), net.minecraft.server.packs.repository.PackSource.BUILT_IN,
             java.util.Optional.of(net.minecraft.server.packs.repository.BuiltInPackSource.CORE_PACK_INFO));

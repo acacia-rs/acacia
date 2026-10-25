@@ -58,8 +58,9 @@ impl Pipelines {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
                     depth_write_enabled: Some(depth_write),
-                    // Reverse-Z: nearer is larger.
-                    depth_compare: Some(wgpu::CompareFunction::Greater),
+                    // Reverse-Z: nearer is larger. Equal passes, as Java's LEQUAL: a grass side's overlay
+                    // quad lies on the side drawn before it.
+                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
