@@ -72,6 +72,7 @@ pub fn encode(draws: &[GuiDraw]) -> Vec<Value> {
             GuiDraw::Unscissor => json!({"type": "unscissor"}),
             GuiDraw::Stratum => json!({"type": "stratum"}),
             GuiDraw::Blur => json!({"type": "blur"}),
+            GuiDraw::Picture(p) => p.encode(),
         };
         if pose != IDENTITY {
             v["matrix"] = json!(pose);

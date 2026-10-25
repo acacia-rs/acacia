@@ -53,6 +53,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
         c.draws = new JsonArray();
         c.stack = new Matrix3x2fStack(16);
         c.keys = new IdentityHashMap<>();
+        c.keyOf = s -> -1;
         c.width = width;
         c.height = height;
         c.font = mc.font;

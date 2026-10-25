@@ -42,6 +42,16 @@ public final class ScreenKit {
     }
 
     private static Options options;
+    private static net.minecraft.world.item.crafting.RecipeManager recipes;
+
+    /** The vanilla data pack's recipes, as a server holds them (what the client is sent comes from these). */
+    public static net.minecraft.world.item.crafting.RecipeManager recipes() {
+        if (recipes == null) {
+            recipes = new net.minecraft.world.item.crafting.RecipeManager(GuiGame.lookup);
+            recipes.finalizeRecipeLoading(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS);
+        }
+        return recipes;
+    }
 
     public final JsonObject c;
     public final Minecraft mc;
@@ -69,7 +79,18 @@ public final class ScreenKit {
         Stub.put(level, ClientLevel.class, "tickRateManager", new TickRateManager());
         Stub.put(level, ClientLevel.class, "mapData", new java.util.HashMap<>());
         Stub.put(mc, Minecraft.class, "level", level);
+        var connection = Stub.alloc(net.minecraft.client.multiplayer.ClientPacketListener.class);
+        Stub.put(connection, net.minecraft.client.multiplayer.ClientPacketListener.class, "enabledFeatures",
+            net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS);
+        Stub.put(connection, net.minecraft.client.multiplayer.ClientPacketListener.class, "recipes",
+            new net.minecraft.client.multiplayer.ClientRecipeContainer(recipes().getSynchronizedItemProperties(), recipes().getSynchronizedStonecutterRecipes()));
+        Stub.put(connection, net.minecraft.client.multiplayer.ClientPacketListener.class, "playerInfoMap", new java.util.HashMap<>());
+        Stub.put(level, ClientLevel.class, "connection", connection);
         player = Stub.alloc(LocalPlayer.class);
+        Stub.put(player, net.minecraft.world.entity.Entity.class, "level", level);
+        Stub.put(player, LocalPlayer.class, "connection", connection);
+        Stub.put(player, LocalPlayer.class, "permissions", bool("op", false)
+            ? net.minecraft.server.permissions.PermissionSet.ALL_PERMISSIONS : net.minecraft.server.permissions.PermissionSet.NO_PERMISSIONS);
         Stub.put(player, LivingEntity.class, "attributes", new AttributeMap(Player.createAttributes().build()));
         inventory = new Inventory(player, new EntityEquipment());
         Stub.put(player, Player.class, "inventory", inventory);
@@ -110,9 +131,11 @@ public final class ScreenKit {
     /** {id, count, components}: every component the stack has, defaults included. */
     public static JsonObject resolved(ItemStack stack) {
         var o = new JsonObject();
-        o.addProperty("id", stack.getItemHolder().getRegisteredName());
+        o.addProperty("id", net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
         o.addProperty("count", stack.getCount());
         o.add("components", DataComponentMap.CODEC.encodeStart(ops(), stack.getComponents()).getOrThrow());
+        // Non-persistent components are not encoded but count in the advanced tooltip's total.
+        o.addProperty("size", stack.getComponents().size());
         return o;
     }
 
@@ -138,7 +161,14 @@ public final class ScreenKit {
         int mx = c.getAsJsonArray("mouse").get(0).getAsInt();
         int my = c.getAsJsonArray("mouse").get(1).getAsInt();
         float partial = f("partial", 0);
-        screen.extractBackground(capture, mx, my, partial);
+        screen.extractRenderStateWithTooltipAndSubtitles(capture, mx, my, partial);
+    }
+
+    /** The case's mouse and partial tick, without the frame around them. */
+    public void contents(Screen screen) {
+        int mx = c.getAsJsonArray("mouse").get(0).getAsInt();
+        int my = c.getAsJsonArray("mouse").get(1).getAsInt();
+        float partial = f("partial", 0);
         screen.extractRenderState(capture, mx, my, partial);
         capture.extractDeferredElements(mx, my, partial);
     }

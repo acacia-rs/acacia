@@ -97,6 +97,8 @@ pub enum GuiDraw {
     Stratum,
     /// `blurBeforeThisStratum()`: the strata before this one are blurred (a screen's background).
     Blur,
+    /// A picture-in-picture or tooltip image, recorded by its parameters.
+    Picture(super::picture::Picture),
 }
 
 /// A screen `width` × `height` GUI pixels big being drawn into.

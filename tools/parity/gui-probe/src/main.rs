@@ -4,7 +4,10 @@
 //! `acacia_ui::java::encode` writes them. `assets` is an unpacked jar's `assets/minecraft`. Run by
 //! `tools/parity/gui/guiparity.py`.
 
+mod containers;
 mod hud;
+mod kit;
+mod tooltips;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -35,7 +38,9 @@ impl Metrics for Ascii {
 
 fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
+        "containers" => containers::replay,
         "hud" => hud::replay,
+        "tooltips" => tooltips::replay,
         _ => return None,
     })
 }
