@@ -113,6 +113,13 @@ by `GuiCapture` (`tools/parity/java/acacia/parity/gui`). See the `gui` rows of `
   - Scissors are intersected and poses applied.
   - Highlight blends are invert and additive.
   - Labels scroll by `defaultScrollingHelper`.
+  - A blit whose UVs run past its texture (menu backgrounds, separators, the credits background)
+    stays one quad, as the game's, with `Quad::wrap` naming the sprite. The UI shader folds the
+    UVs back into it, standing in for the game's `REPEAT` sampler. `Atlas::stray` finds lookups
+    that leave their sprite, and gui_frame's probe flags them (`"stray"`).
+- **Blur (`blur.rs`):** the menu blur's post chain (three horizontal and vertical box-blur
+  passes, `menuBackgroundBlurriness` as the radius) as data. `DrawList::blur` says which quads it
+  goes under, and acacia-render's `gpu/blur.rs` runs it.
 - **Pictures:** a picture-in-picture (entity, book, banner) is placed by its rect, without the
   pose. It becomes a premultiplied blit (`Quad::picture`) after its node's other blits, as
   `GuiRenderer.preparePictureInPicture` adds it.
@@ -138,5 +145,5 @@ by `GuiCapture` (`tools/parity/java/acacia/parity/gui`). See the `gui` rows of `
 ## Not yet
 
 The loom's banner preview, the beacon's own art, a cartography table's name box, Unicode glyph pages,
-offhand and attack indicator, Java's background blur, Bedrock's own settings screen and sidebar
+offhand and attack indicator, Bedrock's own settings screen and sidebar
 placement, multiselect form elements, JPEG button images.
