@@ -30,11 +30,13 @@ pub struct Assets {
 }
 
 // TODO: the Java look's font once it has every provider; the ASCII page until then.
-struct Ascii(Option<acacia_ui::font::Font>);
+// The second page is the galactic `minecraft:alt` font.
+struct Ascii(Option<acacia_ui::font::Font>, Option<acacia_ui::font::Font>);
 
 impl Metrics for Ascii {
     fn advance(&self, c: char, style: &Style) -> f32 {
-        self.0.as_ref().map_or(0.0, |f| f.width(&c.to_string())) + f32::from(u8::from(style.is_bold()))
+        let page = if style.font.as_deref() == Some("minecraft:alt") { &self.1 } else { &self.0 };
+        page.as_ref().map_or(0.0, |f| f.width(&c.to_string())) + f32::from(u8::from(style.is_bold()))
     }
 }
 
@@ -56,7 +58,8 @@ fn main() -> Result<()> {
     };
     let replay = replay(harness).ok_or_else(|| format!("unknown harness {harness}"))?;
     let root = Path::new(root).to_owned();
-    let font = Ascii(acacia_ui::theme::java_font(&root, &mut acacia_ui::Atlas::new()));
+    let mut atlas = acacia_ui::Atlas::new();
+    let font = Ascii(acacia_ui::theme::java_font(&root, &mut atlas), acacia_ui::theme::java_galactic(&root, &mut atlas));
     let assets = Assets { root, font: Box::new(font) };
     let mut out = BufWriter::new(std::fs::File::create(output)?);
     for line in std::fs::read_to_string(inputs)?.lines().filter(|l| !l.is_empty()) {

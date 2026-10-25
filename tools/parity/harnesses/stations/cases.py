@@ -27,7 +27,8 @@ GEAR = ['minecraft:diamond_sword', 'minecraft:iron_pickaxe', 'minecraft:golden_h
 ENCHANTMENTS = [('sharpness', 5), ('protection', 4), ('unbreaking', 3), ('efficiency', 5), ('mending', 1),
                 ('fire_aspect', 2), ('binding_curse', 1), ('vanishing_curse', 1), ('silk_touch', 1), ('looting', 3),
                 ('power', 5), ('infinity', 1), ('feather_falling', 4), ('thorns', 3), ('respiration', 3)]
-NAMES = ['', 'Excalibur', 'a', 'Pick of Destiny', 'x' * 35, 'The quick brown fox jumps over the lazy dog!', 'iiiiiiiiii', 'WWWWWWWWWW']
+NAMES = ['', 'Excalibur', 'a', 'Pick of Destiny', 'x' * 35, 'The quick brown fox jumps over the lazy dog!', 'iiiiiiiiii', 'WWWWWWWWWW',
+         'abcdefghij' * 5, 'W' * 60, 'A name of exactly forty-nine characters, I think.']
 EFFECTS = ['speed', 'haste', 'resistance', 'jump_boost', 'strength', 'regeneration']
 TEMPLATES = ['minecraft:netherite_upgrade_smithing_template', 'minecraft:coast_armor_trim_smithing_template',
              'minecraft:sentry_armor_trim_smithing_template', 'minecraft:silence_armor_trim_smithing_template']
@@ -160,6 +161,12 @@ def smithing(rng):
     c = case(rng, 'smithing')
     c['ticks'] = rng.choice([0, 1, 29, 30, 31, 32, 33, 34, 60, 61, 95, rng.randint(0, 400)])
     c['data'] = [[0, int(rng.random() < 0.4)]]
+    if rng.random() < 0.4:
+        # An empty input slot (its onboarding tooltip) or the error icon.
+        x, y, w, h = rng.choice([(8, 48, 16, 16), (26, 48, 16, 16), (44, 48, 16, 16), (65, 46, 28, 21)])
+        own = dict((i, s) for i, s in c['slots'] if i < 4)
+        if not any(KINDS['smithing'][1][i] == (x, y) and not is_plain(s) for i, s in own.items()):
+            target(rng, c, (176, 166), x, y, w, h)
     return c
 
 
@@ -188,10 +195,19 @@ def beacon(rng):
     c['levels'] = rng.choice([0, 1, 2, 3, 4, 4, 4])
     c['primary'] = rng.choice([None, None] + ['minecraft:' + e for e in EFFECTS[:5]])
     c['secondary'] = rng.choice([None, None, 'minecraft:regeneration', c['primary']])
-    if rng.random() < 0.6:
-        left, top = (c['width'] - 230) // 2, (c['height'] - 219) // 2
-        c['mouse'] = [left + rng.randint(10, 215), top + rng.randint(18, 132)]
+    if rng.random() < 0.7:
+        # A power, confirm or cancel button (window coordinates of their 22-pixel squares).
+        buttons = [(53 + 24 * i, 22) for i in range(2)] + [(53 + 24 * i, 47) for i in range(2)] + [(65, 72)]
+        buttons += [(144, 47), (168, 47), (164, 107), (190, 107)]
+        x, y = rng.choice(buttons)
+        target(rng, c, (230, 219), x, y, 22, 22)
     return c
+
+
+def target(rng, c, image, x, y, w, h):
+    """The mouse somewhere in (or a pixel around) the window rectangle at (x, y), w by h."""
+    left, top = (c['width'] - image[0]) // 2, (c['height'] - image[1]) // 2
+    c['mouse'] = [left + x + rng.randint(-1, w), top + y + rng.randint(-1, h)]
 
 
 GENERATORS = {'anvil': anvil, 'grindstone': lambda rng: case(rng, 'grindstone'), 'smithing': smithing,

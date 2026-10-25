@@ -4,10 +4,18 @@
 //! A screen implements [`Screen`] (Java's overridable methods) over a [`Base`] (the abstract
 //! class's fields); [`frame`] draws one frame as `extractRenderStateWithTooltipAndSubtitles` does.
 
+pub mod anvil;
+pub mod beacon;
 pub mod brewing;
+pub mod cartography;
 pub mod crafter;
 pub mod effects;
+pub mod enchanting;
+pub mod enchanting_names;
 pub mod entity;
+pub mod grindstone;
+pub mod item_combiner;
+pub mod smithing;
 pub mod mount;
 pub mod menus;
 pub mod simple;

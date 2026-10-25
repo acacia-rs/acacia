@@ -73,6 +73,8 @@ public final class StationOracle {
         var timer = Stub.alloc(DeltaTracker.Timer.class);
         Stub.put(timer, DeltaTracker.Timer.class, "deltaTickResidual", kit.f("partial", 0));
         Stub.put(kit.mc, Minecraft.class, "deltaTracker", timer);
+        Stub.put(kit.mc, Minecraft.class, "font", StationFont.get());
+        kit.capture.font = StationFont.get();
         var abilities = new Abilities();
         abilities.instabuild = kit.bool("creative", false);
         Stub.put(kit.player, Player.class, "abilities", abilities);
