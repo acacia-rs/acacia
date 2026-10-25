@@ -48,7 +48,7 @@ pub(super) fn at(ctx: &Ctx, [x, y, z]: [i32; 3], me: &RenderBlock) -> [f64; 3] {
         // isSolidFace: the neighbour's far face, unless it holds the same fluid or is ice.
         let solid_face = |q: [i32; 3], face: usize| {
             let block = ctx.block(q);
-            fluid_at(ctx, q).fluid != fluid && !block.fluid_rules.ice && block.fluid_rules.sturdy(face)
+            fluid_at(ctx, q).fluid != fluid && !block.fluid_rules.ice && block.fluid_rules.sturdy[face]
         };
         if HORIZONTAL.iter().any(|&([dx, _, dz], face)| solid_face([x + dx, y, z + dz], face) || solid_face([x + dx, y + 1, z + dz], face)) {
             let [nx, ny, nz] = normalize(flow);

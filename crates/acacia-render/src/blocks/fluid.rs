@@ -1,12 +1,15 @@
-//! What Java's `FluidRenderer` and `FlowingFluid.getFlow` read of a block state, derived from the
-//! Bedrock state: its fluid amount, the faces its shape covers, and the block-class tests Java makes.
+//! What Java's `FluidRenderer` and `FlowingFluid.getFlow` read of a block state: its fluid amount,
+//! the faces its shape covers, and the block-class tests Java makes. [`FluidRules::of`] derives them
+//! from the Bedrock state; the Java look bakes Java's own over that (tools/lookbake `fluid.rs`), and
+//! tools/parity's `fluids` harness checks every state against the game.
 
 use acacia_world::{Aabb, BlockState};
+use serde::{Deserialize, Serialize};
 
 use super::short_name;
 
 /// Per block state; [`super::RenderBlock::fluid_rules`].
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct FluidRules {
     /// Java's fluid amount, 1..=8 (sources and falling fluid 8); 0 for no fluid.
     pub amount: u8,
@@ -14,12 +17,13 @@ pub struct FluidRules {
     /// Per face ([`crate::assets::FACE_NAMES`] order), how far from the bottom the shape covers the
     /// whole face; up and down faces are 1 or 0 (Horizon's `coverage`).
     pub cover: [f32; 6],
+    /// `isFaceSturdy` per face: the support shape covers it whole.
+    pub sturdy: [bool; 6],
     /// `canOcclude`: false for the `noOcclusion` blocks (glass, leaves, doors...).
     pub occludes: bool,
-    /// `BlockState.isSolid` (legacy solid: big enough collision bounds).
+    /// `BlockState.isSolid` (legacy solid: big enough collision bounds, or forced).
     pub solid: bool,
-    /// In `#blocks_fluid_flow` (`#blocks_motion` and signs); approximated from the collision
-    /// bounds plus the collisionless blocks the tag lists.
+    /// In `#blocks_fluid_flow` (`#blocks_motion` and signs).
     pub blocks_motion: bool,
     /// `HalfTransparentBlock` or `LeavesBlock`: water beside it shows the overlay texture.
     pub overlay: bool,
@@ -27,20 +31,35 @@ pub struct FluidRules {
     pub ice: bool,
 }
 
-/// Java blocks that call `noOcclusion` among those with collision, by Bedrock name fragment.
+/// Java blocks that call `noOcclusion` among those with collision: Bedrock names containing these...
+const NO_OCCLUSION_PART: &[&str] = &["glass", "leaves", "door", "bars", "grate", "shulker_box", "carpet", "spawner"];
+/// ...and these names.
 const NO_OCCLUSION: &[&str] = &[
-    "glass", "leaves", "door", "bars", "grate", "slime", "honey_block", "scaffolding", "spawner", "beacon", "chorus", "lantern",
-    "bell", "chain", "bamboo", "roots", "vault", "conduit", "barrier", "cobweb", "web",
+    "slime", "honey_block", "scaffolding", "beacon", "chorus_plant", "chorus_flower", "bell", "bamboo", "mangrove_roots", "vault",
+    "conduit", "barrier", "web", "cobweb", "end_gateway", "powder_snow", "cactus", "bed",
 ];
+
+/// `canOcclude` false: [`NO_OCCLUSION_PART`], [`NO_OCCLUSION`], lanterns and chains.
+fn no_occlusion(name: &str) -> bool {
+    NO_OCCLUSION_PART.iter().any(|n| name.contains(n))
+        || NO_OCCLUSION.contains(&name)
+        || (name.ends_with("lantern") && name != "sea_lantern")
+        || name.ends_with("chain")
+}
 
 impl FluidRules {
     /// A full opaque cube: what unknown blocks and unloaded neighbours are.
-    pub const CUBE: FluidRules =
-        FluidRules { amount: 0, falling: false, cover: [1.0; 6], occludes: true, solid: true, blocks_motion: true, overlay: false, ice: false };
-
-    pub fn cube() -> FluidRules {
-        FluidRules::CUBE
-    }
+    pub const CUBE: FluidRules = FluidRules {
+        amount: 0,
+        falling: false,
+        cover: [1.0; 6],
+        sturdy: [true; 6],
+        occludes: true,
+        solid: true,
+        blocks_motion: true,
+        overlay: false,
+        ice: false,
+    };
 
     pub fn of(state: &BlockState) -> FluidRules {
         let name = short_name(state.name);
@@ -52,16 +71,18 @@ impl FluidRules {
         };
         let ice = matches!(name, "ice" | "frosted_ice");
         let solid = legacy_solid(state.boxes);
+        let cover: [f32; 6] = if state.is_full_cube() { [1.0; 6] } else { std::array::from_fn(|face| coverage(state.boxes, face)) };
         FluidRules {
             amount,
             falling,
-            cover: if state.is_full_cube() { [1.0; 6] } else { std::array::from_fn(|face| coverage(state.boxes, face)) },
-            occludes: !ice && !NO_OCCLUSION.iter().any(|n| name.contains(n)),
+            cover,
+            sturdy: cover.map(|c| c >= 1.0),
+            occludes: !ice && !no_occlusion(name),
             solid,
             blocks_motion: (solid && !matches!(name, "web" | "cobweb" | "bamboo_sapling"))
                 || ["sign", "banner", "pressure_plate"].iter().any(|n| name.contains(n)),
-            overlay: ice || name.contains("leaves") || name == "slime" || name == "honey_block" || name.ends_with("copper_grate")
-                || (name.contains("glass") && !name.contains("pane")),
+            overlay: ice || name == "blue_ice" || name.contains("leaves") || name == "slime" || name == "honey_block"
+                || name.ends_with("copper_grate") || (name.contains("glass") && !name.contains("pane")),
             ice,
         }
     }
@@ -71,9 +92,9 @@ impl FluidRules {
         if self.occludes { self.cover[face] } else { 0.0 }
     }
 
-    /// `isFaceSturdy` on `face`, from the collision boxes.
-    pub fn sturdy(&self, face: usize) -> bool {
-        self.cover[face] >= 1.0
+    /// `isSolidRender`: occludes with a full block's shape.
+    pub fn solid_render(&self) -> bool {
+        self.occludes && self.cover.iter().all(|&c| c >= 1.0)
     }
 
     /// `FluidState.getOwnHeight`.
@@ -102,12 +123,14 @@ fn legacy_solid(boxes: &[Aabb]) -> bool {
 pub fn coverage(boxes: &[Aabb], face: usize) -> f32 {
     let (axis, u, v) = [(0, 2, 1), (0, 2, 1), (1, 0, 2), (1, 0, 2), (2, 0, 1), (2, 0, 1)][face];
     let positive = face.is_multiple_of(2);
-    let clamp = |c: f32| f64::from(c.clamp(0.0, 1.0));
-    let rects: Vec<[f64; 4]> = boxes
-        .iter()
-        .filter(|b| if positive { b.max[axis] >= 1.0 - 1e-7 } else { b.min[axis] <= 1e-7 })
-        .map(|b| [clamp(b.min[u]), clamp(b.max[u]), clamp(b.min[v]), clamp(b.max[v])])
-        .collect();
+    let flush = boxes.iter().filter(|b| if positive { b.max[axis] >= 1.0 - 1e-7 } else { b.min[axis] <= 1e-7 });
+    let rects: Vec<[f64; 4]> = flush.map(|b| [b.min[u], b.max[u], b.min[v], b.max[v]].map(|c| f64::from(c.clamp(0.0, 1.0)))).collect();
+    plane_coverage(&rects, axis == 1)
+}
+
+/// [`coverage`] of the rectangles `[u0, u1, v0, v1]` lying in a face's plane, `v` the height on a
+/// side; `flat` for up and down faces.
+pub fn plane_coverage(rects: &[[f64; 4]], flat: bool) -> f32 {
     let mut cuts: Vec<f64> = rects.iter().flat_map(|r| [r[2], r[3]]).chain([0.0, 1.0]).collect();
     cuts.sort_by(f64::total_cmp);
     cuts.dedup();
@@ -128,7 +151,7 @@ pub fn coverage(boxes: &[Aabb], face: usize) -> f32 {
         }
         covered = w[1];
     }
-    if axis == 1 && covered < 1.0 {
+    if flat && covered < 1.0 {
         return 0.0;
     }
     covered as f32
@@ -156,5 +179,11 @@ mod tests {
         let fence = [aabb([0.375, 0.0, 0.375], [0.625, 1.5, 0.625])];
         assert_eq!((coverage(&fence, 2), coverage(&fence, 4)), (0.0, 0.0));
         assert!(legacy_solid(&fence) && legacy_solid(&slab) && !legacy_solid(&[aabb([0.0; 3], [1.0, 0.125, 1.0])]));
+    }
+
+    #[test]
+    fn a_side_covered_in_two_halves_is_covered_to_the_top() {
+        assert_eq!(plane_coverage(&[[0.0, 0.5, 0.0, 1.0], [0.5, 1.0, 0.0, 0.75]], false), 0.75);
+        assert_eq!(plane_coverage(&[[0.0, 0.5, 0.0, 1.0], [0.5, 1.0, 0.0, 0.75]], true), 0.0);
     }
 }

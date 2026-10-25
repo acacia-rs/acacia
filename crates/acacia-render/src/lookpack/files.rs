@@ -23,7 +23,7 @@ use crate::look::Look;
 /// Packs written as another version are refused; bake again. 2: model faces. 3: their ambient occlusion, fixed tints.
 /// 4: turned faces, alternatives and shifts by position. 5: the look's biome blend. 6: its haze.
 /// 7: `blocks.bin`. 8: ambient occlusion strengths, and the blocks that darken it.
-pub const VERSION: u64 = 8;
+pub const VERSION: u64 = 9;
 
 #[derive(Serialize, Deserialize)]
 struct PackFile {

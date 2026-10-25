@@ -94,7 +94,6 @@ impl LookPack {
             let Some(&index) = self.states.get(&state_key(state)) else { return BlockTable::cube(0) };
             RenderBlock {
                 model: blocks::model::classify(state).map(Arc::new),
-                fluid_rules: blocks::FluidRules::of(state),
                 ..self.blocks[index as usize].clone()
             }
         };
