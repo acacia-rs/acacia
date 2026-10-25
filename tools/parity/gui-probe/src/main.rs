@@ -7,6 +7,7 @@
 mod containers;
 mod hud;
 mod kit;
+mod stations;
 mod tooltips;
 
 use std::io::{BufWriter, Write};
@@ -40,6 +41,7 @@ fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
         "containers" => containers::replay,
         "hud" => hud::replay,
+        "stations" => stations::replay,
         "tooltips" => tooltips::replay,
         _ => return None,
     })

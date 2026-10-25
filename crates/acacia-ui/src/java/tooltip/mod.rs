@@ -43,6 +43,15 @@ impl Line {
 pub enum Positioner {
     /// `DefaultTooltipPositioner`: right of and above the mouse, kept on screen.
     Default,
+    /// `MenuTooltipPositioner` for a widget at `[x, y, w, h]`: right of the mouse, below the
+    /// widget or above it when there is no room.
+    Menu([i32; 4]),
+}
+
+/// `MenuTooltipPositioner.getOffset`.
+fn menu_offset(mouse_y: i32, widget_y: i32, widget_h: i32) -> i32 {
+    let distance = (mouse_y - widget_y).abs().min(widget_h);
+    super::mth::floor(super::mth::lerp(distance as f32 / widget_h as f32, (widget_h - 3) as f32, 5.0) + 0.5)
 }
 
 impl Positioner {
@@ -59,6 +68,21 @@ impl Positioner {
                     y = screen[1] - padded;
                 }
                 [x, y]
+            }
+            Positioner::Menu([_, top, _, height]) => {
+                let mut rx = x + 12;
+                if rx + w > screen[0] - 5 {
+                    rx = (x - 12 - w).max(9);
+                }
+                let mut ry = y + 3;
+                let padded = h + 3 + 3;
+                let bottom = top + height;
+                if bottom + 3 + menu_offset(0, 0, height) + padded <= screen[1] - 5 {
+                    ry += menu_offset(ry, top, height);
+                } else {
+                    ry -= padded + menu_offset(ry, bottom, height);
+                }
+                [rx, ry]
             }
         }
     }
