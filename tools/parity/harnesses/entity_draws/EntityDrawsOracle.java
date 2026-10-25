@@ -17,7 +17,16 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.animal.chicken.Chicken;
+import net.minecraft.world.entity.animal.cow.Cow;
+import net.minecraft.world.entity.animal.nautilus.ZombieNautilus;
+import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.animal.wolf.Wolf;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.entity.npc.villager.VillagerData;
 import net.minecraft.world.item.DyeColor;
 
@@ -60,10 +69,13 @@ public final class EntityDrawsOracle {
                         Entity entity = type.create(level, EntitySpawnReason.LOAD);
                         entity.setId(1_000_000);
                         if (entity instanceof Mob mob) mob.setBaby(seed % 3 == 1);
+                        String climate = climate(entity, level, seed);
                         @SuppressWarnings("unchecked")
                         var renderer = (EntityRenderer<Entity, EntityRenderState>) dispatcher.getRenderer(entity);
                         var state = renderer.createRenderState(entity, 1.0F);
-                        record.put("fields", randomize(kind, state, new Random(seed * 131L + kind.hashCode()), seed));
+                        var fields = randomize(kind, state, new Random(seed * 131L + kind.hashCode()), seed);
+                        if (climate != null) fields.put("climate", climate);
+                        record.put("fields", fields);
                         var draws = new ArrayList<Map<String, Object>>();
                         renderer.submit(state, new PoseStack(), Submits.collector(draws, layers), new CameraRenderState());
                         record.put("draws", draws);
@@ -92,7 +104,14 @@ public final class EntityDrawsOracle {
                 f.setAccessible(true);
                 if (t == Identifier.class && f.get(state) instanceof Identifier id) set.put(f.getName(), id.getPath());
                 if (t == VillagerData.class && f.get(state) instanceof VillagerData data) set.put(f.getName(), villager(data));
-                if (seed == 0 || FIXED.contains(f.getName()) || FIXED.contains(kind + "." + f.getName())) continue;
+                if (FIXED.contains(f.getName()) || FIXED.contains(kind + "." + f.getName())) {
+                    // As the entity set them (a tame wolf's collar, its anger).
+                    var value = f.get(state);
+                    if (value instanceof DyeColor d) set.put(f.getName(), d.getId());
+                    else if (value instanceof Boolean b) set.put(f.getName(), b);
+                    continue;
+                }
+                if (seed == 0) continue;
                 Object value;
                 if (t == boolean.class) value = r.nextBoolean();
                 // A sheep's wool always has a colour; a shulker's may not.
@@ -111,6 +130,36 @@ public final class EntityDrawsOracle {
             }
         }
         return set;
+    }
+
+    static final String[] CLIMATES = {"temperate", "warm", "cold"};
+    static final String[] WOLVES = {"pale", "ashen", "black", "chestnut", "rusty", "snowy", "spotted", "striped", "woods"};
+
+    /**
+     * Gives a cow, pig, chicken or zombie nautilus the climate variant `seed` picks (by seed / 3:
+     * temperate, warm, cold; a nautilus has no cold), a wolf its variant (by seed / 3) and tameness
+     * and anger (by seed % 4); returns the variant's name, null for other kinds.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static String climate(Entity entity, Level level, int seed) {
+        ResourceKey registry = switch (entity) {
+            case Cow c -> Registries.COW_VARIANT;
+            case Pig p -> Registries.PIG_VARIANT;
+            case Chicken c -> Registries.CHICKEN_VARIANT;
+            case ZombieNautilus n -> Registries.ZOMBIE_NAUTILUS_VARIANT;
+            case Wolf w -> Registries.WOLF_VARIANT;
+            default -> null;
+        };
+        if (registry == null) return null;
+        String[] names = entity instanceof Wolf ? WOLVES : CLIMATES;
+        String name = names[(seed / 3) % (entity instanceof ZombieNautilus ? 2 : names.length)];
+        if (entity instanceof Wolf wolf) {
+            wolf.setTame(seed % 4 == 1 || seed % 4 == 3, false);
+            if (seed % 4 >= 2) wolf.setPersistentAngerEndTime(1_000_000L);
+        }
+        Holder<?> holder = (Holder<?>) level.registryAccess().lookupOrThrow(registry).get(Identifier.withDefaultNamespace(name)).orElseThrow();
+        Headless.call(entity.getClass(), entity, "setVariant", new Class<?>[] {Holder.class}, holder);
+        return name;
     }
 
     private static Map<String, Object> villager(VillagerData data) {

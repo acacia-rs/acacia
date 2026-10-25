@@ -79,7 +79,7 @@ fn framed_item(bot: &Bot, block: [i32; 3], nbt: &Nbt) -> Option<Framed> {
         }
     }
     let block_id = view.world().registry().states_of(name).next().map_or(0, |(id, _)| id);
-    let key = ItemKey { name: name.to_string(), aux, block: block_id, dye: None, banner: None };
+    let key = ItemKey { name: name.to_string(), aux, block: block_id, dye: None, banner: None, trim: None };
     Some(Framed { block, hung: framed::Hung { yaw, tilt }, turn, key, enchanted: tag.is_some_and(|tag| tag.get("ench").is_some()), map })
 }
 

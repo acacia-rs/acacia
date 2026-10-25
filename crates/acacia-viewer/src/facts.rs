@@ -4,13 +4,18 @@
 use acacia_bot::proto::types::{
     MetadataDictionaryItemKey as Key, MetadataDictionaryItemValueDefault as Plain, MetadataFlags1 as Flags, MetadataFlags2,
 };
-use acacia_bot::state::Metadata;
+use std::sync::Arc;
+
+use acacia_bot::state::{Metadata, Property};
 use acacia_render::entity::Value;
 use acacia_render::entity::boat::ROW_TIME;
 use acacia_render::entity::java::bedrock::{CREEPER_SWELL, FREEZING};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Facts {
+    /// Synced actor properties by name (`minecraft:climate_variant`): an enum's value as text, the
+    /// rest as numbers.
+    properties: Arc<[(Box<str>, Value)]>,
     /// Bit per entry of [`FLAGS`], then [`BLOCKING_BIT`].
     flags: u32,
     variant: i32,
@@ -61,10 +66,17 @@ const BLOCKING_BIT: usize = FLAGS.len();
 
 impl Facts {
     /// `health` is the entity's `minecraft:health` attribute, when the server sent it.
-    pub fn of(meta: &Metadata, health: Option<f32>) -> Facts {
+    pub fn of<'a>(meta: &Metadata, health: Option<f32>, properties: impl Iterator<Item = (&'a str, Property<'a>)>) -> Facts {
         let set = meta.flags();
         let blocking = u32::from(meta.flags_extended().contains(MetadataFlags2::BLOCKING)) << BLOCKING_BIT;
+        let property = |value| match value {
+            Property::Enum(text) => Value::Text(text.into()),
+            Property::Int(n) => Value::Num(n as f32),
+            Property::Float(n) => Value::Num(n),
+            Property::Bool(b) => Value::Num(f32::from(u8::from(b))),
+        };
         Facts {
+            properties: properties.map(|(name, value)| (name.into(), property(value))).collect(),
             flags: FLAGS.iter().enumerate().fold(blocking, |bits, (i, (_, flag))| bits | u32::from(set.contains(*flag)) << i),
             variant: meta.int(Key::Variant),
             mark_variant: meta.int(Key::MarkVariant),
@@ -100,9 +112,12 @@ impl Facts {
 
     /// Answers a Molang query (without the `query.` prefix); the ones it does not know are 0.
     pub fn query(&self, name: &str) -> Value {
+        if let Some(property) = name.strip_prefix("property:") {
+            let sent = self.properties.iter().find(|(n, _)| &**n == property).map(|(_, v)| v.clone());
+            // A cow, pig or chicken the server has sent no climate for is temperate.
+            return sent.unwrap_or_else(|| if property == "minecraft:climate_variant" { Value::Text("temperate".into()) } else { Value::Num(0.0) });
+        }
         Value::Num(match name {
-            // TODO: track synced entity properties; until then every cow, pig and chicken is temperate.
-            "property:minecraft:climate_variant" => return Value::Text("temperate".into()),
             "variant" => self.variant as f32,
             "mark_variant" => self.mark_variant as f32,
             "skin_id" => self.skin_id as f32,

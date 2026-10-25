@@ -79,7 +79,7 @@ impl Family {
             "creaking" => Family::Creaking,
             "warden" => Family::Warden,
             "copper_golem" => Family::CopperGolem,
-            "nautilus" | "zombie_nautilus" => Family::Nautilus,
+            "nautilus" | "zombie_nautilus" | "zombie_nautilus_coral" => Family::Nautilus,
             "ender_dragon" => Family::EnderDragon,
             "happy_ghast" => Family::HappyGhast,
             "strider" => Family::Strider,

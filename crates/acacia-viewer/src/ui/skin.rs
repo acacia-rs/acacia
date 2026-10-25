@@ -75,11 +75,12 @@ impl Skin {
     pub(super) fn icon(&mut self, s: &Stack) -> Option<Sprite> {
         let (name, aux, block) = (s.name.as_str(), s.aux, s.block);
         let dyed = leather::dyeable(name).then_some(s.dye);
-        let (banner, key) = (s.banner.as_deref(), (format!("{name}/{}", crate::item_look::variant(dyed.flatten(), s.banner.as_deref())), aux));
+        let variant = crate::item_look::variant(dyed.flatten(), s.banner.as_deref());
+        let (banner, key) = (s.banner.as_deref(), (format!("{name}/{variant}{}", s.trim.as_deref().unwrap_or_default()), aux));
         if let Some(sprite) = self.added.get(&key) {
             return *sprite;
         }
-        let java = self.java_items.as_deref().filter(|_| banner.is_none()).and_then(|items| java_icon::icon(items, name, aux, acacia_render::item::first_tint(name, aux, s.dye)));
+        let java = self.java_items.as_deref().filter(|_| banner.is_none()).and_then(|items| java_icon::icon(items, name, aux, s.trim.as_deref(), acacia_render::item::first_tint(name, aux, s.dye)));
         let model = java.or_else(|| model_icon(&self.root, name, banner)).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, banner));
         let image = model.or_else(|| self.icons.path(name, aux).and_then(|p| leather::icon(&self.root, p, dyed)));
         let sprite = match image {

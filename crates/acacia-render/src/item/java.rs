@@ -124,6 +124,13 @@ impl JavaItems {
         by_aux.and_then(|by| by.get(&aux.to_string()).or_else(|| by.get(""))).map_or(bedrock, String::as_str)
     }
 
+    /// The model a Bedrock stack draws with: [`Self::java_name`]'s, or its trimmed one
+    /// (`<id>#trim=<material>`, lookbake's) when the stack has a trim the item's model selects on.
+    pub fn stack_name(&self, bedrock: &str, aux: u32, trim: Option<&str>) -> String {
+        let name = self.java_name(bedrock, aux);
+        trim.map(|material| format!("{name}#trim={material}")).filter(|t| self.items.contains_key(t)).unwrap_or_else(|| name.to_owned())
+    }
+
     pub fn ids(&self) -> impl Iterator<Item = &str> {
         self.items.keys().map(String::as_str)
     }

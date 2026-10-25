@@ -162,7 +162,7 @@ impl Feed {
         }
         let feet = e.feet();
         let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
-        let facts = Facts::of(&e.metadata, e.health());
+        let facts = Facts::of(&e.metadata, e.health(), bot.state().entities.properties(e));
         let mut dropped = None;
         let (kind, instance) = if e.is_player() {
             (PLAYER.to_owned(), self.player(bot, e.uuid, position, e.yaw, e.metadata.scale())?)

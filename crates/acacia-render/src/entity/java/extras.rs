@@ -1,5 +1,6 @@
 //! What kinds' own renderers change on the body and add over it beyond [`super::kinds`]' table:
-//! the `entity_translucent` bodies, `PufferfishRenderer`'s model by puff, `TropicalFishRenderer`'s
+//! the `entity_translucent` bodies, climate variants (Bedrock's `climate_variant` property), the
+//! coral zombie nautilus, `PufferfishRenderer`'s model by puff, `TropicalFishRenderer`'s
 //! shape and colour with its `TropicalFishPatternLayer`, `IronGolemCrackinessLayer`,
 //! `BreezeWindLayer`, the creaking's eyes and the warden's emissive layers.
 
@@ -18,8 +19,9 @@ pub struct Skin {
 }
 
 /// Every model layer [`skin`] and [`draws`] can name, for baking up front.
-pub const LAYERS: [&str; 11] = [
-    "minecraft:pufferfish_small#main", "minecraft:pufferfish_medium#main", "minecraft:pufferfish_big#main",
+pub const LAYERS: [&str; 18] = [
+    "minecraft:cold_cow#main", "minecraft:cold_cow_baby#main", "minecraft:warm_cow#main", "minecraft:warm_cow_baby#main",
+    "minecraft:cold_pig#main", "minecraft:cold_chicken#main", "minecraft:zombie_nautilus_coral#main", "minecraft:pufferfish_small#main", "minecraft:pufferfish_medium#main", "minecraft:pufferfish_big#main",
     "minecraft:tropical_fish_small#main", "minecraft:tropical_fish_large#main", "minecraft:tropical_fish_small#pattern",
     "minecraft:tropical_fish_large#pattern", "minecraft:breeze#wind", "minecraft:creaking#eyes", "minecraft:warden#bioluminescent",
     "minecraft:warden#pulsating_spots",
@@ -28,12 +30,63 @@ pub const LAYERS: [&str; 11] = [
 /// Every texture [`skin`] and [`draws`] can name, for registering up front.
 pub fn textures() -> impl Iterator<Item = String> {
     let patterns = ["a", "b"].into_iter().flat_map(|shape| (1..=6).map(move |i| format!("fish/tropical_{shape}_pattern_{i}")));
+    let climates = ["cow", "pig", "chicken"].into_iter().flat_map(|kind| {
+        ["warm", "cold"].into_iter().flat_map(move |climate| [format!("{kind}/{kind}_{climate}"), format!("{kind}/{kind}_{climate}_baby")])
+    });
+    let copper = OXIDATION.into_iter().flat_map(|(_, suffix)| {
+        [format!("copper_golem/copper_golem{suffix}"), format!("copper_golem/copper_golem_eyes{suffix}")]
+    });
     let fixed = [
+        "nautilus/zombie_nautilus_coral",
         "fish/tropical_a", "fish/tropical_b", "iron_golem/iron_golem_crackiness_low", "iron_golem/iron_golem_crackiness_medium",
         "iron_golem/iron_golem_crackiness_high", "breeze/breeze_wind", "creaking/creaking_eyes", "warden/warden_bioluminescent_layer",
         "warden/warden_pulsating_spots_1", "warden/warden_pulsating_spots_2",
     ];
-    fixed.into_iter().map(str::to_owned).chain(patterns).map(|name| entity_texture(&name))
+    let wolves = WOLVES.into_iter().flat_map(|variant| {
+        ["", "_tame", "_angry"].into_iter().flat_map(move |state| ["", "_baby"].map(|baby| format!("wolf/wolf{variant}{state}{baby}")))
+    });
+    fixed.into_iter().map(str::to_owned).chain(patterns).chain(climates).chain(copper).chain(wolves).map(|name| entity_texture(&name))
+}
+
+/// Bedrock's wolf `variant`s, as `WolfVariants` names their textures (`wolf_ashen`; the pale is `wolf`).
+const WOLVES: [&str; 9] = ["", "_ashen", "_black", "_chestnut", "_rusty", "_snowy", "_spotted", "_striped", "_woods"];
+
+/// `Wolf.getTexture`: the variant's tame texture over its angry one over its wild one.
+fn wolf(query: &dyn Fn(&str) -> Value) -> String {
+    let variant = WOLVES[(query("variant").num().max(0.0) as usize).min(WOLVES.len() - 1)];
+    let state = if query("is_tamed").truthy() {
+        "_tame"
+    } else if query("is_angry").truthy() {
+        "_angry"
+    } else {
+        ""
+    };
+    entity_texture(&format!("wolf/wolf{variant}{state}{}", if query("is_baby").truthy() { "_baby" } else { "" }))
+}
+
+/// Bedrock's `oxidation_level` property values and `CopperGolemOxidationLevels`' texture suffixes.
+const OXIDATION: [(&str, &str); 4] = [("unoxidized", ""), ("exposed", "_exposed"), ("weathered", "_weathered"), ("oxidized", "_oxidized")];
+
+fn oxidation(query: &dyn Fn(&str) -> Value) -> &'static str {
+    let level = query("property:minecraft:oxidation_level");
+    OXIDATION.iter().find(|(name, _)| matches!(&level, Value::Text(t) if t == name)).map_or("", |(_, suffix)| suffix)
+}
+
+/// `CowVariants`, `PigVariants` and `ChickenVariants`: a climate's model (`None`: the kind's own)
+/// and texture, adult then baby. Pigs and chickens have no warm model, and no climate a baby model.
+fn climate(kind: &str, climate: &str, baby: bool) -> Option<Skin> {
+    let layer = match (kind, climate, baby) {
+        ("cow", "warm", false) => Some("minecraft:warm_cow#main"),
+        ("cow", "warm", true) => Some("minecraft:warm_cow_baby#main"),
+        ("cow", "cold", false) => Some("minecraft:cold_cow#main"),
+        ("cow", "cold", true) => Some("minecraft:cold_cow_baby#main"),
+        ("pig", "cold", false) => Some("minecraft:cold_pig#main"),
+        ("chicken", "cold", false) => Some("minecraft:cold_chicken#main"),
+        (_, "warm" | "cold", _) => None,
+        _ => return None,
+    };
+    let texture = entity_texture(&format!("{kind}/{kind}_{climate}{}", if baby { "_baby" } else { "" }));
+    Some(Skin { layer, texture: Some(texture), ..Skin::default() })
 }
 
 /// The `setupAnim` of a [`LAYERS`] model: its body's.
@@ -54,6 +107,17 @@ fn tropical_shape(query: &dyn Fn(&str) -> Value) -> (&'static str, &'static str)
 pub fn skin(kind: &str, query: &dyn Fn(&str) -> Value) -> Option<Skin> {
     match kind.trim_start_matches("minecraft:") {
         "allay" | "vex" | "breeze" | "piglin" | "piglin_brute" | "zombified_piglin" => Some(Skin { blend: Blend::Translucent, ..Skin::default() }),
+        kind @ ("cow" | "pig" | "chicken") => match query("property:minecraft:climate_variant") {
+            Value::Text(text) => climate(kind, &text, query("is_baby").truthy()),
+            Value::Num(_) => None,
+        },
+        "wolf" => Some(Skin { texture: Some(wolf(query)), ..Skin::default() }),
+        "copper_golem" => Some(Skin { texture: Some(entity_texture(&format!("copper_golem/copper_golem{}", oxidation(query)))), ..Skin::default() }),
+        "zombie_nautilus" if matches!(query("property:minecraft:variant"), Value::Text(v) if v == "coral") => Some(Skin {
+            layer: Some("minecraft:zombie_nautilus_coral#main"),
+            texture: Some(entity_texture("nautilus/zombie_nautilus_coral")),
+            ..Skin::default()
+        }),
         "pufferfish" => {
             const PUFFS: [&str; 3] = ["minecraft:pufferfish_small#main", "minecraft:pufferfish_medium#main", "minecraft:pufferfish_big#main"];
             Some(Skin { layer: Some(PUFFS[(query("variant").num().max(0.0) as usize).min(2)]), ..Skin::default() })
@@ -93,6 +157,9 @@ pub fn draws(kind: &str, query: &dyn Fn(&str) -> Value) -> Vec<Draw> {
                 _ => "low",
             };
             vec![draw(None, &format!("iron_golem/iron_golem_crackiness_{level}"), None, Blend::Opaque, Fade::Full)]
+        }
+        "copper_golem" if !invisible => {
+            vec![draw(None, &format!("copper_golem/copper_golem_eyes{}", oxidation(query)), None, Blend::Eyes, Fade::Full)]
         }
         "breeze" => vec![draw(Some("minecraft:breeze#wind"), "breeze/breeze_wind", None, Blend::Wind, Fade::Full)],
         "creaking" if !invisible && creaking_eyes(query) => {

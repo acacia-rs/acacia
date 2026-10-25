@@ -141,7 +141,7 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
     let (banner, map) = (crate::item_look::banner(&name, s), s.map_id().and_then(|id| bot.state().maps.get(id).cloned()));
-    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color(), banner, map, title: s.custom_name.clone(), enchantments: s.enchantments(), lore: s.lore.clone() })
+    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color(), banner, map, title: s.custom_name.clone(), enchantments: s.enchantments(), lore: s.lore.clone(), trim: s.trim().map(|(material, _)| material) })
 }
 
 /// The player list's names, sorted.
@@ -207,6 +207,8 @@ pub struct Stack {
     /// Bedrock's enchantment ids and levels.
     pub enchantments: Vec<(i16, i16)>,
     pub lore: Vec<String>,
+    /// An armour trim's material (`quartz`).
+    pub trim: Option<String>,
 }
 
 /// What a grid or workstation still holds goes back into the inventory first.

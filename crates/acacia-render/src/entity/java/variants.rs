@@ -3,7 +3,7 @@
 
 /// (kind, query, value, adult's texture, own baby's texture). A query `a&b` matches when both
 /// answer the value.
-pub const VARIANTS: [(&str, &str, i32, &str, &str); 71] = [
+pub const VARIANTS: [(&str, &str, i32, &str, &str); 69] = [
     ("minecraft:frog", "variant", 1, "frog/frog_cold", "frog/frog_cold"),
     ("minecraft:frog", "variant", 2, "frog/frog_warm", "frog/frog_warm"),
     ("minecraft:rabbit", "variant", 1, "rabbit/rabbit_white", "rabbit/rabbit_white_baby"),
@@ -42,9 +42,6 @@ pub const VARIANTS: [(&str, &str, i32, &str, &str); 71] = [
     ("minecraft:cat", "variant", 7, "cat/cat_ragdoll", "cat/cat_ragdoll_baby"),
     ("minecraft:cat", "variant", 9, "cat/cat_all_black", "cat/cat_all_black_baby"),
     ("minecraft:cat", "variant", 10, "cat/cat_jellie", "cat/cat_jellie_baby"),
-    // `Wolf.getTexture`: tame over angry.
-    ("minecraft:wolf", "is_tamed", 1, "wolf/wolf_tame", "wolf/wolf_tame_baby"),
-    ("minecraft:wolf", "is_angry", 1, "wolf/wolf_angry", "wolf/wolf_angry_baby"),
     ("minecraft:llama", "variant", 1, "llama/llama_white", "llama/llama_white_baby"),
     ("minecraft:llama", "variant", 2, "llama/llama_brown", "llama/llama_brown_baby"),
     ("minecraft:llama", "variant", 3, "llama/llama_gray", "llama/llama_gray_baby"),

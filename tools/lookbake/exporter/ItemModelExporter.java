@@ -32,6 +32,14 @@ import net.minecraft.client.resources.model.cuboid.MissingCuboidModel;
 import net.minecraft.client.resources.model.geometry.ItemQuads;
 import net.minecraft.client.resources.model.sprite.MaterialBaker;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderOwner;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.equipment.trim.ArmorTrim;
+import net.minecraft.world.item.equipment.trim.TrimMaterial;
+import net.minecraft.world.item.equipment.trim.TrimMaterials;
+import net.minecraft.world.item.equipment.trim.TrimPattern;
+import net.minecraft.world.item.equipment.trim.TrimPatterns;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.PatchedDataComponentMap;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -91,6 +99,7 @@ public final class ItemModelExporter {
                 failed++;
             }
             items.add(id.toString(), item);
+            if (!item.has("error")) trims(id, model, item, items, meshes, meshIndex);
         }
         var out = new JsonObject();
         out.add("meshes", meshes);
@@ -130,6 +139,28 @@ public final class ItemModelExporter {
         var ctor = ItemStack.class.getDeclaredConstructor(Holder.class, int.class, PatchedDataComponentMap.class);
         ctor.setAccessible(true);
         return ctor.newInstance(item, 1, new PatchedDataComponentMap(DataComponentMap.EMPTY));
+    }
+
+    private static final HolderOwner<TrimMaterial> MATERIALS = new HolderOwner<>() {};
+    private static final HolderOwner<TrimPattern> PATTERNS = new HolderOwner<>() {};
+
+    /**
+     * Each TrimMaterials material on the item whose model selects on it (`trim_material`), as item
+     * `<id>#trim=<material>`. The model reads only the material's key, so unbound holders do.
+     */
+    private static void trims(Identifier id, ItemModel model, JsonObject plain, JsonObject items, JsonArray meshes,
+                              Map<String, Integer> meshIndex) throws Exception {
+        var pattern = Holder.Reference.createStandAlone(PATTERNS, TrimPatterns.COAST);
+        for (var field : TrimMaterials.class.getFields()) {
+            if (!(field.get(null) instanceof ResourceKey<?> key)) continue;
+            @SuppressWarnings("unchecked")
+            var material = Holder.Reference.createStandAlone(MATERIALS, (ResourceKey<TrimMaterial>) key);
+            var stack = stack(id);
+            stack.set(DataComponents.TRIM, new ArmorTrim(material, pattern));
+            var item = new JsonObject();
+            for (var context : ItemDisplayContext.values()) item.add(context.getSerializedName(), layers(model, stack, context, meshes, meshIndex));
+            if (!item.equals(plain)) items.add(id + "#trim=" + key.identifier().getPath(), item);
+        }
     }
 
     private static JsonArray layers(ItemModel model, ItemStack stack, ItemDisplayContext context, JsonArray meshes,

@@ -45,6 +45,8 @@ pub struct ItemKey {
     pub dye: Option<[u8; 3]>,
     /// A banner's cloth.
     pub banner: Option<Arc<crate::banner::Banner>>,
+    /// An armour trim's material (`quartz`).
+    pub trim: Option<String>,
 }
 
 /// What a model is, for how it is held, dropped and stacked.
@@ -139,7 +141,7 @@ impl ItemModels {
 
     /// The Java item's held geometry (the right hand's, as worn, dropped and framed too).
     fn java_model(&self, java: &JavaItems, key: &ItemKey, glint: bool) -> Option<ItemModel> {
-        let name = java.java_name(&key.name, key.aux);
+        let name = &java.stack_name(&key.name, key.aux, key.trim.as_deref());
         let mesh = java.mesh(name, java::context::hand(false, false), first_tint(&key.name, key.aux, key.dye))?;
         let form = if mesh.solid { Form::Block } else { Form::Flat };
         let java = Some(Arc::new(java.displays(name)));
