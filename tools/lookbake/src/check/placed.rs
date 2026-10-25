@@ -36,6 +36,11 @@ impl Placement {
         })
     }
 
+    /// How many blocks the game shifts.
+    pub(super) fn offset_blocks(&self) -> usize {
+        self.offsets.len()
+    }
+
     /// Blocks whose shift differs from the game's, or that only one side shifts.
     pub(super) fn offsets_differing(&self) -> Vec<String> {
         let ours = offset::SIDEWAYS.iter().chain(offset::SUNK).chain(offset::NARROW).map(|name| format!("minecraft:{name}"));
