@@ -5,7 +5,14 @@ import acacia.parity.Headless;
 import acacia.parity.Out;
 import acacia.parity.Submits;
 import com.mojang.blaze3d.vertex.PoseStack;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
+import net.minecraft.client.renderer.entity.GuardianRenderer;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.state.GuardianRenderState;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Guardian;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.util.*;
@@ -39,8 +46,7 @@ import net.minecraft.world.item.DyeColor;
 public final class EntityDrawsOracle {
     static final String[] KINDS = ("ender_dragon happy_ghast bat rabbit frog armadillo camel camel_husk sniffer breeze creaking warden copper_golem "
         + "nautilus zombie_nautilus tadpole zombie_villager axolotl armor_stand strider ravager shulker wither bee parrot fox horse donkey mule "
-        // Guardians are left out: extracting one asks the game renderer's camera, which the oracle lacks.
-        + "skeleton_horse zombie_horse cod salmon tropical_fish pufferfish phantom allay cat ocelot polar_bear panda goat "
+        + "guardian elder_guardian skeleton_horse zombie_horse cod salmon tropical_fish pufferfish phantom allay cat ocelot polar_bear panda goat "
         + "turtle hoglin zoglin wolf llama trader_llama squid glow_squid dolphin slime magma_cube piglin piglin_brute zombified_piglin enderman "
         + "witch vex vindicator evoker pillager silverfish endermite blaze ghast iron_golem snow_golem villager wandering_trader cow mooshroom pig "
         + "sheep chicken creeper spider cave_spider zombie husk drowned skeleton stray wither_skeleton bogged").split(" ");
@@ -72,7 +78,7 @@ public final class EntityDrawsOracle {
                         String climate = climate(entity, level, seed);
                         @SuppressWarnings("unchecked")
                         var renderer = (EntityRenderer<Entity, EntityRenderState>) dispatcher.getRenderer(entity);
-                        var state = renderer.createRenderState(entity, 1.0F);
+                        var state = entity instanceof Guardian guardian ? guardian(renderer, guardian) : renderer.createRenderState(entity, 1.0F);
                         var fields = randomize(kind, state, new Random(seed * 131L + kind.hashCode()), seed);
                         if (climate != null) fields.put("climate", climate);
                         record.put("fields", fields);
@@ -130,6 +136,21 @@ public final class EntityDrawsOracle {
             }
         }
         return set;
+    }
+
+    /**
+     * GuardianRenderer.extractRenderState without its look target: that asks Minecraft's camera
+     * entity, which the oracle lacks, and a Bedrock guardian with no target looks nowhere.
+     */
+    private static EntityRenderState guardian(EntityRenderer<Entity, EntityRenderState> renderer, Guardian entity) throws Throwable {
+        var state = (GuardianRenderState) renderer.createRenderState();
+        var extract = MethodHandles.privateLookupIn(GuardianRenderer.class, MethodHandles.lookup()).findSpecial(LivingEntityRenderer.class, "extractRenderState",
+            MethodType.methodType(void.class, LivingEntity.class, LivingEntityRenderState.class, float.class), GuardianRenderer.class);
+        extract.invoke(renderer, entity, state, 1.0F);
+        state.spikesAnimation = entity.getSpikesAnimation(1.0F);
+        state.tailAnimation = entity.getTailAnimation(1.0F);
+        state.eyePosition = entity.getEyePosition(1.0F);
+        return state;
     }
 
     static final String[] CLIMATES = {"temperate", "warm", "cold"};

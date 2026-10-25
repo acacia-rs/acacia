@@ -139,6 +139,14 @@ impl JavaItems {
         self.items.get(item)?.get(context).map(Vec::as_slice)
     }
 
+    /// The context whose mesh `ItemModels` draws `item` with in `context`: the right hand's
+    /// when the geometry is the same (displays aside), else `context`'s own.
+    pub fn drawn_context(&self, item: &str, context: &'static str) -> &'static str {
+        let hand = context::hand(false, false);
+        let meshes = |context| self.layers(item, context).map(|layers| layers.iter().map(|l| l.mesh).collect::<Vec<_>>());
+        if meshes(hand) == meshes(context) { hand } else { context }
+    }
+
     pub fn quads(&self, layer: &Layer) -> &[Quad] {
         self.meshes.get(layer.mesh).map_or(&[], |m| m.quads.as_slice())
     }

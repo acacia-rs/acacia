@@ -16,6 +16,8 @@ import net.minecraft.client.renderer.entity.state.ItemClusterRenderState;
 import net.minecraft.client.renderer.entity.state.ItemEntityRenderState;
 import net.minecraft.client.renderer.entity.state.ItemFrameRenderState;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.geometry.ItemQuads;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -117,6 +119,7 @@ public final class ItemEntitiesOracle {
         final ItemStackRenderState item;
         final List<float[]> frames = new ArrayList<>();
         final List<Matrix4f> layers = new ArrayList<>();
+        final Set<String> images = new LinkedHashSet<>();
         boolean special;
 
         Placed(ItemStackRenderState item) throws Exception {
@@ -141,6 +144,10 @@ public final class ItemEntitiesOracle {
                 if (name.equals("submitItem") && args.length == 8) {
                     var layer = layers.get(frames.size() % layers.size());
                     frames.add(new Matrix4f(((PoseStack) args[0]).last().pose()).mul(layer).get(new float[16]));
+                    for (BakedQuad quad : ((ItemQuads) args[6]).all()) {
+                        var sprite = quad.materialInfo().sprite().contents().name();
+                        images.add(sprite.withPath("textures/" + sprite.getPath() + ".png").toString());
+                    }
                     return null;
                 }
                 if (method.isDefault()) return InvocationHandler.invokeDefault(proxy, method, args);
@@ -155,6 +162,7 @@ public final class ItemEntitiesOracle {
             record.put("layers", layers.size());
             record.put("special", special);
             if (!special) record.put("frames", frames);
+            if (!special) record.put("images", new ArrayList<>(images));
         }
     }
 }
