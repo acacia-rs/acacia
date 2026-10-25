@@ -15,7 +15,7 @@ const ARM: Vec3 = Vec3::new(0.56, -0.52, -0.72);
 /// An item in another entity's hand: `body` is the entity's model space to camera-relative
 /// world space (as the entity pass places it), `hand` from [`crate::entity::bake::Mesh::hand`].
 pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, grip: Grip, blocking: bool, light_at: glam::DVec3) -> EntityInstance {
-    let frame = body * held_frame(Display::third_person(model.form, grip.left, blocking), hand, grip);
+    let frame = body * held_frame(Display::held(model, "", false, grip.left, blocking), hand, grip);
     let glint = model.glint.then_some(Glint::Item);
     EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
 }
@@ -25,7 +25,7 @@ pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, grip: Grip, block
 /// with y mirrored): out of the arm (-90° x, 180° y), to the fist (1, 2, -10 px, x mirrored in
 /// the left hand; a baby's 0, 1, -4.5), then the display.
 pub fn held_frame(display: Display, hand: Mat4, grip: Grip) -> Mat4 {
-    fist(hand, grip) * display.frame() * Mat4::from_scale(MESH)
+    fist(hand, grip) * display.mesh_frame()
 }
 
 /// [`held_frame`] before the display: where `ItemInHandLayer` hands the item to its model.
@@ -129,19 +129,37 @@ fn bow_transform(ticks: f32) -> Mat4 {
 }
 
 /// An item model's `display` entry as `ItemTransform.apply` uses it for one hand: rotation in
-/// degrees, translation in blocks, scale. Java's `item/generated` and `item/handheld`,
-/// `block/block`, `item/bow` and the shield's are built in; other models' own are not read.
+/// degrees, translation in blocks, scale. A Java look's items carry their own ([`super::java`]);
+/// otherwise Java's `item/generated` and `item/handheld`, `block/block`, `item/bow` and the
+/// shield's are built in.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Display {
     rotation: Vec3,
     translation: Vec3,
-    scale: f32,
+    scale: Vec3,
 }
 
 impl Display {
     /// An entry as the model files write it: the translation in 1/16 block.
     pub(super) fn px(rotation: [f32; 3], translation: [f32; 3], scale: f32) -> Display {
-        Display { rotation: rotation.into(), translation: Vec3::from(translation) / 16.0, scale }
+        Display { rotation: rotation.into(), translation: Vec3::from(translation) / 16.0, scale: Vec3::splat(scale) }
+    }
+
+    /// A baked `ItemTransform` (rotation, translation in blocks, scale), for the `left` hand mirrored.
+    pub(super) fn java(t: [f32; 9], left: bool) -> Display {
+        let display = Display { rotation: Vec3::new(t[0], t[1], t[2]), translation: Vec3::new(t[3], t[4], t[5]), scale: Vec3::new(t[6], t[7], t[8]) };
+        if left { display.mirrored() } else { display }
+    }
+
+    /// The model's own entry for this hand, else [`Display::first_person`]'s or [`Display::third_person`]'s.
+    pub fn held(model: &ItemModel, name: &str, first_person: bool, left: bool, blocking: bool) -> Display {
+        let own = model.java.as_ref().and_then(|d| d.get(super::java::context::hand(first_person, left)));
+        own.unwrap_or_else(|| if first_person { Display::first_person(name, model.form, left, blocking) } else { Display::third_person(model.form, left, blocking) })
+    }
+
+    /// An item mesh (centred, z mirrored) to the hand's space: `ItemTransform.apply` with its `-0.5`.
+    pub fn mesh_frame(self) -> Mat4 {
+        self.frame() * Mat4::from_scale(MESH)
     }
 
     /// A left hand's entry as `ItemTransform.apply` reads it: mirrored in x.
@@ -181,7 +199,7 @@ impl Display {
     /// Java's item space (the model's unit box, centred) to the hand's.
     pub(super) fn frame(self) -> Mat4 {
         let [rx, ry, rz] = self.rotation.to_array().map(f32::to_radians);
-        Mat4::from_translation(self.translation) * Mat4::from_euler(EulerRot::XYZ, rx, ry, rz) * Mat4::from_scale(Vec3::splat(self.scale))
+        Mat4::from_translation(self.translation) * Mat4::from_euler(EulerRot::XYZ, rx, ry, rz) * Mat4::from_scale(self.scale)
     }
 }
 
@@ -202,13 +220,13 @@ pub fn first_person(model: &ItemModel, display: Display, camera: &Camera, left: 
         Some(Using::Bow { ticks }) => bow_transform(ticks),
         _ => Mat4::IDENTITY,
     };
-    let frame = view * Mat4::from_translation(arm) * drawn * Mat4::from_rotation_y(-s * 0.35 * side) * display.frame() * Mat4::from_scale(MESH);
+    let frame = view * Mat4::from_translation(arm) * drawn * Mat4::from_rotation_y(-s * 0.35 * side) * display.mesh_frame();
     EntityInstance {
         layers: model.layers.clone(),
         skin: Some(model.skin.clone()),
         position: camera.position,
         yaw: 0.0,
-        scale: display.scale,
+        scale: display.scale.max_element(),
         pose: Pose::default(),
         frame: Some(frame),
         hurt: false,

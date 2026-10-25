@@ -10,6 +10,8 @@ pub mod hand;
 mod held_banner;
 mod icon;
 mod icons;
+pub mod java;
+mod java_mesh;
 pub mod leather;
 pub mod map;
 mod shield;
@@ -24,6 +26,7 @@ use crate::LookPack;
 use crate::look::Dropped;
 pub use icon::{block_icon, model_icon, pattern_icon};
 pub use icons::ItemIcons;
+pub use java::JavaItems;
 pub use shield::{ITEM as SHIELD, raise_arm as raise_shield_arm};
 
 /// An item stack as the server names it.
@@ -63,10 +66,13 @@ pub struct ItemModel {
     pub form: Form,
     /// Shimmers: the stack is enchanted, or the look's game always draws the item so.
     pub glint: bool,
+    /// A Java look's item: its own displays ([`hand::Display::held`]).
+    pub java: Option<Arc<java::Displays>>,
 }
 
 pub struct ItemModels {
     icons: ItemIcons,
+    java: Option<Arc<JavaItems>>,
     pack: Arc<LookPack>,
     table: Arc<BlockTable>,
     layers: Arc<[Layer]>,
@@ -77,7 +83,7 @@ impl ItemModels {
     /// `table` is the look pack's for the world's registry ([`LookPack::block_table`]).
     pub fn new(pack: Arc<LookPack>, table: Arc<BlockTable>) -> ItemModels {
         let layers = [Layer::plain(NO_MODEL, NO_TEXTURE)].into();
-        ItemModels { icons: ItemIcons::load(pack.files()), pack, table, layers, cache: HashMap::new() }
+        ItemModels { icons: ItemIcons::load(pack.files()), java: JavaItems::shared(pack.files()), pack, table, layers, cache: HashMap::new() }
     }
 
     /// How the look's dropped items move.
@@ -101,13 +107,16 @@ impl ItemModels {
 
     fn build(&self, key: &ItemKey) -> Option<ItemModel> {
         let glint = self.pack.look.foil.always(&key.name);
-        let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint });
+        let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint, java: None });
         let shield = |root| shield::skin(root, key.banner.as_deref());
         if let Some(skin) = Some(self.pack.files()).filter(|_| key.name == shield::ITEM).and_then(shield) {
             return model(skin, Form::Shield);
         }
         if let Some(skin) = key.banner.as_deref().and_then(|cloth| held_banner::skin(self.pack.files(), cloth)) {
             return model(skin, Form::Banner);
+        }
+        if let Some(model) = self.java.as_deref().and_then(|java| self.java_model(java, key, glint)) {
+            return Some(model);
         }
         // An item with an icon of its own shows it, even when it places a block (doors, beds).
         let dye = leather::dyeable(&key.name).then_some(key.dye);
@@ -123,6 +132,15 @@ impl ItemModels {
             return model(flat(16, 16, rgba), Form::Flat);
         }
         model(block::skin(block, &self.pack.atlas)?, Form::Block)
+    }
+
+    /// The Java item's held geometry (the right hand's, as worn, dropped and framed too).
+    fn java_model(&self, java: &JavaItems, key: &ItemKey, glint: bool) -> Option<ItemModel> {
+        let name = java.java_name(&key.name, key.aux);
+        let mesh = java.mesh(name, java::context::hand(false, false), leather::dyeable(&key.name).then_some(key.dye).flatten())?;
+        let form = if mesh.solid { Form::Block } else { Form::Flat };
+        let java = Some(Arc::new(java.displays(name)));
+        Some(ItemModel { skin: Arc::new(mesh.skin), layers: self.layers.clone(), form, glint: glint || mesh.foil, java })
     }
 }
 

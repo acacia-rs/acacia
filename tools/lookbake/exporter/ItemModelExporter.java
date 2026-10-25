@@ -12,6 +12,10 @@ import java.nio.file.Path;
 import java.util.*;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.ClientBootstrap;
+import net.minecraft.client.resources.LegacyStuffWrapper;
+import net.minecraft.world.level.DryFoliageColor;
+import net.minecraft.world.level.FoliageColor;
+import net.minecraft.world.level.GrassColor;
 import net.minecraft.client.model.geom.EntityModelSet;
 import net.minecraft.client.renderer.item.ItemModel;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
@@ -64,6 +68,10 @@ public final class ItemModelExporter {
         Bootstrap.bootStrap();
         ClientBootstrap.bootstrap();
         var resources = vanilla();
+        // Grass and foliage tints read the colormaps their reload listeners would load.
+        GrassColor.init(LegacyStuffWrapper.getPixels(resources, Identifier.withDefaultNamespace("textures/colormap/grass.png")));
+        FoliageColor.init(LegacyStuffWrapper.getPixels(resources, Identifier.withDefaultNamespace("textures/colormap/foliage.png")));
+        DryFoliageColor.init(LegacyStuffWrapper.getPixels(resources, Identifier.withDefaultNamespace("textures/colormap/dry_foliage.png")));
         var sprites = new UnitSprites(resources);
         var baked = bake(resources, sprites);
         var meshes = new JsonArray();
