@@ -1,25 +1,13 @@
-//! The jar's HUD and widget sprites, the status effect icons, the container and recipe book sheets
-//! with their progress sprites and the ASCII font, copied into a Java look's files for acacia-ui's
-//! Java theme (`acacia_ui::theme::java`), in the jar's own layout.
+//! Everything the Java GUI draws from, copied into a Java look's files in the jar's own layout:
+//! the GUI sprites with their `.mcmeta` scaling and sheets (`textures/gui`), the camera overlays
+//! (`textures/misc`), effect icons, the fonts and their definitions, and the nether portal's frames.
+//! Read by `acacia_ui::theme::java` and `acacia_ui::java::paint::assets`.
 
 use std::path::Path;
 
 use crate::download::Error;
 
-const COPIED: [&str; 12] = [
-    "textures/gui/book.png",
-    "textures/font/ascii_sga.png",
-    "textures/gui/sprites/hud",
-    "textures/mob_effect",
-    "textures/gui/sprites/boss_bar",
-    "textures/gui/sprites/widget",
-    "textures/gui/container",
-    "textures/gui/sprites/container",
-    "textures/gui/recipe_book.png",
-    "textures/gui/sprites/recipe_book/slot_craftable.png",
-    "textures/font/ascii.png",
-    "font/include/default.json",
-];
+const COPIED: [&str; 6] = ["textures/gui", "textures/misc", "textures/mob_effect", "textures/font", "font", "textures/block/nether_portal.png"];
 
 pub fn copy(assets: &Path, out: &Path) -> Result<(), Error> {
     for name in COPIED {
