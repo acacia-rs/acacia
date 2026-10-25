@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::download::{Error, get, pinned};
 use crate::jar;
 
-const OBJECTS: &str = "https://resources.download.minecraft.net";
+pub(crate) const OBJECTS: &str = "https://resources.download.minecraft.net";
 const PREFIX: &str = "minecraft/sounds/";
 const LEFT_OUT: [&str; 3] = ["music/", "records/", "ambient/"];
 

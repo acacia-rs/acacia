@@ -99,6 +99,8 @@ def run(h, main, *case_args, probe_input=None):
     of the cases (the cases with game data added, e.g. ScreenKit's resolved stacks)."""
     if os.environ.get('GUI_CASES'):
         case_args = os.environ['GUI_CASES'].split()
+    # GuiGame reads the fonts' asset index objects (Unifont) beside the jar's assets.
+    subprocess.run([sys.executable, Path(__file__).parents[1] / 'harnesses' / 'font' / 'fetch.py'], stdout=h.log, check=True)
     inputs = cases(h.dir, h.out, case_args)
     expected = h.oracle(main, inputs, inputs=[inputs])
     rust = h.out / 'rust.jsonl'

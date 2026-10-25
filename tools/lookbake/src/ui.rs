@@ -1,31 +1,37 @@
-//! The jar's HUD and widget sprites, the status effect icons, the container and recipe book sheets
-//! with their progress sprites and the ASCII font, copied into a Java look's files for acacia-ui's
-//! Java theme (`acacia_ui::theme::java`), in the jar's own layout.
+//! Everything the Java GUI draws from, copied into a Java look's files in the jar's own layout:
+//! the GUI sprites with their `.mcmeta` scaling and sheets (`textures/gui`), the camera overlays
+//! (`textures/misc`), effect icons, the fonts and their definitions, and the nether portal's frames.
+//! Read by `acacia_ui::theme::java` and `acacia_ui::java::paint::assets`.
 
 use std::path::Path;
 
-use crate::download::Error;
+use crate::download::{Error, get, pinned};
 
-const COPIED: [&str; 12] = [
-    "textures/gui/book.png",
-    "textures/font/ascii_sga.png",
-    "textures/gui/sprites/hud",
-    "textures/mob_effect",
-    "textures/gui/sprites/boss_bar",
-    "textures/gui/sprites/widget",
-    "textures/gui/container",
-    "textures/gui/sprites/container",
-    "textures/gui/recipe_book.png",
-    "textures/gui/sprites/recipe_book/slot_craftable.png",
-    "textures/font/ascii.png",
-    "font/include/default.json",
-];
+const COPIED: [&str; 6] = ["textures/gui", "textures/misc", "textures/mob_effect", "textures/font", "font", "textures/block/nether_portal.png"];
 
 pub fn copy(assets: &Path, out: &Path) -> Result<(), Error> {
     for name in COPIED {
         copy_tree(&assets.join(name), &out.join(name)).map_err(|e| format!("{}: {e}", assets.join(name).display()))?;
     }
     Ok(())
+}
+
+/// The fonts' files only Mojang's asset index has (Unifont's zips and the definitions naming them,
+/// `font/include/unifont.json` replacing the jar's empty one), saved under `out/font` as the
+/// client's resources layer them; returns how many. Nothing here is redistributed.
+pub fn fetch_fonts(out: &Path) -> Result<usize, Error> {
+    let package = crate::jar::version_package()?;
+    let index_url = package["assetIndex"]["url"].as_str().ok_or("version has no asset index")?;
+    let index: serde_json::Value = serde_json::from_slice(&get(index_url)?)?;
+    let objects = index["objects"].as_object().ok_or("asset index has no objects")?;
+    let mut count = 0;
+    for (key, object) in objects {
+        let Some(path) = key.strip_prefix("minecraft/font/") else { continue };
+        let hash = object["hash"].as_str().filter(|h| h.len() > 2).ok_or_else(|| format!("{key} has no hash"))?;
+        pinned(&out.join("font").join(path), hash, || get(&format!("{}/{}/{hash}", crate::sounds::OBJECTS, &hash[..2])))?;
+        count += 1;
+    }
+    Ok(count)
 }
 
 pub(crate) fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {

@@ -182,7 +182,7 @@ impl Gui {
     }
 
     pub fn highlight(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, invert: bool) {
-        self.draws.push(GuiDraw::Highlight { x0, y0, x1, y1, invert });
+        self.draws.push(GuiDraw::Highlight { x0: x0.min(x1), y0: y0.min(y1), x1: x0.max(x1), y1: y0.max(y1), invert });
     }
 
     pub fn next_stratum(&mut self) {
@@ -192,6 +192,11 @@ impl Gui {
     pub fn blur(&mut self) {
         self.draws.push(GuiDraw::Blur);
     }
+
+    pub fn text_highlight(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, invert: bool) {
+        self.highlight(x0, y0, x1, y1, invert);
+    }
+
 }
 
 /// Measures text in the font the calls are drawn with.

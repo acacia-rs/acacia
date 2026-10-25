@@ -1,27 +1,17 @@
 package acacia.parity.gui;
 
-import com.google.gson.JsonParser;
-import com.mojang.blaze3d.font.GlyphInfo;
-import com.mojang.blaze3d.font.GlyphProvider;
-import com.mojang.blaze3d.font.UnbakedGlyph;
-import com.mojang.serialization.JsonOps;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GlyphSource;
-import net.minecraft.client.gui.font.TextRenderable;
-import net.minecraft.client.gui.font.glyphs.BakedGlyph;
-import net.minecraft.client.gui.font.providers.GlyphProviderDefinition;
+import net.minecraft.client.resources.IndexedAssetSource;
+import net.minecraft.client.resources.language.ClientLanguage;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.FontDescription;
-import net.minecraft.network.chat.Style;
-import net.minecraft.resources.Identifier;
+import net.minecraft.locale.Language;
 import net.minecraft.resources.RegistryDataLoader;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.RegistryLayer;
@@ -31,19 +21,23 @@ import net.minecraft.server.packs.repository.ServerPacksSource;
 import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.tags.TagLoader;
-import net.minecraft.util.RandomSource;
 
 /**
  * The headless game the GUI oracles share: Bootstrap and the vanilla data pack's registries (item
- * components bound, as a server's), the client jar's resources, and the default font's metrics
- * from vanilla's own glyph providers (no atlas, nothing stitched). Adapted from Horizon's
- * ParityData and ParityFont (MIT, (c) Ludovic Marie).
+ * components bound, as a server's), the client's resources (the jar's, under the asset index at
+ * GUI_ASSETS_ROOT, default ~/gui-assets, which tools/parity/harnesses/font/fetch.py fills with the
+ * font objects), ClientLanguage (en_us) as Language, and the client's default Font with every
+ * font vanilla loads (GuiFonts), its random seeded with 0. Adapted from Horizon's ParityData and
+ * ParityFont (MIT, (c) Ludovic Marie).
  */
 public final class GuiGame {
+    /** 26.3's assetIndex.id. */
+    public static final String ASSET_INDEX = "34";
     public static HolderLookup.Provider lookup;
     /** The same registries as a RegistryAccess (a level's). */
     public static net.minecraft.core.RegistryAccess access;
     public static ResourceManager resources;
+    public static GuiFonts fonts;
     public static Font font;
 
     private GuiGame() {}
@@ -68,44 +62,18 @@ public final class GuiGame {
         components.forEach(net.minecraft.core.component.DataComponentInitializers.PendingComponents::apply);
         var method = net.minecraft.client.resources.ClientPackSource.class.getDeclaredMethod("createVanillaPackSource", Path.class);
         method.setAccessible(true);
-        resources = ((net.minecraft.server.packs.VanillaPackResources) method.invoke(null, Path.of("/nonexistent-assets"))).asResourceManager();
-        font = defaultFont(resources);
+        resources = ((net.minecraft.server.packs.VanillaPackResources) method.invoke(null, assetIndex())).asResourceManager();
+        Language.inject(ClientLanguage.loadFrom(resources, List.of("en_us"), false));
+        fonts = new GuiFonts(resources, Set.of());
+        font = fonts.font(false, 0L);
     }
 
-    /** `font/include/space.json` and `default.json`'s providers: metrics only. */
-    static Font defaultFont(ResourceManager resources) throws Exception {
-        List<GlyphProvider> providers = new ArrayList<>();
-        for (String include : new String[] {"space", "default"}) {
-            var id = Identifier.withDefaultNamespace("font/include/" + include + ".json");
-            try (var reader = new InputStreamReader(resources.open(id), StandardCharsets.UTF_8)) {
-                for (var element : JsonParser.parseReader(reader).getAsJsonObject().getAsJsonArray("providers")) {
-                    var conditional = GlyphProviderDefinition.Conditional.CODEC.parse(JsonOps.INSTANCE, element).getOrThrow();
-                    providers.add(conditional.definition().unpack().left().orElseThrow().load(resources));
-                }
-            }
+    /** The launcher's virtual assets root over the asset index, as Main builds it. */
+    static Path assetIndex() {
+        String root = System.getenv().getOrDefault("GUI_ASSETS_ROOT", System.getProperty("user.home") + "/gui-assets");
+        if (!Files.isRegularFile(Path.of(root, "indexes", ASSET_INDEX + ".json"))) {
+            throw new IllegalStateException("no asset index under " + root + ": run tools/parity/harnesses/font/fetch.py");
         }
-        GlyphSource source = new GlyphSource() {
-            @Override public BakedGlyph getGlyph(int codepoint) {
-                for (GlyphProvider provider : providers) {
-                    UnbakedGlyph glyph = provider.getGlyph(codepoint);
-                    if (glyph != null) return baked(glyph.info());
-                }
-                return baked(GlyphInfo.simple(6.0F));
-            }
-            @Override public BakedGlyph getRandomGlyph(RandomSource random, int width) { return getGlyph('?'); }
-        };
-        return new Font(new Font.Provider() {
-            @Override public GlyphSource glyphs(FontDescription font) { return source; }
-            @Override public net.minecraft.client.gui.font.glyphs.EffectGlyph effect() { return null; }
-        });
-    }
-
-    private static BakedGlyph baked(GlyphInfo info) {
-        return new BakedGlyph() {
-            @Override public GlyphInfo info() { return info; }
-            @Override public TextRenderable.Styled createGlyph(float x, float y, int color, int shadowColor, Style style, float boldOffset, float shadowOffset) {
-                return null;
-            }
-        };
+        return IndexedAssetSource.createIndexFs(Path.of(root), ASSET_INDEX);
     }
 }

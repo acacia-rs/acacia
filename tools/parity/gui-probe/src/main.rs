@@ -4,20 +4,26 @@
 //! `acacia_ui::java::encode` writes them. `assets` is an unpacked jar's `assets/minecraft`. Run by
 //! `tools/parity/gui/guiparity.py`.
 
+mod chat;
 mod containers;
 mod creative;
+mod font;
 mod hud;
 mod kit;
+mod lang;
+mod players;
 mod recipe_book;
 mod screens;
+mod subtitles;
 mod tooltips;
 mod trading;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use std::sync::Arc;
 
+use acacia_ui::java::font::{FontOptions, Fonts};
 use acacia_ui::java::gui::Metrics;
-use acacia_ui::java::text::Style;
 use serde_json::{Map, Value, json};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -28,26 +34,24 @@ pub type Replay = fn(&Value, &Assets, &mut Map<String, Value>) -> Vec<acacia_ui:
 /// What the probes load once from the assets.
 pub struct Assets {
     pub root: std::path::PathBuf,
+    /// The client's default font: `fonts` measuring.
     pub font: Box<dyn Metrics>,
-}
-
-// TODO: the Java look's font once it has every provider; the ASCII page until then.
-struct Ascii(Option<acacia_ui::font::Font>);
-
-impl Metrics for Ascii {
-    fn advance(&self, c: char, style: &Style) -> f32 {
-        self.0.as_ref().map_or(0.0, |f| f.width(&c.to_string())) + f32::from(u8::from(style.is_bold()))
-    }
+    /// Every font the game loads, Unifont from the asset index beside `root` (`<root>/../..`).
+    pub fonts: Arc<Fonts>,
 }
 
 fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
+        "chat_screen" => chat::replay_screen,
         "containers" => containers::replay,
         "creative" => creative::replay,
+        "font" => font::replay,
         "hud" => hud::replay,
+        "players" => players::replay,
         "recipe_book" => recipe_book::replay,
-        "tooltips" => tooltips::replay,
         "screens_widgets" => screens::widgets::replay,
+        "subtitles" => subtitles::replay,
+        "tooltips" => tooltips::replay,
         "trading" => trading::replay,
         _ => return None,
     })
@@ -60,14 +64,19 @@ fn main() -> Result<()> {
     };
     let replay = replay(harness).ok_or_else(|| format!("unknown harness {harness}"))?;
     let root = Path::new(root).to_owned();
-    let font = Ascii(acacia_ui::theme::java_font(&root, &mut acacia_ui::Atlas::new()));
-    let assets = Assets { root, font: Box::new(font) };
+    let fonts = Arc::new(Fonts::java(&root, root.parent().and_then(Path::parent), FontOptions::default()));
+    for w in &fonts.warnings {
+        eprintln!("font: {w}");
+    }
+    let assets = Assets { root, font: Box::new(font::Shared(Arc::clone(&fonts))), fonts };
     let mut out = BufWriter::new(std::fs::File::create(output)?);
     for line in std::fs::read_to_string(inputs)?.lines().filter(|l| !l.is_empty()) {
         let case: Value = serde_json::from_str(line)?;
         let mut state = Map::new();
         let draws = replay(&case, &assets, &mut state);
-        state.insert("draws".into(), json!(acacia_ui::java::encode::encode(&draws)));
+        if !state.contains_key("draws") {
+            state.insert("draws".into(), json!(acacia_ui::java::encode::encode(&draws)));
+        }
         writeln!(out, "{}", Value::Object(state))?;
     }
     Ok(())

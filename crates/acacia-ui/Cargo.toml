@@ -12,3 +12,4 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
+zip = { version = "2", default-features = false, features = ["deflate"] }

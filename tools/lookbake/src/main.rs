@@ -57,6 +57,7 @@ fn main() -> Result<(), Error> {
             look.save(&out)?;
             biomes::write(&biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &out)?;
             ui::copy(&jar.assets, &out)?;
+            println!("  Java fonts from the asset index: {} files", ui::fetch_fonts(&out)?);
             environment::copy(&jar.assets, &out)?;
             particles::copy(&jar.assets, &out)?;
             banners::copy(&jar.assets, &out)?;

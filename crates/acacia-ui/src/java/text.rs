@@ -88,7 +88,7 @@ impl Style {
     }
 
     /// `Style.applyLegacyFormat` for code `code` (lower case); `own` is what `§r` returns to.
-    fn legacy(&self, code: char, own: &Style) -> Style {
+    pub fn legacy(&self, code: char, own: &Style) -> Style {
         if let Some(c) = COLORS.iter().find(|c| c.0 == code) {
             let off = Some(false);
             return Style { color: Some(c.2), bold: off, italic: off, underlined: off, strikethrough: off, obfuscated: off, ..self.clone() };
@@ -199,6 +199,11 @@ impl Text {
                     continue;
                 }
                 let Some(code) = chars.next() else { break };
+                // Java skips one UTF-16 unit: a supplementary character's low surrogate is left, drawn as U+FFFD.
+                if code.len_utf16() == 2 {
+                    current.push('\u{FFFD}');
+                    continue;
+                }
                 let next = style.legacy(code.to_ascii_lowercase(), &span.style);
                 if next != style {
                     if !current.is_empty() {
