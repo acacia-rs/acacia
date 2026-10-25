@@ -1,5 +1,5 @@
 """Entity models: every model layer the client bakes, at rest, against the look's Java entity models
-as acacia draws them (`lookbake java-entities`, then the probe acacia-render/examples/java_entities):
+as acacia draws them (`lookbake java-exported`, then the probe acacia-render/examples/java_entities):
 each part's initial pose and visibility, and each drawn corner's position, normal and UV."""
 import sys
 from pathlib import Path
