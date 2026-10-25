@@ -8,7 +8,7 @@ M ="net.minecraft.client.model."
 QUADRUPEDS = {
     "cow": M + "animal.cow.CowModel", "cow_baby": M + "animal.cow.CowModel",
     "mooshroom": M + "animal.cow.CowModel", "mooshroom_baby": M + "animal.cow.BabyCowModel",
-    "pig": M + "animal.pig.PigModel", "pig_baby": M + "animal.pig.BabyPigModel",
+    "pig": M + "animal.pig.PigModel", "pig_baby": M + "animal.pig.BabyPigModel", "pig#saddle": M + "animal.pig.PigModel",
     "sheep": M + "animal.sheep.SheepModel", "sheep_baby": M + "animal.sheep.BabySheepModel",
     "chicken": M + "animal.chicken.AdultChickenModel", "chicken_baby": M + "animal.chicken.BabyChickenModel",
     "creeper": M + "monster.creeper.CreeperModel",
@@ -119,6 +119,7 @@ ANIMALS = {
     "zoglin": M + "monster.hoglin.HoglinModel", "zoglin_baby": M + "monster.hoglin.BabyHoglinModel",
     "wolf": B + "wolf.AdultWolfModel", "wolf_baby": B + "wolf.BabyWolfModel",
     "llama": B + "llama.LlamaModel", "llama_baby": B + "llama.BabyLlamaModel", "trader_llama": B + "llama.LlamaModel",
+    "llama#decor": B + "llama.LlamaModel", "llama_baby#decor": B + "llama.BabyLlamaModel", "wolf_armor": B + "wolf.AdultWolfModel",
     "squid": B + "squid.SquidModel", "glow_squid_baby": B + "squid.SquidModel",
     "dolphin": B + "dolphin.DolphinModel", "dolphin_baby": B + "dolphin.DolphinModel",
 }
@@ -134,6 +135,7 @@ ANIMAL_EXTRAS = [
 FELINES = {
     "cat": B + "feline.AdultCatModel", "cat_baby": B + "feline.BabyCatModel",
     "ocelot": B + "feline.AdultOcelotModel", "ocelot_baby": B + "feline.BabyOcelotModel",
+    "cat#collar": B + "feline.AdultCatModel", "cat_baby#collar": B + "feline.BabyCatModel",
 }
 FELINE_EXTRAS = [
     {}, {"isCrouching": True}, {"isSprinting": True}, {"isSitting": True}, {"isCrouching": True, "isSitting": True},
@@ -159,10 +161,12 @@ EQUINES = {
     "horse": E + "HorseModel", "horse_baby": E + "BabyHorseModel", "zombie_horse": E + "HorseModel",
     "skeleton_horse_baby": E + "BabyHorseModel", "donkey": E + "DonkeyModel", "donkey_baby": E + "BabyDonkeyModel",
     "mule": E + "DonkeyModel", "mule_baby": E + "BabyDonkeyModel",
+    "horse#saddle": E + "EquineSaddleModel", "donkey#saddle": E + "EquineSaddleModel", "horse_armor": E + "HorseModel",
+    "undead_horse_armor": E + "HorseModel",
 }
 EQUINE_EXTRAS = [
     {},
-    {"eatAnimation": 0.6, "feedingAnimation": 0.5, "animateTail": True, "hasChest": True},
+    {"eatAnimation": 0.6, "feedingAnimation": 0.5, "animateTail": True, "hasChest": True, "isRidden": True},
     {"standAnimation": 0.8, "eatAnimation": 0.2, "isInWater": True},
     {"standAnimation": 1.0, "animateTail": True, "feedingAnimation": 1.0},
 ]
@@ -179,6 +183,7 @@ CRITTER_EXTRAS = [
 ]
 NETHER = {
     "strider": M + "monster.strider.AdultStriderModel", "strider_baby": M + "monster.strider.BabyStriderModel",
+    "strider#saddle": M + "monster.strider.AdultStriderModel",
     "ravager": M + "monster.ravager.RavagerModel", "shulker": M + "monster.shulker.ShulkerModel",
     "wither": M + "monster.wither.WitherBossModel",
 }
@@ -211,6 +216,8 @@ KEYFRAMED = {
     "warden": M + "monster.warden.WardenModel", "copper_golem": B + "golem.CopperGolemModel",
     "nautilus": B + "nautilus.NautilusModel", "nautilus_baby": B + "nautilus.NautilusModel",
     "zombie_nautilus": B + "nautilus.NautilusModel",
+    "camel#saddle": B + "camel.CamelSaddleModel", "nautilus#saddle": B + "nautilus.NautilusSaddleModel",
+    "nautilus_armor": B + "nautilus.NautilusArmorModel",
 }
 KEYFRAMED_EXTRAS = [
     {},
@@ -221,7 +228,7 @@ KEYFRAMED_EXTRAS = [
      "isSwimming": True, "swimAnimation": 20, "idleOnGroundAnimationState": 30, "peekAnimationState": 20, "rollOutAnimationState": 33,
      "sitPoseAnimationState": 20, "dashAnimationState": 30, "isSearching": True, "sniffingAnimationState": 20, "shoot": 20,
      "slide": 30, "canMove": True, "invulnerabilityAnimationState": 20, "roarAnimationState": 20, "sonicBoomAnimationState": 30,
-     "interactionGetItem": 20, "rightHandItemState": True},
+     "interactionGetItem": 20, "rightHandItemState": True, "isRidden": True},
     {"swimIdleAnimationState": 10, "idleUnderWaterAnimationState": 10, "playDeadAnimationState": 30, "sitUpAnimationState": 10,
      "risingAnimationState": 10, "feelingHappyAnimationState": 30, "scentingAnimationState": 31, "slideBack": 10, "inhale": 25,
      "longJump": 31, "deathAnimationState": 10, "canMove": True, "emergeAnimationState": 10, "sniffAnimationState": 30,
@@ -232,10 +239,11 @@ KEYFRAMED_EXTRAS = [
 HISTORY_A = [v for i in range(40) for v in (60.0 + (i % 7) * 0.75, -170.0 + i * 12.5)]
 HISTORY_B = [v for i in range(70) for v in (80.0 - i * 0.25, 150.0 - i * 7.25)]
 DRAGONS = {"ender_dragon": M + "monster.dragon.EnderDragonModel", "happy_ghast": B + "ghast.HappyGhastModel",
-           "happy_ghast_baby": B + "ghast.HappyGhastModel"}
+           "happy_ghast_baby": B + "ghast.HappyGhastModel", "happy_ghast_harness": B + "ghast.HappyGhastHarnessModel",
+           "happy_ghast_ropes": B + "ghast.HappyGhastModel"}
 DRAGON_EXTRAS = [
     {},
-    {"flapTime": 0.3, "partialTicks": 0.25, "flightHistory": HISTORY_A},
+    {"flapTime": 0.3, "partialTicks": 0.25, "flightHistory": HISTORY_A, "isRidden": True},
     {"flapTime": 0.85, "partialTicks": 0.75, "flightHistory": HISTORY_B, "isSitting": True, "bodyItem": "minecraft:white_harness"},
     {"flapTime": 1.6, "partialTicks": 0.5, "flightHistory": HISTORY_A, "isLandingOrTakingOff": True, "distanceToEgg": 10.0},
 ]
@@ -264,7 +272,7 @@ def cases(groups):
         for name, model in models.items():
             for (pos, speed), (yaw, pitch), age, extra in itertools.product(WALKS, LOOKS, AGES, extras):
                 state = {"walkAnimationPos": pos, "walkAnimationSpeed": speed, "yRot": yaw, "xRot": pitch, "ageInTicks": age,
-                         "isBaby": name.endswith("_baby")}
+                         "isBaby": name.split("#")[0].endswith("_baby")}
                 state.update({k: v for k, v in extra.items() if not k.startswith("@")})
                 # Not every state class has the living or humanoid fields.
                 state = {k if k.startswith("?") else "?" + k: v for k, v in state.items()}

@@ -72,9 +72,9 @@ pub const OVERLAYS: [(&str, Overlay); 15] = [
     ("minecraft:creeper", overlay("armor", "creeper/creeper_armor", None, When::Powered)),
 ];
 
-// TODO: climate variants (cold/warm cows, pigs, chickens), wolf and panda variants, wolf collars,
-// llama decor, tropical fish shapes and patterns, puffed pufferfish, salmon sizes, horse markings and saddles, snowy sleeping foxes, breeze wind and eyes, creaking and warden layers, angry bees with nectar,
-// shulker colours and attachment, cold striders, the wither's invulnerable blink.
+// TODO: climate variants (cold/warm cows, pigs, chickens), wolf and panda variants, tropical fish
+// shapes and patterns, puffed pufferfish, salmon sizes, snowy sleeping foxes, breeze wind, creaking
+// and warden layers, angry bees with nectar, shulker colours, cold striders, the wither's blink.
 pub const KINDS: [(&str, Kind); 89] = [
     ("minecraft:ender_dragon", adult("minecraft:ender_dragon#main", "enderdragon/dragon")),
     ("minecraft:happy_ghast", both("minecraft:happy_ghast#main", "ghast/happy_ghast", "minecraft:happy_ghast_baby#main", "ghast/happy_ghast_baby")),

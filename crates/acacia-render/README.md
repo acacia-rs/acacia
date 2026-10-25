@@ -260,6 +260,11 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
 - **Body** (`body/`): `LivingEntityRenderer.submit`'s preamble (bed offset, entity scale, the
   renderer's `setupRotations` with shake, death fall, spin, sleep and upside-down, the flip, its
   `scale`) per kind; the viewer places a Java-drawn entity with it instead of its own turn.
+- **Gear** (`gear.rs`, `worn.rs`): saddles, body armour, carpets, harnesses, collars, horse
+  markings and ropes as their renderers' layers add them, the equipment asset of the stack picked
+  by item name; the viewer passes the body slot, the rest comes from Bedrock flags (`is_saddled`,
+  `is_tamed` with `color`, `mark_variant`). The happy ghast's ropes need a leash-holder flag
+  acacia does not track yet.
 - **Normals**: the shader takes the bone matrix's inverse transpose (as cofactors signed by the
   determinant), which is PoseStack's normal matrix once a part is scaled unevenly.
 - **Drawing** (`draw.rs`, `mesh.rs`): `ModelPart.render`'s walk. A hidden part, or one with neither

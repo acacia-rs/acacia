@@ -8,6 +8,7 @@ use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
 use acacia_bot::proto::types::MetadataFlags1 as Flags;
 use acacia_bot::state::{Entity, ITEM_KIND, ItemStack, PlayerSkin};
+use acacia_render::entity::java::gear::Body;
 use acacia_render::entity::java::trims::Trim;
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Pose, Skin, SkinSource};
 use acacia_render::item::{ItemKey, SHIELD};
@@ -19,6 +20,8 @@ use crate::facts::Facts;
 pub const SNAPSHOT_SECS: f32 = 0.05;
 const PLAYER: &str = "minecraft:player";
 const EYE_HEIGHT: f64 = acacia_bot::state::PLAYER_EYE_HEIGHT as f64;
+/// Wolf armour's durability (Java's and Bedrock's); its damage is the stack's aux value.
+const WOLF_ARMOR_DURABILITY: f32 = 64.0;
 
 pub struct Tracked {
     pub runtime_id: u64,
@@ -171,6 +174,7 @@ impl Feed {
             (e.kind.clone(), instance)
         } else {
             let (layers, scale) = self.models.appearance(&e.kind, &|name| facts.query(name))?;
+            let layers = self.with_gear(bot, &e.kind, &facts, layers, e.equipment.as_ref().map(|q| &q.body));
             let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false, glint: None };
             (e.kind.clone(), instance)
         };
@@ -196,6 +200,21 @@ impl Feed {
             self.models.armor(kind, &|name| facts.query(name), &item, s.custom_color(), trim.as_ref())
         };
         worn.filter(|s| !s.is_empty()).filter_map(|s| Some((layers(s)?, s.is_enchanted()))).collect()
+    }
+
+    /// `layers` with what a `kind`'s saddle, collar, markings and body-slot stack add over it.
+    fn with_gear(&self, bot: &Bot, kind: &str, facts: &Facts, layers: Arc<[Layer]>, body: Option<&ItemStack>) -> Arc<[Layer]> {
+        let name = body.filter(|s| !s.is_empty()).and_then(|s| Some(format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:"))));
+        let body = body.zip(name.as_deref()).map(|(s, item)| Body {
+            item,
+            dye: s.custom_color(),
+            durability: (item == "minecraft:wolf_armor").then(|| (WOLF_ARMOR_DURABILITY - s.metadata as f32) / WOLF_ARMOR_DURABILITY),
+        });
+        let gear = self.models.gear(kind, &|name| facts.query(name), body);
+        if gear.is_empty() {
+            return layers;
+        }
+        layers.iter().cloned().chain(gear).collect()
     }
 
     /// The cape of a player [`Feed::player`] has drawn.
