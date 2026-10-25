@@ -44,6 +44,9 @@ pub struct Trade {
     /// How far a villager is to its next level, 0 to 1; none for a master.
     pub progress: Option<f32>,
     pub offers: Vec<Offer>,
+    /// The trader's level (0 = novice) and experience as the server sent them.
+    pub tier: i32,
+    pub xp: i32,
 }
 
 /// The experience at which a villager reaches each level.
@@ -97,7 +100,7 @@ pub fn trade(bot: &Bot) -> Option<Trade> {
     let trader = window.ids.iter().find_map(|id| bot.state().entities.by_unique(*id).filter(|e| !e.is_player()));
     let xp = trader.map_or(0, |trader| trader.metadata.int(acacia_bot::proto::types::MetadataDictionaryItemKey::TradeExperience));
     tracing::debug!(target: "trade", xp, tier = window.tier, ids = ?window.ids, known = trader.is_some(), "trader");
-    Some(Trade { title: window.display_name.clone(), level, progress: level.and_then(|_| level_progress(window.tier, xp)), offers: offers.collect() })
+    Some(Trade { title: window.display_name.clone(), level, progress: level.and_then(|_| level_progress(window.tier, xp)), offers: offers.collect(), tier: window.tier, xp })
 }
 
 /// The beacon screen's buttons: the five powers, the two second powers, and the confirm.
@@ -133,6 +136,21 @@ pub fn bench(window: WindowType) -> Option<Bench> {
         WindowType::Loom => Bench::Loom,
         _ => return None,
     })
+}
+
+/// A furnace's properties as Java's `AbstractFurnaceMenu` holds them: lit time, lit duration,
+/// cooking progress, cooking total.
+pub fn furnace_data(station: Station, data: &HashMap<i32, i32>) -> [i32; 4] {
+    let get = |key: i32| data.get(&key).copied().unwrap_or(0);
+    let total = if station == Station::Furnace { 200 } else { 100 };
+    [get(LIT_TIME), get(LIT_DURATION), get(COOK_TICKS), total]
+}
+
+/// A brewing stand's as Java's `BrewingStandMenu` holds them: brewing ticks left, fuel, total
+/// brewing ticks, total fuel.
+pub fn brewing_data(data: &HashMap<i32, i32>) -> [i32; 4] {
+    let get = |key: i32| data.get(&key).copied().unwrap_or(0);
+    [get(BREW_TIME), get(BREW_FUEL), BREW_TICKS as i32, get(BREW_FUEL_TOTAL)]
 }
 
 pub fn progress(station: Station, data: &HashMap<i32, i32>) -> Progress {

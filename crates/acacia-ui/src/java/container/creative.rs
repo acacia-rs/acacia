@@ -5,6 +5,7 @@
 
 use super::creative_search::SearchBox;
 use super::effects::{self, Effect};
+use super::input::Press;
 use super::entity::{Figure, follows_mouse};
 use super::{Base, Env, LABEL, Screen, Slot, carried, contents, hovered_tooltip, transparent_background};
 use crate::java::gui::{Blend, Gui, GuiDraw};
@@ -162,6 +163,43 @@ impl Creative {
         gui.item(ICONS + i as i32, x + 5, y + 8 + if tab.top { 1 } else { -1 }, 0);
     }
 
+    /// `checkTabClicked` of each tab: the one at `mouse`.
+    pub fn tab_at(&self, mouse: [f64; 2]) -> Option<usize> {
+        let (xm, ym) = (mouse[0] - f64::from(self.base.left), mouse[1] - f64::from(self.base.top));
+        self.tabs.iter().position(|tab| self.tab_clicked(tab, xm, ym))
+    }
+
+    fn tab_clicked(&self, tab: &Tab, xm: f64, ym: f64) -> bool {
+        let (x, y) = (f64::from(self.tab_x(tab)), f64::from(self.tab_y(tab)));
+        xm >= x && xm <= x + 26.0 && ym >= y && ym <= y + 32.0
+    }
+
+    /// `canScroll`: the tab scrolls and holds more than a page.
+    pub fn scrollable(&self) -> bool {
+        self.tab().can_scroll && self.can_scroll()
+    }
+
+    /// `mouseClicked`'s own part (left only): a tab, which is selected on the release over it, or
+    /// the scroller, which drags while `scrollable`.
+    pub fn mouse_clicked(&self, mouse: [f64; 2]) -> Option<Press> {
+        if let Some(tab) = self.tab_at(mouse) {
+            return Some(Press::Button(tab));
+        }
+        let (x, y) = (f64::from(self.base.left + 175), f64::from(self.base.top + 18));
+        let on_bar = mouse[0] >= x && mouse[1] >= y && mouse[0] < x + 14.0 && mouse[1] < y + 112.0 && self.tab().can_scroll;
+        (self.tab().kind != TabType::Inventory && on_bar).then_some(Press::Scroller)
+    }
+
+    /// `mouseDragged` with the scroller held: the new `scrollOffs`.
+    pub fn dragged_scroll(&self, mouse: [f64; 2]) -> f32 {
+        super::input::drag_scroll(mouse[1], self.base.top + 18, 112, 7.5)
+    }
+
+    /// `mouseScrolled` by `dy` (`subtractInputFromScroll`): the new `scrollOffs`, if it scrolls.
+    pub fn scrolled(&self, dy: f64) -> Option<f32> {
+        self.scrollable().then(|| (self.scroll - (dy / f64::from(self.row_count())) as f32).clamp(0.0, 1.0))
+    }
+
     fn is_creative_slot(&self) -> bool {
         self.tab().kind != TabType::Inventory && self.base.hovered.is_some_and(|i| i < GRID)
     }
@@ -201,6 +239,14 @@ impl Screen for Creative {
         if self.tab().kind == TabType::Inventory {
             follows_mouse(gui, [x + 73, y + 6, x + 105, y + 49], 20, 0.0625, [mouse[0] as f32, mouse[1] as f32], &self.figure);
         }
+    }
+
+    /// `hasClickedOutside`: off the window and the selected tab.
+    fn clicked_outside(&self, mouse: [f64; 2]) -> bool {
+        let b = &self.base;
+        let (x, y) = (mouse[0], mouse[1]);
+        let off = x < f64::from(b.left) || y < f64::from(b.top) || x >= f64::from(b.left + b.image_width) || y >= f64::from(b.top + b.image_height);
+        off && !self.tab_clicked(self.tab(), x, y)
     }
 
     fn labels(&mut self, gui: &mut Gui, _env: &Env, _mouse: [i32; 2]) {

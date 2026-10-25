@@ -130,6 +130,7 @@ impl App {
         let dy = to[1] - self.java.last_mouse[1];
         self.mouse = to;
         self.java.last_mouse = to;
+        self.java_moved();
         if self.java.held && self.menu.is_some() && self.java_look() {
             let (_, scale) = self.gui();
             let (x, y) = self.java_mouse();
