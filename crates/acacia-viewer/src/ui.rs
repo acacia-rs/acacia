@@ -114,7 +114,7 @@ impl Ui {
         let font_root = java_root.join("textures/font/ascii.png").is_file().then_some(java_root.as_path());
         let bedrock_theme = bedrock::load(&bedrock_root, font_root);
         let java_theme = java::load(&java_root);
-        let java_theme = if java_theme.atlas.get(sprite::HOTBAR).is_some() {
+        let java_theme = if java_root.join(format!("textures/gui/sprites/{}.png", sprite::HOTBAR)).is_file() {
             java_theme
         } else {
             Theme { style: java::STYLE, ..bedrock::load(&bedrock_root, font_root) }
@@ -131,6 +131,7 @@ impl Ui {
 
     pub fn show_title(&mut self, title: Title) {
         let (text, now) = (self.lang.translate(&title.text, &[]), Instant::now());
+        self.java_gui.show_title(title.kind, &text);
         match title.kind {
             TitleKind::Title => self.titles.title(text, now),
             TitleKind::Subtitle => self.titles.subtitle(text),
@@ -173,6 +174,7 @@ impl Ui {
         let text = rawtext.and_then(|json| self.lang.rawtext(json)).unwrap_or_else(|| self.lang.translate(message, params));
         let line = sender.map_or_else(|| text.clone(), |s| format!("<{s}> {text}"));
         tracing::info!(target: "chat", "{line}");
+        self.java_gui.add_chat(&line, self.chat.is_open());
         self.chat.push(line, Instant::now());
     }
 
@@ -187,14 +189,13 @@ impl Ui {
         };
         let mut list = DrawList::new(scale as f32);
         let gui = [(size[0] / scale) as f32, (size[1] / scale) as f32];
+        let java = look == LookChoice::Java && self.java_gui.usable(skin);
+        let java_size = java_gui::gui_size(size, scale);
         // In the world, so under the HUD.
         acacia_ui::nametags::draw(&mut list, &skin.theme, &tags);
         if let Some(me) = me {
             let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
-            if look == LookChoice::Java && self.java_gui.usable(skin) {
-                let calls = self.java_gui.hud(me, java_gui::gui_size(size, scale), state.crosshair, now);
-                self.java_gui.paint(skin, &|key| java_gui::hotbar_stack(me, key), &calls, &mut list, &mut self.pictures);
-            } else {
+            if !java {
                 hud::draw(&mut list, &skin.theme, &state, gui);
             }
             let selected = me.items[me.hotbar as usize % 9].as_ref().map(|stack| (me.hotbar, stack.name.clone()));
@@ -214,17 +215,29 @@ impl Ui {
                     Active { id, ticks: if ticks < 0 { ticks } else { (ticks - elapsed).max(0) }, ambient }
                 })
                 .collect();
-            acacia_ui::effects::draw(&mut list, &skin.theme, &active, gui[0]);
-            // A vanilla boss's title is its name's key (`entity.ender_dragon.name`).
-            let titles: Vec<String> = me.bosses.iter().map(|(title, ..)| self.lang.translate(title, &[])).collect();
-            let bosses: Vec<Boss> = me.bosses.iter().zip(&titles).map(|((_, progress, colour), title)| Boss { title, progress: *progress, colour: *colour }).collect();
-            overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
+            if java {
+                let open = java_gui::screen_info(screen.map(|s| s.layout), book.is_some() || sign.is_some(), menu.is_some() || form.is_some() || self.chat.is_open(), java_size[0]);
+                let view = java_gui::HudView { me, effects: &active, screen: open, chat_open: self.chat.is_open(), debug: debug.is_some(), sidebar: self.sidebar.as_ref(), players, lang: &self.lang };
+                let calls = self.java_gui.hud(&view, java_size, now);
+                self.java_gui.paint(skin, &|key| java_gui::hotbar_stack(me, key), &calls, &mut list, &mut self.pictures);
+            } else {
+                acacia_ui::effects::draw(&mut list, &skin.theme, &active, gui[0]);
+                // A vanilla boss's title is its name's key (`entity.ender_dragon.name`).
+                let titles: Vec<String> = me.bosses.iter().map(|(title, ..)| self.lang.translate(title, &[])).collect();
+                let bosses: Vec<Boss> = me.bosses.iter().zip(&titles).map(|((_, progress, colour), title)| Boss { title, progress: *progress, colour: *colour }).collect();
+                overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
+            }
         }
-        if let Some(sidebar) = &self.sidebar {
-            acacia_ui::sidebar::draw(&mut list, &skin.theme, sidebar, gui);
+        if !java {
+            if let Some(sidebar) = &self.sidebar {
+                acacia_ui::sidebar::draw(&mut list, &skin.theme, sidebar, gui);
+            }
+            overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
         }
-        overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
-        chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
+        // The Java look's HUD chat is in its HUD; the open chat stays this one until ChatScreen is wired.
+        if !java || self.chat.is_open() {
+            chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
+        }
         if let Some((left, right)) = debug {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
@@ -235,7 +248,7 @@ impl Ui {
                 list.quads.push(quad);
             }
         }
-        if let Some(names) = players {
+        if let Some(names) = players.filter(|_| !java) {
             acacia_ui::players::draw(&mut list, &skin.theme, names, gui[0]);
         }
         if let Some(form) = form {
@@ -249,6 +262,10 @@ impl Ui {
         }
         if let Some((title, buttons, backdrop)) = menu {
             acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, backdrop, mouse, gui);
+        }
+        if java && me.is_some() {
+            let calls = self.java_gui.deferred_subtitles(java_size);
+            self.java_gui.paint(skin, &|_| None, &calls, &mut list, &mut self.pictures);
         }
         self.quads = list.quads;
         (&skin.theme.atlas, &self.quads, &self.pictures)

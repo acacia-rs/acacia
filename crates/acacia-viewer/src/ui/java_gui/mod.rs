@@ -2,9 +2,11 @@
 //! painted here with the pack's sprites and fonts in the game's order (`acacia_ui::java::paint`).
 
 mod hud;
+mod inputs;
 mod picture;
 
-pub use hud::hotbar_stack;
+pub use hud::{HudView, hotbar_stack};
+pub use inputs::screen_info;
 pub use picture::PictureRequest;
 
 use std::path::{Path, PathBuf};
@@ -12,7 +14,7 @@ use std::time::Instant;
 
 use acacia_ui::java::font::{FontOptions, Fonts, GlyphTexture, Pen, Resources};
 use acacia_ui::java::gui::{Gui, GuiDraw, Metrics};
-use acacia_ui::java::hud::health::HealthHud;
+use acacia_ui::java::hud::frame::Hud;
 use acacia_ui::java::mth::JavaRandom;
 use acacia_ui::java::paint::assets::Images;
 use acacia_ui::java::paint::blit::Scaling;
@@ -30,7 +32,10 @@ pub struct JavaGui {
     pub fonts: Fonts,
     /// `Font.random`, for obfuscated text.
     random: JavaRandom,
-    health: HealthHud,
+    hud: Hud,
+    /// The game ticks run so far, and `Util.getMillis()` at the last HUD frame.
+    ticks: i64,
+    last_frame: i64,
     started: Instant,
 }
 
@@ -41,7 +46,7 @@ impl JavaGui {
         for w in &fonts.warnings {
             tracing::debug!(target: "ui", "font: {w}");
         }
-        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), health: HealthHud::default(), started: Instant::now() }
+        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now() }
     }
 
     /// Whether the pack has the GUI's sprites.

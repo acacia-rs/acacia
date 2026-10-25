@@ -71,12 +71,11 @@ A `Theme` is an atlas holding the HUD sprites under the names in `hud::sprite`, 
 
 | | Java (`theme::java`) | Bedrock (`theme::bedrock`) |
 |---|---|---|
-| Sprites | The jar's `textures/gui/sprites/hud/*.png`, one per name, copied into the Java look by `lookbake java` | The pack's `textures/ui`: the hotbar assembled from `hotbar_0..8` and the end caps at 65% opacity; hearts, food, armour, air by file; crosshair and experience bar from `textures/gui/icons.png` |
+| Sprites | None for the HUD: the Java look's HUD is `java::hud::frame`, painted from the jar's files; effect icons for screens | The pack's `textures/ui`: the hotbar assembled from `hotbar_0..8` and the end caps at 65% opacity; hearts, food, armour, air by file; crosshair and experience bar from `textures/gui/icons.png` |
 | Font | `textures/font/ascii.png`, characters per `font/include/default.json` | None in the pack: borrows the Java look's `ascii.png` (the same Mojangles glyphs) when that look was baked |
-| Level number | `0x80FF20`, black outline | `0x80FF00`, drop shadow |
 
 Without a font, text is not drawn; the sprites still are. A Java look that was not baked draws the
-Bedrock sprites (the same pixels) with the Java style.
+Bedrock HUD (the same pixels) with the Java style.
 
 ## Signs (`signs.rs`)
 
