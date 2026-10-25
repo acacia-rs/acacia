@@ -1,10 +1,24 @@
 //! Tooltips as `GuiGraphicsExtractor.tooltip` draws them: `ClientTooltipComponent` lines measured
 //! and placed by a `ClientTooltipPositioner`, `TooltipRenderUtil`'s nine-sliced background and
 //! frame, then each line's text and image. `item` builds an item's lines
-//! (`ItemStack.getTooltipLines`); `stack` is the item data they read.
+//! (`ItemStack.getTooltipLines`) from `stack`, the item data, and `game`, the registry facts;
+//! `bundle` is the one tooltip image.
 
+mod attributes;
+pub mod bundle;
+mod contents;
+mod details;
+mod effects;
+mod enchantments;
+mod fireworks;
+mod fmt;
+pub mod game;
 pub mod item;
+mod names;
+mod positioner;
 pub mod stack;
+
+pub use positioner::Positioner;
 
 use std::borrow::Cow;
 
@@ -38,31 +52,6 @@ impl Line {
     }
 }
 
-/// A `ClientTooltipPositioner`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Positioner {
-    /// `DefaultTooltipPositioner`: right of and above the mouse, kept on screen.
-    Default,
-}
-
-impl Positioner {
-    /// `positionTooltip(screenWidth, screenHeight, x, y, tooltipWidth, tooltipHeight)`.
-    pub fn place(self, screen: [i32; 2], x: i32, y: i32, w: i32, h: i32) -> [i32; 2] {
-        match self {
-            Positioner::Default => {
-                let (mut x, mut y) = (x + 12, y - 12);
-                if x + w > screen[0] {
-                    x = (x - 24 - w).max(4);
-                }
-                let padded = h + 3;
-                if y + padded > screen[1] {
-                    y = screen[1] - padded;
-                }
-                [x, y]
-            }
-        }
-    }
-}
 
 /// A tooltip to draw: what `setTooltipForNextFrame` defers.
 #[derive(Clone, Debug, PartialEq)]
