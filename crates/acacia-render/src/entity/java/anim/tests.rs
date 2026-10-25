@@ -107,5 +107,6 @@ fn families_by_layer() {
     assert_eq!(Family::of_layer("minecraft:zombie_baby#main"), Some(Family::Zombie));
     assert_eq!(Family::of_layer("minecraft:chicken_baby#main"), Some(Family::BabyChicken));
     assert_eq!(Family::of_layer("minecraft:sheep#wool"), None);
-    assert_eq!(Family::of_layer("minecraft:warden#main"), None);
+    assert_eq!(Family::of_layer("minecraft:fox_baby#main"), Some(Family::BabyFox));
+    assert_eq!(Family::of_layer("minecraft:copper_golem_star#main"), None);
 }

@@ -19,7 +19,7 @@ const SHAPED: &[&str] = &[
 const SKY_THROUGH: &[&str] = &["glass", "barrier", "light", "azalea", "dragon_egg", "stonecutter", "copper_grate"];
 const SKY_STOPPED: &[&str] = &["tinted_glass", "chorus_plant", "shulker_box", "powder_snow", "honey_block", "cobweb", "sculk_shrieker", "end_gateway"];
 /// Cubes the Bedrock look draws as occluders that Java does not render solid, and the reverse.
-const NOT_SOLID: &[&str] = &["shulker_box", "end_gateway", "barrier"];
+const NOT_SOLID: &[&str] = &["shulker_box", "end_gateway", "barrier", "powder_snow"];
 const SOLID: &[&str] = &["chiseled_bookshelf"];
 const FLUIDS: &[&str] = &["water", "lava", "bubble_column", "kelp", "kelp_plant", "seagrass", "tall_seagrass"];
 /// Light emission where Java's differs from Bedrock's by more than the state.
@@ -30,7 +30,7 @@ pub fn facts(java: &JavaState, bedrock: &BlockState, block: &RenderBlock, light_
     let name = java.name.as_str();
     let has = |names: &[&str]| names.iter().any(|n| name == *n || name.ends_with(&format!("_{n}")));
     let full_collision = shade::full_collision(java, bedrock.is_full_cube());
-    let solid_render = has(SOLID) || (block.occludes && block.shape == Shape::Cube && !has(NOT_SOLID));
+    let solid_render = has(SOLID) || (block.occludes && matches!(block.shape, Shape::Cube | Shape::Model(_)) && !has(NOT_SOLID));
     let fluid = java.property("waterlogged") == Some("true") || FLUIDS.contains(&name);
     // A face-less sculk vein or resin clump keeps the default rule though its shape is empty.
     let faceless = matches!(name, "sculk_vein" | "resin_clump") && ["down", "up", "north", "south", "west", "east"].iter().all(|f| java.property(f) == Some("false"));

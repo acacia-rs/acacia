@@ -8,6 +8,7 @@ use std::sync::Arc;
 use super::equipment::{self, Equipment};
 use super::kinds::{self, Look, When};
 use super::trims::{Trim, Trims};
+use super::villager::Professions;
 use super::{Family, Poses, anim, bedrock, mesh};
 use crate::entity::bake::Mesh;
 use crate::entity::molang::Value;
@@ -32,7 +33,16 @@ pub struct Library {
     overlays: HashMap<&'static str, Vec<(When, [Option<(ModelId, TextureId)>; 2])>>,
     /// [`kinds::VARIANTS`]' adult and baby textures.
     variants: HashMap<&'static str, Vec<(&'static str, i32, [TextureId; 2])>>,
+    professions: HashMap<&'static str, Professions>,
 }
+
+/// The kinds `VillagerProfessionLayer` dresses: their texture directory and `setupAnim`.
+const PROFESSION_KINDS: [(&str, &str, Family); 4] = [
+    ("minecraft:villager_v2", "villager", Family::Villager),
+    ("minecraft:villager", "villager", Family::Villager),
+    ("minecraft:zombie_villager_v2", "zombie_villager", Family::Zombie),
+    ("minecraft:zombie_villager", "zombie_villager", Family::Zombie),
+];
 
 /// `ColorLerper.Type.SHEEP`'s colour of the wool dyed `color` (white first): white is 0xE6E6E6,
 /// any other dye's diffuse colour at 3/4.
@@ -55,6 +65,7 @@ impl Library {
                 return Library::default();
             }
         };
+        super::keyframes::install(root);
         let mut out = Library::default();
         let mut baked: HashMap<&str, ModelId> = HashMap::new();
         let mut variant = |look: &Look, families: &mut HashMap<ModelId, Family>| -> Option<(ModelId, TextureId)> {
@@ -107,6 +118,16 @@ impl Library {
             let Some(adult) = path(adult) else { continue };
             out.variants.entry(identifier).or_default().push((query, value, [adult, path(baby).unwrap_or(adult)]));
         }
+        for (identifier, dir, family) in PROFESSION_KINDS {
+            let mut no_hat = [None; 2];
+            for (to, layer) in no_hat.iter_mut().zip([format!("minecraft:{dir}_no_hat#main"), format!("minecraft:{dir}_baby_no_hat#main")]) {
+                let Some(part) = layers.get(&layer) else { continue };
+                let id = model(mesh::bake(&Arc::new(part.clone())));
+                out.families.insert(id, family);
+                *to = Some(id);
+            }
+            out.professions.insert(identifier, Professions::load(root, dir, no_hat, &mut *texture));
+        }
         out.equipment = Equipment::load(root);
         out.trims = Trims::load(root);
         let paths = out.equipment.textures().chain(Trims::images(root));
@@ -125,6 +146,9 @@ impl Library {
         let texture = variant.map_or(texture, |(_, _, t)| t[usize::from(baby && *own_baby)]);
         let scale = if baby && *own_baby { 2.0 } else { 1.0 };
         let mut layers = vec![Layer::plain(model, texture)];
+        if let Some(professions) = self.professions.get(kind) {
+            layers.extend(professions.layers(model, baby && *own_baby, query));
+        }
         let color = query("color").num().max(0.0) as usize % DYES.len();
         for (when, pair) in self.overlays.get(kind).into_iter().flatten() {
             let Some((model, texture)) = pair[usize::from(baby && *own_baby)] else { continue };

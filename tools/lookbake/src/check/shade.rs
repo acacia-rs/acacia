@@ -20,9 +20,7 @@ struct Dump {
 
 /// `minecraft:oak_slab[type=double,waterlogged=false]`, properties sorted by name.
 pub(super) fn dump_key(java: &JavaState) -> String {
-    let mut pairs: Vec<String> = java.properties.iter().map(|(k, v)| format!("{k}={v}")).collect();
-    pairs.sort_unstable();
-    if pairs.is_empty() { format!("minecraft:{}", java.name) } else { format!("minecraft:{}[{}]", java.name, pairs.join(",")) }
+    java.key()
 }
 
 /// Every vanilla Bedrock state the mapping gives a Java state.

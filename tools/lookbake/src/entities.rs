@@ -1,6 +1,7 @@
 //! Java's entity models, which the game builds in code: the exporter `EntityModelExporter`
 //! (exporter.rs) writes every baked model layer, which goes into the look as
-//! `java/entity_models.json` beside the jar's entity textures (`java/textures/entity`), equipment
+//! `java/entity_models.json` (and `AnimationExporter`'s keyframe animations as
+//! `java/entity_animations.json`) beside the jar's entity textures (`java/textures/entity`), equipment
 //! assets (`java/equipment`) and armour trims (`java/trims`: materials and patterns; the
 //! unpaletted trim textures; trims.rs bakes the paletted ones). Without a JDK the look keeps
 //! Bedrock's entity geometry.
@@ -15,6 +16,8 @@ use crate::jar::Jar;
 use crate::ui::copy_tree;
 
 pub const MODELS: &str = "java/entity_models.json";
+/// Keyframe animations (`AnimationExporter`), read by acacia-render entity/java/keyframes.rs.
+pub const ANIMATIONS: &str = "java/entity_animations.json";
 const TEXTURES: &str = "textures/entity";
 
 /// Copies the models, textures, equipment and trims into `out`; the number of layers.
@@ -24,6 +27,7 @@ pub fn bake(exporter: &Exporter, jar: &Jar, out: &Path) -> Result<usize, Error> 
     let to = out.join(MODELS);
     std::fs::create_dir_all(to.parent().expect("a file in a directory"))?;
     std::fs::copy(&models, to)?;
+    std::fs::copy(exporter.output("AnimationExporter")?, out.join(ANIMATIONS))?;
     let java = out.join("java");
     copy_tree(&jar.assets.join(TEXTURES), &java.join(TEXTURES))?;
     // Read by acacia-render entity/java/equipment.rs and trims.rs.

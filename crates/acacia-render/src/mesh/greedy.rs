@@ -57,8 +57,7 @@ fn face_key(ctx: &Ctx, p: [i32; 3], face: u8, vertex_lit: bool) -> u64 {
     }
     let dir = DIRS[face as usize];
     let n = [p[0] + dir[0], p[1] + dir[1], p[2] + dir[2]];
-    let nid = ctx.v.block(n[0], n[1], n[2]);
-    if ctx.table.get(nid).occludes || (nid == id && base.cull_same) {
+    if !ctx.shows(p, face as usize) {
         return 0;
     }
     let b = ctx.drawn(p, base);

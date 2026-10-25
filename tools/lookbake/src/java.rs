@@ -15,13 +15,13 @@ use acacia_render::{Look, LookPack};
 use acacia_world::BlockRegistry;
 use serde_json::Value;
 
-use crate::block::{model_faces, overlaid, render_block, side_turns};
+use crate::block::{model_faces, overlaid, render_block};
 use crate::blockstate::{self, Drawn, ModelRef};
 use crate::mapping::{JavaState, Mapping};
 use crate::model::Models;
 use crate::model::bake::{BakedFace, bake};
 use crate::textures::Textures;
-use crate::{fluid, light, offset, shade, tint};
+use crate::{fluid, light, occlusion, offset, shade, tint};
 
 /// What became of the vanilla registry's states.
 #[derive(Default)]
@@ -38,12 +38,14 @@ pub struct Report {
 }
 
 /// `pack` is the Bedrock resource pack, `assets` the jar's `assets/minecraft`.
-pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping, tags: &fluid::Tags) -> (LookPack, Report) {
+/// `shapes` gives the look Java's face culling; without them it keeps the renderer's own.
+pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping, tags: &fluid::Tags, shapes: Option<&occlusion::Shapes>) -> (LookPack, Report) {
     let (mut look, _) = LookPack::bake_bedrock(pack, Look::JAVA);
     let registry = BlockRegistry::vanilla();
     let mut baker = Baker { models: Models::new(assets.to_owned()), textures: Textures::new(assets.to_owned()) };
     let mut blockstates: HashMap<String, Option<Value>> = HashMap::new();
     let mut report = Report::default();
+    let mut numbers = occlusion::BlockNumbers::default();
     for id in 0..registry.len() as u32 {
         let state = registry.get(id).expect("id below len");
         let key = state_key(state);
@@ -54,6 +56,7 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping, tags: &fluid::Ta
                     report.liquids += 1;
                     if let Some(java) = mapping.get(&key) {
                         block.light = light::facts(java, state, &block, |shapes| look.light_shape(shapes));
+                        block.cull = shapes.map(|s| occlusion::cull(s, java, &mut numbers, |faces| look.light_shape(faces)));
                     }
                     look.set_block(key, block);
                 }
@@ -89,6 +92,7 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping, tags: &fluid::Ta
             block.shades = shade::darkens(java, state.is_full_cube());
             block.fluid_rules = fluid::rules(block.fluid_rules, java, faces.as_deref(), tags);
             block.light = light::facts(java, state, &block, |shapes| look.light_shape(shapes));
+            block.cull = shapes.map(|s| occlusion::cull(s, java, &mut numbers, |faces| look.light_shape(faces)));
         }
         look.set_block(key, block);
     }
@@ -134,11 +138,6 @@ impl Baker {
         let tint = |index| tint::of(java, index);
         let offset = offset::of(&java.name);
         let mut whole = |baker: &mut Baker, faces: &[BakedFace], cube: bool| -> Result<RenderBlock, &'static str> {
-            if overlaid(faces) {
-                // Bedrock's cube draws the overlay; only how the faces lie is Java's.
-                let turns = side_turns(faces).filter(|_| base.shape == Shape::Cube).ok_or("overlaid faces")?;
-                return Ok(RenderBlock { turns, ..base.clone() });
-            }
             let model = model_faces(faces, &tint, ambient_occlusion, &mut baker.textures, atlas).ok_or("texture missing")?;
             Ok(RenderBlock { offset, ..render_block(base, faces, model, cube) })
         };

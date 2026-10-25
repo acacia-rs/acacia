@@ -1,6 +1,7 @@
 package acacia.parity.world_light;
 
 import acacia.parity.Data;
+import acacia.parity.FluidRendering;
 import acacia.parity.Models;
 import acacia.parity.Out;
 import com.google.gson.JsonObject;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockModelLighter;
+import net.minecraft.client.renderer.block.FluidRenderer;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
@@ -51,7 +53,8 @@ import net.minecraft.world.level.material.FluidState;
  * traces) mapped to Java states by lookbake's table (args[2]), lit by Java's LevelLightEngine and
  * drawn by ModelBlockRenderer's loop with the client's BlockModelLighter (smooth lighting on).
  * Writes quads.jsonl: per drawn quad of the scene's inner chunks, its world corners (1/256 block,
- * with the state's offset) and each vertex's light coords and grey; light.bin: per scene, the
+ * with the state's offset) and each vertex's light coords and grey, liquids' quads from
+ * `FluidRenderer` too ({@link FluidQuads}); light.bin: per scene, the
  * inner chunks' light (block << 4 | sky), chunk by chunk (x outer), then y, z, x; and
  * unmapped.json: the Bedrock states the table has no Java state for (drawn as air).
  */
@@ -75,21 +78,33 @@ public final class WorldLightOracle {
     }
 
     public static void main(String[] args) throws Exception {
-        var models = Models.get();
-        var factory = PalettedContainerFactory.create(Data.get().access);
-        var mapping = JsonParser.parseString(Files.readString(Path.of(args[2]))).getAsJsonObject();
+        var mapping = new JsonObject();
+        JsonParser.parseString(Files.readString(Path.of(args[2]))).getAsJsonObject().entrySet().forEach(e -> mapping.add(sorted(e.getKey()), e.getValue()));
         var unmapped = new java.util.TreeSet<String>();
         try (var out = new Out.Lines(Path.of(args[0], "quads.jsonl"));
              var light = new java.io.BufferedOutputStream(Files.newOutputStream(Path.of(args[0], "light.bin")));
              BufferedReader in = Files.newBufferedReader(Path.of(args[1]), StandardCharsets.UTF_8)) {
+            var tools = new Tools(Models.get(), PalettedContainerFactory.create(Data.get().access), FluidRendering.renderer(), new FluidQuads(out), mapping, unmapped, out, light);
             String line;
             int index = 0;
             while ((line = in.readLine()) != null) {
                 if (line.isBlank()) continue;
-                scene(JsonParser.parseString(line).getAsJsonObject(), index++, mapping, unmapped, factory, models, out, light);
+                scene(JsonParser.parseString(line).getAsJsonObject(), index++, tools);
             }
         }
         Files.writeString(Path.of(args[0], "unmapped.json"), new com.google.gson.Gson().toJson(unmapped));
+    }
+
+    private record Tools(Models models, PalettedContainerFactory factory, FluidRenderer fluids, FluidQuads fluidQuads, JsonObject mapping,
+                         java.util.Set<String> unmapped, Out.Lines out, java.io.OutputStream light) {}
+
+    /** The table lists `minecraft:` properties first; the scenes' states sort all by key (lookbake's `mapping::sorted`). */
+    private static String sorted(String state) {
+        int open = state.indexOf('[');
+        if (open < 0) return state;
+        var pairs = new ArrayList<>(List.of(state.substring(open + 1, state.length() - 1).split(",")));
+        pairs.sort(java.util.Comparator.comparing(p -> p.split("=", 2)[0]));
+        return state.substring(0, open) + "[" + String.join(",", pairs) + "]";
     }
 
     private static BlockState parse(String state) throws Exception {
@@ -119,7 +134,7 @@ public final class WorldLightOracle {
         return state;
     }
 
-    private static void scene(JsonObject row, int index, JsonObject mapping, java.util.Set<String> unmapped, PalettedContainerFactory factory, Models models, Out.Lines out, java.io.OutputStream light) throws Exception {
+    private static void scene(JsonObject row, int index, Tools tools) throws Exception {
         String dimension = row.get("dimension").getAsString();
         int minY = row.get("min_y").getAsInt(), height = row.get("height").getAsInt();
         var level = LevelHeightAccessor.create(minY, height);
@@ -129,7 +144,7 @@ public final class WorldLightOracle {
         for (var c : row.getAsJsonArray("chunks")) {
             var chunkRow = c.getAsJsonObject();
             var pos = new ChunkPos(chunkRow.get("x").getAsInt(), chunkRow.get("z").getAsInt());
-            var chunk = new ProtoChunk(pos, UpgradeData.EMPTY, level, factory, null);
+            var chunk = new ProtoChunk(pos, UpgradeData.EMPTY, level, tools.factory(), null);
             chunks.put(pos.pack(), chunk);
             for (var s : chunkRow.getAsJsonArray("sections")) {
                 var section = s.getAsJsonObject();
@@ -139,7 +154,7 @@ public final class WorldLightOracle {
                 for (int i = 0; i < 4096; i++) {
                     String b = palette.get(blocks.get(i).getAsInt()).getAsString();
                     String l = liquid == null ? null : palette.get(liquid.get(i).getAsInt()).getAsString();
-                    var state = java(b, l, mapping, unmapped, cache);
+                    var state = java(b, l, tools.mapping(), tools.unmapped(), cache);
                     if (!state.isAir()) chunk.setBlockState(new BlockPos(pos.getMinBlockX() + (i >> 8), y0 + (i & 15), pos.getMinBlockZ() + (i >> 4 & 15)), state, 0);
                 }
             }
@@ -171,7 +186,7 @@ public final class WorldLightOracle {
                     for (int z = cz * 16; z < cz * 16 + 16; z++) {
                         for (int x = cx * 16; x < cx * 16 + 16; x++) {
                             var pos = new BlockPos(x, y, z);
-                            light.write(scene.getBrightness(LightLayer.BLOCK, pos) << 4 | (nether ? 0 : scene.getBrightness(LightLayer.SKY, pos)));
+                            tools.light().write(scene.getBrightness(LightLayer.BLOCK, pos) << 4 | (nether ? 0 : scene.getBrightness(LightLayer.SKY, pos)));
                         }
                     }
                 }
@@ -183,8 +198,13 @@ public final class WorldLightOracle {
                 var chunk = chunks.get(ChunkPos.pack(cx, cz));
                 for (var pos : BlockPos.betweenClosed(cx * 16, minY, cz * 16, cx * 16 + 15, minY + height - 1, cz * 16 + 15)) {
                     var state = chunk.getBlockState(pos);
+                    if (!state.getFluidState().isEmpty()) {
+                        tools.fluidQuads().scene = index;
+                        tools.fluidQuads().pos = pos.immutable();
+                        tools.fluids().tesselate(scene, pos.immutable(), layer -> tools.fluidQuads(), state, state.getFluidState());
+                    }
                     if (state.getRenderShape() != RenderShape.MODEL) continue;
-                    var model = models.blockStateModel(state);
+                    var model = tools.models().blockStateModel(state);
                     if (model == null) continue;
                     var parts = new ArrayList<BlockStateModelPart>();
                     model.collectParts(RandomSource.create(state.getSeed(pos)), parts);
@@ -200,7 +220,7 @@ public final class WorldLightOracle {
                                     int coords = side == null ? -1 : lighter.getLightCoords(state, scene, pos.relative(side));
                                     lighter.prepareQuadFlat(scene, state, pos, coords, quad, instance);
                                 }
-                                out.write(quad(index, pos, offset, quad, instance));
+                                tools.out().write(quad(index, pos, offset, quad, instance));
                             }
                         }
                     }

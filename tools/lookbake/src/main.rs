@@ -34,6 +34,7 @@ mod java;
 mod light;
 mod mapping;
 mod model;
+mod occlusion;
 mod offset;
 mod particles;
 mod report;
@@ -67,7 +68,7 @@ fn main() -> Result<(), Error> {
         Some("java") => {
             let (pack, java, out) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, report) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
+            let (look, report) = bake_java(&pack, &java, &jar, &mapping)?;
             look.save(&out)?;
             biomes::write(&biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &out)?;
             ui::copy(&jar.assets, &out)?;
@@ -116,7 +117,7 @@ fn main() -> Result<(), Error> {
             let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
             let (pack, java) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
+            let (look, _) = bake_java(&pack, &java, &jar, &mapping)?;
             let outcome = check::light::print(&look, &mapping, &truth)?;
             outcome.print_for_parity();
         }
@@ -124,12 +125,20 @@ fn main() -> Result<(), Error> {
             let (scenes, quads) = (dir(PathBuf::new), dir(PathBuf::new));
             let (pack, java) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
+            let (look, _) = bake_java(&pack, &java, &jar, &mapping)?;
             check::world_light::print(&look, &scenes, &quads)?.print_for_parity();
         }
         _ => return Err(USAGE.into()),
     }
     Ok(())
+}
+
+fn bake_java(pack: &Pack, java: &std::path::Path, jar: &jar::Jar, mapping: &mapping::Mapping) -> Result<(LookPack, java::Report), Error> {
+    let shapes = occlusion::Shapes::export(java)?;
+    if shapes.is_none() {
+        println!("  Java face culling: no JDK 25 (JAVA_HOME or PATH), the renderer's own kept");
+    }
+    Ok(java::bake_look(pack, &jar.assets, mapping, &fluid::Tags::load(&jar.block_tags)?, shapes.as_ref()))
 }
 
 /// The exporters' entity and item models into the look; false (and the Bedrock ones kept) without a JDK 25.
