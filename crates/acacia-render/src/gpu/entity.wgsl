@@ -67,7 +67,13 @@ fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
     let bone = in.bone;
     let m = bones[instance.bones.x + bone];
     let rel = (m * vec4(in.position, 1.0)).xyz;
-    let n = normalize((m * vec4(in.normal, 0.0)).xyz);
+    // PoseStack's normal matrix: the inverse transpose (it differs from `m` on a part scaled
+    // unevenly), as the cofactor matrix signed by the determinant.
+    let c0 = m[0].xyz;
+    let c1 = m[1].xyz;
+    let c2 = m[2].xyz;
+    let flip = select(1.0, -1.0, dot(c0, cross(c1, c2)) < 0.0);
+    let n = normalize(mat3x3(cross(c1, c2), cross(c2, c0), cross(c0, c1)) * in.normal * flip);
     var out: VsOut;
     out.clip = g.view_proj * vec4(rel, 1.0);
     if ((instance.hidden[bone / 32u] >> (bone % 32u)) & 1u) == 1u {

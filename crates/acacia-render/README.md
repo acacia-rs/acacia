@@ -253,6 +253,12 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
   rotations in radians applied Z·Y·X, scale) and quads with their normals. `Poses` holds the
   per-frame copy `setupAnim` writes, plus `visible` and `skipDraw` (hides the part's own quads, not
   its children's).
+- **Keyframes** (`keyframes.rs`): `KeyframeAnimation` on the definitions lookbake's
+  `AnimationExporter` writes from the user's jar (`java/entity_animations.json`, never committed).
+  An `AnimationState` field holds the tick it started at; the Bedrock bridge starts only the
+  looping ones (a bat's flight or rest, a breeze's idle).
+- **Normals**: the shader takes the bone matrix's inverse transpose (as cofactors signed by the
+  determinant), which is PoseStack's normal matrix once a part is scaled unevenly.
 - **Drawing** (`draw.rs`, `mesh.rs`): `ModelPart.render`'s walk. A hidden part, or one with neither
   quads nor children, is skipped with its subtree. One bone per part; `skin` gives each bone
   `S(1,-1,1) · T(0,-1.501,0)` times the walk's matrix, which with the pass's `S(1,1,-1)` placement

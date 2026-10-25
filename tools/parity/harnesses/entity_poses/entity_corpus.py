@@ -20,6 +20,7 @@ HUMANOIDS = {
     "drowned": M + "monster.zombie.DrownedModel", "drowned_baby": M + "monster.zombie.BabyDrownedModel",
     "skeleton": M + "monster.skeleton.SkeletonModel", "stray": M + "monster.skeleton.SkeletonModel",
     "wither_skeleton": M + "monster.skeleton.SkeletonModel", "bogged": M + "monster.skeleton.BoggedModel",
+    "zombie_villager": M + "monster.zombie.ZombieVillagerModel", "zombie_villager_baby": M + "monster.zombie.BabyZombieVillagerModel",
 }
 
 WALKS = [(0.0, 0.0), (1.3, 0.4), (7.9, 1.0), (23.5, 0.75)]
@@ -108,6 +109,136 @@ PIGLIN_EXTRAS = HUMANOID_EXTRAS[:6] + [
     {"?armPose": "ADMIRING_ITEM", "mainArm": "LEFT"},
     {"?carriedBlock": True, "?isCreepy": True},
 ]
+B = M + "animal."
+ANIMALS = {
+    "polar_bear": B + "polarbear.PolarBearModel", "polar_bear_baby": B + "polarbear.BabyPolarBearModel",
+    "panda": B + "panda.PandaModel", "panda_baby": B + "panda.BabyPandaModel",
+    "goat": B + "goat.GoatModel", "goat_baby": B + "goat.BabyGoatModel",
+    "turtle": B + "turtle.AdultTurtleModel", "turtle_baby": B + "turtle.BabyTurtleModel",
+    "hoglin": M + "monster.hoglin.HoglinModel", "hoglin_baby": M + "monster.hoglin.BabyHoglinModel",
+    "zoglin": M + "monster.hoglin.HoglinModel", "zoglin_baby": M + "monster.hoglin.BabyHoglinModel",
+    "wolf": B + "wolf.AdultWolfModel", "wolf_baby": B + "wolf.BabyWolfModel",
+    "llama": B + "llama.LlamaModel", "llama_baby": B + "llama.BabyLlamaModel", "trader_llama": B + "llama.LlamaModel",
+    "squid": B + "squid.SquidModel", "glow_squid_baby": B + "squid.SquidModel",
+    "dolphin": B + "dolphin.DolphinModel", "dolphin_baby": B + "dolphin.DolphinModel",
+}
+ANIMAL_EXTRAS = [
+    {},
+    {"standScale": 0.7, "rammingXHeadRot": 0.6, "isOnLand": True, "isAngry": True, "isSitting": True, "isMoving": True,
+     "hasChest": True, "tentacleAngle": 0.9, "attackAnimationRemainingTicks": 3, "isUnhappy": True},
+    {"standScale": 1.0, "hasLeftHorn": False, "isOnLand": True, "isLayingEgg": True, "hasEgg": True, "isSitting": True,
+     "shakeAnim": 0.9, "headRollAngle": 0.3, "tailAngle": 1.1, "attackAnimationRemainingTicks": 8,
+     "sitAmount": 0.6, "isEating": True, "isSneezing": True, "sneezeTime": 9},
+    {"shakeAnim": 1.3, "sitAmount": 1.0, "isScared": True, "lieOnBackAmount": 0.4, "rollAmount": 0.3, "isSneezing": True, "sneezeTime": 17},
+]
+FELINES = {
+    "cat": B + "feline.AdultCatModel", "cat_baby": B + "feline.BabyCatModel",
+    "ocelot": B + "feline.AdultOcelotModel", "ocelot_baby": B + "feline.BabyOcelotModel",
+}
+FELINE_EXTRAS = [
+    {}, {"isCrouching": True}, {"isSprinting": True}, {"isSitting": True}, {"isCrouching": True, "isSitting": True},
+    {"lieDownAmount": 0.7, "lieDownAmountTail": 0.4, "relaxStateOneAmount": 0.5},
+    {"isSprinting": True, "lieDownAmount": 1.0, "lieDownAmountTail": 1.0},
+]
+F = B + "fish."
+SWIMMERS = {
+    "cod": F + "CodModel", "salmon": F + "SalmonModel", "salmon_large": F + "SalmonModel",
+    "tropical_fish_large": F + "TropicalFishLargeModel", "tropical_fish_small": F + "TropicalFishSmallModel",
+    "pufferfish_big": F + "PufferfishBigModel", "pufferfish_medium": F + "PufferfishMidModel", "pufferfish_small": F + "PufferfishSmallModel",
+    "guardian": M + "monster.guardian.GuardianModel", "elder_guardian": M + "monster.guardian.GuardianModel",
+    "phantom": M + "monster.phantom.PhantomModel", "allay": B + "allay.AllayModel",
+}
+SWIMMER_EXTRAS = [
+    {},
+    {"isInWater": True, "spikesAnimation": 0.4, "tailAnimation": 2.3, "flapTime": 13.5, "holdingAnimationProgress": 0.6},
+    {"spikesAnimation": 1.0, "tailAnimation": -0.7, "flapTime": 41.0, "isDancing": True, "spinningProgress": 0.3, "isSpinning": True},
+    {"isDancing": True, "spinningProgress": 0.6, "holdingAnimationProgress": 1.0},
+]
+E = B + "equine."
+EQUINES = {
+    "horse": E + "HorseModel", "horse_baby": E + "BabyHorseModel", "zombie_horse": E + "HorseModel",
+    "skeleton_horse_baby": E + "BabyHorseModel", "donkey": E + "DonkeyModel", "donkey_baby": E + "BabyDonkeyModel",
+    "mule": E + "DonkeyModel", "mule_baby": E + "BabyDonkeyModel",
+}
+EQUINE_EXTRAS = [
+    {},
+    {"eatAnimation": 0.6, "feedingAnimation": 0.5, "animateTail": True, "hasChest": True},
+    {"standAnimation": 0.8, "eatAnimation": 0.2, "isInWater": True},
+    {"standAnimation": 1.0, "animateTail": True, "feedingAnimation": 1.0},
+]
+CRITTERS = {
+    "bee": B + "bee.AdultBeeModel", "bee_baby": B + "bee.BabyBeeModel", "parrot": B + "parrot.ParrotModel",
+    "fox": B + "fox.AdultFoxModel", "fox_baby": B + "fox.BabyFoxModel",
+}
+CRITTER_EXTRAS = [
+    {},
+    {"isOnGround": True, "hasStinger": False, "pose": "STANDING", "flapAngle": 0.4, "isCrouching": True, "crouchAmount": 2.5},
+    {"isAngry": True, "rollAmount": 0.5, "pose": "SITTING", "isSleeping": True, "headRollAngle": 0.2},
+    {"rollAmount": 1.0, "pose": "PARTY", "flapAngle": 0.9, "isSitting": True, "isPouncing": True, "crouchAmount": 3.0},
+    {"pose": "ON_SHOULDER", "flapAngle": 0.2, "isPouncing": True, "crouchAmount": 1.0, "headRollAngle": -0.3},
+]
+NETHER = {
+    "strider": M + "monster.strider.AdultStriderModel", "strider_baby": M + "monster.strider.BabyStriderModel",
+    "ravager": M + "monster.ravager.RavagerModel", "shulker": M + "monster.shulker.ShulkerModel",
+    "wither": M + "monster.wither.WitherBossModel",
+}
+NETHER_EXTRAS = [
+    {},
+    {"isRidden": True, "attackTicksRemaining": 7.5, "peekAmount": 0.6, "yHeadRot": 30.0, "yBodyRot": -15.0, "bodyRot": 20.0},
+    {"attackTicksRemaining": 3.0, "peekAmount": 1.0, "yHeadRot": -70.0},
+    {"stunnedTicksRemaining": 13.0, "peekAmount": 0.2},
+    {"roarAnimation": 4.5},
+]
+STILLS = {
+    "axolotl": B + "axolotl.AdultAxolotlModel", "tadpole": B + "frog.TadpoleModel",
+    "armor_stand": M + "object.armorstand.ArmorStandModel", "armor_stand_small": M + "object.armorstand.ArmorStandModel",
+}
+STILL_EXTRAS = [
+    {},
+    {"movingFactor": 1.0, "inWaterFactor": 1.0, "showArms": True},
+    {"movingFactor": 0.4, "inWaterFactor": 0.3, "onGroundFactor": 0.7, "showBasePlate": False},
+    {"movingFactor": 0.0, "inWaterFactor": 0.0, "onGroundFactor": 1.0, "playingDeadFactor": 0.6, "showArms": True},
+    {"movingFactor": 1.0, "inWaterFactor": 0.0, "onGroundFactor": 1.0},
+]
+# Keyframed models; an AnimationState field's value is the tick it started at.
+KEYFRAMED = {
+    "bat": M + "ambient.BatModel", "rabbit": B + "rabbit.AdultRabbitModel", "rabbit_baby": B + "rabbit.BabyRabbitModel",
+    "frog": B + "frog.FrogModel", "axolotl_baby": B + "axolotl.BabyAxolotlModel",
+    "armadillo": B + "armadillo.AdultArmadilloModel", "armadillo_baby": B + "armadillo.BabyArmadilloModel",
+    "camel": B + "camel.AdultCamelModel", "camel_baby": B + "camel.BabyCamelModel",
+    "sniffer": B + "sniffer.SnifferModel", "sniffer_baby": B + "sniffer.SnifferModel",
+    "breeze": M + "monster.breeze.BreezeModel", "creaking": M + "monster.creaking.CreakingModel",
+    "warden": M + "monster.warden.WardenModel", "copper_golem": B + "golem.CopperGolemModel",
+    "nautilus": B + "nautilus.NautilusModel", "nautilus_baby": B + "nautilus.NautilusModel",
+    "zombie_nautilus": B + "nautilus.NautilusModel",
+}
+KEYFRAMED_EXTRAS = [
+    {},
+    {"isResting": True, "restAnimationState": 0, "hopAnimationState": 0, "jumpAnimationState": 0, "walkAnimationState": 0,
+     "rollUpAnimationState": 0, "isHidingInShell": True, "sitAnimationState": 0, "jumpCooldown": 20.0, "diggingAnimationState": 0,
+     "idle": 0, "attackAnimationState": 0, "tendrilAnimation": 0.7, "idleAnimationState": 0},
+    {"flyAnimationState": 20, "idleHeadTiltAnimationState": 20, "croakAnimationState": 20, "tongueAnimationState": 30,
+     "isSwimming": True, "swimAnimation": 20, "idleOnGroundAnimationState": 30, "peekAnimationState": 20, "rollOutAnimationState": 33,
+     "sitPoseAnimationState": 20, "dashAnimationState": 30, "isSearching": True, "sniffingAnimationState": 20, "shoot": 20,
+     "slide": 30, "canMove": True, "invulnerabilityAnimationState": 20, "roarAnimationState": 20, "sonicBoomAnimationState": 30,
+     "interactionGetItem": 20, "rightHandItemState": True},
+    {"swimIdleAnimationState": 10, "idleUnderWaterAnimationState": 10, "playDeadAnimationState": 30, "sitUpAnimationState": 10,
+     "risingAnimationState": 10, "feelingHappyAnimationState": 30, "scentingAnimationState": 31, "slideBack": 10, "inhale": 25,
+     "longJump": 31, "deathAnimationState": 10, "canMove": True, "emergeAnimationState": 10, "sniffAnimationState": 30,
+     "interactionDropItem": 10, "interactionDropNoItem": 31, "interactionGetNoItem": 33, "leftHandItemState": True,
+     "idleUnderWaterOnGroundAnimationState": 25, "jumpCooldown": 50.0, "tendrilAnimation": 0.2},
+]
+# The dragon's flight history: (y, yRot) pairs recorded oldest first; the second wraps the ring.
+HISTORY_A = [v for i in range(40) for v in (60.0 + (i % 7) * 0.75, -170.0 + i * 12.5)]
+HISTORY_B = [v for i in range(70) for v in (80.0 - i * 0.25, 150.0 - i * 7.25)]
+DRAGONS = {"ender_dragon": M + "monster.dragon.EnderDragonModel", "happy_ghast": B + "ghast.HappyGhastModel",
+           "happy_ghast_baby": B + "ghast.HappyGhastModel"}
+DRAGON_EXTRAS = [
+    {},
+    {"flapTime": 0.3, "partialTicks": 0.25, "flightHistory": HISTORY_A},
+    {"flapTime": 0.85, "partialTicks": 0.75, "flightHistory": HISTORY_B, "isSitting": True, "bodyItem": "minecraft:white_harness"},
+    {"flapTime": 1.6, "partialTicks": 0.5, "flightHistory": HISTORY_A, "isLandingOrTakingOff": True, "distanceToEgg": 10.0},
+]
 ILLAGERS = {name: M + "monster.illager.IllagerModel" for name in ["vindicator", "evoker", "pillager", "illusioner"]}
 ILLAGER_EXTRAS = [
     {"?armPose": "CROSSED"},
@@ -123,7 +254,7 @@ ILLAGER_EXTRAS = [
     {"?armPose": "CELEBRATING"},
 ]
 
-EVERY = [(QUADRUPEDS, QUADRUPED_EXTRAS), (HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS), (CAPES, CAPE_EXTRAS), (WINGS, WING_EXTRAS), (OTHERS, OTHER_EXTRAS), (PIGLINS, PIGLIN_EXTRAS), (ILLAGERS, ILLAGER_EXTRAS)]
+EVERY = [(QUADRUPEDS, QUADRUPED_EXTRAS), (HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS), (CAPES, CAPE_EXTRAS), (WINGS, WING_EXTRAS), (OTHERS, OTHER_EXTRAS), (PIGLINS, PIGLIN_EXTRAS), (ILLAGERS, ILLAGER_EXTRAS), (ANIMALS, ANIMAL_EXTRAS), (FELINES, FELINE_EXTRAS), (SWIMMERS, SWIMMER_EXTRAS), (EQUINES, EQUINE_EXTRAS), (CRITTERS, CRITTER_EXTRAS), (NETHER, NETHER_EXTRAS), (STILLS, STILL_EXTRAS), (KEYFRAMED, KEYFRAMED_EXTRAS), (DRAGONS, DRAGON_EXTRAS)]
 ARMED = [(HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS)]
 
 

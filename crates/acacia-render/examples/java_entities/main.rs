@@ -12,7 +12,7 @@ mod poses;
 
 use std::collections::BTreeMap;
 
-use acacia_render::entity::java::{Part, model::parse_layers};
+use acacia_render::entity::java::{Part, keyframes, model::parse_layers};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -20,6 +20,7 @@ fn main() {
         eprintln!("usage: java_entities models|poses|layers <entity_models.json> <records.jsonl>");
         std::process::exit(2);
     };
+    keyframes::install(&std::path::Path::new(models).with_file_name("entity_animations.json"));
     let layers: BTreeMap<String, Part> = parse_layers(&std::fs::read_to_string(models).expect("entity models")).expect("entity models json");
     let records = std::fs::read_to_string(records).expect("oracle records");
     let records = records.lines().filter(|l| !l.trim().is_empty()).map(|l| serde_json::from_str(l).expect("oracle record"));

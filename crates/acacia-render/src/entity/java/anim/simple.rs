@@ -57,6 +57,15 @@ pub(super) fn ghast(p: &mut Poses, s: &RenderState) {
     }
 }
 
+/// `HappyGhastModel`: a harnessed body squeezes in.
+pub(super) fn happy_ghast(p: &mut Poses, s: &RenderState) {
+    if s.text("bodyItem").is_some_and(|item| !item.is_empty() && item != "minecraft:air") {
+        let body = p.get("body");
+        (body.x_scale, body.y_scale, body.z_scale) = (0.9375, 0.9375, 0.9375);
+    }
+    ghast(p, s);
+}
+
 /// `MagmaCubeModel`: the cube's slices spread apart as it squishes.
 pub(super) fn magma_cube(p: &mut Poses, s: &RenderState) {
     let squish = s.num("squish").max(0.0);
@@ -66,7 +75,7 @@ pub(super) fn magma_cube(p: &mut Poses, s: &RenderState) {
 }
 
 /// `Mth.triangleWave`.
-fn triangle_wave(index: f32, period: f32) -> f32 {
+pub(super) fn triangle_wave(index: f32, period: f32) -> f32 {
     ((index % period - period * 0.5).abs() - period * 0.25) / (period * 0.25)
 }
 
