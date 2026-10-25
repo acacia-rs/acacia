@@ -80,6 +80,14 @@ pub fn water_vision(ticks: i32) -> f32 {
     (t / 100.0).clamp(0.0, 1.0) * 0.6 + late * 0.399_999_98
 }
 
+/// `GameRenderer.nightVisionScale`: full, flickering over its last 200 ticks. `ticks` -1 is infinite.
+pub fn night_vision_scale(ticks: i32, partial: f32) -> f32 {
+    if ticks == -1 || ticks > 200 {
+        return 1.0;
+    }
+    0.7 + crate::java_mth::sin(f64::from((ticks as f32 - partial) * std::f32::consts::PI * 0.2)) * 0.3
+}
+
 /// What the fog carries from frame to frame, and what the caller tells it of the player.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Atmosphere {

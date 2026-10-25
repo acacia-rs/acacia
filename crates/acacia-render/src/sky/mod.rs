@@ -7,6 +7,7 @@ pub mod blend;
 pub mod environment;
 pub mod fog;
 pub mod geometry;
+mod joml;
 mod legacy;
 pub mod timeline;
 
@@ -101,6 +102,12 @@ impl Sky {
         self.attributes.rgb(Attr::SkyColor)
     }
 
+    /// What the cloud pass draws with: `visual/cloud_color` (sRGB, alpha its opacity, weather
+    /// applied) and `visual/cloud_height`. Its fade distance is the frame fog's `cloud_end`.
+    pub fn clouds(&self) -> CloudLook {
+        CloudLook { color: self.attributes.get(Attr::CloudColor), height: self.attributes.number(Attr::CloudHeight) }
+    }
+
     /// The fog colour seen looking along `forward`, pulled to the sunrise when facing it: the
     /// Bedrock look's simpler stand-in for [`fog::setup_fog`].
     pub fn color_towards(&self, forward: glam::Vec3) -> [f32; 3] {
@@ -111,6 +118,13 @@ impl Sky {
         let glow = [r, g, b];
         std::array::from_fn(|i| fog[i] * (1.0 - facing) + glow[i] * facing)
     }
+}
+
+/// [`Sky::clouds`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CloudLook {
+    pub color: [f32; 4],
+    pub height: f32,
 }
 
 /// White clouds greyed by the weather (`ClientLevel.getCloudColor`), linear; for a look without

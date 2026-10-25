@@ -9,6 +9,8 @@
 //! - `lookbake java-check <quads.json.gz> [java dir]`: our bake of every Java block state against a
 //!   dump of the game's own (check.rs); tools/parity's harness `bake` makes the dump. Exits nonzero
 //!   on any divergence.
+//! - `lookbake java-environment [java dir] [out dir]`: only the Java look's `environment.json`
+//!   (environment.rs); tools/parity's harnesses `sky` and `fog` read it.
 
 mod banners;
 mod biomes;
@@ -37,7 +39,7 @@ use acacia_render::{Look, LookPack};
 
 use download::Error;
 
-const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-report [java dir] | java-check <quads.json.gz> [java dir]";
+const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-report [java dir] | java-check <quads.json.gz> [java dir] | java-environment [java dir] [out dir]";
 
 fn main() -> Result<(), Error> {
     let mut args = std::env::args().skip(1);
@@ -83,6 +85,12 @@ fn main() -> Result<(), Error> {
             if !outcome.divergences.is_empty() {
                 return Err(format!("{} divergences from the game", outcome.divergences.len()).into());
             }
+        }
+        Some("java-environment") => {
+            let (java, out) = (dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
+            let jar = jar::fetch(&java)?;
+            std::fs::create_dir_all(&out)?;
+            environment::write(&jar.data, &out)?;
         }
         _ => return Err(USAGE.into()),
     }

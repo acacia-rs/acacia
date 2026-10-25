@@ -23,7 +23,7 @@ pub enum Skybox {
 pub struct DimensionEnv {
     values: Vec<(Attr, Value4)>,
     timelines: Vec<Timeline>,
-    /// Sky light and no ceiling: rain and thunder change the attributes.
+    /// Sky light, no ceiling, not the End: rain and thunder change the attributes.
     pub weather: bool,
     pub skybox: Skybox,
 }
@@ -49,17 +49,18 @@ impl Environment {
     pub fn parse(doc: &Value) -> Environment {
         let timelines: FxHashMap<&str, Timeline> =
             doc["timelines"].as_object().into_iter().flatten().map(|(name, t)| (strip(name), Timeline::parse(t))).collect();
-        let dimension = |d: &Value| DimensionEnv {
+        let dimension = |name: &str, d: &Value| DimensionEnv {
             values: d["attributes"].as_object().into_iter().flatten().filter_map(|(k, v)| Some((Attr::by_name(k)?, parse_value(v)?))).collect(),
             timelines: d["timelines"].as_array().into_iter().flatten().filter_map(|t| timelines.get(strip(t.as_str()?)).cloned()).collect(),
-            weather: d["has_skylight"].as_bool().unwrap_or(false) && !d["has_ceiling"].as_bool().unwrap_or(false),
+            // `Level.canHaveWeather`: the End's level never rains, whatever its type says.
+            weather: d["has_skylight"].as_bool().unwrap_or(false) && !d["has_ceiling"].as_bool().unwrap_or(false) && name != "the_end",
             skybox: match d["skybox"].as_str().unwrap_or("overworld") {
                 "none" => Skybox::None,
                 "end" => Skybox::End,
                 _ => Skybox::Overworld,
             },
         };
-        let dimensions = doc["dimensions"].as_object().into_iter().flatten().map(|(name, d)| (strip(name).to_owned(), dimension(d))).collect();
+        let dimensions = doc["dimensions"].as_object().into_iter().flatten().map(|(name, d)| (strip(name).to_owned(), dimension(strip(name), d))).collect();
         let layer = |(k, v): (&String, &Value)| -> Option<(Attr, Modifier, Value4)> {
             let attr = Attr::by_name(k)?;
             match parse_value(v) {

@@ -1,10 +1,9 @@
 //! `SkyRenderer`'s geometry, camera-relative in blocks (x east, y up, z south): the sky and dark
 //! discs, the sunrise fan, the sun, moon and stars on their turning frames, and the End's box.
 
-use std::f32::consts::FRAC_PI_2;
-
 use glam::{Mat4, Vec3};
 
+use super::joml;
 use crate::java_mth as mth;
 use crate::java_random::JavaRandom;
 
@@ -40,24 +39,29 @@ pub fn dark_disc_shown(camera_y: f64, horizon: f64, underwater: bool) -> bool {
     camera_y < horizon && !underwater
 }
 
-/// The frame a body turns on: `rotateY(-90°)` then `rotateX(angle)`.
+/// The frame the stars turn on, and the sun and moon before [`body_frame`]: `rotateY(-90°)` then
+/// `rotateX(angle)`.
 pub fn celestial_frame(angle_degrees: f32) -> Mat4 {
-    Mat4::from_rotation_y((-90.0f32).to_radians()) * Mat4::from_rotation_x(angle_degrees.to_radians())
+    joml::rotation_y(radians(-90.0)) * joml::rotation_x(radians(angle_degrees))
 }
 
-/// The sun's quad 100 blocks out on its frame, `size` its half-width, its texture whole.
-pub fn body(frame: Mat4, size: f32) -> Quad {
-    body_with_uvs(frame, size, [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
+/// `applyCelestialBodyTransform`: a body's unit quad 100 blocks out, `size` its half-width.
+pub fn body_frame(angle_degrees: f32, size: f32) -> Mat4 {
+    celestial_frame(angle_degrees) * Mat4::from_translation(Vec3::new(0.0, 100.0, 0.0)) * Mat4::from_scale(Vec3::new(size, 1.0, size))
 }
 
-/// `buildMoonPhases`: the moon's quad takes its sprite turned half round.
-pub fn moon(frame: Mat4) -> Quad {
-    body_with_uvs(frame, MOON_SIZE, [[1.0, 1.0], [0.0, 1.0], [0.0, 0.0], [1.0, 0.0]])
+/// `buildCelestialQuad`: the sun's unit quad, its sprite whole.
+pub fn celestial_quad() -> Quad {
+    unit_quad([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
 }
 
-fn body_with_uvs(frame: Mat4, size: f32, uvs: [[f32; 2]; 4]) -> Quad {
-    let corner = |x: f32, z: f32, uv: [f32; 2]| (frame.transform_point3(Vec3::new(x, 100.0, z)).to_array(), uv);
-    [corner(-size, -size, uvs[0]), corner(size, -size, uvs[1]), corner(size, size, uvs[2]), corner(-size, size, uvs[3])]
+/// `buildMoonPhases`: each phase's unit quad takes its sprite turned half round.
+pub fn moon_quad() -> Quad {
+    unit_quad([[1.0, 1.0], [0.0, 1.0], [0.0, 0.0], [1.0, 0.0]])
+}
+
+fn unit_quad(uvs: [[f32; 2]; 4]) -> Quad {
+    [([-1.0, 0.0, -1.0], uvs[0]), ([1.0, 0.0, -1.0], uvs[1]), ([1.0, 0.0, 1.0], uvs[2]), ([-1.0, 0.0, 1.0], uvs[3])]
 }
 
 /// `SkyRenderer.buildStars`: up to 1500 quads from seed 10842, 100 blocks out, each turned to face
@@ -102,7 +106,7 @@ pub fn sunrise_fan_model() -> [[f32; 3]; 18] {
 /// plus 90°), scaled by the colour's alpha along z.
 pub fn sunrise_frame(sun_angle_degrees: f32, alpha: f32) -> Mat4 {
     let flip = if mth::sin(f64::from(radians(sun_angle_degrees))) < 0.0 { 180.0f32 } else { 0.0 };
-    Mat4::from_rotation_x(FRAC_PI_2) * Mat4::from_rotation_z((flip + 90.0).to_radians()) * Mat4::from_scale(Vec3::new(1.0, 1.0, alpha))
+    joml::rotation_x(radians(90.0)) * joml::rotation_z(radians(flip + 90.0)) * Mat4::from_scale(Vec3::new(1.0, 1.0, alpha))
 }
 
 /// The fan as drawn: [`sunrise_fan_model`] through [`sunrise_frame`].
@@ -163,7 +167,7 @@ mod tests {
 
     #[test]
     fn the_sun_is_overhead_at_noon_and_sets_in_the_west() {
-        let centre = |angle: f32| body(celestial_frame(angle), SUN_SIZE).iter().fold(Vec3::ZERO, |s, c| s + Vec3::from_array(c.0)) / 4.0;
+        let centre = |angle: f32| celestial_quad().iter().fold(Vec3::ZERO, |s, c| s + body_frame(angle, SUN_SIZE).transform_point3(Vec3::from_array(c.0))) / 4.0;
         assert!((centre(0.0) - Vec3::new(0.0, 100.0, 0.0)).length() < 1e-3);
         assert!((centre(90.0) - Vec3::new(-100.0, 0.0, 0.0)).length() < 1e-3, "{}", centre(90.0));
         // The fan sits under the setting sun, its centre on the west horizon.
@@ -184,7 +188,7 @@ mod tests {
         assert!((sky_disc(-16.0)[1][0] - 512.0).abs() < 1e-3, "mirrored below");
         assert!(dark_disc_shown(62.9, 63.0, false) && !dark_disc_shown(63.0, 63.0, false) && !dark_disc_shown(10.0, 63.0, true));
         assert_eq!((sky_disc_fog([0.0, 16.0, 0.0], 192.0), sky_disc_fog([192.0, 16.0, 0.0], 192.0)), (16.0 / 192.0, 1.0));
-        let (sun, moon) = (body(celestial_frame(0.0), MOON_SIZE), moon(celestial_frame(0.0)));
+        let (sun, moon) = (celestial_quad(), moon_quad());
         assert!(sun.iter().zip(moon).all(|(s, m)| s.0 == m.0 && s.1 == [1.0 - m.1[0], 1.0 - m.1[1]]));
         for face in end_sky() {
             for (p, _) in face {

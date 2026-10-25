@@ -2,12 +2,11 @@
 //! box, drawn before anything else (`sky.wgsl`). Every vertex and frame comes from
 //! [`crate::sky::geometry`]; the shader only places and colours them.
 
-use glam::Mat4;
 use wgpu::util::DeviceExt;
 
 use super::entity_textures;
 use super::pipeline::DEPTH_FORMAT;
-use crate::sky::geometry::{self, DARK_DISC_Y, SKY_DISC_Y, SUN_SIZE};
+use crate::sky::geometry::{self, DARK_DISC_Y, MOON_SIZE, SKY_DISC_Y, SUN_SIZE};
 use crate::sky::{Attr, Realm, Sky, SkyTextures};
 
 const KIND_SUN: u32 = 0;
@@ -72,8 +71,8 @@ fn vertices() -> (Vec<Vertex>, [std::ops::Range<u32>; 4]) {
     fan(&mut out, KIND_DOME, &geometry::sky_disc(SKY_DISC_Y));
     fan(&mut out, KIND_GLOW, &geometry::sunrise_fan_model());
     ends[0] = out.len() as u32;
-    quad(&mut out, KIND_SUN, geometry::body(Mat4::IDENTITY, SUN_SIZE));
-    quad(&mut out, KIND_MOON, geometry::moon(Mat4::IDENTITY));
+    quad(&mut out, KIND_SUN, geometry::celestial_quad());
+    quad(&mut out, KIND_MOON, geometry::moon_quad());
     for star in geometry::stars() {
         quad(&mut out, KIND_STAR, star.map(|p| (p, [0.0; 2])));
     }
@@ -185,8 +184,8 @@ impl SkyPass {
         let sun = a.number(Attr::SunAngle);
         let [r, g, b, alpha] = a.get(Attr::SunriseSunsetColor);
         let frames = [
-            geometry::celestial_frame(sun),
-            geometry::celestial_frame(a.number(Attr::MoonAngle)),
+            geometry::body_frame(sun, SUN_SIZE),
+            geometry::body_frame(a.number(Attr::MoonAngle), MOON_SIZE),
             geometry::celestial_frame(a.number(Attr::StarAngle)),
             geometry::sunrise_frame(sun, alpha),
             geometry::dark_disc_frame(),

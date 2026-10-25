@@ -69,6 +69,15 @@ impl Attr {
         }
     }
 
+    /// How many of its [`Value4`] lanes it uses: 3 for an RGB colour, 4 for an ARGB one, else 1.
+    pub fn arity(self) -> usize {
+        match self {
+            Attr::SkyColor | Attr::FogColor | Attr::SkyLightColor | Attr::BlockLightTint | Attr::AmbientLightColor | Attr::WaterFogColor | Attr::NightVisionColor => 3,
+            Attr::CloudColor | Attr::SunriseSunsetColor => 4,
+            _ => 1,
+        }
+    }
+
     pub fn by_name(name: &str) -> Option<Attr> {
         Attr::ALL.iter().copied().find(|a| a.name() == name)
     }
