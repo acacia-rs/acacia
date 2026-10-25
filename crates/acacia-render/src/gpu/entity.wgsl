@@ -53,12 +53,22 @@ const GLINT_TURN: vec2<f32> = vec2(0.17364818, 0.98480775);
 const LIGHT_0: vec3<f32> = vec3(0.16169041, 0.80845207, -0.56591645);
 const LIGHT_1: vec3<f32> = vec3(-0.16169041, 0.80845207, 0.56591645);
 
+// Lighting's ENTITY_IN_UI pair (INVENTORY_DIFFUSE_LIGHT_0 and _1, normalized), in a picture's
+// space (window pixels, y down): what g.light.y selects.
+const UI_LIGHT_0: vec3<f32> = vec3(0.14002801, -0.70014004, 0.70014004);
+const UI_LIGHT_1: vec3<f32> = vec3(-0.19611614, -0.98058068, 0.0);
+
 // Java's minecraft_mix_light (entity.vsh); the Bedrock look keeps the terrain's directional shades.
 fn diffuse(n: vec3<f32>) -> f32 {
+    let in_ui = g.light.y != 0.0;
     if g.light.x == 0.0 {
-        return n.x * n.x * 0.6 + n.z * n.z * 0.8 + n.y * n.y * select(0.5, 1.0, n.y > 0.0);
+        // A picture's y points down.
+        let up = select(n.y, -n.y, in_ui);
+        return n.x * n.x * 0.6 + n.z * n.z * 0.8 + up * up * select(0.5, 1.0, up > 0.0);
     }
-    return min(1.0, (max(0.0, dot(LIGHT_0, n)) + max(0.0, dot(LIGHT_1, n))) * 0.6 + 0.4);
+    let l0 = select(LIGHT_0, UI_LIGHT_0, in_ui);
+    let l1 = select(LIGHT_1, UI_LIGHT_1, in_ui);
+    return min(1.0, (max(0.0, dot(l0, n)) + max(0.0, dot(l1, n))) * 0.6 + 0.4);
 }
 
 @vertex

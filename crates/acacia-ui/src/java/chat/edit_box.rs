@@ -8,25 +8,7 @@ use crate::java::gui::Metrics;
 use crate::java::split::{plain_head_by_width, plain_tail_by_width};
 use crate::java::text::{Style, Text};
 
-/// A key the text field or the screen around it handles.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Key {
-    Backspace,
-    Delete,
-    Home,
-    End,
-    Left,
-    Right,
-    Up,
-    Down,
-    PageUp,
-    PageDown,
-    Tab,
-    Escape,
-    Enter,
-    /// The `A` key (Ctrl+A selects all).
-    A,
-}
+pub use crate::java::widget::input::Key;
 
 /// `EditBox.DEFAULT_TEXT_COLOR`.
 pub const TEXT_COLOR: u32 = 0xFFE0_E0E0;

@@ -8,11 +8,24 @@ use crate::java::gui::{Gui, Metrics};
 use crate::java::text::Text;
 
 /// What a key did to the screen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ChatAction {
     None,
     /// Escape: the screen closes.
     Close,
+    /// Enter: the screen closes and `handleChatInput` sends this (`/` a command) and adds it to the
+    /// recent chat, unless it is empty.
+    Send(String),
+}
+
+/// `ChatScreen.normalizeChatMessage`: trimmed, runs of whitespace one space (Apache's
+/// `normalizeSpace`, which also turns no-break spaces into spaces), cut to 256 units.
+pub fn normalize(message: &str) -> String {
+    let java_space = |c: char| matches!(c, '\t'..='\r' | '\u{1c}'..='\u{1f}') || (c.is_whitespace() && !matches!(c, '\u{85}' | '\u{a0}' | '\u{2007}' | '\u{202f}'));
+    let words: Vec<String> = message.split(java_space).filter(|w| !w.is_empty()).map(|w| w.replace('\u{a0}', " ")).collect();
+    let joined = words.join(" ");
+    let units: Vec<u16> = joined.trim_matches(|c| c <= ' ').encode_utf16().take(256).collect();
+    String::from_utf16_lossy(&units)
 }
 
 #[derive(Clone, Debug)]
@@ -74,6 +87,7 @@ impl ChatScreen {
         }
         match key {
             Key::Escape => return ChatAction::Close,
+            Key::Enter => return ChatAction::Send(normalize(&self.input.value())),
             Key::Up => self.move_in_history(m, history, -1),
             Key::Down => self.move_in_history(m, history, 1),
             _ => {

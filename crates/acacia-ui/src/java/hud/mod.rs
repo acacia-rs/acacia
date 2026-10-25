@@ -3,6 +3,7 @@
 pub mod bars;
 pub mod decor;
 pub mod effects;
+pub mod frame;
 pub mod health;
 pub mod hotbar;
 pub mod overlays;

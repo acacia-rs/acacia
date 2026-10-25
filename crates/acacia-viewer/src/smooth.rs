@@ -141,10 +141,19 @@ impl Smoother {
         Some((Motion { position: v.position + offset.as_dvec3(), yaw: seat.turn.map_or(m.yaw, |turn| v.yaw + turn), walk: Walk::default(), ..m }, &vehicle.kind))
     }
 
-    /// The own player standing still at `place` (model space to camera-relative space), its head
-    /// turned by `head_yaw` and `pitch` degrees: the figure in the inventory screen.
-    pub fn portrait(&self, place: glam::Mat4, head_yaw: f32, pitch: f32, camera: DVec3) -> Vec<EntityInstance> {
-        let Some((e, _)) = self.to.iter().find(|(e, _)| e.own_eyes.is_some()) else { return Vec::new() };
+    /// The own player (or, with `vehicle`, what it rides) standing still at `place` (model space to
+    /// where the instance is drawn), its head turned by `head_yaw` and `pitch` degrees from its
+    /// body: a figure in a screen.
+    pub fn figure(&self, vehicle: bool, place: glam::Mat4, head_yaw: f32, pitch: f32, camera: DVec3) -> Vec<EntityInstance> {
+        let Some((me, _)) = self.to.iter().find(|(e, _)| e.own_eyes.is_some()) else { return Vec::new() };
+        let e = match (vehicle, me.seat) {
+            (false, _) => me,
+            (true, Some(seat)) => match self.to.iter().find(|(v, _)| v.runtime_id == seat.vehicle) {
+                Some((v, _)) => v,
+                None => return Vec::new(),
+            },
+            (true, None) => return Vec::new(),
+        };
         let still = Motion { position: camera, yaw: 0.0, head_yaw, pitch, walk: Walk::default() };
         self.pieces(e, still, camera, Some(place), None)
     }

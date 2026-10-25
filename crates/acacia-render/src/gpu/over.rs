@@ -1,20 +1,22 @@
-//! Entities drawn over the UI (the player in the inventory screen): a pass of their own after the
-//! UI's, on a cleared depth buffer so nothing of the world hides them.
+//! Pictures-in-picture (the player in the inventory screen, a horse in its screen): the UI's
+//! entities drawn into the UI pass's window-sized pictures texture, cleared to transparent, with the
+//! picture globals (`Globals::in_pictures`). The UI then blits each picture where its quad is, in
+//! its place among the GUI's elements, as Java's `PictureInPictureRenderer` does.
 
 use super::Renderer;
 
 impl Renderer {
-    pub(super) fn draw_over_ui(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+    pub(super) fn draw_pictures(&self, encoder: &mut wgpu::CommandEncoder) {
         if self.ui_entities.is_empty() {
             return;
         }
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("over ui"),
+            label: Some("ui pictures"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
+                view: self.ui_pass.picture_view(),
                 depth_slice: None,
                 resolve_target: None,
-                ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.depth,

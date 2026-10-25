@@ -20,7 +20,7 @@ pub(super) struct Globals {
     haze: [f32; 4],
     /// [`Look::ambient_occlusion`].
     ao: [f32; 4],
-    /// x: 1 for [`Lighting::Java`].
+    /// x: 1 for [`Lighting::Java`], y: 1 for Java's `ENTITY_IN_UI` lights ([`Globals::in_pictures`]).
     light: [f32; 4],
     /// [`lightmap::packed`].
     lightmap: [[u32; 4]; 64],
@@ -52,6 +52,24 @@ impl Globals {
             ao: look.ambient_occlusion,
             light: [flag(look.lighting == Lighting::Java), 0.0, 0.0, 0.0],
             lightmap: lightmap::packed(lightmap),
+        }
+    }
+
+    /// These globals for pictures-in-picture drawn into a `window`-sized texture: positions in
+    /// window pixels (y down, z towards the viewer, ±1000 deep as `PictureInPictureRenderer`'s
+    /// ortho), no fog, the inventory's lights.
+    pub(super) fn in_pictures(self, [width, height]: [u32; 2]) -> Globals {
+        let (w, h) = (width as f32, height as f32);
+        let ortho = Mat4::from_cols_array(&[2.0 / w, 0.0, 0.0, 0.0, 0.0, -2.0 / h, 0.0, 0.0, 0.0, 0.0, 1.0 / 2000.0, 0.0, -1.0, 1.0, 0.5, 1.0]);
+        Globals {
+            view_proj: ortho.to_cols_array_2d(),
+            cam_block: [0; 4],
+            cam_frac: [0.0; 4],
+            fog: [0.0, 0.0, 0.0, f32::MAX],
+            fog_shape: [f32::MAX / 2.0, 0.0, 1.0, 0.0],
+            haze: [0.0; 4],
+            light: [self.light[0], 1.0, 0.0, 0.0],
+            ..self
         }
     }
 }

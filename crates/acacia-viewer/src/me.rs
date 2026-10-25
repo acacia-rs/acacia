@@ -37,6 +37,9 @@ pub struct Me {
     pub health: f32,
     pub max_health: f32,
     pub food: f32,
+    pub saturation: f32,
+    /// The worn helmet slot's item name.
+    pub head: Option<String>,
     pub xp_level: i32,
     pub xp_progress: f32,
     /// The nine hotbar stacks.
@@ -81,6 +84,8 @@ pub fn me(bot: &Bot) -> Me {
         health: p.health,
         max_health: p.max_health,
         food: p.hunger,
+        saturation: p.saturation,
+        head: state.inventory.armor.first().and_then(|s| state.item_name(s)).map(str::to_owned),
         xp_level: p.xp_level,
         xp_progress: p.xp_progress,
         items,
