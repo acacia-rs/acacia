@@ -37,8 +37,9 @@ impl Engine {
                     self.simple(next, p.position, DVec3::ZERO);
                 }
                 if sound {
-                    // The landing sound's volume.
+                    // The landing sound's volume, then the level's draw for the sound's seed.
                     p.random.float();
+                    self.level.next_long();
                 }
             }
             _ => {}

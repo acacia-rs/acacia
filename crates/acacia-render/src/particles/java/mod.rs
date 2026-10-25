@@ -65,6 +65,10 @@ pub struct Engine {
     pub foliage: u32,
     /// The dimension drips lava from dry dripstone (`default_dripstone_particle`).
     pub nether: bool,
+    /// Seeds a probe hands what it makes, by type and position bits; the rest draw from `seeds`.
+    pub given: Option<rustc_hash::FxHashMap<(Type, [u64; 3]), i64>>,
+    /// When set, every `create` is logged here too.
+    pub spawned: Option<Vec<Request>>,
 }
 
 impl Default for Engine {
@@ -92,6 +96,8 @@ impl Engine {
             // FoliageColor.FOLIAGE_DEFAULT.
             foliage: 0x48_B518,
             nether: false,
+            given: None,
+            spawned: None,
         }
     }
 
@@ -114,7 +120,11 @@ impl Engine {
 
     /// `ParticleEngine.createParticle`: always made.
     pub fn create(&mut self, o: &Options, p: DVec3, v: DVec3) {
-        let seed = self.seeds.next_long();
+        let given = self.given.as_ref().and_then(|g| g.get(&(o.ty, p.to_array().map(f64::to_bits))).copied());
+        let seed = given.unwrap_or_else(|| self.seeds.next_long());
+        if let Some(log) = &mut self.spawned {
+            log.push((*o, p, v));
+        }
         if let Some(particle) = self.make(o, p, v, seed) {
             self.pending.push(particle);
         }
@@ -198,6 +208,7 @@ impl Engine {
             particle.sprite = self.sprite_from_set(ty);
         }
         particle.random = local;
+        particle.seed = seed;
         Some(particle)
     }
 
@@ -242,13 +253,6 @@ impl Engine {
         self.particles.push(p);
     }
 
-    /// For a probe: a particle as its provider makes it, ticked by its constructor where Java's is.
-    pub fn probe_create(&mut self, o: &Options, p: DVec3, v: DVec3, seed: i64, blocks: &impl Blocks) -> Option<Particle> {
-        let mut particle = self.make(o, p, v, seed)?;
-        self.constructor_tick(&mut particle, blocks);
-        Some(particle)
-    }
-
     /// `CritParticle`'s constructor ticks it once; its tick sees the level, so it runs here,
     /// before the provider's tint (`MagicProvider`).
     fn constructor_tick(&mut self, p: &mut Particle, blocks: &impl Blocks) {
@@ -261,11 +265,6 @@ impl Engine {
             p.rgba[0] *= 0.3;
             p.rgba[1] *= 0.8;
         }
-    }
-
-    /// For a probe: one `Particle.tick`.
-    pub fn probe_tick(&mut self, particle: &mut Particle, blocks: &impl Blocks) {
-        self.tick_particle(particle, blocks);
     }
 
     pub fn clear(&mut self) {

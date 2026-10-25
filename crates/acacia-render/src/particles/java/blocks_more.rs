@@ -166,7 +166,9 @@ impl Engine {
             }
             A::Stalactite => self.stalactite(blocks, cell),
             A::Sound(bound) => {
-                self.animate.below(bound);
+                if self.animate.below(bound) == 0 {
+                    self.sound(0);
+                }
             }
             A::DeadBush => {
                 let below = blocks.block(cell - IVec3::Y).map_or("", |b| b.name);

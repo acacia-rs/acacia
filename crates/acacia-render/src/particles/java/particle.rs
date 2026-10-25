@@ -72,6 +72,8 @@ pub struct Particle {
     pub pre_tick: bool,
     /// `Particle.random`, the particle's own generator.
     pub random: JavaRandom,
+    /// What `random` was seeded with, which names the particle to a probe.
+    pub seed: i64,
 }
 
 impl Particle {
@@ -107,6 +109,7 @@ impl Particle {
             no_render: false,
             pre_tick: false,
             random: JavaRandom::new(0),
+            seed: 0,
         };
         particle.set_pos(p);
         particle

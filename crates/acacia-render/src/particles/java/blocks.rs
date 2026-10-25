@@ -32,11 +32,12 @@ fn f(v: f32) -> f64 {
 }
 
 impl Engine {
-    /// A sound's volume and pitch draws, `floats` of them.
+    /// `playLocalSound`: `floats` volume and pitch draws, then the level's for the sound's seed.
     pub(super) fn sound(&mut self, floats: u32) {
         for _ in 0..floats {
             self.animate.float();
         }
+        self.level.next_long();
     }
 
     pub(super) fn block_animate(&mut self, blocks: &impl Blocks, kind: Animate, cell: IVec3) {

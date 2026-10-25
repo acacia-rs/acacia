@@ -232,12 +232,17 @@ fn probes_dump_a_blocks_effects_and_a_particles_life() {
     let mut scene = Scene::new();
     let torch = IVec3::new(0, 64, 0);
     scene.place(torch, "minecraft:torch", "torch_facing_direction=top");
-    let ticks = probe::block(&scene, torch, 5, 3);
-    assert_eq!(ticks.iter().map(Vec::len).collect::<Vec<_>>(), [2, 4, 6]);
-    assert_eq!(ticks, probe::block(&scene, torch, 5, 3), "the same seed, the same dump");
-    let life = probe::particle(&scene, &Options::simple(Type::Smoke), UP, DVec3::ZERO, 8, 100);
-    assert_eq!(life.len() as i32, life[0].lifetime + 2, "made, each tick of its life, then removed");
-    assert!(life.last().unwrap().removed && life[0].sprite == Some("generic_7"));
+    let ticks = probe::block(&scene, torch, 5, 3, 0, &[]);
+    assert_eq!(ticks.iter().map(|t| (t.spawns.len(), t.particles.len())).collect::<Vec<_>>(), [(2, 2), (2, 4), (2, 6)]);
+    assert_eq!(ticks, probe::block(&scene, torch, 5, 3, 0, &[]), "the same seed, the same dump");
+    let life = probe::particle(&scene, &Options::simple(Type::Smoke), UP, DVec3::ZERO, 8, 100, &[]);
+    let lived = life.iter().take_while(|t| !t.particles.is_empty()).count() as i32;
+    assert_eq!(lived, life[0].particles[0].lifetime + 1, "admitted unticked, then each tick of its life");
+    assert_eq!(life[0].particles[0].sprite, Some("generic_7"));
+    let mut seeds = probe::Seeds::default();
+    seeds.insert((Type::Smoke, UP.to_array().map(f64::to_bits)), 77);
+    let given = probe::particle(&scene, &Options::simple(Type::Smoke), UP, DVec3::ZERO, 8, 1, &[seeds]);
+    assert_eq!(given[0].particles[0].seed, 77, "a particle Java made takes Java's seed");
 }
 
 #[test]
