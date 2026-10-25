@@ -18,7 +18,7 @@ use crate::assets::Pack;
 use crate::assets::flipbook::{Animation, Atlas};
 use crate::assets::image::{Alpha, Texture};
 pub use shape::{Box16, ModelFace, Shape, short_name};
-pub use light::LightFacts;
+pub use light::{FaceShapes, LightFacts};
 pub use tint::Tint;
 
 /// How a face's texture alpha is used; the value is the shader's material index.
@@ -86,6 +86,8 @@ pub struct BlockTable {
     pub biome_blend: u8,
     /// [`crate::look::Look::lighting`] of the look the table draws.
     pub lighting: crate::look::Lighting,
+    /// What [`LightFacts::shape`] indexes (from 1).
+    pub light_shapes: Arc<[FaceShapes]>,
 }
 
 /// What [`BlockTable::build`] could not resolve, for diagnostics.
@@ -117,12 +119,12 @@ impl BlockTable {
         report.blocks_without_textures.dedup();
         report.missing_images = textures.missing;
         let fallback = BlockTable::cube(0);
-        (BlockTable { blocks, fallback, biome_blend: 1, lighting: Default::default() }, textures.atlas, report)
+        (BlockTable { blocks, fallback, biome_blend: 1, lighting: Default::default(), light_shapes: Arc::default() }, textures.atlas, report)
     }
 
     /// One block per runtime id.
-    pub(crate) fn from_blocks(blocks: Vec<RenderBlock>) -> BlockTable {
-        BlockTable { blocks, fallback: BlockTable::cube(0), biome_blend: 1, lighting: Default::default() }
+    pub fn from_blocks(blocks: Vec<RenderBlock>) -> BlockTable {
+        BlockTable { blocks, fallback: BlockTable::cube(0), biome_blend: 1, lighting: Default::default(), light_shapes: Arc::default() }
     }
 
     /// Runtime ids past the registry (unknown custom blocks) render as a missing-texture cube.
@@ -229,6 +231,7 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
             emissive: false,
             dark: occludes,
             ambient_occlusion: state.light_emission == 0,
+            shape: 0,
         },
     }
 }

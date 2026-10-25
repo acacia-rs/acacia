@@ -40,6 +40,7 @@ fn scene(row: &Value) -> Scene {
             emissive: flag("emissive"),
             dark: flag("dark"),
             ambient_occlusion: false,
+            shape: 0,
         };
         (ints::<3>(&c["pos"]), facts)
     });

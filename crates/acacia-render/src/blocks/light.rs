@@ -20,7 +20,16 @@ pub struct LightFacts {
     /// A cube drawn with ambient occlusion: its model's `ambientocclusion`, and no emission. Model
     /// faces carry their own ([`super::ModelFace::ambient_occlusion`]).
     pub ambient_occlusion: bool,
+    /// Its face occlusion shapes as the light engine sees them: an index from 1 into
+    /// [`super::BlockTable::light_shapes`], 0 when the engine ignores its shape
+    /// (`LightEngine.isEmptyShape`).
+    pub shape: u16,
 }
+
+/// Java's face occlusion shapes of a block, per Java direction (`DOWN`..`EAST`): a 16x16 grid of
+/// the face, bit `v * 16 + u` of the 256, where (u, v) is (x, z) on y faces, (x, y) on z faces and
+/// (z, y) on x faces.
+pub type FaceShapes = [[u64; 4]; 6];
 
 impl LightFacts {
     /// `isLightPermeable`: ambient occlusion looks past it for the diagonal cell.

@@ -1,7 +1,7 @@
 //! Light levels and per-block light properties of the loaded columns, shared between the light
 //! thread (writer) and the mesh workers (readers, [`LightData::gather`]).
 
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::sections::Sections;
 use crate::workers::SectionKey;
@@ -53,6 +53,10 @@ pub struct LightVolume {
 pub struct LightData {
     pub light: Sections,
     pub props: Sections,
+    /// Under Java's rules: each block's face occlusion shapes ([`super::rules::Rules::Java`]).
+    pub shapes: Sections,
+    /// Under Java's rules: per lit column, the lowest y of each block column's sky light sources.
+    pub sky_sources: FxHashMap<(i32, i32), Box<[i32; 256]>>,
     /// Lit columns.
     pub columns: FxHashSet<(i32, i32)>,
     pub generation: u64,
@@ -61,6 +65,12 @@ pub struct LightData {
 }
 
 impl LightData {
+    /// The lowest sky light source of the block column at `x`, `z` (Java's rules).
+    #[inline]
+    pub fn sky_lowest(&self, x: i32, z: i32) -> Option<i32> {
+        self.sky_sources.get(&(x >> 4, z >> 4)).map(|c| c[((x & 15) * 16 + (z & 15)) as usize])
+    }
+
     #[inline]
     pub fn light(&self, x: i32, y: i32, z: i32) -> Option<u8> {
         self.light.get(x, y, z)
