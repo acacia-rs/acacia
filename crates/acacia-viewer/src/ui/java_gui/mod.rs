@@ -2,9 +2,12 @@
 //! painted here with the pack's sprites and fonts in the game's order (`acacia_ui::java::paint`).
 
 mod hud;
+pub mod menus;
+mod options;
 
 pub use hud::hotbar_stack;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
 
@@ -28,6 +31,8 @@ pub struct JavaGui {
     random: JavaRandom,
     health: HealthHud,
     started: Instant,
+    /// The game's `en_us` translations.
+    lang: HashMap<String, String>,
 }
 
 impl JavaGui {
@@ -37,7 +42,11 @@ impl JavaGui {
         for w in &fonts.warnings {
             tracing::debug!(target: "ui", "font: {w}");
         }
-        JavaGui { images: Images::new(root), fonts, random: JavaRandom::new(0), health: HealthHud::default(), started: Instant::now() }
+        let lang = acacia_ui::java::lang::load(root);
+        if lang.is_empty() {
+            tracing::warn!(looked = %root.display(), "no lang/en_us.json, so screens show translation keys: bake the Java look again (tools/lookbake)");
+        }
+        JavaGui { images: Images::new(root), fonts, random: JavaRandom::new(0), health: HealthHud::default(), started: Instant::now(), lang }
     }
 
     /// Whether the pack has the GUI's sprites.

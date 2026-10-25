@@ -160,7 +160,7 @@ pub fn create_button(ctx: &Ctx, values: Values, id: &str, width: i32) -> Box<dyn
     let d = def(id);
     let v = value(values, id);
     let caption = ctx.tr(d.caption);
-    match d.set {
+    let mut w: Box<dyn Widget> = match d.set {
         Set::Cycle => {
             let shown = d.label.apply(ctx, caption.clone(), &v);
             Box::new(CycleButton::new(ctx.lang, 0, 0, width, 20, caption, shown, Display::NameAndValue))
@@ -169,5 +169,7 @@ pub fn create_button(ctx: &Ctx, values: Values, id: &str, width: i32) -> Box<dyn
             let s = set.to_slider(&v);
             Box::new(Slider::new(0, 0, width, 20, d.label.apply(ctx, caption, &set.from_slider(s)), s))
         }
-    }
+    };
+    w.base_mut().id = id.to_owned().into();
+    w
 }

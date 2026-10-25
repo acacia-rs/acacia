@@ -95,6 +95,15 @@ fn tab_shows_the_list_then_applies_and_cycles() {
 }
 
 #[test]
+fn enter_sends_the_message_with_its_spaces_normalized() {
+    let m = Fixed(6.0);
+    let mut screen = ChatScreen::new(&m, "", 0, Vec::new(), 320, 240);
+    "  hi   there\u{a0}you ".chars().for_each(|c| screen.char_typed(&m, c));
+    assert_eq!(screen.key(&m, &[], Key::Enter, false, false), ChatAction::Send("hi there you".into()));
+    assert_eq!(screen::normalize(" \t "), "");
+}
+
+#[test]
 fn scrolling_stops_at_the_last_page() {
     let m = Fixed(6.0);
     let mut chat = Chat::default();

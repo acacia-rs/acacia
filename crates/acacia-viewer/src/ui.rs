@@ -3,6 +3,8 @@
 mod java_gui;
 mod screen;
 
+pub use java_gui::menus as java_screens;
+
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
@@ -26,7 +28,6 @@ use acacia_ui::{DrawList, Quad, Sprite};
 use crate::control::{Inventory, Stack};
 use crate::me::Me;
 use acacia_ui::inventory::Layout;
-use acacia_ui::menu::Backdrop;
 
 use crate::forms::FormScreen;
 use crate::looks::Looks;
@@ -54,8 +55,10 @@ pub struct Frame<'a> {
     /// The debug screen's two columns, when it is shown.
     pub debug: Option<(Vec<String>, Vec<String>)>,
     pub screen: Option<Screen<'a>>,
-    /// An open menu: its title, button labels and what it is drawn over.
-    pub menu: Option<(&'a str, &'a [String], Backdrop)>,
+    /// The Bedrock look's open menu: its title and button labels.
+    pub menu: Option<(&'a str, &'a [String])>,
+    /// The Java look's open screens.
+    pub java_screens: Option<java_screens::Shown<'a>>,
     /// An open server form.
     pub form: Option<&'a FormScreen>,
     pub sign: Option<acacia_ui::sign_editor::Editing<'a>>,
@@ -174,7 +177,8 @@ impl Ui {
     /// This frame's quads for a window `size` pixels big at GUI `scale`, and the atlas they sample.
     /// This frame's quads and the atlas they sample.
     pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad]) {
-        let Frame { look, me, debug, screen, menu, form, sign, book, players, tags, mouse, size, scale, now } = frame;
+        let Frame { look, me, debug, screen, menu, java_screens, form, sign, book, players, tags, mouse, size, scale, now } = frame;
+        let java_menu = java_screens.as_ref().is_some_and(|s| s.menu.is_some());
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
             LookChoice::Java => &mut self.java,
@@ -184,7 +188,7 @@ impl Ui {
         // In the world, so under the HUD.
         acacia_ui::nametags::draw(&mut list, &skin.theme, &tags);
         if let Some(me) = me {
-            let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
+            let state = HudState { crosshair: screen.is_none() && menu.is_none() && !java_menu && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
             if look == LookChoice::Java && self.java_gui.usable(skin) {
                 let calls = self.java_gui.hud(me, java_gui::gui_size(size, scale), state.crosshair, now);
                 self.java_gui.paint(skin, &|key| java_gui::hotbar_stack(me, key), &calls, &mut list);
@@ -219,6 +223,9 @@ impl Ui {
         }
         overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
         chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
+        if look == LookChoice::Bedrock {
+            chat::draw_input(&mut list, &skin.theme, &self.chat, gui);
+        }
         if let Some((left, right)) = debug {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
@@ -237,8 +244,11 @@ impl Ui {
         if let Some(sign) = sign {
             acacia_ui::sign_editor::draw(&mut list, &skin.theme, sign, mouse, gui);
         }
-        if let Some((title, buttons, backdrop)) = menu {
-            acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, backdrop, mouse, gui);
+        if let Some((title, buttons)) = menu {
+            acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, mouse, gui);
+        }
+        if let Some(shown) = java_screens {
+            self.java_gui.screens(skin, shown, java_gui::gui_size(size, scale), (mouse[0] as i32, mouse[1] as i32), now, &mut list);
         }
         self.quads = list.quads;
         (&skin.theme.atlas, &self.quads)
