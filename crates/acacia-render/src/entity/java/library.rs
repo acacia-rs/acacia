@@ -10,6 +10,8 @@ use super::kinds::{self, Look, When};
 use super::trims::{Trim, Trims};
 use super::state::Field;
 use super::villager::Professions;
+use super::worn::{self, Worn};
+use super::gear::{self, Body};
 use super::{Family, Poses, anim, bedrock, mesh};
 use crate::entity::bake::Mesh;
 use crate::entity::molang::Value;
@@ -35,6 +37,7 @@ pub struct Library {
     /// [`kinds::VARIANTS`]' adult and baby textures.
     variants: HashMap<&'static str, Vec<(&'static str, i32, [TextureId; 2])>>,
     professions: HashMap<&'static str, Professions>,
+    worn: Worn,
 }
 
 /// The kinds `VillagerProfessionLayer` dresses: their texture directory and `setupAnim`.
@@ -133,6 +136,7 @@ impl Library {
         out.trims = Trims::load(root);
         let paths = out.equipment.textures().chain(Trims::images(root));
         out.equipment_textures = paths.filter_map(|path| Some((path.clone(), texture(&path)?))).collect();
+        out.worn = Worn::load(&layers, model, texture, &mut out.families);
         tracing::info!(kinds = out.kinds.len(), layers = layers.len(), "java entity models");
         out
     }
@@ -189,6 +193,15 @@ impl Library {
             *to = *self.equipment_textures.get(&draw.texture)?;
         }
         Some([Layer { textures, dye: draws.first()?.color, ..Layer::plain(model, NO_TEXTURE) }].into())
+    }
+
+    /// The layers a `kind`'s saddle, collar, markings and body-slot stack `body` add ([`gear`]).
+    pub fn gear(&self, kind: &str, query: &dyn Fn(&str) -> Value, body: Option<Body>) -> Vec<Layer> {
+        let Some(([adult, baby_model], own_baby)) = self.kinds.get(kind) else { return Vec::new() };
+        let baby = query("is_baby").truthy();
+        let body_model = if baby && *own_baby { baby_model.0 } else { adult.0 };
+        let draws = gear::draws(kinds::java_id(kind), &worn::bedrock_gear(query, baby, body), &self.equipment);
+        self.worn.layers(draws, body_model, &self.equipment_textures)
     }
 
     /// The whole-body transform of a `kind` drawn by a Java model ([`super::body`]), in the entity

@@ -126,6 +126,12 @@ pub enum Family {
     Nautilus,
     EnderDragon,
     HappyGhast,
+    /// `EquineSaddleModel`: a horse's, with the reins while ridden.
+    EquineSaddle,
+    /// `CamelSaddleModel`: a camel's, with the reins while ridden.
+    CamelSaddle,
+    /// `HappyGhastHarnessModel`: only the goggles move.
+    HappyGhastHarness,
 }
 
 /// Runs `family`'s `setupAnim` on poses fresh from the model (every part at its initial pose).
@@ -204,6 +210,17 @@ pub fn setup(family: Family, s: &RenderState, p: &mut Poses) {
         Family::Nautilus => keyframed::nautilus(p, s),
         Family::EnderDragon => dragon::ender_dragon(p, s),
         Family::HappyGhast => simple::happy_ghast(p, s),
+        Family::EquineSaddle => {
+            equine::equine(p, s, false);
+            let ridden = s.flag("isRidden");
+            p.set_visible("left_saddle_line", ridden);
+            p.set_visible("right_saddle_line", ridden);
+        }
+        Family::CamelSaddle => {
+            keyframed::camel(p, s);
+            p.set_visible("reins", s.flag("isRidden"));
+        }
+        Family::HappyGhastHarness => simple::happy_ghast_harness(p, s),
         Family::Strider => nether::strider(p, s),
         Family::Ravager => nether::ravager(p, s),
         Family::Shulker => nether::shulker(p, s),
