@@ -218,7 +218,7 @@ impl EntityModels {
     /// `setupAnim` (a stray's clothes start from other rest poses), each drawn as its own instance.
     pub fn split_posed_apart(&self, layers: &[Layer]) -> (Arc<[Layer]>, Vec<Layer>) {
         let Some(body) = layers.first().map(|l| l.model) else { return (layers.into(), Vec::new()) };
-        let (apart, together): (Vec<Layer>, Vec<Layer>) = layers.iter().partition(|l| self.java.posed_apart(body, l.model));
+        let (apart, together): (Vec<Layer>, Vec<Layer>) = layers.iter().cloned().partition(|l| self.java.posed_apart(body, l.model));
         (together.into(), apart)
     }
 
