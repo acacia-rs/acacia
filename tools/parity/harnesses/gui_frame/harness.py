@@ -1,4 +1,4 @@
-"""GUI frames as GuiRenderer draws them: slices of the GUI harnesses' cases, the game's recorded calls replayed onto a real GuiGraphicsExtractor and sorted as GuiRenderer sorts them, against acacia's painter (acacia_ui::java::paint) over the same calls; decorations and picture-in-picture left out."""
+"""GUI frames as GuiRenderer draws them: slices of the GUI harnesses' cases, the game's recorded calls replayed onto a real GuiGraphicsExtractor and sorted as GuiRenderer sorts them, against acacia's painter (acacia_ui::java::paint) over the same calls; item decorations from the cases' resolved stacks; picture-in-picture left out."""
 import json
 import os
 from pathlib import Path
@@ -19,6 +19,9 @@ SOURCES = {
     "tooltips": ("TooltipOracle", 200, "probe.jsonl"),
     "screens_widgets": ("WidgetsOracle", 200, None),
     "screens_menus": ("MenusOracle", 200, None),
+    "screens_lists": ("ListsOracle", 200, None),
+    "screens_more": ("MoreOracle", 200, None),
+    "screens_text": ("TextOracle", 200, None),
     "chat_screen": ("ChatScreenOracle", 200, None),
     "creative": ("CreativeOracle", 200, "probe.jsonl"),
     "recipe_book": ("RecipeBookOracle", 200, "probe.jsonl"),
@@ -40,8 +43,8 @@ def run(h):
         inputs = guiparity.cases(source, out, ["--count", count])
         expected = oracle.run_oracle(source, name, f"acacia.parity.gui.{main}", [inputs], [inputs], h.fresh, h.log)
         recorded[name] = (expected / "vanilla.jsonl", expected / probe_input if probe_input else inputs)
-    frames = h.oracle("acacia.parity.gui.FrameOracle", *(f"{n}={v}" for n, (v, _) in recorded.items()),
-                      inputs=[v for v, _ in recorded.values()])
+    frames = h.oracle("acacia.parity.gui.FrameOracle", *(f"{n}={v}={p}" for n, (v, p) in recorded.items()),
+                      inputs=[f for pair in recorded.values() for f in pair])
     blends = json.loads((frames / "blends.json").read_text())
     for name, (_, probe) in recorded.items():
         rust = h.out / name / "frame.jsonl"

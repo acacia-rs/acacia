@@ -152,7 +152,8 @@ def same(a, b):
     if a.keys() != b.keys() or any(a[k] != b[k] for k in ("k", "t", "b", "ab") if k in a):
         return False
     for key, tol in (("r", 2e-3), ("uv", 2e-3), ("s", 2e-3)):
-        if key in a and any(abs(x - y) > tol for x, y in zip(a[key], b[key])):
+        # plus two f32 ulps: the credits scroll rects a million pixels away
+        if key in a and any(abs(x - y) > tol + abs(x) * 2.4e-7 for x, y in zip(a[key], b[key])):
             return False
     return "c" not in a or all(all(abs(((x >> s) & 255) - ((y >> s) & 255)) <= 1 for s in (0, 8, 16, 24)) for x, y in zip(a["c"], b["c"]))
 

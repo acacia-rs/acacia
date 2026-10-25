@@ -77,6 +77,18 @@ fn content_weight(items: &[ItemStack], game: &Game) -> Option<Fraction> {
     })
 }
 
+/// `BundleItem.isBarVisible`, `getBarWidth` and `getBarColor` (RGB) of a bundle.
+pub fn bar(stack: &ItemStack, game: &Game) -> Option<(i32, u32)> {
+    let contents = stack.get("bundle_contents")?;
+    // getWeightSafe: a weight that overflows counts as none.
+    let weight = content_weight(&templates(contents, game), game).unwrap_or(Fraction::ZERO);
+    if weight.0 <= 0 {
+        return None;
+    }
+    let width = (1 + (weight.0 * 12 / weight.1) as i32).min(13);
+    Some((width, if weight.at_least_one() { 0xFF5454 } else { 0x7087FF }))
+}
+
 fn templates(contents: &Value, game: &Game) -> Vec<ItemStack> {
     contents.as_array().into_iter().flatten().filter_map(|t| game.template(t)).collect()
 }

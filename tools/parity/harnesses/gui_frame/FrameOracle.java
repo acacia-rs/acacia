@@ -38,8 +38,9 @@ import net.minecraft.world.item.Items;
  * The `gui_frame` harness's oracle: each GUI harness's recorded calls (GuiCapture's JSON, read
  * from its vanilla.jsonl) replayed onto a real GuiGraphicsExtractor at the case's GUI size (GUI
  * scale 1), then what GuiRenderer draws in its order (`Gui.frame`), cut down to the fields the
- * comparison reads. Items draw stone (only their rect is compared); decorations and picture
- * markers are left out. Util's clock stands at MILLIS. args: out dir, then `name=vanilla.jsonl`...
+ * comparison reads. Items draw stone (only their rect is compared); decorations draw the case's
+ * resolved stack (no player, so no cooldown); picture markers are left out. Util's clock stands at
+ * MILLIS. args: out dir, then `name=vanilla.jsonl=probe-input.jsonl`...
  */
 public final class FrameOracle {
     static final long MILLIS = 1_234_567L;
@@ -48,6 +49,8 @@ public final class FrameOracle {
         "x", "y", "shadowColor", "shadowOffset", "boldOffset", "glyph", "left", "right", "up", "down", "style", "bold", "italic",
         "position", "width", "height");
     static final Map<String, RenderPipeline> PIPELINES = new HashMap<>();
+    /** The case's resolved stacks by draw key (ScreenKit's `items`); empty where a source keeps none. */
+    static JsonObject stacks = new JsonObject();
 
     public static void main(String[] args) throws Exception {
         var mc = Client.minecraft();
@@ -62,10 +65,14 @@ public final class FrameOracle {
         PIPELINES.forEach((path, p) -> blends.put(path, p.getColorTargetStates().toString()));
         Out.json(out.resolve("blends.json"), blends);
         for (int a = 1; a < args.length; a++) {
-            var named = args[a].split("=", 2);
+            var named = args[a].split("=", 3);
+            var recorded = Files.readAllLines(Path.of(named[1])).stream().filter(l -> !l.isBlank()).toList();
+            var cases = Files.readAllLines(Path.of(named[2])).stream().filter(l -> !l.isBlank()).toList();
             try (var lines = new Out.Lines(out.resolve(named[0] + ".jsonl"))) {
-                for (var line : Files.readAllLines(Path.of(named[1]))) {
-                    if (!line.isBlank()) lines.write(frame(JsonParser.parseString(line).getAsJsonObject()));
+                for (int n = 0; n < recorded.size(); n++) {
+                    var items = JsonParser.parseString(cases.get(n)).getAsJsonObject().get("items");
+                    stacks = items != null && items.isJsonObject() ? items.getAsJsonObject() : new JsonObject();
+                    lines.write(frame(JsonParser.parseString(recorded.get(n)).getAsJsonObject()));
                 }
             }
         }
@@ -154,6 +161,10 @@ public final class FrameOracle {
                 collector.acceptScrolling(component(d), i(d, "centerX"), i(d, "x0"), i(d, "x1"), i(d, "y0"), i(d, "y1"), params);
             }
             case "item" -> g.item(new ItemStack(Items.STONE), i(d, "x"), i(d, "y"), i(d, "seed"));
+            case "decorations" -> {
+                var stack = stacks.get(d.get("slot").getAsString());
+                if (stack != null) g.itemDecorations(GuiGame.font, ScreenKit.stack(stack), i(d, "x"), i(d, "y"), absent(d, "count") ? null : d.get("count").getAsString());
+            }
             default -> {}
         }
     }

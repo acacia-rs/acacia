@@ -3,6 +3,9 @@
 
 use crate::java::gui::{Gui, Metrics};
 use crate::java::mth::{BLACK, WHITE, ceil, clamp, floor, hsv_to_argb};
+use crate::java::tooltip::bundle;
+use crate::java::tooltip::game::Game;
+use crate::java::tooltip::stack::ItemStack;
 
 /// What `itemDecorations` reads from a non-empty stack.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -26,6 +29,19 @@ pub fn damage_bar(damage: i32, max_damage: i32) -> Option<(i32, u32)> {
     let width = floor(13.0 - damage as f32 * 13.0 / max_damage as f32 + 0.5).clamp(0, 13);
     let health = ((max_damage as f32 - damage as f32) / max_damage as f32).max(0.0);
     Some((width, hsv_to_argb(health / 3.0, 1.0, 1.0, 0)))
+}
+
+/// What `itemDecorations` reads from `stack`: its count and `isBarVisible` bar (a bundle's weight,
+/// else its damage); the cooldown is the player's, so none here.
+pub fn of_stack(stack: &ItemStack, game: &Game, count_text: Option<&str>) -> ItemDecorations {
+    let bar = if stack.id.ends_with("bundle") {
+        bundle::bar(stack, game)
+    } else {
+        // isDamageableItem: max_damage and damage, not unbreakable; getDamageValue clamps.
+        let max = if stack.has("unbreakable") || !stack.has("damage") { 0 } else { stack.int("max_damage", 0) };
+        damage_bar(stack.int("damage", 0).min(max), max)
+    };
+    ItemDecorations { count: stack.count, count_text: count_text.map(str::to_owned), bar, cooldown: 0.0 }
 }
 
 /// `ItemCooldowns.getCooldownPercent` for a cooldown `elapsed` whole ticks into `duration`; it is
@@ -68,6 +84,22 @@ mod tests {
         assert_eq!(damage_bar(50, 100).map(|b| b.0), Some(7));
         assert_eq!(damage_bar(100, 100), Some((0, 0xFF0000)));
         assert_eq!(damage_bar(1, 1561), Some((13, 0x00FF00)));
+    }
+
+    #[test]
+    fn a_stack_shows_its_bundle_weight_or_its_damage() {
+        let game = Game::new(serde_json::json!({"item": {"minecraft:stone": {"components": {"minecraft:max_stack_size": 64}}}}));
+        let stack = |id: &str, components: serde_json::Value| ItemStack::from_json(&serde_json::json!({"id": id, "count": 1, "components": components})).unwrap();
+        let half = stack("minecraft:bundle", serde_json::json!({"minecraft:bundle_contents": [{"id": "minecraft:stone", "count": 32}]}));
+        assert_eq!(of_stack(&half, &game, None).bar, Some((7, 0x7087FF)));
+        let full = stack("minecraft:red_bundle", serde_json::json!({"minecraft:bundle_contents": [{"id": "minecraft:stone", "count": 64}]}));
+        assert_eq!(of_stack(&full, &game, None).bar, Some((13, 0xFF5454)));
+        assert_eq!(of_stack(&stack("minecraft:bundle", serde_json::json!({"minecraft:bundle_contents": []})), &game, None).bar, None);
+        let worn = serde_json::json!({"minecraft:max_damage": 100, "minecraft:damage": 50});
+        assert_eq!(of_stack(&stack("minecraft:iron_sword", worn.clone()), &game, None).bar.map(|b| b.0), Some(7));
+        let mut unbreakable = worn;
+        unbreakable["minecraft:unbreakable"] = serde_json::json!({});
+        assert_eq!(of_stack(&stack("minecraft:iron_sword", unbreakable), &game, Some("9")).bar, None);
     }
 
     #[test]
