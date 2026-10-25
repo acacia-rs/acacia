@@ -52,6 +52,22 @@ pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderStat
         };
         s.set("pose", Field::Text(pose.into()));
     }
+    // Looping keyframe animations Java runs while a condition holds, started at tick 0.
+    // TODO: the one-shot ones (attacks, croaks, digs); Bedrock sends no start tick the viewer reads.
+    let resting = flag("is_resting");
+    s.set("isResting", Field::Flag(resting)).set("isSwimming", Field::Flag(flag("is_swimming")));
+    match family {
+        Family::Bat => {
+            s.set(if resting { "restAnimationState" } else { "flyAnimationState" }, Field::Num(0.0));
+        }
+        Family::Breeze => {
+            s.set("idle", Field::Num(0.0));
+        }
+        Family::Creaking => {
+            s.set("canMove", Field::Flag(true));
+        }
+        _ => {}
+    }
     if let Some(item) = &held {
         // Bedrock mobs hold in the right hand (mainArm RIGHT).
         s.set("rightHandItemStack", Field::Text(format!("minecraft:{item}"))).set("rightHandItemState", Field::Flag(true));

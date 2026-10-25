@@ -2,15 +2,17 @@
 //! [`list::OptionsList`] of option widgets and a footer in a `HeaderAndFooterLayout`.
 
 pub mod defs;
+pub mod input;
 pub mod list;
 pub mod pages;
 pub mod value;
 
-use super::{Env, Screen, menu_background};
+use super::{Env, Screen, arena_children, menu_background};
 use crate::java::widget::header_footer::HeaderFooter;
+use crate::java::widget::input::{self as widget_input, Child, Fired, Interaction, Key};
 use crate::java::widget::layout::{Arena, Elem};
 use crate::java::widget::{Ctx, Widget, render};
-use list::OptionsList;
+use list::{OptionsList, SCROLL_RATE};
 
 /// An options screen after `init`: its widgets in the layout's order, the list among them.
 pub struct OptionsScreen {
@@ -80,5 +82,69 @@ impl Screen for OptionsScreen {
         for w in after {
             render(w.as_mut(), ctx);
         }
+    }
+
+    /// The header's widgets, the list's rows, the footer's.
+    fn children(&mut self) -> Vec<Child<'_>> {
+        let (before, after) = self.widgets.split_at_mut(self.split);
+        let mut out = arena_children(before);
+        out.extend(self.list.iter_mut().flat_map(|l| l.list.children()));
+        out.extend(arena_children(after));
+        out
+    }
+
+    fn restore(&mut self, s: &Interaction) {
+        if let Some(l) = &mut self.list {
+            l.list.set_scroll(s.scroll);
+            l.list.place_rows();
+        }
+        widget_input::restore(&mut self.children(), s);
+    }
+
+    /// A click on the list's bar holds it (`updateScrolling`) and takes the focus off the widgets.
+    fn mouse_clicked(&mut self, s: &mut Interaction, x: f64, y: f64, shift: bool) -> Option<Fired> {
+        if self.list.as_ref().is_some_and(|l| l.list.over(x, y) && l.list.over_scrollbar(x, y)) {
+            widget_input::focus(&mut self.children(), s, None, true);
+            (s.scrolling, s.dragging) = (true, true);
+            return None;
+        }
+        widget_input::mouse_clicked(&mut self.children(), s, x, y, shift)
+    }
+
+    fn mouse_released(&mut self, s: &mut Interaction) {
+        s.scrolling = false;
+        widget_input::mouse_released(&mut self.children(), s);
+    }
+
+    fn mouse_dragged(&mut self, s: &mut Interaction, x: f64, y: f64, dy: f64) -> Option<Fired> {
+        if s.scrolling {
+            if let Some(l) = &mut self.list {
+                l.list.drag_scrollbar(y, dy);
+                s.scroll = l.list.scroll;
+            }
+            return None;
+        }
+        widget_input::mouse_dragged(&mut self.children(), s, x)
+    }
+
+    fn mouse_scrolled(&mut self, s: &mut Interaction, x: f64, y: f64, amount: f64) -> bool {
+        let Some(l) = self.list.as_mut().filter(|l| l.list.over(x, y)) else { return false };
+        l.list.set_scroll(l.list.scroll - amount * SCROLL_RATE);
+        s.scroll = l.list.scroll;
+        true
+    }
+
+    /// A row focused from the keyboard scrolls into view (`setSelected` after keyboard input).
+    fn key_pressed(&mut self, s: &mut Interaction, key: Key, shift: bool) -> Option<Fired> {
+        let before = s.focused;
+        let fired = widget_input::key_pressed(&mut self.children(), s, key, shift);
+        let split = self.split;
+        if let (Some(i), Some(l)) = (s.focused.filter(|&i| i >= split && s.focused != before), &mut self.list)
+            && let Some(row) = l.row_of(i - split)
+        {
+            l.list.scroll_to_row(row);
+            s.scroll = l.list.scroll;
+        }
+        fired
     }
 }

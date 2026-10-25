@@ -6,6 +6,7 @@
 pub mod button;
 pub mod edit_box;
 pub mod header_footer;
+pub mod input;
 pub mod layout;
 pub mod list;
 pub mod measure;
@@ -13,9 +14,12 @@ pub mod slider;
 pub mod tabs;
 pub mod text;
 
+use std::borrow::Cow;
+
 use crate::java::gui::{Blend, Gui, GuiDraw, IDENTITY, Metrics, Pose, PoseOp, pose_apply, transform};
 use crate::java::mth::{as8, floor, white};
 use crate::java::text::{Lang, Style, Text};
+use input::{Action, Key, KeyOutcome};
 
 /// What a widget draws through for one frame.
 pub struct Ctx<'a> {
@@ -133,11 +137,18 @@ pub struct Base {
     pub visible: bool,
     pub alpha: f32,
     pub focused: bool,
+    /// What the client knows the widget by (its `onPress`): a translation key or an option id.
+    pub id: Cow<'static, str>,
 }
 
 impl Base {
     pub fn new(x: i32, y: i32, w: i32, h: i32, message: Text) -> Base {
-        Base { x, y, w, h, message, active: true, visible: true, alpha: 1.0, focused: false }
+        Base { x, y, w, h, message, active: true, visible: true, alpha: 1.0, focused: false, id: Cow::Borrowed("") }
+    }
+
+    pub fn with_id(mut self, id: impl Into<Cow<'static, str>>) -> Base {
+        self.id = id.into();
+        self
     }
 
     /// `areCoordinatesInRectangle`.
@@ -183,6 +194,29 @@ pub trait Widget {
     fn set_y(&mut self, y: i32) {
         self.base_mut().y = y;
     }
+    /// `onClick`, once `mouseClicked` found it active and under the mouse.
+    fn on_click(&mut self, _x: f64, _shift: bool) -> Option<Action> {
+        None
+    }
+    /// `onDrag` while the mouse is held after clicking it.
+    fn on_drag(&mut self, _x: f64) -> Option<Action> {
+        None
+    }
+    /// `onRelease`.
+    fn on_release(&mut self) {}
+    /// `keyPressed` while focused.
+    fn key_pressed(&mut self, _key: Key, _shift: bool) -> KeyOutcome {
+        None
+    }
+    /// `setFocused`; `pointer` when the last input was the mouse or Tab.
+    fn set_focused(&mut self, focused: bool, _pointer: bool) {
+        self.base_mut().focused = focused;
+    }
+    /// A slider's `canChangeValue`.
+    fn can_change(&self) -> bool {
+        false
+    }
+    fn set_can_change(&mut self, _on: bool) {}
 }
 
 /// `AbstractWidget.extractRenderState`: nothing when invisible.

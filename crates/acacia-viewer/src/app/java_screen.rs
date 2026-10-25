@@ -58,7 +58,8 @@ impl App {
     }
 
     /// A key on the open screen: the recipe book's search box when it is typed in, else the slot
-    /// keys over the hovered slot (1-9 swap with the hotbar, F with the offhand, Q drops one).
+    /// keys over the hovered slot (1-9 swap with the hotbar, F with the offhand, Q drops one, all
+    /// with Control).
     /// True when the key was taken.
     pub(super) fn java_key(&mut self, code: KeyCode) -> bool {
         if self.shown.java.book_typing() {
@@ -84,8 +85,7 @@ impl App {
         let key = match code {
             _ if DIGITS.contains(&code) => Key::Hotbar(DIGITS.iter().position(|&d| d == code).unwrap_or(0) as i32),
             KeyCode::KeyF => Key::SwapOffhand,
-            // TODO: Control+Q drops the whole stack; the app does not track Control.
-            KeyCode::KeyQ => Key::Drop { all: false },
+            KeyCode::KeyQ => Key::Drop { all: self.java.ctrl },
             _ => return false,
         };
         self.java_event(JavaEvent::Key(key))

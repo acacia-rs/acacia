@@ -4,8 +4,8 @@ mod figure;
 mod java_gui;
 mod screen;
 
-pub use java_gui::PictureRequest;
 pub use java_gui::screens::{Event as JavaEvent, JavaScreen, State as JavaState};
+pub use java_gui::{PictureRequest, menus as java_screens};
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -30,7 +30,6 @@ use acacia_ui::{DrawList, Quad, Sprite};
 use crate::control::{Inventory, Stack};
 use crate::me::Me;
 use acacia_ui::inventory::Layout;
-use acacia_ui::menu::Backdrop;
 
 use crate::forms::FormScreen;
 use crate::looks::Looks;
@@ -58,8 +57,10 @@ pub struct Frame<'a> {
     /// The debug screen's two columns, when it is shown.
     pub debug: Option<(Vec<String>, Vec<String>)>,
     pub screen: Option<Screen<'a>>,
-    /// An open menu: its title, button labels and what it is drawn over.
-    pub menu: Option<(&'a str, &'a [String], Backdrop)>,
+    /// The Bedrock look's open menu: its title and button labels.
+    pub menu: Option<(&'a str, &'a [String])>,
+    /// The Java look's open screens.
+    pub java_screens: Option<java_screens::Shown<'a>>,
     /// An open server form.
     pub form: Option<&'a FormScreen>,
     pub sign: Option<acacia_ui::sign_editor::Editing<'a>>,
@@ -183,7 +184,8 @@ impl Ui {
     /// This frame's quads for a window `size` pixels big at GUI `scale`, the atlas they sample,
     /// and the pictures-in-picture the renderer draws for them.
     pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad], &[PictureRequest]) {
-        let Frame { look, me, debug, screen, menu, form, sign, book, players, tags, mouse, size, scale, now } = frame;
+        let Frame { look, me, debug, screen, menu, java_screens, form, sign, book, players, tags, mouse, size, scale, now } = frame;
+        let menu_open = menu.is_some() || java_screens.as_ref().is_some_and(|s| s.menu.is_some());
         self.pictures.clear();
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
@@ -196,7 +198,7 @@ impl Ui {
         // In the world, so under the HUD.
         acacia_ui::nametags::draw(&mut list, &skin.theme, &tags);
         if let Some(me) = me {
-            let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
+            let state = HudState { crosshair: screen.is_none() && !menu_open && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
             if !java {
                 hud::draw(&mut list, &skin.theme, &state, gui);
             }
@@ -218,7 +220,7 @@ impl Ui {
                 })
                 .collect();
             if java {
-                let open = java_gui::screen_info(screen.map(|s| s.layout), book.is_some() || sign.is_some(), menu.is_some() || form.is_some() || self.chat.is_open(), java_size[0]);
+                let open = java_gui::screen_info(screen.map(|s| s.layout), book.is_some() || sign.is_some(), menu_open || form.is_some() || self.chat.is_open(), java_size[0]);
                 let view = java_gui::HudView { me, effects: &active, screen: open, chat_open: self.chat.is_open(), debug: debug.is_some(), sidebar: self.sidebar.as_ref(), players, lang: &self.lang };
                 let calls = self.java_gui.hud(&view, java_size, now);
                 self.java_gui.paint(skin, &|key| java_gui::hotbar_stack(me, key), &calls, &mut list, &mut self.pictures);
@@ -236,8 +238,8 @@ impl Ui {
             }
             overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
         }
-        // The Java look's HUD chat is in its HUD; the open chat stays this one until ChatScreen is wired.
-        if !java || self.chat.is_open() {
+        // The Java look's chat is its HUD's and its ChatScreen (java_screens).
+        if look == LookChoice::Bedrock {
             chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
         }
         if let Some((left, right)) = debug {
@@ -258,9 +260,7 @@ impl Ui {
         if let Some(sign) = sign {
             acacia_ui::sign_editor::draw(&mut list, &skin.theme, sign, mouse, gui);
         }
-        if let Some((title, buttons, backdrop)) = menu {
-            acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, backdrop, mouse, gui);
-        }
+        java_screens::draw(&mut self.java_gui, skin, menu, java_screens, mouse, size, scale, now, &mut list, &mut self.pictures);
         if java && me.is_some() {
             let calls = self.java_gui.deferred_subtitles(java_size);
             self.java_gui.paint(skin, &|_| None, &calls, &mut list, &mut self.pictures);

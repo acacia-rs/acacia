@@ -8,7 +8,8 @@ use acacia_ui::java::tooltip::game::Game;
 use acacia_ui::java::tooltip::stack::ItemStack;
 use serde_json::{Map, Value, json};
 
-use super::lang::JavaLang;
+/// The game's translations by key.
+pub type JavaLang = std::collections::HashMap<String, String>;
 use crate::control::Stack;
 use crate::enchant_names::JAVA as ENCHANTMENTS;
 
@@ -32,7 +33,7 @@ pub fn item_stack(stack: &Stack, items: Option<&JavaItems>, lang: &JavaLang, key
     let path = id.strip_prefix("minecraft:").unwrap_or(&id);
     let mut c = Map::new();
     // Blocks' items are named by their block's key.
-    let name = ["item", "block"].map(|kind| format!("{kind}.minecraft.{path}")).into_iter().find(|k| lang.has(k));
+    let name = ["item", "block"].map(|kind| format!("{kind}.minecraft.{path}")).into_iter().find(|k| lang.contains_key(k));
     c.insert("minecraft:item_name".into(), json!({"translate": name.unwrap_or_else(|| format!("item.minecraft.{path}"))}));
     c.insert("minecraft:max_stack_size".into(), json!(MAX_STACK));
     if let Some(title) = &stack.title {

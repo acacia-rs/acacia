@@ -10,6 +10,8 @@ pub enum Field {
     Flag(bool),
     /// An enum constant or an item identifier (`BOW_AND_ARROW`, `minecraft:bow`).
     Text(String),
+    /// A list of numbers in double (the dragon's flight history, flattened).
+    Nums(Vec<f64>),
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -52,6 +54,13 @@ impl RenderState {
         }
     }
 
+    pub fn nums(&self, name: &str) -> &[f64] {
+        match self.fields.get(name) {
+            Some(Field::Nums(v)) => v,
+            _ => &[],
+        }
+    }
+
     pub fn has(&self, name: &str) -> bool {
         self.fields.contains_key(name)
     }
@@ -64,6 +73,7 @@ impl RenderState {
                 serde_json::Value::Bool(b) => Field::Flag(*b),
                 serde_json::Value::Number(n) => Field::Num(n.as_f64().unwrap_or(0.0) as f32),
                 serde_json::Value::String(s) => Field::Text(s.clone()),
+                serde_json::Value::Array(a) => Field::Nums(a.iter().filter_map(serde_json::Value::as_f64).collect()),
                 _ => continue,
             };
             state.set(name.trim_start_matches('?'), field);

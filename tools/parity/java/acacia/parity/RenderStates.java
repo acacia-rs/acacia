@@ -101,6 +101,13 @@ public final class RenderStates {
         f.setAccessible(true);
         Class<?> t = f.getType();
         if (t == float.class) f.setFloat(state, value.getAsFloat());
+        else if (t == double.class) f.setDouble(state, value.getAsDouble());
+        else if (t == net.minecraft.world.entity.boss.enderdragon.DragonFlightHistory.class) {
+            // (y, yRot) pairs, recorded oldest first.
+            var history = (net.minecraft.world.entity.boss.enderdragon.DragonFlightHistory) f.get(state);
+            var pairs = value.getAsJsonArray();
+            for (int i = 0; i + 1 < pairs.size(); i += 2) history.record(pairs.get(i).getAsDouble(), pairs.get(i + 1).getAsFloat());
+        }
         else if (t == int.class) f.setInt(state, value.getAsInt());
         else if (t == boolean.class) f.setBoolean(state, value.getAsBoolean());
         else if (t.isEnum()) {
@@ -114,6 +121,9 @@ public final class RenderStates {
         } else if (t == ItemStackRenderState.class && value.getAsBoolean()) {
             // Models test only that it is not empty.
             ((ItemStackRenderState) f.get(state)).newLayer();
+        } else if (t == net.minecraft.world.entity.AnimationState.class) {
+            // The value is the tick it started at.
+            ((net.minecraft.world.entity.AnimationState) f.get(state)).start(value.getAsInt());
         } else if (t == BlockModelRenderState.class && value.getAsBoolean()) {
             ((BlockModelRenderState) f.get(state)).setupModel(new org.joml.Matrix4f(), false);
         } else throw new IllegalArgumentException("unsupported type " + t + " for " + name);

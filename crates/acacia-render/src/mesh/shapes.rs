@@ -52,7 +52,7 @@ fn emit_box(ctx: &Ctx, p: [i32; 3], bx: &Box16, b: &RenderBlock, out: &mut Secti
             continue;
         }
         let on_edge = if positive { max[axis] == 16 } else { min[axis] == 0 };
-        if on_edge && ctx.block(neighbour(p, face)).occludes {
+        if on_edge && !ctx.shows(p, face) {
             continue;
         }
         let mut pos = [0u32; 3];
@@ -72,7 +72,7 @@ fn emit_model(ctx: &Ctx, p: [i32; 3], faces: &[ModelFace], b: &RenderBlock, out:
     let shift = b.offset.map_or([0.0; 3], |o| o.at(wx, wz));
     let origin = [0, 1, 2].map(|i| (p[i] as f32 + shift[i]) * 16.0);
     for f in faces {
-        if f.cull.is_some_and(|side| ctx.block(neighbour(p, usize::from(side))).occludes) {
+        if f.cull.is_some_and(|side| !ctx.shows(p, usize::from(side))) {
             continue;
         }
         let corners = f.corners.map(|c| [c[0] + origin[0], c[1] + origin[1], c[2] + origin[2]]);

@@ -1,4 +1,6 @@
 """World light end to end: real Bedrock chunks from the movement traces in crates/acacia-bot/tests/traces (the test BDS: a flat overworld with built courses, generated Nether and End), mapped to Java states by lookbake's table, lit by Java's LevelLightEngine and drawn with its BlockModelLighter, against acacia's light engine and mesher with the Java look: each face both draw, corner by corner (block light, sky light, grey)."""
+import json
+
 from paritylib.home import HOME, ROOT
 from paritylib.java_look import java_dir
 
@@ -29,6 +31,8 @@ def run(h):
     mapping = java / "blockstate_mappings.json"
     if not mapping.exists():
         h.cargo("run", "--release", "-q", "-p", "lookbake", "--", "fetch-java", java)
-    quads = h.oracle("acacia.parity.world_light.WorldLightOracle", scenes, mapping, inputs=[scenes, mapping], heap="8g") / "quads.jsonl"
-    out = h.cargo("run", "--release", "-q", "-p", "lookbake", "--", "java-world-light", scenes, quads, HOME / "bedrock-pack", java, check=False)
+    oracle = h.oracle("acacia.parity.world_light.WorldLightOracle", scenes, mapping, inputs=[scenes, mapping], heap="8g")
+    out = h.cargo("run", "--release", "-q", "-p", "lookbake", "--", "java-world-light", scenes, oracle / "quads.jsonl", HOME / "bedrock-pack", java, check=False)
     h.read_probe(out)
+    for state in json.loads((oracle / "unmapped.json").read_text(encoding="utf-8")):
+        h.diverge(state, "Java state", "a mapping", "none in lookbake's table")

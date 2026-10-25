@@ -7,7 +7,7 @@ use acacia_ui::java::container::input::{Button, Key};
 use acacia_ui::lang::Lang;
 
 use super::super::items::{item_stack, plain};
-use super::super::lang::JavaLang;
+use super::super::items::JavaLang;
 use super::{Event, JavaGui, Open, Outcome, State, Target, View};
 use crate::control::{Command, Inventory, Rows, Stack};
 use crate::creative_items::CreativeEntry;
@@ -162,7 +162,7 @@ fn creative_items_come_out_of_the_entries_and_tabs_select_on_release() {
 
 #[test]
 fn stacks_carry_their_java_item_name_and_enchantments() {
-    let lang = JavaLang::of(&[("block.minecraft.stone", "Stone")]);
+    let lang = JavaLang::from([("block.minecraft.stone".to_owned(), "Stone".to_owned())]);
     let s = item_stack(&stack("minecraft:stone", 2), None, &lang, 5);
     assert_eq!((s.count, s.key, s.get("item_name").cloned()), (2, Some(5), Some(serde_json::json!({"translate": "block.minecraft.stone"}))));
     let book = Stack { enchantments: vec![(9, 3)], ..stack("minecraft:enchanted_book", 1) };

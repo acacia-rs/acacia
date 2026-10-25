@@ -1,8 +1,8 @@
 //! Everything the Java GUI draws from, copied into a Java look's files in the jar's own layout:
 //! the GUI sprites with their `.mcmeta` scaling and sheets (`textures/gui`), the camera overlays
-//! (`textures/misc`), effect icons, the fonts and their definitions, the nether portal's frames and
-//! the `en_us` translations.
-//! Read by `acacia_ui::theme::java` and `acacia_ui::java::paint::assets`.
+//! (`textures/misc`), effect icons, the fonts and their definitions, the nether portal's frames, and
+//! the translations the screens' text comes from (`lang`). Read by `acacia_ui::theme::java`,
+//! `acacia_ui::java::paint::assets` and `acacia_ui::java::lang`.
 
 use std::path::Path;
 

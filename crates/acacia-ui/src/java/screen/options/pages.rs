@@ -1,5 +1,7 @@
 //! Each options screen's `init`: `OptionsScreen` and the `OptionsSubScreen` pages' `addOptions`.
 
+use std::borrow::Cow;
+
 use super::value::{Values, create_button, value};
 use super::{Build, OptionsScreen};
 use crate::java::screen::Env;
@@ -48,7 +50,11 @@ pub fn build(ctx: &Ctx, env: Env, page: &str, values: Values, client: Client) ->
         "chat" => p.sub("options.chat.title", |p, b| p.small_ids(b, CHAT)),
         "accessibility" => p.accessibility(),
         "skin" => p.sub("options.skinCustomisation.title", |p, b| {
-            let part = |part: &&str| p.on_off(&format!("options.modelPart.{part}"), value(p.values, &format!("modelPart.{part}")).b());
+            let part = |part: &&str| {
+                let id = format!("modelPart.{part}");
+                let on = value(p.values, &id).b();
+                p.on_off(id, &format!("options.modelPart.{part}"), on)
+            };
             let mut widgets: Vec<Box<dyn Widget>> = PARTS.iter().map(part).collect();
             widgets.push(create_button(p.ctx, p.values, "mainHand", 150));
             p.list(b).add_small(widgets);
@@ -95,14 +101,16 @@ fn section(ctx: &Ctx, key: &str) -> Text {
 }
 
 impl Page<'_, '_> {
-    fn button(&self, w: i32, key: &str) -> Box<dyn Widget> {
-        Box::new(Button::sized(w, self.ctx.tr(key)))
+    fn button(&self, w: i32, key: &'static str) -> Box<dyn Widget> {
+        Box::new(Button::named(self.ctx, w, key))
     }
 
-    /// `CycleButton.onOffBuilder(value).create(name)`.
-    fn on_off(&self, name: &str, on: bool) -> Box<dyn Widget> {
+    /// `CycleButton.onOffBuilder(value).create(name)`, known by `id`.
+    fn on_off(&self, id: impl Into<Cow<'static, str>>, name: &str, on: bool) -> Box<dyn Widget> {
         let shown = self.ctx.tr(if on { "options.on" } else { "options.off" });
-        Box::new(CycleButton::new(self.ctx.lang, 0, 0, 150, 20, self.ctx.tr(name), shown, Display::NameAndValue))
+        let mut b = CycleButton::new(self.ctx.lang, 0, 0, 150, 20, self.ctx.tr(name), shown, Display::NameAndValue);
+        b.base.id = id.into();
+        Box::new(b)
     }
 
     fn list<'c>(&self, b: &'c mut Build) -> &'c mut super::list::OptionsList {
@@ -148,7 +156,7 @@ impl Page<'_, '_> {
         b.layout.add_header(title);
         self.list(&mut b);
         options(self, &mut b);
-        let done = b.add(Button::sized(200, self.ctx.tr("gui.done")));
+        let done = b.add(Button::named(self.ctx, 200, DONE));
         b.layout.add_footer(done);
         b.finish(self.env)
     }
@@ -166,8 +174,8 @@ impl Page<'_, '_> {
             _ => {}
         });
         let mut footer = Linear::new(false, 8);
-        footer.add_default(b.add(Button::sized(150, self.ctx.tr("options.accessibility.link"))));
-        footer.add_default(b.add(Button::sized(150, self.ctx.tr("gui.done"))));
+        footer.add_default(b.add(Button::named(self.ctx, 150, "options.accessibility.link")));
+        footer.add_default(b.add(Button::named(self.ctx, 150, DONE)));
         b.layout.add_footer(footer.into_elem());
         b.finish(self.env)
     }
@@ -197,7 +205,7 @@ impl Page<'_, '_> {
         });
         self.list(&mut b).add_header(self.ctx, section(self.ctx, "options.video.preferences.header"));
         self.small_ids(&mut b, &["showAutosaveIndicator", "vignette", "attackIndicator", "chunkSectionFadeInTime"]);
-        let done = b.add(Button::sized(200, self.ctx.tr("gui.done")));
+        let done = b.add(Button::named(self.ctx, 200, DONE));
         b.layout.add_footer(done);
         b.finish(self.env)
     }
@@ -205,10 +213,10 @@ impl Page<'_, '_> {
     fn online(&self, b: &mut Build) {
         let c = self.client;
         self.list(b).add_header(self.ctx, section(self.ctx, "options.online.friends.header"));
-        let mut requests = self.on_off("options.allowFriendRequests", c.friend_requests);
+        let mut requests = self.on_off("options.allowFriendRequests", "options.allowFriendRequests", c.friend_requests);
         requests.base_mut().active = c.friends;
-        self.list(b).add_small(vec![self.on_off("options.friendsList", c.friends), requests]);
-        let mut notifications = self.on_off("options.inGameNotification", value(self.values, "inGameNotification").b());
+        self.list(b).add_small(vec![self.on_off("options.friendsList", "options.friendsList", c.friends), requests]);
+        let mut notifications = self.on_off("inGameNotification", "options.inGameNotification", value(self.values, "inGameNotification").b());
         notifications.base_mut().active = c.friends;
         let mut presence = create_button(self.ctx, self.values, "sharePresence", 150);
         presence.base_mut().active = c.friends;
@@ -231,25 +239,28 @@ impl Page<'_, '_> {
         let mut sub = Linear::new(false, 8);
         b.widgets.push(create_button(ctx, self.values, "fov", 150));
         sub.add_default(crate::java::widget::layout::Elem::Widget(b.widgets.len() - 1));
-        sub.add_default(b.add(Button::sized(150, ctx.tr("options.online"))));
+        sub.add_default(b.add(Button::named(ctx, 150, "options.online")));
         header.add_default(sub.into_elem());
         b.layout.add_header(header.into_elem());
         let mut grid = Layout::grid();
         grid.defaults = Settings::default().padding(4, 0, 4, 4).align_x(0.5);
         let mut helper = RowHelper::new(2);
         for key in MAIN_BUTTONS {
-            let mut button = Button::sized(150, ctx.tr(key));
+            let mut button = Button::named(ctx, 150, *key);
             button.base.active = *key != "options.telemetry" || self.client.telemetry;
             let e = b.add(button);
             let d = grid.defaults;
             helper.add(&mut grid, e, 1, d);
         }
         b.layout.add_contents(crate::java::widget::layout::Elem::Layout(Box::new(grid)));
-        let done = b.add(Button::sized(200, ctx.tr("gui.done")));
+        let done = b.add(Button::named(ctx, 200, DONE));
         b.layout.add_footer(done);
         b.finish(self.env)
     }
 }
+
+/// Every page's Done: back to the screen it was opened from.
+pub const DONE: &str = "gui.done";
 
 const MAIN_BUTTONS: &[&str] = &[
     "options.skinCustomisation", "options.sounds", "options.video", "options.controls", "options.language", "options.chat", "options.resourcepack",

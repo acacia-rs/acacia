@@ -27,19 +27,18 @@ Each is checked against the decompiled 26.3 client, not by eye. None is started.
   vertex (cubes, boxes, models, cross planes), the light engine's rules and every state's light
   facts are Java's, checked by harnesses `lightmap`, `smooth_light`, `light_engine`,
   `light_facts` and, end to end on real Bedrock terrain, `world_light` (docs/parity.md).
-  Entities take the lightmap through `lightmap(levels)`. Left, not light: acacia culls faces by
-  whole-block occlusion where Java uses partial face shapes (snow and wall faces it hides still
-  draw here), culls faces against powder snow, and draws leaf litter and some fence states the
-  mapping has no Java state for.
+  Entities take the lightmap through `lightmap(levels)`.
+- **World mesh: done (2026-10-25).** Faces cull as `Block.shouldRenderFace` does (face occlusion
+  shapes from `BlockShapeExporter`, `skipRendering` by block class), the grass block draws Java's
+  overlay as a second quad, and on real Bedrock terrain every face Java draws, liquids included,
+  acacia draws the same and nothing more (`world_light`, docs/parity.md). Without a JDK 25 the
+  look keeps the renderer's own culling.
 - **Liquids.** Geometry is the renderer's, after an older `LiquidBlockRenderer`. Compare corner
   heights, the flow angle and the side faces with 26.3's `FluidRenderer`.
 - **Fog.** Both bands are drawn, in the renderer's sky colour. Java's is `fog_color` mixed with
   the sky colour by render distance (`AtmosphericFogEnvironment.getBaseColor`), and rain pulls the
   haze in. The Nether's haze is chosen by the dimension's height, since `Dimension` has no name.
   The haze has only been through shader validation; look at it once.
-- **Grass block and the other overlaid models** (182 states) keep Bedrock's overlay cube and
-  textures. Drawing Java's two layers needs a second face on the same quad without depth
-  fighting.
 - **States with no Java geometry** (193) and **block entities** (382: chests, signs, beds,
   banners, heads) keep their Bedrock rendering. The second group belongs with J4.
 - **Biomes.** Where a biome is comes from the Bedrock server, so only colours are Java's.

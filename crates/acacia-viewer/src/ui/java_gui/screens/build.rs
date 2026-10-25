@@ -14,7 +14,7 @@ use acacia_ui::java::text::Text;
 use acacia_ui::java::tooltip::stack::ItemStack;
 
 use super::super::items::item_stack;
-use super::super::lang::JavaLang;
+use super::super::items::JavaLang;
 use super::{Built, JavaGui, JavaScreen, Open, State, Target, benches, containers, creative, player};
 use crate::control::{Inventory, Stack};
 use crate::creative_items::CreativeEntry;

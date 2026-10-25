@@ -168,7 +168,7 @@ EQUINE_EXTRAS = [
 ]
 CRITTERS = {
     "bee": B + "bee.AdultBeeModel", "bee_baby": B + "bee.BabyBeeModel", "parrot": B + "parrot.ParrotModel",
-    "fox": B + "fox.AdultFoxModel",
+    "fox": B + "fox.AdultFoxModel", "fox_baby": B + "fox.BabyFoxModel",
 }
 CRITTER_EXTRAS = [
     {},
@@ -200,6 +200,45 @@ STILL_EXTRAS = [
     {"movingFactor": 0.0, "inWaterFactor": 0.0, "onGroundFactor": 1.0, "playingDeadFactor": 0.6, "showArms": True},
     {"movingFactor": 1.0, "inWaterFactor": 0.0, "onGroundFactor": 1.0},
 ]
+# Keyframed models; an AnimationState field's value is the tick it started at.
+KEYFRAMED = {
+    "bat": M + "ambient.BatModel", "rabbit": B + "rabbit.AdultRabbitModel", "rabbit_baby": B + "rabbit.BabyRabbitModel",
+    "frog": B + "frog.FrogModel", "axolotl_baby": B + "axolotl.BabyAxolotlModel",
+    "armadillo": B + "armadillo.AdultArmadilloModel", "armadillo_baby": B + "armadillo.BabyArmadilloModel",
+    "camel": B + "camel.AdultCamelModel", "camel_baby": B + "camel.BabyCamelModel",
+    "sniffer": B + "sniffer.SnifferModel", "sniffer_baby": B + "sniffer.SnifferModel",
+    "breeze": M + "monster.breeze.BreezeModel", "creaking": M + "monster.creaking.CreakingModel",
+    "warden": M + "monster.warden.WardenModel", "copper_golem": B + "golem.CopperGolemModel",
+    "nautilus": B + "nautilus.NautilusModel", "nautilus_baby": B + "nautilus.NautilusModel",
+    "zombie_nautilus": B + "nautilus.NautilusModel",
+}
+KEYFRAMED_EXTRAS = [
+    {},
+    {"isResting": True, "restAnimationState": 0, "hopAnimationState": 0, "jumpAnimationState": 0, "walkAnimationState": 0,
+     "rollUpAnimationState": 0, "isHidingInShell": True, "sitAnimationState": 0, "jumpCooldown": 20.0, "diggingAnimationState": 0,
+     "idle": 0, "attackAnimationState": 0, "tendrilAnimation": 0.7, "idleAnimationState": 0},
+    {"flyAnimationState": 20, "idleHeadTiltAnimationState": 20, "croakAnimationState": 20, "tongueAnimationState": 30,
+     "isSwimming": True, "swimAnimation": 20, "idleOnGroundAnimationState": 30, "peekAnimationState": 20, "rollOutAnimationState": 33,
+     "sitPoseAnimationState": 20, "dashAnimationState": 30, "isSearching": True, "sniffingAnimationState": 20, "shoot": 20,
+     "slide": 30, "canMove": True, "invulnerabilityAnimationState": 20, "roarAnimationState": 20, "sonicBoomAnimationState": 30,
+     "interactionGetItem": 20, "rightHandItemState": True},
+    {"swimIdleAnimationState": 10, "idleUnderWaterAnimationState": 10, "playDeadAnimationState": 30, "sitUpAnimationState": 10,
+     "risingAnimationState": 10, "feelingHappyAnimationState": 30, "scentingAnimationState": 31, "slideBack": 10, "inhale": 25,
+     "longJump": 31, "deathAnimationState": 10, "canMove": True, "emergeAnimationState": 10, "sniffAnimationState": 30,
+     "interactionDropItem": 10, "interactionDropNoItem": 31, "interactionGetNoItem": 33, "leftHandItemState": True,
+     "idleUnderWaterOnGroundAnimationState": 25, "jumpCooldown": 50.0, "tendrilAnimation": 0.2},
+]
+# The dragon's flight history: (y, yRot) pairs recorded oldest first; the second wraps the ring.
+HISTORY_A = [v for i in range(40) for v in (60.0 + (i % 7) * 0.75, -170.0 + i * 12.5)]
+HISTORY_B = [v for i in range(70) for v in (80.0 - i * 0.25, 150.0 - i * 7.25)]
+DRAGONS = {"ender_dragon": M + "monster.dragon.EnderDragonModel", "happy_ghast": B + "ghast.HappyGhastModel",
+           "happy_ghast_baby": B + "ghast.HappyGhastModel"}
+DRAGON_EXTRAS = [
+    {},
+    {"flapTime": 0.3, "partialTicks": 0.25, "flightHistory": HISTORY_A},
+    {"flapTime": 0.85, "partialTicks": 0.75, "flightHistory": HISTORY_B, "isSitting": True, "bodyItem": "minecraft:white_harness"},
+    {"flapTime": 1.6, "partialTicks": 0.5, "flightHistory": HISTORY_A, "isLandingOrTakingOff": True, "distanceToEgg": 10.0},
+]
 ILLAGERS = {name: M + "monster.illager.IllagerModel" for name in ["vindicator", "evoker", "pillager", "illusioner"]}
 ILLAGER_EXTRAS = [
     {"?armPose": "CROSSED"},
@@ -215,7 +254,7 @@ ILLAGER_EXTRAS = [
     {"?armPose": "CELEBRATING"},
 ]
 
-EVERY = [(QUADRUPEDS, QUADRUPED_EXTRAS), (HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS), (CAPES, CAPE_EXTRAS), (WINGS, WING_EXTRAS), (OTHERS, OTHER_EXTRAS), (PIGLINS, PIGLIN_EXTRAS), (ILLAGERS, ILLAGER_EXTRAS), (ANIMALS, ANIMAL_EXTRAS), (FELINES, FELINE_EXTRAS), (SWIMMERS, SWIMMER_EXTRAS), (EQUINES, EQUINE_EXTRAS), (CRITTERS, CRITTER_EXTRAS), (NETHER, NETHER_EXTRAS), (STILLS, STILL_EXTRAS)]
+EVERY = [(QUADRUPEDS, QUADRUPED_EXTRAS), (HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS), (CAPES, CAPE_EXTRAS), (WINGS, WING_EXTRAS), (OTHERS, OTHER_EXTRAS), (PIGLINS, PIGLIN_EXTRAS), (ILLAGERS, ILLAGER_EXTRAS), (ANIMALS, ANIMAL_EXTRAS), (FELINES, FELINE_EXTRAS), (SWIMMERS, SWIMMER_EXTRAS), (EQUINES, EQUINE_EXTRAS), (CRITTERS, CRITTER_EXTRAS), (NETHER, NETHER_EXTRAS), (STILLS, STILL_EXTRAS), (KEYFRAMED, KEYFRAMED_EXTRAS), (DRAGONS, DRAGON_EXTRAS)]
 ARMED = [(HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS)]
 
 

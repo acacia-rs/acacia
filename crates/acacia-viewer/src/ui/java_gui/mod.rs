@@ -4,7 +4,8 @@
 mod hud;
 mod inputs;
 mod items;
-mod lang;
+pub mod menus;
+mod options;
 mod picture;
 pub mod screens;
 
@@ -12,6 +13,7 @@ pub use hud::{HudView, hotbar_stack};
 pub use inputs::screen_info;
 pub use picture::PictureRequest;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -40,7 +42,8 @@ pub struct JavaGui {
     ticks: i64,
     last_frame: i64,
     started: Instant,
-    lang: lang::JavaLang,
+    /// The game's `en_us` translations.
+    lang: HashMap<String, String>,
     /// The registry facts the screens' tooltips read.
     game: acacia_ui::java::tooltip::game::Game,
 }
@@ -52,12 +55,16 @@ impl JavaGui {
         for w in &fonts.warnings {
             tracing::debug!(target: "ui", "font: {w}");
         }
-        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang: lang::JavaLang::load(root), game: items::facts() }
+        let lang = acacia_ui::java::lang::load(root);
+        if lang.is_empty() {
+            tracing::warn!(looked = %root.display(), "no lang/en_us.json, so screens show translation keys: bake the Java look again (tools/lookbake)");
+        }
+        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang, game: items::facts() }
     }
 
     /// The screens' environment: the fonts, the translations, the registry facts.
     fn with_env<R>(&self, f: impl FnOnce(&acacia_ui::java::container::Env) -> R) -> R {
-        let lang = |key: &str| self.lang.get(key);
+        let lang = |key: &str| self.lang.get(key).cloned();
         f(&acacia_ui::java::container::Env { font: &self.fonts, lang: &lang, advanced: false, game: &self.game, op: false })
     }
 

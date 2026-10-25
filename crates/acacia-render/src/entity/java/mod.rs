@@ -8,6 +8,7 @@ pub mod bedrock;
 pub mod draw;
 pub mod equipment;
 pub mod joml;
+pub mod keyframes;
 pub mod kinds;
 pub mod library;
 pub mod mesh;
@@ -18,6 +19,7 @@ pub mod poses;
 pub mod state;
 pub mod trims;
 pub mod types;
+pub mod villager;
 
 pub use anim::Family;
 pub use model::{Part, PartPose, Polygon};

@@ -10,7 +10,9 @@ use crate::control::Command;
 impl App {
     pub(super) fn key(&mut self, code: KeyCode, pressed: bool) {
         if self.menu.is_some() {
-            if pressed && code == KeyCode::Escape {
+            if pressed && self.java_look() {
+                self.java_menu_key(code);
+            } else if pressed && code == KeyCode::Escape {
                 self.menu_back();
             }
             return;
@@ -35,6 +37,8 @@ impl App {
                 if !self.java_key(code) {
                     self.screen_key(code);
                 }
+            } else if pressed && self.java_look() {
+                self.java_chat_key(code);
             } else if pressed {
                 self.chat_key(code);
             }
@@ -44,7 +48,12 @@ impl App {
             (KeyCode::KeyE, true) if self.mode == Mode::Play => self.open_inventory(),
             (KeyCode::KeyT | KeyCode::Slash, true) if self.mode == Mode::Play => {
                 self.play.release_all();
-                self.ui.chat.open(if code == KeyCode::Slash { "/" } else { "" });
+                let initial = if code == KeyCode::Slash { "/" } else { "" };
+                if self.java_look() {
+                    self.open_java_chat(initial);
+                } else {
+                    self.ui.chat.open(initial);
+                }
             }
             (KeyCode::Escape, true) if self.mode == Mode::Play => self.open_menu(Menu::Pause),
             (KeyCode::Escape, true) => self.grab(false),
@@ -95,6 +104,8 @@ impl App {
             self.java_text(text);
         } else if self.names() && self.menu.is_none() {
             self.screen_text(text);
+        } else if chat_was_open && self.java_look() {
+            self.java_chat_text(text);
         } else if chat_was_open {
             self.ui.chat.type_text(text);
         }
@@ -111,8 +122,16 @@ impl App {
 
     pub(super) fn button(&mut self, button: MouseButton, pressed: bool) {
         if self.menu.is_some() {
-            if pressed && button == MouseButton::Left {
+            if button == MouseButton::Left && self.java_look() {
+                self.java_menu_button(pressed);
+            } else if pressed && button == MouseButton::Left {
                 self.menu_click();
+            }
+            return;
+        }
+        if self.ui.chat.is_open() && self.java_look() {
+            if pressed && button == MouseButton::Left {
+                self.java_chat_click();
             }
             return;
         }
@@ -152,6 +171,9 @@ impl App {
     }
 
     pub(super) fn scroll(&mut self, lines: f32) {
+        if self.menu.is_some() && self.java_look() {
+            return self.java_menu_scroll(lines);
+        }
         if self.form.is_some() && self.menu.is_none() {
             return self.form_scroll(lines);
         }

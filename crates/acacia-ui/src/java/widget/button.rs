@@ -3,11 +3,33 @@
 
 use std::borrow::Cow;
 
+use super::input::{Action, Key, KeyOutcome};
 use super::text::MultiLineText;
 use super::{Base, Ctx, Widget};
 use crate::java::gui::Metrics;
 use crate::java::mth::white;
 use crate::java::text::Text;
+
+/// `AbstractButton.onClick` and `keyPressed` (Enter or Space while active): both `onPress`, which
+/// `action` names given whether Shift is down.
+macro_rules! presses {
+    ($action:expr) => {
+        fn on_click(&mut self, _: f64, shift: bool) -> Option<Action> {
+            Some($action(shift))
+        }
+        fn key_pressed(&mut self, key: Key, shift: bool) -> KeyOutcome {
+            (self.base.is_active() && key.is_selection()).then_some(Some($action(shift)))
+        }
+    };
+}
+
+fn press(_: bool) -> Action {
+    Action::Press
+}
+
+fn cycle(back: bool) -> Action {
+    Action::Cycle { back }
+}
 
 /// `WidgetSprites`: (enabled, disabled, enabled focused, disabled focused).
 #[derive(Clone, Debug, PartialEq)]
@@ -61,9 +83,17 @@ impl Button {
     pub fn sized(w: i32, message: Text) -> Button {
         Button::new(0, 0, w, 20, message)
     }
+
+    /// [`Button::sized`] labelled with `key`'s translation and known by `key`.
+    pub fn named(ctx: &Ctx, w: i32, key: &'static str) -> Button {
+        let mut b = Button::sized(w, ctx.tr(key));
+        b.base.id = key.into();
+        b
+    }
 }
 
 impl Widget for Button {
+    presses!(press);
     fn base(&self) -> &Base {
         &self.base
     }
@@ -84,6 +114,7 @@ pub struct ImageButton {
 }
 
 impl Widget for ImageButton {
+    presses!(press);
     fn base(&self) -> &Base {
         &self.base
     }
@@ -121,6 +152,7 @@ impl SpriteIconButton {
 }
 
 impl Widget for SpriteIconButton {
+    presses!(press);
     fn base(&self) -> &Base {
         &self.base
     }
@@ -181,6 +213,7 @@ pub fn option_name_value(lang: crate::java::text::Lang, name: Text, value: Text)
 }
 
 impl Widget for CycleButton {
+    presses!(cycle);
     fn base(&self) -> &Base {
         &self.base
     }
@@ -224,6 +257,7 @@ impl Checkbox {
 }
 
 impl Widget for Checkbox {
+    presses!(press);
     fn base(&self) -> &Base {
         &self.base
     }
