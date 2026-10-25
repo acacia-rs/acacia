@@ -20,7 +20,7 @@ use acacia_ui::java::widget::input::{Fired, Interaction, Key};
 pub use super::gui_size;
 pub use super::options::{apply as apply_option, value as option_value};
 
-use super::{JavaGui, options};
+use super::{JavaGui, PictureRequest, options};
 use crate::settings::Settings;
 use crate::ui::{Skin, Ui};
 
@@ -152,14 +152,15 @@ impl JavaGui {
     }
 
     /// The chat input then the menu, painted into `list`.
-    pub fn screens(&mut self, skin: &mut Skin, shown: Shown, size: [i32; 2], mouse: (i32, i32), now: Instant, list: &mut DrawList) {
+    #[allow(clippy::too_many_arguments)]
+    pub fn screens(&mut self, skin: &mut Skin, shown: Shown, size: [i32; 2], mouse: (i32, i32), now: Instant, list: &mut DrawList, pictures: &mut Vec<PictureRequest>) {
         if let Some((chat, blink_ms)) = shown.chat {
             let gui = self.chat(chat, mouse, blink_ms);
-            self.paint(skin, &|_| None, &gui, list);
+            self.paint(skin, &|_| None, &gui, list, pictures);
         }
         if let Some((view, s)) = shown.menu {
             let gui = self.menu(&view, &s, size, mouse, now);
-            self.paint(skin, &|_| None, &gui, list);
+            self.paint(skin, &|_| None, &gui, list, pictures);
         }
     }
 }

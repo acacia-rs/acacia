@@ -1,75 +1,82 @@
-//! `Hud.extractRenderState` for the player the viewer shows.
+//! The Java look's HUD: viewer state into `acacia_ui::java::hud::frame`, driven at the game's 20
+//! ticks a second.
 
 use std::time::Instant;
 
-use acacia_bot::proto::types::GameMode;
+use acacia_bot::events::TitleKind;
+use acacia_ui::effects::Active;
+use acacia_ui::java::chat::component::Tag;
 use acacia_ui::java::gui::Gui;
-use acacia_ui::java::hud::health::{Health, HeartKind};
-use acacia_ui::java::hud::hotbar::{self, Hotbar, OFFHAND_KEY};
+use acacia_ui::java::hud::frame::ScreenInfo;
+use acacia_ui::java::hud::hotbar::OFFHAND_KEY;
+use acacia_ui::java::text::Text;
+use acacia_ui::lang::Lang;
+use acacia_ui::sidebar::Sidebar;
 
-use super::JavaGui;
+use super::{JavaGui, inputs};
 use crate::control::Stack;
 use crate::me::Me;
 
-// Bedrock's effect ids.
-const REGENERATION: i32 = 10;
-const HUNGER: i32 = 17;
-const POISON: i32 = 19;
-const WITHER: i32 = 20;
+/// `Options.notificationDisplayTime`'s default.
+const DISPLAY_TIME: f64 = 1.0;
+/// Ticks caught up at most after a stall, enough to run out every timer.
+const MAX_CATCH_UP: i64 = 1200;
+
+/// What the viewer shows this frame, for the HUD.
+pub struct HudView<'a> {
+    pub me: &'a Me,
+    /// `me.effects` with their time counted down.
+    pub effects: &'a [Active],
+    pub screen: Option<ScreenInfo>,
+    pub chat_open: bool,
+    /// The debug screen (F3) is shown.
+    pub debug: bool,
+    pub sidebar: Option<&'a Sidebar>,
+    /// The player list's names while Tab is held.
+    pub players: Option<&'a [String]>,
+    pub lang: &'a Lang,
+}
 
 impl JavaGui {
-    /// The crosshair, hotbar, health, food, air and experience for `me`.
-    pub fn hud(&mut self, me: &Me, size: [i32; 2], crosshair: bool, now: Instant) -> Gui {
+    /// `Hud.extractRenderState` for this frame, after the ticks due by `now`.
+    pub fn hud(&mut self, v: &HudView, size: [i32; 2], now: Instant) -> Gui {
+        let millis = self.millis(now);
+        let due = millis / 50;
+        let held = inputs::held_name(v.me, v.lang);
+        for _ in 0..(due - self.ticks).clamp(0, MAX_CATCH_UP) {
+            self.hud.tick(held.clone(), DISPLAY_TIME);
+        }
+        self.ticks = due;
+        let delta = (millis - self.last_frame) as f32 / 50.0;
+        self.last_frame = millis;
+        let i = inputs::inputs(v, size, millis, delta);
         let mut gui = Gui::new(size[0], size[1]);
-        let spectator = matches!(me.game_mode, GameMode::Spectator | GameMode::SurvivalSpectator | GameMode::CreativeSpectator);
-        let survival = matches!(me.game_mode, GameMode::Survival | GameMode::Adventure);
-        if crosshair && !spectator {
-            hotbar::crosshair(&mut gui, None, false);
-        }
-        if !spectator {
-            let bar = Hotbar {
-                selected: i32::from(me.hotbar % 9),
-                right_handed: true,
-                slots: std::array::from_fn(|i| me.items[i].as_ref().map(|_| 0.0)),
-                offhand: me.offhand.as_ref().map(|_| 0.0),
-                attack: None,
-            };
-            hotbar::hotbar(&mut gui, &bar);
-        }
-        if survival {
-            let millis = self.millis(now);
-            let has = |id| me.effects.iter().any(|e| e.0 == id);
-            let kind = if has(POISON) {
-                HeartKind::Poisoned
-            } else if has(WITHER) {
-                HeartKind::Withered
-            } else {
-                HeartKind::Normal
-            };
-            let (air, max_air) = me.air.map_or((300, 300), |(a, m)| (a as i32, m as i32));
-            let state = Health {
-                tick: (millis / 50) as i32,
-                millis,
-                health: me.health,
-                max_health: me.max_health,
-                absorption: 0.0,
-                armor: me.armor as i32,
-                food: me.food as i32,
-                saturation: 0.0,
-                kind,
-                regeneration: has(REGENERATION),
-                hunger: has(HUNGER),
-                hardcore: false,
-                damage_cooldown: false,
-                air,
-                max_air,
-                under_water: me.air.is_some(),
-                vehicle_hearts: 0,
-            };
-            self.health.extract(&mut gui, &state);
-        }
-        hotbar::experience(&mut gui, &self.fonts, me.xp_progress, if survival { me.xp_level } else { 0 }, survival);
+        self.hud.extract(&mut gui, &self.fonts, &|_| None, &i);
         gui
+    }
+
+    /// `Hud.extractDeferredSubtitles`, drawn over the screens.
+    pub fn deferred_subtitles(&mut self, size: [i32; 2]) -> Gui {
+        let mut gui = Gui::new(size[0], size[1]);
+        self.hud.extract_deferred_subtitles(&mut gui, &self.fonts);
+        gui
+    }
+
+    /// `ChatComponent.addServerSystemMessage`; a Bedrock player's chat is unsigned, which Java
+    /// tags the same.
+    pub fn add_chat(&mut self, line: &str, focused: bool) {
+        self.hud.chat.add(&self.fonts, Text::literal(line), Some(Tag::SYSTEM), self.hud.tick_count, focused);
+    }
+
+    /// `Hud.setTitle`, `setSubtitle`, `setOverlayMessage` and `clearTitles`.
+    pub fn show_title(&mut self, kind: TitleKind, text: &str) {
+        let titles = &mut self.hud.titles;
+        match kind {
+            TitleKind::Title => titles.set_title(Text::literal(text)),
+            TitleKind::Subtitle => titles.set_subtitle(Text::literal(text)),
+            TitleKind::ActionBar => titles.set_overlay(Text::literal(text), false),
+            TitleKind::Clear => titles.clear(),
+        }
     }
 }
 
