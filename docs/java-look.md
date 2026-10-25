@@ -178,10 +178,9 @@ threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), n
 
 ### Checking against the game
 
-The bake is checked against the game's own, not by eye. The workspace's `research/java-truth`
-(outside the repo: it holds a JDK and decompiled game code) runs the client jar's model baking
-without a window and dumps every Java block state's baked quads; `lookbake java-check
-<quads.json.gz>` bakes the same states and names each difference in corners, texture, texture
+The bake is checked against the game's own, not by eye: parity harness `bake` (docs/parity.md;
+`tools/parity/remote.sh bake`) runs the client jar's model baking without a window and dumps every
+Java block state's baked quads; `lookbake java-check <quads.json.gz>` bakes the same states and names each difference in corners, texture, texture
 coordinates, cull side, tint and shade direction, for every alternative of a state. The dump's
 `placement.json` has, for 48 positions, the alternatives the game picks and how far it shifts each
 block that stands off the grid; the check runs the renderer's own pick and shift against them. All
