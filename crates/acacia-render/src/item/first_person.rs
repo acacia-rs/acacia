@@ -76,7 +76,8 @@ fn eat(side: f32, held: f32, duration: f32) -> Mat4 {
     let current = duration - held;
     let scaled = current / duration;
     let bob = if scaled < 0.8 { (mth::cos(current / 4.0 * std::f32::consts::PI) * 0.1).abs() } else { 0.0 };
-    let jiggle = 1.0 - scaled.powi(27);
+    // Java's Math.pow, in doubles: f32 powi drifts by 1e-5 here.
+    let jiggle = 1.0 - (f64::from(scaled).powf(27.0) as f32);
     Mat4::from_translation(Vec3::new(0.0, bob, 0.0))
         * Mat4::from_translation(Vec3::new(jiggle * 0.6 * side, jiggle * -0.5, 0.0))
         * rot(Vec3::Y, side * jiggle * 90.0)
