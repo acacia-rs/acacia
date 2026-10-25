@@ -96,6 +96,7 @@ impl LookPack {
         };
         let mut table = BlockTable::from_blocks((0..registry.len() as u32).map(block).collect());
         table.biome_blend = self.look.biome_blend;
+        table.lighting = self.look.lighting;
         table
     }
 }

@@ -4,6 +4,8 @@
 
 mod column;
 pub mod data;
+pub mod environment;
+pub mod lightmap;
 mod propagate;
 mod sections;
 #[cfg(test)]

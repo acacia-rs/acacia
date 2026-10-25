@@ -3,6 +3,7 @@
 use super::greedy::corner_ao;
 use super::liquid::liquid;
 use super::quad::{AXES, DIRS, Quad, Surface, quantize};
+use super::vertex_light::model_face;
 use super::{Ctx, SectionMesh, model};
 use crate::blocks::placed::Random;
 use crate::blocks::{Box16, Layer, Material, ModelFace, RenderBlock, Shape};
@@ -74,11 +75,15 @@ fn emit_model(ctx: &Ctx, p: [i32; 3], faces: &[ModelFace], b: &RenderBlock, out:
         let corners = f.corners.map(|c| [c[0] + origin[0], c[1] + origin[1], c[2] + origin[2]]);
         let surface =
             Surface { texture: f.texture, tint_kind: f.tint.shader_kind(), material: f.material, color: quantize(ctx.tint(p, f.tint)), turn: 0 };
+        let lighter = ctx.lighter();
         let ao = match f.shade {
-            Some(side) if f.ambient_occlusion && b.layer == Layer::Solid => model_ao(ctx, p, f, side),
+            Some(side) if f.ambient_occlusion && b.layer == Layer::Solid && lighter.is_none() => model_ao(ctx, p, f, side),
             _ => NO_AO,
         };
-        let records = model::records(corners, f.uv, f.shade.unwrap_or(model::UNSHADED), surface, ao);
+        let mut records = model::records(corners, f.uv, f.shade.unwrap_or(model::UNSHADED), surface, ao);
+        if let Some(l) = &lighter {
+            records[0] = records[0].lit(model_face(l, p, f));
+        }
         if b.layer == Layer::Translucent { out.translucent.extend(records) } else { out.solid.extend(records) }
     }
 }
@@ -134,7 +139,7 @@ mod tests {
         v.blocks[cell(5, 5, 5)] = 2;
         stone.iter().for_each(|&[x, y, z]| v.blocks[cell(x, y, z)] = 1);
         let mut out = SectionMesh::default();
-        others(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default() }, &mut out);
+        others(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default(), cells: None }, &mut out);
         out.solid[0].0[0] >> 4 & 0xff
     }
 

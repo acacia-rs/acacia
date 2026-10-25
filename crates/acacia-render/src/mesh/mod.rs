@@ -1,11 +1,16 @@
 //! Section meshing: a [`Volume`] (section plus border) becomes packed quads for the solid and
 //! translucent passes.
 
+mod adjacency;
 mod greedy;
 mod liquid;
 pub mod model;
 pub mod quad;
 mod shapes;
+mod smooth;
+#[cfg(test)]
+mod smooth_tests;
+mod vertex_light;
 pub mod visibility;
 pub mod volume;
 
@@ -19,6 +24,7 @@ use crate::blocks::model::BlockModel;
 use crate::blocks::placed::{self, Draw, Random};
 use crate::blocks::{BlockTable, RenderBlock, Tint};
 use crate::light::LightVolume;
+use crate::light::data::LightCells;
 use quad::{Surface, quantize};
 
 #[derive(Default)]
@@ -40,7 +46,12 @@ impl SectionMesh {
 }
 
 pub fn mesh_section(volume: &Volume, table: &BlockTable, biomes: &BiomeColors) -> SectionMesh {
-    let ctx = Ctx { v: volume, table, biomes };
+    mesh_section_lit(volume, table, biomes, None)
+}
+
+/// With the section's light, which [`crate::look::Lighting::Java`] puts in the vertices.
+pub fn mesh_section_lit(volume: &Volume, table: &BlockTable, biomes: &BiomeColors, cells: Option<&LightCells>) -> SectionMesh {
+    let ctx = Ctx { v: volume, table, biomes, cells };
     let mut out = SectionMesh { visibility: visibility::section_visibility(volume, table), ..Default::default() };
     greedy::cubes(&ctx, &mut out);
     shapes::others(&ctx, &mut out);
@@ -52,6 +63,7 @@ struct Ctx<'a> {
     v: &'a Volume,
     table: &'a BlockTable,
     biomes: &'a BiomeColors,
+    cells: Option<&'a LightCells>,
 }
 
 impl Ctx<'_> {
@@ -126,7 +138,7 @@ mod tests {
         let tint = |reach: u8, x: i32, tint: Tint| {
             let mut table = BlockTable::from_blocks(Vec::new());
             table.biome_blend = reach;
-            Ctx { v: &v, table: &table, biomes: &biomes }.tint([x, 0, 5], tint)
+            Ctx { v: &v, table: &table, biomes: &biomes, cells: None }.tint([x, 0, 5], tint)
         };
         assert_eq!(tint(1, 7, Tint::Grass), [83; 3], "one column of three");
         assert_eq!(tint(2, 7, Tint::Grass), [100; 3], "two columns of five");

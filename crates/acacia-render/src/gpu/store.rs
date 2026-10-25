@@ -6,11 +6,13 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::camera::Frustum;
 use crate::light::LightVolume;
-use crate::mesh::volume::SIDE;
+use crate::light::data::SIDE;
 use crate::mesh::{Quad, SectionMesh};
 use crate::workers::SectionKey;
 
-const QUAD_BYTES: u64 = size_of::<Quad>() as u64;
+/// A quad's words and its [`crate::mesh::quad::VertexLight`], kept in two buffers at one index.
+const QUAD_BYTES: u64 = 12;
+const VERTEX_LIGHT_BYTES: u64 = 16;
 const ORIGIN_BYTES: u64 = 16;
 const LIGHT_BYTES: u64 = (SIDE * SIDE * SIDE) as u64;
 const INITIAL_QUADS: u32 = 1 << 20;
@@ -18,6 +20,7 @@ const INITIAL_SLOTS: u32 = 4096;
 
 pub struct Store {
     pub quads: wgpu::Buffer,
+    pub vertex_light: wgpu::Buffer,
     pub origins: wgpu::Buffer,
     pub light: wgpu::Buffer,
     quad_capacity: u32,
@@ -49,10 +52,11 @@ pub struct Draw {
 
 impl Store {
     pub fn new(device: &wgpu::Device) -> Self {
-        let max_quads = (device.limits().max_storage_buffer_binding_size / QUAD_BYTES).min(u32::MAX as u64) as u32;
+        let max_quads = (device.limits().max_storage_buffer_binding_size / VERTEX_LIGHT_BYTES).min(u32::MAX as u64) as u32;
         let quad_capacity = INITIAL_QUADS.min(max_quads);
         Store {
             quads: buffer(device, "quads", quad_capacity as u64 * QUAD_BYTES),
+            vertex_light: buffer(device, "vertex light", quad_capacity as u64 * VERTEX_LIGHT_BYTES),
             origins: buffer(device, "section origins", INITIAL_SLOTS as u64 * ORIGIN_BYTES),
             light: buffer(device, "section light", INITIAL_SLOTS as u64 * LIGHT_BYTES),
             quad_capacity,
@@ -76,7 +80,7 @@ impl Store {
     }
 
     pub fn gpu_bytes(&self) -> u64 {
-        self.quad_capacity as u64 * QUAD_BYTES + self.slot_capacity as u64 * (ORIGIN_BYTES + LIGHT_BYTES)
+        self.quad_capacity as u64 * (QUAD_BYTES + VERTEX_LIGHT_BYTES) + self.slot_capacity as u64 * (ORIGIN_BYTES + LIGHT_BYTES)
     }
 
     pub fn clear(&mut self) {
@@ -105,7 +109,9 @@ impl Store {
         let slot = self.slot(device, queue);
         let mut data = mesh.solid;
         data.extend_from_slice(&mesh.translucent);
-        queue.write_buffer(&self.quads, offset as u64 * QUAD_BYTES, bytemuck::cast_slice(&data));
+        let (words, light): (Vec<[u32; 3]>, Vec<[u32; 4]>) = data.iter().map(|q| (q.0, q.1)).unzip();
+        queue.write_buffer(&self.quads, offset as u64 * QUAD_BYTES, bytemuck::cast_slice(&words));
+        queue.write_buffer(&self.vertex_light, offset as u64 * VERTEX_LIGHT_BYTES, bytemuck::cast_slice(&light));
         let origin = [key.0 * 16, key.1 * 16, key.2 * 16, 0];
         queue.write_buffer(&self.origins, slot as u64 * ORIGIN_BYTES, bytemuck::cast_slice(&origin));
         self.used_quads += u64::from(len);
@@ -158,6 +164,7 @@ impl Store {
             return None;
         }
         self.quads = grow(device, queue, &self.quads, "quads", old as u64 * QUAD_BYTES, new as u64 * QUAD_BYTES);
+        self.vertex_light = grow(device, queue, &self.vertex_light, "vertex light", old as u64 * VERTEX_LIGHT_BYTES, new as u64 * VERTEX_LIGHT_BYTES);
         self.free.release(old, new - old);
         self.quad_capacity = new;
         self.replaced = true;

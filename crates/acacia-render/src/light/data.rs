@@ -4,8 +4,28 @@
 use rustc_hash::FxHashSet;
 
 use super::sections::Sections;
-use crate::mesh::volume::{SIDE, cell};
 use crate::workers::SectionKey;
+
+/// Side of a section's light with its one-block border.
+pub const SIDE: usize = 18;
+
+/// Index into [`LightVolume::cells`] and [`LightCells`] for section-local coordinates in -1..=16.
+#[inline]
+pub fn cell(x: i32, y: i32, z: i32) -> usize {
+    (((x + 1) as usize * SIDE) + (z + 1) as usize) * SIDE + (y + 1) as usize
+}
+
+/// A section's light bytes with a one-block border, as stored: 0 outside lit columns.
+pub struct LightCells(pub Box<[u8; SIDE * SIDE * SIDE]>);
+
+impl LightCells {
+    /// (block, sky) at section-local `p`, each -1..=16.
+    #[inline]
+    pub fn at(&self, [x, y, z]: [i32; 3]) -> (u8, u8) {
+        let v = self.0[cell(x, y, z)];
+        (v >> 4, v & 15)
+    }
+}
 
 /// Light byte: block light << 4 | sky light.
 pub const fn pack(block: u8, sky: u8) -> u8 {
@@ -86,5 +106,19 @@ impl LightData {
             }
         }
         LightVolume { generation: self.generation, cells }
+    }
+
+    /// The light of a section and its border, for meshing light into vertices.
+    pub fn gather_cells(&self, (sx, sy, sz): SectionKey) -> LightCells {
+        let mut cells = Box::new([0u8; SIDE * SIDE * SIDE]);
+        let (ox, oy, oz) = (sx * 16, sy * 16, sz * 16);
+        for x in -1..=16 {
+            for z in -1..=16 {
+                for y in -1..=16 {
+                    cells[cell(x, y, z)] = self.light.get(ox + x, oy + y, oz + z).unwrap_or(0);
+                }
+            }
+        }
+        LightCells(cells)
     }
 }

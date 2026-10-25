@@ -125,6 +125,8 @@ pub struct Renderer {
     /// [`crate::sky::moon_phase`]; full until set.
     pub moon_phase: u8,
     pub look: Look,
+    /// The brightness option and the effects on the lightmap.
+    pub light_conditions: crate::light::environment::LightConditions,
     screenshot: Option<PathBuf>,
 }
 
@@ -195,6 +197,7 @@ impl Renderer {
             time: NOON,
             moon_phase: 0,
             look: Look::default(),
+            light_conditions: Default::default(),
             screenshot: None,
         })
     }
@@ -220,14 +223,14 @@ impl Renderer {
 
         let view_proj = camera.view_proj();
         let realm = self.world().map_or(Realm::Overworld, |w| Realm::of(&w.dimension()));
-        let has_sky = realm == Realm::Overworld;
         let sky = Sky::of(realm, self.time, self.weather);
+        let lightmap = crate::light::environment::frame_lightmap(self.look.lighting, realm, self.time, self.weather, &self.light_conditions);
         let fog = self.frame_fog(sky.color_towards(camera.forward()), camera.biome);
         let sky_pass = self.sky.as_ref().filter(|_| !fog.in_fluid);
         if let Some(pass) = sky_pass {
             pass.prepare(&self.queue, &sky, self.moon_phase);
         }
-        let globals = Globals::new(view_proj, (cam_block, cam_frac), fog.color, self.fog_distance, &self.look, fog.haze, has_sky, sky.darken);
+        let globals = Globals::new(view_proj, (cam_block, cam_frac), fog.color, self.fog_distance, &self.look, fog.haze, &lightmap);
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
         let light_data = self.scene.as_ref().map(|s| s.light().clone());
         let light = self.light_cache.reader(light_data.as_deref());
