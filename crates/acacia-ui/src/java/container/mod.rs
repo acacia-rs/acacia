@@ -6,8 +6,11 @@
 
 pub mod brewing;
 pub mod crafter;
+pub mod loom;
 pub mod menus;
+pub mod merchant;
 pub mod simple;
+pub mod stonecutter;
 
 use super::gui::{Gui, Metrics};
 use super::text::{Lang, Text};
@@ -292,6 +295,18 @@ pub fn hovered_tooltip<S: Screen + ?Sized>(s: &mut S, env: &Env, mouse: [i32; 2]
     let style = stack.get("tooltip_style").and_then(|v| v.as_str()).map(str::to_owned);
     let t = Tooltip { lines, x: mouse[0], y: mouse[1], positioner: Positioner::Default, style, extra_space: true };
     s.base_mut().tooltip.set(t, false);
+}
+
+/// `setTooltipForNextFrame(font, stack, x, y)`: the stack's tooltip lines, its style, a gap after the name.
+pub fn item_tooltip<S: Screen + ?Sized>(s: &S, stack: &ItemStack, env: &Env, mouse: [i32; 2]) -> Tooltip {
+    let lines = s.tooltip_lines(stack, env).into_iter().map(Line::Text).collect();
+    let style = stack.get("tooltip_style").and_then(|v| v.as_str()).map(str::to_owned);
+    Tooltip { lines, x: mouse[0], y: mouse[1], positioner: Positioner::Default, style, extra_space: true }
+}
+
+/// `setTooltipForNextFrame(component, x, y)`: one plain line.
+pub fn text_tooltip(text: Text, mouse: [i32; 2]) -> Tooltip {
+    Tooltip { lines: vec![Line::Text(text)], x: mouse[0], y: mouse[1], positioner: Positioner::Default, style: None, extra_space: false }
 }
 
 /// `extractSlot` of `slots[i]`.

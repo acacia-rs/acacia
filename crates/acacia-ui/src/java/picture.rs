@@ -18,6 +18,9 @@ pub enum Picture {
     /// A non-text `ClientTooltipComponent`'s `extractImage` at `(x, y)`, `w` × `h` big; `kind` is
     /// its Java class's simple name (`ClientBundleTooltip`).
     TooltipImage { kind: String, x: i32, y: i32, w: i32, h: i32 },
+    /// `blit(atlas, x0, y0, x1, y1, u0, u1, v0, v1)` of an atlas sprite (`getSprite(spriteId)`), the
+    /// UVs within the sprite (0 to 1 across it) since the atlas's layout is the renderer's.
+    SpriteBlit { atlas: String, sprite: String, rect: [i32; 4], uv: [f32; 4] },
 }
 
 fn rect(v: &mut Value, r: &[i32; 4]) {
@@ -51,6 +54,11 @@ impl Picture {
             }
             Picture::Map { decorations } => json!({"type": "map", "decorations": decorations}),
             Picture::TooltipImage { kind, x, y, w, h } => json!({"type": "tooltip_image", "kind": kind, "x": x, "y": y, "w": w, "h": h}),
+            Picture::SpriteBlit { atlas, sprite, rect: r, uv } => {
+                let mut v = json!({"type": "sprite_blit", "atlas": atlas, "sprite": sprite, "uv": uv});
+                rect(&mut v, r);
+                v
+            }
         }
     }
 }

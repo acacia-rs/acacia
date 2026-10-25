@@ -77,6 +77,37 @@ final class Markers {
         g.posed(o, g.stack);
     }
 
+    /** The texture of the sprite getSprite last handed out (the loom's pattern icons blit it next). */
+    static Identifier lastSprite;
+
+    /**
+     * A stand-in atlas sprite spanning UVs 0 to 1, so what a screen blits from it is in the sprite's
+     * own UVs (the atlas is not stitched here).
+     */
+    static net.minecraft.client.renderer.texture.TextureAtlasSprite sprite(GuiCapture g, net.minecraft.client.resources.model.sprite.SpriteId id) {
+        try {
+            var s = Stub.alloc(net.minecraft.client.renderer.texture.TextureAtlasSprite.class);
+            var type = net.minecraft.client.renderer.texture.TextureAtlasSprite.class;
+            Stub.put(s, type, "atlasLocation", id.atlasLocation());
+            Stub.put(s, type, "u0", 0.0F); Stub.put(s, type, "u1", 1.0F);
+            Stub.put(s, type, "v0", 0.0F); Stub.put(s, type, "v1", 1.0F);
+            lastSprite = id.texture();
+            return s;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** blit(atlas, x0, y0, x1, y1, u0, u1, v0, v1) of the last sprite handed out, its UVs sprite-relative. */
+    static void spriteBlit(GuiCapture g, Identifier atlas, int x0, int y0, int x1, int y1, float u0, float u1, float v0, float v1) {
+        var o = GuiCapture.call("sprite_blit");
+        o.addProperty("atlas", atlas.toString());
+        o.addProperty("sprite", String.valueOf(lastSprite));
+        box(o, x0, y0, x1, y1);
+        o.add("uv", floats(u0, u1, v0, v1));
+        g.posed(o, g.stack);
+    }
+
     /** Text lines as they are; any other line becomes a marker of its size where its image would be drawn. */
     static List<ClientTooltipComponent> tooltipImages(GuiCapture g, List<ClientTooltipComponent> lines) {
         var out = new ArrayList<ClientTooltipComponent>(lines.size());

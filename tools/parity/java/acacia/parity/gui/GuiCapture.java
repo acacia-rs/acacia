@@ -248,6 +248,12 @@ public class GuiCapture extends GuiGraphicsExtractor {
         Markers.banner(this, base, layers, x0, y0, x1, y1);
     }
     @Override public void map(net.minecraft.client.renderer.state.MapRenderState state) { Markers.map(this, state); }
+    @Override public net.minecraft.client.renderer.texture.TextureAtlasSprite getSprite(net.minecraft.client.resources.model.sprite.SpriteId id) {
+        return Markers.sprite(this, id);
+    }
+    @Override public void blit(Identifier atlas, int x0, int y0, int x1, int y1, float u0, float u1, float v0, float v1) {
+        Markers.spriteBlit(this, atlas, x0, y0, x1, y1, u0, u1, v0, v1);
+    }
     @Override public void tooltip(Font font, java.util.List<net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent> lines, int x, int y,
                                   net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner positioner, Identifier style, boolean extraSpace) {
         super.tooltip(font, Markers.tooltipImages(this, lines), x, y, positioner, style, extraSpace);

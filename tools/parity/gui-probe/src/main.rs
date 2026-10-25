@@ -8,6 +8,7 @@ mod containers;
 mod hud;
 mod kit;
 mod tooltips;
+mod trading;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -41,6 +42,7 @@ fn replay(harness: &str) -> Option<Replay> {
         "containers" => containers::replay,
         "hud" => hud::replay,
         "tooltips" => tooltips::replay,
+        "trading" => trading::replay,
         _ => return None,
     })
 }
