@@ -26,6 +26,12 @@ impl Source for Fake {
         let (x, y) = (x as f32, y as f32);
         Glyphs { quads: vec![Quad::plain([x, y, x + 5.0, y + 8.0], [0.0; 4], argb(color))], bounds: Some([x, y, x + 6.0, y + 9.0]) }
     }
+    fn width(&mut self, text: &Text) -> i32 {
+        6 * text.plain().chars().count() as i32
+    }
+    fn millis(&self) -> i64 {
+        0
+    }
     fn item(&mut self, _: i32, x: i32, y: i32, _: i32) -> Vec<Quad> {
         let (x, y) = (x as f32, y as f32);
         vec![Quad::plain([x, y, x + 16.0, y + 16.0], [0.0; 4], [255; 4])]
@@ -76,4 +82,14 @@ fn poses_scissors_and_gradients() {
     let g = painted.quads[1];
     assert_eq!(g.rect, [0.0, 0.0, 10.0, 5.0]);
     assert_eq!((g.color, g.bottom), ([0, 0, 0, 255], [128, 128, 128, 255]), "cut in half, the gradient with it");
+}
+
+#[test]
+fn a_label_is_centred_in_its_box_or_scrolled_and_cut_to_it() {
+    let label = |text: &str, x1| GuiDraw::Scrolling { text: Text::literal(text), center_x: 50, x0: 0, x1, y0: 0, y1: 20, color: 0xFFFF_FFFF };
+    let painted = paint(&[label("Done", 100)], [200, 100], 1.0, &mut Fake);
+    assert_eq!(painted.quads[0].rect, [38.0, 6.0, 43.0, 14.0], "24 wide about 50, at (20 - 9) / 2 + 1");
+    // At millis 0 the swing is at its far end, 14 px left: the fake's one glyph falls outside the box.
+    let painted = paint(&[label("Done", 10)], [200, 100], 1.0, &mut Fake);
+    assert!(painted.quads.is_empty());
 }

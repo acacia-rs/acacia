@@ -34,6 +34,10 @@ pub trait Source {
     /// An opaque white texel, for fills.
     fn white(&mut self) -> Sprite;
     fn text(&mut self, text: &Text, x: i32, y: i32, color: u32, shadow: bool) -> Glyphs;
+    /// `Font.width`.
+    fn width(&mut self, text: &Text) -> i32;
+    /// `Util.getMillis()`, which scrolls labels too wide for their box.
+    fn millis(&self) -> i64;
     /// The item `key`'s icon over the 16 × 16 GUI pixels at (`x`, `y`), before the pose.
     fn item(&mut self, key: i32, x: i32, y: i32, seed: i32) -> Vec<Quad>;
     /// What `itemDecorations` draws for the item `key` (count, bar, cooldown) as calls.
@@ -178,9 +182,31 @@ impl Painter<'_> {
                 let draws = self.src.decorations(*key, *x, *y, count.as_deref());
                 self.draws(&draws);
             }
-            // TODO: scrolling labels (scissored, clock-scrolled text) and pictures (entity, book,
-            // banner, map, tooltip images, sprite blits) are not painted yet.
-            GuiDraw::Scrolling { .. } | GuiDraw::Picture(_) => {}
+            GuiDraw::Scrolling { text, center_x, x0, x1, y0, y1, color } => self.scrolling(text, *center_x, [*x0, *y0, *x1, *y1], *color),
+            // TODO: pictures (entity, book, banner, map, tooltip images, sprite blits).
+            GuiDraw::Picture(_) => {}
+        }
+    }
+
+    /// `ActiveTextCollector.defaultScrollingHelper`: centred in the box, or, when wider, cut to
+    /// it and swung from end to end on the clock.
+    fn scrolling(&mut self, text: &Text, center_x: i32, [x0, y0, x1, y1]: [i32; 4], color: u32) {
+        let width = self.src.width(text);
+        let top = (y0 + y1 - 9) / 2 + 1;
+        let room = x1 - x0;
+        if width > room {
+            let max = f64::from(width - room);
+            let time = self.src.millis() as f64 / 1000.0;
+            let period = (max * 0.5).max(3.0);
+            let alpha = (std::f64::consts::FRAC_PI_2 * (std::f64::consts::TAU * time / period).cos()).sin() / 2.0 + 0.5;
+            let pos = alpha * max;
+            self.push_scissor(x0, y0, x1, y1);
+            self.draw(&GuiDraw::Text { text: text.clone(), x: x0 - pos as i32, y: top, color, shadow: true });
+            self.scissors.pop();
+        } else {
+            let (lo, hi) = (x0 + width / 2, x1 - width / 2);
+            let x = if center_x < lo { lo } else if center_x > hi { hi } else { center_x };
+            self.draw(&GuiDraw::Text { text: text.clone(), x: x - width / 2, y: top, color, shadow: true });
         }
     }
 

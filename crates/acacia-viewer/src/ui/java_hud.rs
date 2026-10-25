@@ -106,7 +106,7 @@ impl JavaHud {
 
     /// `gui`'s calls as quads into `list`, the hotbar's items from `me`.
     pub fn paint(&mut self, skin: &mut Skin, me: &Me, gui: &Gui, list: &mut DrawList) {
-        let mut src = Src { skin, images: &mut self.images, fonts: &self.fonts, random: &mut self.random, me };
+        let mut src = Src { skin, images: &mut self.images, fonts: &self.fonts, random: &mut self.random, me, started: self.started };
         let painted = paint::paint(&gui.draws, [gui.width, gui.height], list.scale, &mut src);
         list.quads.extend(painted.quads);
     }
@@ -118,6 +118,7 @@ struct Src<'a> {
     fonts: &'a Fonts,
     random: &'a mut JavaRandom,
     me: &'a Me,
+    started: Instant,
 }
 
 impl Src<'_> {
@@ -160,6 +161,14 @@ impl Source for Src<'_> {
         let prepared = self.fonts.prepare(text, Pen::gui(x as f32, y as f32, color, shadow), self.random);
         let (atlas, fonts) = (&mut self.skin.theme.atlas, self.fonts);
         prepared.glyphs(|t| glyph_sprite(atlas, fonts, t))
+    }
+
+    fn width(&mut self, text: &Text) -> i32 {
+        Metrics::width(self.fonts, text)
+    }
+
+    fn millis(&self) -> i64 {
+        self.started.elapsed().as_millis() as i64
     }
 
     fn item(&mut self, key: i32, x: i32, y: i32, _: i32) -> Vec<Quad> {
