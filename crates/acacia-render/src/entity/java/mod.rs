@@ -19,6 +19,7 @@ pub mod poses;
 pub mod state;
 pub mod trims;
 pub mod types;
+pub mod villager;
 
 pub use anim::Family;
 pub use model::{Part, PartPose, Polygon};
