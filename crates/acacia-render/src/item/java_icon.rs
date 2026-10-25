@@ -109,8 +109,9 @@ mod tests {
         // block/block's gui display: 30° x, 225° y.
         let turn = Mat3::from_euler(EulerRot::XYZ, 30f32.to_radians(), 225f32.to_radians(), 0.0);
         let lights = lights(true);
-        let [top, left, right] = [Vec3::Y, Vec3::Z, Vec3::X].map(|n| brightness(&lights, turn * n));
-        assert!(top > left && top > right && (left - right).abs() > 0.05, "{top} {left} {right}");
+        // The faces it shows: up, east (left on screen) and north (right). Values from JOML's matrices.
+        let [top, left, right] = [Vec3::Y, Vec3::X, Vec3::NEG_Z].map(|n| brightness(&lights, turn * n));
+        assert!((top - 1.0).abs() < 1e-3 && (left - 0.651).abs() < 2e-3 && (right - 0.4).abs() < 2e-3, "{top} {left} {right}");
     }
 
     #[test]

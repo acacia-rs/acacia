@@ -227,8 +227,10 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
 - **Players** (`skin.rs`): a classic skin is a texture for one of three humanoids (wide, slim, 64×32
   layout). A persona skin brings its own geometry and a separate face texture; both bake into one mesh
   over one stacked texture.
-- **Light**: block and sky level at the entity's position from `LightData`, through the terrain's
-  curve (`gpu/globals.wgsl`), times a directional shade from the normal.
+- **Light**: block and sky level at the entity's position from `LightData`. Under Java lighting,
+  the lightmap's colour at those levels times `minecraft_mix_light` with `Lighting`'s LEVEL pair
+  (`entity.vsh`), multiplied in sRGB (`lit`); the Nether's pair is a TODO. The Bedrock look takes
+  the lightmap's curve times the terrain's directional shade.
 - **Ropes** (`rope.rs`): fishing lines and leads are runs of thin boxes through the entity pass
   (one shared one-texel skin each), along Java's curves: the line `(t² + t) / 2` of the rise
   from the bobber, the lead a parabola hanging from its higher end. Java draws the line a pixel
@@ -385,6 +387,27 @@ entity-pass mesh with its own texture, built on first use and cached.
   "Banners") in the item's dye, without the stack's patterns, and a shield's plate, turned as Java's `gui` display turns the model.
 - **Worn** (`entity/armor.rs`, `EntityModels::armor`): the pack's attachables give each armour
   item a geometry and texture, drawn as a further instance in the wearer's pose.
+
+### Java items (`item/java.rs`, `java_mesh.rs`, `java_icon.rs`)
+
+A Java look carries `java/item_models.json` (lookbake's `ItemModelExporter` on the user's jar):
+every item's default stack in every `ItemDisplayContext`, resolved by its `ItemModel` as the game
+does, as layers of quads (baked or captured from a special renderer) in layer space with
+sprite-local UVs, tints and the display transform. `java/item_names.json` (ViaBedrock's table)
+names the Java item for a Bedrock item and aux; unlisted names are taken as they are.
+
+- `ItemModels` builds a Java item from its right-hand layers ahead of the Bedrock paths (shield
+  and banner stay on theirs, since they carry patterns): each (image, tint) a region of one strip
+  texture, dyed leather replacing the first tint. `ItemModel::java` holds the displays per context;
+  `Display::held` takes them over the built-in ones, mirrored for the left hand as
+  `ItemTransform.apply` does.
+- Slot icons: `java_icon::icon` rasterises the `gui` layers as `GuiItemAtlas` draws them, lit by
+  `Lighting`'s ITEMS_3D or ITEMS_FLAT pair; flat items at their sprite's resolution.
+- Proof: harness `item_models` (docs/parity.md) compares every quad of every item and context,
+  after the display, with what `ItemStackRenderState.submit` hands the game's renderer.
+- Not yet: stack components (potions, maps, trims and the like draw as their default stack);
+  dropped and framed Java items keep the Bedrock-look rules by form, not the `ground` and `fixed`
+  displays.
 
 ### Enchantment glint (`glint.rs`, `gpu/glint.rs`)
 
