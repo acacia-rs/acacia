@@ -4,6 +4,7 @@
 //! README.md "Java GUI".
 
 pub mod encode;
+pub mod font;
 pub mod gui;
 pub mod hud;
 pub mod mth;
