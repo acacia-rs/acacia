@@ -5,6 +5,7 @@
 pub mod anim;
 pub mod avatar;
 pub mod bedrock;
+pub mod body;
 pub mod draw;
 pub mod equipment;
 pub mod joml;
