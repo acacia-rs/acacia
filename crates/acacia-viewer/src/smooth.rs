@@ -8,7 +8,7 @@ use std::time::Instant;
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Value, cape};
 use acacia_render::item::drop::{self, Drop};
 use acacia_render::item::{ItemModel, ItemModels, SHIELD, hand};
-use acacia_render::shadows::Shadow;
+use acacia_render::shadows::{self, Shadow};
 use glam::DVec3;
 
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
@@ -243,22 +243,21 @@ impl Smoother {
         self.to.iter().filter_map(hittable).collect()
     }
 
-    /// The round shadows under what is drawn from `camera`. Java gives each kind a radius; the
-    /// pack has none, so it is taken from the hitbox (players 0.5, cows 0.7, chickens 0.3 as in
-    /// Java), 0.15 under dropped items, and none for the kinds Java gives none.
+    /// The round shadows under what is drawn from `camera`, each kind's as Java's renderer gives it
+    /// ([`shadows::radius`]); a slime's size is read off its hitbox (0.52 blocks a size).
     pub fn shadows(&self, camera: DVec3) -> Vec<Shadow> {
-        const NONE: [&str; 4] = ["minecraft:armor_stand", "minecraft:painting", "minecraft:lightning_bolt", "minecraft:arrow"];
         let t = self.progress();
         let cast = |(e, to): &(Tracked, Motion)| {
-            let radius = match (&e.dropped, e.hitbox, e.own_eyes) {
-                (Some(_), ..) => 0.15,
-                (None, Some((width, _)), _) => (width * 0.8).min(0.8),
-                (None, None, Some(eyes)) if eyes.distance(camera) > OWN_HEAD_RADIUS => 0.5,
-                _ => return None,
-            };
+            if e.own_eyes.is_some_and(|eyes| eyes.distance(camera) <= OWN_HEAD_RADIUS) {
+                return None;
+            }
+            let kind = if e.dropped.is_some() { "minecraft:item" } else { e.kind.as_str() };
+            let baby = e.facts.query("is_baby").truthy();
+            let size = e.hitbox.map_or(1.0, |(width, _)| (width / 0.52).round());
+            let (radius, strength) = shadows::radius(kind, baby, size, e.facts.query("variant").num())?;
             let m = self.blend(e.runtime_id, *to, t);
             let feet = self.seated(e, m, t).map_or(m.position, |(seat, _)| seat.position);
-            (!NONE.contains(&e.kind.as_str())).then_some(Shadow { feet, radius })
+            (radius > 0.0).then_some(Shadow { feet, radius, strength })
         };
         self.to.iter().filter_map(cast).collect()
     }

@@ -227,7 +227,7 @@ impl Renderer {
         let clouds = clouds.map(|layer| crate::clouds::CloudLayer { fog_end: fog.cloud_end.min((layer.range * 16) as f32), ..sky.clouds().layer(layer) });
         self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, ticks);
         self.bolt_pass.prepare(&self.device, &self.queue, &self.bolts, camera.position);
-        self.prepare_shadows(camera.position);
+        self.prepare_shadows(camera.position, &sky);
         clock.mark("effects");
 
         let view_proj = camera.view_proj();
