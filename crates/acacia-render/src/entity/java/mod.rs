@@ -5,6 +5,7 @@
 pub mod anim;
 pub mod bedrock;
 pub mod draw;
+pub mod equipment;
 pub mod kinds;
 pub mod library;
 pub mod mesh;

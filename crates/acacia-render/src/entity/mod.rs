@@ -194,9 +194,24 @@ impl EntityModels {
         &self.models
     }
 
-    /// What armour item `item` (`minecraft:diamond_helmet`) draws when worn, posed as its wearer.
-    pub fn armor(&self, item: &str) -> Option<Arc<[Layer]>> {
-        self.armor.get(item).cloned()
+    /// What armour item `item` (`minecraft:diamond_helmet`) draws when worn by a `kind`: on a Java
+    /// model its equipment layer, posed by [`EntityModels::pose`] on its own model
+    /// ([`EntityModels::is_java`]); otherwise the pack's attachable, posed as its wearer. `dye` is
+    /// the stack's.
+    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>) -> Option<Arc<[Layer]>> {
+        if self.java.drawn(kind) {
+            return self.java.armor(kind, query, item, dye);
+        }
+        let layers = self.armor.get(item)?;
+        Some(match dye {
+            Some(dye) => layers.iter().map(|l| Layer { dye: Some(dye), ..l.clone() }).collect(),
+            None => layers.clone(),
+        })
+    }
+
+    /// Whether `model` is a Java model, posed by its own `setupAnim`.
+    pub fn is_java(&self, model: ModelId) -> bool {
+        self.models.get(model as usize).is_some_and(|m| m.mesh.java.is_some())
     }
 
     pub fn textures(&self) -> &[PathBuf] {

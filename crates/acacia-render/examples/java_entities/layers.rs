@@ -1,10 +1,10 @@
 //! `layers.jsonl` of entity_layers: where each arm hands its item (`Mesh::hand`, then
 //! `item::hand::fist`), under the entity pass's placement at yaw 0; and each armour slot's layer
-//! posed by its wearer's poses (`Poses::retarget`, as the entity pass draws it).
+//! posed by the wearer's `setupAnim` run on it (as `Library::pose` poses an armour model).
 
 use std::collections::BTreeMap;
 
-use acacia_render::entity::java::{Part, mesh};
+use acacia_render::entity::java::{Family, Part, Poses, anim, mesh};
 use acacia_render::item::hand::{Grip, fist};
 use glam::{Mat4, Vec3};
 use serde_json::Value;
@@ -17,6 +17,7 @@ pub fn layers(layers: &BTreeMap<String, Part>, record: &Value, report: &mut Repo
     let name = record["case"].as_str().unwrap_or_default();
     let mut case = report.case(name);
     let Some((model, poses, state)) = setup(layers, record, &mut case) else { return };
+    let Some(family) = record["layer"].as_str().and_then(Family::of_layer) else { return };
     let body = Mat4::from_scale(Vec3::new(1.0, 1.0, -1.0));
     let expected = record["hands"].as_object().cloned().unwrap_or_default();
     for (arm, matrix) in &expected {
@@ -34,6 +35,8 @@ pub fn layers(layers: &BTreeMap<String, Part>, record: &Value, report: &mut Repo
             case.diverge("layer", &worn["layer"], "absent in the look");
             continue;
         };
-        compare_posed(&mut case, worn, armor, &poses.retarget(armor));
+        let mut posed = Poses::new(armor);
+        anim::setup(family, &state, &mut posed);
+        compare_posed(&mut case, worn, armor, &posed);
     }
 }
