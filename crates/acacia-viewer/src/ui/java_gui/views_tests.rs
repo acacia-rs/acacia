@@ -25,6 +25,15 @@ fn every_screen_beside_the_options_opens_and_draws() {
 }
 
 #[test]
+fn the_open_chat_shows_its_lines_above_the_input() {
+    let mut gui = JavaGui::new(Path::new("no-such-look"));
+    let mut chat = acacia_ui::java::chat::ChatScreen::new(&gui.fonts, "", 0, Default::default(), 427, 240);
+    let empty = gui.chat(&mut chat, (0, 0), 0).draws.len();
+    gui.add_chat("hello", false);
+    assert!(gui.chat(&mut chat, (0, 0), 0).draws.len() > empty, "the focused chat draws its history, as ChatScreen does");
+}
+
+#[test]
 fn the_credits_roll_scrolls_with_time_and_ends() {
     let gui = JavaGui::new(Path::new("no-such-look"));
     let roll = super::views::credits_roll(&gui, [427, 240], 10.5);

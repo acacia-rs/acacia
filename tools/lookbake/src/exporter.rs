@@ -39,6 +39,8 @@ impl Exporter {
     /// (JAVA_HOME or PATH).
     pub fn prepare(java_dir: &Path) -> Result<Option<Exporter>, Error> {
         let Some(jdk) = jdk() else { return Ok(None) };
+        // The exporters run in `work`, so a relative classpath would miss.
+        let java_dir = &std::path::absolute(java_dir)?;
         let separator = if cfg!(windows) { ";" } else { ":" };
         let work = java_dir.join("exporters");
         let mut classpath = vec![java_dir.join(format!("client-{VERSION}.jar"))];
