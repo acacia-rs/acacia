@@ -54,18 +54,48 @@ fn compare(items: &JavaItems, item: &str, context: &str, record: &Value, case: &
         return case.diverge("quads.len", expected.len(), vertices.len() / 6);
     }
     let frame = display.mesh_frame();
-    for (i, (want, &region)) in expected.iter().zip(&mesh.quad_regions).enumerate() {
+    let mut got: Vec<Quad> = mesh.quad_regions.iter().enumerate().map(|(i, &region)| {
         let region = &mesh.regions[region];
         let corners = [0, 1, 2, 5].map(|k| &vertices[i * 6 + k]);
-        let pos: Vec<f32> = corners.iter().flat_map(|v| frame.transform_point3(Vec3::from(v.position)).to_array()).collect();
-        let uv: Vec<f32> = corners.iter().flat_map(|v| region.sprite_uv(&mesh.skin, v.uv)).collect();
-        if want["image"].as_str() != Some(region.image.as_str()) {
-            case.diverge(&format!("quad{i}.image"), &want["image"], &region.image);
+        Quad {
+            image: region.image.clone(),
+            argb: i64::from(region.argb as i32),
+            pos: corners.iter().flat_map(|v| frame.transform_point3(Vec3::from(v.position)).to_array()).collect(),
+            uv: corners.iter().flat_map(|v| region.sprite_uv(&mesh.skin, v.uv)).collect(),
         }
-        if want["argb"].as_i64() != Some(i64::from(region.argb as i32)) {
-            case.diverge(&format!("quad{i}.argb"), &want["argb"], region.argb as i32);
+    }).collect();
+    let mut want: Vec<Quad> = expected.iter().map(|q| Quad {
+        image: q["image"].as_str().unwrap_or_default().to_owned(),
+        argb: q["argb"].as_i64().unwrap_or_default(),
+        pos: floats(&q["pos"]),
+        uv: floats(&q["uv"]),
+    }).collect();
+    // ItemModelGenerator's side faces come out of a hash set: their order differs between runs.
+    got.sort_by_cached_key(Quad::key);
+    want.sort_by_cached_key(Quad::key);
+    for (i, (want, got)) in want.iter().zip(&got).enumerate() {
+        if want.image != got.image {
+            case.diverge(&format!("quad{i}.image"), &want.image, &got.image);
         }
-        case.numbers(&format!("quad{i}.pos"), &floats(&want["pos"]), &pos, 1e-4);
-        case.numbers(&format!("quad{i}.uv"), &floats(&want["uv"]), &uv, 1e-4);
+        if want.argb != got.argb {
+            case.diverge(&format!("quad{i}.argb"), want.argb, got.argb);
+        }
+        case.numbers(&format!("quad{i}.pos"), &want.pos, &got.pos, 1e-4);
+        case.numbers(&format!("quad{i}.uv"), &want.uv, &got.uv, 1e-4);
+    }
+}
+
+struct Quad {
+    image: String,
+    argb: i64,
+    pos: Vec<f32>,
+    uv: Vec<f32>,
+}
+
+impl Quad {
+    /// Coarse enough that float noise between the two sides does not reorder.
+    fn key(&self) -> String {
+        let rounded: Vec<String> = self.pos.iter().chain(&self.uv).map(|f| format!("{:.3}", f + 0.00001)).collect();
+        format!("{} {}", self.image, rounded.join(","))
     }
 }

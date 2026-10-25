@@ -65,6 +65,8 @@ pub struct Layer {
     pub foil: String,
     /// Rotation in degrees, translation in blocks, scale: `ItemTransform`'s.
     pub transform: [f32; 9],
+    /// Lit as a block in the GUI (ITEMS_3D), else as a flat item.
+    pub block_light: bool,
 }
 
 #[derive(Deserialize)]
@@ -137,6 +139,10 @@ impl JavaItems {
     /// `context`'s display, from its first layer; a left hand's mirrored as `ItemTransform.apply` does.
     pub fn display(&self, item: &str, context: &str) -> Option<Display> {
         Some(Display::java(self.layers(item, context)?.first()?.transform, context::left_hand(context)))
+    }
+
+    pub fn block_light(&self, item: &str, context: &str) -> Option<bool> {
+        Some(self.layers(item, context)?.first()?.block_light)
     }
 
     /// The display per context the hands, the ground and frames use.

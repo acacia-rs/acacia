@@ -11,6 +11,7 @@ mod held_banner;
 mod icon;
 mod icons;
 pub mod java;
+pub mod java_icon;
 mod java_mesh;
 pub mod leather;
 pub mod map;
