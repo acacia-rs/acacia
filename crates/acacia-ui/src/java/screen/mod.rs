@@ -5,6 +5,7 @@
 pub mod confirm;
 pub mod death;
 pub mod message;
+pub mod options;
 pub mod pause;
 
 use crate::java::widget::layout::Arena;
