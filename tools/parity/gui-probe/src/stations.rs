@@ -21,7 +21,8 @@ use crate::kit;
 
 pub fn replay(c: &Value, assets: &Assets, _state: &mut Map<String, Value>) -> Vec<GuiDraw> {
     let lang = kit::lang(assets);
-    let env = Env { font: assets.font.as_ref(), lang: &lang, advanced: kit::bool(c, "advanced") };
+    let game = kit::game(c);
+    let env = Env { font: assets.font.as_ref(), lang: &lang, advanced: kit::bool(c, "advanced"), game: &game, op: kit::bool(c, "op") };
     let (width, height) = (kit::int(c, "width", 0), kit::int(c, "height", 0));
     let inventory = Text::translate("container.inventory", &[], &lang);
     let title = |fallback| kit::title(c, fallback, &lang);
@@ -34,7 +35,7 @@ pub fn replay(c: &Value, assets: &Assets, _state: &mut Map<String, Value>) -> Ve
         "anvil" => {
             let base = filled(c, Base::new(width, height, [176, 166], title("container.repair"), inventory, Anvil::slots()));
             let typed = c["name"].as_str();
-            Box::new(Anvil::new(base, station, typed, !kit::bool(c, "blink"), env.font, &lang))
+            Box::new(Anvil::new(base, station, typed, !kit::bool(c, "blink"), env.font, &lang, &game))
         }
         "grindstone" => Box::new(Grindstone::new(width, height, title("container.grindstone_title"), inventory)),
         "smithing" => Box::new(Smithing::new(width, height, title("container.upgrade"), inventory, station, kit::int(c, "ticks", 0))),

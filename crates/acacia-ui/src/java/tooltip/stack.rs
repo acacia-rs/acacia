@@ -4,7 +4,7 @@
 
 use serde_json::{Map, Value};
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default)]
 pub struct ItemStack {
     pub id: String,
     pub count: i32,
@@ -12,6 +12,15 @@ pub struct ItemStack {
     pub components: Map<String, Value>,
     /// `components.size()`, non-persisted components included.
     pub size: usize,
+    /// The draw key the stack was given, which names its recorded enchantment order.
+    pub key: Option<i32>,
+}
+
+/// Equal stacks: the key only labels where the stack was drawn.
+impl PartialEq for ItemStack {
+    fn eq(&self, o: &ItemStack) -> bool {
+        self.id == o.id && self.count == o.count && self.components == o.components && self.size == o.size
+    }
 }
 
 impl ItemStack {
@@ -23,6 +32,7 @@ impl ItemStack {
             count: v.get("count").and_then(Value::as_i64).unwrap_or(1) as i32,
             size: v.get("size").and_then(Value::as_u64).map_or(components.len(), |n| n as usize),
             components,
+            key: None,
         })
     }
 

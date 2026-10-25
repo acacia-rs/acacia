@@ -44,7 +44,8 @@ fn figure(c: &Value) -> Figure {
 
 pub fn replay(c: &Value, assets: &Assets, _state: &mut Map<String, Value>) -> Vec<GuiDraw> {
     let lang = kit::lang(assets);
-    let env = Env { font: assets.font.as_ref(), lang: &lang, advanced: kit::bool(c, "advanced") };
+    let game = kit::game(c);
+    let env = Env { font: assets.font.as_ref(), lang: &lang, advanced: kit::bool(c, "advanced"), game: &game, op: kit::bool(c, "op") };
     let g = &c["game"];
     let tabs: Vec<Tab> = g["tabs"].as_array().into_iter().flatten().map(|t| tab(t, &lang)).collect();
     let ids: Vec<&str> = g["tabs"].as_array().into_iter().flatten().filter_map(|t| t["id"].as_str()).collect();

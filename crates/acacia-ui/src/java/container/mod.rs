@@ -32,7 +32,8 @@ pub use slot::{QuickCraft, Slot, can_quick_replace, extract_slot, quick_craft_co
 
 use super::gui::{Gui, Metrics};
 use super::text::{Lang, Text};
-use super::tooltip::item::{self, Context};
+use super::tooltip::game::Game;
+use super::tooltip::item::{self, Details, Display};
 use super::tooltip::stack::ItemStack;
 use super::tooltip::{Deferred, Line, Positioner, Tooltip};
 
@@ -47,6 +48,17 @@ pub struct Env<'a> {
     pub lang: Lang<'a>,
     /// `options.advancedItemTooltips`.
     pub advanced: bool,
+    /// The registry facts tooltips read.
+    pub game: &'a Game,
+    /// The player has `COMMANDS_GAMEMASTER`.
+    pub op: bool,
+}
+
+impl Env<'_> {
+    /// `getTooltipLines`' context for `stack`, with the local player.
+    pub fn details<'s>(&'s self, stack: &ItemStack, creative: bool) -> Details<'s> {
+        Details { lang: self.lang, advanced: self.advanced, creative, game: self.game, player: Some(self.game.player(self.op)), key: stack.key }
+    }
 }
 
 /// `AbstractContainerScreen`'s fields.
@@ -154,7 +166,7 @@ pub trait Screen {
 
     /// `getTooltipFromContainerItem`.
     fn tooltip_lines(&self, stack: &ItemStack, env: &Env) -> Vec<Text> {
-        item::lines(stack, &Context { lang: env.lang, advanced: env.advanced, creative: false })
+        item::tooltip_lines(stack, &env.details(stack, false))
     }
 
     /// `extractRenderState`: contents, carried stack, hovered tooltip.
@@ -251,9 +263,13 @@ pub fn hovered_tooltip<S: Screen + ?Sized>(s: &mut S, env: &Env, mouse: [i32; 2]
     s.base_mut().tooltip.set(t, false);
 }
 
-/// `setTooltipForNextFrame(font, stack, x, y)`: the stack's tooltip lines, its style, a gap after the name.
+/// `setTooltipForNextFrame(font, stack, x, y)`: the stack's tooltip lines with its image second,
+/// its style, a gap after the name (`tooltip::bundle::stack_tooltip` over the screen's lines).
 pub fn item_tooltip<S: Screen + ?Sized>(s: &S, stack: &ItemStack, env: &Env, mouse: [i32; 2]) -> Tooltip {
-    let lines = s.tooltip_lines(stack, env).into_iter().map(Line::Text).collect();
+    let mut lines: Vec<Line> = s.tooltip_lines(stack, env).into_iter().map(Line::Text).collect();
+    if let Some(image) = super::tooltip::bundle::image(stack, &Display::of(stack), env.font, env.lang) {
+        lines.insert(lines.len().min(1), image);
+    }
     let style = stack.get("tooltip_style").and_then(|v| v.as_str()).map(str::to_owned);
     Tooltip { lines, x: mouse[0], y: mouse[1], positioner: Positioner::Default, style, extra_space: true }
 }

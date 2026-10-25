@@ -10,7 +10,7 @@ use super::{Base, Env, LABEL, Screen, Slot, carried, contents, hovered_tooltip, 
 use crate::java::gui::{Blend, Gui, GuiDraw};
 use crate::java::mth::WHITE;
 use crate::java::text::Text;
-use crate::java::tooltip::item::{self, Context};
+use crate::java::tooltip::item;
 use crate::java::tooltip::stack::ItemStack;
 use crate::java::tooltip::{Line, Positioner, Tooltip};
 
@@ -211,7 +211,7 @@ impl Screen for Creative {
 
     fn tooltip_lines(&self, stack: &ItemStack, env: &Env) -> Vec<Text> {
         let creative_slot = self.is_creative_slot();
-        let mut lines = item::lines(stack, &Context { lang: env.lang, advanced: env.advanced, creative: creative_slot });
+        let mut lines = item::tooltip_lines(stack, &env.details(stack, creative_slot));
         let kind = self.tab().kind;
         if lines.is_empty() || (kind == TabType::Category && creative_slot) {
             return lines;

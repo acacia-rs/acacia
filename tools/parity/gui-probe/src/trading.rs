@@ -20,7 +20,8 @@ const RECIPES: i32 = 2000;
 
 pub fn replay(c: &Value, assets: &Assets, _state: &mut Map<String, Value>) -> Vec<GuiDraw> {
     let lang = kit::lang(assets);
-    let env = Env { font: assets.font.as_ref(), lang: &lang, advanced: kit::bool(c, "advanced") };
+    let game = kit::game(c);
+    let env = Env { font: assets.font.as_ref(), lang: &lang, advanced: kit::bool(c, "advanced"), game: &game, op: kit::bool(c, "op") };
     let (width, height) = (kit::int(c, "width", 0), kit::int(c, "height", 0));
     let inventory = Text::translate("container.inventory", &[], &lang);
     let mut screen: Box<dyn Screen> = match c["kind"].as_str().unwrap_or_default() {

@@ -91,7 +91,6 @@ public final class TooltipOracle {
         if (c.get("kind").getAsString().equals("lines")) lines(kit);
         else item(kit, c, mx, my);
         kit.capture.extractDeferredElements(mx, my, 0);
-        TooltipFacts.collect(kit);
     }
 
     public static void main(String[] args) throws Exception {

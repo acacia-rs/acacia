@@ -9,6 +9,7 @@ use serde_json::Value;
 use acacia_ui::java::container::effects::Effect;
 use acacia_ui::java::container::{Base, CARRIED, QuickCraft};
 use acacia_ui::java::text::Text;
+use acacia_ui::java::tooltip::game::Game;
 use acacia_ui::java::tooltip::stack::ItemStack;
 
 use crate::Assets;
@@ -54,9 +55,14 @@ pub fn mouse(c: &Value) -> [i32; 2] {
     [c["mouse"][0].as_i64().unwrap_or(0) as i32, c["mouse"][1].as_i64().unwrap_or(0) as i32]
 }
 
+/// The case's registry facts (`TooltipFacts`, written for every screen case).
+pub fn game(c: &Value) -> Game {
+    Game::new(c["game"].clone())
+}
+
 /// The resolved stack under `key`.
 pub fn item(c: &Value, key: i32) -> Option<ItemStack> {
-    c["items"].get(key.to_string()).and_then(ItemStack::from_json)
+    c["items"].get(key.to_string()).and_then(ItemStack::from_json).map(|s| ItemStack { key: Some(key), ..s })
 }
 
 /// The case's `title` component, or `fallback` translated.

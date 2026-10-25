@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use super::{Base, Env};
 use crate::java::gui::{Blend, Gui, GuiDraw};
 use crate::java::mth::{WHITE, floor};
-use crate::java::tooltip::item::{self, Context};
+use crate::java::tooltip::item;
 use crate::java::tooltip::stack::ItemStack;
 use crate::java::tooltip::{Deferred, Line, Positioner, Tooltip};
 
@@ -271,7 +271,7 @@ impl Book {
 }
 
 fn item_lines(stack: &ItemStack, env: &Env) -> Vec<Line> {
-    item::lines(stack, &Context { lang: env.lang, advanced: env.advanced, creative: false }).into_iter().map(Line::Text).collect()
+    item::tooltip_lines(stack, &env.details(stack, false)).into_iter().map(Line::Text).collect()
 }
 
 /// `setComponentTooltipForNextFrame` with the stack's tooltip style.

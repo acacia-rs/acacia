@@ -4,7 +4,7 @@
 
 use serde_json::{Value, json};
 
-use super::fmt::{BLUE, DARK_GRAY, GRAY, RED, gray, indent, italic_gray, num};
+use super::fmt::{BLUE, DARK_GRAY, RED, gray, indent, italic_gray, num};
 use super::item::{Details, Display};
 use super::stack::ItemStack;
 use crate::java::text::{Style, Text};

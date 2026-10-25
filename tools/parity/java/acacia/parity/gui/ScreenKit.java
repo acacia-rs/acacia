@@ -195,6 +195,7 @@ public final class ScreenKit {
                 items = kit.items;
                 game = kit.game;
                 kind.run(kit, c);
+                TooltipFacts.collect(kit);
                 result.add("draws", kit.capture.draws);
             } catch (Throwable error) {
                 var cause = error instanceof InvocationTargetException && error.getCause() != null ? error.getCause() : error;

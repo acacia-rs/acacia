@@ -28,7 +28,7 @@ import net.minecraft.world.item.enchantment.ItemEnchantments;
  * `tooltip_order` tag, each stack's enchantment iteration order (a hash order) and the player's
  * base attack values. Nothing is written that the case does not refer to.
  */
-final class TooltipFacts {
+public final class TooltipFacts {
     private static final Set<String> DATA = Set.of("enchantment", "instrument", "jukebox_song", "trim_pattern", "trim_material", "banner_pattern", "painting_variant");
 
     private final JsonObject game;
@@ -38,7 +38,8 @@ final class TooltipFacts {
         this.game = game;
     }
 
-    static void collect(ScreenKit kit) throws Exception {
+    /** Called by ScreenKit.run after every case, so each screen harness's probe has the facts. */
+    public static void collect(ScreenKit kit) throws Exception {
         var facts = new TooltipFacts(kit.game);
         for (var e : kit.items.entrySet()) facts.scan(e.getValue());
         var order = new JsonArray();

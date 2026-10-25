@@ -5,6 +5,7 @@ use super::item_combiner::{self, Station, error_icon, has};
 use super::{Base, Env, LABEL, Screen};
 use crate::java::gui::{Gui, Metrics};
 use crate::java::text::{Lang, Text};
+use crate::java::tooltip::game::Game;
 use crate::java::tooltip::item::hover_name;
 use crate::java::widget::edit_box::EditBox;
 use crate::java::widget::{Ctx, render};
@@ -21,7 +22,7 @@ pub struct Anvil {
 impl Anvil {
     /// The screen once its slots are filled: the name field holds the input's name (as
     /// `slotChanged` sets it), then `typed` if given; `cursor_shown` is the blink's phase.
-    pub fn new(base: Base, station: Station, typed: Option<&str>, cursor_shown: bool, font: &dyn Metrics, lang: Lang) -> Anvil {
+    pub fn new(base: Base, station: Station, typed: Option<&str>, cursor_shown: bool, font: &dyn Metrics, lang: Lang, game: &Game) -> Anvil {
         let mut base = base;
         base.title_label[0] = 60;
         let (x, y) = ((base.width - base.image_width) / 2, (base.height - base.image_height) / 2);
@@ -34,7 +35,7 @@ impl Anvil {
         name.set_value(font, "");
         name.update_text_position(font);
         let input = base.slots[0].item.clone().filter(|s| !s.is_empty());
-        name.set_value(font, &input.as_ref().map_or(String::new(), |s| hover_name(s, lang).plain()));
+        name.set_value(font, &input.as_ref().map_or(String::new(), |s| hover_name(s, lang, game).plain()));
         name.editable = input.is_some();
         if let (Some(typed), Some(_)) = (typed, &input) {
             name.set_value(font, typed);
