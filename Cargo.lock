@@ -294,10 +294,12 @@ dependencies = [
 name = "acacia-ui"
 version = "0.1.0"
 dependencies = [
+ "icu_properties",
  "image",
  "serde",
  "serde_json",
  "tracing",
+ "zip",
 ]
 
 [[package]]

@@ -4,11 +4,15 @@
   text     a random styled component (styles, legacy codes, fonts, characters from every bitmap
            sheet and Unicode block, spaces, missing characters) drawn at (x, y) with a colour,
            shadow, background, font options and Font.random seed
+  rtl      the same with right-to-left and bidi text (rtl_cases.py)
+  visual   such a component's Language.getVisualOrder, character by character
+  split    Font.split of such a component at a width: each line's width and characters
+  props    ICU's Bidi_Class, mirror and paired bracket type in a range of 4096 codepoints
   glyphs   every glyph of a font in a range of 4096 codepoints, per font option set
   bywidth  a font's glyphsByWidth
 
-cases.py [--count N] [--seed S] [--kind K]...   N is the number of text cases.
-Right-to-left text is left out until the font lays out ClientLanguage's bidi runs.
+cases.py [--count N] [--rtl M] [--seed S] [--kind K]...   N text cases, M of each of rtl, visual, split.
+`text` keeps to left-to-right characters; `rtl` covers the rest.
 """
 import argparse
 import json
@@ -16,6 +20,8 @@ import os
 from pathlib import Path
 import random
 import unicodedata
+
+import rtl_cases
 
 ASSETS = Path(os.environ.get('GUI_ASSETS', Path.home() / 'gui-assets' / 'assets' / 'minecraft'))
 FONTS = ['minecraft:default', 'minecraft:alt', 'minecraft:uniform', 'minecraft:illageralt', 'minecraft:include/unifont',
@@ -95,8 +101,9 @@ def component(rng, sheets, depth=0):
     return c
 
 
-def text(rng, sheets):
-    case = {'kind': 'text', 'text': component(rng, sheets),
+def text(rng, sheets, kind='text'):
+    body = component(rng, sheets) if kind == 'text' else rtl_cases.component(rng, style, CODES)
+    case = {'kind': kind, 'text': body,
             'x': rng.choice([0, rng.randint(-50, 400), rng.randint(0, 800) / 2, round(rng.uniform(-10, 300), 3)]),
             'y': rng.choice([0, rng.randint(-50, 300), rng.randint(0, 600) / 2]),
             'color': rng.choice([-1, -16777216, rng.randint(-2**31, 2**31 - 1), 0x80FFFFFF - 2**32, 0x00FFFFFF, -5592406]),
@@ -108,6 +115,23 @@ def text(rng, sheets):
     if rng.random() < 0.05:
         case['fishy'] = True
     return case
+
+
+def visual(rng):
+    return {'kind': 'visual', 'text': rtl_cases.component(rng, style, CODES)}
+
+
+def split(rng):
+    case = {'kind': 'split', 'text': rtl_cases.component(rng, style, CODES),
+            'width': rng.choice([1, rng.randint(5, 60), rng.randint(20, 200), rng.randint(100, 400)])}
+    if rng.random() < 0.15:
+        case['uniform'], case['jp'] = rng.choice(OPTIONS)
+    return case
+
+
+def props():
+    for start in range(0, 0x110000, 0x1000):
+        yield {'kind': 'props', 'from': start, 'to': start + 0xFFF}
 
 
 def glyphs():
@@ -126,10 +150,11 @@ def bywidth():
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--count', type=int, default=30000)
+    parser.add_argument('--rtl', type=int, default=10000)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--kind', action='append')
     args = parser.parse_args()
-    kinds = set(args.kind or ['text', 'glyphs', 'bywidth'])
+    kinds = set(args.kind or ['text', 'glyphs', 'bywidth', 'rtl', 'visual', 'split', 'props'])
     rng = random.Random(args.seed)
     sheets = sheet_chars()
     cases = []
@@ -137,8 +162,20 @@ def main():
         cases.extend(bywidth())
     if 'glyphs' in kinds:
         cases.extend(glyphs())
+    if 'props' in kinds:
+        cases.extend(props())
     if 'text' in kinds:
         cases.extend(text(rng, sheets) for _ in range(args.count))
+    # Each kind its own generator, so adding cases of one leaves the others' as they were.
+    if 'rtl' in kinds:
+        r = random.Random(args.seed * 7 + 1)
+        cases.extend(text(r, sheets, 'rtl') for _ in range(args.rtl))
+    if 'visual' in kinds:
+        r = random.Random(args.seed * 7 + 2)
+        cases.extend(visual(r) for _ in range(args.rtl))
+    if 'split' in kinds:
+        r = random.Random(args.seed * 7 + 3)
+        cases.extend(split(r) for _ in range(args.rtl))
     for c in cases:
         print(json.dumps(c))
 
