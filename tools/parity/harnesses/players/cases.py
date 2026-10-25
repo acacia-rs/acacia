@@ -106,12 +106,14 @@ def case(rng):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--count', type=int, default=1000)
+    parser.add_argument('--ascii', action='store_true', help="non-ASCII characters but '§' become 'x' (until the probe has the real font)")
     args = parser.parse_args()
     rng = random.Random(0x544142)
     for n in range(args.count):
         c = case(rng)
         for k in range(len(c['frames'])):
-            print(json.dumps({**c, 'kind': 'players', 'list': n, 'frames': c['frames'][:k + 1]}, ensure_ascii=False))
+            line = json.dumps({**c, 'kind': 'players', 'list': n, 'frames': c['frames'][:k + 1]}, ensure_ascii=False)
+            print(''.join('x' if ord(ch) > 127 and ch != '§' else ch for ch in line) if args.ascii else line)
 
 
 if __name__ == '__main__':
