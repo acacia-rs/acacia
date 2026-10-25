@@ -1,10 +1,10 @@
 package acacia.parity.sky;
 
+import acacia.parity.Atlases;
 import acacia.parity.Environments;
 import acacia.parity.Game;
 import acacia.parity.Headless;
 import acacia.parity.Out;
-import acacia.parity.UnitAtlas;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -23,7 +23,6 @@ import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.AtlasIds;
-import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.attribute.EnvironmentAttribute;
 import net.minecraft.world.attribute.GaussianSampler;
@@ -173,7 +172,7 @@ public final class SkyOracle {
         Headless.call(SkyRenderer.class, null, "buildEndSky", none);
         Headless.call(SkyRenderer.class, sky, "buildSunriseFan", none);
         var atlas = Headless.allocate(TextureAtlas.class);
-        var sprites = UnitAtlas.load(AtlasIds.CELESTIALS, Identifier.withDefaultNamespace("textures/atlas/celestials.png"));
+        var sprites = Atlases.prepared(AtlasIds.CELESTIALS);
         Headless.set(atlas, "texturesByName", sprites.regions());
         Headless.set(atlas, "missingSprite", sprites.missing());
         Headless.call(SkyRenderer.class, null, "buildSunQuad", new Class<?>[] {TextureAtlas.class}, atlas);

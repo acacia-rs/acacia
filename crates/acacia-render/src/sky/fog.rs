@@ -63,8 +63,8 @@ pub struct PlayerFog {
     pub boss_world_fog: bool,
 }
 
-const LAVA: [f32; 3] = rgb(0x991A00);
-const POWDER_SNOW: [f32; 3] = rgb(0x9FBACC);
+const LAVA: [f32; 3] = rgb(0x991900);
+const POWDER_SNOW: [f32; 3] = rgb(0x9FBBCC);
 
 const fn rgb(c: u32) -> [f32; 3] {
     [(c >> 16 & 255) as f32 / 255.0, (c >> 8 & 255) as f32 / 255.0, (c & 255) as f32 / 255.0]
