@@ -18,6 +18,20 @@ pub trait Entry {
     }
     /// Its widgets moved into `row` as `extract_content` places them.
     fn place(&mut self, _row: [i32; 4]) {}
+    /// The list's state an entry reads while drawn, told just before `extract_content`.
+    fn list_state(&mut self, _s: ListState) {}
+    /// An `ObjectSelectionList.Entry`'s `mouseClicked` at (`x`, `y`): what it fires.
+    fn clicked(&mut self, _x: f64, _y: f64) -> Option<super::input::Fired> {
+        None
+    }
+}
+
+/// What an entry reads from its list (`parent.getSelected() == this`, `isFocused`, `scrollable`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ListState {
+    pub selected: bool,
+    pub focused: bool,
+    pub scrollable: bool,
 }
 
 pub struct Row {
@@ -38,13 +52,45 @@ pub struct SelectionList {
     pub selectable: bool,
     /// `minecraft.level != null`: the in-world textures.
     pub in_world: bool,
+    /// `scrollBarX` at the list's right edge (`TransferableSelectionList`), not beside the rows.
+    pub bar_at_right: bool,
+    /// Entries a scroll bar narrower when the list scrolls (`TransferableSelectionList.Entry`).
+    pub narrow_entries: bool,
 }
 
 impl SelectionList {
     /// `new AbstractSelectionList(minecraft, width, height, y, entryHeight)`.
     pub fn new(w: i32, h: i32, y: i32, row_width: i32, in_world: bool) -> SelectionList {
         let base = Base::new(0, y, w, h, crate::java::text::Text::default());
-        SelectionList { base, rows: Vec::new(), scroll: 0.0, row_width, selected: None, focused: false, selectable: true, in_world }
+        SelectionList {
+            base,
+            rows: Vec::new(),
+            scroll: 0.0,
+            row_width,
+            selected: None,
+            focused: false,
+            selectable: true,
+            in_world,
+            bar_at_right: false,
+            narrow_entries: false,
+        }
+    }
+
+    /// An entry's `getWidth`.
+    pub fn entry_width(&self) -> i32 {
+        self.row_width - if self.narrow_entries && self.max_scroll() > 0 { 6 } else { 0 }
+    }
+
+    /// `getEntryAtPosition`: the entry whose box holds the point.
+    pub fn row_at(&self, x: i32, y: i32) -> Option<usize> {
+        let (left, width) = (self.row_left(), self.entry_width());
+        self.row_tops().into_iter().zip(&self.rows).position(|(t, r)| x >= left && x < left + width && y >= t && y < t + r.h)
+    }
+
+    /// `centerScrollOn`: the row's middle at the list's middle.
+    pub fn center_scroll_on(&mut self, i: usize) {
+        let y: i32 = self.rows[..i].iter().map(|r| r.h).sum::<i32>() + self.rows[i].h / 2;
+        self.set_scroll(f64::from(y) - f64::from(self.base.h) / 2.0);
     }
 
     pub fn push(&mut self, entry: Box<dyn Entry>, h: i32) {
@@ -111,12 +157,12 @@ impl SelectionList {
     }
 
     pub fn scroll_bar_x(&self) -> i32 {
-        self.row_right() + 6 + 2
+        if self.bar_at_right { self.base.x + self.base.w - 6 } else { self.row_right() + 6 + 2 }
     }
 
     /// Every row's widgets placed for the scroll amount, as the next frame draws them.
     pub fn place_rows(&mut self) {
-        let (left, width) = (self.row_left(), self.row_width);
+        let (left, width) = (self.row_left(), self.entry_width());
         let tops = self.row_tops();
         for (row, top) in self.rows.iter_mut().zip(tops) {
             row.entry.place([left, top, width, row.h]);
@@ -186,9 +232,10 @@ impl Widget for SelectionList {
         let b = self.base.clone();
         let (mx, my) = ctx.mouse;
         let tops = self.row_tops();
-        let (left, width) = (self.row_left(), self.row_width);
+        let (left, width) = (self.row_left(), self.entry_width());
         let over = b.is_active() && b.contains(mx, my);
-        let hovered = if over { tops.iter().zip(&self.rows).position(|(&t, r)| mx >= left && mx < left + width && my >= t && my < t + r.h) } else { None };
+        let hovered = if over { self.row_at(mx, my) } else { None };
+        let scrollable = self.max_scroll() > 0;
         let bg = if self.in_world { "gui/inworld_menu_list_background" } else { "gui/menu_list_background" };
         ctx.blit(bg, b.x, b.y, [(b.x + b.w) as f32, (b.y + b.h + self.scroll as i32) as f32], b.w, b.h, [32, 32]);
         let (gw, gh) = (ctx.gui.width, ctx.gui.height);
@@ -201,6 +248,7 @@ impl Widget for SelectionList {
                     ctx.gui.fill(left, top, left + width, top + row.h, outline);
                     ctx.gui.fill(left + 1, top + 1, left + width - 1, top + row.h - 1, 0xFF00_0000);
                 }
+                row.entry.list_state(ListState { selected: self.selected == Some(i), focused: self.focused, scrollable });
                 row.entry.extract_content(ctx, [left, top, width, row.h], hovered == Some(i));
             }
         }

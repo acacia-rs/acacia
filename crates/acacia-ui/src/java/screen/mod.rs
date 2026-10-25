@@ -4,12 +4,20 @@
 
 pub mod confirm;
 pub mod death;
+pub mod keybinds;
+pub mod keys;
+mod keys_table;
+pub mod language;
+pub mod listed;
 pub mod message;
 pub mod options;
+pub mod packs;
 pub mod pause;
 
 #[cfg(test)]
 mod input_tests;
+#[cfg(test)]
+mod lists_tests;
 
 use crate::java::widget::input::{self, Child, Fired, Interaction, Key};
 use crate::java::widget::layout::Arena;
