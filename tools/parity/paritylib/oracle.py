@@ -30,14 +30,27 @@ def compile_classes(harness_dir, log):
     files = sources(harness_dir)
     key = _hash(PIN["minecraft"]["client_sha1"], *(p.relative_to(PARITY).as_posix().encode() + p.read_bytes() for p in files))
     out = HOME / "cache" / "classes" / key
-    if (out / ".done").is_file():
-        return out, key
-    shutil.rmtree(out, ignore_errors=True)
-    out.mkdir(parents=True)
-    run([JAVA / "javac", "--release", str(PIN["minecraft"]["java_major"]), "-proc:none", "-nowarn", "-encoding", "UTF-8",
-         "-cp", classpath(), "-d", out, *files], log)
-    (out / ".done").touch()
+    if not out.is_dir():
+        stage = _stage(out)
+        run([JAVA / "javac", "--release", str(PIN["minecraft"]["java_major"]), "-proc:none", "-nowarn", "-encoding", "UTF-8",
+             "-cp", classpath(), "-d", stage, *files], log)
+        _publish(stage, out)
     return out, key
+
+
+def _stage(out):
+    """A private directory beside `out`: several agents' runs share the cache."""
+    stage = out.with_name(f"{out.name}.{os.getpid()}")
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir(parents=True)
+    return stage
+
+
+def _publish(stage, out):
+    try:
+        stage.rename(out)
+    except OSError:  # another run published the same key first
+        shutil.rmtree(stage, ignore_errors=True)
 
 
 def run_oracle(harness_dir, name, main, args, inputs, fresh, log, heap="4g"):
@@ -45,14 +58,15 @@ def run_oracle(harness_dir, name, main, args, inputs, fresh, log, heap="4g"):
     classes, key = compile_classes(harness_dir, log)
     run_key = _hash(key, main, *args, *(Path(i).read_bytes() for i in inputs))
     out = HOME / "cache" / "oracle" / name / run_key
-    if (out / ".done").is_file() and not fresh:
+    if out.is_dir() and not fresh:
         log.write(f"oracle {main}: reusing {out}\n")
         return out
-    shutil.rmtree(out, ignore_errors=True)
-    out.mkdir(parents=True)
+    stage = _stage(out)
     run([JAVA / "java", f"-Xmx{heap}", "-Djava.awt.headless=true", "--enable-native-access=ALL-UNNAMED",
-         "-cp", f"{classes}{os.pathsep}{classpath()}", main, out, *args], log, cwd=out)
-    (out / ".done").touch()
+         "-cp", f"{classes}{os.pathsep}{classpath()}", main, stage, *args], log, cwd=stage)
+    if fresh:
+        shutil.rmtree(out, ignore_errors=True)
+    _publish(stage, out)
     return out
 
 
