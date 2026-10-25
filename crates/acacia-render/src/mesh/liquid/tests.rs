@@ -18,7 +18,7 @@ const STAIRS_EAST: u32 = 14;
 const STAIRS_WEST: u32 = 15;
 const LEAVES: u32 = 16;
 
-fn state(name: &str, props: &[&str]) -> &'static BlockState {
+fn state(name: &'static str, props: &[&str]) -> &'static BlockState {
     let reg = BlockRegistry::vanilla();
     let found = reg.states_of(name).find(|(_, s)| props.iter().all(|p| s.properties.split(',').any(|kv| kv == *p)));
     found.unwrap_or_else(|| panic!("no state {name} {props:?}")).1

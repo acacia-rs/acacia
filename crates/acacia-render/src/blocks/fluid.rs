@@ -38,6 +38,10 @@ impl FluidRules {
     pub const CUBE: FluidRules =
         FluidRules { amount: 0, falling: false, cover: [1.0; 6], occludes: true, solid: true, blocks_motion: true, overlay: false, ice: false };
 
+    pub fn cube() -> FluidRules {
+        FluidRules::CUBE
+    }
+
     pub fn of(state: &BlockState) -> FluidRules {
         let name = short_name(state.name);
         let (amount, falling) = match state.liquid_depth {

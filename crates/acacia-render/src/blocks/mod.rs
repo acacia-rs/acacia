@@ -72,8 +72,9 @@ pub struct RenderBlock {
     pub fluid: Fluid,
     /// Liquid surface height in 1/16 block.
     pub fluid_height: u8,
-    /// What the liquid mesher reads of the state. Follows from the state like `model`.
-    #[serde(skip)]
+    /// What the liquid mesher reads of the state. Follows from the state like `model`
+    /// (`LookPack::block_table` sets it).
+    #[serde(skip, default = "FluidRules::cube")]
     pub fluid_rules: FluidRules,
     /// Drawn as an entity model; the shape is then [`Shape::None`]. Follows from the state, so a
     /// look pack does not store it.
