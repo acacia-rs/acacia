@@ -267,7 +267,7 @@ pub fn hovered_tooltip<S: Screen + ?Sized>(s: &mut S, env: &Env, mouse: [i32; 2]
 /// its style, a gap after the name (`tooltip::bundle::stack_tooltip` over the screen's lines).
 pub fn item_tooltip<S: Screen + ?Sized>(s: &S, stack: &ItemStack, env: &Env, mouse: [i32; 2]) -> Tooltip {
     let mut lines: Vec<Line> = s.tooltip_lines(stack, env).into_iter().map(Line::Text).collect();
-    if let Some(image) = super::tooltip::bundle::image(stack, &Display::of(stack), env.font, env.lang) {
+    if let Some(image) = super::tooltip::bundle::image(stack, &Display::of(stack), env.font, env.lang, env.game) {
         lines.insert(lines.len().min(1), image);
     }
     let style = stack.get("tooltip_style").and_then(|v| v.as_str()).map(str::to_owned);
