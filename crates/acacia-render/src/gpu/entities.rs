@@ -2,6 +2,7 @@
 //! layer of an entity, one bind group per texture (a layer's composed textures or a player skin).
 
 mod pipelines;
+mod setup;
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -11,7 +12,7 @@ use std::time::Instant;
 
 use glam::{DVec3, Mat4, Vec3};
 
-use super::entity_buffers::{BONES, INSTANCES, storage_buffer, upload, vertex_buffer};
+use super::entity_buffers::{BONES, INSTANCES, upload, vertex_buffer};
 use super::entity_textures;
 use super::glint::GlintTextures;
 use crate::entity::{Blend, EntityInstance, EntityModels, Skin, TextureId, Vertex};
@@ -30,10 +31,11 @@ struct Instance {
     /// rgb: the layer's tint, a: 1 when the texture's alpha is a tint mask and not a cutout.
     tint: [f32; 4],
     hidden: [u32; 4],
-    /// x: index of the layer's first matrix in the bone buffer.
+    /// x: index of the layer's first matrix in the bone buffer, y: the bits of the layer's alpha
+    /// ([`crate::entity::Fade`]).
     bones: [u32; 4],
     /// xy: the glint's scale over the UVs, zw: how far it has slid ([`crate::glint`]); on a
-    /// [`Blend::Swirl`] layer, how far its texture has.
+    /// [`Blend::Swirl`] or [`Blend::Wind`] layer, how far its texture has.
     glint: [f32; 4],
 }
 
@@ -51,7 +53,7 @@ enum TextureKey {
 pub struct EntityPass {
     /// By [`pipelines::index`] of a layer's [`Blend`].
     pipelines: [wgpu::RenderPipeline; pipelines::BLENDS.len()],
-    /// The clock a swirl scrolls by.
+    /// The clock a swirl scrolls and a layer fades by.
     started: Instant,
     layout: wgpu::BindGroupLayout,
     texture_layout: wgpu::BindGroupLayout,
@@ -82,95 +84,6 @@ struct Look {
 }
 
 impl EntityPass {
-    pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat, globals: &wgpu::Buffer) -> Self {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("entity"),
-            source: wgpu::ShaderSource::Wgsl(concat!(include_str!("globals.wgsl"), include_str!("entity.wgsl")).into()),
-        });
-        let buffer = |binding, ty| wgpu::BindGroupLayoutEntry {
-            binding,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer { ty, has_dynamic_offset: false, min_binding_size: None },
-            count: None,
-        };
-        let [glint_item, glint_armor, glint_sampler] = GlintTextures::layout_entries(3);
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("entity"),
-            entries: &[
-                buffer(0, wgpu::BufferBindingType::Uniform),
-                buffer(1, wgpu::BufferBindingType::Storage { read_only: true }),
-                buffer(2, wgpu::BufferBindingType::Storage { read_only: true }),
-                glint_item,
-                glint_armor,
-                glint_sampler,
-            ],
-        });
-        let texture_layout = entity_textures::layout(device);
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("entity"),
-            bind_group_layouts: &[Some(&layout), Some(&texture_layout)],
-            immediate_size: 0,
-        });
-        let instances = storage_buffer(device, INSTANCES, 64 * size_of::<Instance>() as u64);
-        let bones = storage_buffer(device, BONES, 1024 * size_of::<BoneMatrix>() as u64);
-        let glint = GlintTextures::new(device);
-        let bind_group = Self::bind_group(device, &layout, globals, &instances, &bones, &glint);
-        let over_globals = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("entity over globals"),
-            size: size_of::<super::globals::Globals>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let over_bind_group = Self::bind_group(device, &layout, &over_globals, &instances, &bones, &glint);
-        EntityPass {
-            pipelines: pipelines::new(device, color, &pipeline_layout, &shader),
-            started: Instant::now(),
-            layout,
-            texture_layout,
-            sampler: entity_textures::sampler(device),
-            instances,
-            bones,
-            bind_group,
-            over_globals,
-            over_bind_group,
-            glint,
-            models: Arc::default(),
-            vertices: None,
-            ranges: Vec::new(),
-            looks: HashMap::new(),
-            draws: Vec::new(),
-            world_draws: 0,
-        }
-    }
-
-    fn bind_group(
-        device: &wgpu::Device,
-        layout: &wgpu::BindGroupLayout,
-        globals: &wgpu::Buffer,
-        instances: &wgpu::Buffer,
-        bones: &wgpu::Buffer,
-        glint: &GlintTextures,
-    ) -> wgpu::BindGroup {
-        let buffers = [globals, instances, bones];
-        let buffers = (0..).zip(buffers).map(|(binding, b)| wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() });
-        let entries: Vec<_> = buffers.chain(glint.entries(3)).collect();
-        device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("entity"), layout, entries: &entries })
-    }
-
-    pub fn set_glint(&mut self, device: &wgpu::Device, globals: &wgpu::Buffer, glint: GlintTextures) {
-        self.glint = glint;
-        self.rebind(device, globals);
-    }
-
-    fn rebind(&mut self, device: &wgpu::Device, globals: &wgpu::Buffer) {
-        self.bind_group = Self::bind_group(device, &self.layout, globals, &self.instances, &self.bones, &self.glint);
-        self.over_bind_group = Self::bind_group(device, &self.layout, &self.over_globals, &self.instances, &self.bones, &self.glint);
-    }
-
-    pub(super) fn set_over_globals(&self, queue: &wgpu::Queue, globals: &super::globals::Globals) {
-        queue.write_buffer(&self.over_globals, 0, bytemuck::bytes_of(globals));
-    }
-
     pub fn set_models(&mut self, device: &wgpu::Device, models: Arc<EntityModels>) {
         let mut vertices: Vec<Vertex> = Vec::new();
         self.ranges = models
@@ -205,11 +118,13 @@ impl EntityPass {
         self.looks.retain(|_, look| look.skin.as_ref().is_none_or(|s| Arc::strong_count(s) > 1));
         let mut records = Vec::new();
         let mut bones: Vec<BoneMatrix> = Vec::new();
-        let swirl = (self.started.elapsed().as_secs_f32() * SWIRL_PER_SEC).fract();
+        let elapsed = self.started.elapsed().as_secs_f32();
+        let swirl = (elapsed * SWIRL_PER_SEC).fract();
         let all = entities.map(|e| (e, false)).chain(over.iter().map(|e| (e, true)));
         for (e, layer, over) in all.flat_map(|(e, over)| e.layers.iter().map(move |l| (e, l, over))) {
+            let alpha = layer.fade.alpha(elapsed * 20.0);
             let shared = self.models.models().get(layer.model as usize).zip(self.ranges.get(layer.model as usize));
-            if shared.is_none() && e.skin.as_ref().is_none_or(|s| s.mesh.is_none()) {
+            if alpha <= 1e-5 || (shared.is_none() && e.skin.as_ref().is_none_or(|s| s.mesh.is_none())) {
                 continue;
             }
             let key = match &e.skin {
@@ -247,9 +162,15 @@ impl EntityPass {
             let texture = e.glint.map_or(0.0, |g| if g == Glint::Item { 1.0 } else { 2.0 });
             // Only a skin's size is known here; armour's scale does not ask for it.
             let [sx, sy] = e.glint.map_or([0.0; 2], |g| g.scale(e.skin.as_ref().map_or([16; 2], |s| [s.width, s.height])));
-            let slide = if layer.blend == Blend::Swirl { [swirl; 2] } else { glint_scroll };
+            let slide = match layer.blend {
+                Blend::Swirl => [swirl; 2],
+                // BreezeWindLayer slides twice as fast as a swirl, sideways only.
+                Blend::Wind => [(swirl * 2.0).fract(), 0.0],
+                _ => glint_scroll,
+            };
             let glint = [sx, sy, slide[0], slide[1]];
-            records.push(Instance { light: [block, sky, crate::entity::java::overlay::keep(e.hurt, 0.0), texture], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0], glint });
+            let light = [block, sky, crate::entity::java::overlay::keep(e.hurt, e.white), texture];
+            records.push(Instance { light, tint, hidden: layer.hidden, bones: [first_bone, alpha.to_bits(), 0, 0], glint });
             self.draws.push((range, key, layer.blend));
             if !over {
                 self.world_draws = self.draws.len();
@@ -269,9 +190,9 @@ impl EntityPass {
 
     /// The world's blended layers, after everything opaque.
     pub fn draw_blended(&self, pass: &mut wgpu::RenderPass<'_>) {
-        self.draw_range(pass, 0..self.world_draws, Blend::Alpha, &self.bind_group);
-        self.draw_range(pass, 0..self.world_draws, Blend::Eyes, &self.bind_group);
-        self.draw_range(pass, 0..self.world_draws, Blend::Swirl, &self.bind_group);
+        for blend in &pipelines::BLENDS[2..] {
+            self.draw_range(pass, 0..self.world_draws, *blend, &self.bind_group);
+        }
     }
 
     /// The instances given to [`EntityPass::prepare`] as `over`, with the over globals.

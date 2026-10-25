@@ -141,7 +141,7 @@ pub fn first_person(skin: &Arc<Skin>, camera: &Camera, hold: Hold) -> EntityInst
         scale: 1.0,
         pose: Pose::default(),
         frame: Some(view * frame(hold, pitch)),
-        hurt: false,
+        hurt: false, white: 0.0,
         glint: None,
     }
 }

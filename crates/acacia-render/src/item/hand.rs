@@ -14,7 +14,7 @@ use crate::glint::Glint;
 pub fn third_person(model: &ItemModel, body: Mat4, hand: Mat4, grip: Grip, blocking: bool, light_at: glam::DVec3) -> EntityInstance {
     let frame = body * held_frame(Display::held(model, "", false, grip.left, blocking), hand, grip);
     let glint = model.glint.then_some(Glint::Item);
-    EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
+    EntityInstance { layers: model.layers.clone(), skin: Some(model.skin.clone()), position: light_at, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, white: 0.0, glint }
 }
 
 /// [`third_person`]'s item mesh to the holder's model space: Java's `ItemInHandLayer` chain, run
@@ -181,7 +181,7 @@ pub fn first_person(model: &ItemModel, display: Display, camera: &Camera, hold: 
         scale: display.scale.max_element(),
         pose: Pose::default(),
         frame: Some(frame),
-        hurt: false,
+        hurt: false, white: 0.0,
         glint: model.glint.then_some(Glint::Item),
     }
 }
