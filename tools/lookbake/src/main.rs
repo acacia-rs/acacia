@@ -11,6 +11,8 @@
 //! - `lookbake java-check <quads.json.gz> [java dir]`: our bake of every Java block state against a
 //!   dump of the game's own (check.rs); tools/parity's harness `bake` makes the dump. Exits nonzero
 //!   on any divergence.
+//! - `lookbake java-environment [java dir] [out dir]`: only the Java look's `environment.json`
+//!   (environment.rs); tools/parity's harnesses `sky` and `fog` read it.
 //! - `lookbake java-light-check <facts.json> [pack dir] [java dir]`: the Java look's light facts
 //!   (light.rs) against the game's; tools/parity's harness `light_facts` makes the dump.
 
@@ -23,6 +25,7 @@ mod download;
 mod entities;
 mod environment;
 mod exporter;
+mod fluid;
 mod items;
 mod jar;
 mod java;
@@ -45,7 +48,7 @@ use acacia_render::{Look, LookPack};
 
 use download::Error;
 
-const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-exported [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir] | java-light-check <facts.json> [pack dir] [java dir]";
+const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-exported [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir] | java-light-check <facts.json> [pack dir] [java dir] | java-environment [java dir] [out dir]";
 
 fn main() -> Result<(), Error> {
     let mut args = std::env::args().skip(1);
@@ -61,11 +64,12 @@ fn main() -> Result<(), Error> {
         Some("java") => {
             let (pack, java, out) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, report) = java::bake_look(&pack, &jar.assets, &mapping);
+            let (look, report) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
             look.save(&out)?;
             biomes::write(&biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &out)?;
             ui::copy(&jar.assets, &out)?;
             environment::copy(&jar.assets, &out)?;
+            environment::write(&jar.data, &out)?;
             particles::copy(&jar.assets, &out)?;
             banners::copy(&jar.assets, &out)?;
             exported(&java, &jar.assets, &out)?;
@@ -98,11 +102,17 @@ fn main() -> Result<(), Error> {
                 return Err(format!("{} divergences from the game", outcome.divergences.len()).into());
             }
         }
+        Some("java-environment") => {
+            let (java, out) = (dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
+            let jar = jar::fetch(&java)?;
+            std::fs::create_dir_all(&out)?;
+            environment::write(&jar.data, &out)?;
+        }
         Some("java-light-check") => {
             let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
             let (pack, java) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping);
+            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
             let outcome = check::light::print(&look, &mapping, &truth)?;
             outcome.print_for_parity();
         }

@@ -66,12 +66,22 @@ pub struct BiomeColors {
     unknown: BiomeTint,
     climate: FxHashMap<u32, Climate>,
     fluid_fogs: fog::FluidFogs,
+    names: FxHashMap<u32, String>,
+    /// A Java look's environment attributes ([`crate::sky::Environment::load`]).
+    environment: Option<std::sync::Arc<crate::sky::Environment>>,
 }
 
 impl Default for BiomeColors {
     /// Plains everywhere, until the server's definitions arrive.
     fn default() -> Self {
-        BiomeColors { by_id: FxHashMap::default(), unknown: PLAINS, climate: FxHashMap::default(), fluid_fogs: Default::default() }
+        BiomeColors {
+            by_id: FxHashMap::default(),
+            unknown: PLAINS,
+            climate: FxHashMap::default(),
+            fluid_fogs: Default::default(),
+            names: FxHashMap::default(),
+            environment: None,
+        }
     }
 }
 
@@ -104,7 +114,9 @@ impl BiomeColors {
         let server = |d: &BiomeDef| Climate { temperature: d.temperature, frozen: false, has_precipitation: d.downfall > 0.0 };
         let climate = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), listed.get(d.name.as_str()).and_then(|l| l.climate).unwrap_or_else(|| server(d))))).collect();
         let fluid_fogs = fog::FluidFogs::load(root, defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), d.name.as_str()))));
-        BiomeColors { by_id, unknown, climate, fluid_fogs }
+        let names = defs.iter().filter_map(|d| Some((u32::from(id_of(d)?), d.name.clone()))).collect();
+        let environment = crate::sky::Environment::load(root).map(std::sync::Arc::new);
+        BiomeColors { by_id, unknown, climate, fluid_fogs, names, environment }
     }
 
     #[cfg(test)]
@@ -114,6 +126,15 @@ impl BiomeColors {
 
     pub fn fluid_fogs(&self) -> &fog::FluidFogs {
         &self.fluid_fogs
+    }
+
+    pub fn environment(&self) -> Option<&crate::sky::Environment> {
+        self.environment.as_deref()
+    }
+
+    /// The server's name for biome `id`, without namespace.
+    pub fn name(&self, id: u32) -> Option<&str> {
+        self.names.get(&id).map(String::as_str)
     }
 
     /// The climate of `id`; unknown ids get plains'.

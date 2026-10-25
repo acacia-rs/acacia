@@ -41,7 +41,7 @@ pub fn frame_lightmap(lighting: Lighting, realm: Realm, time: f32, weather: Weat
     match lighting {
         Lighting::Volume => {
             let ambient = if realm == Realm::Overworld { CURVE_AMBIENT.0 } else { CURVE_AMBIENT.1 };
-            curve_table(ambient, Sky::of(realm, time, weather).darken)
+            curve_table(ambient, Sky::of(realm, time, weather).darken())
         }
         Lighting::Java => java_state(realm, time, weather, c).table(),
     }
