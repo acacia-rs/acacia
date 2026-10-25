@@ -250,3 +250,28 @@ fn dimension_change_clears() {
     assert!(es.is_empty());
     assert!(es.by_unique(-2).is_none());
 }
+
+#[test]
+fn synced_properties_read_by_their_kinds_definitions() {
+    use acacia_client::proto::nbt::{Network, Raw};
+    use acacia_client::proto::types::{EntityProperties, EntityPropertiesIntsItem};
+    // BDS's pig: climate_variant (temperate, warm, cold), then sound_variant.
+    let pig = include_bytes!("../../../../acacia-nbt/corpus/network/entity-property-08.nbt");
+    let mut es = world();
+    es.apply(&raw(&SyncEntityProperty { nbt: Raw::<Network>::read(&mut &pig[..]).unwrap() }), &ME).unwrap();
+    let ints = |pairs: &[(u32, i32)]| EntityProperties { ints: pairs.iter().map(|&(index, value)| EntityPropertiesIntsItem { index, value }).collect(), floats: vec![] };
+    let mut p: AddEntity = fixture();
+    (p.runtime_id, p.unique_id, p.entity_type, p.properties) = (5, -5, "minecraft:pig".into(), ints(&[(0, 2), (1, 1)]));
+    es.apply(&raw(&p), &ME).unwrap();
+    let pig = es.get(5).unwrap();
+    assert_eq!(es.property(pig, "minecraft:climate_variant"), Some(Property::Enum("cold")));
+    assert_eq!(es.property(pig, "minecraft:sound_variant"), Some(Property::Enum("big")));
+    let mut data: SetEntityData = fixture();
+    (data.runtime_entity_id, data.properties) = (5, ints(&[(0, 1)]));
+    es.apply(&raw(&data), &ME).unwrap();
+    let pig = es.get(5).unwrap();
+    assert_eq!(es.property(pig, "minecraft:climate_variant"), Some(Property::Enum("warm")));
+    assert_eq!(es.property(pig, "minecraft:sound_variant"), Some(Property::Enum("big")));
+    assert_eq!(es.properties(pig).count(), 2);
+    assert_eq!(es.property(es.get(3).unwrap(), "minecraft:climate_variant"), None);
+}
