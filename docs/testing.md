@@ -17,6 +17,7 @@
   `BEDROCK_TRANSPORT=nethernet cargo run -p acacia-client --example afk -- 127.0.0.1:19160 @default 30`.
   In Git Bash, set `MSYS_NO_PATHCONV=1`, or it rewrites `/list` into a Windows path.
 - `cargo run -p acacia-client --example ping -- play.example.net` pings a server; set `BEDROCK_PROXY` to go through a proxy.
+- Java look against Java Edition itself: `tools/parity/remote.sh [harness]` (docs/parity.md).
 
 ## Strict mode
 
