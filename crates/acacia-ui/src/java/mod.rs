@@ -8,4 +8,5 @@ pub mod font;
 pub mod gui;
 pub mod hud;
 pub mod mth;
+pub mod paint;
 pub mod text;
