@@ -2,7 +2,9 @@
 
 use acacia_world::{SECTION_VOLUME, World};
 
-pub const SIDE: usize = 18;
+/// Blocks of border on each side: smooth light looks two blocks out along a face's normal.
+pub const BORDER: i32 = 2;
+pub const SIDE: usize = 16 + 2 * BORDER as usize;
 const CELLS: usize = SIDE * SIDE * SIDE;
 /// Stands in for blocks of unloaded neighbour columns, sections not yet received, and below the
 /// world: hides faces towards them, so an edge isn't drawn until its neighbour arrives (which
@@ -19,12 +21,14 @@ pub struct Volume {
     pub liquid: Box<[u32; CELLS]>,
     /// Reaches [`BLEND`] columns past the section, by [`biome_cell`].
     pub biomes: Box<[u32; BIOME_CELLS]>,
+    /// In the Nether, whose faces Java shades differently.
+    pub nether: bool,
 }
 
-/// Cell index for section-local coordinates in -1..=16.
+/// Cell index for section-local coordinates in -BORDER..16 + BORDER.
 #[inline]
 pub fn cell(x: i32, y: i32, z: i32) -> usize {
-    (((x + 1) as usize * SIDE) + (z + 1) as usize) * SIDE + (y + 1) as usize
+    (((x + BORDER) as usize * SIDE) + (z + BORDER) as usize) * SIDE + (y + BORDER) as usize
 }
 
 /// The widest biome blend ([`crate::look::Look::biome_blend`]).
@@ -32,17 +36,17 @@ pub const BLEND: i32 = 2;
 const BIOME_SIDE: usize = 16 + 2 * BLEND as usize;
 const BIOME_CELLS: usize = BIOME_SIDE * BIOME_SIDE * SIDE;
 
-/// Biome cell index for x and z in -BLEND..16 + BLEND, y in -1..=16.
+/// Biome cell index for x and z in -BLEND..16 + BLEND, y in -BORDER..16 + BORDER.
 #[inline]
 pub(super) fn biome_cell(x: i32, y: i32, z: i32) -> usize {
-    (((x + BLEND) as usize * BIOME_SIDE) + (z + BLEND) as usize) * SIDE + (y + 1) as usize
+    (((x + BLEND) as usize * BIOME_SIDE) + (z + BLEND) as usize) * SIDE + (y + BORDER) as usize
 }
 
 impl Volume {
     /// Every cell `block`, no liquid, biome 0.
     #[cfg(test)]
     pub fn filled(block: u32) -> Volume {
-        Volume { origin: [0; 3], blocks: Box::new([block; CELLS]), liquid: Box::new([0; CELLS]), biomes: Box::new([0; BIOME_CELLS]) }
+        Volume { origin: [0; 3], blocks: Box::new([block; CELLS]), liquid: Box::new([0; CELLS]), biomes: Box::new([0; BIOME_CELLS]), nether: false }
     }
 
     #[inline]
@@ -70,6 +74,7 @@ impl Volume {
             blocks: Box::new([OCCLUDER; CELLS]),
             liquid: Box::new([dim.air; CELLS]),
             biomes: Box::new([NO_BIOME; BIOME_CELLS]),
+            nether: crate::sky::Realm::of(&dim) == crate::sky::Realm::Nether,
         };
         let (mut blocks, mut liquid, mut biomes) =
             (Box::new([0; SECTION_VOLUME]), Box::new([0; SECTION_VOLUME]), Box::new([0; SECTION_VOLUME]));
@@ -108,11 +113,11 @@ impl Volume {
         let [ox, oy, oz] = offset;
         for x in range(ox, BLEND) {
             for z in range(oz, BLEND) {
-                for y in range(oy, 1) {
+                for y in range(oy, BORDER) {
                     let src = ((x << 8) | (z << 4) | y) as usize;
                     let at = [x + ox * 16, y + oy * 16, z + oz * 16];
                     self.biomes[biome_cell(at[0], at[1], at[2])] = biomes[src];
-                    if range(ox, 1).contains(&x) && range(oz, 1).contains(&z) {
+                    if range(ox, BORDER).contains(&x) && range(oz, BORDER).contains(&z) {
                         let dst = cell(at[0], at[1], at[2]);
                         self.blocks[dst] = blocks[src];
                         self.liquid[dst] = liquid[src];

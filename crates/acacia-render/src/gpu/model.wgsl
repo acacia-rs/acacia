@@ -36,7 +36,9 @@ fn model_vertex(q: u32, vi: u32, slot: u32) -> VsOut {
     let t1 = vec2(model_texel(c0w >> 20u), model_texel(c1w >> 16u));
     let t3 = vec2(model_texel(c2w), model_texel(c2w >> 10u));
 
+    // Java's vertex k is corner k; it splits along 0-2, which a lit face's flip bit keeps.
     let corner = TRIANGLES[((look >> 28u) & 1u) * 2u][vi % 6u];
+    let lights = vertex_light[q];
     let c = CORNERS[corner];
     let pos = p0 + (p1 - p0) * c.x + (p3 - p0) * c.y;
     let kind = look & 15u;
@@ -49,7 +51,7 @@ fn model_vertex(q: u32, vi: u32, slot: u32) -> VsOut {
     out.dist = fog_dist(rel);
     out.local = pos / 16.0;
     out.face_slot = vec2(kind, slot);
-    let srgb = vec3<f32>(f32(color & 127u), f32((color >> 7u) & 127u), f32((color >> 14u) & 127u)) / 127.0;
-    out.tint = pow(srgb, vec3(2.2));
+    out.tint = vec3<f32>(f32(color & 127u), f32((color >> 7u) & 127u), f32((color >> 14u) & 127u)) / 127.0;
+    out.light = select(vec3(-1.0), corner_light(lights[corner]), (lights.x & LIT) != 0u);
     return out;
 }

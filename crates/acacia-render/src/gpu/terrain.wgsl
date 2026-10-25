@@ -8,6 +8,17 @@
 @group(0) @binding(4) var atlas_sampler: sampler;
 // Per slot, 18^3 light bytes; see light.wgsl.
 @group(0) @binding(5) var<storage, read> light_cells: array<u32>;
+// Per quad record, light and grey per corner (src/mesh/quad.rs VertexLight).
+@group(0) @binding(6) var<storage, read> vertex_light: array<vec4<u32>>;
+
+const LIT: u32 = 0x1000000u;
+const SPLIT_13: u32 = 0x2000000u;
+
+// Java's vertex colour: the grey times the lightmap at the corner's light coords (1/16 level).
+fn corner_light(word: u32) -> vec3<f32> {
+    let coords = vec2<f32>(f32(word & 255u), f32((word >> 8u) & 255u)) / 16.0;
+    return f32((word >> 16u) & 255u) / 255.0 * lightmap(coords);
+}
 
 var<private> U_AXIS: array<vec3<f32>, 6> = array(
     vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0),
@@ -41,6 +52,8 @@ struct VsOut {
     @location(6) local: vec3<f32>,
     // x: face, y: slot
     @location(7) @interpolate(flat) face_slot: vec2<u32>,
+    // Java's vertex colour times its lightmap; negative for faces lit from the light volume.
+    @location(8) light: vec3<f32>,
 };
 
 @vertex
@@ -60,7 +73,10 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     let size = select(vec2<f32>(f32(w1 & 255u), f32((w1 >> 8u) & 255u)) + 1.0, vec2(16.0), liquid);
     // Split along the brighter diagonal so AO gradients don't crease.
     let crease = ((w2 & 3u) + ((w2 >> 4u) & 3u)) < (((w2 >> 2u) & 3u) + ((w2 >> 6u) & 3u));
-    let flip = select(u32(crease), 0u, liquid);
+    let lights = vertex_light[q];
+    let has_light = (lights.x & LIT) != 0u;
+    // Java splits along its vertices 0-2, wherever they fall among the quad's corners.
+    let flip = select(select(u32(crease), 0u, liquid), u32((lights.x & SPLIT_13) != 0u), has_light);
     let corner = TRIANGLES[flip * 2u + REVERSED[face]][vi % 6u];
     let c = CORNERS[corner];
 
@@ -116,22 +132,33 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) slot: u32) -
     out.dist = fog_dist(rel);
     out.local = pos / 16.0;
     out.face_slot = vec2(face, slot);
-    // 7-bit sRGB per channel; texels are linear after sampling, so the tint is too.
-    let srgb = vec3<f32>(f32((w2 >> 11u) & 127u), f32((w2 >> 18u) & 127u), f32((w2 >> 25u) & 127u)) / 127.0;
-    out.tint = pow(srgb, vec3(2.2));
+    // 7-bit sRGB per channel.
+    out.tint = vec3<f32>(f32((w2 >> 11u) & 127u), f32((w2 >> 18u) & 127u), f32((w2 >> 25u) & 127u)) / 127.0;
+    out.light = select(vec3(-1.0), corner_light(lights[corner]), has_light);
     return out;
+}
+
+fn tinted(rgb: vec3<f32>, tint_rgb: vec3<f32>, tint: u32, material: u32, alpha: f32) -> vec3<f32> {
+    if tint == 0u {
+        return rgb;
+    }
+    // Overlay: alpha marks the tinted part (the grass strip on grass block sides).
+    return select(rgb * tint_rgb, mix(rgb, rgb * tint_rgb, alpha), material == 3u);
 }
 
 fn shade_texel(in: VsOut) -> vec4<f32> {
     let texel = textureSample(atlas, atlas_sampler, in.uv, in.layer);
     let tint = in.tint_material & 3u;
     let material = in.tint_material >> 2u;
-    var rgb = texel.rgb;
-    if tint != 0u {
-        // Overlay: alpha marks the tinted part (the grass strip on grass block sides).
-        rgb = select(rgb * in.tint, mix(rgb, rgb * in.tint, texel.a), material == 3u);
+    var rgb: vec3<f32>;
+    if in.light.x >= 0.0 {
+        // Java's arithmetic, on the stored sRGB values.
+        rgb = srgb_decode(saturate(tinted(srgb_encode(texel.rgb), in.tint, tint, material, texel.a) * in.light));
+    } else {
+        // Texels are linear after sampling, so the tint is made linear too.
+        let lin = tinted(texel.rgb, pow(in.tint, vec3(2.2)), tint, material, texel.a);
+        rgb = lit(lin, in.shade * brightness(in.face_slot.y, in.face_slot.x, in.local));
     }
-    rgb = rgb * in.shade * brightness(in.face_slot.y, in.face_slot.x, in.local);
     let alpha = select(texel.a, g.water.x, tint == 3u && g.water.x >= 0.0);
     return vec4(fogged(rgb, in.dist), alpha);
 }

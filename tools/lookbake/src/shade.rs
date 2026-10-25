@@ -14,8 +14,13 @@ const DARK: &[&str] = &["soul_sand", "mud"];
 /// boxes agree on what is full.
 pub fn darkens(java: &JavaState, full_collision: bool) -> bool {
     let name = java.name.as_str();
-    let full = (full_collision && !SMALLER_IN_JAVA.contains(&name)) || (name == "snow" && java.property("layers") == Some("8"));
-    DARK.contains(&name) || (full && !BRIGHT.iter().any(|part| name.contains(part)))
+    let full_snow = name == "snow" && java.property("layers") == Some("8");
+    DARK.contains(&name) || full_snow || (self::full_collision(java, full_collision) && !BRIGHT.iter().any(|part| name.contains(part)))
+}
+
+/// Java's `isCollisionShapeFullBlock`, from the Bedrock state's.
+pub fn full_collision(java: &JavaState, bedrock_full: bool) -> bool {
+    bedrock_full && !SMALLER_IN_JAVA.contains(&java.name.as_str())
 }
 
 #[test]

@@ -87,30 +87,51 @@ tints like plains, with the water of that file's `default` entry.
 
 ## Lighting (`light/`)
 
-Bedrock sends no light, so the client computes it. Emission and filter per state come from
-`acacia-world` (`BlockState::light_emission`, `light_filter`; waterlogged blocks take the stronger of
-both layers).
+Bedrock sends no light, so the client computes it, by the rules of the look's `Lighting`
+(`look.rs`): `Volume` (the Bedrock look) is the renderer's own, `Java` is 26.3's, checked by the
+parity harnesses `lightmap`, `smooth_light`, `light_engine` and `light_facts` (docs/parity.md).
+Emission and filter per state come from `acacia-world` (`BlockState::light_emission`,
+`light_filter`) under `Volume`, and from the look pack's `LightFacts` (lookbake `light.rs`) under
+`Java`; waterlogged blocks take the stronger of both layers.
 
-- **Thread**: `Lighting::new(world)` starts a light thread that subscribes to world changes. Column and
+- **Java's rules** (`rules.rs`, `sky.rs`, `blocks.rs`): a step costs the entered block's dampening
+  but at least 1; light does not cross a face the two blocks' face occlusion shapes cover together
+  (`LightFacts::shape`, a 16x16 grid per face, interned in the pack's light shapes); sky light
+  sources run from the top down to the first edge that stops light coming straight down; a section
+  of air above and below the world carries light as Java's padding sections do. The End has sky light.
+- **Lightmap** (`lightmap.rs`, `environment.rs`): every frame a 16x16 table, sky level × block level
+  to RGB, goes to the shader in `Globals::lightmap`. Java's is `lightmap.fsh` over
+  `LightmapRenderStateExtractor`'s state: the dimension's light attributes, the `day` timeline,
+  weather and lightning, End flashes, the player's `LightConditions` (brightness option, night
+  vision, darkness, boss darkening) and the torch flicker. `Volume`'s is the old curve as a table.
+  Shaders read it with `lightmap(levels)` (RGB, raw factor) and `curve(levels)` (its green, for passes
+  that take one brightness); `lit(rgb, factor)` multiplies in sRGB space under Java lighting, as the
+  game multiplies its unconverted colours.
+- **Light per vertex** (Java, `mesh/smooth.rs`, `mesh/vertex_light.rs`): meshing a section reads its
+  light (`LightData::gather_cells`) and gives each vertex Java's light coords and grey
+  (`BlockModelLighter`: smooth light, ambient occlusion, partial-face weights, directional shade by
+  `CardinalLighting`), carried in a second per-quad buffer (`VertexLight`). A light change remeshes.
+- **Thread**: `Lighting::new(world, table)` starts a light thread that subscribes to world changes. Column and
   section changes relight the whole column, once per batch. Block changes update incrementally. Then
   it forwards the change and every section whose bordered light changed (`LightEvent`), so the scene
   meshes only lit sections.
 - **Data** (`LightData`, `parking_lot::RwLock`): a byte per block for light (block << 4 | sky) and for
   props (emission << 4 | filter), uniform sections stored as one value. Unloaded columns are dropped
   by polling `World::get`.
-- **Propagation** (`propagate.rs`): BFS per channel. A step loses 1 + the entered block's filter; sky
+- **Propagation** (`propagate.rs`): BFS per channel. Under `Volume` a step loses 1 + the entered block's filter; sky
   light at 15 going down loses only the filter. Removal clears what may have come from the old light,
   then refills from the brighter cells it met. Sky enters the top layer. Sky columns fill straight down
   first and spread only from their ends and their sides that face shorter columns or the chunk edge.
-  There's no sky light in the nether and the end; they get a higher ambient instead (`gpu/mod.rs`
-  `AMBIENT`).
+  There's no sky light in the nether and, under `Volume`, the end; they get a higher ambient instead
+  (`environment.rs` `CURVE_AMBIENT`).
 - **GPU**: each section slot has an 18³ light volume (5832 bytes, `OPAQUE_CELL` marks filter-15 blocks).
   `gpu/light.wgsl` smooths per fragment: each face corner averages the 4 cells in front of it (without
   opaque ones, and without the diagonal when both edges are opaque), interpolated across the face.
   "In front" is the next cell for a face on its block's side and the block's own cell for a model
-  face inside it. Cross planes and faces whose front cell is opaque use their own cell. Brightness is Java's curve at
-  50% gamma, `max(block, sky)`, raised by the ambient. Quads keep their AO and directional shade.
-- **Light-only updates**: when a section's light changes but its blocks don't, a light job re-gathers
+  face inside it. Cross planes and faces whose front cell is opaque use their own cell. Brightness is
+  the lightmap's. Quads keep their AO and directional shade. Under Java lighting, cubes and model
+  faces take their vertices' light instead; liquids and cross planes still sample the volume.
+- **Light-only updates** (`Volume` only): when a section's light changes but its blocks don't, a light job re-gathers
   the volume into its slot without remeshing. Volumes carry the light generation, and the store keeps
   the newest.
 

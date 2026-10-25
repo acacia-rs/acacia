@@ -23,17 +23,14 @@ What the dump cannot cover is how the faces are drawn. That is the first item be
 
 Each is checked against the decompiled 26.3 client, not by eye. None is started.
 
-- **Light curve.** `globals.wgsl`'s `curve` is the renderer's own. Java's is its lightmap
-  (`LightmapRenderStateExtractor`, `lightmap.fsh`): block and sky level to brightness, with the
-  dimension's ambient light and the brightness option. Make the curve the look's.
-- **Light smoothing.** Java blends the light of four cells per face corner
-  (`BlockModelLighter`, `LightCoordsUtil.smoothBlend`). We sample the light volume per fragment.
-  Decide whether that is close enough or whether corners carry light.
-- **Ambient occlusion detail.** The strengths and the darkening blocks are Java's. Not compared:
-  the centre cell's share, the rule that takes a corner for dark when both its sides block light,
-  and the weights Java gives a face that does not reach the block's edge (`doNonCubicWeight`); we
-  interpolate the corner values instead. A dump of the game's per-vertex shade for a set of
-  neighbourhoods would settle all three.
+- **World light: done (2026-10-25)** for blocks drawn as cubes or models: the lightmap, smooth
+  light, AO and directional shade per vertex, the light engine's rules and every state's light
+  facts are Java's, checked by harnesses `lightmap`, `smooth_light`, `light_engine` and
+  `light_facts` (docs/parity.md). Left: liquids and cross planes still sample the light volume;
+  the light engine differs in 6 cells at the world's bottom layer, where Java's padding section
+  below keeps light copied in when its data layer is created
+  (`SkyLightSectionStorage.createDataLayer`); nothing checks the whole path (Bedrock chunk to
+  meshed vertex) on a real world yet. Entities take the lightmap through `lightmap(levels)`.
 - **Liquids.** Geometry is the renderer's, after an older `LiquidBlockRenderer`. Compare corner
   heights, the flow angle and the side faces with 26.3's `FluidRenderer`.
 - **Fog.** Both bands are drawn, in the renderer's sky colour. Java's is `fog_color` mixed with
