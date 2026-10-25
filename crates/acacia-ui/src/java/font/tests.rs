@@ -6,7 +6,10 @@ use crate::java::mth::JavaRandom;
 
 /// A namespace directory with these files.
 fn root(name: &str, files: &[(&str, Vec<u8>)]) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("acacia-font-{name}-{}", std::process::id()));
+    // Tests run in parallel and share helpers: each call gets its own directory.
+    static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!("acacia-font-{name}-{}-{call}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     for (path, bytes) in files {
         let path = root.join(path);
