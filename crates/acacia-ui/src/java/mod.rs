@@ -11,3 +11,4 @@ pub mod mth;
 pub mod picture;
 pub mod text;
 pub mod tooltip;
+pub mod widget;
