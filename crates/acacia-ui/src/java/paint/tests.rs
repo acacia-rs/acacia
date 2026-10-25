@@ -11,6 +11,7 @@ impl Source for Fake {
         match id {
             "widget/button" => Some((Sprite { x: 0, y: 100, width: 200, height: 20 }, Scaling::NineSlice { w: 200, h: 20, border: [3; 4], stretch_inner: false })),
             "hud/heart" => Some((Sprite { x: 10, y: 0, width: 9, height: 9 }, Scaling::Stretch)),
+            "missingno" => Some((Sprite { x: 30, y: 0, width: 16, height: 16 }, Scaling::Stretch)),
             _ => None,
         }
     }
@@ -125,4 +126,19 @@ fn a_label_is_centred_in_its_box_or_scrolled_and_cut_to_it() {
     // At millis 0 the swing is at its far end, 14 px left: the fake's one glyph falls outside the box.
     let painted = paint(&[label("Done", 10)], [200, 100], 1.0, &mut Fake);
     assert!(painted.quads.is_empty());
+}
+
+#[test]
+fn a_sprite_the_atlas_lacks_draws_the_missing_one() {
+    let mut gui = Gui::new(100, 100);
+    gui.sprite("tooltip/fancy/background", 0, 0, 40, 20);
+    let painted = paint(&gui.draws, [100, 100], 1.0, &mut Fake);
+    assert_eq!((painted.quads[0].rect, painted.quads[0].uv), ([0.0, 0.0, 40.0, 20.0], [30.0, 0.0, 46.0, 16.0]));
+}
+
+#[test]
+fn a_fully_faded_label_adds_nothing() {
+    let label = GuiDraw::Scrolling { text: Text::literal("Done"), center_x: 50, x0: 0, x1: 100, y0: 0, y1: 20, color: 0x00FF_FFFF };
+    let painted = paint(&[label, GuiDraw::Fill { x0: 30, y0: 0, x1: 70, y1: 20, color: 0xFF00_0000 }], [200, 100], 1.0, &mut Fake);
+    assert_eq!(painted.quads.len(), 1, "no glyphs, and no node taken by them");
 }

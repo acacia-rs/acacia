@@ -7,6 +7,9 @@ impl Family {
     /// one not ported yet.
     pub fn of_layer(layer: &str) -> Option<Family> {
         let (name, part) = layer.trim_start_matches("minecraft:").split_once('#').unwrap_or((layer, "main"));
+        if let Some(gear) = super::super::gear::family(&format!("minecraft:{name}#{part}")) {
+            return Some(gear);
+        }
         if (name, part) == ("player", "cape") {
             return Some(Family::PlayerCape);
         }

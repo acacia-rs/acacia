@@ -2,12 +2,13 @@
 //! that harness (`tools/parity/harnesses/<harness>/cases.py`'s schema, its `kind` picking the replay);
 //! each output line is `{"draws": [...], <state read back>...}` with the draw calls as
 //! `acacia_ui::java::encode` writes them. `assets` is an unpacked jar's `assets/minecraft`. Run by
-//! `tools/parity/gui/guiparity.py`.
+//! `tools/parity/gui/guiparity.py`. `frame:<harness>` paints the replayed calls instead (frame.rs).
 
 mod chat;
 mod containers;
 mod creative;
 mod font;
+mod frame;
 mod hud;
 mod kit;
 mod lang;
@@ -53,7 +54,10 @@ fn replay(harness: &str) -> Option<Replay> {
         "stations" => stations::replay,
         "screens_widgets" => screens::widgets::replay,
         "screens_menus" => screens::menus::replay,
+        "screens_lists" => screens::lists::replay,
         "screens_options" => screens::options::replay,
+        "screens_more" => screens::more::replay,
+        "screens_text" => screens::text::replay,
         "subtitles" => subtitles::replay,
         "tooltips" => tooltips::replay,
         "trading" => trading::replay,
@@ -65,6 +69,10 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let [harness, root, inputs, output] = args.as_slice() else {
         return Err("usage: gui-probe HARNESS ASSETS INPUTS OUTPUT".into());
+    };
+    let (painted, harness) = match harness.strip_prefix("frame:") {
+        Some(source) => (true, source),
+        None => (false, harness.as_str()),
     };
     let replay = replay(harness).ok_or_else(|| format!("unknown harness {harness}"))?;
     let root = Path::new(root).to_owned();
@@ -78,6 +86,10 @@ fn main() -> Result<()> {
         let case: Value = serde_json::from_str(line)?;
         let mut state = Map::new();
         let draws = replay(&case, &assets, &mut state);
+        if painted {
+            writeln!(out, "{}", frame::frame(&case, draws, &assets))?;
+            continue;
+        }
         if !state.contains_key("draws") {
             state.insert("draws".into(), json!(acacia_ui::java::encode::encode(&draws)));
         }

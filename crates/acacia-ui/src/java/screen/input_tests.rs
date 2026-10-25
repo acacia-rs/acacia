@@ -115,7 +115,9 @@ fn option_presses_open_pages_cycle_values_and_slide() {
     let cycle = |id| press(id, Action::Cycle { back: false });
     assert_eq!(press("options.video", Action::Press), Event::Open("video"));
     assert_eq!(press(DONE, Action::Press), Event::Done);
-    assert_eq!(press("options.language", Action::Press), Event::Pressed("options.language".into()));
+    assert_eq!(press("options.language", Action::Press), Event::Open("language"));
+    assert_eq!(press("credits_and_attribution.button.credits", Action::Press), Event::Open("win"));
+    assert_eq!(press("options.online.xboxSettings", Action::Press), Event::Pressed("options.online.xboxSettings".into()));
     assert_eq!(cycle("guiScale"), Event::Set("guiScale".into(), V::Int(1)));
     assert_eq!(press("guiScale", Action::Cycle { back: true }), Event::Set("guiScale".into(), V::Int(3)));
     assert_eq!(cycle("cloudStatus"), Event::Set("cloudStatus".into(), V::Name("OFF".into())), "FANCY wraps to OFF");

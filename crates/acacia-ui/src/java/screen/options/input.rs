@@ -20,8 +20,10 @@ pub enum Event {
     Set(Cow<'static, str>, V),
 }
 
-/// The page a button opens, for the screens that are ported (the language, resource pack,
-/// telemetry, credits, key binds and online-service screens are not).
+/// The page a button opens, for the screens that are ported (the online-service and link screens
+/// are not). The pages past `pages::build`'s are the screens beside the options: `credits`
+/// (`CreditsAndAttributionScreen`), `win` (its credits roll), `keybinds`, `language`, `packs` and
+/// `telemetry`.
 pub fn link(id: &str) -> Option<&'static str> {
     Some(match id {
         "options.skinCustomisation" => "skin",
@@ -32,6 +34,12 @@ pub fn link(id: &str) -> Option<&'static str> {
         "options.accessibility" => "accessibility",
         "options.online" => "online",
         "options.mouse_settings" => "mouse",
+        "options.credits_and_attribution" => "credits",
+        crate::java::screen::credits::CREDITS => "win",
+        "controls.keybinds" => "keybinds",
+        "options.language" => "language",
+        "options.resourcepack" => "packs",
+        "options.telemetry" => "telemetry",
         _ => return None,
     })
 }

@@ -52,10 +52,10 @@ impl Equipment {
         Equipment(assets.collect())
     }
 
-    /// Every humanoid layer's texture path, for registering up front.
+    /// Every layer's texture path, for registering up front.
     pub fn textures(&self) -> impl Iterator<Item = String> + '_ {
-        let humanoid = self.0.values().flat_map(|asset| asset.layers.iter().filter(|(kind, _)| kind.starts_with("humanoid")));
-        humanoid.flat_map(|(kind, layers)| layers.iter().map(move |layer| texture_path(kind, &layer.texture)))
+        let layers = self.0.values().flat_map(|asset| &asset.layers);
+        layers.flat_map(|(kind, layers)| layers.iter().map(move |layer| texture_path(kind, &layer.texture)))
     }
 
     /// What `item` draws in its slot on a humanoid (`baby`: the baby's layers); the slot's index
@@ -63,8 +63,16 @@ impl Equipment {
     pub fn worn(&self, item: &str, baby: bool, dye: Option<[u8; 3]>, trim: Option<(&Trims, &Trim)>) -> Option<(usize, Vec<Draw>)> {
         let (asset, slot) = piece(item)?;
         let layer_type = if baby { "humanoid_baby" } else if slot == 2 { "humanoid_leggings" } else { "humanoid" };
-        let asset = self.0.get(asset)?;
-        let draws = asset.layers.get(layer_type)?.iter().filter_map(|layer| {
+        let draws = self.draws(asset, layer_type, dye)?;
+        let trim = trim.filter(|_| !baby).and_then(|(trims, trim)| trims.texture(&self.0.get(asset)?.trim_overrides, layer_type, trim));
+        Some((slot, draws.into_iter().chain(trim.map(|texture| Draw { texture, color: None })).collect()))
+    }
+
+    /// `EquipmentLayerRenderer.renderLayers`' draws of `asset`'s `layer_type` layers, bottom
+    /// first; `None` when the asset has none.
+    pub fn draws(&self, asset: &str, layer_type: &str, dye: Option<[u8; 3]>) -> Option<Vec<Draw>> {
+        let layers = self.0.get(asset)?.layers.get(layer_type).filter(|l| !l.is_empty())?;
+        let draws = layers.iter().filter_map(|layer| {
             let color = match &layer.dyeable {
                 // An undyed layer without a colour of its own is skipped (Java's colour 0).
                 Some(d) => Some(dye.or_else(|| d.color_when_undyed.map(rgb))?),
@@ -72,8 +80,7 @@ impl Equipment {
             };
             Some(Draw { texture: texture_path(layer_type, &layer.texture), color })
         });
-        let trim = trim.filter(|_| !baby).and_then(|(trims, trim)| trims.texture(&asset.trim_overrides, layer_type, trim));
-        Some((slot, draws.chain(trim.map(|texture| Draw { texture, color: None })).collect()))
+        Some(draws.collect())
     }
 
     /// The image `trim` draws on equipment asset `asset` (`iron`) for `layer_type`.
@@ -91,6 +98,21 @@ fn texture_path(layer_type: &str, texture: &str) -> String {
 fn rgb(argb: i32) -> [u8; 3] {
     let [_, r, g, b] = argb.to_be_bytes();
     [r, g, b]
+}
+
+/// The equipment asset of a vanilla item's `equippable` component: an armour piece's, a horse's or
+/// nautilus's armour by material, wolf armour, carpets, harnesses, the saddle, the elytra.
+pub fn asset(item: &str) -> Option<&str> {
+    let name = item.strip_prefix("minecraft:").unwrap_or(item);
+    if let Some(material) = name.strip_suffix("_horse_armor").or_else(|| name.strip_suffix("_nautilus_armor")) {
+        return Some(if material == "golden" { "gold" } else { material });
+    }
+    match name {
+        "wolf_armor" => Some("armadillo_scute"),
+        "saddle" | "elytra" => Some(name),
+        _ if name.ends_with("_carpet") || name.ends_with("_harness") => Some(name),
+        _ => piece(item).map(|(asset, _)| asset),
+    }
 }
 
 /// The equipment asset and slot of a vanilla armour item: `minecraft:golden_boots` is `gold`'s boots.

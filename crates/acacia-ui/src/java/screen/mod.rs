@@ -2,15 +2,33 @@
 //! as its `init()` does and draws as `Screen.extractRenderStateWithTooltipAndSubtitles` does —
 //! a stratum, the background, a stratum, the widgets and whatever the screen adds.
 
+pub mod book;
+pub mod book_edit;
 pub mod confirm;
+pub mod credits;
 pub mod death;
+pub mod keybinds;
+pub mod keys;
+mod keys_table;
+pub mod language;
+pub mod listed;
+pub mod loading;
 pub mod message;
 pub mod options;
+pub mod packs;
 pub mod pause;
+pub mod sign;
+pub mod telemetry;
+pub mod win;
 
 #[cfg(test)]
 mod input_tests;
+#[cfg(test)]
+mod lists_tests;
+#[cfg(test)]
+mod text_tests;
 
+use crate::java::gui::{Blend, GuiDraw};
 use crate::java::widget::input::{self, Child, Fired, Interaction, Key};
 use crate::java::widget::layout::Arena;
 use crate::java::widget::{Ctx, Widget, render};
@@ -93,10 +111,23 @@ pub fn render_all(widgets: &mut Arena, ctx: &mut Ctx) {
     }
 }
 
-/// `Screen.extractBackground` for a menu screen (the panorama is not drawn: see `Env::in_world`).
+/// `Screen.extractBackground` for a menu screen: the panorama only out of a world.
 pub fn menu_background(env: &Env, ctx: &mut Ctx) {
+    if !env.in_world {
+        panorama(env, ctx);
+    }
     blurred(env, ctx);
     menu_texture(env, ctx, 0, 0, env.width, env.height);
+}
+
+/// `extractPanorama`: the overlay over the cube map, which the renderer draws from its own state.
+pub fn panorama(env: &Env, ctx: &mut Ctx) {
+    blit(ctx, "gui/title/background/panorama_overlay", Blend::Textured, [0, 0, env.width, env.height], [0.0, 0.0], [16, 128], [16, 128]);
+}
+
+/// `blit(pipeline, texture, x, y, u, v, w, h, srcW, srcH, texW, texH)` in white; `rect` is (x, y, w, h).
+pub fn blit(ctx: &mut Ctx, texture: &'static str, blend: Blend, [x, y, w, h]: [i32; 4], uv: [f32; 2], src: [i32; 2], tex: [i32; 2]) {
+    ctx.gui.draws.push(GuiDraw::Blit { texture: texture.into(), blend, x, y, w, h, uv, src, tex, color: 0xFFFF_FFFF });
 }
 
 /// `extractBlurredBackground`.

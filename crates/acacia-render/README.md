@@ -257,6 +257,14 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
   `AnimationExporter` writes from the user's jar (`java/entity_animations.json`, never committed).
   An `AnimationState` field holds the tick it started at; the Bedrock bridge starts only the
   looping ones (a bat's flight or rest, a breeze's idle).
+- **Body** (`body/`): `LivingEntityRenderer.submit`'s preamble (bed offset, entity scale, the
+  renderer's `setupRotations` with shake, death fall, spin, sleep and upside-down, the flip, its
+  `scale`) per kind; the viewer places a Java-drawn entity with it instead of its own turn.
+- **Gear** (`gear.rs`, `worn.rs`): saddles, body armour, carpets, harnesses, collars, horse
+  markings and ropes as their renderers' layers add them, the equipment asset of the stack picked
+  by item name; the viewer passes the body slot, the rest comes from Bedrock flags (`is_saddled`,
+  `is_tamed` with `color`, `mark_variant`). The happy ghast's ropes need a leash-holder flag
+  acacia does not track yet.
 - **Normals**: the shader takes the bone matrix's inverse transpose (as cofactors signed by the
   determinant), which is PoseStack's normal matrix once a part is scaled unevenly.
 - **Drawing** (`draw.rs`, `mesh.rs`): `ModelPart.render`'s walk. A hidden part, or one with neither
@@ -281,7 +289,18 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
   (a stray's clothed legs sit 1.9 px out, not 2), so copying the body's poses is wrong. The viewer
   draws each as its own instance (`EntityModels::split_posed_apart`). Spider eyes are the body
   model again in `Blend::Eyes` (Java's `eyes`: unlit, alpha-blended, no depth write). A brown
-  mooshroom (Bedrock variant 1) takes its texture from `kinds::VARIANTS`.
+  mooshroom (Bedrock variant 1) takes its texture from `variants::VARIANTS`.
+- **Kind looks** (`variants.rs`, `extras.rs`): textures by state (a query `a&b` needs both: a
+  snowy sleeping fox, an angry bee with nectar; cats, pandas, shulker dyes, cold striders by
+  `is_shaking`) and what kinds' own renderers change: `entity_translucent` bodies
+  (`Blend::Translucent`, depth-writing), the pufferfish's model by puff (`variant`), the tropical
+  fish's shape, base colour and pattern layer (`variant`, `mark_variant`, `color`, `color2`), iron
+  golem cracks (`health`), the breeze's wind (`Blend::Wind`, sliding), the creaking's eyes (its
+  `creaking_state` property) and the warden's emissive layers (`Fade::Pulse` for the spots; the
+  tendrils and heart need animation state Bedrock does not send). Proof: `entity_draws`.
+- **Shake and flash**: `is_converting`, `is_shaking` (strider) and `FreezingEffectStrength` drive
+  the body's shake; `CreeperSwell / 28` is the swelling that scales the creeper and flashes it
+  white (`EntityInstance::white`, on the body's own layers only).
 - **Math** (`mth.rs`): `Mth.sin`/`cos` are Java's 65536-entry table; `(float)(Math.PI / d)`
   constants are `pi_div(d)`. Plain `f32` trig drifts past the harness tolerance.
 - **Proof**: parity harnesses `entity_models` (rest pose of every layer), `entity_poses`

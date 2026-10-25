@@ -26,7 +26,7 @@ use glam::DVec3;
 use crate::assets::image_file;
 pub use bake::{Mesh, Vertex};
 use controller::{Controller, Definition};
-pub use layer::{Blend, Layer};
+pub use layer::{Blend, Fade, Layer};
 use molang::{Loading, Scope};
 pub use molang::Value;
 pub use pose::{BonePose, Pose};
@@ -97,6 +97,8 @@ pub struct EntityInstance {
     pub frame: Option<glam::Mat4>,
     /// Hurt or dying: drawn with the red overlay.
     pub hurt: bool,
+    /// The white overlay's progress (`overlay::creeper_white`), 0 for none.
+    pub white: f32,
     /// Enchanted: the glint shimmers over every layer.
     pub glint: Option<crate::glint::Glint>,
 }
@@ -209,6 +211,18 @@ impl EntityModels {
         })
     }
 
+    /// The body transform (model space to the entity's place, without its position) of a `kind`
+    /// drawn by a Java model; `None` for Bedrock geometry. See [`java::library::Library::body`].
+    pub fn body(&self, kind: &str, query: &dyn Fn(&str) -> Value, yaw: f32, scale: f32, death_ticks: f32) -> Option<glam::Mat4> {
+        self.java.drawn(kind).then(|| self.java.body(kind, query, yaw, scale, death_ticks)).flatten()
+    }
+
+    /// The layers a Java-drawn `kind`'s gear adds over its body; none for Bedrock geometry. See
+    /// [`java::library::Library::gear`].
+    pub fn gear(&self, kind: &str, query: &dyn Fn(&str) -> Value, body: Option<java::gear::Body>) -> Vec<Layer> {
+        self.java.gear(kind, query, body)
+    }
+
     /// Whether `model` is a Java model, posed by its own `setupAnim`.
     pub fn is_java(&self, model: ModelId) -> bool {
         self.models.get(model as usize).is_some_and(|m| m.mesh.java.is_some())
@@ -289,7 +303,7 @@ impl EntityModels {
             }
         }
         let tint = (material == "sheep").then(|| dye((scope.query)("color").num()));
-        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, dye: None, hidden, blend })
+        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, dye: None, hidden, blend, fade: layer::Fade::Full })
     }
 
     /// The default geometry in the default texture, for kinds whose controllers yield nothing.

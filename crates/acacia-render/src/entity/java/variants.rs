@@ -1,0 +1,87 @@
+//! Textures a kind's renderer picks over [`super::kinds`]' own by the entity's state, keyed by the
+//! Bedrock query that carries it. The first entry that matches wins.
+
+/// (kind, query, value, adult's texture, own baby's texture). A query `a&b` matches when both
+/// answer the value.
+pub const VARIANTS: [(&str, &str, i32, &str, &str); 71] = [
+    ("minecraft:frog", "variant", 1, "frog/frog_cold", "frog/frog_cold"),
+    ("minecraft:frog", "variant", 2, "frog/frog_warm", "frog/frog_warm"),
+    ("minecraft:rabbit", "variant", 1, "rabbit/rabbit_white", "rabbit/rabbit_white_baby"),
+    ("minecraft:rabbit", "variant", 2, "rabbit/rabbit_black", "rabbit/rabbit_black_baby"),
+    ("minecraft:rabbit", "variant", 3, "rabbit/rabbit_white_splotched", "rabbit/rabbit_white_splotched_baby"),
+    ("minecraft:rabbit", "variant", 4, "rabbit/rabbit_gold", "rabbit/rabbit_gold_baby"),
+    ("minecraft:rabbit", "variant", 5, "rabbit/rabbit_salt", "rabbit/rabbit_salt_baby"),
+    ("minecraft:axolotl", "variant", 1, "axolotl/axolotl_cyan", "axolotl/axolotl_cyan_baby"),
+    ("minecraft:axolotl", "variant", 2, "axolotl/axolotl_gold", "axolotl/axolotl_gold_baby"),
+    ("minecraft:axolotl", "variant", 3, "axolotl/axolotl_wild", "axolotl/axolotl_wild_baby"),
+    ("minecraft:axolotl", "variant", 4, "axolotl/axolotl_blue", "axolotl/axolotl_blue_baby"),
+    ("minecraft:parrot", "variant", 1, "parrot/parrot_blue", "parrot/parrot_blue"),
+    ("minecraft:parrot", "variant", 2, "parrot/parrot_green", "parrot/parrot_green"),
+    ("minecraft:parrot", "variant", 3, "parrot/parrot_yellow_blue", "parrot/parrot_yellow_blue"),
+    ("minecraft:parrot", "variant", 4, "parrot/parrot_grey", "parrot/parrot_grey"),
+    ("minecraft:fox", "variant&is_sleeping", 1, "fox/fox_snow_sleep", "fox/fox_snow_sleep_baby"),
+    ("minecraft:fox", "is_sleeping", 1, "fox/fox_sleep", "fox/fox_sleep_baby"),
+    ("minecraft:fox", "variant", 1, "fox/fox_snow", "fox/fox_snow_baby"),
+    ("minecraft:bee", "is_angry&has_nectar", 1, "bee/bee_angry_nectar", "bee/bee_angry_nectar_baby"),
+    ("minecraft:bee", "is_angry", 1, "bee/bee_angry", "bee/bee_angry_baby"),
+    ("minecraft:bee", "has_nectar", 1, "bee/bee_nectar", "bee/bee_nectar_baby"),
+    ("minecraft:horse", "variant", 1, "horse/horse_creamy", "horse/horse_creamy_baby"),
+    ("minecraft:horse", "variant", 2, "horse/horse_chestnut", "horse/horse_chestnut_baby"),
+    ("minecraft:horse", "variant", 3, "horse/horse_brown", "horse/horse_brown_baby"),
+    ("minecraft:horse", "variant", 4, "horse/horse_black", "horse/horse_black_baby"),
+    ("minecraft:horse", "variant", 5, "horse/horse_gray", "horse/horse_gray_baby"),
+    ("minecraft:horse", "variant", 6, "horse/horse_darkbrown", "horse/horse_darkbrown_baby"),
+    // Bedrock's cat variants by number; Java's `black` is the tuxedo, `all_black` the black.
+    ("minecraft:cat", "variant", 0, "cat/cat_white", "cat/cat_white_baby"),
+    ("minecraft:cat", "variant", 1, "cat/cat_black", "cat/cat_black_baby"),
+    ("minecraft:cat", "variant", 2, "cat/cat_red", "cat/cat_red_baby"),
+    ("minecraft:cat", "variant", 3, "cat/cat_siamese", "cat/cat_siamese_baby"),
+    ("minecraft:cat", "variant", 4, "cat/cat_british_shorthair", "cat/cat_british_shorthair_baby"),
+    ("minecraft:cat", "variant", 5, "cat/cat_calico", "cat/cat_calico_baby"),
+    ("minecraft:cat", "variant", 6, "cat/cat_persian", "cat/cat_persian_baby"),
+    ("minecraft:cat", "variant", 7, "cat/cat_ragdoll", "cat/cat_ragdoll_baby"),
+    ("minecraft:cat", "variant", 9, "cat/cat_all_black", "cat/cat_all_black_baby"),
+    ("minecraft:cat", "variant", 10, "cat/cat_jellie", "cat/cat_jellie_baby"),
+    // `Wolf.getTexture`: tame over angry.
+    ("minecraft:wolf", "is_tamed", 1, "wolf/wolf_tame", "wolf/wolf_tame_baby"),
+    ("minecraft:wolf", "is_angry", 1, "wolf/wolf_angry", "wolf/wolf_angry_baby"),
+    ("minecraft:llama", "variant", 1, "llama/llama_white", "llama/llama_white_baby"),
+    ("minecraft:llama", "variant", 2, "llama/llama_brown", "llama/llama_brown_baby"),
+    ("minecraft:llama", "variant", 3, "llama/llama_gray", "llama/llama_gray_baby"),
+    ("minecraft:trader_llama", "variant", 1, "llama/llama_white", "llama/llama_white_baby"),
+    ("minecraft:trader_llama", "variant", 2, "llama/llama_brown", "llama/llama_brown_baby"),
+    ("minecraft:trader_llama", "variant", 3, "llama/llama_gray", "llama/llama_gray_baby"),
+    ("minecraft:mooshroom", "variant", 1, "cow/mooshroom_brown", "cow/mooshroom_brown_baby"),
+    ("minecraft:ghast", "is_charging", 1, "ghast/ghast_shooting", "ghast/ghast_shooting"),
+    ("minecraft:vex", "is_charging", 1, "illager/vex_charging", "illager/vex_charging"),
+    ("minecraft:panda", "variant", 1, "panda/panda_lazy", "panda/lazy_panda_baby"),
+    ("minecraft:panda", "variant", 2, "panda/panda_worried", "panda/worried_panda_baby"),
+    ("minecraft:panda", "variant", 3, "panda/panda_playful", "panda/playful_panda_baby"),
+    ("minecraft:panda", "variant", 4, "panda/panda_brown", "panda/brown_panda_baby"),
+    ("minecraft:panda", "variant", 5, "panda/panda_weak", "panda/weak_panda_baby"),
+    ("minecraft:panda", "variant", 6, "panda/panda_aggressive", "panda/aggressive_panda_baby"),
+    // `StriderRenderer`: suffocating out of lava, which Bedrock's controller reads as shaking.
+    ("minecraft:strider", "is_shaking", 1, "strider/strider_cold", "strider/strider_cold_baby"),
+    // Bedrock's legacy dye order (black first); 16 is undyed, the kind's own texture.
+    ("minecraft:shulker", "variant", 0, "shulker/shulker_black", "shulker/shulker_black"),
+    ("minecraft:shulker", "variant", 1, "shulker/shulker_red", "shulker/shulker_red"),
+    ("minecraft:shulker", "variant", 2, "shulker/shulker_green", "shulker/shulker_green"),
+    ("minecraft:shulker", "variant", 3, "shulker/shulker_brown", "shulker/shulker_brown"),
+    ("minecraft:shulker", "variant", 4, "shulker/shulker_blue", "shulker/shulker_blue"),
+    ("minecraft:shulker", "variant", 5, "shulker/shulker_purple", "shulker/shulker_purple"),
+    ("minecraft:shulker", "variant", 6, "shulker/shulker_cyan", "shulker/shulker_cyan"),
+    ("minecraft:shulker", "variant", 7, "shulker/shulker_light_gray", "shulker/shulker_light_gray"),
+    ("minecraft:shulker", "variant", 8, "shulker/shulker_gray", "shulker/shulker_gray"),
+    ("minecraft:shulker", "variant", 9, "shulker/shulker_pink", "shulker/shulker_pink"),
+    ("minecraft:shulker", "variant", 10, "shulker/shulker_lime", "shulker/shulker_lime"),
+    ("minecraft:shulker", "variant", 11, "shulker/shulker_yellow", "shulker/shulker_yellow"),
+    ("minecraft:shulker", "variant", 12, "shulker/shulker_light_blue", "shulker/shulker_light_blue"),
+    ("minecraft:shulker", "variant", 13, "shulker/shulker_magenta", "shulker/shulker_magenta"),
+    ("minecraft:shulker", "variant", 14, "shulker/shulker_orange", "shulker/shulker_orange"),
+    ("minecraft:shulker", "variant", 15, "shulker/shulker_white", "shulker/shulker_white"),
+];
+
+/// Whether `query` answers `value` to every part of `key` (`a&b`).
+pub fn matches(key: &str, value: i32, query: &dyn Fn(&str) -> crate::entity::molang::Value) -> bool {
+    key.split('&').all(|part| query(part).num() as i32 == value)
+}

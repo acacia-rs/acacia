@@ -5,6 +5,7 @@
 //! which the inventory can craft is game state ([`Collection`]); this is what it draws from it.
 //! Ported from Horizon's `recipe_book_screen.rs` (MIT).
 
+pub mod input;
 pub mod page;
 pub mod screens;
 pub mod widgets;

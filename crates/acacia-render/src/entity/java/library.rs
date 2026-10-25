@@ -8,7 +8,12 @@ use std::sync::Arc;
 use super::equipment::{self, Equipment};
 use super::kinds::{self, Look, When};
 use super::trims::{Trim, Trims};
+use super::state::Field;
+use super::variants;
+use super::extras;
 use super::villager::Professions;
+use super::worn::{self, Worn};
+use super::gear::{self, Body};
 use super::{Family, Poses, anim, bedrock, mesh};
 use crate::entity::bake::Mesh;
 use crate::entity::molang::Value;
@@ -31,9 +36,10 @@ pub struct Library {
     equipment_textures: HashMap<String, TextureId>,
     /// By Bedrock identifier, the second layers' adult and own-baby (model, texture).
     overlays: HashMap<&'static str, Vec<(When, [Option<(ModelId, TextureId)>; 2])>>,
-    /// [`kinds::VARIANTS`]' adult and baby textures.
+    /// [`variants::VARIANTS`]' adult and baby textures.
     variants: HashMap<&'static str, Vec<(&'static str, i32, [TextureId; 2])>>,
     professions: HashMap<&'static str, Professions>,
+    worn: Worn,
 }
 
 /// The kinds `VillagerProfessionLayer` dresses: their texture directory and `setupAnim`.
@@ -113,7 +119,7 @@ impl Library {
             }
             out.overlays.entry(identifier).or_default().push((overlay.when, pair));
         }
-        for (identifier, query, value, adult, baby) in kinds::VARIANTS {
+        for (identifier, query, value, adult, baby) in variants::VARIANTS {
             let mut path = |p: &str| texture(&format!("java/textures/entity/{p}"));
             let Some(adult) = path(adult) else { continue };
             out.variants.entry(identifier).or_default().push((query, value, [adult, path(baby).unwrap_or(adult)]));
@@ -132,6 +138,7 @@ impl Library {
         out.trims = Trims::load(root);
         let paths = out.equipment.textures().chain(Trims::images(root));
         out.equipment_textures = paths.filter_map(|path| Some((path.clone(), texture(&path)?))).collect();
+        out.worn = Worn::load(&layers, model, texture, &mut out.families);
         tracing::info!(kinds = out.kinds.len(), layers = layers.len(), "java entity models");
         out
     }
@@ -142,10 +149,19 @@ impl Library {
         let (variants, own_baby) = self.kinds.get(kind)?;
         let baby = query("is_baby").truthy();
         let (model, texture) = variants[usize::from(baby)];
-        let variant = self.variants.get(kind).into_iter().flatten().find(|(q, value, _)| query(q).num() as i32 == *value);
+        let variant = self.variants.get(kind).into_iter().flatten().find(|(q, value, _)| variants::matches(q, *value, query));
         let texture = variant.map_or(texture, |(_, _, t)| t[usize::from(baby && *own_baby)]);
         let scale = if baby && *own_baby { 2.0 } else { 1.0 };
-        let mut layers = vec![Layer::plain(model, texture)];
+        let java = kinds::java_id(kind);
+        let mut body = Layer::plain(model, texture);
+        if let Some(skin) = extras::skin(java, query) {
+            body.model = skin.layer.and_then(|l| self.worn.model(l)).unwrap_or(model);
+            body.textures[0] = skin.texture.and_then(|p| self.worn.texture(&p)).unwrap_or(texture);
+            body.dye = skin.color;
+            body.blend = skin.blend;
+        }
+        let model = body.model;
+        let mut layers = vec![body];
         if let Some(professions) = self.professions.get(kind) {
             layers.extend(professions.layers(model, baby && *own_baby, query));
         }
@@ -163,6 +179,7 @@ impl Library {
                 _ => continue,
             });
         }
+        layers.extend(self.worn.layers(extras::draws(java, query), model, &self.equipment_textures));
         Some((layers.into(), scale))
     }
 
@@ -188,6 +205,29 @@ impl Library {
             *to = *self.equipment_textures.get(&draw.texture)?;
         }
         Some([Layer { textures, dye: draws.first()?.color, ..Layer::plain(model, NO_TEXTURE) }].into())
+    }
+
+    /// The layers a `kind`'s saddle, collar, markings and body-slot stack `body` add ([`gear`]).
+    pub fn gear(&self, kind: &str, query: &dyn Fn(&str) -> Value, body: Option<Body>) -> Vec<Layer> {
+        let Some(([adult, baby_model], own_baby)) = self.kinds.get(kind) else { return Vec::new() };
+        let baby = query("is_baby").truthy();
+        let body_model = if baby && *own_baby { baby_model.0 } else { adult.0 };
+        let draws = gear::draws(kinds::java_id(kind), &worn::bedrock_gear(query, baby, body), &self.equipment);
+        self.worn.layers(draws, body_model, &self.equipment_textures)
+    }
+
+    /// The whole-body transform of a `kind` drawn by a Java model ([`super::body`]), in the entity
+    /// pass's model space: turned by `yaw`, scaled by `scale`, toppled `death_ticks` into dying.
+    pub fn body(&self, kind: &str, query: &dyn Fn(&str) -> Value, yaw: f32, scale: f32, death_ticks: f32) -> Option<glam::Mat4> {
+        let family = Family::of_layer(kinds::of(kind)?.adult.layer)?;
+        let java = kinds::java_id(kind);
+        let mut state = bedrock::render_state(family, query);
+        state.set("bodyRot", Field::Num(yaw)).set("scale", Field::Num(scale)).set("deathTime", Field::Num(death_ticks));
+        // Bedrock's scale already carries a cube's size.
+        state.set("size", Field::Num(if matches!(java, "slime" | "magma_cube") { 1.0 } else { 0.0 }));
+        let java_frame = super::body::transform(java, &state);
+        // The mesh's own root (mesh.rs) is the flip and the drop; take them back off.
+        Some(java_frame * glam::Mat4::from_translation(glam::Vec3::new(0.0, 1.501, 0.0)) * glam::Mat4::from_scale(glam::Vec3::new(1.0, -1.0, 1.0)))
     }
 
     /// The pose of a Java model (`mesh`, model `id`); `None` for a Bedrock one.

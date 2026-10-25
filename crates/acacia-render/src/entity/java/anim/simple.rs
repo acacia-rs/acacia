@@ -66,6 +66,12 @@ pub(super) fn happy_ghast(p: &mut Poses, s: &RenderState) {
     ghast(p, s);
 }
 
+/// `HappyGhastHarnessModel`: goggles up on the forehead, down over the eyes while ridden.
+pub(super) fn happy_ghast_harness(p: &mut Poses, s: &RenderState) {
+    let goggles = p.get("goggles");
+    (goggles.x_rot, goggles.y) = if s.flag("isRidden") { (0.0, 14.0) } else { (-0.7854, 9.0) };
+}
+
 /// `MagmaCubeModel`: the cube's slices spread apart as it squishes.
 pub(super) fn magma_cube(p: &mut Poses, s: &RenderState) {
     let squish = s.num("squish").max(0.0);
