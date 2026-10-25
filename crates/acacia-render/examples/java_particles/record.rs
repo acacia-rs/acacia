@@ -1,24 +1,25 @@
 //! The records both sides write, field for field: see ParticlesOracle.java.
 
 use acacia_render::particles::java::Type;
-use acacia_render::particles::java::probe::{Seeds, Snapshot, Tick};
+use acacia_render::particles::java::probe::{self, Seeds, Snapshot, Tick};
 use serde_json::{Value, json};
 
 use crate::vec3;
 
-/// `[[tick, type, x, y, z, seed], ...]` into one table per tick.
+/// `[[tick, type, x, y, z, xa, ya, za, seed], ...]` into one table per tick.
 pub fn seeds(record: &Value) -> Vec<Seeds> {
     let mut out: Vec<Seeds> = Vec::new();
     for row in record["seeds"].as_array().expect("seeds") {
         let tick = row[0].as_u64().expect("tick") as usize;
         let ty = Type::from_name(row[1].as_str().expect("type"));
         let at = vec3(&json!([row[2], row[3], row[4]]));
+        let velocity = vec3(&json!([row[5], row[6], row[7]]));
         if out.len() <= tick {
             out.resize_with(tick + 1, Seeds::default);
         }
         // Types not ported never come up here: nothing of ours makes them.
         if let Some(ty) = ty {
-            out[tick].insert((ty, at.to_array().map(f64::to_bits)), row[5].as_i64().expect("seed"));
+            out[tick].insert(probe::key(ty, at, velocity), row[8].as_i64().expect("seed"));
         }
     }
     out

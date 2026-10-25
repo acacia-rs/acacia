@@ -38,7 +38,7 @@ import net.minecraft.world.phys.Vec3;
  * doAnimateTick's body at the cell (block and fluid animateTick, the drip below a fluid; no
  * ambient or marker particles), then ParticleEngine.tick. A particle case creates one particle
  * before the first tick, then ticks. Writes, per case: records.jsonl {case, ticks: [{spawns,
- * particles}]}, seeds.jsonl {case, seeds: [[tick, type, x, y, z, seed]]} for the probe to replay
+ * particles}]}, seeds.jsonl {case, seeds: [[tick, type, x, y, z, xa, ya, za, seed]]} for the probe to replay
  * the particles' own randoms, scenes.jsonl {case, blocks with full state keys, foliage}.
  *
  * args: <out dir> <cases.jsonl>
@@ -94,7 +94,9 @@ public final class ParticlesOracle {
             var a = b.getAsJsonArray();
             var p = new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt());
             BlockState state = BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, a.get(3).getAsString(), false).blockState();
-            Client.setBlock(level, p, state);
+            // Into the section: level.setBlock would make block entities, whose renderers this client lacks.
+            var chunk = Client.chunk(level, p.getX() >> 4, p.getZ() >> 4);
+            chunk.getSection(chunk.getSectionIndex(p.getY())).setBlockState(p.getX() & 15, p.getY() & 15, p.getZ() & 15, state);
             placed.add(List.of(p.getX(), p.getY(), p.getZ(), Out.stateKey(state)));
         }
         return placed;

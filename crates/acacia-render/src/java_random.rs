@@ -44,6 +44,10 @@ impl JavaRandom {
         high.wrapping_add(i64::from(self.next(32)))
     }
 
+    pub fn next_boolean(&mut self) -> bool {
+        self.next(1) != 0
+    }
+
     pub fn next_float(&mut self) -> f32 {
         self.next(24) as f32 / (1 << 24) as f32
     }

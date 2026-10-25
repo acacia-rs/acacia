@@ -18,7 +18,7 @@ mod make;
 mod make_more;
 pub mod particle;
 pub mod probe;
-pub mod random;
+mod mth;
 mod tick;
 pub mod types;
 
@@ -27,7 +27,7 @@ use glam::{DVec3, IVec3};
 use crate::particles::collide::Blocks;
 pub use behaviour::{Options, Request};
 pub use particle::Particle;
-pub use random::JavaRandom;
+pub use crate::java_random::JavaRandom;
 pub use types::Type;
 
 /// `ParticleGroup.MAX_PARTICLES`; one group here.
@@ -65,8 +65,8 @@ pub struct Engine {
     pub foliage: u32,
     /// The dimension drips lava from dry dripstone (`default_dripstone_particle`).
     pub nether: bool,
-    /// Seeds a probe hands what it makes, by type and position bits; the rest draw from `seeds`.
-    pub given: Option<rustc_hash::FxHashMap<(Type, [u64; 3]), i64>>,
+    /// Seeds a probe hands what it makes ([`probe::Seeds`]); the rest draw from `seeds`.
+    pub given: Option<probe::Seeds>,
     /// When set, every `create` is logged here too.
     pub spawned: Option<Vec<Request>>,
 }
@@ -120,7 +120,7 @@ impl Engine {
 
     /// `ParticleEngine.createParticle`: always made.
     pub fn create(&mut self, o: &Options, p: DVec3, v: DVec3) {
-        let given = self.given.as_ref().and_then(|g| g.get(&(o.ty, p.to_array().map(f64::to_bits))).copied());
+        let given = self.given.as_ref().and_then(|g| g.get(&probe::key(o.ty, p, v)).copied());
         let seed = given.unwrap_or_else(|| self.seeds.next_long());
         if let Some(log) = &mut self.spawned {
             log.push((*o, p, v));
@@ -146,7 +146,7 @@ impl Engine {
     fn emit(&mut self, e: &mut Emitter) -> bool {
         for _ in 0..16 {
             let r = &mut e.random;
-            let (xa, ya, za) = (f64::from(r.float() * 2.0 - 1.0), f64::from(r.float() * 2.0 - 1.0), f64::from(r.float() * 2.0 - 1.0));
+            let (xa, ya, za) = (f64::from(r.next_float() * 2.0 - 1.0), f64::from(r.next_float() * 2.0 - 1.0), f64::from(r.next_float() * 2.0 - 1.0));
             if xa * xa + ya * ya + za * za <= 1.0 {
                 let p = e.feet + DVec3::new(e.width * xa / 4.0, e.height * (0.5 + ya / 4.0), e.width * za / 4.0);
                 self.add(&e.options, p, DVec3::new(xa, ya + 0.2, za));
@@ -215,7 +215,7 @@ impl Engine {
     /// `SpriteSet.get(random)`, drawn from the provider's generator.
     pub(crate) fn sprite_from_set(&mut self, ty: Type) -> Option<&'static str> {
         let sprites = ty.sprites();
-        (!sprites.is_empty()).then(|| sprites[self.provider.below(sprites.len() as i32) as usize])
+        (!sprites.is_empty()).then(|| sprites[self.provider.next_int(sprites.len() as i32) as usize])
     }
 
     /// `ParticleEngine.tick`: emitters, live particles, then the ones made meanwhile.
@@ -246,7 +246,7 @@ impl Engine {
         }
         if size >= 12288 {
             let free = (MAX_PARTICLES - size) as f32 / 4096.0;
-            if self.provider.float() >= free * free {
+            if self.provider.next_float() >= free * free {
                 return;
             }
         }

@@ -5,6 +5,7 @@ use glam::{DVec3, IVec3};
 use super::Engine;
 use super::behaviour::{Behaviour, Options};
 use super::level::{self, Fluid};
+use super::mth::{mth_cos, mth_sin};
 use super::particle::Particle;
 use super::types::Type;
 use crate::particles::collide::Blocks;
@@ -49,7 +50,7 @@ impl Engine {
             }
             Behaviour::Lava => {
                 p.base_tick(blocks);
-                if !p.removed && p.random.float() > p.age as f32 / p.lifetime as f32 {
+                if !p.removed && p.random.next_float() > p.age as f32 / p.lifetime as f32 {
                     self.simple(Type::Smoke, p.position, p.velocity);
                 }
             }
@@ -67,7 +68,7 @@ impl Engine {
                 p.move_by(blocks, p.velocity);
                 p.velocity *= f(0.98);
                 if p.on_ground {
-                    if p.random.float() < 0.5 {
+                    if p.random.next_float() < 0.5 {
                         p.removed = true;
                     }
                     p.velocity.x *= f(0.7);
@@ -98,8 +99,8 @@ impl Engine {
                 p.removed = gone;
                 // randomHorizontalWiggling, then a second, horizontal move.
                 let mut wiggle = || {
-                    let f = p.random.float() * 0.003;
-                    f64::from(if p.random.boolean() { f } else { -f }) * 0.5
+                    let f = p.random.next_float() * 0.003;
+                    f64::from(if p.random.next_boolean() { f } else { -f }) * 0.5
                 };
                 let (wx, wz) = (wiggle(), wiggle());
                 p.velocity.x += wx;
@@ -119,8 +120,8 @@ impl Engine {
                 if !age_up(p) {
                     return;
                 }
-                p.velocity.x += f(0.6 * angle.cos());
-                p.velocity.z += f(0.6 * angle.sin());
+                p.velocity.x += f(0.6 * mth_cos(f(angle)));
+                p.velocity.z += f(0.6 * mth_sin(f(angle)));
                 p.velocity.x *= 0.07;
                 p.velocity.z *= 0.07;
                 p.move_by(blocks, p.velocity);
@@ -164,7 +165,7 @@ impl Engine {
             Behaviour::ExplosionSeed => {
                 for _ in 0..6 {
                     let r = &mut p.random;
-                    let mut d = || (r.double() - r.double()) * 4.0;
+                    let mut d = || (r.next_double() - r.next_double()) * 4.0;
                     let at = p.position + DVec3::new(d(), d(), d());
                     let share = f(p.age as f32 / p.lifetime as f32);
                     self.add(&Options::simple(Type::Explosion), at, DVec3::new(share, 0.0, 0.0));
@@ -180,9 +181,9 @@ impl Engine {
                 p.age += 1;
                 if age < p.lifetime && p.rgba[3] > 0.0 {
                     let r = &mut p.random;
-                    let dx = r.float() / 5000.0 * if r.boolean() { 1.0 } else { -1.0 };
+                    let dx = r.next_float() / 5000.0 * if r.next_boolean() { 1.0 } else { -1.0 };
                     p.velocity.x += f(dx);
-                    let dz = r.float() / 5000.0 * if r.boolean() { 1.0 } else { -1.0 };
+                    let dz = r.next_float() / 5000.0 * if r.next_boolean() { 1.0 } else { -1.0 };
                     p.velocity.z += f(dz);
                     p.velocity.y -= f(p.gravity);
                     p.move_by(blocks, p.velocity);

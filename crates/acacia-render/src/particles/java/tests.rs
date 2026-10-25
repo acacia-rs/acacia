@@ -64,8 +64,8 @@ fn the_base_constructor_draws_lifetime_then_size() {
     let mut r = JavaRandom::new(5);
     let q = Particle::at(&mut r, Type::Flame, UP);
     let mut check = JavaRandom::new(5);
-    assert_eq!(q.lifetime, (4.0 / (check.float() * 0.9 + 0.1)) as i32);
-    assert_eq!(q.size, 0.1 * (check.float() * 0.5 + 0.5) * 2.0);
+    assert_eq!(q.lifetime, (4.0 / (check.next_float() * 0.9 + 0.1)) as i32);
+    assert_eq!(q.size, 0.1 * (check.next_float() * 0.5 + 0.5) * 2.0);
     assert_eq!(r.next_long(), check.next_long(), "nothing else drawn");
 }
 
@@ -240,7 +240,7 @@ fn probes_dump_a_blocks_effects_and_a_particles_life() {
     assert_eq!(lived, life[0].particles[0].lifetime + 1, "admitted unticked, then each tick of its life");
     assert_eq!(life[0].particles[0].sprite, Some("generic_7"));
     let mut seeds = probe::Seeds::default();
-    seeds.insert((Type::Smoke, UP.to_array().map(f64::to_bits)), 77);
+    seeds.insert(probe::key(Type::Smoke, UP, DVec3::ZERO), 77);
     let given = probe::particle(&scene, &Options::simple(Type::Smoke), UP, DVec3::ZERO, 8, 1, &[seeds]);
     assert_eq!(given[0].particles[0].seed, 77, "a particle Java made takes Java's seed");
 }

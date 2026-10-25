@@ -5,7 +5,7 @@ use glam::DVec3;
 
 use super::behaviour::Behaviour;
 use super::level;
-use super::random::JavaRandom;
+use super::JavaRandom;
 use super::types::Type;
 use crate::particles::collide::Blocks;
 
@@ -118,23 +118,23 @@ impl Particle {
     /// `Particle(level, x, y, z)` without `SingleQuadParticle` (`NoRenderParticle`).
     pub fn base_at(r: &mut JavaRandom, ty: Type, p: DVec3) -> Particle {
         let mut particle = Particle::blank(ty, p);
-        particle.lifetime = (4.0 / (r.float() * 0.9 + 0.1)) as i32;
+        particle.lifetime = (4.0 / (r.next_float() * 0.9 + 0.1)) as i32;
         particle
     }
 
     /// `Particle(level, x, y, z)` and `SingleQuadParticle`'s size.
     pub fn at(r: &mut JavaRandom, ty: Type, p: DVec3) -> Particle {
         let mut particle = Particle::base_at(r, ty, p);
-        particle.size = 0.1 * (r.float() * 0.5 + 0.5) * 2.0;
+        particle.size = 0.1 * (r.next_float() * 0.5 + 0.5) * 2.0;
         particle
     }
 
     /// `Particle(level, x, y, z, xa, ya, za)` without `SingleQuadParticle`: `v` jittered, set to a
     /// random speed and lifted.
     pub fn base_moving(r: &mut JavaRandom, ty: Type, p: DVec3, v: DVec3) -> Particle {
-        let lifetime = (4.0 / (r.float() * 0.9 + 0.1)) as i32;
-        let mut d = [v.x, v.y, v.z].map(|c| c + f64::from((r.float() * 2.0 - 1.0) * 0.4));
-        let speed = f64::from((r.float() + r.float() + 1.0) * 0.15);
+        let lifetime = (4.0 / (r.next_float() * 0.9 + 0.1)) as i32;
+        let mut d = [v.x, v.y, v.z].map(|c| c + f64::from((r.next_float() * 2.0 - 1.0) * 0.4));
+        let speed = f64::from((r.next_float() + r.next_float() + 1.0) * 0.15);
         let length = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
         for (i, c) in d.iter_mut().enumerate() {
             *c = *c / length * speed * f64::from(0.4f32);
@@ -150,7 +150,7 @@ impl Particle {
 
     pub fn moving(r: &mut JavaRandom, ty: Type, p: DVec3, v: DVec3) -> Particle {
         let mut particle = Particle::base_moving(r, ty, p, v);
-        particle.size = 0.1 * (r.float() * 0.5 + 0.5) * 2.0;
+        particle.size = 0.1 * (r.next_float() * 0.5 + 0.5) * 2.0;
         particle
     }
 

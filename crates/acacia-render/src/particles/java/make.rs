@@ -7,7 +7,7 @@ use super::Engine;
 use super::behaviour::{Behaviour, DripStage, Options};
 use super::level::Fluid;
 use super::particle::{Glow, Particle, Size};
-use super::random::JavaRandom;
+use super::JavaRandom;
 use super::types::Type;
 
 fn f(v: f32) -> f64 {
@@ -24,9 +24,9 @@ impl Engine {
             _ => {
                 // WhiteAshParticle.Provider draws the motion.
                 let pr = &mut self.provider;
-                let xa = f(pr.float()) * -1.9 * f(pr.float()) * 0.1;
-                let ya = f(pr.float()) * -0.5 * f(pr.float()) * 0.1 * 5.0;
-                let za = f(pr.float()) * -1.9 * f(pr.float()) * 0.1;
+                let xa = f(pr.next_float()) * -1.9 * f(pr.next_float()) * 0.1;
+                let ya = f(pr.next_float()) * -0.5 * f(pr.next_float()) * 0.1 * 5.0;
+                let za = f(pr.next_float()) * -1.9 * f(pr.next_float()) * 0.1;
                 ([0.1, -0.1, 0.1], 1.0, 0.0, 20, 0.0125, false, DVec3::new(xa, ya, za))
             }
         };
@@ -35,10 +35,10 @@ impl Engine {
         q.gravity = gravity;
         q.speed_up_when_y_blocked = true;
         q.velocity = q.velocity * DVec3::from(dir.map(|d: f32| f(d))) + vel;
-        let col = r.float() * color_random;
+        let col = r.next_float() * color_random;
         q.set_color(col, col, col);
         q.size *= 0.75 * scale;
-        q.lifetime = ((f64::from(max_lifetime) / (f(r.float()) * 0.8 + 0.2) * f(scale)) as i32).max(1);
+        q.lifetime = ((f64::from(max_lifetime) / (f(r.next_float()) * 0.8 + 0.2) * f(scale)) as i32).max(1);
         q.has_physics = physics;
         if matches!(ty, Type::WhiteSmoke | Type::WhiteAsh) {
             q.set_color(186.0 / 255.0, 177.0 / 255.0, 194.0 / 255.0);
@@ -54,10 +54,10 @@ impl Engine {
         let mut q = Particle::moving(r, ty, p, v);
         q.friction = 0.96;
         q.velocity = q.velocity * f(0.01) + v;
-        let jitter = DVec3::new(f((r.float() - r.float()) * 0.05), f((r.float() - r.float()) * 0.05), f((r.float() - r.float()) * 0.05));
+        let jitter = DVec3::new(f((r.next_float() - r.next_float()) * 0.05), f((r.next_float() - r.next_float()) * 0.05), f((r.next_float() - r.next_float()) * 0.05));
         // The constructor moves x, y, z but not the box, which the first move snaps back to.
         q.position += jitter;
-        q.lifetime = (8.0 / (f(r.float()) * 0.8 + 0.2)) as i32 + 4;
+        q.lifetime = (8.0 / (f(r.next_float()) * 0.8 + 0.2)) as i32 + 4;
         q.free_move = true;
         q.size_curve = Size::Flame;
         q.glow = Glow::AgeEmission;
@@ -72,9 +72,9 @@ impl Engine {
         q.gravity = 0.75;
         q.friction = 0.999;
         q.velocity *= f(0.8);
-        q.velocity.y = f(r.float() * 0.4 + 0.05);
-        q.size *= r.float() * 2.0 + 0.2;
-        q.lifetime = (16.0 / (f(r.float()) * 0.8 + 0.2)) as i32;
+        q.velocity.y = f(r.next_float() * 0.4 + 0.05);
+        q.size *= r.next_float() * 2.0 + 0.2;
+        q.lifetime = (16.0 / (f(r.next_float()) * 0.8 + 0.2)) as i32;
         q.size_curve = Size::Lava;
         q.glow = Glow::Block15;
         q.behaviour = Behaviour::Lava;
@@ -116,8 +116,8 @@ impl Engine {
                 q.gravity *= 0.02;
                 q.lifetime = 40;
             }
-            DripStage::FallAndLand => q.lifetime = (64.0 / (f(r.float()) * 0.8 + 0.2)) as i32,
-            DripStage::Land => q.lifetime = (16.0 / (f(r.float()) * 0.8 + 0.2)) as i32,
+            DripStage::FallAndLand => q.lifetime = (64.0 / (f(r.next_float()) * 0.8 + 0.2)) as i32,
+            DripStage::Land => q.lifetime = (16.0 / (f(r.next_float()) * 0.8 + 0.2)) as i32,
             DripStage::Fall => {}
         }
         match ty {
@@ -126,14 +126,14 @@ impl Engine {
                 q.gravity *= 0.01;
                 q.lifetime = 100;
             }
-            T::LandingHoney => q.lifetime = (128.0 / (f(self.provider.float()) * 0.8 + 0.2)) as i32,
-            T::LandingObsidianTear => q.lifetime = (28.0 / (f(self.provider.float()) * 0.8 + 0.2)) as i32,
+            T::LandingHoney => q.lifetime = (128.0 / (f(self.provider.next_float()) * 0.8 + 0.2)) as i32,
+            T::LandingObsidianTear => q.lifetime = (28.0 / (f(self.provider.next_float()) * 0.8 + 0.2)) as i32,
             T::FallingNectar => {
-                q.lifetime = (16.0 / (f(self.provider.float()) * 0.8 + 0.2)) as i32;
+                q.lifetime = (16.0 / (f(self.provider.next_float()) * 0.8 + 0.2)) as i32;
                 q.gravity = 0.007;
             }
             T::FallingSporeBlossom => {
-                q.lifetime = (64.0 / (r.float() * (0.9 - 0.1) + 0.1)) as i32;
+                q.lifetime = (64.0 / (r.next_float() * (0.9 - 0.1) + 0.1)) as i32;
                 q.gravity = 0.005;
             }
             _ => {}
@@ -152,11 +152,11 @@ impl Engine {
     pub(super) fn water_drop(r: &mut JavaRandom, ty: Type, p: DVec3, v: DVec3) -> Particle {
         let mut q = Particle::moving(r, ty, p, DVec3::ZERO);
         q.velocity.x *= f(0.3);
-        q.velocity.y = f(r.float() * 0.2 + 0.1);
+        q.velocity.y = f(r.next_float() * 0.2 + 0.1);
         q.velocity.z *= f(0.3);
         q.set_size(0.01, 0.01);
         q.gravity = 0.06;
-        q.lifetime = (8.0 / (f(r.float()) * 0.8 + 0.2)) as i32;
+        q.lifetime = (8.0 / (f(r.next_float()) * 0.8 + 0.2)) as i32;
         if ty == Type::Splash {
             q.gravity = 0.04;
             if v.y == 0.0 && (v.x != 0.0 || v.z != 0.0) {
@@ -173,29 +173,29 @@ impl Engine {
             q.gravity = -0.04;
             q.friction = 0.85;
             q.set_size(0.02, 0.02);
-            q.velocity.x = v.x * f(0.2) + f((r.float() * 2.0 - 1.0) * 0.02);
+            q.velocity.x = v.x * f(0.2) + f((r.next_float() * 2.0 - 1.0) * 0.02);
             // The provider passes `yAux` as `za`, so the Z speed comes from Y.
-            q.velocity.z = v.y * f(0.2) + f((r.float() * 2.0 - 1.0) * 0.02);
-            let size_start = 0.02 + 0.02 * r.float();
+            q.velocity.z = v.y * f(0.2) + f((r.next_float() * 2.0 - 1.0) * 0.02);
+            let size_start = 0.02 + 0.02 * r.next_float();
             q.size = size_start;
             q.lifetime = i32::MAX;
             q.behaviour = Behaviour::SulfurBubble { y_start: p.y, y_end: p.y + 4.0 - 1.0, size_start, y_prev: p.y };
             return q;
         }
         q.set_size(0.02, 0.02);
-        q.size *= r.float() * 0.6 + 0.2;
+        q.size *= r.next_float() * 0.6 + 0.2;
         q.velocity = DVec3::new(
-            v.x * f(0.2) + f((r.float() * 2.0 - 1.0) * 0.02),
-            v.y * f(0.2) + f((r.float() * 2.0 - 1.0) * 0.02),
-            v.z * f(0.2) + f((r.float() * 2.0 - 1.0) * 0.02),
+            v.x * f(0.2) + f((r.next_float() * 2.0 - 1.0) * 0.02),
+            v.y * f(0.2) + f((r.next_float() * 2.0 - 1.0) * 0.02),
+            v.z * f(0.2) + f((r.next_float() * 2.0 - 1.0) * 0.02),
         );
         if ty == Type::Bubble {
-            q.lifetime = (8.0 / (f(r.float()) * 0.8 + 0.2)) as i32;
+            q.lifetime = (8.0 / (f(r.next_float()) * 0.8 + 0.2)) as i32;
             q.behaviour = Behaviour::Bubble;
         } else {
             q.gravity = -0.125;
             q.friction = 0.85;
-            q.lifetime = (40.0 / (f(r.float()) * 0.8 + 0.2)) as i32;
+            q.lifetime = (40.0 / (f(r.next_float()) * 0.8 + 0.2)) as i32;
             q.behaviour = Behaviour::BubbleColumnUp;
         }
         q
@@ -203,11 +203,11 @@ impl Engine {
 
     pub(super) fn current_down(r: &mut JavaRandom, p: DVec3) -> Particle {
         let mut q = Particle::at(r, Type::CurrentDown, p);
-        q.lifetime = (r.float() * 60.0) as i32 + 30;
+        q.lifetime = (r.next_float() * 60.0) as i32 + 30;
         q.has_physics = false;
         q.velocity = DVec3::new(0.0, -0.05, 0.0);
         q.set_size(0.02, 0.02);
-        q.size *= r.float() * 0.6 + 0.2;
+        q.size *= r.next_float() * 0.6 + 0.2;
         q.gravity = 0.002;
         q.behaviour = Behaviour::CurrentDown { angle: 0.0 };
         q
@@ -218,23 +218,23 @@ impl Engine {
         let below = p - DVec3::new(0.0, 0.125, 0.0);
         let pr = &mut self.provider;
         let vel = match ty {
-            Type::CrimsonSpore => DVec3::new(pr.gaussian() * f(1.0e-6), pr.gaussian() * f(1.0e-4), pr.gaussian() * f(1.0e-6)),
-            Type::WarpedSpore => DVec3::new(0.0, f(pr.float()) * -1.9 * f(pr.float()) * 0.1, 0.0),
+            Type::CrimsonSpore => DVec3::new(pr.next_gaussian() * f(1.0e-6), pr.next_gaussian() * f(1.0e-4), pr.next_gaussian() * f(1.0e-6)),
+            Type::WarpedSpore => DVec3::new(0.0, f(pr.next_float()) * -1.9 * f(pr.next_float()) * 0.1, 0.0),
             _ => DVec3::new(0.0, f(-0.8), 0.0),
         };
         let sprite = self.sprite_from_set(ty);
         let mut q = if ty == Type::Underwater {
             let mut q = Particle::at(r, ty, below);
             q.set_size(0.01, 0.01);
-            q.size *= r.float() * 0.6 + 0.2;
+            q.size *= r.next_float() * 0.6 + 0.2;
             q
         } else {
             let mut q = Particle::moving(r, ty, below, vel);
             q.set_size(0.01, 0.01);
-            q.size *= r.float() * 0.6 + 0.6;
+            q.size *= r.next_float() * 0.6 + 0.6;
             q
         };
-        q.lifetime = (16.0 / (f(r.float()) * 0.8 + 0.2)) as i32;
+        q.lifetime = (16.0 / (f(r.next_float()) * 0.8 + 0.2)) as i32;
         q.has_physics = false;
         q.friction = 1.0;
         q.gravity = 0.0;
@@ -246,7 +246,7 @@ impl Engine {
                 q.set_size(0.001, 0.001);
             }
             _ => {
-                q.lifetime = self.provider.below(501) + 500;
+                q.lifetime = self.provider.next_int(501) + 500;
                 q.gravity = 0.01;
                 q.set_color(0.32, 0.5, 0.22);
             }

@@ -8,8 +8,15 @@ use super::classify::{Animate, classify};
 use super::{Engine, JavaRandom, Options, Particle, Request, Type};
 use crate::particles::collide::Blocks;
 
-/// The seeds Java's particles got in one tick (recovered from their randoms), by type and position bits.
-pub type Seeds = FxHashMap<(Type, [u64; 3]), i64>;
+/// The seeds Java's particles got in one tick (recovered from their randoms), by [`key`].
+pub type Seeds = FxHashMap<(Type, [u64; 6]), i64>;
+
+/// A spawn's type, position and velocity bits: one tick can spawn the same type at one point twice.
+pub fn key(ty: Type, at: DVec3, velocity: DVec3) -> (Type, [u64; 6]) {
+    let [x, y, z] = at.to_array().map(f64::to_bits);
+    let [a, b, c] = velocity.to_array().map(f64::to_bits);
+    (ty, [x, y, z, a, b, c])
+}
 
 /// One particle's state after a tick.
 #[derive(Debug, Clone, PartialEq)]

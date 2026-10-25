@@ -61,9 +61,9 @@ fn a_furnace_draws_its_crackle_then_its_spot() {
     let mut s = Scene::new();
     s.place(AT, "minecraft:lit_furnace", "minecraft:cardinal_direction=east");
     let mut r = JavaRandom::new(77);
-    r.double();
-    let ss = r.double() * 0.6 - 0.3;
-    let dy = r.double() * 6.0 / 16.0;
+    r.next_double();
+    let ss = r.next_double() * 0.6 - 0.3;
+    let dy = r.next_double() * 6.0 / 16.0;
     let p = AT.as_dvec3() + DVec3::new(0.5, 0.0, 0.5) + DVec3::new(0.52, dy, ss);
     assert_eq!(types(&animate(&s, 77)), [Type::Smoke, Type::Flame]);
     assert_eq!(animate(&s, 77)[0].1, p);
@@ -77,7 +77,7 @@ fn candles_smoke_under_three_tenths_and_always_flame() {
         let requests = animate(&s, seed);
         assert_eq!(requests.iter().filter(|(o, ..)| o.ty == Type::SmallFlame).count(), 4);
         let mut r = JavaRandom::new(seed);
-        let first = r.float();
+        let first = r.next_float();
         assert_eq!(requests[0].0.ty == Type::Smoke, first < 0.3, "seed {seed}");
     }
 }

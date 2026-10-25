@@ -38,7 +38,7 @@ impl Engine {
                 }
                 if sound {
                     // The landing sound's volume, then the level's draw for the sound's seed.
-                    p.random.float();
+                    p.random.next_float();
                     self.level.next_long();
                 }
             }

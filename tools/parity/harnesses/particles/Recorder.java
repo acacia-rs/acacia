@@ -57,7 +57,7 @@ final class Recorder extends ParticleEngine {
             long seed = recover(p, uniquifier, t0, t1);
             seedOf.put(p, seed);
             typeOf.put(p, type);
-            seeds.add(List.of(tick, type, x, y, z, seed));
+            seeds.add(List.of(tick, type, x, y, z, xa, ya, za, seed));
         }
         return p;
     }
