@@ -17,6 +17,15 @@ const SOURCES: [(&str, &str); 4] = [
     ("UnitSprites.java", include_str!("../exporter/UnitSprites.java")),
 ];
 
+/// The version package's native classifier for this machine, after `natives-`.
+const NATIVES: &str = match (std::env::consts::OS.as_bytes(), std::env::consts::ARCH.as_bytes()) {
+    (b"windows", b"aarch64") => "windows-arm64",
+    (b"windows", _) => "windows",
+    (b"macos", b"aarch64") => "macos-arm64",
+    (b"macos", _) => "macos",
+    _ => "linux",
+};
+
 pub struct Exporter {
     jdk: PathBuf,
     classpath: String,
@@ -73,15 +82,15 @@ fn run(command: &mut Command) -> Result<(), Error> {
     Ok(())
 }
 
-/// The client's libraries from the version package, downloaded and checked into `dir`. Native
-/// archives are left out: nothing the exporters run calls into them.
+/// The client's libraries from the version package, downloaded and checked into `dir`, with this
+/// machine's native archives: `ClientBootstrap` loads LWJGL, which unpacks them from the classpath.
 fn libraries(dir: &Path) -> Result<Vec<PathBuf>, Error> {
     let package = version_package()?;
     let mut out = Vec::new();
     for library in package["libraries"].as_array().into_iter().flatten() {
         let artifact = &library["downloads"]["artifact"];
         let (Some(path), Some(sha1), Some(url)) = (artifact["path"].as_str(), artifact["sha1"].as_str(), artifact["url"].as_str()) else { continue };
-        if library["name"].as_str().is_some_and(|n| n.contains(":natives-")) {
+        if library["name"].as_str().and_then(|n| n.split_once(":natives-")).is_some_and(|(_, classifier)| classifier != NATIVES) {
             continue;
         }
         let file = dir.join(path);
