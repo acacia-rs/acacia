@@ -5,7 +5,7 @@
 
 use super::Family;
 use super::equipment::{self, Equipment};
-use crate::entity::{Blend, DYES};
+use crate::entity::{Blend, DYES, Fade};
 
 /// What an entity wears, as its render state carries it.
 #[derive(Debug, Clone, Default)]
@@ -38,6 +38,7 @@ pub struct Draw {
     pub texture: String,
     pub color: Option<[u8; 3]>,
     pub blend: Blend,
+    pub fade: Fade,
 }
 
 #[derive(Clone, Copy)]
@@ -119,7 +120,7 @@ pub fn draws(kind: &str, gear: &Gear, equipment: &Equipment) -> Vec<Draw> {
     let mut out = Vec::new();
     let wear = |out: &mut Vec<Draw>, layer: &'static str, layer_type: &str, asset: &str, dye: Option<[u8; 3]>| {
         for d in equipment.draws(asset, layer_type, dye).into_iter().flatten() {
-            out.push(Draw { layer: Some(layer), texture: d.texture, color: d.color, blend: Blend::Opaque });
+            out.push(Draw { layer: Some(layer), texture: d.texture, color: d.color, blend: Blend::Opaque, fade: Fade::Full });
         }
     };
     let body = gear.body.as_ref().and_then(|b| Some((b, equipment::asset(b.item)?)));
@@ -141,14 +142,14 @@ pub fn draws(kind: &str, gear: &Gear, equipment: &Equipment) -> Vec<Draw> {
     match kind {
         "happy_ghast" if gear.leash_holder && body.is_some_and(|(b, _)| b.item.trim_start_matches("minecraft:").ends_with("_harness")) => {
             let layer = if gear.baby { "minecraft:happy_ghast_baby_ropes#main" } else { "minecraft:happy_ghast_ropes#main" };
-            out.push(Draw { layer: Some(layer), texture: entity_texture("ghast/happy_ghast_ropes"), color: None, blend: Blend::Opaque });
+            out.push(Draw { layer: Some(layer), texture: entity_texture("ghast/happy_ghast_ropes"), color: None, blend: Blend::Opaque, fade: Fade::Full });
         }
         "wolf" => {
             if let Some((b, asset)) = body.filter(|_| !gear.baby) {
                 wear(&mut out, "minecraft:wolf_armor#main", "wolf_body", asset, b.dye);
                 if let Some(level) = b.durability.and_then(cracks) {
                     let texture = entity_texture(&format!("wolf/wolf_armor_crackiness_{level}"));
-                    out.push(Draw { layer: Some("minecraft:wolf_armor#main"), texture, color: None, blend: Blend::Alpha });
+                    out.push(Draw { layer: Some("minecraft:wolf_armor#main"), texture, color: None, blend: Blend::Alpha, fade: Fade::Full });
                 }
             }
             collar(&mut out, gear, "wolf/wolf_collar", None);
@@ -183,12 +184,12 @@ fn collar(out: &mut Vec<Draw>, gear: &Gear, texture: &str, layer: Option<&'stati
     let Some(dye) = gear.collar.filter(|_| !gear.invisible) else { return };
     let [_, r, g, b] = (DYES[dye % DYES.len()]).to_be_bytes();
     let texture = entity_texture(&format!("{texture}{}", if gear.baby { "_baby" } else { "" }));
-    out.push(Draw { layer, texture, color: Some([r, g, b]), blend: Blend::Opaque });
+    out.push(Draw { layer, texture, color: Some([r, g, b]), blend: Blend::Opaque, fade: Fade::Full });
 }
 
 fn markings(out: &mut Vec<Draw>, gear: &Gear) {
     const NAMES: [&str; 5] = ["", "white", "whitefield", "whitedots", "blackdots"];
     let Some(name) = NAMES.get(gear.markings).filter(|n| !n.is_empty() && !gear.invisible) else { return };
     let texture = entity_texture(&format!("horse/horse_markings_{name}{}", if gear.baby { "_baby" } else { "" }));
-    out.push(Draw { layer: None, texture, color: None, blend: Blend::Alpha });
+    out.push(Draw { layer: None, texture, color: None, blend: Blend::Alpha, fade: Fade::Full });
 }

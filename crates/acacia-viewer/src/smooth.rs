@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+use acacia_render::entity::java::{bedrock, overlay};
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Value, cape};
 use acacia_render::item::drop::{self, Drop};
 use acacia_render::item::{ItemModel, ItemModels, SHIELD, hand};
@@ -230,7 +231,9 @@ impl Smoother {
             let pose = self.models.pose(&e.kind, layer.model, &query);
             out.push(EntityInstance { layers: [layer].into(), position: m.position, yaw: m.yaw, pose, frame, hurt, glint: None, ..e.instance.clone() });
         }
-        out.push(EntityInstance { layers, position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
+        // CreeperRenderer's flash is on the body's own layers, not its charged aura.
+        let white = if e.kind == "minecraft:creeper" { overlay::creeper_white(bedrock::swelling(&query)) } else { 0.0 };
+        out.push(EntityInstance { layers, position: m.position, yaw: m.yaw, pose, frame, hurt, white, ..e.instance.clone() });
         out
     }
 

@@ -26,7 +26,7 @@ use glam::DVec3;
 use crate::assets::image_file;
 pub use bake::{Mesh, Vertex};
 use controller::{Controller, Definition};
-pub use layer::{Blend, Layer};
+pub use layer::{Blend, Fade, Layer};
 use molang::{Loading, Scope};
 pub use molang::Value;
 pub use pose::{BonePose, Pose};
@@ -97,6 +97,8 @@ pub struct EntityInstance {
     pub frame: Option<glam::Mat4>,
     /// Hurt or dying: drawn with the red overlay.
     pub hurt: bool,
+    /// The white overlay's progress (`overlay::creeper_white`), 0 for none.
+    pub white: f32,
     /// Enchanted: the glint shimmers over every layer.
     pub glint: Option<crate::glint::Glint>,
 }
@@ -301,7 +303,7 @@ impl EntityModels {
             }
         }
         let tint = (material == "sheep").then(|| dye((scope.query)("color").num()));
-        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, dye: None, hidden, blend })
+        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, dye: None, hidden, blend, fade: layer::Fade::Full })
     }
 
     /// The default geometry in the default texture, for kinds whose controllers yield nothing.

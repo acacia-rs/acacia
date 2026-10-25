@@ -50,7 +50,7 @@ pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop, camera: DVec3
                 scale: 1.0,
                 pose: Pose::default(),
                 frame: Some(feet * frame * display.mesh_frame()),
-                hurt: false,
+                hurt: false, white: 0.0,
                 glint: model.glint.then_some(crate::glint::Glint::Item),
             })
             .collect();
@@ -97,7 +97,7 @@ fn bedrock_instances(model: &ItemModel, motion: &Dropped, drop: &Drop) -> Vec<En
             scale: ground.scale,
             pose: Pose::default(),
             frame: None,
-            hurt: false,
+            hurt: false, white: 0.0,
             glint: model.glint.then_some(crate::glint::Glint::Item),
         })
         .collect()

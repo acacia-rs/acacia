@@ -9,7 +9,7 @@ struct Instance {
     tint: vec4<f32>,
     // Bit per bone index
     hidden: vec4<u32>,
-    // x: the instance's first matrix in `bones`
+    // x: the instance's first matrix in `bones`, y: the bits of the layer's alpha
     bones: vec4<u32>,
     // xy: the glint's scale over the UVs, zw: how far it (or a swirl layer's texture) has slid
     glint: vec4<f32>,
@@ -42,6 +42,7 @@ struct VsOut {
     @location(5) glint_uv: vec2<f32>,
     @location(6) @interpolate(flat) glint: f32,
     @location(7) @interpolate(flat) slide: vec2<f32>,
+    @location(8) @interpolate(flat) alpha: f32,
 };
 
 // Java's glint strength, and its texture matrix's turn (rotateZ(π / 18)): see src/glint.rs.
@@ -99,6 +100,7 @@ fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
     out.glint_uv = vec2(scaled.x * GLINT_TURN.y - scaled.y * GLINT_TURN.x, scaled.x * GLINT_TURN.x + scaled.y * GLINT_TURN.y) + instance.glint.zw;
     out.glint = instance.light.w;
     out.slide = instance.glint.zw;
+    out.alpha = bitcast<f32>(instance.bones.y);
     return out;
 }
 
@@ -144,19 +146,33 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return vec4(shaded(in, texel), 1.0);
 }
 
-// Blended layers (a slime's shell): the texel's alpha is how much of it shows.
+// Blended layers (a slime's shell): the texel's alpha is how much of it shows, cut out below 0.1
+// as Java's entity_translucent does.
 @fragment
 fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
     let texel = textureSample(skin, skin_sampler, in.uv);
-    return vec4(shaded(in, texel), texel.a);
+    if texel.a < 0.1 {
+        discard;
+    }
+    return vec4(shaded(in, texel), texel.a * in.alpha);
+}
+
+// Java's breeze_wind: blended like fs_blend, its texture sliding sideways.
+@fragment
+fn fs_wind(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = textureSample(skin, skin_sampler, fract(in.uv + in.slide));
+    if texel.a < 0.1 {
+        discard;
+    }
+    return vec4(shaded(in, texel), texel.a * in.alpha);
 }
 
 // Java's `eyes` (EMISSIVE, NO_OVERLAY, NO_CARDINAL_LIGHTING): the texel as it is, fogged, over
-// what is behind by its alpha.
+// what is behind by its alpha and the layer's.
 @fragment
 fn fs_eyes(in: VsOut) -> @location(0) vec4<f32> {
     let texel = textureSample(skin, skin_sampler, in.uv);
-    return vec4(fogged(texel.rgb, in.dist), texel.a);
+    return vec4(fogged(texel.rgb, in.dist), texel.a * in.alpha);
 }
 
 // A charged creeper's aura (Java's rendertype_energy_swirl with EnergySwirlLayer's grey): the

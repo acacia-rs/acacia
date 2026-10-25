@@ -86,7 +86,7 @@ pub fn instances(rope: Rope, end: DVec3, holder: DVec3, camera: DVec3) -> Vec<En
             let (middle, along) = ((ends[0] + ends[1]) / 2.0, (ends[1] - ends[0]).as_vec3());
             let turn = Quat::from_rotation_arc(Vec3::X, along.try_normalize().unwrap_or(Vec3::X));
             let frame = Mat4::from_translation((middle - camera).as_vec3()) * Mat4::from_quat(turn) * Mat4::from_scale(Vec3::new(along.length(), width, width));
-            EntityInstance { layers: LOOKS.layers.clone(), skin: Some(skin.clone()), position: middle, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint: None }
+            EntityInstance { layers: LOOKS.layers.clone(), skin: Some(skin.clone()), position: middle, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, white: 0.0, glint: None }
         })
         .collect()
 }

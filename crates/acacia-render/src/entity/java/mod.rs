@@ -8,6 +8,7 @@ pub mod bedrock;
 pub mod body;
 pub mod draw;
 pub mod equipment;
+pub mod extras;
 pub mod gear;
 pub mod joml;
 pub mod keyframes;
@@ -21,6 +22,7 @@ pub mod poses;
 pub mod state;
 pub mod trims;
 pub mod types;
+pub mod variants;
 pub mod villager;
 pub mod worn;
 

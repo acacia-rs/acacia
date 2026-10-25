@@ -1,0 +1,123 @@
+package acacia.parity.entity_draws;
+
+import acacia.parity.Client;
+import acacia.parity.Headless;
+import acacia.parity.Out;
+import acacia.parity.Submits;
+import com.mojang.blaze3d.vertex.PoseStack;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.nio.file.Path;
+import java.util.*;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.npc.villager.VillagerData;
+import net.minecraft.world.item.DyeColor;
+
+/**
+ * Everything a kind's renderer submits for one entity (docs/parity.md, harness entity_draws),
+ * args[0]/draws.jsonl: per kind and seed, the render state of a new entity with its own fields
+ * set at random (booleans, enums, dyes, a pufferfish's puff; `fields`, as set), and each model
+ * `EntityRenderer.submit` hands the collector, in order (as `Submits` records them).
+ */
+public final class EntityDrawsOracle {
+    static final String[] KINDS = ("ender_dragon happy_ghast bat rabbit frog armadillo camel camel_husk sniffer breeze creaking warden copper_golem "
+        + "nautilus zombie_nautilus tadpole zombie_villager axolotl armor_stand strider ravager shulker wither bee parrot fox horse donkey mule "
+        // Guardians are left out: extracting one asks the game renderer's camera, which the oracle lacks.
+        + "skeleton_horse zombie_horse cod salmon tropical_fish pufferfish phantom allay cat ocelot polar_bear panda goat "
+        + "turtle hoglin zoglin wolf llama trader_llama squid glow_squid dolphin slime magma_cube piglin piglin_brute zombified_piglin enderman "
+        + "witch vex vindicator evoker pillager silverfish endermite blaze ghast iron_golem snow_golem villager wandering_trader cow mooshroom pig "
+        + "sheep chicken creeper spider cave_spider zombie husk drowned skeleton stray wither_skeleton bogged").split(" ");
+    static final int SEEDS = 24;
+    /**
+     * Fields left as extracted: set by the kind (a trader llama, a brute), covered by entity_gear
+     * (collars), out of a Bedrock server's reach (jeb_ sheep need the name), or already in the
+     * texture the entity chose (an angry wolf's).
+     */
+    static final Set<String> FIXED = Set.of("isTraderLlama", "isBrute", "isJebSheep", "collarColor", "wolf.isAngry");
+
+    public static void main(String[] args) throws Exception {
+        Client.minecraft();
+        var level = Client.overworld();
+        Headless.set(Headless.get(level, "connection"), "scoreboard", new net.minecraft.world.scores.Scoreboard());
+        var dispatcher = Client.entityRenderers();
+        var layers = Submits.layerPrints();
+        try (var out = new Out.Lines(Path.of(args[0]).resolve("draws.jsonl"))) {
+            for (String kind : KINDS) {
+                var type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace(kind));
+                for (int seed = 0; seed < SEEDS; seed++) {
+                    var record = new TreeMap<String, Object>();
+                    record.put("case", "minecraft:" + kind + "|" + seed);
+                    record.put("kind", "minecraft:" + kind);
+                    try {
+                        Entity entity = type.create(level, EntitySpawnReason.LOAD);
+                        entity.setId(1_000_000);
+                        if (entity instanceof Mob mob) mob.setBaby(seed % 3 == 1);
+                        @SuppressWarnings("unchecked")
+                        var renderer = (EntityRenderer<Entity, EntityRenderState>) dispatcher.getRenderer(entity);
+                        var state = renderer.createRenderState(entity, 1.0F);
+                        record.put("fields", randomize(kind, state, new Random(seed * 131L + kind.hashCode()), seed));
+                        var draws = new ArrayList<Map<String, Object>>();
+                        renderer.submit(state, new PoseStack(), Submits.collector(draws, layers), new CameraRenderState());
+                        record.put("draws", draws);
+                    } catch (Throwable error) {
+                        var cause = error.getCause() != null ? error.getCause() : error;
+                        record.put("error", cause + " at " + Arrays.toString(Arrays.copyOf(cause.getStackTrace(), 4)));
+                    }
+                    out.write(record);
+                }
+            }
+        }
+    }
+
+    /**
+     * Sets the state's own booleans, enums, dyes and puff at random (seed 0 keeps them); returns
+     * them as set, with the texture and villager data the entity gave.
+     */
+    private static Map<String, Object> randomize(String kind, EntityRenderState state, Random r, int seed) throws Exception {
+        var set = new TreeMap<String, Object>();
+        if (state instanceof LivingEntityRenderState living) set.put("isBaby", living.isBaby);
+        set.put("ageInTicks", state.ageInTicks);
+        for (Class<?> c = state.getClass(); c != LivingEntityRenderState.class && c != EntityRenderState.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                if (Modifier.isStatic(f.getModifiers())) continue;
+                Class<?> t = f.getType();
+                f.setAccessible(true);
+                if (t == Identifier.class && f.get(state) instanceof Identifier id) set.put(f.getName(), id.getPath());
+                if (t == VillagerData.class && f.get(state) instanceof VillagerData data) set.put(f.getName(), villager(data));
+                if (seed == 0 || FIXED.contains(f.getName()) || FIXED.contains(kind + "." + f.getName())) continue;
+                Object value;
+                if (t == boolean.class) value = r.nextBoolean();
+                // A sheep's wool always has a colour; a shulker's may not.
+                else if (t == DyeColor.class) value = r.nextInt(4) == 0 && !f.getName().equals("woolColor") ? null : DyeColor.byId(r.nextInt(16));
+                else if (t.isEnum()) value = t.getEnumConstants()[r.nextInt(t.getEnumConstants().length)];
+                else if (t == int.class && f.getName().equals("puffState")) value = r.nextInt(3);
+                else if (t == int.class && f.getName().endsWith("Color")) {
+                    // A tropical fish's colours: a dye's diffuse colour, recorded as the dye.
+                    var dye = DyeColor.byId(r.nextInt(16));
+                    Headless.set(state, f.getName(), dye.getTextureDiffuseColor());
+                    set.put(f.getName(), dye.getId());
+                    continue;
+                } else continue;
+                Headless.set(state, f.getName(), value);
+                set.put(f.getName(), value instanceof DyeColor d ? (Object) d.getId() : value instanceof Enum<?> e ? e.name() : value);
+            }
+        }
+        return set;
+    }
+
+    private static Map<String, Object> villager(VillagerData data) {
+        var out = new TreeMap<String, Object>();
+        out.put("type", data.type().unwrapKey().map(k -> k.identifier().getPath()).orElse(""));
+        out.put("profession", data.profession().unwrapKey().map(k -> k.identifier().getPath()).orElse(""));
+        out.put("level", data.level());
+        return out;
+    }
+}
