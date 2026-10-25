@@ -145,6 +145,10 @@ impl Gui {
         self.draws.push(GuiDraw::Item { key, x, y, seed });
     }
 
+    pub fn decorations(&mut self, key: i32, x: i32, y: i32, count: Option<String>) {
+        self.draws.push(GuiDraw::Decorations { key, x, y, count });
+    }
+
     pub fn push(&mut self, ops: Vec<PoseOp>) {
         self.draws.push(GuiDraw::Push(ops));
     }

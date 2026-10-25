@@ -6,13 +6,14 @@ use acacia_ui::java::gui::{Gui, GuiDraw};
 use acacia_ui::java::hud::health::{Health, HealthHud, HeartKind};
 use acacia_ui::java::hud::hotbar::{self, Hotbar};
 
-use crate::{Assets, Replay};
+use crate::Assets;
 
-pub fn replay(kind: &str) -> Option<Replay> {
-    Some(match kind {
-        "decorations" => decorations,
-        _ => return None,
-    })
+pub fn replay(c: &Value, assets: &Assets, state: &mut Map<String, Value>) -> Vec<GuiDraw> {
+    match c["kind"].as_str().unwrap_or_default() {
+        "decorations" => decorations(c, assets, state),
+        // A kind not ported yet draws nothing, so it shows as a divergence.
+        _ => Vec::new(),
+    }
 }
 
 fn decorations(c: &Value, assets: &Assets, _: &mut Map<String, Value>) -> Vec<GuiDraw> {

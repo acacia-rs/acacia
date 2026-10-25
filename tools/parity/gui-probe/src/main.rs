@@ -1,7 +1,8 @@
-//! `gui-probe <kind> <assets> <inputs.jsonl> <output.jsonl>`: each input line is a case (the
-//! harness's own schema); each output line is `{"draws": [...], <state read back>...}` with the
-//! draw calls as `acacia_ui::java::encode` writes them. `assets` is an unpacked jar's
-//! `assets/minecraft`.
+//! `gui-probe <harness> <assets> <inputs.jsonl> <output.jsonl>`: each input line is a case of
+//! that harness (`tools/parity/<harness>/cases.py`'s schema, its `kind` picking the replay); each
+//! output line is `{"draws": [...], <state read back>...}` with the draw calls as
+//! `acacia_ui::java::encode` writes them. `assets` is an unpacked jar's `assets/minecraft`. Run by
+//! `tools/parity/gui/run.sh`.
 
 mod hud;
 
@@ -32,16 +33,19 @@ impl Metrics for Ascii {
     }
 }
 
-fn replay(kind: &str) -> Option<Replay> {
-    hud::replay(kind)
+fn replay(harness: &str) -> Option<Replay> {
+    Some(match harness {
+        "hud" => hud::replay,
+        _ => return None,
+    })
 }
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [kind, root, inputs, output] = args.as_slice() else {
-        return Err("usage: gui-probe KIND ASSETS INPUTS OUTPUT".into());
+    let [harness, root, inputs, output] = args.as_slice() else {
+        return Err("usage: gui-probe HARNESS ASSETS INPUTS OUTPUT".into());
     };
-    let replay = replay(kind).ok_or_else(|| format!("unknown kind {kind}"))?;
+    let replay = replay(harness).ok_or_else(|| format!("unknown harness {harness}"))?;
     let root = Path::new(root).to_owned();
     let font = Ascii(acacia_ui::theme::java_font(&root, &mut acacia_ui::Atlas::new()));
     let assets = Assets { root, font: Box::new(font) };

@@ -63,6 +63,7 @@ fn slot(gui: &mut Gui, key: i32, x: i32, y: i32, seed: i32, pop: f32) {
     } else {
         gui.item(key, x, y, seed);
     }
+    gui.decorations(key, x, y, None);
 }
 
 /// Whether `extractCrosshair` shows the full attack indicator: at full strength on a living, alive
