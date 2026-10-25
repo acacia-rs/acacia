@@ -199,6 +199,11 @@ impl Text {
                     continue;
                 }
                 let Some(code) = chars.next() else { break };
+                // Java skips one UTF-16 unit: a supplementary character's low surrogate is left, drawn as U+FFFD.
+                if code.len_utf16() == 2 {
+                    current.push('\u{FFFD}');
+                    continue;
+                }
                 let next = style.legacy(code.to_ascii_lowercase(), &span.style);
                 if next != style {
                     if !current.is_empty() {
