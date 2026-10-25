@@ -37,7 +37,13 @@ public final class RenderStates {
         if (layer == null) throw new IllegalArgumentException("no layer");
         var root = layer.getValue().bakeRoot();
         var cls = Class.forName(kase.get("model").getAsString());
-        var model = (Model<EntityRenderState>) cls.getConstructor(ModelPart.class).newInstance(root);
+        Model<EntityRenderState> model;
+        try {
+            model = (Model<EntityRenderState>) cls.getConstructor(ModelPart.class).newInstance(root);
+        } catch (NoSuchMethodException slimOrWide) {
+            // PlayerModel(root, slim).
+            model = (Model<EntityRenderState>) cls.getConstructor(ModelPart.class, boolean.class).newInstance(root, kase.get("layer").getAsString().contains("_slim"));
+        }
         var state = (EntityRenderState) stateClass(cls).getDeclaredConstructor().newInstance();
         for (var e : kase.getAsJsonObject("state").entrySet()) set(state, e.getKey(), e.getValue());
         if (kase.has("swingHand") && state instanceof ArmedEntityRenderState armed)

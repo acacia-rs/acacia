@@ -24,7 +24,7 @@ const SWIRL_PER_SEC: f32 = 0.01 * 20.0;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
-    /// x: block light, y: sky light (0..=15), z: 1 for the hurt overlay, w: the glint texture
+    /// x: block light, y: sky light (0..=15), z: the overlay (`overlay::keep`), w: the glint texture
     /// (0 none, 1 the item's, 2 the armour's).
     light: [f32; 4],
     /// rgb: the layer's tint, a: 1 when the texture's alpha is a tint mask and not a cutout.
@@ -226,7 +226,7 @@ impl EntityPass {
             let [sx, sy] = e.glint.map_or([0.0; 2], |g| g.scale(e.skin.as_ref().map_or([16; 2], |s| [s.width, s.height])));
             let slide = if layer.blend == Blend::Swirl { [swirl; 2] } else { glint_scroll };
             let glint = [sx, sy, slide[0], slide[1]];
-            records.push(Instance { light: [block, sky, f32::from(u8::from(e.hurt)), texture], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0], glint });
+            records.push(Instance { light: [block, sky, crate::entity::java::overlay::keep(e.hurt, 0.0), texture], tint, hidden: layer.hidden, bones: [first_bone, 0, 0, 0], glint });
             self.draws.push((range, key, layer.blend));
             if !over {
                 self.world_draws = self.draws.len();

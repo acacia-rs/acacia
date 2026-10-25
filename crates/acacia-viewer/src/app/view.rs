@@ -6,6 +6,7 @@ use acacia_render::Outline;
 use acacia_render::entity::EntityInstance;
 use acacia_render::item::{ItemKey, SHIELD, first_person, hand, map};
 use acacia_ui::nametags::Tag;
+use glam::DVec3;
 
 use super::{App, Mode};
 use crate::keyscript::Step;
@@ -52,19 +53,22 @@ impl App {
     }
 
     /// Name tags projected onto the screen (`gui` GUI pixels big, `scale` window pixels each):
-    /// Java draws a font pixel 0.025 blocks big in the world; tags beyond 64 blocks or behind
-    /// the camera are left out.
+    /// Java draws a font pixel 0.025 blocks big in the world, the line's top at the anchor; tags
+    /// out of reach (distance from the feet, as Java's) or behind the camera are left out.
     pub(super) fn name_tags(&self, gui: [f32; 2], scale: f32) -> Vec<Tag> {
+        // acacia-ui's Tag is anchored at the line's foot: 9 font pixels under Java's anchor.
+        const LINE: f64 = 9.0 * 0.025;
         let view_proj = self.camera.view_proj();
         let pixels_per_block = gui[1] * scale / 2.0 / (self.camera.fov_y / 2.0).tan();
         self.entities
             .name_tags()
             .into_iter()
-            .filter_map(|(text, at)| {
-                let relative = (at - self.camera.position).as_vec3();
+            .filter_map(|tag| {
+                let text = tag.text;
+                let relative = (tag.anchor - DVec3::Y * LINE - self.camera.position).as_vec3();
                 let distance = relative.length();
                 let clip = view_proj * relative.extend(1.0);
-                if clip.w <= 0.1 || distance > 64.0 {
+                if clip.w <= 0.1 || tag.feet.distance_squared(self.camera.position) >= tag.reach * tag.reach {
                     return None;
                 }
                 let (x, y) = (clip.x / clip.w, clip.y / clip.w);

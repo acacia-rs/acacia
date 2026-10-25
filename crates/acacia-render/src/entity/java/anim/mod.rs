@@ -4,6 +4,7 @@
 
 mod arms;
 mod humanoid;
+mod player;
 mod quadruped;
 
 pub use arms::ArmPose;
@@ -30,6 +31,14 @@ pub enum Family {
     Drowned,
     /// `SkeletonModel`.
     Skeleton,
+    /// `PlayerModel`, wide.
+    Player,
+    /// `PlayerModel`, slim: its `translateToHand` moves the arm half a pixel out.
+    PlayerSlim,
+    /// `PlayerCapeModel`.
+    PlayerCape,
+    /// `ElytraModel`.
+    Elytra,
 }
 
 impl Family {
@@ -37,6 +46,9 @@ impl Family {
     /// one not ported yet.
     pub fn of_layer(layer: &str) -> Option<Family> {
         let (name, part) = layer.trim_start_matches("minecraft:").split_once('#').unwrap_or((layer, "main"));
+        if (name, part) == ("player", "cape") {
+            return Some(Family::PlayerCape);
+        }
         if part != "main" {
             return None;
         }
@@ -50,6 +62,9 @@ impl Family {
             "zombie" | "husk" | "giant" => Family::Zombie,
             "drowned" => Family::Drowned,
             "skeleton" | "stray" | "wither_skeleton" | "bogged" | "parched" => Family::Skeleton,
+            "player" => Family::Player,
+            "player_slim" => Family::PlayerSlim,
+            "elytra" => Family::Elytra,
             _ => return None,
         })
     }
@@ -73,6 +88,13 @@ pub fn setup(family: Family, s: &RenderState, p: &mut Poses) {
                 humanoid::skeleton_melee(p, s);
             }
         }
+        Family::Player => player::player(p, s),
+        Family::PlayerSlim => {
+            player::player(p, s);
+            p.hand_offset = 0.5;
+        }
+        Family::PlayerCape => player::cape(p, s),
+        Family::Elytra => player::elytra(p, s),
     }
 }
 

@@ -3,17 +3,21 @@
 //! family, and `ModelPart.render`'s walk. See README "Java entity models".
 
 pub mod anim;
+pub mod avatar;
 pub mod bedrock;
 pub mod draw;
 pub mod equipment;
-pub mod trims;
+pub mod joml;
 pub mod kinds;
 pub mod library;
 pub mod mesh;
 pub mod model;
 pub mod mth;
+pub mod overlay;
 pub mod poses;
 pub mod state;
+pub mod trims;
+pub mod types;
 
 pub use anim::Family;
 pub use model::{Part, PartPose, Polygon};

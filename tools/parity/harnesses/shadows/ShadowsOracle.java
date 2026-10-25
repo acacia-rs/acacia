@@ -15,7 +15,7 @@ import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.client.renderer.feature.ShadowFeatureRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
@@ -28,8 +28,8 @@ import org.joml.Matrix4f;
 /**
  * Entity shadows (docs/parity.md, harness shadows), args[0]/shadows.jsonl:
  * `radius|<type>|<adult|baby>`: every entity type's renderer's getShadowRadius and
- * getShadowStrength on a fresh render state (baby: isBaby, ageScale 0.5; cube mobs size 2,
- * pufferfish puff 2), as `radius`, `strength`;
+ * getShadowStrength on the render state extracted from a new entity (babies where Mob.setBaby
+ * makes one; cube mobs size 2, pufferfish puff 2), as `radius`, `strength`;
  * `pieces|<n>`: random ground and light under a shadow of random radius, height and camera
  * distance, through EntityRenderer.extractShadow on the real client level (blocks set there; the
  * raw brightness of each cell scripted and recorded in `cells` with whether the block below
@@ -63,20 +63,22 @@ public final class ShadowsOracle {
         }
     }
 
-    static final BlockState[] GROUND = {
-        Blocks.STONE.defaultBlockState(), Blocks.GRASS_BLOCK.defaultBlockState(), Blocks.GLASS.defaultBlockState(), Blocks.OAK_SLAB.defaultBlockState(),
-        Blocks.BARRIER.defaultBlockState(), Blocks.WHITE_CARPET.defaultBlockState(), Blocks.DIRT_PATH.defaultBlockState(), Blocks.OAK_LEAVES.defaultBlockState(),
-        Blocks.AIR.defaultBlockState(), Blocks.AIR.defaultBlockState(),
-    };
     static final float[] RADII = {0.15F, 0.3F, 0.5F, 0.7F, 1.0F, 2.0F, 3.5F};
 
     public static void main(String[] args) throws Exception {
         var mc = Client.minecraft();
+        BlockState[] GROUND = {
+            Blocks.STONE.defaultBlockState(), Blocks.GRASS_BLOCK.defaultBlockState(), Blocks.GLASS.defaultBlockState(), Blocks.OAK_SLAB.defaultBlockState(),
+            Blocks.BARRIER.defaultBlockState(), Blocks.MOSS_CARPET.defaultBlockState(), Blocks.DIRT_PATH.defaultBlockState(), Blocks.OAK_LEAVES.defaultBlockState(),
+            Blocks.AIR.defaultBlockState(), Blocks.AIR.defaultBlockState(),
+        };
         var dispatcher = Client.entityRenderers();
         var level = Client.overworld();
+        // Client.level's connection skips its field initialisers; the wither's name asks the scoreboard.
+        Headless.set(Headless.get(level, "connection"), "scoreboard", new net.minecraft.world.scores.Scoreboard());
         try (var out = new Out.Lines(Path.of(args[0]).resolve("shadows.jsonl"))) {
             radii(dispatcher, level, out);
-            var pig = dispatcher.getRenderer(Client.spawn(level, EntityType.PIG, 0.5, 70, 0.5));
+            var pig = dispatcher.getRenderer(Client.spawn(level, EntityTypes.PIG,0.5, 70, 0.5));
             var scripted = Headless.allocate(Scripted.class);
             scripted.real = level;
             Method extract = EntityRenderer.class.getDeclaredMethod("extractShadow", EntityRenderState.class, Minecraft.class, Level.class);
@@ -140,25 +142,39 @@ public final class ShadowsOracle {
                 record.put("case", "radius|" + id + "|" + (baby ? "baby" : "adult"));
                 try {
                     var entity = type.create(level, net.minecraft.world.entity.EntitySpawnReason.LOAD);
-                    if (entity == null) continue;
-                    var renderer = dispatcher.getRenderer(entity);
-                    var state = (EntityRenderState) Headless.call(EntityRenderer.class, renderer, "createRenderState", new Class<?>[0]);
-                    if (state instanceof LivingEntityRenderState living) {
-                        living.isBaby = baby;
-                        living.ageScale = baby ? 0.5F : 1.0F;
-                    } else if (baby) {
-                        continue;
-                    }
-                    for (var field : new String[] {"size", "puffState"}) {
+                    // Mannequins are Java's alone (no Bedrock entity) and need a skin to render.
+                    if (entity == null || id.equals("minecraft:mannequin")) continue;
+                    entity.setId(1_000_000);
+                    if (baby && entity instanceof net.minecraft.world.entity.Mob mob) {
                         try {
-                            Headless.set(state, field, 2);
-                        } catch (RuntimeException absent) {
+                            mob.setBaby(true);
+                        } catch (RuntimeException noBaby) {
+                            // The wither's asks the scoreboard, which the bare level has not.
+                            continue;
                         }
+                    }
+                    if (baby && !(entity instanceof net.minecraft.world.entity.LivingEntity l && l.isBaby())) continue;
+                    for (var setter : new Object[][] {{"setSize", new Class<?>[] {int.class, boolean.class}, new Object[] {2, false}}, {"setPuffState", new Class<?>[] {int.class}, new Object[] {2}}}) {
+                        try {
+                            entity.getClass().getMethod((String) setter[0], (Class<?>[]) setter[1]).invoke(entity, (Object[]) setter[2]);
+                        } catch (NoSuchMethodException absent) {
+                        }
+                    }
+                    entity.refreshDimensions();
+                    var renderer = dispatcher.getRenderer(entity);
+                    EntityRenderState state;
+                    try {
+                        state = ((EntityRenderer<net.minecraft.world.entity.Entity, ?>) renderer).createRenderState(entity, 1.0F);
+                    } catch (RuntimeException unextractable) {
+                        // Withers ask the scoreboard, which the bare level has not: a fresh state.
+                        state = (EntityRenderState) Headless.call(EntityRenderer.class, renderer, "createRenderState", new Class<?>[0]);
+                        record.put("fresh", true);
                     }
                     record.put("radius", Headless.call(EntityRenderer.class, renderer, "getShadowRadius", new Class<?>[] {EntityRenderState.class}, state));
                     record.put("strength", Headless.call(EntityRenderer.class, renderer, "getShadowStrength", new Class<?>[] {EntityRenderState.class}, state));
                 } catch (Throwable error) {
-                    record.put("error", String.valueOf(error.getCause() != null ? error.getCause() : error));
+                    var cause = error.getCause() != null ? error.getCause() : error;
+                    record.put("error", cause + " at " + java.util.Arrays.toString(java.util.Arrays.copyOf(cause.getStackTrace(), 4)));
                 }
                 out.write(record);
             }

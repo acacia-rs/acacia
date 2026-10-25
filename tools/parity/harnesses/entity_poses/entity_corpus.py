@@ -55,8 +55,27 @@ HUMANOID_EXTRAS = [
 ]
 
 
-EVERY = [(QUADRUPEDS, QUADRUPED_EXTRAS), (HUMANOIDS, HUMANOID_EXTRAS)]
-ARMED = [(HUMANOIDS, HUMANOID_EXTRAS)]
+SHOWN = {"showHat": True, "showJacket": True, "showLeftPants": True, "showRightPants": True, "showLeftSleeve": True, "showRightSleeve": True}
+PLAYERS = {"player": M + "player.PlayerModel", "player_slim": M + "player.PlayerModel"}
+PLAYER_EXTRAS = [dict(SHOWN, **{("?" + k if k == "isAggressive" else k): v for k, v in extra.items()}) for extra in HUMANOID_EXTRAS] + [
+    dict({k: False for k in SHOWN}, showHat=True, showLeftSleeve=True), {"isSpectator": True}]
+CAPES = {"player#cape": M + "player.PlayerCapeModel"}
+CAPE_EXTRAS = [
+    {},
+    {"capeFlap": 12.5, "capeLean": 40.0, "capeLean2": -7.5},
+    {"capeFlap": -6.0, "capeLean": 150.0, "capeLean2": 20.0},
+    {"capeFlap": 31.0, "capeLean": 3.25, "capeLean2": -20.0, "isCrouching": True},
+    {"capeFlap": 4.0, "capeLean": 75.0, "capeLean2": 11.0, "swimAmount": 0.6},
+]
+WINGS = {"elytra": M + "object.equipment.ElytraModel", "elytra_baby": M + "object.equipment.ElytraModel"}
+WING_EXTRAS = [
+    {"elytraRotX": 0.2617994, "elytraRotY": 0.0, "elytraRotZ": -0.2617994},
+    {"elytraRotX": 0.6981317, "elytraRotY": 0.08726646, "elytraRotZ": -0.7853982, "isCrouching": True},
+    {"elytraRotX": 0.31, "elytraRotY": 0.02, "elytraRotZ": -1.3},
+]
+
+EVERY = [(QUADRUPEDS, QUADRUPED_EXTRAS), (HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS), (CAPES, CAPE_EXTRAS), (WINGS, WING_EXTRAS)]
+ARMED = [(HUMANOIDS, HUMANOID_EXTRAS), (PLAYERS, PLAYER_EXTRAS)]
 
 
 def cases(groups):
@@ -67,9 +86,9 @@ def cases(groups):
                 state = {"walkAnimationPos": pos, "walkAnimationSpeed": speed, "yRot": yaw, "xRot": pitch, "ageInTicks": age,
                          "isBaby": name.endswith("_baby")}
                 state.update({k: v for k, v in extra.items() if not k.startswith("@")})
-                case = {"case": f"{name} #{len(out)}", "layer": f"minecraft:{name}#main", "model": model, "state": state}
-                if "@swingHand" in extra:
-                    case["swingHand"] = extra["@swingHand"]
+                layer = f"minecraft:{name}" if "#" in name else f"minecraft:{name}#main"
+                case = {"case": f"{name} #{len(out)}", "layer": layer, "model": model, "state": state}
+                case.update({k[1:]: v for k, v in extra.items() if k.startswith("@")})
                 out.append(case)
     return out
 

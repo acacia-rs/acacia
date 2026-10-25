@@ -8,13 +8,13 @@ use std::time::Instant;
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Value, cape};
 use acacia_render::item::drop::{self, Drop};
 use acacia_render::item::{ItemModel, ItemModels, SHIELD, hand};
-use acacia_render::shadows::{self, Shadow};
 use glam::DVec3;
 
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
 use crate::pick::EntityBox;
 
 mod arm;
+mod marks;
 mod motion;
 pub mod ropes;
 
@@ -221,18 +221,6 @@ impl Smoother {
         out
     }
 
-    /// Name tags and where they hang this frame: half a block over the entity's box.
-    pub fn name_tags(&self) -> Vec<(&str, DVec3)> {
-        let t = self.progress();
-        let mut out = Vec::new();
-        for (e, to) in &self.to {
-            let Some(name) = e.name.as_deref() else { continue };
-            let height = e.hitbox.map_or(1.8, |(_, h)| h);
-            out.push((name, self.blend(e.runtime_id, *to, t).position + DVec3::Y * f64::from(height + 0.5)));
-        }
-        out
-    }
-
     /// Where the hittable entities are drawn this frame.
     pub fn hitboxes(&self) -> Vec<EntityBox> {
         let t = self.progress();
@@ -241,25 +229,6 @@ impl Smoother {
             Some(EntityBox { runtime_id: e.runtime_id, feet: self.blend(e.runtime_id, *to, t).position, width, height })
         };
         self.to.iter().filter_map(hittable).collect()
-    }
-
-    /// The round shadows under what is drawn from `camera`, each kind's as Java's renderer gives it
-    /// ([`shadows::radius`]); a slime's size is read off its hitbox (0.52 blocks a size).
-    pub fn shadows(&self, camera: DVec3) -> Vec<Shadow> {
-        let t = self.progress();
-        let cast = |(e, to): &(Tracked, Motion)| {
-            if e.own_eyes.is_some_and(|eyes| eyes.distance(camera) <= OWN_HEAD_RADIUS) {
-                return None;
-            }
-            let kind = if e.dropped.is_some() { "minecraft:item" } else { e.kind.as_str() };
-            let baby = e.facts.query("is_baby").truthy();
-            let size = e.hitbox.map_or(1.0, |(width, _)| (width / 0.52).round());
-            let (radius, strength) = shadows::radius(kind, baby, size, e.facts.query("variant").num())?;
-            let m = self.blend(e.runtime_id, *to, t);
-            let feet = self.seated(e, m, t).map_or(m.position, |(seat, _)| seat.position);
-            (radius > 0.0).then_some(Shadow { feet, radius, strength })
-        };
-        self.to.iter().filter_map(cast).collect()
     }
 }
 
