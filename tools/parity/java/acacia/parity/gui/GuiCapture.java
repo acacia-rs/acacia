@@ -215,21 +215,6 @@ public class GuiCapture extends GuiGraphicsExtractor {
         return collector(opacity, HoveredTextEffects.NONE, null);
     }
 
-    /** RenderingTextCollector's style scan: the hovered style kept for the deferred tooltip, every hit to `consumer`. */
-    void scan(GuiTextRenderStateArgs a, HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) {
-        if (!scanHover || (!effects.allowTooltip && !effects.allowCursorChanges && consumer == null)) return;
-        var state = new net.minecraft.client.renderer.state.gui.GuiTextRenderState(font, a.text, a.pose, a.x, a.y, a.color, 0, true, true, a.scissor);
-        ActiveTextCollector.findElementUnderCursor(state, hoverX, hoverY, style -> {
-            if (effects.allowTooltip && style.getHoverEvent() != null) {
-                try { Stub.put(this, GuiGraphicsExtractor.class, "hoveredTextStyle", style); } catch (Exception e) { throw new RuntimeException(e); }
-            }
-            if (consumer != null) consumer.accept(style);
-        });
-    }
-
-    record GuiTextRenderStateArgs(FormattedCharSequence text, Matrix3x2fc pose, int x, int y, int color,
-                                  net.minecraft.client.gui.navigation.ScreenRectangle scissor) {}
-
     ActiveTextCollector collector(float opacity, HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) {
         var self = this;
         return new ActiveTextCollector() {
@@ -239,7 +224,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
             @Override public void accept(TextAlignment alignment, int anchorX, int y, Parameters p, FormattedCharSequence text) {
                 int left = alignment.calculateLeft(anchorX, self.font, text);
                 if (ARGB.as8BitChannel(p.opacity()) != 0) self.text(text, left, y, ARGB.white(p.opacity()), true, p.pose());
-                self.scan(new GuiTextRenderStateArgs(text, p.pose(), left, y, ARGB.white(p.opacity()), p.scissor()), effects, consumer);
+                new HoverScan(text, p.pose(), left, y, ARGB.white(p.opacity()), p.scissor()).run(self, effects, consumer);
             }
             @Override public void acceptScrolling(Component m, int cx, int l, int r, int t, int b, Parameters p) {
                 var o = call("scrolling");
