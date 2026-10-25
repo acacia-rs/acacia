@@ -88,7 +88,7 @@ impl Style {
     }
 
     /// `Style.applyLegacyFormat` for code `code` (lower case); `own` is what `§r` returns to.
-    fn legacy(&self, code: char, own: &Style) -> Style {
+    pub fn legacy(&self, code: char, own: &Style) -> Style {
         if let Some(c) = COLORS.iter().find(|c| c.0 == code) {
             let off = Some(false);
             return Style { color: Some(c.2), bold: off, italic: off, underlined: off, strikethrough: off, obfuscated: off, ..self.clone() };
