@@ -14,7 +14,7 @@ use super::layers::Rect;
 impl Painter<'_> {
     pub(super) fn picture(&mut self, p: &Picture) {
         match p {
-            Picture::Entity { rect, .. } | Picture::Book { rect, .. } | Picture::Banner { rect, .. } => self.in_picture(p, *rect),
+            Picture::Entity { rect, .. } | Picture::Book { rect, .. } | Picture::Banner { rect, .. } | Picture::EndPortal { rect } => self.in_picture(p, *rect),
             Picture::SpriteBlit { atlas, sprite, rect, uv } => {
                 let Some(s) = self.src.atlas_sprite(atlas, sprite) else { return };
                 self.prims(s, &[Prim { rect: *rect, uv: *uv, tile: None }], 0xFFFF_FFFF, QuadBlend::Alpha);

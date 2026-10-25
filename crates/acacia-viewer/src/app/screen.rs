@@ -33,11 +33,13 @@ pub(super) struct Shown {
     pub book: Option<book::Open>,
     /// The open sign editor.
     pub sign: Option<super::sign::SignEdit>,
+    /// What the Java look's screens keep.
+    pub java: crate::ui::JavaState,
 }
 
 impl Default for Shown {
     fn default() -> Self {
-        Shown { pick: [None; 2], name: acacia_ui::widget::TextEdit::new("", NAME_MAX), items: Vec::new(), creative: None, scroll: 0, book: None, sign: None }
+        Shown { pick: [None; 2], name: acacia_ui::widget::TextEdit::new("", NAME_MAX), items: Vec::new(), creative: None, scroll: 0, book: None, sign: None, java: Default::default() }
     }
 }
 
@@ -68,6 +70,7 @@ impl App {
 
     fn show_screen(&mut self) {
         self.shown.scroll = 0;
+        self.shown.java.open(std::time::Instant::now());
         self.play.release_all();
         self.screen_open = true;
         self.grab(false);
@@ -80,9 +83,11 @@ impl App {
         let (had, has) = (opened(&self.inventory), opened(&inventory));
         if inventory.picks != self.inventory.picks || inventory.patterns != self.inventory.patterns || inventory.trade.is_some() != self.inventory.trade.is_some() {
             (self.shown.pick, self.shown.scroll) = ([None; 2], 0);
+            self.shown.java.list_changed();
         }
         if inventory.bench != self.inventory.bench {
             self.shown.pick = [None; 2];
+            self.shown.java.open(std::time::Instant::now());
             self.rename(|name| *name = acacia_ui::widget::TextEdit::new("", NAME_MAX));
         }
         self.inventory = inventory;
@@ -109,7 +114,7 @@ impl App {
         }
     }
 
-    fn close_inventory(&mut self) {
+    pub(super) fn close_inventory(&mut self) {
         self.screen_open = false;
         self.shown.creative = None;
         let _ = self.net.commands.send(Command::Inventory(false));

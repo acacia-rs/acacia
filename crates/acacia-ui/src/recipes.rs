@@ -5,7 +5,7 @@ use crate::draw::{DrawList, WHITE};
 use crate::hud::{Item, stack};
 use crate::inventory::{self, Layout};
 use crate::theme::Theme;
-use crate::widget::{Widgets, java};
+use crate::widget::Widgets;
 
 const WIDTH: f32 = 147.0;
 const CELL: f32 = 25.0;
@@ -38,38 +38,31 @@ pub fn hit(screen: Layout, size: [f32; 2], count: usize, mouse: [f32; 2]) -> Opt
     layout(screen, size, count).1.iter().position(|r| (r[0]..r[2]).contains(&mouse[0]) && (r[1]..r[3]).contains(&mouse[1]))
 }
 
-/// `results`: each craftable item's icon and the stack one craft makes. Java's look draws its
-/// `recipe_book.png` and `slot_craftable` buttons, Bedrock's its panel and cells, else flat greys.
+/// `results`: each craftable item's icon and the stack one craft makes. Bedrock's look draws its
+/// panel and cells, others flat greys (the Java look's book is `java::container::recipe_book`).
 pub fn draw(list: &mut DrawList, theme: &Theme, screen: Layout, results: &[Item], mouse: [f32; 2], size: [f32; 2]) {
     let white = theme.atlas.white();
     let (book, cells) = layout(screen, size, results.len());
-    let java = match &theme.widgets {
-        Widgets::Java(java::Kit { recipe_book: Some(page), recipe_slot: Some(slot), .. }) => Some((*page, *slot)),
-        _ => None,
-    };
     let bedrock = match &theme.widgets {
         Widgets::Bedrock(kit) if kit.panel.is_some() && kit.cell.is_some() => Some(kit),
         _ => None,
     };
-    match (java, bedrock) {
-        (Some((page, _)), _) => list.sprite_stretched(page, book, WHITE),
-        (_, Some(kit)) => kit.paint(list, kit.panel, book, WHITE, 0xC6C6C6),
-        _ => {
+    match bedrock {
+        Some(kit) => kit.paint(list, kit.panel, book, WHITE, 0xC6C6C6),
+        None => {
             list.fill(white, book, EDGE);
             list.fill(white, [book[0] + 1.0, book[1] + 1.0, book[2] - 1.0, book[3] - 1.0], PANEL);
         }
     }
-    // Java's page has its search box where a title would go.
-    if let Some(font) = theme.font.as_ref().filter(|_| java.is_none()) {
+    if let Some(font) = theme.font.as_ref() {
         font.draw(list, "Recipe Book", book[0] + 8.0, book[1] + 6.0, 0x404040, 1.0, false);
     }
     let hovered = hit(screen, size, results.len(), mouse);
     for (i, (rect, item)) in cells.iter().zip(results).enumerate() {
         let [x, y, ..] = *rect;
-        match (java, bedrock) {
-            (Some((_, slot)), _) => list.sprite(slot, x, y, WHITE),
-            (_, Some(kit)) => kit.paint(list, kit.cell, *rect, WHITE, 0x8B8B8B),
-            _ => list.fill(white, *rect, BUTTON),
+        match bedrock {
+            Some(kit) => kit.paint(list, kit.cell, *rect, WHITE, 0x8B8B8B),
+            None => list.fill(white, *rect, BUTTON),
         }
         stack(list, theme.font.as_ref(), *item, x + 4.0, y + 4.0);
         if hovered == Some(i) {

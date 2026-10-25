@@ -68,7 +68,7 @@ impl RecipeScreen {
     }
 
     /// `getRecipeBookButtonPosition`.
-    fn button(&self) -> [i32; 4] {
+    pub fn button(&self) -> [i32; 4] {
         let (left, height) = (self.base.left, self.base.height);
         match self.window {
             Window::Crafting => [left + 5, height / 2 - 49, 20, 18],
@@ -147,6 +147,13 @@ impl Screen for RecipeScreen {
         }
         let big = !matches!(self.window, Window::Inventory { .. });
         self.book.ghost_render(gui, &self.base, big);
+    }
+
+    fn clicked_outside(&self, mouse: [f64; 2]) -> bool {
+        let b = &self.base;
+        let (x, y) = (mouse[0], mouse[1]);
+        let off = x < f64::from(b.left) || y < f64::from(b.top) || x >= f64::from(b.left + b.image_width) || y >= f64::from(b.top + b.image_height);
+        self.book.clicked_outside(mouse, b.left, b.top, b.image_width, b.image_height) && off
     }
 
     fn hovering(&self, x: i32, y: i32, w: i32, h: i32, mouse: [i32; 2]) -> bool {
