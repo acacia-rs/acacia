@@ -123,10 +123,17 @@ by `GuiCapture` (`tools/parity/java/acacia/parity/gui`). See the `gui` rows of `
     entity's place is the PiP pose times `rotY(180° − bodyRot)·S(-1,1,1)`.
   - Banners are composed flat: their face fills the picture unshaded under `ITEMS_FLAT`.
   - Atlas sprite blits are ordinary blits.
-  - Not drawn yet: the enchanting book (needs Java's `BookModel`), maps (no map data), and the
-    bundle tooltip's contents.
-- **Not ported:** Brigadier command suggestions, RTL (bidi) text, hover-event tooltips in text,
-  creative and recipe-book search trees.
+  - A map and other tooltip images come from the `Source` as calls. A bundle's image
+    (`tooltip/bundle.rs`) draws itself.
+  - Not drawn yet: the enchanting book (needs Java's `BookModel` posed by the renderer) and the
+    end portal background.
+- **Text:** `bidi/` ports ICU4J's Bidi and ArabicShaping for right-to-left text. `command/` is a
+  minimal Brigadier (parse, suggestions, usage) for the chat screen's suggestions. Chat lines
+  carry hover-event and tag tooltips.
+- **Frame:** the `gui_frame` harness checks the painter's whole frame. It replays each source's
+  calls through the real `GuiGraphicsExtractor` and compares the painted quads with
+  `GuiRenderer`'s sorted elements.
+- **Not ported:** creative and recipe-book search trees, BookSignScreen.
 
 ## Not yet
 
