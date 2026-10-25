@@ -12,7 +12,7 @@ pub mod slider;
 pub mod tabs;
 pub mod text;
 
-use crate::java::gui::{Gui, Metrics, Pose, PoseOp, IDENTITY, pose_apply, transform};
+use crate::java::gui::{Blend, Gui, GuiDraw, IDENTITY, Metrics, Pose, PoseOp, pose_apply, transform};
 use crate::java::mth::{as8, floor, white};
 use crate::java::text::{Lang, Style, Text};
 
@@ -107,6 +107,12 @@ impl<'a> Ctx<'a> {
         self.gui.scrolling(message, (left + right) / 2, left, right, b.y, b.y + b.h, white(opacity));
     }
 
+    /// `blit(GUI_TEXTURED, texture, x, y, u, v, w, h, texW, texH)`; `texture` without `textures/`
+    /// and `.png`.
+    pub fn blit(&mut self, texture: &'static str, x: i32, y: i32, uv: [f32; 2], w: i32, h: i32, tex: [i32; 2]) {
+        self.gui.draws.push(GuiDraw::Blit { texture: texture.into(), blend: Blend::Textured, x, y, w, h, uv, src: [w, h], tex, color: 0xFFFF_FFFF });
+    }
+
     /// `GuiGraphicsExtractor.centeredText`: centred on `x` with a shadow.
     pub fn centered_text(&mut self, text: Text, x: i32, y: i32, color: u32) {
         let w = self.width(&text);
@@ -151,10 +157,10 @@ impl Base {
 
 /// `WithInactiveMessage.defaultInactiveMessage`.
 pub fn inactive(message: &Text) -> Text {
-    message.clone().with_style(&Style::color(INACTIVE))
+    message.clone().with_style(&Style::color(INACTIVE & 0xFF_FFFF))
 }
 
-/// `-6250336`, the inactive label colour.
+/// `-6250336`, the inactive label colour (a style colour drops the alpha).
 pub const INACTIVE: u32 = 0xFFA0_A0A0;
 
 /// A widget: its `AbstractWidget` state and its `extractWidgetRenderState`.

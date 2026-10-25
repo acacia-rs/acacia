@@ -8,3 +8,4 @@ pub mod gui;
 pub mod hud;
 pub mod mth;
 pub mod text;
+pub mod widget;

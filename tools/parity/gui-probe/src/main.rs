@@ -5,6 +5,7 @@
 //! `tools/parity/gui/guiparity.py`.
 
 mod hud;
+mod screens;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -36,6 +37,7 @@ impl Metrics for Ascii {
 fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
         "hud" => hud::replay,
+        "screens_widgets" => screens::widgets::replay,
         _ => return None,
     })
 }
