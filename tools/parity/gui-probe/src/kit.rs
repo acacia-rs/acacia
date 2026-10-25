@@ -15,11 +15,25 @@ use crate::Assets;
 
 static LANG: OnceLock<HashMap<String, String>> = OnceLock::new();
 
-/// `lang/en_us.json`'s translation of `key`.
+/// `lang/en_us.json`'s translation of `key`, with `lang/deprecated.json` applied as the game loads
+/// it (`DeprecatedTranslationsInfo.applyToMap`: removed keys dropped, renamed keys moved).
 pub fn lang(assets: &Assets) -> impl Fn(&str) -> Option<String> + '_ {
     let map = LANG.get_or_init(|| {
-        let path = assets.root.join("lang/en_us.json");
-        std::fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+        let read = |name: &str| std::fs::read_to_string(assets.root.join(name)).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok());
+        let mut map: HashMap<String, String> = read("lang/en_us.json").and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
+        if let Some(deprecated) = read("lang/deprecated.json") {
+            for key in deprecated["removed"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+                map.remove(key);
+            }
+            for (from, to) in deprecated["renamed"].as_object().into_iter().flatten() {
+                let to = to.as_str().unwrap_or_default().to_owned();
+                match map.remove(from) {
+                    Some(value) => map.insert(to, value),
+                    None => map.remove(&to),
+                };
+            }
+        }
+        map
     });
     move |key: &str| map.get(key).cloned()
 }

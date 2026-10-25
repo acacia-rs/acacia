@@ -1,10 +1,27 @@
 //! Tooltips as `GuiGraphicsExtractor.tooltip` draws them: `ClientTooltipComponent` lines measured
 //! and placed by a `ClientTooltipPositioner`, `TooltipRenderUtil`'s nine-sliced background and
 //! frame, then each line's text and image. `item` builds an item's lines
-//! (`ItemStack.getTooltipLines`); `stack` is the item data they read.
+//! (`ItemStack.getTooltipLines`) from `stack`, the item data, and `game`, the registry facts;
+//! `bundle` is the one tooltip image.
 
+mod attributes;
+pub mod bundle;
+mod contents;
+mod details;
+mod effects;
+mod enchantments;
+mod fireworks;
+mod fmt;
+pub mod game;
 pub mod item;
+mod names;
+mod positioner;
 pub mod stack;
+
+pub use positioner::Positioner;
+
+#[cfg(test)]
+mod tests;
 
 use std::borrow::Cow;
 
@@ -38,55 +55,6 @@ impl Line {
     }
 }
 
-/// A `ClientTooltipPositioner`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Positioner {
-    /// `DefaultTooltipPositioner`: right of and above the mouse, kept on screen.
-    Default,
-    /// `MenuTooltipPositioner` for a widget at `[x, y, w, h]`: right of the mouse, below the
-    /// widget or above it when there is no room.
-    Menu([i32; 4]),
-}
-
-/// `MenuTooltipPositioner.getOffset`.
-fn menu_offset(mouse_y: i32, widget_y: i32, widget_h: i32) -> i32 {
-    let distance = (mouse_y - widget_y).abs().min(widget_h);
-    super::mth::floor(super::mth::lerp(distance as f32 / widget_h as f32, (widget_h - 3) as f32, 5.0) + 0.5)
-}
-
-impl Positioner {
-    /// `positionTooltip(screenWidth, screenHeight, x, y, tooltipWidth, tooltipHeight)`.
-    pub fn place(self, screen: [i32; 2], x: i32, y: i32, w: i32, h: i32) -> [i32; 2] {
-        match self {
-            Positioner::Default => {
-                let (mut x, mut y) = (x + 12, y - 12);
-                if x + w > screen[0] {
-                    x = (x - 24 - w).max(4);
-                }
-                let padded = h + 3;
-                if y + padded > screen[1] {
-                    y = screen[1] - padded;
-                }
-                [x, y]
-            }
-            Positioner::Menu([_, top, _, height]) => {
-                let mut rx = x + 12;
-                if rx + w > screen[0] - 5 {
-                    rx = (x - 12 - w).max(9);
-                }
-                let mut ry = y + 3;
-                let padded = h + 3 + 3;
-                let bottom = top + height;
-                if bottom + 3 + menu_offset(0, 0, height) + padded <= screen[1] - 5 {
-                    ry += menu_offset(ry, top, height);
-                } else {
-                    ry -= padded + menu_offset(ry, bottom, height);
-                }
-                [rx, ry]
-            }
-        }
-    }
-}
 
 /// A tooltip to draw: what `setTooltipForNextFrame` defers.
 #[derive(Clone, Debug, PartialEq)]
