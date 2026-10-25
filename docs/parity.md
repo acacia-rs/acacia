@@ -72,6 +72,33 @@ What is not here stays null on the shells: set it with `Shell.set` in your oracl
 into the bootstrap (tell the oracle owner). Harness `bootstrap` runs each piece once; its oracle
 is the shortest example of each.
 
+Pieces the areas added, shared as they are (their harnesses pin their behaviour):
+
+- `EntityModels`: every entity model layer by name (`LayerDefinitions.createRoots`), a part's
+  cubes and children, part poses by path, `livingRoot(yaw, scale)` (`LivingEntityRenderer`'s root
+  transform) and `ModelPart.render`'s walk to drawn corners. Used by `entity_models`,
+  `entity_poses`, `entity_layers`.
+- `RenderStates.pose(case)`: a model baked from a layer and posed by its own `setupAnim` from a
+  JSON case (`{layer, model, state, swingHand}`; the state class is resolved from the model's
+  generics; `?field` is optional). Same harnesses.
+- `gui/` (GUI harnesses): `GuiCapture`, a `GuiGraphicsExtractor` recording calls (blits, fills,
+  gradients, text runs, items by key, decorations, scissors, strata, blur) as JSON, the call-level
+  counterpart of `Gui.frame`; `GuiGame` (data-pack registries, the client resources with the asset
+  index at `GUI_ASSETS_ROOT`, `ClientLanguage`, every vanilla font via `GuiFonts`, unifont included
+  when the assets are there); `ScreenGame`/`ScreenKit` (a client with a level and a `LocalPlayer`
+  for screen oracles, case loop), `Markers` (picture-in-picture and tooltip images recorded by
+  parameter), `EntityStub`, `TooltipFacts`.
+- `Environments` (atmos): environment attributes over a minimal `ClientLevel` (dimension, clock,
+  rain, thunder, flash), biome blending, a boss-overlay stand-in. `Headless`: shells plus
+  `inert(type)` and GPU-buffer capture for the cloud and sky oracles. `LightShapes` (light): a
+  state's face occlusion shapes as the light engine sees them.
+
+Overlaps left to merge with their owners rather than under running harnesses: three shell helpers
+(`Shell`, `gui/Stub`, `Headless`), three `Minecraft` stand-ins (`Client`, `gui/ScreenGame`,
+`Environments.installMinecraft`; one per JVM), two fonts (`Fonts` jar only, `GuiFonts` with
+unifont from the asset index). New oracles use `Shell`, `Client` and, when they need unifont,
+`GuiFonts`.
+
 ## Adding a harness
 
 1. `tools/parity/harnesses/<name>/`: one directory per harness.
