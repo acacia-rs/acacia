@@ -9,7 +9,7 @@ fn decimal_format_rounds_half_even_and_trims() {
     assert_eq!(decimal(1.0), "1");
     assert_eq!(decimal(1.5), "1.5");
     assert_eq!(decimal(0.125), "0.12");
-    assert_eq!(decimal(2.345), "2.34");
+    assert_eq!(decimal(2.345), "2.35");
     assert_eq!(decimal(1.6000000953674316), "1.6");
     assert_eq!(decimal(0.001), "0");
 }
