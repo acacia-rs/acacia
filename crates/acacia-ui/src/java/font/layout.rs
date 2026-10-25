@@ -5,6 +5,9 @@
 
 use super::provider::{Bitmap, GlyphTexture};
 use super::{Fonts, VisualChar};
+use crate::atlas::Sprite;
+use crate::draw::Quad;
+use crate::java::paint::{Glyphs, argb};
 use crate::java::mth::{JavaRandom, alpha, as8, ceil, scale_rgb, with_alpha};
 use crate::java::text::Text;
 
@@ -47,6 +50,21 @@ impl GlyphQuad {
 pub struct Prepared {
     pub quads: Vec<GlyphQuad>,
     pub bounds: Option<[f32; 4]>,
+}
+
+impl Prepared {
+    /// The painter's quads (`paint::Source::text`): each glyph's texture placed in the atlas by
+    /// `sprite` (a whole sheet, one Unifont glyph or a special glyph; `Fonts::texels`). Quads whose
+    /// texture has no sprite are left out.
+    pub fn glyphs(&self, mut sprite: impl FnMut(&GlyphTexture) -> Option<Sprite>) -> Glyphs {
+        let quads = self.quads.iter().filter_map(|q| {
+            let s = sprite(&q.texture)?;
+            let (x, y) = (s.x as f32, s.y as f32);
+            let uv = [x + q.uv[0], y + q.uv[1], x + q.uv[2], y + q.uv[3]];
+            Some(Quad { skew: q.skew, ..Quad::plain(q.rect, uv, argb(q.color)) })
+        });
+        Glyphs { quads: quads.collect(), bounds: self.bounds }
+    }
 }
 
 /// How text is drawn: `flat` is true in the GUI (depths stay 0), false in the world.
