@@ -145,10 +145,24 @@ impl JavaItems {
         Some(self.layers(item, context)?.first()?.block_light)
     }
 
-    /// The display per context the hands, the ground and frames use.
+    /// The display per context the hands, the ground and frames use, and the ground's bounds.
     pub fn displays(&self, item: &str) -> Displays {
         let contexts = self.items.get(item).into_iter().flatten();
-        Displays(contexts.filter_map(|(context, layers)| Some((context.clone(), Display::java(layers.first()?.transform, context::left_hand(context))))).collect())
+        let displays = contexts.filter_map(|(context, layers)| Some((context.clone(), Display::java(layers.first()?.transform, context::left_hand(context))))).collect();
+        Displays { displays, ground: self.bounds(item, context::GROUND) }
+    }
+
+    /// `ItemStackRenderState.getModelBoundingBox` in `context`: the corners of the layers' quads
+    /// under their displays, `[min, max]`.
+    pub fn bounds(&self, item: &str, context: &str) -> Option<[glam::Vec3; 2]> {
+        let mut corners = self.layers(item, context)?.iter().flat_map(|layer| {
+            let display = Display::java(layer.transform, context::left_hand(context)).frame();
+            self.quads(layer).iter().flat_map(move |quad| {
+                quad.pos.chunks_exact(3).map(move |p| display.transform_point3(glam::Vec3::from_slice(p) - glam::Vec3::splat(0.5)))
+            })
+        });
+        let first = corners.next()?;
+        Some(corners.fold([first, first], |[lo, hi], p| [lo.min(p), hi.max(p)]))
     }
 
     /// `context`'s layers as one textured mesh; `dye` replaces the first tint (dyed leather).
@@ -163,11 +177,15 @@ impl JavaItems {
 
 /// An item's displays by context name.
 #[derive(Debug, Default)]
-pub struct Displays(HashMap<String, Display>);
+pub struct Displays {
+    displays: HashMap<String, Display>,
+    /// [`JavaItems::bounds`] on the ground.
+    pub ground: Option<[glam::Vec3; 2]>,
+}
 
 impl Displays {
     pub fn get(&self, context: &str) -> Option<Display> {
-        self.0.get(context).copied()
+        self.displays.get(context).copied()
     }
 }
 

@@ -66,7 +66,7 @@ pub(super) fn bob_arms(p: &mut Poses, age: f32) {
 }
 
 /// `AnimationUtils.animateCrossbowHold`.
-fn crossbow_hold(p: &mut Poses, in_right: bool) {
+pub(super) fn crossbow_hold(p: &mut Poses, in_right: bool) {
     let head = p.read("head");
     let (hold, shoot) = (arm(in_right), arm(!in_right));
     p.y_rot(hold, if in_right { -0.3 } else { 0.3 } + head.y_rot);
@@ -76,7 +76,7 @@ fn crossbow_hold(p: &mut Poses, in_right: bool) {
 }
 
 /// `AnimationUtils.animateCrossbowCharge`.
-fn crossbow_charge(p: &mut Poses, (max, ticks): (f32, f32), in_right: bool) {
+pub(super) fn crossbow_charge(p: &mut Poses, (max, ticks): (f32, f32), in_right: bool) {
     let (hold, pull) = (arm(in_right), arm(!in_right));
     p.y_rot(hold, if in_right { -0.8 } else { 0.8 });
     p.x_rot(hold, -0.970_796_35);

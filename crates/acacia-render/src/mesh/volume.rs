@@ -2,12 +2,14 @@
 
 use acacia_world::{SECTION_VOLUME, World};
 
+use crate::look::Lighting;
+
 /// Blocks of border on each side: smooth light looks two blocks out along a face's normal.
 pub const BORDER: i32 = 2;
 pub const SIDE: usize = 16 + 2 * BORDER as usize;
 const CELLS: usize = SIDE * SIDE * SIDE;
 /// Stands in for blocks of unloaded neighbour columns, sections not yet received, and below the
-/// world: hides faces towards them, so an edge isn't drawn until its neighbour arrives (which
+/// world (except under Java lighting, [`Volume::gather_lit`]): hides faces towards them, so an edge isn't drawn until its neighbour arrives (which
 /// remeshes it).
 pub const OCCLUDER: u32 = u32::MAX;
 
@@ -66,6 +68,12 @@ impl Volume {
     /// Copies section `section_y` (world y >> 4) of column `(cx, cz)` with its border. `None` when
     /// the column isn't loaded.
     pub fn gather(world: &World, cx: i32, section_y: i32, cz: i32) -> Option<Volume> {
+        Volume::gather_lit(world, cx, section_y, cz, Lighting::Volume)
+    }
+
+    /// [`Volume::gather`] for a look lit by `lighting`: Java's level is `VOID_AIR` below the world,
+    /// so faces towards it draw and its occlusion sees air.
+    pub fn gather_lit(world: &World, cx: i32, section_y: i32, cz: i32, lighting: Lighting) -> Option<Volume> {
         world.get(cx, cz)?;
         let dim = world.dimension();
         let mut v = Volume {
@@ -88,7 +96,8 @@ impl Volume {
                     if !present {
                         // Sections the server hasn't sent yet hide faces like unloaded columns do;
                         // their arrival remeshes the neighbours.
-                        let unknown = below || (index < chunk.section_count() as i32 && !chunk.section_known(index as usize));
+                        let void = below && lighting == Lighting::Volume;
+                        let unknown = void || (!below && index < chunk.section_count() as i32 && !chunk.section_known(index as usize));
                         blocks.fill(if unknown { OCCLUDER } else { dim.air });
                         liquid.fill(dim.air);
                     }

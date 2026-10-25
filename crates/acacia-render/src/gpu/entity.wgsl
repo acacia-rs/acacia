@@ -145,6 +145,14 @@ fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
     return vec4(shaded(in, texel), texel.a);
 }
 
+// Java's `eyes` (EMISSIVE, NO_OVERLAY, NO_CARDINAL_LIGHTING): the texel as it is, fogged, over
+// what is behind by its alpha.
+@fragment
+fn fs_eyes(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = textureSample(skin, skin_sampler, in.uv);
+    return vec4(fogged(texel.rgb, in.dist), texel.a);
+}
+
 // A charged creeper's aura (Java's rendertype_energy_swirl with EnergySwirlLayer's grey): the
 // texture slides over the shell and is added to the frame at half strength, unlit, fading in fog.
 // Java adds sRGB values; this adds linear ones, so it is fainter over a bright background.

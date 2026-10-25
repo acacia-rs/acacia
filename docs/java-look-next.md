@@ -23,14 +23,14 @@ What the dump cannot cover is how the faces are drawn. That is the first item be
 
 Each is checked against the decompiled 26.3 client, not by eye. None is started.
 
-- **World light: done (2026-10-25)** for blocks drawn as cubes or models: the lightmap, smooth
-  light, AO and directional shade per vertex, the light engine's rules and every state's light
-  facts are Java's, checked by harnesses `lightmap`, `smooth_light`, `light_engine` and
-  `light_facts` (docs/parity.md). Left: liquids and cross planes still sample the light volume;
-  the light engine differs in 6 cells at the world's bottom layer, where Java's padding section
-  below keeps light copied in when its data layer is created
-  (`SkyLightSectionStorage.createDataLayer`); nothing checks the whole path (Bedrock chunk to
-  meshed vertex) on a real world yet. Entities take the lightmap through `lightmap(levels)`.
+- **World light: done (2026-10-25).** The lightmap, smooth light, AO and directional shade per
+  vertex (cubes, boxes, models, cross planes), the light engine's rules and every state's light
+  facts are Java's, checked by harnesses `lightmap`, `smooth_light`, `light_engine`,
+  `light_facts` and, end to end on real Bedrock terrain, `world_light` (docs/parity.md).
+  Entities take the lightmap through `lightmap(levels)`. Left, not light: acacia culls faces by
+  whole-block occlusion where Java uses partial face shapes (snow and wall faces it hides still
+  draw here), culls faces against powder snow, and draws leaf litter and some fence states the
+  mapping has no Java state for.
 - **Liquids.** Geometry is the renderer's, after an older `LiquidBlockRenderer`. Compare corner
   heights, the flow angle and the side faces with 26.3's `FluidRenderer`.
 - **Fog.** Both bands are drawn, in the renderer's sky colour. Java's is `fog_color` mixed with
