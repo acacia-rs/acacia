@@ -210,6 +210,13 @@ pub trait Metrics {
         let text = text.resolve_legacy();
         ceil(text.chars().map(|(c, s)| self.advance(c, s)).sum())
     }
+
+    /// `Font.width(FormattedCharSequence)` of the drawn sequence (`Language.getVisualOrder`, or the
+    /// text as it is when `forward`): what a line from `Font.split` measures, shaped and mirrored.
+    fn visual_width(&self, text: &Text) -> i32 {
+        let chars = super::bidi::visual_order(text);
+        ceil(chars.iter().map(|v| self.advance(char::from_u32(v.codepoint).unwrap_or('\u{FFFD}'), &v.style)).sum())
+    }
 }
 
 /// Every character as wide as the field, plus 1 for bold; for tests.

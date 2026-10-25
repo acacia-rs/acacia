@@ -6,6 +6,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.ibm.icu.lang.UCharacter;
+import com.ibm.icu.lang.UProperty;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.serialization.JsonOps;
 import java.nio.charset.StandardCharsets;
@@ -25,15 +27,19 @@ import net.minecraft.client.gui.font.glyphs.BakedSheetGlyph;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.network.chat.FontDescription;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 import org.joml.Matrix4f;
 
 /**
  * The `font` harness's oracle: vanilla's FontManager, FontSet and Font (GuiFonts) on the cases of
  * cases.py. `text`: Font.width of the component and the quads Font.prepareText's glyphs and
  * effects render (GlyphRenderState's flat GUI render, at the identity pose), with the builder's
- * bounds; `glyphs`: every glyph of a font in a codepoint range that is not the missing glyph;
- * `bywidth`: FontSet.glyphsByWidth in its order. Arguments: the out dir and the cases file.
+ * bounds (`rtl` the same on right-to-left text); `visual`: the component's Language.getVisualOrder;
+ * `split`: Font.split's lines; `props`: ICU's bidi properties; `glyphs`: every glyph of a font in a
+ * codepoint range that is not the missing glyph; `bywidth`: FontSet.glyphsByWidth in its order.
+ * Arguments: the out dir and the cases file.
  */
 public final class FontOracle {
     private static final Map<String, GuiFonts> FONTS = new HashMap<>();
@@ -110,7 +116,7 @@ public final class FontOracle {
     static void text(JsonObject c, JsonObject result) throws Exception {
         var fonts = fonts(c);
         Font font = fonts.font(flag(c, "fishy"), c.get("seed").getAsLong());
-        Component text = ComponentSerialization.CODEC.parse(GuiGame.lookup.createSerializationContext(JsonOps.INSTANCE), c.get("text")).getOrThrow();
+        Component text = component(c);
         result.addProperty("width", font.width(text));
         int bg = c.has("bg") ? c.get("bg").getAsInt() : 0;
         var prepared = font.prepareText(text.getVisualOrderText(), c.get("x").getAsFloat(), c.get("y").getAsFloat(),
@@ -127,6 +133,72 @@ public final class FontOracle {
         } else {
             result.add("bounds", JsonNull.INSTANCE);
         }
+    }
+
+    static Component component(JsonObject c) {
+        return ComponentSerialization.CODEC.parse(GuiGame.lookup.createSerializationContext(JsonOps.INSTANCE), c.get("text")).getOrThrow();
+    }
+
+    /** `[rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null, shadow|null]`. */
+    static JsonArray styleKey(Style style) {
+        var k = new JsonArray();
+        if (style.getColor() == null) k.add(JsonNull.INSTANCE); else k.add(style.getColor().getValue());
+        k.add(style.isBold()); k.add(style.isItalic()); k.add(style.isUnderlined());
+        k.add(style.isStrikethrough()); k.add(style.isObfuscated());
+        if (style.getFont() instanceof FontDescription.Resource r && !r.id().equals(Identifier.withDefaultNamespace("default"))) k.add(r.id().toString());
+        else k.add(JsonNull.INSTANCE);
+        if (style.getShadowColor() == null) k.add(JsonNull.INSTANCE); else k.add(style.getShadowColor());
+        return k;
+    }
+
+    /** The sequence as the font's sink receives it: codepoint, whether the position is 0, style. */
+    static void chars(FormattedCharSequence seq, JsonArray out) {
+        seq.accept((position, style, cp) -> {
+            var d = new JsonObject();
+            d.addProperty("type", "char");
+            d.addProperty("cp", cp);
+            d.addProperty("first", position == 0);
+            d.add("style", styleKey(style));
+            out.add(d);
+            return true;
+        });
+    }
+
+    /** `visual`: Language.getVisualOrder of the component. */
+    static void visual(JsonObject c, JsonObject result) {
+        var draws = new JsonArray();
+        chars(component(c).getVisualOrderText(), draws);
+        result.add("draws", draws);
+    }
+
+    /** `split`: Font.split's lines, each its Font.width and its sequence. */
+    static void split(JsonObject c, JsonObject result) throws Exception {
+        Font font = fonts(c).font(false, 0L);
+        var draws = new JsonArray();
+        for (FormattedCharSequence line : font.split(component(c), c.get("width").getAsInt())) {
+            var d = new JsonObject();
+            d.addProperty("type", "line");
+            d.addProperty("width", font.width(line));
+            draws.add(d);
+            chars(line, draws);
+        }
+        result.add("draws", draws);
+    }
+
+    /** `props`: ICU's Bidi_Class, mirror and Bidi_Paired_Bracket_Type where any is not the default. */
+    static void props(JsonObject c, JsonObject result) {
+        var list = new JsonArray();
+        for (int cp = c.get("from").getAsInt(); cp <= c.get("to").getAsInt(); cp++) {
+            int bidi = UCharacter.getIntPropertyValue(cp, UProperty.BIDI_CLASS);
+            int mirror = UCharacter.getMirror(cp);
+            int bracket = UCharacter.getIntPropertyValue(cp, UProperty.BIDI_PAIRED_BRACKET_TYPE);
+            if (bidi == 0 && mirror == cp && bracket == 0) continue;
+            var e = new JsonArray();
+            e.add(cp); e.add(bidi); e.add(mirror); e.add(bracket);
+            list.add(e);
+        }
+        result.add("props", list);
+        result.add("draws", new JsonArray());
     }
 
     static FontSet set(JsonObject c) throws Exception {
@@ -184,6 +256,9 @@ public final class FontOracle {
                 switch (c.get("kind").getAsString()) {
                     case "glyphs" -> glyphs(c, result);
                     case "bywidth" -> byWidth(c, result);
+                    case "visual" -> visual(c, result);
+                    case "split" -> split(c, result);
+                    case "props" -> props(c, result);
                     default -> text(c, result);
                 }
             } catch (Throwable error) {

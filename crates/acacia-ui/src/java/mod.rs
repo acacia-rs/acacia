@@ -3,6 +3,7 @@
 //! probes compare those calls with the game's, and `paint` turns them into quads. Design:
 //! README.md "Java GUI".
 
+pub mod bidi;
 pub mod chat;
 pub mod command;
 pub mod container;
