@@ -16,10 +16,6 @@ use crate::widget::Widgets;
 /// Layout choices the games make differently.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Style {
-    /// Colour of the experience level number.
-    pub xp_colour: u32,
-    /// Java outlines the level in black; Bedrock gives it a drop shadow.
-    pub xp_outline: bool,
     /// Sign text takes Java's dye colours, at 40% unless it glows; Bedrock draws the stored colour.
     pub java_signs: bool,
 }

@@ -73,7 +73,7 @@ impl Subtitle {
 }
 
 /// The listener and options a frame reads.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct SubtitleFrame {
     /// `options.showSubtitles`.
     pub show: bool,

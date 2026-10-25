@@ -224,9 +224,7 @@ impl App {
         }
         self.feed_sky(dt);
         self.feed_fluid(dt);
-        let portrait = self.portrait();
         let Some(r) = &mut self.renderer else { return };
-        r.ui_entities = portrait;
         r.shadows = self.entities.shadows(self.camera.position);
         self.signs.feed(self.settings.look, self.ui.theme(self.settings.look), r);
         r.set_outline(outline);
@@ -258,7 +256,9 @@ impl App {
         let Some(r) = &mut self.renderer else { return };
         let players = self.show_players.then_some(self.players.as_slice());
         let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, form: self.form.as_ref(), book: self.shown.book.as_ref().zip(self.play.me.as_ref().and_then(|m| m.book.as_ref())).map(|(open, held)| open.shown(&held.0)), sign: self.shown.sign.as_ref().map(|s| acacia_ui::sign_editor::Editing { lines: &s.lines, line: s.line, hanging: s.hanging }), players, tags, mouse, size, scale, now };
-        let ui = self.ui.draw(frame);
+        let (atlas, quads, pictures) = self.ui.draw(frame);
+        r.ui_entities = portrait::instances(&self.entities, pictures, self.camera.position);
+        let ui = (atlas, quads);
         let view = match self.mode == Mode::Play && self.play.view_turned() {
             true => Camera { yaw: self.camera.yaw + std::f32::consts::PI, pitch: -self.camera.pitch, ..self.camera },
             false => self.camera,

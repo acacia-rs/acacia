@@ -78,6 +78,9 @@ struct Node {
     up: Option<usize>,
     bounds: Vec<Rect>,
     blits: Vec<Quad>,
+    /// Pictures-in-picture: `GuiRenderer.preparePictureInPicture` adds their blits to the node
+    /// after everything was extracted, so they follow its other blits.
+    pictures: Vec<Quad>,
     glyphs: Vec<Quad>,
 }
 
@@ -154,6 +157,11 @@ impl Layers {
         &mut self.nodes[self.current].blits
     }
 
+    /// The current node's pictures-in-picture, drawn after its blits.
+    pub fn pictures(&mut self) -> &mut Vec<Quad> {
+        &mut self.nodes[self.current].pictures
+    }
+
     /// The current node's glyphs, drawn after its blits.
     pub fn glyphs(&mut self) -> &mut Vec<Quad> {
         &mut self.nodes[self.current].glyphs
@@ -171,6 +179,7 @@ impl Layers {
             while let Some(n) = node {
                 let n = &mut self.nodes[n];
                 out.append(&mut n.blits);
+                out.append(&mut n.pictures);
                 out.append(&mut n.glyphs);
                 node = n.up;
             }

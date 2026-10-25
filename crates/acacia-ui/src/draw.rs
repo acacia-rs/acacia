@@ -19,6 +19,9 @@ pub struct Quad {
     pub blend: Blend,
     /// An enchanted item's icon: the renderer shimmers its opaque texels.
     pub glint: bool,
+    /// Samples the renderer's picture-in-picture texture (window-sized; `uv` in its texels, which
+    /// are window pixels) instead of the atlas.
+    pub picture: bool,
 }
 
 /// How a quad's colour meets what is under it (Java's GUI pipelines' blend functions).
@@ -33,12 +36,20 @@ pub enum Blend {
     Darken,
     /// `src + dst` (`GUI_NAUSEA_OVERLAY`).
     Add,
+    /// `src + dst * (1 - src alpha)` (`GUI_TEXTURED_PREMULTIPLIED_ALPHA`: pictures-in-picture).
+    Premultiplied,
 }
 
 impl Quad {
     /// A flat-coloured, upright, alpha-blended quad.
     pub fn plain(rect: [f32; 4], uv: [f32; 4], color: [u8; 4]) -> Quad {
-        Quad { rect, uv, color, bottom: color, skew: [0.0; 2], blend: Blend::Alpha, glint: false }
+        Quad { rect, uv, color, bottom: color, skew: [0.0; 2], blend: Blend::Alpha, glint: false, picture: false }
+    }
+
+    /// The part `rect` (window pixels) of the picture-in-picture texture, drawn where it was
+    /// rendered: premultiplied, untinted.
+    pub fn picture(rect: [f32; 4]) -> Quad {
+        Quad { blend: Blend::Premultiplied, picture: true, ..Quad::plain(rect, rect, WHITE) }
     }
 }
 

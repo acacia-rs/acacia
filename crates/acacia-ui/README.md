@@ -71,12 +71,11 @@ A `Theme` is an atlas holding the HUD sprites under the names in `hud::sprite`, 
 
 | | Java (`theme::java`) | Bedrock (`theme::bedrock`) |
 |---|---|---|
-| Sprites | The jar's `textures/gui/sprites/hud/*.png`, one per name, copied into the Java look by `lookbake java` | The pack's `textures/ui`: the hotbar assembled from `hotbar_0..8` and the end caps at 65% opacity; hearts, food, armour, air by file; crosshair and experience bar from `textures/gui/icons.png` |
+| Sprites | None for the HUD: the Java look's HUD is `java::hud::frame`, painted from the jar's files; effect icons for screens | The pack's `textures/ui`: the hotbar assembled from `hotbar_0..8` and the end caps at 65% opacity; hearts, food, armour, air by file; crosshair and experience bar from `textures/gui/icons.png` |
 | Font | `textures/font/ascii.png`, characters per `font/include/default.json` | None in the pack: borrows the Java look's `ascii.png` (the same Mojangles glyphs) when that look was baked |
-| Level number | `0x80FF20`, black outline | `0x80FF00`, drop shadow |
 
 Without a font, text is not drawn; the sprites still are. A Java look that was not baked draws the
-Bedrock sprites (the same pixels) with the Java style.
+Bedrock HUD (the same pixels) with the Java style.
 
 ## Signs (`signs.rs`)
 
@@ -114,7 +113,18 @@ by `GuiCapture` (`tools/parity/java/acacia/parity/gui`). See the `gui` rows of `
   - Scissors are intersected and poses applied.
   - Highlight blends are invert and additive.
   - Labels scroll by `defaultScrollingHelper`.
-  - Pictures (entity, book, banner, map, tooltip images) are not painted yet.
+- **Pictures:** a picture-in-picture (entity, book, banner) is placed by its rect, without the
+  pose. It becomes a premultiplied blit (`Quad::picture`) after its node's other blits, as
+  `GuiRenderer.preparePictureInPicture` adds it.
+  - The renderer draws picture entities into a window-sized texture with an orthographic
+    projection and Java's `ENTITY_IN_UI` lights (acacia-render `gpu/over.rs`). The viewer poses
+    them as `PictureInPictureRenderer` does (`app/portrait.rs`).
+  - Java's model space is the mesh's flipped in y (`S(1,-1,1)·T(0,-1.501,0)`), so a living
+    entity's place is the PiP pose times `rotY(180° − bodyRot)·S(-1,1,1)`.
+  - Banners are composed flat: their face fills the picture unshaded under `ITEMS_FLAT`.
+  - Atlas sprite blits are ordinary blits.
+  - Not drawn yet: the enchanting book (needs Java's `BookModel`), maps (no map data), and the
+    bundle tooltip's contents.
 - **Not ported:** Brigadier command suggestions, RTL (bidi) text, hover-event tooltips in text,
   creative and recipe-book search trees.
 
