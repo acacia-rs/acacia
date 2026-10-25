@@ -245,9 +245,9 @@ mod tests {
     }
 
     #[test]
-    fn the_same_quad_matches_from_any_first_vertex() {
+    fn the_same_quad_matches_from_any_first_vertex_but_names_the_order() {
         assert!(compare(&[ours()], &[theirs(0)]).is_empty());
-        assert!(compare(&[ours()], &[theirs(3)]).is_empty());
+        assert_eq!(compare(&[ours()], &[theirs(3)]).into_iter().collect::<Vec<_>>(), ["vertex order"]);
     }
 
     #[test]

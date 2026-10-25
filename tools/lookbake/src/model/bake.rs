@@ -259,6 +259,12 @@ mod tests {
     }
 
     #[test]
+    fn a_turned_face_starts_where_its_new_sides_order_starts() {
+        let [down] = bake(&cube(&[("down", None, None)]), &placed(0, 90, false)).try_into().unwrap();
+        assert_eq!(rounded(down.positions), rounded(face_positions(Down, [0.0; 3], [16.0, 0.0, 16.0])));
+    }
+
+    #[test]
     fn an_element_rotation_with_rescale_reaches_the_block_edge() {
         let rotation = ElementRotation { origin: [8.0, 8.0, 8.0], axis: Some("y".into()), angle: 45.0, x: 0.0, y: 0.0, z: 0.0, rescale: true };
         let face = FaceDef { uv: None, texture: "#all".into(), cullface: None, rotation: None, tintindex: Some(0) };
