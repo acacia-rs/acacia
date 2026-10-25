@@ -13,4 +13,5 @@ path = "src/main.rs"
 
 [dependencies]
 acacia-ui = { path = "../../../crates/acacia-ui" }
-serde_json = "1"
+# float_roundtrip: the default parser can miss the nearest double by an ulp on 17-digit inputs.
+serde_json = { version = "1", features = ["float_roundtrip"] }
