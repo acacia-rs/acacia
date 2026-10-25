@@ -54,8 +54,7 @@ impl Renderer {
     pub fn set_particle_sheet(&mut self, sheet: Sheet) {
         let feed = &mut self.particles;
         feed.sprites.set_sheet(&self.device, &self.queue, &sheet);
-        feed.particles.style = sheet.style;
-        feed.particles.sprites.clear();
+        feed.particles.set_style(sheet.style);
         feed.sheet = Some(sheet);
     }
 
@@ -69,7 +68,7 @@ impl Renderer {
             let blocks = WorldBlocks::new(scene.world());
             let centre = camera.position.floor().as_ivec3();
             for _ in 0..now.saturating_sub(feed.tick).min(MAX_CATCH_UP) {
-                feed.particles.tick(&blocks, Some(centre));
+                feed.particles.tick(&blocks, Some(centre), camera.position);
             }
         }
         feed.tick = now;
@@ -81,7 +80,8 @@ impl Renderer {
         let up = right.cross(forward);
         feed.chips.prepare(&self.device, &self.queue, &feed.particles.chips, partial, camera.position, right, up, light_at);
         if let Some(sheet) = &feed.sheet {
-            feed.sprites.prepare(&self.device, &self.queue, sheet, &feed.particles.sprites, partial, camera.position, right, up, light_at);
+            let draws = feed.particles.draws(sheet, partial, light_at);
+            feed.sprites.prepare(&self.device, &self.queue, &draws, camera.position, right, up);
         }
     }
 }
