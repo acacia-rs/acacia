@@ -6,7 +6,7 @@ use std::sync::{Arc, LazyLock};
 
 use glam::{DVec3, Mat4, Quat, Vec3};
 
-use crate::entity::bake::{Joint, Mesh, Vertex};
+use crate::entity::bake::{Mesh, Vertex};
 use crate::entity::{EntityInstance, Layer, NO_MODEL, NO_TEXTURE, Pose, Skin};
 
 const LINE_SEGMENTS: usize = 16;
@@ -53,8 +53,7 @@ fn unit_box() -> Mesh {
             vertices.extend([c[0], c[1], c[2], c[0], c[2], c[3]]);
         }
     }
-    let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
-    Mesh { vertices, bones: vec!["root".into()], joints: vec![joint] }
+    Mesh::one_bone(vertices)
 }
 
 /// The points a rope hangs through, from `end` (the bobber's feet, or where the lead ties to the
