@@ -8,6 +8,7 @@ mod containers;
 mod creative;
 mod hud;
 mod kit;
+mod recipe_book;
 mod screens;
 mod tooltips;
 mod trading;
@@ -44,6 +45,7 @@ fn replay(harness: &str) -> Option<Replay> {
         "containers" => containers::replay,
         "creative" => creative::replay,
         "hud" => hud::replay,
+        "recipe_book" => recipe_book::replay,
         "tooltips" => tooltips::replay,
         "screens_widgets" => screens::widgets::replay,
         "trading" => trading::replay,

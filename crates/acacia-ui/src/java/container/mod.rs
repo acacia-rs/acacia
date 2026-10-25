@@ -15,6 +15,7 @@ pub mod loom;
 pub mod mount;
 pub mod menus;
 pub mod merchant;
+pub mod recipe_book;
 pub mod simple;
 pub mod stonecutter;
 
