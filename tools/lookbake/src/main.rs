@@ -24,6 +24,7 @@ mod check;
 mod download;
 mod entities;
 mod environment;
+mod fluid;
 mod jar;
 mod java;
 mod light;
@@ -61,7 +62,7 @@ fn main() -> Result<(), Error> {
         Some("java") => {
             let (pack, java, out) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, report) = java::bake_look(&pack, &jar.assets, &mapping);
+            let (look, report) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
             look.save(&out)?;
             biomes::write(&biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &out)?;
             ui::copy(&jar.assets, &out)?;
@@ -110,7 +111,7 @@ fn main() -> Result<(), Error> {
             let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
             let (pack, java) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping);
+            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
             let outcome = check::light::print(&look, &mapping, &truth)?;
             outcome.print_for_parity();
         }

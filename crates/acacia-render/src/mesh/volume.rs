@@ -43,8 +43,7 @@ pub(super) fn biome_cell(x: i32, y: i32, z: i32) -> usize {
 }
 
 impl Volume {
-    /// Every cell `block`, no liquid, biome 0.
-    #[cfg(test)]
+    /// Every cell `block`, liquid 0, biome 0.
     pub fn filled(block: u32) -> Volume {
         Volume { origin: [0; 3], blocks: Box::new([block; CELLS]), liquid: Box::new([0; CELLS]), biomes: Box::new([0; BIOME_CELLS]), nether: false }
     }

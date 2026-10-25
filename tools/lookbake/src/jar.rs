@@ -13,12 +13,13 @@ pub const VERSION: &str = "26.3";
 /// `downloads.client.sha1` of that release.
 const CLIENT_SHA1: &str = "e877b6a07acd633fb3bb475002175cec036e7b87";
 const MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-/// The parts of the jar that are unpacked.
 const ASSETS: &str = "assets/minecraft/";
 const DATA: &str = "data/minecraft/";
 const BIOMES: &str = "data/minecraft/worldgen/biome/";
-/// What the environment attributes are read from ([`crate::environment::write`]).
-const ENVIRONMENT: [&str; 3] = ["data/minecraft/timeline/", "data/minecraft/tags/timeline/", "data/minecraft/dimension_type/"];
+const BLOCK_TAGS: &str = "data/minecraft/tags/block/";
+/// What is unpacked: assets, biomes, block tags, and what the environment attributes are read from
+/// ([`crate::environment::write`]).
+const PARTS: [&str; 6] = [ASSETS, BIOMES, BLOCK_TAGS, "data/minecraft/timeline/", "data/minecraft/tags/timeline/", "data/minecraft/dimension_type/"];
 
 pub struct Jar {
     /// `assets/minecraft`.
@@ -27,10 +28,8 @@ pub struct Jar {
     pub data: PathBuf,
     /// `data/minecraft/worldgen/biome`.
     pub biomes: PathBuf,
-}
-
-fn unpacked(path: &Path) -> bool {
-    path.starts_with(ASSETS) || path.starts_with(BIOMES) || ENVIRONMENT.iter().any(|d| path.starts_with(d))
+    /// `data/minecraft/tags/block`.
+    pub block_tags: PathBuf,
 }
 
 /// `$ACACIA_JAVA_ASSETS`, else `assets/java` under the working directory.
@@ -38,19 +37,19 @@ pub fn default_dir() -> PathBuf {
     std::env::var_os("ACACIA_JAVA_ASSETS").map_or_else(|| PathBuf::from("assets/java"), PathBuf::from)
 }
 
-/// Downloads the pinned client jar into `dir` unless it is there already, and unpacks its assets
-/// and biomes to `dir/<version>`.
+/// Downloads the pinned client jar into `dir` unless it is there already, and unpacks its assets,
+/// biomes and block tags to `dir/<version>`.
 pub fn fetch(dir: &Path) -> Result<Jar, Error> {
     let jar = dir.join(format!("client-{VERSION}.jar"));
     let out = dir.join(VERSION);
-    // An unpack from before biomes or timelines were taken lacks their directory.
-    if !out.join("VERSION").is_file() || !out.join(BIOMES).is_dir() || !out.join(ENVIRONMENT[0]).is_dir() {
+    // An unpack from before a part was taken lacks its directory.
+    if !out.join("VERSION").is_file() || PARTS.iter().any(|part| !out.join(part).is_dir()) {
         pinned(&jar, CLIENT_SHA1, download_client)?;
         let files = unpack(&jar, &out)?;
         std::fs::write(out.join("VERSION"), VERSION)?;
         println!("{}: {files} files", out.display());
     }
-    Ok(Jar { assets: out.join(ASSETS), data: out.join(DATA), biomes: out.join(BIOMES) })
+    Ok(Jar { assets: out.join(ASSETS), data: out.join(DATA), biomes: out.join(BIOMES), block_tags: out.join(BLOCK_TAGS) })
 }
 
 /// The pinned version's package JSON (downloads, asset index).
@@ -68,15 +67,14 @@ fn download_client() -> Result<Vec<u8>, Error> {
     get(url)
 }
 
-/// Unpacks the jar's assets, biomes, timelines and dimension types under `out`; returns the file
-/// count.
+/// Unpacks the jar's [`PARTS`] under `out`; returns the file count.
 fn unpack(jar: &Path, out: &Path) -> Result<usize, Error> {
     let mut archive = zip::ZipArchive::new(File::open(jar)?)?;
     let mut files = 0;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
         // `enclosed_name` drops entries that would land outside `out`.
-        let Some(path) = entry.enclosed_name().filter(|p| entry.is_file() && unpacked(p)) else { continue };
+        let Some(path) = entry.enclosed_name().filter(|p| entry.is_file() && PARTS.iter().any(|part| p.starts_with(part))) else { continue };
         let to = out.join(path);
         std::fs::create_dir_all(to.parent().expect("an assets path has a parent"))?;
         std::io::copy(&mut entry, &mut File::create(to)?)?;
@@ -92,7 +90,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_assets_and_environment_data_are_unpacked() {
+    fn only_assets_biomes_block_tags_and_environment_data_are_unpacked() {
         let dir = std::env::temp_dir().join(format!("lookbake-jar-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -104,7 +102,7 @@ mod tests {
             ("data/minecraft/timeline/day.json", "{}"),
             ("data/minecraft/tags/timeline/in_overworld.json", "{}"),
             ("data/minecraft/dimension_type/overworld.json", "{}"),
-            ("data/minecraft/tags/block/logs.json", "x"),
+            ("data/minecraft/tags/block/leaves.json", "{}"),
             ("data/minecraft/recipe/stick.json", "x"),
             ("net/minecraft/Main.class", "x"),
             ("../assets/minecraft/escape.json", "x"),
@@ -116,8 +114,9 @@ mod tests {
         zip.finish().unwrap();
 
         let out = dir.join("out");
-        assert_eq!(unpack(&jar, &out).unwrap(), 5);
-        assert!(out.join(BIOMES).join("plains.json").is_file() && !out.join("data/minecraft/recipe").exists() && !out.join("data/minecraft/tags/block").exists());
+        assert_eq!(unpack(&jar, &out).unwrap(), 6);
+        assert!(out.join(BIOMES).join("plains.json").is_file() && !out.join("data/minecraft/recipe").exists());
+        assert!(out.join(BLOCK_TAGS).join("leaves.json").is_file());
         assert_eq!(std::fs::read_to_string(out.join("assets/minecraft/blockstates/stone.json")).unwrap(), "{}");
         assert!(!dir.join("assets").exists() && !out.join("net").exists());
         std::fs::remove_dir_all(&dir).unwrap();
