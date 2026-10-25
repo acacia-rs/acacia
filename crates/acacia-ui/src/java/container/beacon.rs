@@ -58,7 +58,26 @@ impl Button {
 pub struct Beacon {
     pub base: Base,
     buttons: Vec<Button>,
+    /// The chosen effects by path (`speed`).
+    pub primary: Option<String>,
+    pub secondary: Option<String>,
+    levels: i32,
+    payment: bool,
 }
+
+/// What a press on the beacon's buttons did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BeaconPress {
+    /// A power chosen: `primary` and `secondary` hold the choice.
+    Chose,
+    /// Confirm: `ServerboundSetBeaconPacket` with the choice, then the screen closes.
+    Confirm,
+    Cancel,
+}
+
+/// The draw keys of the payment items under the slot (emerald, diamond, gold, iron, netherite)
+/// for a painter: `PAYMENT + i`. The oracle keys them -1.
+pub const PAYMENT: i32 = -1100;
 
 impl Beacon {
     /// The screen after a tick: buttons as `updateStatus(levels)` leaves them for the chosen
@@ -81,8 +100,16 @@ impl Beacon {
         buttons.push(upgrade);
         buttons.push(Button { kind: Kind::Confirm, x: left + 164, y: top + 107, active: true, selected: false, visible: true });
         buttons.push(Button { kind: Kind::Cancel, x: left + 190, y: top + 107, active: true, selected: false, visible: true });
-        let levels = station.data(0);
-        for b in &mut buttons {
+        let (primary, secondary) = (primary.map(str::to_owned), secondary.map(str::to_owned));
+        let mut beacon = Beacon { base, buttons, primary, secondary, levels: station.data(0), payment };
+        beacon.update_buttons();
+        beacon
+    }
+
+    /// `updateButtons`: each button's `updateStatus(levels)`.
+    fn update_buttons(&mut self) {
+        let (primary, secondary, levels) = (self.primary.as_deref(), self.secondary.as_deref(), self.levels);
+        for b in &mut self.buttons {
             match &mut b.kind {
                 Kind::Power { upgrade: true, effect, tier, .. } => {
                     b.visible = primary.is_some();
@@ -96,11 +123,32 @@ impl Beacon {
                     b.active = *tier < levels;
                     b.selected = Some(effect.as_str()) == if *is_primary { primary } else { secondary };
                 }
-                Kind::Confirm => b.active = payment && primary.is_some(),
+                Kind::Confirm => b.active = self.payment && primary.is_some(),
                 Kind::Cancel => {}
             }
         }
-        Beacon { base, buttons }
+    }
+
+    /// `mouseClicked` on the buttons (left only): a power's `onPress`, confirm or cancel.
+    pub fn mouse_clicked(&mut self, mouse: [f64; 2]) -> Option<BeaconPress> {
+        let hit = |b: &Button| b.visible && b.active && mouse[0] >= f64::from(b.x) && mouse[1] >= f64::from(b.y) && mouse[0] < f64::from(b.x + 22) && mouse[1] < f64::from(b.y + 22);
+        let b = self.buttons.iter().find(|b| hit(b))?;
+        let (effect, primary) = match &b.kind {
+            Kind::Confirm => return Some(BeaconPress::Confirm),
+            Kind::Cancel => return Some(BeaconPress::Cancel),
+            Kind::Power { .. } if b.selected => return Some(BeaconPress::Chose),
+            Kind::Power { effect, primary, .. } => (effect.clone(), *primary),
+        };
+        if primary {
+            if self.secondary.as_ref() != Some(&effect) {
+                self.secondary = None;
+            }
+            self.primary = Some(effect);
+        } else {
+            self.secondary = Some(effect);
+        }
+        self.update_buttons();
+        Some(BeaconPress::Chose)
     }
 }
 
@@ -118,8 +166,8 @@ impl Screen for Beacon {
         let b = &self.base;
         let (xo, yo) = ((b.width - b.image_width) / 2, (b.height - b.image_height) / 2);
         blit(gui, "gui/container/beacon", xo, yo, [0.0, 0.0], b.image_width, b.image_height);
-        for x in [20, 41, 41 + 22, 42 + 44, 42 + 66] {
-            gui.item(-1, xo + x, yo + 109, 0);
+        for (i, x) in [20, 41, 41 + 22, 42 + 44, 42 + 66].into_iter().enumerate() {
+            gui.item(if b.distinct_keys { PAYMENT + i as i32 } else { -1 }, xo + x, yo + 109, 0);
         }
     }
 

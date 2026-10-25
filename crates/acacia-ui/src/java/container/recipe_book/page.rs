@@ -18,7 +18,7 @@ pub fn layout(book: &Book) -> (Vec<usize>, usize, usize) {
 }
 
 /// The collection under page button `b`.
-fn collection(book: &Book, b: usize) -> Option<&Collection> {
+pub(super) fn collection(book: &Book, b: usize) -> Option<&Collection> {
     let (listed, page, _) = layout(book);
     listed.get(page * PER_PAGE + b).map(|&c| &book.collections[c])
 }
@@ -82,7 +82,7 @@ pub fn render(book: &mut Book, gui: &mut Gui, env: &Env, mouse: [i32; 2], partia
     }
     gui.next_stratum();
     if let Some(b) = book.overlay.filter(|&b| b < shown) {
-        overlay(book, gui, mouse, b, [xo + 11 + 25 * (b as i32 % 5), yo + 31 + 25 * (b as i32 / 5)]);
+        overlay(book, gui, mouse, b);
     }
 }
 
@@ -147,23 +147,44 @@ fn overlay_origin(book: &Book, bx: i32, by: i32, total: i32) -> [i32; 2] {
     [x, y]
 }
 
-/// `OverlayRecipeComponent.extractRenderState` of page button `b` at `at`: craftable recipes first.
-fn overlay(book: &Book, gui: &mut Gui, mouse: [i32; 2], b: usize, at: [i32; 2]) {
-    let Some(c) = collection(book, b) else { return };
-    let mut recipes: Vec<(&Entry, bool)> = c.entries.iter().filter(|e| e.craftable).map(|e| (e, true)).collect();
+/// An open overlay's buttons: the collection's entry each stands for, whether it is craftable,
+/// and its corner.
+pub struct OverlayButton {
+    pub entry: usize,
+    pub craftable: bool,
+    pub at: [i32; 2],
+}
+
+/// `OverlayRecipeComponent.init` of page button `b`: its corner, buttons per row, and its
+/// buttons, craftable recipes first.
+pub fn overlay_buttons(book: &Book, b: usize) -> Option<([i32; 2], i32, Vec<OverlayButton>)> {
+    let [xo, yo] = book.origin();
+    let c = collection(book, b)?;
+    let mut recipes: Vec<(usize, bool)> = c.entries.iter().enumerate().filter(|(_, e)| e.craftable).map(|(i, _)| (i, true)).collect();
     if !book.filtering {
-        recipes.extend(c.entries.iter().filter(|e| e.selected && !e.craftable).map(|e| (e, false)));
+        recipes.extend(c.entries.iter().enumerate().filter(|(_, e)| e.selected && !e.craftable).map(|(i, _)| (i, false)));
     }
     let total = recipes.len() as i32;
     let max_row = if total <= 16 { 4 } else { 5 };
-    let [x, y] = overlay_origin(book, at[0], at[1], total);
+    let [x, y] = overlay_origin(book, xo + 11 + 25 * (b as i32 % 5), yo + 31 + 25 * (b as i32 / 5), total);
+    let buttons = recipes.into_iter().enumerate().map(|(i, (entry, craftable))| {
+        let i = i as i32;
+        OverlayButton { entry, craftable, at: [x + 4 + 25 * (i % max_row), y + 5 + 25 * (i / max_row)] }
+    });
+    Some(([x, y], max_row, buttons.collect()))
+}
+
+/// `OverlayRecipeComponent.extractRenderState` of page button `b`.
+fn overlay(book: &Book, gui: &mut Gui, mouse: [i32; 2], b: usize) {
+    let Some(([x, y], max_row, buttons)) = overlay_buttons(book, b) else { return };
+    let Some(c) = collection(book, b) else { return };
+    let total = buttons.len() as i32;
     let rows = ceil(total as f32 / max_row as f32);
     gui.sprite("recipe_book/overlay_recipe", x, y, total.min(max_row) * 25 + 8, rows * 25 + 8);
     let family = if book.kind.furnace() { "furnace" } else { "crafting" };
     let index = book.index();
-    for (i, (entry, craftable)) in recipes.into_iter().enumerate() {
-        let i = i as i32;
-        let (bx, by) = (x + 4 + 25 * (i % max_row), y + 5 + 25 * (i / max_row));
+    for OverlayButton { entry, craftable, at: [bx, by] } in buttons {
+        let entry = &c.entries[entry];
         let hovered = widgets::hovered([bx, by, 24, 24], mouse);
         let sprite = format!(
             "recipe_book/{family}_overlay{}{}",
