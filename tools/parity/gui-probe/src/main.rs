@@ -38,6 +38,7 @@ fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
         "hud" => hud::replay,
         "screens_widgets" => screens::widgets::replay,
+        "screens_menus" => screens::menus::replay,
         _ => return None,
     })
 }

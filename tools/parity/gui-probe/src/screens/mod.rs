@@ -2,6 +2,7 @@
 //! their replays.
 
 pub mod layouts;
+pub mod menus;
 pub mod widgets;
 
 use std::collections::HashMap;

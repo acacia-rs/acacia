@@ -8,33 +8,15 @@ AbstractWidget state (active, visible, alpha, focused) and sometimes a scissor a
 import argparse
 import json
 import random
+import sys
+from pathlib import Path
 
-KEYS = ['menu.returnToGame', 'gui.done', 'gui.cancel', 'options.title', 'menu.options', 'gui.advancements', 'gui.stats',
-        'menu.disconnect', 'menu.returnToMenu', 'options.accessibility.title', 'options.fov', 'deathScreen.respawn',
-        'selectWorld.edit', 'options.skinCustomisation.title', 'menu.shareToLan', 'gui.yes', 'gui.no',
-        'options.accessibility.high_contrast', 'options.chat.title', 'controls.keybinds.title', 'options.online.title']
-WORDS = ['alpha', 'beta', 'gamma', 'Delta', 'iron', 'X', 'wide', 'WWWWWW', 'il1', 'a', 'the', 'quick', 'brown', 'fox', '%']
-COLORS = ['red', 'gold', 'aqua', '#336699', 'dark_gray', 'yellow']
-SIZES = dict(width=[427, 320, 480, 640, 961, 200], height=[240, 255, 270, 360, 501, 150])
-
-
-def words(rng, lo, hi):
-    return ' '.join(rng.choice(WORDS) for _ in range(rng.randint(lo, hi)))
-
-
-def message(rng, lo=1, hi=4):
-    r = rng.random()
-    if r < 0.4:
-        return {'translate': rng.choice(KEYS)}
-    if r < 0.6:
-        return {'text': words(rng, lo, hi), 'color': rng.choice(COLORS), 'bold': rng.random() < 0.4}
-    if r < 0.7:
-        return [{'text': words(rng, 1, 2) + ' '}, {'text': words(rng, 1, 2), 'italic': True, 'color': rng.choice(COLORS)}]
-    return words(rng, lo, hi)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'gui'))
+from screencases import HEIGHTS, WIDTHS, message  # noqa: E402
 
 
 def base(rng, w=None, h=None):
-    width, height = rng.choice(SIZES['width']), rng.choice(SIZES['height'])
+    width, height = rng.choice(WIDTHS), rng.choice(HEIGHTS)
     w = w if w is not None else rng.choice([20, 98, 150, 200, 204, 310, rng.randint(10, 300)])
     h = h if h is not None else rng.choice([20, 20, 20, 12, 24, rng.randint(8, 40)])
     x, y = rng.randint(-10, max(0, width - w)), rng.randint(-5, max(0, height - h))

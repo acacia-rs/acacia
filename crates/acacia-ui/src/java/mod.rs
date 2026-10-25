@@ -7,5 +7,6 @@ pub mod encode;
 pub mod gui;
 pub mod hud;
 pub mod mth;
+pub mod screen;
 pub mod text;
 pub mod widget;
