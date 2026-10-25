@@ -66,9 +66,19 @@ fn fog_dist(rel: vec3<f32>) -> vec2<f32> {
     return vec2(select(sphere, max(length(rel.xz), abs(rel.y)), g.fog_shape.y != 0.0), sphere);
 }
 
-fn fogged(rgb: vec3<f32>, dist: vec2<f32>) -> vec3<f32> {
+// How much of the fog colour covers a point at `dist` ([`fog_dist`]), 0 to 1.
+fn fog_value(dist: vec2<f32>) -> f32 {
     let ramp = saturate((dist.x - g.fog_shape.x) / (g.fog.w - g.fog_shape.x));
     let fog = select(smoothstep(0.0, 1.0, ramp), ramp, g.fog_shape.z != 0.0);
     let haze = select(0.0, saturate((dist.y - g.haze.x) / (g.haze.y - g.haze.x)), g.haze.y > 0.0);
-    return mix(rgb, g.fog.rgb, max(fog, haze));
+    return max(fog, haze);
+}
+
+// A colour Java writes as is, for the sRGB target.
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    return select(pow((c + 0.055) / 1.055, vec3(2.4)), c / 12.92, c <= vec3(0.04045));
+}
+
+fn fogged(rgb: vec3<f32>, dist: vec2<f32>) -> vec3<f32> {
+    return mix(rgb, g.fog.rgb, fog_value(dist));
 }

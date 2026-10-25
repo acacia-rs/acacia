@@ -1,26 +1,37 @@
-//! The cloud pass (`clouds.wgsl`): [`crate::clouds`] boxes around the camera, drifting at Java's
-//! 0.03 blocks a tick. Translucent like Java's: a depth-only pass first, then colour where the
-//! depth matches, so only the nearest cloud face shows.
+//! The cloud pass (`clouds.wgsl`): the faces of [`crate::clouds::build_mesh`], rebuilt when the
+//! camera's cell, side of the layer or the cloud status change, drawn as 26.3's `CLOUDS` (culled)
+//! and `FLAT_CLOUDS` (not) pipelines: translucent, depth tested and written.
 
 use glam::DVec3;
 use image::RgbaImage;
 
 use super::pipeline::DEPTH_FORMAT;
-use crate::clouds::{self, CELL, CloudLayer, CloudMap, CloudVertex};
+use crate::clouds::{self, CloudLayer, CloudMap, RelativePos};
 
-/// Blocks per second the clouds drift (+x).
-const DRIFT: f64 = 0.03 * 20.0;
-/// Cells drawn around the camera's cell.
-const RADIUS: i32 = 32;
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    shade: f32,
+}
+
+/// What the mesh was built for: cell, side of the layer, fancy, radius in cells.
+type MeshKey = ([i32; 2], RelativePos, bool, i32);
+
+struct Mesh {
+    vertices: wgpu::Buffer,
+    indices: wgpu::Buffer,
+    index_count: u32,
+    key: MeshKey,
+}
 
 pub struct CloudPass {
-    depth: wgpu::RenderPipeline,
-    color: wgpu::RenderPipeline,
+    /// Fancy (culled), then flat.
+    pipelines: [wgpu::RenderPipeline; 2],
     bind_group: wgpu::BindGroup,
     uniform: wgpu::Buffer,
     map: Option<CloudMap>,
-    /// The mesh, its vertex count, the cell it is centred on and whether it is the fancy one.
-    mesh: Option<(wgpu::Buffer, u32, ([i32; 2], bool))>,
+    mesh: Option<Mesh>,
     visible: bool,
 }
 
@@ -52,7 +63,7 @@ impl CloudPass {
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("clouds"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
-        let pipeline = |write_depth: bool, compare, blend, mask| {
+        let pipeline = |cull_mode| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("clouds"),
                 layout: Some(&pipeline_layout),
@@ -61,16 +72,16 @@ impl CloudPass {
                     entry_point: Some("vs_main"),
                     compilation_options: Default::default(),
                     buffers: &[Some(wgpu::VertexBufferLayout {
-                        array_stride: size_of::<CloudVertex>() as u64,
+                        array_stride: size_of::<Vertex>() as u64,
                         step_mode: wgpu::VertexStepMode::Vertex,
                         attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32],
                     })],
                 },
-                primitive: wgpu::PrimitiveState::default(),
+                primitive: wgpu::PrimitiveState { cull_mode, ..Default::default() },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
-                    depth_write_enabled: Some(write_depth),
-                    depth_compare: Some(compare),
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
@@ -79,57 +90,64 @@ impl CloudPass {
                     module: &shader,
                     entry_point: Some("fs_main"),
                     compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState { format: color, blend, write_mask: mask })],
+                    targets: &[Some(wgpu::ColorTargetState { format: color, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::COLOR })],
                 }),
                 multiview_mask: None,
                 cache: None,
             })
         };
-        let depth = pipeline(true, wgpu::CompareFunction::Greater, None, wgpu::ColorWrites::empty());
-        let color = pipeline(false, wgpu::CompareFunction::Equal, Some(wgpu::BlendState::ALPHA_BLENDING), wgpu::ColorWrites::COLOR);
-        CloudPass { depth, color, bind_group, uniform, map: None, mesh: None, visible: false }
+        CloudPass { pipelines: [pipeline(Some(wgpu::Face::Back)), pipeline(None)], bind_group, uniform, map: None, mesh: None, visible: false }
     }
 
     pub fn set_texture(&mut self, image: &RgbaImage) {
         (self.map, self.mesh) = (Some(CloudMap::new(image)), None);
     }
 
-    /// `layer` is `None` where there are no clouds (the Nether, the End); `tint` from
-    /// [`crate::sky::cloud_tint`].
-    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, camera: DVec3, layer: Option<CloudLayer>, tint: f32, seconds: f64) {
+    /// `layer` is `None` where there are no clouds or they are off; `ticks` the level's game
+    /// time, its fraction the partial tick.
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, camera: DVec3, layer: Option<CloudLayer>, ticks: f64) {
         self.visible = false;
-        let (Some(CloudLayer { height, fancy }), Some(map)) = (layer, &self.map) else { return };
-        let cells = [(camera.x + seconds * DRIFT) / f64::from(CELL), camera.z / f64::from(CELL)];
-        let centre = cells.map(|c| c.floor() as i32);
-        if self.mesh.as_ref().is_none_or(|(_, _, of)| *of != (centre, fancy)) {
-            let build = if fancy { clouds::boxes } else { clouds::sheet };
-            let vertices: Vec<CloudVertex> = build(map, centre[0], centre[1], RADIUS)
-                .into_iter()
-                .map(|v| CloudVertex { position: [v.position[0] - centre[0] as f32, v.position[1], v.position[2] - centre[1] as f32], ..v })
-                .collect();
-            let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("clouds"),
-                size: (vertices.len().max(1) * size_of::<CloudVertex>()) as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            queue.write_buffer(&buffer, 0, bytemuck::cast_slice(&vertices));
-            self.mesh = Some((buffer, vertices.len() as u32, (centre, fancy)));
+        let (Some(layer), Some(map)) = (layer.filter(|l| l.color >> 24 > 0), &self.map) else { return };
+        let frame = clouds::frame(map, layer.height, camera, ticks.floor() as i64, ticks.fract() as f32);
+        let radius = clouds::radius_cells(layer.range);
+        let key = (frame.cell, frame.pos, layer.fancy, radius);
+        if self.mesh.as_ref().is_none_or(|m| m.key != key) {
+            self.mesh = Some(build(device, queue, map, &frame, layer.fancy, radius, key));
         }
-        let offset = [cells[0] - f64::from(centre[0]), cells[1] - f64::from(centre[1])];
-        let reach = RADIUS as f32 * CELL;
-        let uniform = [offset[0] as f32, offset[1] as f32, (f64::from(height) - camera.y) as f32, reach, tint, tint, tint, 1.0];
+        let [r, g, b, a] = clouds::color(layer.color);
+        let uniform = [r, g, b, a, frame.offset.x, frame.offset.y, frame.offset.z, layer.fog_end];
         queue.write_buffer(&self.uniform, 0, bytemuck::cast_slice(&uniform));
-        self.visible = true;
+        self.visible = self.mesh.as_ref().is_some_and(|m| m.index_count > 0);
     }
 
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
-        let Some((buffer, count, _)) = self.mesh.as_ref().filter(|_| self.visible) else { return };
+        let Some(mesh) = self.mesh.as_ref().filter(|_| self.visible) else { return };
+        pass.set_pipeline(&self.pipelines[usize::from(!mesh.key.2)]);
         pass.set_bind_group(0, &self.bind_group, &[]);
-        pass.set_vertex_buffer(0, buffer.slice(..));
-        for pipeline in [&self.depth, &self.color] {
-            pass.set_pipeline(pipeline);
-            pass.draw(0..*count, 0..1);
-        }
+        pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+        pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+        pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+    }
+}
+
+fn build(device: &wgpu::Device, queue: &wgpu::Queue, map: &CloudMap, frame: &clouds::CloudFrame, fancy: bool, radius: i32, key: MeshKey) -> Mesh {
+    let faces = clouds::build_mesh(map, frame, fancy, radius);
+    let mut vertices = Vec::with_capacity(faces.len() * 4);
+    for face in &faces {
+        let (corners, shade) = clouds::face_quad(face);
+        vertices.extend(corners.map(|c| Vertex { position: c.to_array(), shade }));
+    }
+    // Quads as the game's sequential index buffer splits them.
+    let indices: Vec<u32> = (0..faces.len() as u32).flat_map(|q| [0, 1, 2, 2, 3, 0].map(|i| q * 4 + i)).collect();
+    let buffer = |label, bytes: &[u8], usage| {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size: bytes.len().max(4) as u64, usage: usage | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        queue.write_buffer(&buffer, 0, bytes);
+        buffer
+    };
+    Mesh {
+        vertices: buffer("clouds", bytemuck::cast_slice(&vertices), wgpu::BufferUsages::VERTEX),
+        indices: buffer("clouds indices", bytemuck::cast_slice(&indices), wgpu::BufferUsages::INDEX),
+        index_count: indices.len() as u32,
+        key,
     }
 }

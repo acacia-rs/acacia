@@ -218,8 +218,9 @@ impl Renderer {
         // Rain and clouds only under an open sky: the server's rain level outlasts a trip to the End.
         let open_sky = world.as_ref().is_none_or(|w| w.dimension().sky);
         let (rain, clouds) = if open_sky { (self.weather.rain, self.clouds) } else { (0.0, None) };
-        self.weather_pass.prepare(&self.queue, world.as_deref(), &self.biomes, camera.position, rain, self.started.elapsed().as_secs_f32());
-        self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, crate::sky::cloud_tint(self.weather), self.started.elapsed().as_secs_f64());
+        // TODO: the level's game time; the renderer's clock stands in for it.
+        let ticks = self.started.elapsed().as_secs_f64() * 20.0;
+        self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, ticks);
         self.bolt_pass.prepare(&self.device, &self.queue, &self.bolts, camera.position);
         self.prepare_shadows(camera.position);
         clock.mark("effects");
@@ -249,6 +250,9 @@ impl Renderer {
             self.ui_pass.prepare(&self.device, &self.queue, atlas, quads, [self.config.width, self.config.height], crate::glint::scroll(self.started.elapsed().as_millis() as u64));
         }
         self.sign_text.prepare(&self.device, &self.queue, self.ui_pass.texture.as_ref(), self.block_models.sign_text(), camera.position, light_at);
+        let weather_light = |p: [i32; 3]| light.at(glam::IVec3::from(p).as_dvec3()).map(|l| l as u8);
+        let level = world.as_deref().map(|world| crate::weather::level::WorldWeather { world, biomes: &*self.biomes, light: &weather_light });
+        self.weather_pass.prepare(&self.queue, level.as_ref(), camera.position, rain, ticks);
         drop(light);
         clock.mark("entities+ui");
         let frustum = Frustum::new(view_proj);
