@@ -5,6 +5,7 @@
 //! `tools/parity/gui/guiparity.py`.
 
 mod hud;
+mod lang;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
