@@ -33,6 +33,7 @@ fn same_location(a: Vec3, b: Vec3) -> bool {
 
 #[derive(Clone, Debug)]
 struct Subtitle {
+    key: String,
     text: Text,
     range: f32,
     played: Vec<PlayedAt>,
@@ -98,16 +99,16 @@ impl SubtitleOverlay {
         self.listening
     }
 
-    /// `onPlaySound` at `now`: `subtitle` is the event's caption, if it has one; one already listed
-    /// (by its text) is refreshed at `location`.
-    pub fn on_play(&mut self, subtitle: Option<Text>, location: Vec3, range: f32, looping: bool, now: i64) {
-        let Some(text) = subtitle else { return };
-        if let Some(s) = self.subtitles.iter_mut().find(|s| s.text == text) {
+    /// `onPlaySound` at `now`: `subtitle` is the event's caption, if it has one, as its translation
+    /// key (what the components' `equals` compares) and text; one already listed is refreshed.
+    pub fn on_play(&mut self, subtitle: Option<(String, Text)>, location: Vec3, range: f32, looping: bool, now: i64) {
+        let Some((key, text)) = subtitle else { return };
+        if let Some(s) = self.subtitles.iter_mut().find(|s| s.key == key) {
             s.played.retain(|p| !same_location(location, p.location));
             s.played.push(PlayedAt { location, time: now });
             return;
         }
-        self.subtitles.push(Subtitle { text, range, played: vec![PlayedAt { location, time: now }], looping });
+        self.subtitles.push(Subtitle { key, text, range, played: vec![PlayedAt { location, time: now }], looping });
     }
 
     /// `extractRenderState` at `now`: starts or stops listening as the option says, forgets old
@@ -173,8 +174,8 @@ mod tests {
     use super::*;
     use crate::java::gui::Fixed;
 
-    fn sub(t: &str) -> Option<Text> {
-        Some(Text::literal(t))
+    fn sub(t: &str) -> Option<(String, Text)> {
+        Some((t.to_owned(), Text::literal(t)))
     }
 
     #[test]

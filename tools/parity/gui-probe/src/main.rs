@@ -6,6 +6,7 @@
 
 mod hud;
 mod lang;
+mod subtitles;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -37,6 +38,7 @@ impl Metrics for Ascii {
 fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
         "hud" => hud::replay,
+        "subtitles" => subtitles::replay,
         _ => return None,
     })
 }

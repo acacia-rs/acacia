@@ -8,4 +8,5 @@ pub mod hotbar;
 pub mod overlays;
 pub mod sidebar;
 pub mod sort;
+pub mod subtitles;
 pub mod titles;
