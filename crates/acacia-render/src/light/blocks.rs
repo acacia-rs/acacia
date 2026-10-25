@@ -83,7 +83,8 @@ impl LightBlocks for WorldBlocks<'_> {
         let (mut blocks, mut liquid) = (Box::new([0; SECTION_VOLUME]), Box::new([0; SECTION_VOLUME]));
         let dim = self.world.dimension();
         let sections = (0..dim.height as usize / 16).map(|index| {
-            chunk.copy_section(index, &mut blocks, &mut liquid).then(|| {
+            let air_only = chunk.section_uniform(index) == Some(dim.air);
+            (!air_only && chunk.copy_section(index, &mut blocks, &mut liquid)).then(|| {
                 let mut cells = Box::new([Cell::default(); SECTION_VOLUME]);
                 (0..SECTION_VOLUME).for_each(|i| cells[i] = self.table.of(blocks[i], liquid[i]));
                 cells

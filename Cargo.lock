@@ -109,6 +109,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "acacia-gui-probe"
+version = "0.1.0"
+dependencies = [
+ "acacia-ui",
+ "serde_json",
+]
+
+[[package]]
 name = "acacia-mitm"
 version = "0.1.0"
 dependencies = [

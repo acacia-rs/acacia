@@ -1,5 +1,6 @@
 //! The HUD and chat over the world, in the theme of the chosen look (acacia-ui).
 
+mod java_hud;
 mod screen;
 
 use std::collections::HashMap;
@@ -97,6 +98,7 @@ pub struct Ui {
     selected: Option<(u8, String)>,
     /// When each effect (as the server sent it) was first seen, to count its time down.
     effects_seen: HashMap<(i32, i32, u64), Instant>,
+    java_hud: java_hud::JavaHud,
 }
 
 impl Ui {
@@ -119,7 +121,7 @@ impl Ui {
         let lang = Lang::load(&bedrock_root.join("texts/en_US.lang"));
         let foil = |look| looks.get(look).look.foil;
         let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root, foil(LookChoice::Bedrock)), Skin::new(java_theme, &java_root, foil(LookChoice::Java)));
-        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None, effects_seen: HashMap::new() }
+        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None, effects_seen: HashMap::new(), java_hud: java_hud::JavaHud::new(&java_root) }
     }
 
     pub fn show_title(&mut self, title: Title) {
@@ -183,7 +185,14 @@ impl Ui {
         acacia_ui::nametags::draw(&mut list, &skin.theme, &tags);
         if let Some(me) = me {
             let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
-            hud::draw(&mut list, &skin.theme, &state, gui);
+            if look == LookChoice::Java && self.java_hud.usable(skin) {
+                // Window.getGuiScaledWidth rounds up.
+                let java_gui = [size[0].div_ceil(scale) as i32, size[1].div_ceil(scale) as i32];
+                let calls = self.java_hud.extract(me, java_gui, state.crosshair, now);
+                self.java_hud.paint(skin, me, &calls, &mut list);
+            } else {
+                hud::draw(&mut list, &skin.theme, &state, gui);
+            }
             let selected = me.items[me.hotbar as usize % 9].as_ref().map(|stack| (me.hotbar, stack.name.clone()));
             if selected != self.selected {
                 if let Some((_, name)) = &selected {
