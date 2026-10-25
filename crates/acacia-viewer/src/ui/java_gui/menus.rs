@@ -165,6 +165,17 @@ impl JavaGui {
     }
 }
 
+/// The open menu, over everything else: the Bedrock look's (`menu`) or Java's screens.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::ui) fn draw(java_gui: &mut JavaGui, skin: &mut Skin, menu: Option<(&str, &[String])>, java: Option<Shown>, mouse: [f32; 2], size: [u32; 2], scale: u32, now: Instant, list: &mut DrawList, pictures: &mut Vec<PictureRequest>) {
+    if let Some((title, buttons)) = menu {
+        acacia_ui::menu::draw(list, &skin.theme, title, buttons, mouse, [(size[0] / scale) as f32, (size[1] / scale) as f32]);
+    }
+    if let Some(shown) = java {
+        java_gui.screens(skin, shown, gui_size(size, scale), (mouse[0] as i32, mouse[1] as i32), now, list, pictures);
+    }
+}
+
 impl Ui {
     /// [`JavaGui::menu_input`].
     pub fn java_menu_input(&self, view: &View, s: &mut Interaction, size: [i32; 2], input: Input) -> Option<Reply> {

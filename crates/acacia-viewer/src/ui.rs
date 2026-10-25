@@ -4,8 +4,7 @@ mod figure;
 mod java_gui;
 mod screen;
 
-pub use java_gui::PictureRequest;
-pub use java_gui::menus as java_screens;
+pub use java_gui::{PictureRequest, menus as java_screens};
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -238,11 +237,8 @@ impl Ui {
             overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
         }
         // The Java look's chat is its HUD's and its ChatScreen (java_screens).
-        if !java {
-            chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
-        }
         if look == LookChoice::Bedrock {
-            chat::draw_input(&mut list, &skin.theme, &self.chat, gui);
+            chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
         }
         if let Some((left, right)) = debug {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
@@ -266,12 +262,7 @@ impl Ui {
         if let Some(sign) = sign {
             acacia_ui::sign_editor::draw(&mut list, &skin.theme, sign, mouse, gui);
         }
-        if let Some((title, buttons)) = menu {
-            acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, mouse, gui);
-        }
-        if let Some(shown) = java_screens {
-            self.java_gui.screens(skin, shown, java_size, (mouse[0] as i32, mouse[1] as i32), now, &mut list, &mut self.pictures);
-        }
+        java_screens::draw(&mut self.java_gui, skin, menu, java_screens, mouse, size, scale, now, &mut list, &mut self.pictures);
         if java && me.is_some() {
             let calls = self.java_gui.deferred_subtitles(java_size);
             self.java_gui.paint(skin, &|_| None, &calls, &mut list, &mut self.pictures);

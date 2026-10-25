@@ -117,10 +117,10 @@ const WIDTH: f32 = 320.0;
 /// GUI pixels between the window bottom and the newest line's bottom.
 const BOTTOM: f32 = 40.0;
 
-/// Draws the log over a translucent background.
+/// Draws the log over a translucent background and, while open, the input line.
 pub fn draw(list: &mut DrawList, theme: &Theme, chat: &Chat, now: Instant, size: [f32; 2]) {
     let Some(font) = &theme.font else { return };
-    let h = size[1];
+    let [w, h] = size;
     let white = theme.atlas.white();
     // Newest message lowest; a wrapped message's lines read downwards.
     let rows = chat.visible(now).into_iter().flat_map(|(text, opacity)| font.wrap(text, WIDTH).into_iter().rev().map(move |l| (l, opacity)));
@@ -132,14 +132,6 @@ pub fn draw(list: &mut DrawList, theme: &Theme, chat: &Chat, now: Instant, size:
         list.fill(white, [0.0, bottom - LINE_HEIGHT, WIDTH + 8.0, bottom], [0, 0, 0, (opacity * 127.0) as u8]);
         font.draw(list, &line, 4.0, bottom - LINE_HEIGHT + 1.0, 0xFFFFFF, opacity, true);
     }
-}
-
-/// The line being typed, while the chat is open (the Bedrock look's; the Java look draws
-/// `java::chat::ChatScreen`).
-pub fn draw_input(list: &mut DrawList, theme: &Theme, chat: &Chat, size: [f32; 2]) {
-    let Some(font) = &theme.font else { return };
-    let [w, h] = size;
-    let white = theme.atlas.white();
     if let Some(input) = &chat.input {
         list.fill(white, [2.0, h - 14.0, w - 2.0, h - 2.0], [0, 0, 0, 127]);
         let typed = font.draw(list, input, 4.0, h - 12.0, 0xE0E0E0, 1.0, true);
