@@ -31,6 +31,18 @@ pub fn rot_lerp_rad(amount: f32, from: f32, to: f32) -> f32 {
     from + amount * diff
 }
 
+/// `Mth.rotLerp`: wraps the difference as degrees, though models hand it radians.
+pub fn rot_lerp(amount: f32, from: f32, to: f32) -> f32 {
+    let mut diff = (to - from) % 360.0;
+    if diff >= 180.0 {
+        diff -= 360.0;
+    }
+    if diff < -180.0 {
+        diff += 360.0;
+    }
+    from + amount * diff
+}
+
 /// Java's `(float) (Math.PI / d)`: divided in double, then rounded once.
 pub fn pi_div(d: f64) -> f32 {
     (std::f64::consts::PI / d) as f32

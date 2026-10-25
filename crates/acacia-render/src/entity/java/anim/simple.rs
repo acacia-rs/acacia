@@ -66,7 +66,7 @@ pub(super) fn magma_cube(p: &mut Poses, s: &RenderState) {
 }
 
 /// `Mth.triangleWave`.
-fn triangle_wave(index: f32, period: f32) -> f32 {
+pub(super) fn triangle_wave(index: f32, period: f32) -> f32 {
     ((index % period - period * 0.5).abs() - period * 0.25) / (period * 0.25)
 }
 

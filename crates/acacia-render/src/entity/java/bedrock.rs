@@ -29,7 +29,29 @@ pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderStat
         .set("ageScale", Field::Num(if baby { 0.5 } else { 1.0 }))
         .set("isCrouching", Field::Flag(flag("is_sneaking")))
         .set("isPassenger", Field::Flag(flag("is_riding")))
-        .set("isAggressive", Field::Flag(aggressive));
+        .set("isAggressive", Field::Flag(aggressive))
+        .set("isAngry", Field::Flag(aggressive))
+        .set("isSitting", Field::Flag(flag("is_sitting")))
+        .set("isSprinting", Field::Flag(flag("is_sprinting")))
+        .set("isMoving", Field::Flag(flag("is_moving")))
+        .set("hasChest", Field::Flag(flag("is_chested")))
+        .set("isOnLand", Field::Flag(!flag("is_in_water")))
+        .set("isInWater", Field::Flag(flag("is_in_water")))
+        .set("isOnGround", Field::Flag(flag("is_on_ground")))
+        .set("isSleeping", Field::Flag(flag("is_sleeping")));
+    if family == Family::Parrot {
+        // ParrotRenderer.getPose.
+        let pose = if !flag("is_on_ground") {
+            "FLYING"
+        } else if flag("is_sitting") {
+            "SITTING"
+        } else if flag("is_dancing") {
+            "PARTY"
+        } else {
+            "STANDING"
+        };
+        s.set("pose", Field::Text(pose.into()));
+    }
     if let Some(item) = &held {
         // Bedrock mobs hold in the right hand (mainArm RIGHT).
         s.set("rightHandItemStack", Field::Text(format!("minecraft:{item}"))).set("rightHandItemState", Field::Flag(true));

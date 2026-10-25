@@ -27,7 +27,9 @@ impl Poses {
     pub fn new(model: &Part) -> Poses {
         let parts = model.walk();
         let mut by_name = HashMap::new();
-        for (index, (_, part)) in parts.iter().enumerate() {
+        // The top part answers to its name only when no part below shares it: models built on
+        // `root.getChild("root")` mean that child by `root`.
+        for (index, (_, part)) in parts.iter().enumerate().skip(1).chain(parts.iter().enumerate().take(1)) {
             by_name.entry(part.name.clone()).or_insert(index);
         }
         Poses {
