@@ -108,8 +108,34 @@ def effects(rng):
     return case
 
 
+MOUNTS = ['horse', 'donkey', 'mule', 'skeleton_horse', 'zombie_horse', 'llama', 'trader_llama', 'camel', 'camel_husk',
+          'nautilus', 'zombie_nautilus']
+
+
+def mount(rng):
+    """A mount's inventory: entity, tamed/baby/chest/name, chest columns and last frame's mouse."""
+    entity = rng.choice(MOUNTS)
+    columns = 0
+    chest = rng.random() < 0.5
+    if chest and entity in ('donkey', 'mule'):
+        columns = 5
+    elif chest and entity.endswith('llama'):
+        columns = 3 * rng.randint(1, 5)
+    case = base(rng, 'mount', (176, 166), 2 + 3 * columns + 36)
+    case.update({'entity': 'minecraft:' + entity, 'columns': columns, 'chest': chest, 'tamed': rng.random() < 0.8,
+                 'baby': rng.random() < 0.15, 'title': None})
+    if rng.random() < 0.3:
+        case['name'] = rng.choice(['Spirit', 'A horse with a very long name indeed', 'x'])
+    if 'quick' in case:
+        case['quick']['slots'] = [s for s in case['quick']['slots'] if s >= 2] or [2]
+    w, h = case['width'], case['height']
+    case['lastMouse'] = rng.choice([case['mouse'], [rng.randint(0, w), rng.randint(0, h)], [0, 0]])
+    return case
+
+
 GENERATORS = {k: make(k) for k in KINDS}
 GENERATORS['effects'] = effects
+GENERATORS['mount'] = mount
 
 
 def main():

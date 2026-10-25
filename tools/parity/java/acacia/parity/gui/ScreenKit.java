@@ -87,6 +87,7 @@ public final class ScreenKit {
         Stub.put(connection, net.minecraft.client.multiplayer.ClientPacketListener.class, "recipes",
             new net.minecraft.client.multiplayer.ClientRecipeContainer(recipes().getSynchronizedItemProperties(), recipes().getSynchronizedStonecutterRecipes()));
         Stub.put(connection, net.minecraft.client.multiplayer.ClientPacketListener.class, "playerInfoMap", new java.util.HashMap<>());
+        Stub.put(connection, net.minecraft.client.multiplayer.ClientPacketListener.class, "scoreboard", new net.minecraft.world.scores.Scoreboard());
         Stub.put(level, ClientLevel.class, "connection", connection);
         player = Stub.alloc(LocalPlayer.class);
         Stub.put(player, net.minecraft.world.entity.Entity.class, "level", level);
