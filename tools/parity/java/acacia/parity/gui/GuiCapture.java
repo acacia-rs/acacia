@@ -40,6 +40,8 @@ public class GuiCapture extends GuiGraphicsExtractor {
     public Font font;
     /** The key each stack is recorded under (a slot number); -1 for others. */
     public IdentityHashMap<ItemStack, Integer> keys = new IdentityHashMap<>();
+    /** The scissor stack, as GuiGraphicsExtractor.ScissorStack keeps it (widgets hover through it). */
+    java.util.ArrayDeque<net.minecraft.client.gui.navigation.ScreenRectangle> scissors = new java.util.ArrayDeque<>();
     /** Off: itemDecorations is recorded as one call; on: as the fills and text it makes. */
     public boolean realDecorations;
 
@@ -53,6 +55,8 @@ public class GuiCapture extends GuiGraphicsExtractor {
         c.draws = new JsonArray();
         c.stack = new Matrix3x2fStack(16);
         c.keys = new IdentityHashMap<>();
+        c.keyOf = s -> -1;
+        c.scissors = new java.util.ArrayDeque<>();
         c.width = width;
         c.height = height;
         c.font = mc.font;
@@ -142,8 +146,19 @@ public class GuiCapture extends GuiGraphicsExtractor {
         var o = call("scissor");
         o.addProperty("x0", x0); o.addProperty("y0", y0); o.addProperty("x1", x1); o.addProperty("y1", y1);
         posed(o, stack);
+        pushScissor(x0, y0, x1, y1);
     }
-    @Override public void disableScissor() { draws.add(call("unscissor")); }
+    @Override public void disableScissor() {
+        if (!scissors.isEmpty()) scissors.removeLast();
+        draws.add(call("unscissor"));
+    }
+    void pushScissor(int x0, int y0, int x1, int y1) {
+        var r = new net.minecraft.client.gui.navigation.ScreenRectangle(x0, y0, x1 - x0, y1 - y0).transformAxisAligned(stack);
+        var last = Objects.requireNonNullElse(scissors.peekLast(), new net.minecraft.client.gui.navigation.ScreenRectangle(0, 0, width, height));
+        scissors.addLast(Objects.requireNonNullElse(r.intersection(last), net.minecraft.client.gui.navigation.ScreenRectangle.empty()));
+    }
+    // ScissorStack.containsPoint tests the first scissor pushed, not the innermost.
+    @Override public boolean containsPointInScissor(int x, int y) { return scissors.isEmpty() || scissors.peekFirst().containsPoint(x, y); }
 
     /** Runs `[text, rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null]`; null when unstyled. */
     static JsonArray runs(FormattedCharSequence str, StringBuilder plain) {
@@ -212,10 +227,42 @@ public class GuiCapture extends GuiGraphicsExtractor {
     @Override public ActiveTextCollector textRenderer(HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) { return collector(1.0F); }
     @Override public ActiveTextCollector textRendererForWidget(AbstractWidget owner, HoveredTextEffects effects) { return collector(owner.getAlpha()); }
 
+    /** The key of a stack not in `keys` (-1 unless an oracle names its stacks otherwise). */
+    public java.util.function.ToIntFunction<ItemStack> keyOf = s -> -1;
+
+    int key(ItemStack stack) {
+        Integer k = keys.get(stack);
+        return k != null ? k : keyOf.applyAsInt(stack);
+    }
+
+    @Override public void entity(net.minecraft.client.renderer.entity.state.EntityRenderState state, float scale, org.joml.Vector3fc translation,
+                                 org.joml.Quaternionfc rotation, org.joml.Quaternionfc camera, int x0, int y0, int x1, int y1) {
+        Markers.entity(this, state, scale, translation, rotation, camera, x0, y0, x1, y1);
+    }
+    @Override public void book(net.minecraft.client.model.object.book.BookModel model, Identifier texture, float scale, float open, float flip,
+                               int x0, int y0, int x1, int y1) {
+        Markers.book(this, texture, scale, open, flip, x0, y0, x1, y1);
+    }
+    @Override public void bannerPattern(net.minecraft.client.model.object.banner.BannerFlagModel flag, net.minecraft.world.item.DyeColor base,
+                                        net.minecraft.world.level.block.entity.BannerPatternLayers layers, int x0, int y0, int x1, int y1) {
+        Markers.banner(this, base, layers, x0, y0, x1, y1);
+    }
+    @Override public void map(net.minecraft.client.renderer.state.MapRenderState state) { Markers.map(this, state); }
+    @Override public net.minecraft.client.renderer.texture.TextureAtlasSprite getSprite(net.minecraft.client.resources.model.sprite.SpriteId id) {
+        return Markers.sprite(this, id);
+    }
+    @Override public void blit(Identifier atlas, int x0, int y0, int x1, int y1, float u0, float u1, float v0, float v1) {
+        Markers.spriteBlit(this, atlas, x0, y0, x1, y1, u0, u1, v0, v1);
+    }
+    @Override public void tooltip(Font font, java.util.List<net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent> lines, int x, int y,
+                                  net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner positioner, Identifier style, boolean extraSpace) {
+        super.tooltip(font, Markers.tooltipImages(this, lines), x, y, positioner, style, extraSpace);
+    }
+
     void recordItem(ItemStack stack, int x, int y, int seed) {
         if (stack.isEmpty()) return;
         var o = call("item");
-        o.addProperty("slot", keys.getOrDefault(stack, -1));
+        o.addProperty("slot", key(stack));
         o.addProperty("x", x); o.addProperty("y", y); o.addProperty("seed", seed);
         o.add("matrix", matrix(this.stack));
         draws.add(o);
@@ -231,7 +278,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
             super.itemDecorations(font, stack, x, y, count);
         } else if (!stack.isEmpty()) {
             var o = call("decorations");
-            o.addProperty("slot", keys.getOrDefault(stack, -1));
+            o.addProperty("slot", key(stack));
             o.addProperty("x", x); o.addProperty("y", y);
             if (count == null) o.add("count", JsonNull.INSTANCE); else o.addProperty("count", count);
             posed(o, this.stack);

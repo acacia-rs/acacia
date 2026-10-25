@@ -34,6 +34,8 @@ public final class GuiGame {
     /** 26.3's assetIndex.id. */
     public static final String ASSET_INDEX = "34";
     public static HolderLookup.Provider lookup;
+    /** The same registries as a RegistryAccess (a level's). */
+    public static net.minecraft.core.RegistryAccess access;
     public static ResourceManager resources;
     public static GuiFonts fonts;
     public static Font font;
@@ -54,6 +56,7 @@ public final class GuiGame {
         var world = RegistryDataLoader.load(data, context, RegistryDataLoader.WORLD_REGISTRIES, Runnable::run).join();
         var loaded = ReloadableServerRegistries.reload(layers.replaceFrom(RegistryLayer.WORLD, world), staticTags, data, Runnable::run).join();
         lookup = loaded.lookupWithUpdatedTags();
+        access = loaded.layers().compositeAccess();
         var components = BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(lookup);
         staticTags.forEach(Registry.PendingTags::apply);
         components.forEach(net.minecraft.core.component.DataComponentInitializers.PendingComponents::apply);

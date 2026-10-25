@@ -70,19 +70,31 @@ pub fn encode(draws: &[GuiDraw]) -> Vec<Value> {
             GuiDraw::Decorations { key, x, y, count } => json!({"type": "decorations", "slot": key, "x": x, "y": y, "count": count}),
             GuiDraw::Scissor { x0, y0, x1, y1 } => json!({"type": "scissor", "x0": x0, "y0": y0, "x1": x1, "y1": y1}),
             GuiDraw::Unscissor => json!({"type": "unscissor"}),
-            GuiDraw::Stratum => json!({"type": "stratum"}),
-            GuiDraw::Blur => json!({"type": "blur"}),
+            GuiDraw::Scrolling { text, center_x, x0, x1, y0, y1, color } => {
+                let text = text.resolve_legacy();
+                let mut v = json!({"type": "scrolling", "text": text.plain(), "centerX": center_x, "x0": x0, "x1": x1, "y0": y0, "y1": y1, "color": *color as i32});
+                if let Some(r) = runs(&text) {
+                    v["runs"] = r;
+                }
+                v
+            }
             GuiDraw::Highlight { x0, y0, x1, y1, invert } => {
-                let fill = |pipeline: &str, color: i32| json!({"type": "fill", "x0": x0, "y0": y0, "x1": x1, "y1": y1, "color": color, "pipeline": pipeline});
-                if *invert {
-                    let mut v = fill("pipeline/gui_invert", -1);
+                let fill = |pipeline: &str, color: i32| {
+                    let mut v = json!({"type": "fill", "x0": x0.min(x1), "y0": y0.min(y1), "x1": x0.max(x1), "y1": y0.max(y1), "color": color, "pipeline": pipeline});
                     if pose != IDENTITY {
                         v["matrix"] = json!(pose);
                     }
-                    out.push(v);
+                    v
+                };
+                if *invert {
+                    out.push(fill("pipeline/gui_invert", -1));
                 }
-                fill("pipeline/gui_text_highlight", -16_776_961)
+                out.push(fill("pipeline/gui_text_highlight", -16_776_961));
+                continue;
             }
+            GuiDraw::Stratum => json!({"type": "stratum"}),
+            GuiDraw::Blur => json!({"type": "blur"}),
+            GuiDraw::Picture(p) => p.encode(),
         };
         if pose != IDENTITY {
             v["matrix"] = json!(pose);

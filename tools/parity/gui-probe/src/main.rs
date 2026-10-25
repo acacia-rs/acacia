@@ -5,11 +5,19 @@
 //! `tools/parity/gui/guiparity.py`.
 
 mod chat;
+mod containers;
+mod creative;
 mod font;
 mod hud;
+mod kit;
 mod lang;
 mod players;
+mod recipe_book;
+mod screens;
+mod stations;
 mod subtitles;
+mod tooltips;
+mod trading;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -35,11 +43,18 @@ pub struct Assets {
 
 fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
+        "chat_screen" => chat::replay_screen,
+        "containers" => containers::replay,
+        "creative" => creative::replay,
         "font" => font::replay,
         "hud" => hud::replay,
-        "chat_screen" => chat::replay_screen,
         "players" => players::replay,
+        "recipe_book" => recipe_book::replay,
+        "stations" => stations::replay,
+        "screens_widgets" => screens::widgets::replay,
         "subtitles" => subtitles::replay,
+        "tooltips" => tooltips::replay,
+        "trading" => trading::replay,
         _ => return None,
     })
 }

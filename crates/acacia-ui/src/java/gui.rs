@@ -93,13 +93,18 @@ pub enum GuiDraw {
     Scissor { x0: i32, y0: i32, x1: i32, y1: i32 },
     /// `disableScissor()`.
     Unscissor,
+    /// `ActiveTextCollector.acceptScrolling(text, centerX, x0, x1, y0, y1)`: a label centred in
+    /// the box, or scrolled to the clock when wider; `color` is `ARGB.white(opacity)`.
+    Scrolling { text: Text, center_x: i32, x0: i32, x1: i32, y0: i32, y1: i32, color: u32 },
+    /// `textHighlight(x0, y0, x1, y1, invert)`: a `GUI_INVERT` fill when `invert`, then a
+    /// `GUI_TEXT_HIGHLIGHT` one.
+    Highlight { x0: i32, y0: i32, x1: i32, y1: i32, invert: bool },
     /// `nextStratum()`: what follows draws over everything before, whatever its bounds.
     Stratum,
     /// `blurBeforeThisStratum()`: the strata before this one are blurred (a screen's background).
     Blur,
-    /// `textHighlight(x0, y0, x1, y1, invertText)`: a `GUI_INVERT` fill when `invert`, then a
-    /// `GUI_TEXT_HIGHLIGHT` one, corners sorted.
-    Highlight { x0: i32, y0: i32, x1: i32, y1: i32, invert: bool },
+    /// A picture-in-picture or tooltip image, recorded by its parameters.
+    Picture(super::picture::Picture),
 }
 
 /// A screen `width` × `height` GUI pixels big being drawn into.
@@ -172,6 +177,14 @@ impl Gui {
         self.draws.push(GuiDraw::Unscissor);
     }
 
+    pub fn scrolling(&mut self, text: Text, center_x: i32, x0: i32, x1: i32, y0: i32, y1: i32, color: u32) {
+        self.draws.push(GuiDraw::Scrolling { text, center_x, x0, x1, y0, y1, color });
+    }
+
+    pub fn highlight(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, invert: bool) {
+        self.draws.push(GuiDraw::Highlight { x0: x0.min(x1), y0: y0.min(y1), x1: x0.max(x1), y1: y0.max(y1), invert });
+    }
+
     pub fn next_stratum(&mut self) {
         self.draws.push(GuiDraw::Stratum);
     }
@@ -181,8 +194,9 @@ impl Gui {
     }
 
     pub fn text_highlight(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, invert: bool) {
-        self.draws.push(GuiDraw::Highlight { x0: x0.min(x1), y0: y0.min(y1), x1: x0.max(x1), y1: y0.max(y1), invert });
+        self.highlight(x0, y0, x1, y1, invert);
     }
+
 }
 
 /// Measures text in the font the calls are drawn with.

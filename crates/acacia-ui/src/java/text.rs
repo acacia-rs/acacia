@@ -293,6 +293,15 @@ impl Text {
     }
 }
 
+/// The decoded component's own `getStyle()` (a list's is its first element's).
+pub fn json_root_style(v: &Value) -> Style {
+    match v {
+        Value::Object(o) => object_style(o),
+        Value::Array(list) => list.first().map(json_root_style).unwrap_or_default(),
+        _ => Style::default(),
+    }
+}
+
 fn object_style(o: &serde_json::Map<String, Value>) -> Style {
     let flag = |k: &str| o.get(k).and_then(Value::as_bool);
     let font = o.get("font").and_then(Value::as_str).map(|f| if f.contains(':') { f.to_owned() } else { format!("minecraft:{f}") });

@@ -178,6 +178,9 @@ impl Painter<'_> {
                 let draws = self.src.decorations(*key, *x, *y, count.as_deref());
                 self.draws(&draws);
             }
+            // TODO: scrolling labels (scissored, clock-scrolled text) and pictures (entity, book,
+            // banner, map, tooltip images, sprite blits) are not painted yet.
+            GuiDraw::Scrolling { .. } | GuiDraw::Picture(_) => {}
         }
     }
 
