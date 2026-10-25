@@ -7,6 +7,7 @@
 mod containers;
 mod hud;
 mod kit;
+mod screens;
 mod tooltips;
 
 use std::io::{BufWriter, Write};
@@ -41,6 +42,7 @@ fn replay(harness: &str) -> Option<Replay> {
         "containers" => containers::replay,
         "hud" => hud::replay,
         "tooltips" => tooltips::replay,
+        "screens_widgets" => screens::widgets::replay,
         _ => return None,
     })
 }
