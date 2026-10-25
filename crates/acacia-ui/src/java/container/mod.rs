@@ -6,6 +6,8 @@
 
 pub mod brewing;
 pub mod crafter;
+pub mod creative;
+pub mod creative_search;
 pub mod effects;
 pub mod entity;
 pub mod mount;
