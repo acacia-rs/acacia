@@ -32,8 +32,8 @@ import net.minecraft.world.level.GameType;
 /**
  * The `hud` harness's oracle: vanilla's own Hud methods, BossHealthOverlay, JumpableVehicleBar,
  * ChatComponent and itemDecorations on a stand-in client whose player answers from the case,
- * recorded by GuiCapture. Case kinds: cases.py. Input lines: case JSON; output lines:
- * {case, draws, state...} or {case, error}. Adapted from Horizon's VanillaHudOracle (MIT,
+ * recorded by GuiCapture. Case kinds: cases.py. Arguments: the out dir and the cases file (case
+ * JSON lines); writes vanilla.jsonl, lines {case, draws, state...} or {case, error}. Adapted from Horizon's VanillaHudOracle (MIT,
  * (c) Ludovic Marie).
  */
 public final class HudOracle {
@@ -149,7 +149,7 @@ public final class HudOracle {
         GuiGame.init();
         var gson = new Gson();
         var out = new StringBuilder();
-        for (String line : Files.readAllLines(Path.of(args[0]))) {
+        for (String line : Files.readAllLines(Path.of(args[1]))) {
             if (line.isBlank()) continue;
             var c = JsonParser.parseString(line).getAsJsonObject();
             HudActor.c = c;
@@ -170,6 +170,6 @@ public final class HudOracle {
             }
             out.append(gson.toJson(result)).append('\n');
         }
-        Files.writeString(Path.of(args[1]), out.toString(), StandardCharsets.UTF_8);
+        Files.writeString(Path.of(args[0], "vanilla.jsonl"), out.toString(), StandardCharsets.UTF_8);
     }
 }

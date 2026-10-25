@@ -1,5 +1,6 @@
 //! Draw calls as the parity oracle records them (one JSON object per call, poses folded into a
-//! `matrix` on each call that is not drawn at the identity). The format: `tools/parity/README.md`.
+//! `matrix` on each call that is not drawn at the identity). The game's side writes the same objects:
+//! `tools/parity/java/acacia/parity/gui/GuiCapture.java`.
 
 use serde_json::{Value, json};
 

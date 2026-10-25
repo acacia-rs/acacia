@@ -1,4 +1,4 @@
-//! The `hud` harness's kinds; the case schema is `tools/parity/hud/cases.py`'s.
+//! The `hud` harness's kinds; the case schema is `tools/parity/harnesses/hud/cases.py`'s.
 
 use serde_json::{Map, Value};
 
