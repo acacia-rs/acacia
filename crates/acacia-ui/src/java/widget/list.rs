@@ -117,7 +117,8 @@ impl SelectionList {
     /// Every row's widgets placed for the scroll amount, as the next frame draws them.
     pub fn place_rows(&mut self) {
         let (left, width) = (self.row_left(), self.row_width);
-        for (row, top) in self.rows.iter_mut().zip(self.row_tops()) {
+        let tops = self.row_tops();
+        for (row, top) in self.rows.iter_mut().zip(tops) {
             row.entry.place([left, top, width, row.h]);
         }
     }
