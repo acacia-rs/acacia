@@ -55,7 +55,7 @@ pub fn charged_projectiles(_: &ItemStack, v: &Value, d: &Details, out: &mut Vec<
 
 /// `Component.plainCopy()`: the contents without style or siblings, for an item name.
 fn plain(t: Text) -> Text {
-    Text { spans: t.spans.into_iter().map(|s| Span { text: s.text, style: Style::default() }).collect() }
+    Text { spans: t.spans.into_iter().map(|s| Span { text: s.text, style: Style::default() }).collect(), forward: false }
 }
 
 pub fn pot_decorations(_: &ItemStack, v: &Value, d: &Details, out: &mut Vec<Text>) {

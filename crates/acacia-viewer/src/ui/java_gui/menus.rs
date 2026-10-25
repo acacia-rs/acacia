@@ -1,13 +1,18 @@
 //! The Java look's screens over the world: the menus (`acacia_ui::java::screen`) and the chat
-//! input (`java::chat::ChatScreen`). A menu is rebuilt from the viewer's state for every frame and
-//! every input, with its focus and scroll restored from the caller's [`Interaction`].
+//! screen (`java::chat::ChatScreen`, with the HUD's chat lines). A menu is rebuilt from the
+//! viewer's state for every frame and every input, with its focus and scroll restored from the
+//! caller's [`Interaction`].
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use acacia_ui::DrawList;
-use acacia_ui::java::chat::ChatScreen;
+use acacia_ui::java::chat::{ChatLines, ChatScreen, Completion};
+use acacia_ui::java::command::Tree;
 use acacia_ui::java::gui::{Gui, Metrics};
 use acacia_ui::java::screen::{Escape, extract};
+use acacia_ui::java::tooltip::game::Game;
+use acacia_ui::java::tooltip::item::Details;
 use acacia_ui::java::widget::Ctx;
 use acacia_ui::java::widget::input::{Fired, Interaction, Key};
 
@@ -113,11 +118,17 @@ impl JavaGui {
         fired.map(Reply::Fired)
     }
 
-    /// The chat input's calls: `ChatScreen.extractRenderState` without the chat lines.
+    /// The chat screen's calls: the HUD's chat lines hovered by the mouse, the input and its
+    /// suggestions, then a hover tooltip. Bedrock sends no registry facts and the viewer has no
+    /// advanced tooltips, so hovered items show their plain tooltip and entities none.
     pub fn chat(&self, chat: &mut ChatScreen, mouse: (i32, i32), blink_ms: u64) -> Gui {
         let mut gui = Gui::new(chat.width, chat.height);
+        let lang = self.lang();
+        let game = Game::default();
+        let details = Details { lang: &lang, advanced: false, creative: false, game: &game, player: None, key: None };
+        let lines = ChatLines { chat: &self.hud.chat, ticks: self.hud.tick_count, details: &details };
         // Options.getBackgroundColor(Integer.MIN_VALUE): backgroundForChatOnly is on by default.
-        chat.extract(&mut gui, &self.fonts, mouse, blink_ms, 0x8000_0000);
+        chat.extract(&mut gui, &self.fonts, mouse, blink_ms, 0x8000_0000, Some(lines));
         gui
     }
 
@@ -160,5 +171,11 @@ impl Ui {
     /// The Java look's font metrics, which the chat input measures with.
     pub fn java_font(&self) -> &dyn Metrics {
         &self.java_gui.fonts
+    }
+
+    /// What the chat input completes: the online players' names and the server's commands, whose
+    /// errors read the Java look's translations.
+    pub fn java_completion(&self, names: Vec<String>, commands: Arc<Tree>) -> Completion {
+        Completion::new(names, commands, &self.java_gui.lang())
     }
 }

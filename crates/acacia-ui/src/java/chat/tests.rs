@@ -67,20 +67,23 @@ fn words_are_deleted_and_skipped_by_spaces() {
 
 #[test]
 fn names_complete_the_word_at_the_caret() {
-    use super::suggestions::{matches_sub_str, suggest};
+    use crate::java::command::suggest::{Builder, matches_sub_str, suggest_values};
     assert!(matches_sub_str("wa", "sky_walker"));
     assert!(!matches_sub_str("ky", "sky_walker"));
     let input: Vec<u16> = "hi st".encode_utf16().collect();
-    let found = suggest(["Steve", "stan", "Alex", "Stone_Age"], &input, 3);
+    let found = suggest_values(["Steve", "stan", "Alex", "Stone_Age"], Builder::new(&input, 3)).list;
     assert_eq!(found.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(), ["stan", "Steve", "Stone_Age"]);
     assert_eq!(found[1].apply(&input), "hi Steve");
+}
+
+fn names(list: &[&str]) -> Completion {
+    Completion { names: list.iter().map(|s| (*s).to_owned()).collect(), ..Completion::default() }
 }
 
 #[test]
 fn tab_shows_the_list_then_applies_and_cycles() {
     let m = Fixed(6.0);
-    let names = vec!["Steve".to_owned(), "Stan".to_owned(), "Alex".to_owned()];
-    let mut screen = ChatScreen::new(&m, "", 0, names, 320, 240);
+    let mut screen = ChatScreen::new(&m, "", 0, names(&["Steve", "Stan", "Alex"]), 320, 240);
     for c in "hi St".chars() {
         screen.char_typed(&m, c);
     }
@@ -97,7 +100,7 @@ fn tab_shows_the_list_then_applies_and_cycles() {
 #[test]
 fn enter_sends_the_message_with_its_spaces_normalized() {
     let m = Fixed(6.0);
-    let mut screen = ChatScreen::new(&m, "", 0, Vec::new(), 320, 240);
+    let mut screen = ChatScreen::new(&m, "", 0, names(&[]), 320, 240);
     "  hi   there\u{a0}you ".chars().for_each(|c| screen.char_typed(&m, c));
     assert_eq!(screen.key(&m, &[], Key::Enter, false, false), ChatAction::Send("hi there you".into()));
     assert_eq!(screen::normalize(" \t "), "");

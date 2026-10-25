@@ -44,6 +44,9 @@ public class GuiCapture extends GuiGraphicsExtractor {
     java.util.ArrayDeque<net.minecraft.client.gui.navigation.ScreenRectangle> scissors = new java.util.ArrayDeque<>();
     /** Off: itemDecorations is recorded as one call; on: as the fills and text it makes. */
     public boolean realDecorations;
+    /** On: text collectors also find the style under (hoverX, hoverY) as RenderingTextCollector does. */
+    public boolean scanHover;
+    public int hoverX, hoverY;
 
     private GuiCapture() {
         super(null, null, 0, 0);
@@ -209,6 +212,10 @@ public class GuiCapture extends GuiGraphicsExtractor {
 
     /** Text collectors record what they would add: text at their parameters' pose and opacity. */
     ActiveTextCollector collector(float opacity) {
+        return collector(opacity, HoveredTextEffects.NONE, null);
+    }
+
+    ActiveTextCollector collector(float opacity, HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) {
         var self = this;
         return new ActiveTextCollector() {
             Parameters parameters = new Parameters(new Matrix3x2f(stack), opacity, null);
@@ -217,6 +224,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
             @Override public void accept(TextAlignment alignment, int anchorX, int y, Parameters p, FormattedCharSequence text) {
                 int left = alignment.calculateLeft(anchorX, self.font, text);
                 if (ARGB.as8BitChannel(p.opacity()) != 0) self.text(text, left, y, ARGB.white(p.opacity()), true, p.pose());
+                new HoverScan(text, p.pose(), left, y, ARGB.white(p.opacity()), p.scissor()).run(self, effects, consumer);
             }
             @Override public void acceptScrolling(Component m, int cx, int l, int r, int t, int b, Parameters p) {
                 var o = call("scrolling");
@@ -231,7 +239,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
         };
     }
 
-    @Override public ActiveTextCollector textRenderer(HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) { return collector(1.0F); }
+    @Override public ActiveTextCollector textRenderer(HoveredTextEffects effects, java.util.function.Consumer<Style> consumer) { return collector(1.0F, effects, consumer); }
     @Override public ActiveTextCollector textRendererForWidget(AbstractWidget owner, HoveredTextEffects effects) { return collector(owner.getAlpha()); }
 
     /** The key of a stack not in `keys` (-1 unless an oracle names its stacks otherwise). */

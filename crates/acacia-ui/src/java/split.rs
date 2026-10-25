@@ -227,7 +227,7 @@ pub fn split_lines(m: &dyn Metrics, text: &Text, max_width: i32, initial: &Style
         break;
     }
     if !parts.is_empty() {
-        out.push((Text { spans: parts }, wrapped));
+        out.push((Text { spans: parts, forward: false }, wrapped));
     } else if force_new_line {
         out.push((Text::default(), false));
     }

@@ -210,6 +210,27 @@ pub trait Metrics {
         let text = text.resolve_legacy();
         ceil(text.chars().map(|(c, s)| self.advance(c, s)).sum())
     }
+
+    /// `Font.width(FormattedCharSequence)` of the drawn sequence (`Language.getVisualOrder`, or the
+    /// text as it is when `forward`): what a line from `Font.split` measures, shaped and mirrored.
+    fn visual_width(&self, text: &Text) -> i32 {
+        let chars = super::bidi::visual_order(text);
+        ceil(chars.iter().map(|v| self.advance(char::from_u32(v.codepoint).unwrap_or('\u{FFFD}'), &v.style)).sum())
+    }
+
+    /// What hovering reads of `text` drawn at `(x, y)` in `color` (see [`super::active`]). Without
+    /// glyph shapes every character's area is its advance by 9 pixels; fonts override this.
+    fn active_areas(&self, text: &Text, x: f32, y: f32, _color: u32, _shadow: bool) -> super::active::TextAreas {
+        let mut pen = x;
+        let mut areas = Vec::new();
+        for v in super::bidi::visual_order(text) {
+            let advance = self.advance(char::from_u32(v.codepoint).unwrap_or('\u{FFFD}'), &v.style);
+            areas.push(super::active::ActiveArea { rect: [pen, y, pen + advance, y + 9.0], style: v.style });
+            pen += advance;
+        }
+        let bounds = (pen > x).then_some([x, y, pen, y + 9.0]);
+        super::active::TextAreas { bounds, areas }
+    }
 }
 
 /// Every character as wide as the field, plus 1 for bold; for tests.

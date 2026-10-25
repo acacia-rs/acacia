@@ -36,10 +36,11 @@ import net.minecraft.util.ArrayListDeque;
 import net.minecraft.util.Util;
 
 /**
- * The `chat_screen` harness's oracle: a real ChatScreen (its EditBox and CommandSuggestions) for a
- * chat message, driven by the case's typed text, keys and clicks, then drawn without the chat
- * lines (the `hud` harness's `chat` kind covers those): the input's background, the EditBox and the
- * suggestion list. Names complete to the case's online players. Input lines: case JSON (cases.py);
+ * The `chat_screen` harness's oracle: a real ChatScreen (its EditBox and CommandSuggestions)
+ * driven by the case's typed text, keys, clicks and scrolls, then drawn: the input's background,
+ * the chat's lines with the mouse over them (ChatLines), the EditBox, the suggestions, then the
+ * deferred hover tooltip. Names complete to the case's online players, commands to the case's
+ * tree (ChatCommands). Input lines: case JSON (cases.py);
  * output lines {case, value, cursor, highlight, display, draws}, {case, closed, draws} or
  * {case, error}. Adapted from Horizon's VanillaChatScreenOracle and VanillaPackScreenOracle (MIT,
  * (c) Ludovic Marie).
@@ -48,6 +49,8 @@ public final class ChatScreenOracle {
     private ChatScreenOracle() {}
 
     static List<String> players = List.of();
+    static ClientPacketListener connection;
+    static net.minecraft.client.MouseHandler mouseHandler;
 
     static <T> net.minecraft.client.OptionInstance<T> option(T value) throws Exception {
         @SuppressWarnings("unchecked") net.minecraft.client.OptionInstance<T> o = Stub.alloc(net.minecraft.client.OptionInstance.class);
@@ -158,13 +161,16 @@ public final class ChatScreenOracle {
         Stub.put(mc, Minecraft.class, "keyboardHandler", Stub.alloc(NoKeyboard.class));
         Stub.put(mc, Minecraft.class, "narrator", Stub.alloc(NoNarrator.class));
         Stub.put(mc, Minecraft.class, "gui", gui);
-        var connection = Stub.alloc(ClientPacketListener.class);
+        connection = Stub.alloc(ClientPacketListener.class);
+        mouseHandler = Stub.alloc(net.minecraft.client.MouseHandler.class);
+        Stub.put(mc, Minecraft.class, "mouseHandler", mouseHandler);
         var provider = Stub.alloc(Provider.class);
         Stub.put(provider, ClientSuggestionProvider.class, "minecraft", mc);
         Stub.put(connection, ClientPacketListener.class, "suggestionsProvider", provider);
         var player = Stub.alloc(LocalPlayer.class);
         Stub.put(player, LocalPlayer.class, "connection", connection);
         Stub.put(player, LocalPlayer.class, "chatAbilities", ChatAbilities.NO_RESTRICTIONS);
+        ChatLines.world(mc, connection, player);
         Stub.put(mc, Minecraft.class, "player", player);
         Stub.putStatic(Minecraft.class, "instance", mc);
         return mc;
@@ -192,10 +198,18 @@ public final class ChatScreenOracle {
         var window = Stub.alloc(com.mojang.blaze3d.platform.Window.class);
         Stub.put(window, com.mojang.blaze3d.platform.Window.class, "guiScaledWidth", width);
         Stub.put(window, com.mojang.blaze3d.platform.Window.class, "guiScaledHeight", height);
+        Stub.put(window, com.mojang.blaze3d.platform.Window.class, "width", width);
+        Stub.put(window, com.mojang.blaze3d.platform.Window.class, "height", height);
+        Stub.put(connection, ClientPacketListener.class, "commands", ChatCommands.dispatcher(c));
+        int mx = c.getAsJsonArray("mouse").get(0).getAsInt(), my = c.getAsJsonArray("mouse").get(1).getAsInt();
+        Stub.put(mouseHandler, net.minecraft.client.MouseHandler.class, "xpos", (double) mx);
+        Stub.put(mouseHandler, net.minecraft.client.MouseHandler.class, "ypos", (double) my);
         Stub.put(mc, Minecraft.class, "window", window);
         Stub.put(mc, Minecraft.class, "options", options);
+        ChatLines.setup(mc, gui, hud, chat, options, c);
         var screen = new ChatScreen(c.get("initial").getAsString(), false);
         gui.setScreen(screen);
+        if (c.has("scroll")) chat.scrollChat(c.get("scroll").getAsInt());
         var info = new MouseButtonInfo(1, 0);
         for (var a : c.getAsJsonArray("actions")) {
             var o = a.getAsJsonObject();
@@ -208,6 +222,8 @@ public final class ChatScreenOracle {
                     screen.mouseClicked(event, false);
                     screen.mouseReleased(event);
                 }
+                // The list's half of ChatScreen.mouseScrolled; the chat lines' half reads the keyboard.
+                case "scroll" -> ((CommandSuggestions) Stub.get(screen, ChatScreen.class, "commandSuggestions")).mouseScrolled(o.get("amount").getAsDouble());
                 default -> throw new IllegalArgumentException(o.toString());
             }
         }
@@ -223,13 +239,17 @@ public final class ChatScreenOracle {
         var scissors = Class.forName("net.minecraft.client.gui.GuiGraphicsExtractor$ScissorStack").getDeclaredConstructor(ScreenRectangle.class);
         scissors.setAccessible(true);
         Stub.put(g, GuiGraphicsExtractor.class, "scissorStack", scissors.newInstance(new ScreenRectangle(0, 0, width, height)));
-        int mx = c.getAsJsonArray("mouse").get(0).getAsInt(), my = c.getAsJsonArray("mouse").get(1).getAsInt();
-        // ChatScreen.extractRenderState without ChatComponent's lines.
+        // ChatScreen.extractRenderState (insertionClickMode reads the keyboard: false), then the deferred tooltip.
+        g.scanHover = true;
+        g.hoverX = mx;
+        g.hoverY = my;
         g.fill(2, height - 14, width - 2, height - 2, options.getBackgroundColor(Integer.MIN_VALUE));
+        chat.extractRenderState(g, GuiGame.font, hud.getGuiTicks(), mx, my, ChatComponent.DisplayMode.FOREGROUND, false);
         @SuppressWarnings("unchecked")
         var renderables = (List<Renderable>) Stub.get(screen, Screen.class, "renderables");
         for (var r : renderables) r.extractRenderState(g, mx, my, 1.0F);
         ((CommandSuggestions) Stub.get(screen, ChatScreen.class, "commandSuggestions")).extractRenderState(g, mx, my);
+        g.extractDeferredElements(mx, my, 1.0F);
         result.addProperty("value", input.getValue());
         result.addProperty("cursor", input.getCursorPosition());
         result.addProperty("highlight", (int) Stub.get(input, EditBox.class, "highlightPos"));

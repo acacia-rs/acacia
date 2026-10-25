@@ -4,17 +4,22 @@
 
 use serde_json::{Value, json};
 
+use super::bidi::visual_order;
 use super::gui::{GuiDraw, IDENTITY, Pose, pose_apply};
 use super::text::Text;
 
-/// Style runs `[text, rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null]`,
-/// the shadow colour (ARGB) appended when the style has one, per run of equally styled
-/// characters, or `None` for unstyled text.
-pub fn runs(t: &Text) -> Option<Value> {
+/// The drawn sequence (`Language.getVisualOrder`) as GuiCapture records it: its plain text, and style
+/// runs `[text, rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null]`, the
+/// shadow colour (ARGB) appended when the style has one, per run of equally styled characters, or
+/// `None` for unstyled text.
+pub fn runs(t: &Text) -> (String, Option<Value>) {
     type Key = (Option<u32>, bool, bool, bool, bool, bool, Option<String>, Option<u32>);
     let mut out: Vec<(String, Key)> = Vec::new();
     let mut styled = false;
-    for (ch, s) in t.chars() {
+    let mut plain = String::new();
+    for v in visual_order(t) {
+        let (ch, s) = (char::from_u32(v.codepoint).unwrap_or('\u{FFFD}'), &v.style);
+        plain.push(ch);
         let font = s.font.clone().filter(|f| f != "minecraft:default");
         let key: Key = (s.color, s.is_bold(), s.is_italic(), s.is_underlined(), s.is_strikethrough(), s.is_obfuscated(), font, s.shadow_color);
         styled |= key != (None, false, false, false, false, false, None, None);
@@ -28,7 +33,7 @@ pub fn runs(t: &Text) -> Option<Value> {
         v.extend(k.7.map(|c| json!(c as i32)));
         Value::Array(v)
     };
-    styled.then(|| Value::Array(out.into_iter().map(run).collect()))
+    (plain, styled.then(|| Value::Array(out.into_iter().map(run).collect())))
 }
 
 pub fn encode(draws: &[GuiDraw]) -> Vec<Value> {
@@ -63,9 +68,9 @@ pub fn encode(draws: &[GuiDraw]) -> Vec<Value> {
                 json!({"type": "gradient", "x0": x0, "y0": y0, "x1": x1, "y1": y1, "top": *top as i32, "bottom": *bottom as i32})
             }
             GuiDraw::Text { text, x, y, color, shadow } => {
-                let text = text.resolve_legacy();
-                let mut v = json!({"type": "text", "text": text.plain(), "x": x, "y": y, "color": *color as i32, "shadow": shadow});
-                if let Some(r) = runs(&text) {
+                let (plain, runs) = runs(text);
+                let mut v = json!({"type": "text", "text": plain, "x": x, "y": y, "color": *color as i32, "shadow": shadow});
+                if let Some(r) = runs {
                     v["runs"] = r;
                 }
                 v
@@ -78,9 +83,9 @@ pub fn encode(draws: &[GuiDraw]) -> Vec<Value> {
             GuiDraw::Scissor { x0, y0, x1, y1 } => json!({"type": "scissor", "x0": x0, "y0": y0, "x1": x1, "y1": y1}),
             GuiDraw::Unscissor => json!({"type": "unscissor"}),
             GuiDraw::Scrolling { text, center_x, x0, x1, y0, y1, color } => {
-                let text = text.resolve_legacy();
-                let mut v = json!({"type": "scrolling", "text": text.plain(), "centerX": center_x, "x0": x0, "x1": x1, "y0": y0, "y1": y1, "color": *color as i32});
-                if let Some(r) = runs(&text) {
+                let (plain, runs) = runs(text);
+                let mut v = json!({"type": "scrolling", "text": plain, "centerX": center_x, "x0": x0, "x1": x1, "y0": y0, "y1": y1, "color": *color as i32});
+                if let Some(r) = runs {
                     v["runs"] = r;
                 }
                 v

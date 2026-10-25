@@ -3,10 +3,12 @@
 
 use std::sync::{Arc, OnceLock};
 
+use acacia_ui::java::bidi::{VisualChar, props, visual_order};
 use acacia_ui::java::font::{FontOptions, Fonts, GlyphQuad, GlyphTexture, Pen};
 use acacia_ui::java::gui::{GuiDraw, Metrics};
 use acacia_ui::java::mth::JavaRandom;
-use acacia_ui::java::text::Text;
+use acacia_ui::java::split::split;
+use acacia_ui::java::text::{Style, Text};
 use serde_json::{Map, Value, json};
 
 use crate::Assets;
@@ -74,6 +76,26 @@ pub fn replay(case: &Value, assets: &Assets, state: &mut Map<String, Value>) -> 
             state.insert("by_width".into(), Value::Object(by));
             Vec::new()
         }
+        Some("visual") => chars(&visual_order(&Text::from_json(&case["text"], &|_| None))),
+        Some("split") => {
+            let text = Text::from_json(&case["text"], &|_| None);
+            let lines = split(fonts, &text, case["width"].as_i64().unwrap_or(0) as i32);
+            lines.iter().flat_map(|line| {
+                let mut out = vec![json!({"type": "line", "width": fonts.visual_width(line)})];
+                out.extend(chars(&visual_order(line)));
+                out
+            }).collect()
+        }
+        Some("props") => {
+            let (from, to) = (case["from"].as_u64().unwrap_or(0) as u32, case["to"].as_u64().unwrap_or(0) as u32);
+            let list: Vec<Value> = (from..=to)
+                .map(|c| (c, props::class(c), props::mirror(c), props::bracket_type(c)))
+                .filter(|&(c, class, mirror, bracket)| class != 0 || mirror != c || bracket != 0)
+                .map(|(c, class, mirror, bracket)| json!([c, class, mirror, bracket]))
+                .collect();
+            state.insert("props".into(), Value::Array(list));
+            Vec::new()
+        }
         _ => {
             let text = Text::from_json(&case["text"], &|_| None);
             state.insert("width".into(), json!(fonts.width(&text)));
@@ -93,11 +115,26 @@ pub fn replay(case: &Value, assets: &Assets, state: &mut Map<String, Value>) -> 
     Vec::new()
 }
 
+/// `FontOracle.styleKey`.
+fn style_key(s: &Style) -> Value {
+    let font = s.font.as_deref().filter(|f| *f != "minecraft:default");
+    json!([s.color, s.is_bold(), s.is_italic(), s.is_underlined(), s.is_strikethrough(), s.is_obfuscated(), font, s.shadow_color.map(|c| c as i32)])
+}
+
+/// `FontOracle.chars`.
+fn chars(seq: &[VisualChar]) -> Vec<Value> {
+    seq.iter().map(|v| json!({"type": "char", "cp": v.codepoint, "first": v.first, "style": style_key(&v.style)})).collect()
+}
+
 /// `Assets.font`: the default fonts, shared with this harness.
 pub struct Shared(pub Arc<Fonts>);
 
 impl Metrics for Shared {
-    fn advance(&self, c: char, style: &acacia_ui::java::text::Style) -> f32 {
+    fn advance(&self, c: char, style: &Style) -> f32 {
         self.0.advance(c, style)
+    }
+
+    fn active_areas(&self, text: &Text, x: f32, y: f32, color: u32, shadow: bool) -> acacia_ui::java::active::TextAreas {
+        self.0.active_areas(text, x, y, color, shadow)
     }
 }

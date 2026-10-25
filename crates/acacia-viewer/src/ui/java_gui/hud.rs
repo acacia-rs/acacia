@@ -62,10 +62,10 @@ impl JavaGui {
         gui
     }
 
-    /// `ChatComponent.addServerSystemMessage`; a Bedrock player's chat is unsigned, which Java
-    /// tags the same.
+    /// `ChatComponent.addServerSystemMessage`, for every Bedrock line (player chat included: the
+    /// viewer gets it as text).
     pub fn add_chat(&mut self, line: &str, focused: bool) {
-        self.hud.chat.add(&self.fonts, Text::literal(line), Some(Tag::SYSTEM), self.hud.tick_count, focused);
+        self.hud.chat.add(&self.fonts, Text::literal(line), Some(Tag::SYSTEM_SINGLE_PLAYER), self.hud.tick_count, focused);
     }
 
     /// `Hud.setTitle`, `setSubtitle`, `setOverlayMessage` and `clearTitles`.

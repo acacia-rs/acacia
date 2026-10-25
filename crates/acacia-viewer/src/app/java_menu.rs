@@ -1,9 +1,11 @@
 //! The Java look's screens: the menu state shown as Java's screens (ui/java_gui/menus.rs), their
 //! input mapped to the viewer's actions, and the chat input (`ChatScreen`).
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use acacia_ui::java::chat::{ChatAction, ChatScreen};
+use acacia_ui::java::command::Tree;
 use acacia_ui::java::screen::confirm::{NO, YES};
 use acacia_ui::java::screen::options::input::{Event, event};
 use acacia_ui::java::widget::input::{Fired, Interaction, Key};
@@ -31,6 +33,8 @@ pub struct JavaScreens {
     pub reason: String,
     /// The chat input, and when it opened.
     chat: Option<(ChatScreen, Instant)>,
+    /// The server's commands, which the chat input completes.
+    pub commands: Arc<Tree>,
     /// The left button is held (motion drags), and where the mouse was, in window pixels.
     held: bool,
     last_mouse: [f64; 2],
@@ -74,7 +78,7 @@ pub fn view(java: &JavaScreens, menu: Menu, settings: &Settings, now: Instant) -
 pub fn shown<'a>(java: &'a mut JavaScreens, menu: Option<Menu>, under: Option<View>, settings: &Settings, players: &[String], now: Instant) -> Shown<'a> {
     let menu = menu.map(|m| (view(java, m, settings, now), java.interaction)).or_else(|| under.map(|v| (v, Interaction::default())));
     let chat = java.chat.as_mut().map(|(chat, at)| {
-        chat.names = players.to_vec();
+        chat.completion.names = players.to_vec();
         (chat, now.saturating_duration_since(*at).as_millis() as u64)
     });
     Shown { chat, menu }
@@ -204,7 +208,8 @@ impl App {
         let ([w, h], scale) = self.gui();
         let [w, h] = java_screens::gui_size([w, h], scale);
         let history = self.ui.chat.history().len();
-        let chat = ChatScreen::new(self.ui.java_font(), initial, history, self.players.clone(), w, h);
+        let completion = self.ui.java_completion(self.players.clone(), Arc::clone(&self.java.commands));
+        let chat = ChatScreen::new(self.ui.java_font(), initial, history, completion, w, h);
         self.java.chat = Some((chat, Instant::now()));
         self.ui.chat.open(initial);
         self.grab(false);
@@ -256,7 +261,7 @@ impl App {
         if let Some((chat, _)) = &mut self.java.chat
             && (chat.width, chat.height) != (w, h)
         {
-            *chat = ChatScreen::new(self.ui.java_font(), &chat.input.value(), history, chat.names.clone(), w, h);
+            *chat = ChatScreen::new(self.ui.java_font(), &chat.input.value(), history, chat.completion.clone(), w, h);
         }
     }
 }

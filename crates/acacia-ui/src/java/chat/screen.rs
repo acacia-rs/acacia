@@ -1,11 +1,23 @@
-//! `ChatScreen` without the chat lines (`ChatComponent` draws those): the input along the bottom,
-//! its background, sent-message history on Up/Down, and the suggestion list. Ported from
-//! Horizon's `chat.rs` (MIT).
+//! `ChatScreen`: the input along the bottom, its background, sent-message history on Up/Down, the
+//! suggestions, and the chat's lines (`ChatComponent`) with hover tooltips. Ported from Horizon's
+//! `chat.rs` (MIT).
 
+use super::component::Chat;
+use super::component_draw::Focus;
 use super::edit_box::{EditBox, Key};
-use super::suggestions::CommandSuggestions;
+use super::suggestions::{CommandSuggestions, Completion, Sources, java_whitespace};
+use super::suggestions_list::SuggestionsList;
 use crate::java::gui::{Gui, Metrics};
 use crate::java::text::Text;
+use crate::java::tooltip::item::Details;
+
+/// The chat the screen draws above its input: its lines at `ticks` (`Hud.getGuiTicks`); `details`
+/// describe hovered items and whether tooltips are advanced.
+pub struct ChatLines<'a> {
+    pub chat: &'a Chat,
+    pub ticks: i32,
+    pub details: &'a Details<'a>,
+}
 
 /// What a key did to the screen.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,8 +33,7 @@ pub enum ChatAction {
 /// `ChatScreen.normalizeChatMessage`: trimmed, runs of whitespace one space (Apache's
 /// `normalizeSpace`, which also turns no-break spaces into spaces), cut to 256 units.
 pub fn normalize(message: &str) -> String {
-    let java_space = |c: char| matches!(c, '\t'..='\r' | '\u{1c}'..='\u{1f}') || (c.is_whitespace() && !matches!(c, '\u{85}' | '\u{a0}' | '\u{2007}' | '\u{202f}'));
-    let words: Vec<String> = message.split(java_space).filter(|w| !w.is_empty()).map(|w| w.replace('\u{a0}', " ")).collect();
+    let words: Vec<String> = message.split(java_whitespace).filter(|w| !w.is_empty()).map(|w| w.replace('\u{a0}', " ")).collect();
     let joined = words.join(" ");
     let units: Vec<u16> = joined.trim_matches(|c| c <= ' ').encode_utf16().take(256).collect();
     String::from_utf16_lossy(&units)
@@ -36,13 +47,12 @@ pub struct ChatScreen {
     pub height: i32,
     history_buffer: String,
     history_pos: usize,
-    /// The names a message completes to (`getCustomTabSuggestions`: the online players).
-    pub names: Vec<String>,
+    pub completion: Completion,
 }
 
 impl ChatScreen {
     /// `ChatScreen.init`: the input across the bottom, focused, holding `initial`.
-    pub fn new(m: &dyn Metrics, initial: &str, history_len: usize, names: Vec<String>, width: i32, height: i32) -> ChatScreen {
+    pub fn new(m: &dyn Metrics, initial: &str, history_len: usize, completion: Completion, width: i32, height: i32) -> ChatScreen {
         let mut input = EditBox::new(4, height - 12, width - 4, 12);
         input.max_length = 256;
         input.bordered = false;
@@ -54,29 +64,35 @@ impl ChatScreen {
             height,
             history_buffer: String::new(),
             history_pos: history_len,
-            names,
+            completion,
         };
         // The responder is set after setValue, so only the explicit update runs here.
         screen.input.set_value(m, initial);
-        screen.suggestions.update(&mut screen.input, &screen.names);
+        screen.update(m);
         screen
     }
 
+    /// `commandSuggestions.updateCommandInfo()`.
+    fn update(&mut self, m: &dyn Metrics) {
+        let s = Sources { m, c: &self.completion, screen_height: self.height };
+        self.suggestions.update(&s, &mut self.input);
+    }
+
     /// `onEdited`, the input's responder.
-    fn edited(&mut self) {
+    fn edited(&mut self, m: &dyn Metrics) {
         self.suggestions.set_allow(true);
-        self.suggestions.update(&mut self.input, &self.names);
+        self.update(m);
     }
 
     fn set_value(&mut self, m: &dyn Metrics, value: &str) {
         self.input.set_value(m, value);
-        self.edited();
+        self.edited(m);
     }
 
     /// A typed character (`charTyped` on the focused input).
     pub fn char_typed(&mut self, m: &dyn Metrics, c: char) {
         if self.input.char_typed(m, c) {
-            self.edited();
+            self.edited(m);
         }
     }
 
@@ -92,7 +108,7 @@ impl ChatScreen {
             Key::Down => self.move_in_history(m, history, 1),
             _ => {
                 if self.input.key(m, key, shift, ctrl) == Some(true) {
-                    self.edited();
+                    self.edited(m);
                 }
             }
         }
@@ -135,7 +151,7 @@ impl ChatScreen {
     }
 
     /// `SuggestionsList.useSuggestion`: the completion applied, the list kept.
-    fn use_suggestion(&mut self, m: &dyn Metrics, mut list: super::suggestions::SuggestionsList) {
+    fn use_suggestion(&mut self, m: &dyn Metrics, mut list: SuggestionsList) {
         let (value, end) = list.chosen();
         self.suggestions.keep_suggestions = true;
         self.suggestions.list = Some(list.clone());
@@ -187,15 +203,36 @@ impl ChatScreen {
         }
     }
 
-    /// `ChatScreen.extractRenderState` without the chat lines: the input's background
-    /// (`background`, `Options.getBackgroundColor(Integer.MIN_VALUE)`), the input, then the
-    /// suggestion list. `blink_ms` is the time since the input was focused.
-    pub fn extract(&mut self, gui: &mut Gui, m: &dyn Metrics, mouse: (i32, i32), blink_ms: u64, background: u32) {
+    /// `mouseScrolled` with the mouse at `mouse`: the list scrolls when under it; otherwise the
+    /// chat lines to scroll (`scrollChat`), seven a notch unless Shift is held.
+    pub fn scroll(&mut self, mouse: (i32, i32), amount: f64, shift: bool) -> i32 {
+        let amount = amount.clamp(-1.0, 1.0);
+        if let Some(list) = self.suggestions.list.as_mut().filter(|l| l.contains(mouse.0, mouse.1)) {
+            list.scroll(amount);
+            return 0;
+        }
+        (if shift { amount } else { amount * 7.0 }) as i32
+    }
+
+    /// `ChatScreen.extractRenderState` then `extractDeferredElements`: the input's background
+    /// (`background`, `Options.getBackgroundColor(Integer.MIN_VALUE)`), the chat's `lines` when
+    /// given, the input, the suggestions, then the hovered text's or tag's tooltip. `blink_ms`
+    /// is the time since the input was focused.
+    pub fn extract(&mut self, gui: &mut Gui, m: &dyn Metrics, mouse: (i32, i32), blink_ms: u64, background: u32, lines: Option<ChatLines>) {
         let (w, h) = (self.width, self.height);
         gui.fill(2, h - 14, w - 2, h - 2, background);
-        self.input.extract(gui, m, blink_ms, &|s, _| Text::literal(s));
-        if let Some(list) = self.suggestions.list.as_mut() {
-            list.extract(gui, &mut self.input, mouse);
+        let mut focus = lines.as_ref().map(|l| Focus::new(m, l.details.lang, mouse));
+        if let (Some(l), Some(f)) = (&lines, &mut focus) {
+            l.chat.extract_focused(gui, l.ticks, f);
         }
+        let suggestions = &self.suggestions;
+        self.input.extract(gui, m, blink_ms, &|s, offset| suggestions.format(s, offset).unwrap_or_else(|| Text::literal(s).as_forward()));
+        self.suggestions.extract(gui, &mut self.input, mouse, h);
+        let (Some(l), Some(mut f)) = (lines, focus) else { return };
+        let hover = f.hovered.as_ref().and_then(|s| s.hover.clone());
+        if let Some(tooltip) = hover.and_then(|e| e.tooltip(m, w, mouse, l.details)) {
+            f.tooltip.set(tooltip, false);
+        }
+        f.tooltip.extract(gui, m);
     }
 }

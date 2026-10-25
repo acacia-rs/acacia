@@ -40,14 +40,7 @@ pub struct Fonts {
     pub warnings: Vec<String>,
 }
 
-/// A character as the font sees it after `Language.getVisualOrder`: its style, and whether it
-/// starts a run of one style (position 0, where underlines start a pixel early).
-#[derive(Clone, Debug, PartialEq)]
-pub struct VisualChar {
-    pub first: bool,
-    pub style: Style,
-    pub codepoint: u32,
-}
+pub use super::bidi::VisualChar;
 
 impl Fonts {
     pub fn load(resources: &Resources, options: FontOptions) -> Fonts {
@@ -113,22 +106,21 @@ impl Fonts {
         }
     }
 
-    /// The characters `Language.getVisualOrder` feeds the font for left-to-right text: legacy
-    /// codes resolved, each run of one style starting at position 0.
-    // TODO: right-to-left runs (ICU Bidi, Arabic shaping and mirroring) as ClientLanguage reorders them.
+    /// The characters the font lays out for `text` ([`super::bidi::visual_order`]).
     pub fn visual_order(&self, text: &Text) -> Vec<VisualChar> {
-        let mut out: Vec<VisualChar> = Vec::new();
-        for (c, style) in text.resolve_legacy().chars() {
-            let first = out.last().is_none_or(|last| last.style != *style);
-            out.push(VisualChar { first, style: style.clone(), codepoint: u32::from(c) });
-        }
-        out
+        super::bidi::visual_order(text)
     }
 }
 
 impl Metrics for Fonts {
     fn advance(&self, c: char, style: &Style) -> f32 {
         self.glyph(u32::from(c), style).advance(style.is_bold())
+    }
+
+    fn active_areas(&self, text: &Text, x: f32, y: f32, color: u32, shadow: bool) -> super::active::TextAreas {
+        // Obfuscated glyphs take Font.random's next; hovering does not need the same ones drawn.
+        let p = self.prepare(text, Pen::gui(x, y, color, shadow), &mut super::mth::JavaRandom::new(0));
+        super::active::TextAreas { bounds: p.bounds, areas: p.areas }
     }
 }
 

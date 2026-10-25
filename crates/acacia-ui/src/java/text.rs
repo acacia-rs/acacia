@@ -2,7 +2,11 @@
 //! (`ComponentSerialization`), with translations formatted as `TranslatableContents` does and
 //! legacy `§` codes resolved as `StringDecomposer` does. Ported from Horizon's `text.rs` (MIT).
 
+use std::sync::Arc;
+
 use serde_json::Value;
+
+use super::hover::HoverEvent;
 
 /// `ChatFormatting` colours by legacy code.
 pub const COLORS: [(char, &str, u32); 16] = [
@@ -46,6 +50,7 @@ pub struct Style {
     pub obfuscated: Option<bool>,
     /// A full font id (`minecraft:alt`); the default font when unset.
     pub font: Option<String>,
+    pub hover: Option<Arc<HoverEvent>>,
 }
 
 impl Style {
@@ -64,6 +69,9 @@ impl Style {
         self.obfuscated = self.obfuscated.or(base.obfuscated);
         if self.font.is_none() {
             self.font.clone_from(&base.font);
+        }
+        if self.hover.is_none() {
+            self.hover.clone_from(&base.hover);
         }
     }
 
@@ -116,6 +124,9 @@ pub struct Span {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Text {
     pub spans: Vec<Span>,
+    /// Already in visual order (`FormattedCharSequence.forward` / `composite`, as `EditBox` draws):
+    /// drawn as it is. Otherwise it is a `FormattedText` that `Language.getVisualOrder` reorders.
+    pub forward: bool,
 }
 
 impl From<&str> for Text {
@@ -139,7 +150,12 @@ impl Text {
         if text.is_empty() {
             return Text::default();
         }
-        Text { spans: vec![Span { text, style: Style::default() }] }
+        Text { spans: vec![Span { text, style: Style::default() }], forward: false }
+    }
+
+    /// These spans as a `FormattedCharSequence` (`forward` of each), not reordered when drawn.
+    pub fn as_forward(self) -> Text {
+        Text { forward: true, ..self }
     }
 
     pub fn styled(s: impl Into<String>, style: &Style) -> Text {
@@ -188,7 +204,7 @@ impl Text {
         if !self.spans.iter().any(|s| s.text.contains('§')) {
             return self.clone();
         }
-        let mut out = Text::default();
+        let mut out = Text { forward: self.forward, ..Text::default() };
         for span in &self.spans {
             let mut style = span.style.clone();
             let mut current = String::new();
@@ -234,7 +250,7 @@ impl Text {
             }
             (!text.is_empty()).then(|| Span { text, style: span.style.clone() })
         });
-        Text { spans: spans.collect() }
+        Text { spans: spans.collect(), forward: self.forward }
     }
 
     /// Characters with their styles.
@@ -267,11 +283,11 @@ impl Text {
             // A list is its first element with the rest as siblings in its style.
             Value::Array(list) => {
                 let Some((first, rest)) = list.split_first() else { return Text::default() };
-                let style = first.as_object().map(object_style).unwrap_or_default();
+                let style = first.as_object().map(|o| object_style(o, lang)).unwrap_or_default();
                 rest.iter().fold(Text::from_json(first, lang), |t, s| t.append(Text::from_json(s, lang).with_style(&style)))
             }
             Value::Object(o) => {
-                let style = object_style(o);
+                let style = object_style(o, lang);
                 let content = if let Some(t) = o.get("text") {
                     Text::literal(t.as_str().map_or_else(|| t.to_string(), str::to_owned))
                 } else if let Some(key) = o.get("translate").and_then(Value::as_str) {
@@ -296,13 +312,13 @@ impl Text {
 /// The decoded component's own `getStyle()` (a list's is its first element's).
 pub fn json_root_style(v: &Value) -> Style {
     match v {
-        Value::Object(o) => object_style(o),
+        Value::Object(o) => object_style(o, &|_| None),
         Value::Array(list) => list.first().map(json_root_style).unwrap_or_default(),
         _ => Style::default(),
     }
 }
 
-fn object_style(o: &serde_json::Map<String, Value>) -> Style {
+fn object_style(o: &serde_json::Map<String, Value>, lang: Lang) -> Style {
     let flag = |k: &str| o.get(k).and_then(Value::as_bool);
     let font = o.get("font").and_then(Value::as_str).map(|f| if f.contains(':') { f.to_owned() } else { format!("minecraft:{f}") });
     let shadow_color = o.get("shadow_color").and_then(|c| match c {
@@ -318,6 +334,7 @@ fn object_style(o: &serde_json::Map<String, Value>) -> Style {
         strikethrough: flag("strikethrough"),
         obfuscated: flag("obfuscated"),
         font,
+        hover: o.get("hover_event").and_then(|h| HoverEvent::from_json(h, lang)).map(Arc::new),
     }
 }
 
