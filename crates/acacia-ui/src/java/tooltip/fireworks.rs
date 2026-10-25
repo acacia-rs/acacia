@@ -71,7 +71,8 @@ pub fn explosion(_: &ItemStack, e: &Value, d: &Details, out: &mut Vec<Text>) {
 }
 
 pub fn fireworks(_: &ItemStack, v: &Value, d: &Details, out: &mut Vec<Text>) {
-    let flight = v.get("flight_duration").and_then(Value::as_i64).unwrap_or(0);
+    // An unsigned byte, written signed.
+    let flight = v.get("flight_duration").and_then(Value::as_i64).unwrap_or(0) & 0xFF;
     if flight > 0 {
         out.push(gray(d.tr("item.minecraft.firework_rocket.flight_duration", &[num(flight)])));
     }

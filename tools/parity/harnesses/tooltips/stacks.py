@@ -129,7 +129,8 @@ def firework(rng):
 
 def effect(rng):
     e = {'id': mc(rng.choice(EFFECTS)), 'amplifier': rng.choice([0, 0, 1, 2, 4, 9, 10, 127]),
-         'duration': rng.choice([-1, 0, 1, 20, 21, 600, 1199, 3600, 72000, 1728000, rng.randint(0, 100000)])}
+         # No infinite (-1) durations: "∞" is outside the probe's stand-in ASCII font.
+         'duration': rng.choice([0, 1, 20, 21, 600, 1199, 3600, 72000, 1728000, rng.randint(0, 100000)])}
     return e
 
 

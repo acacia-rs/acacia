@@ -79,7 +79,15 @@ impl Game {
             }
         }
         let count = template.get("count").and_then(Value::as_i64).unwrap_or(1) as i32;
-        Some(ItemStack { id: id.to_owned(), count, size: components.len(), components })
+        let stack = ItemStack { id: id.to_owned(), count, size: components.len(), components };
+        // ItemStack.validateStrict: an overstacked template creates the empty stack (air).
+        if count > stack.max_stack_size() {
+            let name = self.entry("item", "minecraft:air").and_then(|a| a.get("components")?.get("minecraft:item_name")).cloned();
+            let name = name.unwrap_or_else(|| serde_json::json!({"translate": "block.minecraft.air"}));
+            let components = Map::from_iter([("minecraft:item_name".to_owned(), name)]);
+            return Some(ItemStack { id: "minecraft:air".to_owned(), count: 0, size: 1, components });
+        }
+        Some(stack)
     }
 
     /// `Item.isEnabled` under the default feature flags.

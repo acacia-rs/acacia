@@ -20,6 +20,9 @@ pub mod stack;
 
 pub use positioner::Positioner;
 
+#[cfg(test)]
+mod tests;
+
 use std::borrow::Cow;
 
 use super::gui::{Gui, Metrics};

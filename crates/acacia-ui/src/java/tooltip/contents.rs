@@ -26,7 +26,8 @@ pub fn container(_: &ItemStack, v: &Value, d: &Details, out: &mut Vec<Text>) {
         items += 1;
         if lines <= 4 {
             lines += 1;
-            let count = template.get("count").and_then(Value::as_i64).unwrap_or(1);
+            let stack = d.game.stack(template);
+            let count = stack.as_ref().map_or(1, |s| s.count);
             out.push(d.tr("item.container.item_count", &[num(count), named(template, d)]));
         }
     }
