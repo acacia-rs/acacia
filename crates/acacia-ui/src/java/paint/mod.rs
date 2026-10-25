@@ -147,8 +147,15 @@ impl Painter<'_> {
                 let uv = [uv[0] / tw, (uv[0] + src[0] as f32) / tw, uv[1] / th, (uv[1] + src[1] as f32) / th];
                 self.prims(s, &[Prim { rect: [*x, *y, x + w, y + h], uv, tile: None }], *color, quad_blend(*blend));
             }
-            GuiDraw::Fill { x0, y0, x1, y1, color } => self.fill([*x0, *y0, *x1, *y1], *color, *color),
-            GuiDraw::Gradient { x0, y0, x1, y1, top, bottom } => self.fill([*x0, *y0, *x1, *y1], *top, *bottom),
+            GuiDraw::Fill { x0, y0, x1, y1, color } => self.fill([*x0, *y0, *x1, *y1], *color, *color, QuadBlend::Alpha),
+            GuiDraw::Gradient { x0, y0, x1, y1, top, bottom } => self.fill([*x0, *y0, *x1, *y1], *top, *bottom, QuadBlend::Alpha),
+            GuiDraw::Highlight { x0, y0, x1, y1, invert } => {
+                let rect = [*x0, *y0, *x1, *y1];
+                if *invert {
+                    self.fill(rect, 0xFFFF_FFFF, 0xFFFF_FFFF, QuadBlend::Invert);
+                }
+                self.fill(rect, 0xFF00_00FF, 0xFF00_00FF, QuadBlend::Add);
+            }
             GuiDraw::Text { text, x, y, color, shadow } => {
                 let glyphs = self.src.text(text, *x, *y, *color, *shadow);
                 let Some([l, t, r, b]) = glyphs.bounds.filter(|[l, t, r, b]| l < r && t < b) else { return };
@@ -193,13 +200,13 @@ impl Painter<'_> {
         }
     }
 
-    fn fill(&mut self, [x0, y0, x1, y1]: [i32; 4], top: u32, bottom: u32) {
+    fn fill(&mut self, [x0, y0, x1, y1]: [i32; 4], top: u32, bottom: u32, blend: QuadBlend) {
         if !self.layers.place(Rect::corners(x0, y0, x1, y1).bounds(&self.pose(), self.scissor())) {
             return;
         }
         let white = self.src.white();
         let (u, v) = (white.x as f32 + 0.5, white.y as f32 + 0.5);
-        let q = Quad { bottom: argb(bottom), ..Quad::plain([x0, y0, x1, y1].map(|v| v as f32), [u, v, u, v], argb(top)) };
+        let q = Quad { bottom: argb(bottom), blend, ..Quad::plain([x0, y0, x1, y1].map(|v| v as f32), [u, v, u, v], argb(top)) };
         if let Some(q) = self.place_quad(&q) {
             self.layers.blits().push(q);
         }

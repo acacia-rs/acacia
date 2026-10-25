@@ -198,13 +198,6 @@ pub trait Metrics {
     }
 }
 
-// TODO: the Java font with every provider (java/font) in place of the ASCII page.
-impl Metrics for crate::font::Font {
-    fn advance(&self, c: char, style: &Style) -> f32 {
-        self.width(&c.to_string()) + f32::from(u8::from(style.is_bold()))
-    }
-}
-
 /// Every character as wide as the field, plus 1 for bold; for tests.
 pub struct Fixed(pub f32);
 

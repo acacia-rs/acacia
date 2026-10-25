@@ -183,14 +183,10 @@ impl Ui {
         acacia_ui::nametags::draw(&mut list, &skin.theme, &tags);
         if let Some(me) = me {
             let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
-            if look == LookChoice::Java
-                && self.java_hud.usable(skin)
-                && let Some(font) = skin.theme.font.take()
-            {
+            if look == LookChoice::Java && self.java_hud.usable(skin) {
                 // Window.getGuiScaledWidth rounds up.
                 let java_gui = [size[0].div_ceil(scale) as i32, size[1].div_ceil(scale) as i32];
-                let calls = self.java_hud.extract(me, java_gui, state.crosshair, &font, now);
-                skin.theme.font = Some(font);
+                let calls = self.java_hud.extract(me, java_gui, state.crosshair, now);
                 self.java_hud.paint(skin, me, &calls, &mut list);
             } else {
                 hud::draw(&mut list, &skin.theme, &state, gui);

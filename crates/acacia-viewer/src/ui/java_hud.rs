@@ -1,17 +1,20 @@
 //! The Java look's HUD as the game draws it: `acacia_ui::java::hud` layouts, painted with the
-//! pack's sprites in the game's order (`acacia_ui::java::paint`).
+//! pack's sprites and fonts in the game's order (`acacia_ui::java::paint`).
 
+use std::path::Path;
 use std::time::Instant;
 
 use acacia_bot::proto::types::GameMode;
+use acacia_ui::java::font::{FontOptions, Fonts, GlyphTexture, Pen, Resources};
 use acacia_ui::java::gui::{Gui, GuiDraw, Metrics};
 use acacia_ui::java::hud::health::{Health, HealthHud, HeartKind};
 use acacia_ui::java::hud::hotbar::{self, Hotbar, OFFHAND_KEY};
+use acacia_ui::java::mth::JavaRandom;
 use acacia_ui::java::paint::assets::Images;
 use acacia_ui::java::paint::blit::Scaling;
 use acacia_ui::java::paint::{self, Glyphs, Source};
 use acacia_ui::java::text::Text;
-use acacia_ui::{DrawList, Quad, Sprite};
+use acacia_ui::{Atlas, DrawList, Quad, Sprite};
 
 use super::Skin;
 use crate::control::Stack;
@@ -25,13 +28,21 @@ const WITHER: i32 = 20;
 
 pub struct JavaHud {
     images: Images,
+    fonts: Fonts,
+    /// `Font.random`, for obfuscated text.
+    random: JavaRandom,
     health: HealthHud,
     started: Instant,
 }
 
 impl JavaHud {
-    pub fn new(root: &std::path::Path) -> JavaHud {
-        JavaHud { images: Images::new(root), health: HealthHud::default(), started: Instant::now() }
+    /// The Java look's files at `root` (the jar's `assets/minecraft` layout).
+    pub fn new(root: &Path) -> JavaHud {
+        let fonts = Fonts::load(&Resources::dir("minecraft", root), FontOptions::default());
+        for w in &fonts.warnings {
+            tracing::debug!(target: "ui", "font: {w}");
+        }
+        JavaHud { images: Images::new(root), fonts, random: JavaRandom::new(0), health: HealthHud::default(), started: Instant::now() }
     }
 
     /// Whether the pack has the HUD's sprites.
@@ -40,7 +51,7 @@ impl JavaHud {
     }
 
     /// `Hud.extractRenderState`'s crosshair, hotbar, health, food, air and experience for `me`.
-    pub fn extract(&mut self, me: &Me, size: [i32; 2], crosshair: bool, font: &dyn Metrics, now: Instant) -> Gui {
+    pub fn extract(&mut self, me: &Me, size: [i32; 2], crosshair: bool, now: Instant) -> Gui {
         let mut gui = Gui::new(size[0], size[1]);
         let spectator = matches!(me.game_mode, GameMode::Spectator | GameMode::SurvivalSpectator | GameMode::CreativeSpectator);
         let survival = matches!(me.game_mode, GameMode::Survival | GameMode::Adventure);
@@ -89,13 +100,13 @@ impl JavaHud {
             };
             self.health.extract(&mut gui, &state);
         }
-        hotbar::experience(&mut gui, font, me.xp_progress, if survival { me.xp_level } else { 0 }, survival);
+        hotbar::experience(&mut gui, &self.fonts, me.xp_progress, if survival { me.xp_level } else { 0 }, survival);
         gui
     }
 
     /// `gui`'s calls as quads into `list`, the hotbar's items from `me`.
     pub fn paint(&mut self, skin: &mut Skin, me: &Me, gui: &Gui, list: &mut DrawList) {
-        let mut src = Src { skin, images: &mut self.images, me };
+        let mut src = Src { skin, images: &mut self.images, fonts: &self.fonts, random: &mut self.random, me };
         let painted = paint::paint(&gui.draws, [gui.width, gui.height], list.scale, &mut src);
         list.quads.extend(painted.quads);
     }
@@ -104,6 +115,8 @@ impl JavaHud {
 struct Src<'a> {
     skin: &'a mut Skin,
     images: &'a mut Images,
+    fonts: &'a Fonts,
+    random: &'a mut JavaRandom,
     me: &'a Me,
 }
 
@@ -114,6 +127,16 @@ impl Src<'_> {
             k => self.me.items.get(k as usize)?.as_ref(),
         }
     }
+}
+
+/// A glyph texture in the atlas, packed on first use.
+fn glyph_sprite(atlas: &mut Atlas, fonts: &Fonts, texture: &GlyphTexture) -> Option<Sprite> {
+    let name = format!("font/{texture:?}");
+    if let Some(s) = atlas.get(&name) {
+        return Some(s);
+    }
+    let (w, h, texels) = fonts.texels(texture)?;
+    Some(atlas.add(&name, &image::RgbaImage::from_raw(w, h, texels)?))
 }
 
 impl Source for Src<'_> {
@@ -133,14 +156,10 @@ impl Source for Src<'_> {
         self.skin.theme.atlas.white()
     }
 
-    // TODO: the Java font's glyph layout (java/font) in place of the ASCII page, styles and all.
     fn text(&mut self, text: &Text, x: i32, y: i32, color: u32, shadow: bool) -> Glyphs {
-        let Some(font) = &self.skin.theme.font else { return Glyphs::default() };
-        let mut list = DrawList::new(1.0);
-        let plain = text.resolve_legacy().plain();
-        let width = font.draw(&mut list, &plain, x as f32, y as f32, color & 0xFF_FFFF, (color >> 24) as f32 / 255.0, shadow);
-        let edge = if shadow { 1.0 } else { 0.0 };
-        Glyphs { quads: list.quads, bounds: Some([x as f32, y as f32, x as f32 + width + edge, y as f32 + 8.0 + edge]) }
+        let prepared = self.fonts.prepare(text, Pen::gui(x as f32, y as f32, color, shadow), self.random);
+        let (atlas, fonts) = (&mut self.skin.theme.atlas, self.fonts);
+        prepared.glyphs(|t| glyph_sprite(atlas, fonts, t))
     }
 
     fn item(&mut self, key: i32, x: i32, y: i32, _: i32) -> Vec<Quad> {
@@ -154,12 +173,11 @@ impl Source for Src<'_> {
     /// `itemDecorations`: the count (bars and cooldowns are not known here).
     fn decorations(&mut self, key: i32, x: i32, y: i32, count: Option<&str>) -> Vec<GuiDraw> {
         let Some(stack) = self.stack(key) else { return Vec::new() };
-        let Some(font) = &self.skin.theme.font else { return Vec::new() };
         if stack.count == 1 && count.is_none() {
             return Vec::new();
         }
         let amount = count.map_or_else(|| stack.count.to_string(), str::to_owned);
-        let width = Metrics::width(font, &Text::literal(amount.as_str()));
+        let width = Metrics::width(self.fonts, &Text::literal(amount.as_str()));
         vec![GuiDraw::Text { text: Text::literal(amount), x: x + 19 - 2 - width, y: y + 6 + 3, color: 0xFFFF_FFFF, shadow: true }]
     }
 }
