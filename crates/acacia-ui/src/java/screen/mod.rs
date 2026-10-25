@@ -5,14 +5,22 @@
 pub mod confirm;
 pub mod credits;
 pub mod death;
+pub mod keybinds;
+pub mod keys;
+mod keys_table;
+pub mod language;
+pub mod listed;
 pub mod loading;
 pub mod message;
 pub mod options;
+pub mod packs;
 pub mod pause;
 pub mod win;
 
 #[cfg(test)]
 mod input_tests;
+#[cfg(test)]
+mod lists_tests;
 
 use crate::java::gui::{Blend, GuiDraw};
 use crate::java::widget::input::{self, Child, Fired, Interaction, Key};

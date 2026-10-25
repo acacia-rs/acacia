@@ -53,6 +53,7 @@ fn replay(harness: &str) -> Option<Replay> {
         "stations" => stations::replay,
         "screens_widgets" => screens::widgets::replay,
         "screens_menus" => screens::menus::replay,
+        "screens_lists" => screens::lists::replay,
         "screens_options" => screens::options::replay,
         "screens_more" => screens::more::replay,
         "subtitles" => subtitles::replay,

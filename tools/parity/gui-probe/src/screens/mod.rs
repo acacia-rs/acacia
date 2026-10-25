@@ -2,6 +2,7 @@
 //! their replays.
 
 pub mod layouts;
+pub mod lists;
 pub mod menus;
 pub mod more;
 pub mod options;
