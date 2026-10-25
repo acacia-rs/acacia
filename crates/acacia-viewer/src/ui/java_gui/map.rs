@@ -99,8 +99,8 @@ fn stamp(out: &mut RgbaImage, image: &RgbaImage, m: &MapMarker) {
     let centre = m.offset.map(|half_pixels| f32::from(half_pixels) / 2.0 + middle);
     let (sin, cos) = (f32::from(m.rotation) * 22.5f32).to_radians().sin_cos();
     // The quad reaches 4.5 · √2 map pixels from its centre at most.
-    let reach = 7.0;
-    let span = |c: f32| ((c - reach).max(0.0) * SUB as f32) as u32..(((c + reach) * SUB as f32) as u32).min(out.width());
+    let (reach, width) = (7.0, out.width());
+    let span = |c: f32| ((c - reach).max(0.0) * SUB as f32) as u32..(((c + reach) * SUB as f32) as u32).min(width);
     for py in span(centre[1]) {
         for px in span(centre[0]) {
             let (dx, dy) = ((px as f32 + 0.5) / SUB as f32 - centre[0], (py as f32 + 0.5) / SUB as f32 - centre[1]);
