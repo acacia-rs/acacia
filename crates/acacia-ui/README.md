@@ -97,6 +97,27 @@ The sign editor (`sign_editor.rs`) follows Java's `AbstractSignEditScreen` in bo
 oak board with the four lines, the typed one between `>` and `<`, and Done. A hanging sign gets a smaller
 board on two chains; lines are capped at the sign's own width (90 px, or 60 hanging).
 
+## Java GUI (`java/`)
+
+Java 26.3's GUI ported call for call. Layouts (`hud/`, `screen/`, `container/`, `chat/`,
+`tooltip/`, `widget/`) take the state the game reads and emit `GuiGraphicsExtractor` calls
+(`gui::GuiDraw`). The parity harnesses compare these lists with the game's own, recorded headless
+by `GuiCapture` (`tools/parity/java/acacia/parity/gui`). See the `gui` rows of `docs/parity.md`.
+
+- **Font (`font/`):** FontManager and FontSet with the bitmap, space, unihex and reference
+  providers, filters, and Unifont from the asset index. Obfuscated glyphs are picked from same-width
+  glyphs in Java's hash-set order. `text.rs` handles components and legacy codes; `split*.rs`
+  ports StringSplitter.
+- **Paint (`paint/`):** turns calls into quads the way GuiRenderState does.
+  - Strata and nodes go through `findAppropriateNode`, with glyphs after the elements of each node.
+  - Blits handle stretch, tile and nine-slice sprites from `.mcmeta`.
+  - Scissors are intersected and poses applied.
+  - Highlight blends are invert and additive.
+  - Labels scroll by `defaultScrollingHelper`.
+  - Pictures (entity, book, banner, map, tooltip images) are not painted yet.
+- **Not ported:** Brigadier command suggestions, RTL (bidi) text, hover-event tooltips in text,
+  creative and recipe-book search trees.
+
 ## Not yet
 
 The loom's banner preview, the beacon's own art, a cartography table's name box, Unicode glyph pages,
