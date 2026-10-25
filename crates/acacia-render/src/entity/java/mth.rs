@@ -40,6 +40,33 @@ pub fn lerp(amount: f32, from: f32, to: f32) -> f32 {
     from + amount * (to - from)
 }
 
+/// JOML's sine and cosine of a `Matrix4f.rotateX/Y/Z` angle: the cosine is `sqrt(1 - sin²)` in
+/// floats, signed by quadrant (`Math.cosFromSin`), off by up to 1e-5 near ±90°.
+pub fn joml_sin_cos(angle: f32) -> (f32, f32) {
+    use std::f32::consts::PI;
+    let sin = f64::from(angle).sin() as f32;
+    let cos = f64::from(1.0 - sin * sin).sqrt() as f32;
+    let a = angle + PI / 2.0;
+    let mut b = a - (a / (PI * 2.0)) as i32 as f32 * (PI * 2.0);
+    if b < 0.0 {
+        b += PI * 2.0;
+    }
+    (sin, if b >= PI { -cos } else { cos })
+}
+
+/// `Axis.rotateDegrees` on a matrix: `axis` is ±X, ±Y or ±Z.
+pub fn joml_rotation(axis: glam::Vec3, degrees: f32) -> glam::Mat4 {
+    use glam::{Mat4, Vec4};
+    let angle = degrees * (std::f64::consts::PI / 180.0) as f32 * (axis.x + axis.y + axis.z);
+    let (s, c) = joml_sin_cos(angle);
+    let (x, y, z) = (axis.x != 0.0, axis.y != 0.0, axis.z != 0.0);
+    match (x, y, z) {
+        (true, _, _) => Mat4::from_cols(Vec4::X, Vec4::new(0.0, c, s, 0.0), Vec4::new(0.0, -s, c, 0.0), Vec4::W),
+        (_, true, _) => Mat4::from_cols(Vec4::new(c, 0.0, -s, 0.0), Vec4::Y, Vec4::new(s, 0.0, c, 0.0), Vec4::W),
+        _ => Mat4::from_cols(Vec4::new(c, s, 0.0, 0.0), Vec4::new(-s, c, 0.0, 0.0), Vec4::Z, Vec4::W),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -39,7 +39,7 @@ pub struct Hold {
 }
 
 fn rot(axis: Vec3, degrees: f32) -> Mat4 {
-    Mat4::from_axis_angle(axis, degrees.to_radians())
+    mth::joml_rotation(axis, degrees)
 }
 
 fn arm(side: f32, lowered: f32) -> Mat4 {
