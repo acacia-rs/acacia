@@ -80,7 +80,7 @@ pub(super) fn display(first_person: bool, left: bool, blocking: bool) -> Display
 mod tests {
     use super::*;
     use crate::item::Form;
-    use crate::item::hand::held_frame;
+    use crate::item::hand::{Grip, held_frame};
 
     fn bounds(mesh: &Mesh, frame: Mat4) -> (Vec3, Vec3) {
         let points = mesh.vertices.iter().map(|v| frame.transform_point3(Vec3::from(v.position)));
@@ -119,9 +119,9 @@ mod tests {
             // The shoulder of a humanoid's arm, in model space (blocks): the entity's right is -x.
             let hand = Mat4::from_translation(Vec3::new(5.0 * side, 22.0, 0.0) / 16.0);
             // Raised, the plate turns across the body and tips: no longer flat to the side.
-            let (lo, hi) = bounds(&plate, held_frame(Display::third_person(Form::Shield, left, true), hand, left));
+            let (lo, hi) = bounds(&plate, held_frame(Display::third_person(Form::Shield, left, true), hand, Grip::hand(left)));
             assert!((hi.x - lo.x) * 16.0 > 6.0, "{left}: {lo} {hi}");
-            let frame = held_frame(Display::third_person(Form::Shield, left, false), hand, left);
+            let frame = held_frame(Display::third_person(Form::Shield, left, false), hand, Grip::hand(left));
             // Facing sideways with its long side level (as a sword points forward out of the
             // fist), 4.5 px out from the shoulder and centred 6 px below it.
             let (lo, hi) = bounds(&plate, frame);
@@ -143,7 +143,7 @@ mod tests {
         for left in [false, true] {
             let mut pose = Pose::default();
             raise_arm(&mut pose, left);
-            let frame = held_frame(Display::third_person(Form::Shield, left, true), arms.hand(&pose, left).unwrap(), left);
+            let frame = held_frame(Display::third_person(Form::Shield, left, true), arms.hand(&pose, left).unwrap(), Grip::hand(left));
             // The holder looks down -z; the plate's front is the mesh's -z face.
             let front = frame.transform_vector3(Vec3::NEG_Z).normalize();
             assert!(front.z < -0.6, "{left}: {front}");

@@ -10,7 +10,7 @@ use image::{Rgba, RgbaImage, imageops};
 
 use crate::assets::image_file;
 use crate::Camera;
-use crate::entity::bake::{Joint, Mesh, Vertex};
+use crate::entity::bake::{Mesh, Vertex};
 use crate::entity::{EntityInstance, Layer, NO_MODEL, NO_TEXTURE, Pose, Skin};
 
 /// Pixels along a map picture's side.
@@ -94,8 +94,7 @@ fn sheet_mesh() -> Mesh {
         let c = [corner(0.0, 0.0, facing), corner(0.0, 1.0, facing), corner(1.0, 1.0, facing), corner(1.0, 0.0, facing)];
         if facing > 0.0 { [c[0], c[1], c[2], c[0], c[2], c[3]] } else { [c[0], c[2], c[1], c[0], c[3], c[2]] }
     };
-    let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
-    Mesh { vertices: [side(1.0), side(-1.0)].concat(), bones: vec!["root".into()], joints: vec![joint] }
+    Mesh::one_bone([side(1.0), side(-1.0)].concat())
 }
 
 /// How the map is held.

@@ -10,6 +10,7 @@ pub mod cape;
 pub(crate) mod block_models;
 mod controller;
 pub mod geometry;
+pub mod java;
 mod layer;
 pub mod molang;
 mod pose;
@@ -74,6 +75,8 @@ pub struct EntityModels {
     players: Option<[Arc<[Layer]>; 3]>,
     /// Worn armour by item identifier ([`armor`]).
     armor: HashMap<String, Arc<[Layer]>>,
+    /// The look's Java models, asked before the Bedrock definitions.
+    java: java::library::Library,
 }
 
 /// One entity to draw this frame.
@@ -155,6 +158,19 @@ impl EntityModels {
                 out.textures.push(file);
             }
         }
+        let (models, textures, texture_ids) = (&mut out.models, &mut out.textures, &mut out.texture_ids);
+        let mut model = |mesh| {
+            models.push(Model { mesh });
+            (models.len() - 1) as ModelId
+        };
+        let mut texture = |path: &str| {
+            let file = image_file(root, path)?;
+            Some(*texture_ids.entry(path.to_owned()).or_insert_with(|| {
+                textures.push(file);
+                (textures.len() - 1) as TextureId
+            }))
+        };
+        out.java = java::library::Library::load(root, &mut model, &mut texture);
         let steve = out.kinds.get("minecraft:player").and_then(|d| out.texture_ids.get(d.textures.get("default")?)).copied();
         let player = |geometry: &str| -> Option<Arc<[Layer]>> {
             let model = *out.by_geometry.get(geometry)?;
@@ -200,6 +216,9 @@ impl EntityModels {
     /// answers Molang queries about the entity by name (`is_baby`, `variant`); see
     /// [`molang::Scope::query`].
     pub fn appearance(&self, kind: &str, query: &dyn Fn(&str) -> Value) -> Option<(Arc<[Layer]>, f32)> {
+        if let Some(java) = self.java.appearance(kind, query) {
+            return Some(java);
+        }
         let definition = self.kinds.get(kind)?;
         let mut scope = self.scope(query);
         for script in &definition.scripts {
