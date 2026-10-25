@@ -67,8 +67,8 @@ public class GuiCapture extends GuiGraphicsExtractor {
     @Override public int guiWidth() { return width; }
     @Override public int guiHeight() { return height; }
     @Override public Matrix3x2fStack pose() { return stack; }
-    @Override public void nextStratum() { }
-    @Override public void blurBeforeThisStratum() { }
+    @Override public void nextStratum() { draws.add(call("stratum")); }
+    @Override public void blurBeforeThisStratum() { draws.add(call("blur")); }
 
     static JsonArray matrix(Matrix3x2fc m) {
         var a = new JsonArray();

@@ -1,6 +1,8 @@
 //! The UI pass (`ui.wgsl`): an [`acacia_ui::DrawList`] over the finished frame, one instance per
 //! quad, sampling the UI atlas with nearest filtering so pixel art stays sharp at any GUI scale.
+//! Each run of quads with the same [`Blend`] is one draw through that blend's pipeline.
 
+use acacia_ui::draw::Blend;
 use acacia_ui::{Atlas, Quad};
 
 use super::glint::GlintTextures;
@@ -14,13 +16,32 @@ struct Instance {
     color: [u8; 4],
     /// 1 for an enchanted item's icon.
     glint: f32,
+    bottom: [u8; 4],
+    skew: [f32; 2],
+}
+
+const BLENDS: [Blend; 4] = [Blend::Alpha, Blend::Invert, Blend::Darken, Blend::Add];
+
+/// Java's blend functions: `TRANSLUCENT`, `INVERT`, the vignette's and `ADDITIVE`.
+fn blend_state(blend: Blend) -> wgpu::BlendState {
+    use wgpu::{BlendComponent as C, BlendFactor as F, BlendOperation::Add};
+    let c = |src_factor, dst_factor| C { src_factor, dst_factor, operation: Add };
+    match blend {
+        Blend::Alpha => wgpu::BlendState::ALPHA_BLENDING,
+        Blend::Invert => wgpu::BlendState { color: c(F::OneMinusDst, F::OneMinusSrc), alpha: c(F::One, F::Zero) },
+        Blend::Darken => wgpu::BlendState { color: c(F::Zero, F::OneMinusSrc), alpha: c(F::Zero, F::One) },
+        Blend::Add => wgpu::BlendState { color: c(F::One, F::One), alpha: c(F::One, F::One) },
+    }
 }
 
 /// `Screen` in the shader: two `vec4`s.
 const SCREEN_BYTES: u64 = 32;
 
 pub struct UiPass {
-    pipeline: wgpu::RenderPipeline,
+    /// One per [`BLENDS`].
+    pipelines: Vec<wgpu::RenderPipeline>,
+    /// Instance ranges and the blend each is drawn with.
+    runs: Vec<(std::ops::Range<u32>, usize)>,
     layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     screen: wgpu::Buffer,
@@ -59,31 +80,34 @@ impl UiPass {
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("ui"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("ui"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[Some(wgpu::VertexBufferLayout {
-                    array_stride: size_of::<Instance>() as u64,
-                    step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Unorm8x4, 3 => Float32],
-                })],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format: color, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::COLOR })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
+        let pipeline = |blend| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("ui"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
+                    buffers: &[Some(wgpu::VertexBufferLayout {
+                        array_stride: size_of::<Instance>() as u64,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Unorm8x4, 3 => Float32, 4 => Unorm8x4, 5 => Float32x2],
+                    })],
+                },
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState { format: color, blend: Some(blend_state(blend)), write_mask: wgpu::ColorWrites::COLOR })],
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
+        let pipelines = BLENDS.map(pipeline).into();
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor { label: Some("ui"), ..Default::default() });
         let screen = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("ui screen"),
@@ -92,7 +116,7 @@ impl UiPass {
             mapped_at_creation: false,
         });
         let instances = instance_buffer(device, 1024);
-        UiPass { pipeline, layout, sampler, screen, atlas: None, glint: GlintTextures::new(device), texture: None, instances, count: 0, format: color }
+        UiPass { pipelines, runs: Vec::new(), layout, sampler, screen, atlas: None, glint: GlintTextures::new(device), texture: None, instances, count: 0, format: color }
     }
 
     /// The glint over enchanted items' icons from now on.
@@ -129,7 +153,9 @@ impl UiPass {
         let [icon_scale, _] = Glint::Item.scale([16; 2]);
         let screen = [window[0] as f32, window[1] as f32, size[0], size[1], glint_scroll[0], glint_scroll[1], icon_scale, 0.0];
         queue.write_buffer(&self.screen, 0, bytemuck::cast_slice(&screen));
-        let data: Vec<Instance> = quads.iter().map(|q| Instance { rect: q.rect, uv: q.uv, color: q.color, glint: f32::from(u8::from(q.glint)) }).collect();
+        let data: Vec<Instance> =
+            quads.iter().map(|q| Instance { rect: q.rect, uv: q.uv, color: q.color, glint: f32::from(u8::from(q.glint)), bottom: q.bottom, skew: q.skew }).collect();
+        self.runs = runs(quads);
         let needed = (data.len() * size_of::<Instance>()) as u64;
         if needed > self.instances.size() {
             self.instances = instance_buffer(device, data.len().next_power_of_two());
@@ -158,11 +184,26 @@ impl UiPass {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, bind_group, &[]);
         pass.set_vertex_buffer(0, self.instances.slice(..));
-        pass.draw(0..6, 0..self.count);
+        for (range, blend) in &self.runs {
+            pass.set_pipeline(&self.pipelines[*blend]);
+            pass.draw(0..6, range.clone());
+        }
     }
+}
+
+/// Consecutive quads of one blend, as instance ranges with that blend's index in [`BLENDS`].
+fn runs(quads: &[Quad]) -> Vec<(std::ops::Range<u32>, usize)> {
+    let mut out: Vec<(std::ops::Range<u32>, usize)> = Vec::new();
+    for (i, q) in quads.iter().enumerate() {
+        let blend = BLENDS.iter().position(|&b| b == q.blend).unwrap_or(0);
+        match out.last_mut() {
+            Some((range, b)) if *b == blend => range.end = i as u32 + 1,
+            _ => out.push((i as u32..i as u32 + 1, blend)),
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -180,6 +221,15 @@ mod tests {
             _ => None,
         });
         assert_eq!(screen, Some(super::SCREEN_BYTES as u32));
+    }
+
+    #[test]
+    fn a_blend_change_starts_a_run() {
+        use acacia_ui::Quad;
+        use acacia_ui::draw::Blend;
+        let q = |blend| Quad { blend, ..Quad::plain([0.0; 4], [0.0; 4], [255; 4]) };
+        let quads = [q(Blend::Alpha), q(Blend::Alpha), q(Blend::Invert), q(Blend::Alpha)];
+        assert_eq!(super::runs(&quads), vec![(0..2, 0), (2..3, 1), (3..4, 0)]);
     }
 }
 

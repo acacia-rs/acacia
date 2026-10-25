@@ -99,6 +99,10 @@ pub enum GuiDraw {
     /// `textHighlight(x0, y0, x1, y1, invert)`: a `GUI_INVERT` fill when `invert`, then a
     /// `GUI_TEXT_HIGHLIGHT` one.
     Highlight { x0: i32, y0: i32, x1: i32, y1: i32, invert: bool },
+    /// `nextStratum()`: what follows draws over everything before, whatever its bounds.
+    Stratum,
+    /// `blurBeforeThisStratum()`: the strata before this one are blurred (a screen's background).
+    Blur,
 }
 
 /// A screen `width` × `height` GUI pixels big being drawn into.
@@ -177,6 +181,14 @@ impl Gui {
 
     pub fn highlight(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, invert: bool) {
         self.draws.push(GuiDraw::Highlight { x0, y0, x1, y1, invert });
+    }
+
+    pub fn next_stratum(&mut self) {
+        self.draws.push(GuiDraw::Stratum);
+    }
+
+    pub fn blur(&mut self) {
+        self.draws.push(GuiDraw::Blur);
     }
 }
 
