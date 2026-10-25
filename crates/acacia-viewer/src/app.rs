@@ -4,6 +4,7 @@
 mod creative;
 mod events;
 mod fluid;
+mod java_screen;
 mod form;
 mod keys;
 mod menu;
@@ -248,7 +249,7 @@ impl App {
         let name = name.as_ref().map(|(before, all)| (before.as_str(), &all[before.len()..]));
         let creative = self.creative_view();
         let creative = creative.as_ref().map(|(stacks, tab, scrolled)| (stacks.as_slice(), *tab, *scrolled));
-        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.shown.pick, first: self.first_pick(), name, creative });
+        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.shown.pick, first: self.first_pick(), name, creative, java: (crate::ui::JavaScreen { entries: &self.shown.items, creative: self.shown.creative.map(|c| c.0), name: &self.shown.name }, &self.shown.java) });
         let menu = self.menu.map(|m| self.menu_content(m));
         let backdrop = if self.menu == Some(Menu::Death) { Backdrop::Death } else { Backdrop::Dim };
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice(), backdrop));

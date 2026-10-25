@@ -67,20 +67,6 @@ impl Bench {
         }
     }
 
-    /// Java's sheet under `textures/gui/container`.
-    pub fn sheet(self) -> &'static str {
-        match self {
-            Bench::Crafting => "crafting_table",
-            Bench::Anvil => "anvil",
-            Bench::Smithing => "smithing",
-            Bench::Grindstone => "grindstone",
-            Bench::Stonecutter => "stonecutter",
-            Bench::Cartography => "cartography_table",
-            Bench::Enchanting => "enchanting_table",
-            Bench::Loom => "loom",
-            Bench::Beacon => "beacon",
-        }
-    }
 
     pub(super) fn title_at(self) -> [f32; 2] {
         match self {

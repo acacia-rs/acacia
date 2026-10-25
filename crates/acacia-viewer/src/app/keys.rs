@@ -32,7 +32,9 @@ impl App {
         }
         if self.ui.chat.is_open() || self.screen_open {
             if pressed && self.screen_open {
-                self.screen_key(code);
+                if !self.java_key(code) {
+                    self.screen_key(code);
+                }
             } else if pressed {
                 self.chat_key(code);
             }
@@ -89,6 +91,8 @@ impl App {
             self.sign_text(text);
         } else if self.form.is_some() && self.menu.is_none() {
             self.form_text(text);
+        } else if self.screen_open && self.menu.is_none() && self.shown.java.book_typing() {
+            self.java_text(text);
         } else if self.names() && self.menu.is_none() {
             self.screen_text(text);
         } else if chat_was_open {
@@ -128,7 +132,7 @@ impl App {
             return self.form_button(button, pressed);
         }
         if self.screen_open {
-            if pressed {
+            if !self.java_button(button, pressed) && pressed {
                 self.screen_click(button, self.shift);
             }
             return;
@@ -152,7 +156,10 @@ impl App {
             return self.form_scroll(lines);
         }
         if self.screen_open {
-            return self.screen_scroll(lines);
+            if !self.java_scroll(lines) {
+                self.screen_scroll(lines);
+            }
+            return;
         }
         match self.mode {
             Mode::Fly => self.input.scroll(lines),

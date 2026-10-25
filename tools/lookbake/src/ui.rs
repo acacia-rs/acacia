@@ -1,13 +1,14 @@
 //! Everything the Java GUI draws from, copied into a Java look's files in the jar's own layout:
 //! the GUI sprites with their `.mcmeta` scaling and sheets (`textures/gui`), the camera overlays
-//! (`textures/misc`), effect icons, the fonts and their definitions, and the nether portal's frames.
+//! (`textures/misc`), effect icons, the fonts and their definitions, the nether portal's frames and
+//! the `en_us` translations.
 //! Read by `acacia_ui::theme::java` and `acacia_ui::java::paint::assets`.
 
 use std::path::Path;
 
 use crate::download::{Error, get, pinned};
 
-const COPIED: [&str; 6] = ["textures/gui", "textures/misc", "textures/mob_effect", "textures/font", "font", "textures/block/nether_portal.png"];
+const COPIED: [&str; 7] = ["textures/gui", "textures/misc", "textures/mob_effect", "textures/font", "font", "textures/block/nether_portal.png", "lang"];
 
 pub fn copy(assets: &Path, out: &Path) -> Result<(), Error> {
     for name in COPIED {

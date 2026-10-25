@@ -3,7 +3,10 @@
 
 mod hud;
 mod inputs;
+mod items;
+mod lang;
 mod picture;
+pub mod screens;
 
 pub use hud::{HudView, hotbar_stack};
 pub use inputs::screen_info;
@@ -37,6 +40,9 @@ pub struct JavaGui {
     ticks: i64,
     last_frame: i64,
     started: Instant,
+    lang: lang::JavaLang,
+    /// The registry facts the screens' tooltips read.
+    game: acacia_ui::java::tooltip::game::Game,
 }
 
 impl JavaGui {
@@ -46,7 +52,13 @@ impl JavaGui {
         for w in &fonts.warnings {
             tracing::debug!(target: "ui", "font: {w}");
         }
-        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now() }
+        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang: lang::JavaLang::load(root), game: items::facts() }
+    }
+
+    /// The screens' environment: the fonts, the translations, the registry facts.
+    fn with_env<R>(&self, f: impl FnOnce(&acacia_ui::java::container::Env) -> R) -> R {
+        let lang = |key: &str| self.lang.get(key);
+        f(&acacia_ui::java::container::Env { font: &self.fonts, lang: &lang, advanced: false, game: &self.game, op: false })
     }
 
     /// Whether the pack has the GUI's sprites.

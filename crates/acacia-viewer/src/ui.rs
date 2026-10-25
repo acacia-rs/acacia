@@ -5,6 +5,7 @@ mod java_gui;
 mod screen;
 
 pub use java_gui::PictureRequest;
+pub use java_gui::screens::{Event as JavaEvent, JavaScreen, State as JavaState};
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -86,6 +87,7 @@ pub struct Screen<'a> {
     pub name: Option<(&'a str, &'a str)>,
     /// The creative inventory's shown items, its tab, and how far it is scrolled.
     pub creative: Option<(&'a [crate::control::Stack], usize, f32)>,
+    pub java: (JavaScreen<'a>, &'a JavaState),
 }
 
 pub struct Ui {
@@ -242,11 +244,7 @@ impl Ui {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
         if let Some(screen) = screen {
-            screen::draw(&mut list, skin, &self.lang, &screen, mouse, gui);
-            if let Some((request, quad)) = (screen.layout == acacia_ui::inventory::Layout::Player).then(|| figure::inventory_figure(gui, mouse, scale as f32)).flatten() {
-                self.pictures.push(request);
-                list.quads.push(quad);
-            }
+            java_gui::screens::draw(&mut self.java_gui, java, skin, &self.lang, &screen, me, (size, scale), (mouse, now), &mut list, &mut self.pictures);
         }
         if let Some(names) = players.filter(|_| !java) {
             acacia_ui::players::draw(&mut list, &skin.theme, names, gui[0]);
