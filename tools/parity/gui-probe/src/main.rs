@@ -14,6 +14,7 @@ mod lang;
 mod players;
 mod recipe_book;
 mod screens;
+mod stations;
 mod subtitles;
 mod tooltips;
 mod trading;
@@ -49,6 +50,7 @@ fn replay(harness: &str) -> Option<Replay> {
         "hud" => hud::replay,
         "players" => players::replay,
         "recipe_book" => recipe_book::replay,
+        "stations" => stations::replay,
         "screens_widgets" => screens::widgets::replay,
         "subtitles" => subtitles::replay,
         "tooltips" => tooltips::replay,

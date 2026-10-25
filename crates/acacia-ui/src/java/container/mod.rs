@@ -4,12 +4,19 @@
 //! A screen implements [`Screen`] (Java's overridable methods) over a [`Base`] (the abstract
 //! class's fields); [`frame`] draws one frame as `extractRenderStateWithTooltipAndSubtitles` does.
 
+pub mod anvil;
+pub mod beacon;
 pub mod brewing;
+pub mod cartography;
 pub mod crafter;
 pub mod creative;
 pub mod creative_search;
 pub mod effects;
+pub mod enchanting;
+pub mod enchanting_names;
 pub mod entity;
+pub mod grindstone;
+pub mod item_combiner;
 pub mod lectern;
 pub mod loom;
 pub mod menus;
@@ -18,6 +25,7 @@ pub mod mount;
 pub mod recipe_book;
 pub mod simple;
 pub mod slot;
+pub mod smithing;
 pub mod stonecutter;
 
 pub use slot::{QuickCraft, Slot, can_quick_replace, extract_slot, quick_craft_count, same_item};
