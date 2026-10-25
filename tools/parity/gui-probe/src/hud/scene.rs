@@ -46,6 +46,7 @@ pub fn sidebar(c: &Value, assets: &Assets, gui: &mut Gui) {
     let mut member_of: HashMap<String, usize> = HashMap::new();
     for (i, t) in list("teams").iter().enumerate() {
         teams.push(Team {
+            name: t["name"].as_str().unwrap_or_default().to_owned(),
             prefix: comp(assets, &t["prefix"]),
             suffix: comp(assets, &t["suffix"]),
             color: t["color"].as_str().and_then(named_color),

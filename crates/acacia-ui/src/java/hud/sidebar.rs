@@ -52,6 +52,7 @@ impl ScoreEntry {
 /// A `PlayerTeam`'s name decorations.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Team {
+    pub name: String,
     pub prefix: Text,
     pub suffix: Text,
     /// The `TeamColor`'s RGB.
@@ -145,7 +146,7 @@ mod tests {
 
     #[test]
     fn team_colour_under_the_affixes() {
-        let team = Team { prefix: Text::literal("[A] ").with_color(0xFF5555), suffix: Text::default(), color: Some(0x5555FF) };
+        let team = Team { name: "a".into(), prefix: Text::literal("[A] ").with_color(0xFF5555), suffix: Text::default(), color: Some(0x5555FF) };
         let name = team.formatted_name(Text::literal("Mia"));
         assert_eq!(name.spans[0].style.color, Some(0xFF5555));
         assert_eq!(name.spans[1].style.color, Some(0x5555FF));
