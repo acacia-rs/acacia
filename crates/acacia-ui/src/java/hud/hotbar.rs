@@ -77,6 +77,7 @@ pub fn full_attack_indicator(scale: f32, delay: f32, target: Option<bool>) -> bo
 /// is `getAttackStrengthScale(0)` in CROSSHAIR indicator mode, `full` per [`full_attack_indicator`].
 pub fn crosshair(gui: &mut Gui, attack: Option<f32>, full: bool) {
     let (w, h) = (gui.width, gui.height);
+    gui.next_stratum();
     let start = gui.draws.len();
     gui.sprite("hud/crosshair", (w - 15) / 2, (h - 15) / 2, 15, 15);
     if let Some(scale) = attack {
