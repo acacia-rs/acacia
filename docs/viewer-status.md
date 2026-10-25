@@ -21,6 +21,8 @@ unit or pack tests only.
 | Particles | Server particles; torches, fires, furnaces, campfires, drips; block chips | live, both looks |
 | Entities | Pack models and animations, skins, name tags, dropped items | live |
 | Entities | Held items in both hands, worn armour, hurt flash | live |
+| Entities | Java look: 15 mob kinds on Java's models (cows, mooshrooms, pigs, sheep, chickens, creeper, spiders, zombies, husks, drowned, skeletons, strays, wither skeletons, bogged; own-model babies) posed by a port of their `setupAnim`; armour on Java's slot models with the equipment assets' textures; wool, clothes and the creeper's aura as their own models; lit by the lightmap and Java's two lights | parity harnesses `entity_models`, `entity_poses`, `entity_layers`; not seen live this session |
+| Items | Java look: items from the 26.3 item models (every display context, tints, foil), the GUI slot icons drawn from them, first-person placement with swings and use animations | parity harnesses `item_models`, `item_transforms`; slot icons by tests; not seen live this session |
 | Entities | Leather dyed worn, held and in slots: undyed brown, or the stack's own dye | undyed: live; a stack's dye: tests (no command dyes armour) |
 | Entities | Enchantment glint on held items, worn armour and slot icons | live in the Java look (armour: faint on netherite, not told apart on diamond); Bedrock look: faint, its rules assumed; dropped items and other entities' hands: tests |
 | Entities | Death topple | tests |

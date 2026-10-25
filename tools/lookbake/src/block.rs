@@ -61,6 +61,7 @@ pub fn render_block(base: &RenderBlock, faces: &[BakedFace], model: Vec<ModelFac
         cull_same: base.cull_same,
         fluid: Fluid::None,
         fluid_height: 0,
+        fluid_rules: base.fluid_rules,
         model: None,
         light: base.light,
     };

@@ -6,11 +6,13 @@
 //! - `lookbake fetch-java [java dir]`: downloads the pinned Java client jar, unpacks its assets
 //!   (jar.rs) and downloads the Bedrock-to-Java block table (mapping.rs).
 //! - `lookbake java-report [java dir]`: the same, then how many Bedrock block states reach a Java model.
-//! - `lookbake java-entities [java dir] [out dir]`: only the Java entity models and textures
-//!   (entities.rs; needs a JDK 25).
+//! - `lookbake java-exported [java dir] [out dir]`: only what the Java exporters write: entity
+//!   models and item models with their textures (exporter.rs, entities.rs, items.rs; needs a JDK 25).
 //! - `lookbake java-check <quads.json.gz> [java dir]`: our bake of every Java block state against a
 //!   dump of the game's own (check.rs); tools/parity's harness `bake` makes the dump. Exits nonzero
 //!   on any divergence.
+//! - `lookbake java-environment [java dir] [out dir]`: only the Java look's `environment.json`
+//!   (environment.rs); tools/parity's harnesses `sky` and `fog` read it.
 //! - `lookbake java-light-check <facts.json> [pack dir] [java dir]`: the Java look's light facts
 //!   (light.rs) against the game's; tools/parity's harness `light_facts` makes the dump.
 
@@ -22,6 +24,9 @@ mod check;
 mod download;
 mod entities;
 mod environment;
+mod exporter;
+mod fluid;
+mod items;
 mod jar;
 mod java;
 mod light;
@@ -43,7 +48,7 @@ use acacia_render::{Look, LookPack};
 
 use download::Error;
 
-const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-entities [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir] | java-light-check <facts.json> [pack dir] [java dir]";
+const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-exported [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir] | java-light-check <facts.json> [pack dir] [java dir] | java-environment [java dir] [out dir]";
 
 fn main() -> Result<(), Error> {
     let mut args = std::env::args().skip(1);
@@ -59,26 +64,26 @@ fn main() -> Result<(), Error> {
         Some("java") => {
             let (pack, java, out) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, report) = java::bake_look(&pack, &jar.assets, &mapping);
+            let (look, report) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
             look.save(&out)?;
             biomes::write(&biomes::java(&jar.biomes, &biomes::Colormaps::load(&jar.assets)?)?, &out)?;
             ui::copy(&jar.assets, &out)?;
             println!("  Java fonts from the asset index: {} files", ui::fetch_fonts(&out)?);
             environment::copy(&jar.assets, &out)?;
+            environment::write(&jar.data, &out)?;
             particles::copy(&jar.assets, &out)?;
             banners::copy(&jar.assets, &out)?;
-            if let Some(layers) = entities::bake(&java, &jar.assets, &out)? {
-                println!("  Java entity models: {layers} layers");
-            }
+            exported(&java, &jar.assets, &out)?;
             println!("  Java sounds: {} files", sounds::fetch(&out)?);
             println!("{}", summary(&look, &out));
             println!("  Java: {} states as cubes, {} as models, {} liquids; kept from Bedrock: {:?}", report.cubes, report.models, report.liquids, report.kept);
             println!("  textures missing: {:?}; models invalid: {:?}", report.missing_textures, report.invalid_models);
         }
-        Some("java-entities") => {
+        Some("java-exported") => {
             let (java, out) = (dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
-            let layers = entities::bake(&java, &jar::fetch(&java)?.assets, &out)?.ok_or("no JDK 25")?;
-            println!("{}: {layers} entity model layers", out.join(entities::MODELS).display());
+            if !exported(&java, &jar::fetch(&java)?.assets, &out)? {
+                return Err("no JDK 25 (JAVA_HOME or PATH)".into());
+            }
         }
         Some(command @ ("fetch-java" | "java-report")) => {
             let java = dir(jar::default_dir);
@@ -98,17 +103,35 @@ fn main() -> Result<(), Error> {
                 return Err(format!("{} divergences from the game", outcome.divergences.len()).into());
             }
         }
+        Some("java-environment") => {
+            let (java, out) = (dir(jar::default_dir), dir(|| LookPack::default_dir("java")));
+            let jar = jar::fetch(&java)?;
+            std::fs::create_dir_all(&out)?;
+            environment::write(&jar.data, &out)?;
+        }
         Some("java-light-check") => {
             let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
             let (pack, java) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir));
             let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
-            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping);
+            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping, &fluid::Tags::load(&jar.block_tags)?);
             let outcome = check::light::print(&look, &mapping, &truth)?;
             outcome.print_for_parity();
         }
         _ => return Err(USAGE.into()),
     }
     Ok(())
+}
+
+/// The exporters' entity and item models into the look; false (and the Bedrock ones kept) without a JDK 25.
+fn exported(java: &std::path::Path, assets: &std::path::Path, out: &std::path::Path) -> Result<bool, Error> {
+    let Some(exporter) = exporter::Exporter::prepare(java)? else {
+        println!("  Java entity and item models: no JDK 25 (JAVA_HOME or PATH), Bedrock's kept");
+        return Ok(false);
+    };
+    println!("  Java entity models: {} layers", entities::bake(&exporter, assets, out)?);
+    let items = items::bake(&exporter, java, assets, out)?;
+    println!("  Java item models: {} items, {} images, {} Bedrock names", items.items, items.images, items.names);
+    Ok(true)
 }
 
 fn summary(look: &LookPack, out: &std::path::Path) -> String {

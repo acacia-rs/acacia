@@ -227,8 +227,10 @@ gets an entity's layers from `EntityModels::appearance` (or `player`).
 - **Players** (`skin.rs`): a classic skin is a texture for one of three humanoids (wide, slim, 64×32
   layout). A persona skin brings its own geometry and a separate face texture; both bake into one mesh
   over one stacked texture.
-- **Light**: block and sky level at the entity's position from `LightData`, through the terrain's
-  curve (`gpu/globals.wgsl`), times a directional shade from the normal.
+- **Light**: block and sky level at the entity's position from `LightData`. Under Java lighting,
+  the lightmap's colour at those levels times `minecraft_mix_light` with `Lighting`'s LEVEL pair
+  (`entity.vsh`), multiplied in sRGB (`lit`); the Nether's pair is a TODO. The Bedrock look takes
+  the lightmap's curve times the terrain's directional shade.
 - **Ropes** (`rope.rs`): fishing lines and leads are runs of thin boxes through the entity pass
   (one shared one-texel skin each), along Java's curves: the line `(t² + t) / 2` of the rise
   from the bobber, the lead a parabola hanging from its higher end. Java draws the line a pixel
@@ -255,12 +257,20 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
   at 1 (`LivingEntityRenderer.submit`). Others are scaled as Bedrock does.
 - **Held items** (`mesh::hand`): `translateToHand` (skeletons shift the arm 1 px out,
   `Poses::hand_offset`), then `item::hand::fist`, `ItemInHandLayer`'s turn and fist offset (a
-  baby's is smaller). Armour, capes and the other layers are still drawn on Bedrock bones: a Java
-  model wears nothing yet.
+  baby's is smaller).
+- **Armour** (`equipment.rs`, `Library::armor`): the wearer's slot layer (`zombie#helmet`; a
+  baby's own), textured from the equipment asset (`java/equipment/*.json`: per layer type its
+  textures, leather multiplied by the dye or `color_when_undyed`). Trims are not drawn.
+- **Second layers** (`kinds::OVERLAYS`): wool and undercoat (in `ColorLerper`'s sheep colour, not
+  sheared), drowned, stray and bogged clothes, the charged creeper's swirl. Each is its own model
+  and, like armour, runs the wearer's `setupAnim` on itself: its rest poses differ from the body's
+  (a stray's clothed legs sit 1.9 px out, not 2), so copying the body's poses is wrong. The viewer
+  draws each as its own instance (`EntityModels::split_posed_apart`). Spider eyes are not drawn.
 - **Math** (`mth.rs`): `Mth.sin`/`cos` are Java's 65536-entry table; `(float)(Math.PI / d)`
   constants are `pi_div(d)`. Plain `f32` trig drifts past the harness tolerance.
 - **Proof**: parity harnesses `entity_models` (rest pose of every layer), `entity_poses`
-  (`setupAnim` on a corpus of render states) and `entity_layers` (held items); the probe is
+  (`setupAnim` on a corpus of render states) and `entity_layers` (held items, armour and second
+  layers); the probe is
   `examples/java_entities`.
 
 ### Java entity render state (`entity/java/state.rs`, `bedrock.rs`, `anim/`)
@@ -385,6 +395,32 @@ entity-pass mesh with its own texture, built on first use and cached.
   "Banners") in the item's dye, without the stack's patterns, and a shield's plate, turned as Java's `gui` display turns the model.
 - **Worn** (`entity/armor.rs`, `EntityModels::armor`): the pack's attachables give each armour
   item a geometry and texture, drawn as a further instance in the wearer's pose.
+
+### Java items (`item/java.rs`, `java_mesh.rs`, `java_icon.rs`)
+
+A Java look carries `java/item_models.json` (lookbake's `ItemModelExporter` on the user's jar):
+every item's default stack in every `ItemDisplayContext`, resolved by its `ItemModel` as the game
+does, as layers of quads (baked or captured from a special renderer) in layer space with
+sprite-local UVs, tints and the display transform. `java/item_names.json` (ViaBedrock's table)
+names the Java item for a Bedrock item and aux; unlisted names are taken as they are.
+
+- `ItemModels` builds a Java item from its right-hand layers ahead of the Bedrock paths (shield
+  and banner stay on theirs, since they carry patterns): each (image, tint) a region of one strip
+  texture, dyed leather replacing the first tint. `ItemModel::java` holds the displays per context;
+  `Display::held` takes them over the built-in ones, mirrored for the left hand as
+  `ItemTransform.apply` does.
+- Slot icons: `java_icon::icon` rasterises the `gui` layers as `GuiItemAtlas` draws them, lit by
+  `Lighting`'s ITEMS_3D or ITEMS_FLAT pair; flat items at their sprite's resolution.
+- First person (`first_person.rs`): `FirstPersonHandsAndItemsRenderer.submitArmWithItem`'s
+  placement before the display: arm offset and lowering, swing, eat and drink, bow, trident and
+  crossbow draws, a raised sword, the riptide spin. Turns go through `mth::joml_rotation`
+  (JOML's `cosFromSin` is off by 1e-5 near 90°, past the harness tolerance).
+- Proof: harness `item_models` (docs/parity.md) compares every quad of every item and context,
+  after the display, with what `ItemStackRenderState.submit` hands the game's renderer;
+  `item_transforms` the first-person placement.
+- Not yet: stack components (potions, maps, trims and the like draw as their default stack);
+  dropped and framed Java items keep the Bedrock-look rules by form, not the `ground` and `fixed`
+  displays.
 
 ### Enchantment glint (`glint.rs`, `gpu/glint.rs`)
 

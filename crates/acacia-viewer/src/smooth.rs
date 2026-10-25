@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use acacia_render::entity::{EntityInstance, EntityModels, Value, cape};
+use acacia_render::entity::{EntityInstance, EntityModels, Layer, Value, cape};
 use acacia_render::item::drop::{self, Drop};
 use acacia_render::item::{ItemModel, ItemModels, SHIELD, hand};
 use acacia_render::shadows::Shadow;
@@ -203,11 +203,21 @@ impl Smoother {
             }
         }
         let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);
-        let worn = e.armor.iter().map(|(layers, enchanted)| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, glint: glint(*enchanted), ..e.instance.clone() });
+        // A Java armour layer runs its wearer's setupAnim on its own model; a Bedrock one takes the wearer's pose.
+        let worn_pose = |layers: &[Layer]| match layers.first().filter(|l| self.models.is_java(l.model)) {
+            Some(l) => self.models.pose(&e.kind, l.model, &query),
+            None => pose.clone(),
+        };
+        let worn = e.armor.iter().map(|(layers, enchanted)| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: worn_pose(layers), frame, hurt, glint: glint(*enchanted), ..e.instance.clone() });
         out.extend(worn);
         let cape = e.cape.iter().map(|cape| EntityInstance { layers: cape::layers(), skin: Some(cape.clone()), position: m.position, yaw: m.yaw, pose: cape::pose(&pose, m.walk.speed), frame, hurt, ..e.instance.clone() });
         out.extend(cape);
-        out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
+        let (layers, apart) = self.models.split_posed_apart(&e.instance.layers);
+        for layer in apart {
+            let pose = self.models.pose(&e.kind, layer.model, &query);
+            out.push(EntityInstance { layers: [layer].into(), position: m.position, yaw: m.yaw, pose, frame, hurt, glint: None, ..e.instance.clone() });
+        }
+        out.push(EntityInstance { layers, position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
         out
     }
 

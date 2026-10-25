@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use acacia_render::Outline;
 use acacia_render::entity::EntityInstance;
-use acacia_render::item::{ItemKey, SHIELD, hand, map};
+use acacia_render::item::{ItemKey, SHIELD, first_person, hand, map};
 use acacia_ui::nametags::Tag;
 
 use super::{App, Mode};
@@ -100,19 +100,31 @@ impl App {
                 continue;
             }
             let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block, dye: stack.dye, banner: stack.banner.clone() }, stack.enchanted) else { continue };
-            let display = hand::Display::first_person(&stack.name, model.form, left, sneaking && (left || !off_shield));
-            let (swing, using) = if left { (0.0, None) } else { (swing, using) };
-            out.push(hand::first_person(&model, display, &self.camera, left, swing, using));
+            let display = hand::Display::held(&model, &stack.name, true, left, sneaking && (left || !off_shield));
+            let crossbow = (stack.name == CROSSBOW).then_some(false);
+            let hold = if left {
+                first_person::Hold { left, crossbow, ..Default::default() }
+            } else {
+                first_person::Hold { main_hand: true, attack: swing, swinging: swing > 0.0, using, crossbow, ..Default::default() }
+            };
+            out.push(hand::first_person(&model, display, &self.camera, &hold));
         }
         out
     }
 }
 
-/// How an item in use looks held: a bow drawn, or food and drink eaten (again each `duration`).
-fn using(name: &str, ticks: f32) -> Option<hand::Using> {
-    if matches!(name, "minecraft:bow" | "minecraft:crossbow") {
-        return Some(hand::Using::Bow { ticks });
+const CROSSBOW: &str = "minecraft:crossbow";
+
+/// How an item in use looks held, `held` ticks in: a bow, trident or crossbow drawn, or food and
+/// drink eaten (again each `duration`).
+fn using(name: &str, held: f32) -> Option<first_person::Using> {
+    match name {
+        "minecraft:bow" => return Some(first_person::Using::Bow { held }),
+        "minecraft:trident" => return Some(first_person::Using::Trident { held }),
+        // Unenchanted: Quick Charge is not read.
+        CROSSBOW => return Some(first_person::Using::Crossbow { held, charge: 25.0 }),
+        _ => {}
     }
     let duration = acacia_bot::survival::use_ticks(name)? as f32;
-    Some(hand::Using::Eat { ticks: ticks % duration, duration })
+    Some(first_person::Using::Eat { held: held % duration, duration })
 }

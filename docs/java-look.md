@@ -44,11 +44,13 @@ Pomme (PommeMC/Client) is GPL-3.0-or-later; acacia is MIT.
 - DESIGN.md's License row ("never port from GPL/LGPL sources") gains this one exception when
   `lookbake` lands.
 
-Entity models come from the user's own client jar, not from Pomme: `lookbake java` (or
-`java-entities`) compiles `tools/lookbake/exporter/EntityModelExporter.java` (MIT, ours, after
-Horizon's exporter) with a JDK 25, runs it against the jar and writes every baked model layer into the
-look as `java/entity_models.json`. The output stays on the user's machine; neither it nor any cube
-table is committed or shipped. The `setupAnim` ports in `acacia-render/src/entity/java/anim` are
+Entity and item models come from the user's own client jar, not from Pomme: `lookbake java` (or
+`java-exported`) compiles `tools/lookbake/exporter/*.java` (MIT, ours; the entity exporter after
+Horizon's) with a JDK 25, runs it against the jar and writes every baked model layer into the look as
+`java/entity_models.json`, and every item's resolved model per display context as
+`java/item_models.json`. The output stays on the user's machine; neither it nor any cube table is
+committed or shipped. Which Java item a Bedrock item is comes from ViaBedrock's `item_mappings.json`
+(GPL-3.0), downloaded at bake time like its block-state table. The `setupAnim` ports in `acacia-render/src/entity/java/anim` are
 written against the client's decompiled models, read on the oracle host and never committed, and
 checked by the parity harness `entity_poses`.
 

@@ -135,7 +135,7 @@ impl Feed {
             let sneaking = bot.movement().is_some_and(|m| m.sneaking());
             let blocking = sneaking && held.iter().flatten().any(|(key, _)| key.name == SHIELD);
             let (kind, facts) = (PLAYER.to_owned(), Facts::own(sneaking, blocking));
-            let armor = self.armor(bot, state.inventory.armor.iter());
+            let armor = self.armor(bot, &kind, &facts, state.inventory.armor.iter());
             let (hurts, dying) = (state.hurts.count(me.runtime_entity_id), state.hurts.dying(me.runtime_entity_id));
             out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat, tether: None, cape: self.cape(uuid) });
         }
@@ -180,19 +180,18 @@ impl Feed {
         let name = e.metadata.name_tag().filter(|n| !n.is_empty()).map(str::to_owned).or_else(|| e.username.clone());
         let held = e.equipment.as_ref().map_or([None, None], |q| [held_key(bot, &q.main_hand), held_key(bot, &q.off_hand)]);
         let facts = if held.iter().flatten().any(|(key, _)| key.name == SHIELD) { facts.with_a_shield() } else { facts };
-        let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));
+        let armor = self.armor(bot, &kind, &facts, e.equipment.iter().flat_map(|q| &q.armor));
         let hurts = &bot.state().hurts;
         let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));
         Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying, seat, tether: crate::smooth::ropes::tether(bot, e), cape: self.cape(e.uuid.filter(|_| e.is_player())) })
     }
 
-    /// The layers of the armour pieces among `worn` that the pack has attachables for, each with
+    /// The layers of the armour pieces among `worn` that a `kind` (with `facts`) draws, each with
     /// whether it is enchanted; dyed leather takes its stack's colour.
-    fn armor<'a>(&self, bot: &Bot, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<(Arc<[Layer]>, bool)> {
+    fn armor<'a>(&self, bot: &Bot, kind: &str, facts: &Facts, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<(Arc<[Layer]>, bool)> {
         let layers = |s: &ItemStack| {
-            let layers = self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")))?;
-            let Some(dye) = s.custom_color() else { return Some(layers) };
-            Some(layers.iter().map(|l| Layer { dye: Some(dye), ..l.clone() }).collect())
+            let item = format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:"));
+            self.models.armor(kind, &|name| facts.query(name), &item, s.custom_color())
         };
         worn.filter(|s| !s.is_empty()).filter_map(|s| Some((layers(s)?, s.is_enchanted()))).collect()
     }

@@ -1,35 +1,28 @@
-//! Sun, moon and stars: quads on a sphere around the camera, turned with the time of day and
-//! added onto the sky colour before anything else draws (`sky.wgsl`, after Java's `SkyRenderer`).
+//! Java's `SkyRenderer`: the sky disc, sunrise fan, sun, moon, stars and dark disc, or the End's
+//! box, drawn before anything else (`sky.wgsl`). Every vertex and frame comes from
+//! [`crate::sky::geometry`]; the shader only places and colours them.
 
-use std::f32::consts::{FRAC_PI_2, TAU};
-
-use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
 use super::entity_textures;
 use super::pipeline::DEPTH_FORMAT;
-use crate::sky::{Realm, Sky, SkyTextures};
+use crate::sky::geometry::{self, DARK_DISC_Y, MOON_SIZE, SKY_DISC_Y, SUN_SIZE};
+use crate::sky::{Attr, Realm, Sky, SkyTextures};
 
-const DISTANCE: f32 = 100.0;
-const SUN_HALF: f32 = 30.0;
-const MOON_HALF: f32 = 20.0;
-const STARS: usize = 1500;
 const KIND_SUN: u32 = 0;
 const KIND_MOON: u32 = 1;
 const KIND_STAR: u32 = 2;
 const KIND_GLOW: u32 = 3;
 const KIND_DOME: u32 = 4;
 const KIND_END: u32 = 5;
-/// Points on the sunrise fan's rim (Java's 16), and on the sky disc's.
-const GLOW_RIM: usize = 16;
-/// Java's sky disc: 16 blocks overhead, 512 across each way.
-const DOME_HEIGHT: f32 = 16.0;
-const DOME_RADIUS: f32 = 512.0;
+const KIND_DARK: u32 = 6;
+/// `getHorizonHeight` outside a flat world, which the renderer cannot tell apart.
+const HORIZON: f64 = 63.0;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
-    /// At noon, before the sky's turn.
+    /// Model position, before its kind's frame.
     position: [f32; 3],
     kind: u32,
     uv: [f32; 2],
@@ -38,56 +31,59 @@ struct Vertex {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Celestial {
-    turn: [[f32; 4]; 4],
-    /// x: star brightness, y: moon phase, z: sun and moon visibility, w: the glow's side.
+    /// The sun's, moon's, stars', sunrise fan's and dark disc's frames.
+    frames: [[[f32; 4]; 4]; 5],
+    /// x: star brightness, y: moon phase, z: 1 - rain, w: `FogData.skyEnd`.
     params: [f32; 4],
+    /// The sunrise colour, linear rgb and alpha.
     glow: [f32; 4],
-    /// rgb: the sky's colour overhead, linear.
+    /// rgb: the sky colour, linear; w: 1 when the dark disc shows.
     zenith: [f32; 4],
 }
 
 pub struct SkyPass {
-    pipeline: wgpu::RenderPipeline,
-    /// Draws the first vertices blended, not added: the sky disc and the sunrise fan.
-    glow: wgpu::RenderPipeline,
+    /// Blends: the sky disc, sunrise fan and dark disc.
+    blended: wgpu::RenderPipeline,
+    /// Adds: the sun, moon and stars (Java's `OVERLAY`).
+    added: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     vertices: wgpu::Buffer,
-    /// Vertices of the overworld's sky, and of the End's box after them.
-    count: u32,
-    end_count: u32,
+    /// Vertex ranges: disc and fan, sun to stars, dark disc, the End's box.
+    ranges: [std::ops::Range<u32>; 4],
 }
 
-/// Two triangles around `centre`, spanned by `right` and `down` as the texture runs.
-fn quad(out: &mut Vec<Vertex>, kind: u32, centre: Vec3, right: Vec3, down: Vec3) {
-    let corner = |u: f32, v: f32| Vertex { position: (centre + right * (u * 2.0 - 1.0) + down * (v * 2.0 - 1.0)).to_array(), kind, uv: [u, v] };
-    out.extend([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0), (1.0, 1.0), (0.0, 1.0)].map(|(u, v)| corner(u, v)));
-}
-
-/// The same stars every run: xorshift from a fixed seed.
-fn stars(out: &mut Vec<Vertex>) {
-    let mut state = 10842u64;
-    let mut random = move || {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        (state >> 40) as f32 / (1u64 << 24) as f32
-    };
-    let mut made = 0;
-    while made < STARS {
-        let p = Vec3::new(random(), random(), random()) * 2.0 - 1.0;
-        let (size, roll) = (0.15 + random() * 0.1, random() * TAU);
-        // Points outside the unit ball would crowd the cube's corners.
-        if p.length_squared() > 1.0 || p.length_squared() < 0.01 {
-            continue;
-        }
-        let dir = p.normalize();
-        let side = dir.any_orthonormal_vector();
-        let (sin, cos) = roll.sin_cos();
-        let right = (side * cos + dir.cross(side) * sin) * size;
-        quad(out, KIND_STAR, dir * DISTANCE, right, dir.cross(right));
-        made += 1;
+fn fan(out: &mut Vec<Vertex>, kind: u32, points: &[[f32; 3]]) {
+    let at = |p: [f32; 3], u: f32| Vertex { position: p, kind, uv: [u, 0.0] };
+    for pair in points[1..].windows(2) {
+        out.extend([at(points[0], 1.0), at(pair[0], 0.0), at(pair[1], 0.0)]);
     }
+}
+
+fn quad(out: &mut Vec<Vertex>, kind: u32, corners: [([f32; 3], [f32; 2]); 4]) {
+    let at = |(position, uv): ([f32; 3], [f32; 2])| Vertex { position, kind, uv };
+    out.extend([0, 1, 2, 0, 2, 3].map(|i| at(corners[i])));
+}
+
+fn vertices() -> (Vec<Vertex>, [std::ops::Range<u32>; 4]) {
+    let mut out = Vec::new();
+    let mut ends = [0u32; 4];
+    fan(&mut out, KIND_DOME, &geometry::sky_disc(SKY_DISC_Y));
+    fan(&mut out, KIND_GLOW, &geometry::sunrise_fan_model());
+    ends[0] = out.len() as u32;
+    quad(&mut out, KIND_SUN, geometry::celestial_quad());
+    quad(&mut out, KIND_MOON, geometry::moon_quad());
+    for star in geometry::stars() {
+        quad(&mut out, KIND_STAR, star.map(|p| (p, [0.0; 2])));
+    }
+    ends[1] = out.len() as u32;
+    fan(&mut out, KIND_DARK, &geometry::sky_disc(DARK_DISC_Y));
+    ends[2] = out.len() as u32;
+    for face in geometry::end_sky() {
+        quad(&mut out, KIND_END, face);
+    }
+    ends[3] = out.len() as u32;
+    (out, [0..ends[0], ends[0]..ends[1], ends[1]..ends[2], ends[2]..ends[3]])
 }
 
 impl SkyPass {
@@ -149,34 +145,8 @@ impl SkyPass {
             multiview_mask: None,
             cache: None,
         });
-        // Java blends the glow over the sky, then adds the sun, moon and stars.
-        let (glow, pipeline) = (pipeline(wgpu::BlendState::ALPHA_BLENDING), pipeline(wgpu::BlendState { color: additive, alpha: additive }));
-
-        let mut vertices = Vec::with_capacity((STARS + 2) * 6 + GLOW_RIM * 6);
-        for i in 0..GLOW_RIM {
-            let rim = |i: usize| {
-                let (sin, cos) = (i as f32 * TAU / GLOW_RIM as f32).sin_cos();
-                Vertex { position: [cos * DOME_RADIUS, DOME_HEIGHT, sin * DOME_RADIUS], kind: KIND_DOME, uv: [0.0; 2] }
-            };
-            vertices.extend([Vertex { position: [0.0, DOME_HEIGHT, 0.0], kind: KIND_DOME, uv: [0.0; 2] }, rim(i), rim(i + 1)]);
-        }
-        for i in 0..GLOW_RIM {
-            let rim = |i: usize| {
-                let (sin, cos) = (i as f32 * TAU / GLOW_RIM as f32).sin_cos();
-                Vertex { position: [cos, sin, 1.0], kind: KIND_GLOW, uv: [0.0; 2] }
-            };
-            vertices.extend([Vertex { position: [0.0; 3], kind: KIND_GLOW, uv: [0.0; 2] }, rim(i), rim(i + 1)]);
-        }
-        quad(&mut vertices, KIND_SUN, Vec3::Y * DISTANCE, Vec3::X * SUN_HALF, Vec3::Z * SUN_HALF);
-        quad(&mut vertices, KIND_MOON, Vec3::NEG_Y * DISTANCE, Vec3::X * MOON_HALF, Vec3::NEG_Z * MOON_HALF);
-        stars(&mut vertices);
-        // The End's box: each face `DISTANCE` out, spanned by the other two axes.
-        let sky_count = vertices.len() as u32;
-        for (out, right, down) in [(Vec3::X, Vec3::Z, Vec3::Y), (Vec3::Y, Vec3::X, Vec3::Z), (Vec3::Z, Vec3::Y, Vec3::X)] {
-            for side in [1.0, -1.0] {
-                quad(&mut vertices, KIND_END, out * side * DISTANCE, right * DISTANCE, down * DISTANCE);
-            }
-        }
+        let (blended, added) = (pipeline(wgpu::BlendState::ALPHA_BLENDING), pipeline(wgpu::BlendState { color: additive, alpha: additive }));
+        let (vertices, ranges) = vertices();
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("sky"),
             contents: bytemuck::cast_slice(&vertices),
@@ -204,34 +174,49 @@ impl SkyPass {
                 wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&end) },
             ],
         });
-        SkyPass { pipeline, glow, uniform, bind_group, vertices: vertex_buffer, count: sky_count, end_count: vertices.len() as u32 - sky_count }
+        SkyPass { blended, added, uniform, bind_group, vertices: vertex_buffer, ranges }
     }
 
-    pub fn prepare(&self, queue: &wgpu::Queue, sky: &Sky, moon_phase: u8) {
-        // The sun rises in the east (+x): the sky turns around the north-south axis.
-        let turn = Mat4::from_rotation_y(-FRAC_PI_2) * Mat4::from_rotation_x(sky.turn * TAU);
-        let ([r, g, b, strength], side) = sky.glow.unwrap_or(([0.0; 4], 1.0));
+    /// `sky_end` is `FogData.skyEnd`; `eye_y` and `underwater` decide the dark disc.
+    pub fn prepare(&self, queue: &wgpu::Queue, sky: &Sky, sky_end: f32, eye_y: f64, underwater: bool) {
+        let dark_disc = geometry::dark_disc_shown(eye_y, HORIZON, underwater);
+        let a = &sky.attributes;
+        let sun = a.number(Attr::SunAngle);
+        let [r, g, b, alpha] = a.get(Attr::SunriseSunsetColor);
+        let frames = [
+            geometry::body_frame(sun, SUN_SIZE),
+            geometry::body_frame(a.number(Attr::MoonAngle), MOON_SIZE),
+            geometry::celestial_frame(a.number(Attr::StarAngle)),
+            geometry::sunrise_frame(sun, alpha),
+            geometry::dark_disc_frame(),
+        ]
+        .map(|m| m.to_cols_array_2d());
         let [r, g, b] = super::globals::srgb_to_linear([r, g, b]);
-        let [zr, zg, zb] = super::globals::srgb_to_linear(sky.color);
-        let params = [sky.stars, f32::from(moon_phase), sky.celestial, side];
-        let celestial = Celestial { turn: turn.to_cols_array_2d(), params, glow: [r, g, b, strength], zenith: [zr, zg, zb, 0.0] };
+        let [zr, zg, zb] = super::globals::srgb_to_linear(sky.color());
+        let celestial = Celestial {
+            frames,
+            params: [a.number(Attr::StarBrightness), f32::from(a.moon_phase()), sky.celestial, sky_end],
+            glow: [r, g, b, alpha],
+            zenith: [zr, zg, zb, f32::from(u8::from(dark_disc))],
+        };
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&celestial));
     }
 
     /// The Nether has no sky: the frame keeps its fog colour.
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>, realm: Realm) {
-        // The sky disc, then the glow fan over it.
-        let glow = (GLOW_RIM * 6) as u32;
+        let [blended, added, dark, end] = self.ranges.clone();
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertices.slice(..));
-        pass.set_pipeline(&self.glow);
+        pass.set_pipeline(&self.blended);
         match realm {
             Realm::Overworld => {
-                pass.draw(0..glow, 0..1);
-                pass.set_pipeline(&self.pipeline);
-                pass.draw(glow..self.count, 0..1);
+                pass.draw(blended, 0..1);
+                pass.set_pipeline(&self.added);
+                pass.draw(added, 0..1);
+                pass.set_pipeline(&self.blended);
+                pass.draw(dark, 0..1);
             }
-            Realm::End => pass.draw(self.count..self.count + self.end_count, 0..1),
+            Realm::End => pass.draw(end, 0..1),
             Realm::Nether => {}
         }
     }

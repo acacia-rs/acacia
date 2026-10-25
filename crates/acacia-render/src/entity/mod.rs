@@ -194,9 +194,32 @@ impl EntityModels {
         &self.models
     }
 
-    /// What armour item `item` (`minecraft:diamond_helmet`) draws when worn, posed as its wearer.
-    pub fn armor(&self, item: &str) -> Option<Arc<[Layer]>> {
-        self.armor.get(item).cloned()
+    /// What armour item `item` (`minecraft:diamond_helmet`) draws when worn by a `kind`: on a Java
+    /// model its equipment layer, posed by [`EntityModels::pose`] on its own model
+    /// ([`EntityModels::is_java`]); otherwise the pack's attachable, posed as its wearer. `dye` is
+    /// the stack's.
+    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>) -> Option<Arc<[Layer]>> {
+        if self.java.drawn(kind) {
+            return self.java.armor(kind, query, item, dye);
+        }
+        let layers = self.armor.get(item)?;
+        Some(match dye {
+            Some(dye) => layers.iter().map(|l| Layer { dye: Some(dye), ..l.clone() }).collect(),
+            None => layers.clone(),
+        })
+    }
+
+    /// Whether `model` is a Java model, posed by its own `setupAnim`.
+    pub fn is_java(&self, model: ModelId) -> bool {
+        self.models.get(model as usize).is_some_and(|m| m.mesh.java.is_some())
+    }
+
+    /// Splits an appearance into the body's layers and the Java second layers that run their own
+    /// `setupAnim` (a stray's clothes start from other rest poses), each drawn as its own instance.
+    pub fn split_posed_apart(&self, layers: &[Layer]) -> (Arc<[Layer]>, Vec<Layer>) {
+        let Some(body) = layers.first().map(|l| l.model) else { return (layers.into(), Vec::new()) };
+        let (apart, together): (Vec<Layer>, Vec<Layer>) = layers.iter().cloned().partition(|l| self.java.posed_apart(body, l.model));
+        (together.into(), apart)
     }
 
     pub fn textures(&self) -> &[PathBuf] {

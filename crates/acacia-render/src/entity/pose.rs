@@ -101,7 +101,9 @@ impl Mesh {
 /// A Java model's poses in `pose`, or its rest poses when it carries none.
 fn java_poses<'a>(model: &super::java::Part, pose: &'a Pose) -> std::borrow::Cow<'a, super::java::Poses> {
     match &pose.1 {
-        Some(p) => std::borrow::Cow::Borrowed(&**p),
+        Some(p) if p.fits(model) => std::borrow::Cow::Borrowed(&**p),
+        // Another model's poses (its wearer's, on an armour layer).
+        Some(p) => std::borrow::Cow::Owned(p.retarget(model)),
         None => std::borrow::Cow::Owned(super::java::Poses::new(model)),
     }
 }
