@@ -50,6 +50,22 @@ impl Atlas {
         self.sprites.get(name).copied()
     }
 
+    /// Whether `rect` (texels, either corner order) lies inside one sprite.
+    pub fn holds(&self, [l, t, r, b]: [f32; 4]) -> bool {
+        let (x0, x1, y0, y1) = (l.min(r), l.max(r), t.min(b), t.max(b));
+        let e = 1e-3;
+        self.sprites.values().any(|s| {
+            let (sx, sy) = (s.x as f32, s.y as f32);
+            x0 >= sx - e && y0 >= sy - e && x1 <= sx + s.width as f32 + e && y1 <= sy + s.height as f32 + e
+        })
+    }
+
+    /// The quads whose atlas lookups leave their sprite: a repeating texture without `wrap`, a
+    /// UV past its image. Pictures sample their own texture.
+    pub fn stray<'q>(&self, quads: &'q [crate::Quad]) -> impl Iterator<Item = &'q crate::Quad> {
+        quads.iter().filter(|q| !q.picture && !self.holds(q.wrap.unwrap_or(q.uv)))
+    }
+
     /// [`WHITE`]'s sprite.
     pub fn white(&self) -> Sprite {
         self.sprites[WHITE]
@@ -99,6 +115,17 @@ impl Atlas {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_repeating_quad_is_stray_until_it_wraps_within_its_sprite() {
+        let mut atlas = Atlas::new();
+        let s = atlas.add("bg", &RgbaImage::new(16, 16));
+        let (x, y) = (s.x as f32, s.y as f32);
+        let sprite = [x, y, x + 16.0, y + 16.0];
+        let tiled = crate::Quad::plain([0.0; 4], [x, y, x + 64.0, y + 16.0], [255; 4]);
+        assert_eq!(atlas.stray(&[tiled]).count(), 1);
+        assert_eq!(atlas.stray(&[crate::Quad { wrap: Some(sprite), ..tiled }]).count(), 0);
+    }
 
     #[test]
     fn images_never_overlap() {

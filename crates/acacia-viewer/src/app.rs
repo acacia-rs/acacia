@@ -255,9 +255,10 @@ impl App {
         let java_screens = java.then(|| java_menu::shown(&mut self.java, self.menu, under, &self.settings, &self.players, now));
         let Some(r) = &mut self.renderer else { return };
         let players = self.show_players.then_some(self.players.as_slice());
-        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, java_screens, form: self.form.as_ref(), book: self.shown.book.as_ref().zip(self.play.me.as_ref().and_then(|m| m.book.as_ref())).map(|(open, held)| open.shown(&held.0)), sign: self.shown.sign.as_ref().map(|s| acacia_ui::sign_editor::Editing { lines: &s.lines, line: s.line, hanging: s.hanging }), players, tags, mouse, size, scale, now };
-        let (atlas, quads, pictures) = self.ui.draw(frame);
+        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, java_screens, form: self.form.as_ref(), book: self.shown.book.as_ref().zip(self.play.me.as_ref().and_then(|m| m.book.as_ref())).map(|(open, held)| open.shown(&held.0)), sign: self.shown.sign.as_ref().map(|s| acacia_ui::sign_editor::Editing { lines: &s.lines, line: s.line, hanging: s.hanging }), players, tags, mouse, size, scale, now, menu_blur: self.settings.menu_blur };
+        let (atlas, quads, blur, pictures) = self.ui.draw(frame);
         r.ui_entities = portrait::instances(&self.entities, pictures, self.camera.position);
+        r.ui_blur = blur;
         let ui = (atlas, quads);
         let view = match self.mode == Mode::Play && self.play.view_turned() {
             true => Camera { yaw: self.camera.yaw + std::f32::consts::PI, pitch: -self.camera.pitch, ..self.camera },

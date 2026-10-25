@@ -85,7 +85,14 @@ impl<'a> Names<'a> {
             return json!({"k": "fill", "r": r, "c": [argb(q.color), argb(q.bottom)], "b": blend(q.blend), "ab": after_blur});
         }
         let uv = [(ul - ox) / SIZE as f32, (vt - oy) / SIZE as f32, (ur - ox) / SIZE as f32, (vb - oy) / SIZE as f32].map(round);
-        json!({"k": "blit", "t": name, "uv": uv, "r": r, "c": [argb(q.color)], "b": blend(q.blend), "ab": after_blur})
+        let mut out = json!({"k": "blit", "t": name, "uv": uv, "r": r, "c": [argb(q.color)], "b": blend(q.blend), "ab": after_blur});
+        // The renderer samples `wrap` or `uv`: either must stay in the sprite, or the atlas bleeds.
+        let [l, t, rr, b] = q.wrap.unwrap_or(q.uv);
+        let inside = |lo: f32, hi: f32, o: f32| lo.min(hi) >= o - 1e-3 && lo.max(hi) <= o + SIZE as f32 + 1e-3;
+        if !(inside(l, rr, ox) && inside(t, b, oy)) {
+            out["stray"] = json!(true);
+        }
+        out
     }
 }
 

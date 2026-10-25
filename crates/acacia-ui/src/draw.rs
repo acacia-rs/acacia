@@ -22,6 +22,9 @@ pub struct Quad {
     /// Samples the renderer's picture-in-picture texture (window-sized; `uv` in its texels, which
     /// are window pixels) instead of the atlas.
     pub picture: bool,
+    /// The sprite (atlas texels, left, top, right, bottom) a repeating texture's `uv` wraps
+    /// within: Java samples those with `REPEAT`, the atlas would bleed into its neighbours.
+    pub wrap: Option<[f32; 4]>,
 }
 
 /// How a quad's colour meets what is under it (Java's GUI pipelines' blend functions).
@@ -43,7 +46,7 @@ pub enum Blend {
 impl Quad {
     /// A flat-coloured, upright, alpha-blended quad.
     pub fn plain(rect: [f32; 4], uv: [f32; 4], color: [u8; 4]) -> Quad {
-        Quad { rect, uv, color, bottom: color, skew: [0.0; 2], blend: Blend::Alpha, glint: false, picture: false }
+        Quad { rect, uv, color, bottom: color, skew: [0.0; 2], blend: Blend::Alpha, glint: false, picture: false, wrap: None }
     }
 
     /// The part `rect` (window pixels) of the picture-in-picture texture, drawn where it was
@@ -63,11 +66,19 @@ pub struct DrawList {
     pub scale: f32,
     /// Quads added are cut to this rectangle (GUI pixels), UVs with them.
     pub clip: Option<[f32; 4]>,
+    /// The menu blur under the quads from its index on: the first one asked for counts.
+    pub blur: Option<crate::blur::Blur>,
 }
 
 impl DrawList {
     pub fn new(scale: f32) -> DrawList {
-        DrawList { quads: Vec::new(), scale, clip: None }
+        DrawList { quads: Vec::new(), scale, clip: None, blur: None }
+    }
+
+    /// The menu blur, of `radius`, under the quads added from now on.
+    pub fn blur_here(&mut self, radius: u32) {
+        let at = self.quads.len();
+        self.blur.get_or_insert(crate::blur::Blur { at, radius });
     }
 
     /// `sprite` at its own size with its top-left at (`x`, `y`) GUI pixels.

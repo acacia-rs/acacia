@@ -22,9 +22,14 @@ use super::{JavaGui, options};
 /// any account that hasn't turned it off, so its screen opens.
 const CLIENT: Client = Client { telemetry: true, high_contrast_pack: true, minecart: false, friends: false, friend_requests: false, ticked: true };
 
+/// A screen's environment in the world: blurred under it when the option is on.
+fn env(gui: &JavaGui, size: [i32; 2]) -> Env {
+    Env { width: size[0], height: size[1], in_world: true, blur: gui.menu_blur >= 1 }
+}
+
 /// `minecraft.gui.screen()` for `view` at `size` after `init`.
 pub fn build(gui: &JavaGui, ctx: &Ctx, view: &View, size: [i32; 2]) -> Box<dyn Screen> {
-    let env = Env { width: size[0], height: size[1], in_world: true, blur: true };
+    let env = env(gui, size);
     match view {
         View::Pause => Box::new(PauseScreen::new(ctx, env, Pause { show_menu: true, topmost: true, local_server: false, friends_available: true, reporting_active: true })),
         View::Options { page, settings } => {
@@ -79,8 +84,7 @@ pub fn build(gui: &JavaGui, ctx: &Ctx, view: &View, size: [i32; 2]) -> Box<dyn S
 /// `WinScreen` from the options (no poem, no speed-up keys held), `ticks` after it opened: `tick`
 /// adds `speed` to the scroll each whole tick and the frame the partial tick's share.
 pub fn credits_roll(gui: &JavaGui, size: [i32; 2], ticks: f32) -> WinScreen {
-    let env = Env { width: size[0], height: size[1], in_world: true, blur: true };
-    let mut screen = WinScreen::new(env, false, gui.credits().clone());
+    let mut screen = WinScreen::new(env(gui, size), false, gui.credits().clone());
     screen.scroll = ticks.floor() * scroll_speed(false, false, 0, false);
     screen.partial = ticks.fract();
     screen

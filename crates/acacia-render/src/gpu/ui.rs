@@ -1,10 +1,14 @@
 //! The UI pass (`ui.wgsl`): an [`acacia_ui::DrawList`] over the finished frame, one instance per
 //! quad, sampling the UI atlas with nearest filtering so pixel art stays sharp at any GUI scale.
-//! Each run of quads with the same [`Blend`] is one draw through that blend's pipeline.
+//! Each run of quads with the same [`acacia_ui::draw::Blend`] is one draw through that blend's pipeline.
 
-use acacia_ui::draw::Blend;
+mod blend;
+
+use acacia_ui::blur::Blur;
 use acacia_ui::{Atlas, Quad};
 
+use super::blur::MenuBlur;
+use blend::{BLENDS, blend_state, runs};
 use super::glint::GlintTextures;
 use crate::glint::Glint;
 
@@ -18,22 +22,8 @@ struct Instance {
     flags: f32,
     bottom: [u8; 4],
     skew: [f32; 2],
-}
-
-const BLENDS: [Blend; 5] = [Blend::Alpha, Blend::Invert, Blend::Darken, Blend::Add, Blend::Premultiplied];
-
-/// Java's blend functions: `TRANSLUCENT`, `INVERT`, the vignette's, `ADDITIVE` and
-/// `TRANSLUCENT_PREMULTIPLIED_ALPHA`.
-fn blend_state(blend: Blend) -> wgpu::BlendState {
-    use wgpu::{BlendComponent as C, BlendFactor as F, BlendOperation::Add};
-    let c = |src_factor, dst_factor| C { src_factor, dst_factor, operation: Add };
-    match blend {
-        Blend::Alpha => wgpu::BlendState::ALPHA_BLENDING,
-        Blend::Invert => wgpu::BlendState { color: c(F::OneMinusDst, F::OneMinusSrc), alpha: c(F::One, F::Zero) },
-        Blend::Darken => wgpu::BlendState { color: c(F::Zero, F::OneMinusSrc), alpha: c(F::Zero, F::One) },
-        Blend::Add => wgpu::BlendState { color: c(F::One, F::One), alpha: c(F::One, F::One) },
-        Blend::Premultiplied => wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING,
-    }
+    /// The sprite rect `uv` repeats within; all zero for none.
+    wrap: [f32; 4],
 }
 
 /// The window-sized texture pictures-in-picture are rendered into (`over.rs`), in the surface's
@@ -66,6 +56,9 @@ pub struct UiPass {
     /// The surface's own format, the pictures texture's.
     surface_format: wgpu::TextureFormat,
     pictures: Pictures,
+    menu_blur: MenuBlur,
+    /// This frame's blur, prepared.
+    blur: Option<Blur>,
 }
 
 impl UiPass {
@@ -113,7 +106,7 @@ impl UiPass {
                     buffers: &[Some(wgpu::VertexBufferLayout {
                         array_stride: size_of::<Instance>() as u64,
                         step_mode: wgpu::VertexStepMode::Instance,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Unorm8x4, 3 => Float32, 4 => Unorm8x4, 5 => Float32x2],
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Unorm8x4, 3 => Float32, 4 => Unorm8x4, 5 => Float32x2, 6 => Float32x4],
                     })],
                 },
                 primitive: wgpu::PrimitiveState::default(),
@@ -139,7 +132,7 @@ impl UiPass {
         });
         let instances = instance_buffer(device, 1024);
         let pictures = Pictures { view: pictures_texture(device, surface, [1, 1]), size: [1, 1] };
-        UiPass { pipelines, runs: Vec::new(), layout, sampler, screen, atlas: None, glint: GlintTextures::new(device), texture: None, instances, count: 0, format: color, surface_format: surface, pictures }
+        UiPass { pipelines, runs: Vec::new(), layout, sampler, screen, atlas: None, glint: GlintTextures::new(device), texture: None, instances, count: 0, format: color, surface_format: surface, pictures, menu_blur: MenuBlur::new(device, color), blur: None }
     }
 
     /// The pictures texture at `size` (the window's), made again when that changed.
@@ -163,9 +156,13 @@ impl UiPass {
         self.atlas = None;
     }
 
-    /// Uploads the atlas when it changed and this frame's quads. `glint_scroll` is
-    /// [`crate::glint::scroll`] now.
-    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, atlas: &Atlas, quads: &[Quad], window: [u32; 2], glint_scroll: [f32; 2]) {
+    /// Uploads the atlas when it changed and this frame's quads, with the menu `blur` under some.
+    /// `glint_scroll` is [`crate::glint::scroll`] now.
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, atlas: &Atlas, (quads, blur): (&[Quad], Option<Blur>), window: [u32; 2], glint_scroll: [f32; 2]) {
+        self.blur = blur;
+        if let Some(blur) = blur {
+            self.menu_blur.prepare(device, queue, blur, window);
+        }
         if self.atlas.as_ref().is_none_or(|(_, version, _)| *version != atlas.version) {
             let image = atlas.image();
             let view = super::entity_textures::upload(device, queue, image.width(), image.height(), image);
@@ -192,7 +189,7 @@ impl UiPass {
         let screen = [window[0] as f32, window[1] as f32, size[0], size[1], glint_scroll[0], glint_scroll[1], icon_scale, 0.0];
         queue.write_buffer(&self.screen, 0, bytemuck::cast_slice(&screen));
         let data: Vec<Instance> =
-            quads.iter().map(|q| Instance { rect: q.rect, uv: q.uv, color: q.color, flags: flags(q), bottom: q.bottom, skew: q.skew }).collect();
+            quads.iter().map(|q| Instance { rect: q.rect, uv: q.uv, color: q.color, flags: flags(q), bottom: q.bottom, skew: q.skew, wrap: q.wrap.unwrap_or_default() }).collect();
         self.runs = runs(quads);
         let needed = (data.len() * size_of::<Instance>()) as u64;
         if needed > self.instances.size() {
@@ -202,13 +199,22 @@ impl UiPass {
         self.count = data.len() as u32;
     }
 
-    /// A pass of its own over the finished frame, through a view of `target` in the pass's format.
+    /// Passes of their own over the finished frame, through a view of `target` in the pass's
+    /// format: the quads before the menu blur, the blur, the quads after it.
     pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::Texture) {
         let Some((bind_group, _, _)) = &self.atlas else { return };
-        if self.count == 0 {
+        let view = target.create_view(&wgpu::TextureViewDescriptor { format: Some(self.format), ..Default::default() });
+        let Some(blur) = self.blur else { return self.draw_range(encoder, &view, bind_group, 0..self.count) };
+        let at = (blur.at as u32).min(self.count);
+        self.draw_range(encoder, &view, bind_group, 0..at);
+        self.menu_blur.draw(encoder, target, &view);
+        self.draw_range(encoder, &view, bind_group, at..self.count);
+    }
+
+    fn draw_range(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView, bind_group: &wgpu::BindGroup, range: std::ops::Range<u32>) {
+        if range.is_empty() {
             return;
         }
-        let view = target.create_view(&wgpu::TextureViewDescriptor { format: Some(self.format), ..Default::default() });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("ui"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -224,9 +230,12 @@ impl UiPass {
         });
         pass.set_bind_group(0, bind_group, &[]);
         pass.set_vertex_buffer(0, self.instances.slice(..));
-        for (range, blend) in &self.runs {
-            pass.set_pipeline(&self.pipelines[*blend]);
-            pass.draw(0..6, range.clone());
+        for (run, blend) in &self.runs {
+            let part = run.start.max(range.start)..run.end.min(range.end);
+            if !part.is_empty() {
+                pass.set_pipeline(&self.pipelines[*blend]);
+                pass.draw(0..6, part);
+            }
         }
     }
 }
@@ -254,19 +263,6 @@ fn pictures_texture(device: &wgpu::Device, format: wgpu::TextureFormat, [width, 
         .create_view(&Default::default())
 }
 
-/// Consecutive quads of one blend, as instance ranges with that blend's index in [`BLENDS`].
-fn runs(quads: &[Quad]) -> Vec<(std::ops::Range<u32>, usize)> {
-    let mut out: Vec<(std::ops::Range<u32>, usize)> = Vec::new();
-    for (i, q) in quads.iter().enumerate() {
-        let blend = BLENDS.iter().position(|&b| b == q.blend).unwrap_or(0);
-        match out.last_mut() {
-            Some((range, b)) if *b == blend => range.end = i as u32 + 1,
-            _ => out.push((i as u32..i as u32 + 1, blend)),
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use wgpu::naga::valid::{Capabilities, ValidationFlags, Validator};
@@ -282,15 +278,6 @@ mod tests {
             _ => None,
         });
         assert_eq!(screen, Some(super::SCREEN_BYTES as u32));
-    }
-
-    #[test]
-    fn a_blend_change_starts_a_run() {
-        use acacia_ui::Quad;
-        use acacia_ui::draw::Blend;
-        let q = |blend| Quad { blend, ..Quad::plain([0.0; 4], [0.0; 4], [255; 4]) };
-        let quads = [q(Blend::Alpha), q(Blend::Alpha), q(Blend::Invert), q(Blend::Alpha)];
-        assert_eq!(super::runs(&quads), vec![(0..2, 0), (2..3, 1), (3..4, 0)]);
     }
 }
 

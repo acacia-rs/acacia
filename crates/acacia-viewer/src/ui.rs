@@ -22,6 +22,7 @@ use acacia_ui::inventory::Layout;
 use acacia_ui::lang::Lang;
 use acacia_ui::overlay::{self, Boss, Titles};
 use acacia_ui::theme::{Theme, bedrock, java};
+use acacia_ui::blur::Blur;
 use acacia_ui::{DrawList, Quad};
 
 use crate::control::Inventory;
@@ -55,6 +56,8 @@ pub struct Frame<'a> {
     pub size: [u32; 2],
     pub scale: u32,
     pub now: Instant,
+    /// The Java look's menu blur radius (`Settings::menu_blur`).
+    pub menu_blur: u32,
 }
 
 /// An open inventory screen.
@@ -163,9 +166,10 @@ impl Ui {
     }
 
     /// This frame's quads for a window `size` pixels big at GUI `scale`, the atlas they sample,
-    /// and the pictures-in-picture the renderer draws for them.
-    pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad], &[PictureRequest]) {
-        let Frame { look, me, debug, screen, menu, java_screens, form, sign, book, players, tags, mouse, size, scale, now } = frame;
+    /// the menu blur under some of them, and the pictures-in-picture the renderer draws for them.
+    pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad], Option<Blur>, &[PictureRequest]) {
+        let Frame { look, me, debug, screen, menu, java_screens, form, sign, book, players, tags, mouse, size, scale, now, menu_blur } = frame;
+        self.java_gui.menu_blur = menu_blur;
         let menu_open = menu.is_some() || java_screens.as_ref().is_some_and(|s| s.menu.is_some());
         self.pictures.clear();
         let skin = match look {
@@ -248,6 +252,6 @@ impl Ui {
             self.java_gui.paint(skin, &|_| None, &calls, &mut list, &mut self.pictures);
         }
         self.quads = list.quads;
-        (&skin.theme.atlas, &self.quads, &self.pictures)
+        (&skin.theme.atlas, &self.quads, list.blur, &self.pictures)
     }
 }

@@ -56,6 +56,8 @@ pub struct JavaGui {
     /// The credits roll's lines from `texts/credits.json`, read when it first opens.
     credits: std::cell::OnceCell<Lines>,
     map: map::MapPicture,
+    /// `menuBackgroundBlurriness`: the menu blur's radius, 0 for none.
+    pub menu_blur: u32,
 }
 
 impl JavaGui {
@@ -69,7 +71,7 @@ impl JavaGui {
         if lang.is_empty() {
             tracing::warn!(looked = %root.display(), "no lang/en_us.json, so screens show translation keys: bake the Java look again (tools/lookbake)");
         }
-        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang, game: items::facts(), credits: Default::default(), map: Default::default() }
+        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang, game: items::facts(), credits: Default::default(), map: Default::default(), menu_blur: acacia_ui::blur::DEFAULT_RADIUS }
     }
 
     /// The screens' environment: the fonts, the translations, the registry facts.
@@ -106,7 +108,13 @@ impl JavaGui {
     pub fn paint(&mut self, skin: &mut Skin, stacks: &dyn Fn(i32) -> Option<Stack>, gui: &Gui, list: &mut DrawList, pictures: &mut Vec<PictureRequest>) {
         let mut src = Src { skin, root: &self.root, images: &mut self.images, fonts: &self.fonts, random: &mut self.random, stacks, started: self.started, pictures, gui_scale: list.scale, map: &mut self.map };
         let painted = paint::paint(&gui.draws, [gui.width, gui.height], list.scale, &mut src);
-        list.quads.extend(painted.quads);
+        debug_assert!(skin.theme.atlas.stray(&painted.quads).next().is_none(), "atlas lookups outside their sprite: {:?}", skin.theme.atlas.stray(&painted.quads).take(3).collect::<Vec<_>>());
+        let mut quads = painted.quads;
+        if let Some(at) = painted.blur_at {
+            list.quads.extend(quads.drain(..at));
+            list.blur_here(self.menu_blur);
+        }
+        list.quads.extend(quads);
     }
 }
 

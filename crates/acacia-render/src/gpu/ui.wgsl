@@ -24,6 +24,9 @@ struct VsOut {
     // 1: an enchanted icon, 2: a picture.
     @location(3) @interpolate(flat) flags: f32,
     @location(4) picture_uv: vec2<f32>,
+    // Atlas texels, not yet wrapped into `wrap`.
+    @location(5) texel: vec2<f32>,
+    @location(6) @interpolate(flat) wrap: vec4<f32>,
 };
 
 // As entity.wgsl's: see src/glint.rs.
@@ -31,7 +34,7 @@ const GLINT_STRENGTH: f32 = 0.75;
 const GLINT_TURN: vec2<f32> = vec2(0.17364818, 0.98480775);
 
 @vertex
-fn vs_main(@builtin(vertex_index) index: u32, @location(0) rect: vec4<f32>, @location(1) uv: vec4<f32>, @location(2) color: vec4<f32>, @location(3) flags: f32, @location(4) bottom: vec4<f32>, @location(5) skew: vec2<f32>) -> VsOut {
+fn vs_main(@builtin(vertex_index) index: u32, @location(0) rect: vec4<f32>, @location(1) uv: vec4<f32>, @location(2) color: vec4<f32>, @location(3) flags: f32, @location(4) bottom: vec4<f32>, @location(5) skew: vec2<f32>, @location(6) wrap: vec4<f32>) -> VsOut {
     // Two triangles: corners 0 1 2, 0 2 3 counter-clockwise from the top left.
     var corners = array<vec2<f32>, 6>(vec2(0.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 1.0), vec2(0.0, 0.0), vec2(1.0, 1.0), vec2(1.0, 0.0));
     let c = corners[index];
@@ -40,6 +43,8 @@ fn vs_main(@builtin(vertex_index) index: u32, @location(0) rect: vec4<f32>, @loc
     var out: VsOut;
     out.clip = vec4<f32>(pixel.x / screen.size.x * 2.0 - 1.0, 1.0 - pixel.y / screen.size.y * 2.0, 0.0, 1.0);
     out.uv = mix(uv.xy, uv.zw, c) / screen.size.zw;
+    out.texel = mix(uv.xy, uv.zw, c);
+    out.wrap = wrap;
     out.picture_uv = mix(uv.xy, uv.zw, c) / screen.size.xy;
     out.color = mix(color, bottom, c.y);
     let scaled = c * screen.glint.z;
@@ -55,7 +60,11 @@ fn to_srgb(c: vec3<f32>) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    let from_atlas = textureSample(atlas, samp, in.uv);
+    // A repeating texture's texel, folded back into its sprite (Java's REPEAT).
+    let size = in.wrap.zw - in.wrap.xy;
+    let wrapped = in.wrap.xy + fract((in.texel - in.wrap.xy) / max(size, vec2(1.0))) * size;
+    let uv = select(in.uv, wrapped / screen.size.zw, size.x > 0.0);
+    let from_atlas = textureSample(atlas, samp, uv);
     let from_pictures = textureSample(pictures, samp, in.picture_uv);
     let picture = in.flags > 1.5;
     let sampled = select(from_atlas, from_pictures, picture);

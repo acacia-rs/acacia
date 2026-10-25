@@ -1,4 +1,5 @@
 mod atlas;
+mod blur;
 mod bolts;
 mod clouds;
 mod crack;
@@ -90,6 +91,8 @@ pub struct Renderer {
     /// Pictures-in-picture's entities (`over.rs`): each needs a `frame` from model space to the
     /// window's pixels (y down, z towards the viewer); the UI's picture quads show them.
     pub ui_entities: Vec<EntityInstance>,
+    /// The menu blur under the UI's quads from its index on (`blur.rs`).
+    pub ui_blur: Option<acacia_ui::blur::Blur>,
     block_models: BlockModels,
     sign_text: sign_text::SignTextPass,
     /// `None` until [`Renderer::set_sky_textures`]: the sky is then a plain colour.
@@ -176,6 +179,7 @@ impl Renderer {
             entities,
             entity_list: Vec::new(),
             ui_entities: Vec::new(),
+            ui_blur: None,
             block_models: BlockModels::default(),
             sky: None,
             outline_pass,
@@ -254,7 +258,7 @@ impl Renderer {
         self.crack_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         let (atlas, quads) = ui.map_or((None, &[][..]), |(a, q)| (Some(a), q));
         if let Some(atlas) = atlas {
-            self.ui_pass.prepare(&self.device, &self.queue, atlas, quads, [self.config.width, self.config.height], crate::glint::scroll(self.started.elapsed().as_millis() as u64));
+            self.ui_pass.prepare(&self.device, &self.queue, atlas, (quads, self.ui_blur), [self.config.width, self.config.height], crate::glint::scroll(self.started.elapsed().as_millis() as u64));
         }
         self.sign_text.prepare(&self.device, &self.queue, self.ui_pass.texture.as_ref(), self.block_models.sign_text(), camera.position, light_at);
         let weather_light = |p: [i32; 3]| light.at(glam::IVec3::from(p).as_dvec3()).map(|l| l as u8);

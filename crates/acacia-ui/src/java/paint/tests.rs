@@ -76,6 +76,15 @@ fn a_banner_pattern_blit_takes_its_part_of_the_atlas_sprite() {
 }
 
 #[test]
+fn a_texture_blit_past_its_image_wraps_within_its_sprite() {
+    let blit = |w: i32| GuiDraw::Blit { texture: "gui/menu_background".into(), blend: Blend::Textured, x: 0, y: 0, w, h: 32, uv: [0.0, 0.0], src: [w, 32], tex: [256, 256], color: 0xFFFF_FFFF };
+    let painted = paint(&[blit(512), blit(256)], [600, 100], 1.0, &mut Fake);
+    let ([wide, fits], sprite) = ([painted.quads[0], painted.quads[1]], [0.0, 200.0, 256.0, 456.0]);
+    assert_eq!((wide.uv, wide.wrap), ([0.0, 200.0, 512.0, 232.0], Some(sprite)));
+    assert_eq!(fits.wrap, None);
+}
+
+#[test]
 fn sprites_scale_and_text_over_a_sprite_comes_after_it() {
     let mut gui = Gui::new(100, 100);
     gui.text(Text::literal("a"), 0, 0, 0xFFFF_FFFF, false);

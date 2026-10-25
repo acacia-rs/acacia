@@ -15,6 +15,7 @@ pub fn value(s: &Settings, id: &str) -> Option<V> {
         "bobView" => V::Bool(s.view_bobbing),
         "cloudStatus" => V::Name(clouds(s).into()),
         "sound.master" => V::Num(f64::from(s.volume.min(100)) / 100.0),
+        "menuBackgroundBlurriness" => V::Int(s.menu_blur as i32),
         _ => return None,
     })
 }
@@ -43,6 +44,7 @@ pub fn apply(s: &mut Settings, id: &str, v: &V) -> bool {
             }
         }
         "sound.master" => s.volume = (v.f() * 100.0).round().clamp(0.0, 100.0) as u32,
+        "menuBackgroundBlurriness" => s.menu_blur = v.i().clamp(0, 10) as u32,
         _ => return false,
     }
     true
@@ -62,6 +64,7 @@ mod tests {
             ("bobView", V::Bool(false)),
             ("cloudStatus", V::Name("FAST".into())),
             ("sound.master", V::Num(0.42)),
+            ("menuBackgroundBlurriness", V::Int(0)),
         ] {
             assert!(apply(&mut s, id, &v), "{id}");
             assert_eq!(value(&s, id), Some(v), "{id}");

@@ -224,14 +224,17 @@ impl Painter<'_> {
     fn prims(&mut self, sprite: Sprite, prims: &[Prim], color: u32, blend: QuadBlend) {
         let (pose, scissor) = (self.pose(), self.scissor());
         let texel = |u: f32, v: f32| [sprite.x as f32 + u * sprite.width as f32, sprite.y as f32 + v * sprite.height as f32];
+        let ([x0, y0], [x1, y1]) = (texel(0.0, 0.0), texel(1.0, 1.0));
         for p in prims {
+            let repeats = p.uv.iter().any(|&t| !(0.0..=1.0).contains(&t));
+            let wrap = repeats.then_some([x0, y0, x1, y1]);
             let [x0, y0, x1, y1] = p.rect;
             if !self.layers.place(Rect::corners(x0, y0, x1, y1).bounds(&pose, scissor)) {
                 continue;
             }
             for (rect, [u0, u1, v0, v1]) in blit::tiles(p) {
                 let ([ul, vt], [ur, vb]) = (texel(u0, v0), texel(u1, v1));
-                let q = Quad { blend, ..Quad::plain(rect.map(|v| v as f32), [ul, vt, ur, vb], argb(color)) };
+                let q = Quad { blend, wrap, ..Quad::plain(rect.map(|v| v as f32), [ul, vt, ur, vb], argb(color)) };
                 if let Some(q) = self.place_quad(&q) {
                     self.layers.blits().push(q);
                 }
