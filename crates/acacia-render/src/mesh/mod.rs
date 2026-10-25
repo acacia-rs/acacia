@@ -2,7 +2,7 @@
 //! translucent passes.
 
 mod greedy;
-mod liquid;
+pub mod liquid;
 pub mod model;
 pub mod quad;
 mod shapes;

@@ -92,7 +92,11 @@ impl LookPack {
         let block = |id| {
             let state = registry.get(id).expect("id below len");
             let Some(&index) = self.states.get(&state_key(state)) else { return BlockTable::cube(0) };
-            RenderBlock { model: blocks::model::classify(state).map(Arc::new), ..self.blocks[index as usize].clone() }
+            RenderBlock {
+                model: blocks::model::classify(state).map(Arc::new),
+                fluid_rules: blocks::FluidRules::of(state),
+                ..self.blocks[index as usize].clone()
+            }
         };
         let mut table = BlockTable::from_blocks((0..registry.len() as u32).map(block).collect());
         table.biome_blend = self.look.biome_blend;

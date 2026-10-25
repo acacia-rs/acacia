@@ -19,6 +19,7 @@ pub mod light;
 pub mod lightning;
 pub mod look;
 pub mod lookpack;
+pub mod mth;
 pub mod mesh;
 pub mod particles;
 pub mod shadows;

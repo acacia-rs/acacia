@@ -9,6 +9,10 @@
 //! - record 2: w0 = [`MODEL`] | [`CONTINUED`] | u0 | v0 << 10 | u1 << 20,
 //!   w1 = c3.z | v1 << 16, w2 = u3 | v3 << 10
 //!
+//! A face that is no parallelogram (a sloped liquid surface) sets [`CORNER2`] in record 0 and
+//! takes a fourth record: w0 = [`MODEL`] | [`CONTINUED`] | u2 | v2 << 10, w1 = c2.x | c2.y << 16,
+//! w2 = c2.z ([`records4`]).
+//!
 //! Coordinates are section-local in 1/1024 block with one block of margin either side; texture
 //! coordinates are in 1/32 texel. `kind` is an axis face, or [`UNSHADED`].
 
@@ -43,6 +47,21 @@ pub fn records(corners: [[f32; 3]; 3], uv: [[f32; 2]; 3], kind: Face, surface: S
         [MODEL | CONTINUED | u0 | v0 << 10 | u1 << 20, c3[2] | v1 << 16, u3 | v3 << 10],
     ]
     .map(Quad)
+}
+
+/// Set in record 0 of a face whose corner 2 is stored in a fourth record.
+pub const CORNER2: u32 = 1 << 29;
+
+/// [`records`] for any four corners, in order 0..3 around the face.
+pub fn records4(corners: [[f32; 3]; 4], uv: [[f32; 2]; 4], kind: Face, surface: Surface, ao: [u8; 4]) -> [Quad; 4] {
+    let [c0, c1, c2, c3] = corners;
+    let [t0, t1, t2, t3] = uv;
+    let [mut head, tint, texels] = records([c0, c1, c3], [t0, t1, t3], kind, surface, ao);
+    // Split along 0-2 as Java's quads are: on a bent face the diagonal is part of the shape.
+    head.0[0] = (head.0[0] & !(1 << 28)) | CORNER2;
+    let [x, y, z] = c2.map(coordinate);
+    let [u, v] = t2.map(texel);
+    [head, tint, texels, Quad([MODEL | CONTINUED | u | v << 10, x | y << 16, z])]
 }
 
 /// Corner 0 of a model face's first record along `axis`, in 1/16 block like a plain quad's position.

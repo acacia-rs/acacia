@@ -1,6 +1,7 @@
 //! Per-runtime-id render data: shape, render layer, texture-array layer and tint per face.
 
 mod facing;
+pub mod fluid;
 mod lever;
 pub mod model;
 pub mod placed;
@@ -16,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::assets::Pack;
 use crate::assets::flipbook::{Animation, Atlas};
 use crate::assets::image::{Alpha, Texture};
+pub use fluid::FluidRules;
 pub use shape::{Box16, ModelFace, Shape, short_name};
 pub use tint::Tint;
 
@@ -70,6 +72,9 @@ pub struct RenderBlock {
     pub fluid: Fluid,
     /// Liquid surface height in 1/16 block.
     pub fluid_height: u8,
+    /// What the liquid mesher reads of the state. Follows from the state like `model`.
+    #[serde(skip)]
+    pub fluid_rules: FluidRules,
     /// Drawn as an entity model; the shape is then [`Shape::None`]. Follows from the state, so a
     /// look pack does not store it.
     #[serde(skip)]
@@ -140,6 +145,7 @@ impl BlockTable {
             cull_same: true,
             fluid: Fluid::None,
             fluid_height: 0,
+            fluid_rules: FluidRules::CUBE,
             model: None,
         }
     }
@@ -213,6 +219,7 @@ fn build_block(state: &BlockState, faces: Option<[String; 6]>, textures: &mut Te
         cull_same: !name.ends_with("leaves"),
         fluid,
         fluid_height: (state.fluid_height() * 16.0).round() as u8,
+        fluid_rules: FluidRules::of(state),
         model,
     }
 }

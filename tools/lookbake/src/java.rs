@@ -90,13 +90,14 @@ pub fn bake_look(pack: &Pack, assets: &Path, mapping: &Mapping) -> (LookPack, Re
     (look, report)
 }
 
-/// A liquid keeps the renderer's liquid geometry and takes Java's textures: still on top and
-/// bottom, flowing on the sides.
+/// A liquid takes Java's textures in the slots the liquid mesher reads (`mesh/liquid`): still on
+/// top and bottom, flowing on the sides, and water's overlay in the west slot.
 fn liquid(base: &RenderBlock, textures: &mut Textures, atlas: &mut Atlas) -> Option<RenderBlock> {
     let name = if base.fluid == Fluid::Water { "water" } else { "lava" };
     let (still, _) = textures.layer(&format!("block/{name}_still"), atlas)?;
     let (flow, _) = textures.layer(&format!("block/{name}_flow"), atlas)?;
-    Some(RenderBlock { textures: [flow, flow, still, still, flow, flow], ..base.clone() })
+    let overlay = if base.fluid == Fluid::Water { textures.layer("block/water_overlay", atlas).map_or(flow, |(l, _)| l) } else { flow };
+    Some(RenderBlock { textures: [flow, overlay, still, still, flow, flow], ..base.clone() })
 }
 
 struct Baker {
