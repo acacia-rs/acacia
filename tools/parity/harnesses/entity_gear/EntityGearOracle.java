@@ -2,26 +2,16 @@ package acacia.parity.entity_gear;
 
 import acacia.parity.Client;
 import acacia.parity.Headless;
-import acacia.parity.Models;
 import acacia.parity.Out;
+import acacia.parity.Submits;
 import com.mojang.blaze3d.vertex.PoseStack;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.*;
-import net.minecraft.client.model.Model;
-import net.minecraft.client.model.geom.ModelLayerLocation;
-import net.minecraft.client.model.geom.ModelLayers;
-import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.AgeableMobRenderer;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
-import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -53,7 +43,7 @@ public final class EntityGearOracle {
         var level = Client.overworld();
         Headless.set(Headless.get(level, "connection"), "scoreboard", new net.minecraft.world.scores.Scoreboard());
         var dispatcher = Client.entityRenderers();
-        var layers = layerPrints();
+        var layers = Submits.layerPrints();
         try (var out = new Out.Lines(Path.of(args[0]).resolve("gear.jsonl"))) {
             for (String kind : KINDS) {
                 var type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace(kind));
@@ -72,7 +62,7 @@ public final class EntityGearOracle {
                         if (renderer instanceof AgeableMobRenderer<?, ?, ?>)
                             Headless.set(renderer, "model", Headless.get(renderer, state.isBaby ? "babyModel" : "adultModel"));
                         var draws = new ArrayList<Map<String, Object>>();
-                        var collector = collector(draws, layers);
+                        var collector = Submits.collector(draws, layers);
                         @SuppressWarnings("unchecked")
                         var list = (List<RenderLayer<LivingEntityRenderState, ?>>) Headless.get(renderer, "layers");
                         for (var layer : list) layer.submit(new PoseStack(), collector, 0xF000F0, state, 0.0F, 0.0F);
@@ -136,67 +126,4 @@ public final class EntityGearOracle {
         return false;
     }
 
-    /** A collector recording each model submitted: its layers, texture, colour, render type. */
-    private static SubmitNodeCollector collector(List<Map<String, Object>> draws, Map<String, List<String>> layers) {
-        InvocationHandler handler = new InvocationHandler() {
-            int order;
-
-            public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] a) throws Throwable {
-                if (method.getName().equals("order")) {
-                    order = (Integer) a[0];
-                    return proxy;
-                }
-                if (method.isDefault()) return InvocationHandler.invokeDefault(proxy, method, a);
-                if (method.getName().equals("submitModel")) {
-                    var draw = new TreeMap<String, Object>();
-                    draw.put("order", order);
-                    draw.put("layers", layers.getOrDefault(print(((Model<?>) a[0]).root()), List.of()));
-                    var renderType = (RenderType) a[3];
-                    draw.put("renderType", (String) Headless.get(renderType, "name"));
-                    draw.put("texture", texture(renderType));
-                    draw.put("color", a[6]);
-                    draws.add(draw);
-                    order = 0;
-                }
-                return null;
-            }
-        };
-        return (SubmitNodeCollector) Proxy.newProxyInstance(SubmitNodeCollector.class.getClassLoader(), new Class<?>[] {SubmitNodeCollector.class}, handler);
-    }
-
-    private static String texture(RenderType renderType) {
-        var textures = (Map<?, ?>) Headless.get(Headless.get(renderType, "state"), "textures");
-        var binding = textures.get("Sampler0");
-        return binding == null ? "" : String.valueOf(Headless.get(binding, "location"));
-    }
-
-    /** Every model layer's geometry print to its names (`minecraft:horse#saddle`). */
-    private static Map<String, List<String>> layerPrints() throws Exception {
-        var models = Models.get().entityModels;
-        var out = new HashMap<String, List<String>>();
-        for (Field f : ModelLayers.class.getDeclaredFields()) {
-            if (!Modifier.isStatic(f.getModifiers()) || f.getType() != ModelLayerLocation.class) continue;
-            var location = (ModelLayerLocation) f.get(null);
-            try {
-                var name = location.model() + "#" + location.layer();
-                out.computeIfAbsent(print(models.bakeLayer(location)), k -> new ArrayList<>()).add(name);
-            } catch (RuntimeException missing) {
-            }
-        }
-        out.values().forEach(Collections::sort);
-        return out;
-    }
-
-    /** The part tree's names and cube bounds, children by name. */
-    @SuppressWarnings("unchecked")
-    private static String print(ModelPart part) {
-        var b = new StringBuilder("[");
-        for (Object cube : (List<Object>) Headless.get(part, "cubes")) {
-            for (String c : new String[] {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"}) b.append(Headless.get(cube, c)).append(',');
-            b.append(';');
-        }
-        var children = new TreeMap<>((Map<String, ModelPart>) Headless.get(part, "children"));
-        children.forEach((name, child) -> b.append(name).append(print(child)));
-        return b.append(']').toString();
-    }
 }

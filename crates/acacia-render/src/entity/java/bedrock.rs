@@ -9,6 +9,17 @@ use crate::entity::molang::Value;
 /// Ticks per second of `life_time`.
 const TICKS: f32 = 20.0;
 
+/// Names the viewer answers beside Molang's queries: metadata Molang does not expose.
+/// `FreezingEffectStrength`, 0 to 1 (fully frozen at 1).
+pub const FREEZING: &str = "freezing_effect_strength";
+/// `CreeperSwell`, taken as ticks into the fuse like Java's `swell` (unmeasured).
+pub const CREEPER_SWELL: &str = "creeper_swell";
+
+/// `Creeper.getSwelling`: the swell over `maxSwell - 2` (30 - 2), past 1 at the end.
+pub fn swelling(query: &dyn Fn(&str) -> Value) -> f32 {
+    (query(CREEPER_SWELL).num() / 28.0).max(0.0)
+}
+
 /// For an entity drawn by a model of `family`.
 pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderState {
     let num = |name: &str| query(name).num();
@@ -38,7 +49,11 @@ pub fn render_state(family: Family, query: &dyn Fn(&str) -> Value) -> RenderStat
         .set("isOnLand", Field::Flag(!flag("is_in_water")))
         .set("isInWater", Field::Flag(flag("is_in_water")))
         .set("isOnGround", Field::Flag(flag("is_on_ground")))
-        .set("isSleeping", Field::Flag(flag("is_sleeping")));
+        .set("isSleeping", Field::Flag(flag("is_sleeping")))
+        .set("isConverting", Field::Flag(flag("is_converting")))
+        .set("isFullyFrozen", Field::Flag(num(FREEZING) >= 1.0))
+        .set("isSuffocating", Field::Flag(flag("is_shaking")))
+        .set("swelling", Field::Num(swelling(query)));
     if family == Family::Parrot {
         // ParrotRenderer.getPose.
         let pose = if !flag("is_on_ground") {

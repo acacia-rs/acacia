@@ -162,7 +162,7 @@ impl Feed {
         }
         let feet = e.feet();
         let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
-        let facts = Facts::of(&e.metadata);
+        let facts = Facts::of(&e.metadata, e.health());
         let mut dropped = None;
         let (kind, instance) = if e.is_player() {
             (PLAYER.to_owned(), self.player(bot, e.uuid, position, e.yaw, e.metadata.scale())?)
@@ -170,12 +170,12 @@ impl Feed {
             let stack = e.item.as_ref()?;
             let key = crate::item_look::key(bot, stack)?;
             dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32), enchanted: stack.is_enchanted() });
-            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None, hurt: false, glint: None };
+            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None, hurt: false, white: 0.0, glint: None };
             (e.kind.clone(), instance)
         } else {
             let (layers, scale) = self.models.appearance(&e.kind, &|name| facts.query(name))?;
             let layers = self.with_gear(bot, &e.kind, &facts, layers, e.equipment.as_ref().map(|q| &q.body));
-            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false, glint: None };
+            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false, white: 0.0, glint: None };
             (e.kind.clone(), instance)
         };
         // The player's own vehicle is not under its crosshair.
@@ -244,7 +244,7 @@ impl Feed {
         let layers = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
         // The pack's player definition (and Java) draws the 2-block model at 0.9375.
         let scale = scale * 0.9375;
-        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None, hurt: false, glint: None })
+        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None, hurt: false, white: 0.0, glint: None })
     }
 }
 

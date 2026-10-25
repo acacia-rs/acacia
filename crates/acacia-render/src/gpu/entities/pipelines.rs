@@ -4,7 +4,7 @@ use crate::entity::{Blend, Vertex};
 use crate::gpu::pipeline::DEPTH_FORMAT;
 
 /// In the order of [`index`].
-pub const BLENDS: [Blend; 5] = [Blend::Opaque, Blend::Mask, Blend::Alpha, Blend::Eyes, Blend::Swirl];
+pub const BLENDS: [Blend; 7] = [Blend::Opaque, Blend::Mask, Blend::Translucent, Blend::Alpha, Blend::Wind, Blend::Eyes, Blend::Swirl];
 
 pub fn index(blend: Blend) -> usize {
     BLENDS.iter().position(|b| *b == blend).unwrap_or(0)
@@ -19,6 +19,8 @@ pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat, layout: &wgpu::Pip
             // Models hold single planes (wings, fins) and the placement mirrors z: no culling.
             Blend::Opaque | Blend::Mask => ("fs_main", None, true, None),
             Blend::Alpha => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false, None),
+            Blend::Translucent => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), true, None),
+            Blend::Wind => ("fs_wind", Some(wgpu::BlendState::ALPHA_BLENDING), false, None),
             Blend::Eyes => ("fs_eyes", Some(wgpu::BlendState::ALPHA_BLENDING), false, None),
             // Only the shell's outside, or its far side would add a second time. Baked faces
             // wind counter-clockwise in model space and the placement's z mirror turns them over.
@@ -27,7 +29,7 @@ pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat, layout: &wgpu::Pip
         let write_mask = match blend {
             Blend::Opaque => wgpu::ColorWrites::ALL,
             Blend::Mask => wgpu::ColorWrites::empty(),
-            Blend::Alpha | Blend::Eyes | Blend::Swirl => wgpu::ColorWrites::COLOR,
+            Blend::Alpha | Blend::Translucent | Blend::Wind | Blend::Eyes | Blend::Swirl => wgpu::ColorWrites::COLOR,
         };
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("entity"),

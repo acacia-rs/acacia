@@ -77,7 +77,7 @@ pub fn facing(hung: Hung) -> IVec3 {
 
 fn instance(layers: Arc<[Layer]>, skin: Arc<Skin>, block: IVec3, frame: Mat4, glint: Option<Glint>) -> EntityInstance {
     // The entity pass reads the light half a block over this: the frame's own cell.
-    EntityInstance { layers, skin: Some(skin), position: block.as_dvec3() + DVec3::new(0.5, 0.0, 0.5), yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint }
+    EntityInstance { layers, skin: Some(skin), position: block.as_dvec3() + DVec3::new(0.5, 0.0, 0.5), yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, white: 0.0, glint }
 }
 
 /// A Java look's item as [`java_frame`] places it under its `fixed` display, else the look's own
