@@ -10,10 +10,36 @@ pub struct Quad {
     pub rect: [f32; 4],
     /// Left, top, right, bottom in atlas texels.
     pub uv: [f32; 4],
-    /// Multiplies the texel, straight alpha.
+    /// Multiplies the texel, straight alpha: the top edge's colour.
     pub color: [u8; 4],
+    /// The bottom edge's colour (a vertical gradient when it differs from `color`).
+    pub bottom: [u8; 4],
+    /// Window pixels the top and the bottom edge are shifted right (italic glyphs).
+    pub skew: [f32; 2],
+    pub blend: Blend,
     /// An enchanted item's icon: the renderer shimmers its opaque texels.
     pub glint: bool,
+}
+
+/// How a quad's colour meets what is under it (Java's GUI pipelines' blend functions).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Blend {
+    /// Straight alpha (`GUI_TEXTURED`, `GUI`).
+    #[default]
+    Alpha,
+    /// The colour under it inverted where the texel is opaque (`CROSSHAIR`, `GUI_INVERT`).
+    Invert,
+    /// `dst * (1 - src)` (`VIGNETTE`).
+    Darken,
+    /// `src + dst` (`GUI_NAUSEA_OVERLAY`).
+    Add,
+}
+
+impl Quad {
+    /// A flat-coloured, upright, alpha-blended quad.
+    pub fn plain(rect: [f32; 4], uv: [f32; 4], color: [u8; 4]) -> Quad {
+        Quad { rect, uv, color, bottom: color, skew: [0.0; 2], blend: Blend::Alpha, glint: false }
+    }
 }
 
 pub const WHITE: [u8; 4] = [255; 4];
@@ -72,7 +98,7 @@ impl DrawList {
         let Some((cut, uv)) = clipped(rect, uv, self.clip) else { return };
         let s = self.scale;
         // A cut icon does not shimmer: the renderer lays the glint over a whole quad.
-        self.quads.push(Quad { rect: cut.map(|v| v * s), uv, color, glint: glint && cut == rect });
+        self.quads.push(Quad { glint: glint && cut == rect, ..Quad::plain(cut.map(|v| v * s), uv, color) });
     }
 }
 
