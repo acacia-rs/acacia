@@ -1,7 +1,8 @@
 //! `PauseScreen`: the game menu's button grid (or only the "Game Paused" title when the menu is
 //! hidden) over the in-world menu background.
 
-use super::{Env, Screen, blurred, menu_texture, render_all};
+use super::{Env, Screen, arena_children, blurred, menu_texture, render_all};
+use crate::java::widget::input::Child;
 use crate::java::widget::button::{Button, SpriteIconButton, Sprites};
 use crate::java::widget::layout::{Arena, Elem, Layout, Linear, RowHelper, Settings, align_in_rect};
 use crate::java::widget::text::StringWidget;
@@ -28,9 +29,10 @@ pub struct PauseScreen {
     widgets: Arena,
 }
 
-fn icon(ctx: &Ctx, key: &str, sprite: &'static str, active: bool) -> Box<dyn Widget> {
+fn icon(ctx: &Ctx, key: &'static str, sprite: &'static str, active: bool) -> Box<dyn Widget> {
     let mut b = SpriteIconButton::new(20, 20, ctx.tr(key), Sprites::one(sprite), [15, 15], true);
     b.base.active = active;
+    b.base.id = key.into();
     Box::new(b)
 }
 
@@ -60,9 +62,9 @@ impl PauseScreen {
         let d = grid.defaults;
         let mut helper = RowHelper::new(2);
         let h = &mut helper;
-        add(&mut grid, h, widgets, Box::new(Button::sized(204, ctx.tr("menu.returnToGame"))), 2, d.pad_top(50));
-        add(&mut grid, h, widgets, Box::new(Button::sized(98, ctx.tr("gui.advancements"))), 1, d);
-        add(&mut grid, h, widgets, Box::new(Button::sized(98, ctx.tr("gui.stats"))), 1, d);
+        add(&mut grid, h, widgets, Box::new(Button::named(ctx, 204, "menu.returnToGame")), 2, d.pad_top(50));
+        add(&mut grid, h, widgets, Box::new(Button::named(ctx, 98, "gui.advancements")), 1, d);
+        add(&mut grid, h, widgets, Box::new(Button::named(ctx, 98, "gui.stats")), 1, d);
         let mut row = Linear::new(false, 4);
         let icons = [
             icon(ctx, "menu.reportBugs", "pause_menu/bug", true),
@@ -75,10 +77,10 @@ impl PauseScreen {
             row.add_default(Elem::Widget(widgets.len() - 1));
         }
         h.add(&mut grid, row.into_elem(), 2, d.align_x(0.5));
-        add(&mut grid, h, widgets, Box::new(Button::sized(98, ctx.tr("menu.options"))), 1, d);
-        add(&mut grid, h, widgets, Box::new(Button::sized(98, ctx.tr("options.worldOptions.button"))), 1, d);
-        let disconnect = ctx.tr(if pause.local_server { "menu.returnToMenu" } else { "menu.disconnect" });
-        add(&mut grid, h, widgets, Box::new(Button::sized(204, disconnect)), 2, d);
+        add(&mut grid, h, widgets, Box::new(Button::named(ctx, 98, "menu.options")), 1, d);
+        add(&mut grid, h, widgets, Box::new(Button::named(ctx, 98, "options.worldOptions.button")), 1, d);
+        let disconnect = if pause.local_server { "menu.returnToMenu" } else { "menu.disconnect" };
+        add(&mut grid, h, widgets, Box::new(Button::named(ctx, 204, disconnect)), 2, d);
         let mut root = Elem::Layout(Box::new(grid));
         if let Elem::Layout(l) = &mut root {
             l.arrange(widgets);
@@ -99,5 +101,9 @@ impl Screen for PauseScreen {
 
     fn foreground(&mut self, ctx: &mut Ctx) {
         render_all(&mut self.widgets, ctx);
+    }
+
+    fn children(&mut self) -> Vec<Child<'_>> {
+        arena_children(&mut self.widgets)
     }
 }

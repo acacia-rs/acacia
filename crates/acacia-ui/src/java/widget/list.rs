@@ -1,6 +1,7 @@
 //! `AbstractScrollArea`'s scroll bar and `AbstractSelectionList`: rows stacked under a scroll
 //! amount, the list background, the scissor, the selection outline, the separators and the bar.
 
+use super::input::Child;
 use super::{Base, Ctx, Widget};
 
 /// An `AbstractSelectionList.Entry`: drawn into its row box.
@@ -11,6 +12,12 @@ pub trait Entry {
     fn focused(&self) -> bool {
         false
     }
+    /// A `ContainerObjectSelectionList.Entry`'s widgets.
+    fn children(&mut self) -> Vec<&mut dyn Widget> {
+        Vec::new()
+    }
+    /// Its widgets moved into `row` as `extract_content` places them.
+    fn place(&mut self, _row: [i32; 4]) {}
 }
 
 pub struct Row {
@@ -105,6 +112,48 @@ impl SelectionList {
 
     pub fn scroll_bar_x(&self) -> i32 {
         self.row_right() + 6 + 2
+    }
+
+    /// Every row's widgets placed for the scroll amount, as the next frame draws them.
+    pub fn place_rows(&mut self) {
+        let (left, width) = (self.row_left(), self.row_width);
+        let tops = self.row_tops();
+        for (row, top) in self.rows.iter_mut().zip(tops) {
+            row.entry.place([left, top, width, row.h]);
+        }
+    }
+
+    /// The rows' widgets in order, clipped to the list.
+    pub fn children(&mut self) -> Vec<Child<'_>> {
+        let b = &self.base;
+        let clip = Some([b.x, b.y, b.x + b.w, b.y + b.h]);
+        self.rows.iter_mut().flat_map(|r| r.entry.children()).map(|widget| Child { widget, clip }).collect()
+    }
+
+    /// `isMouseOver`.
+    pub fn over(&self, x: f64, y: f64) -> bool {
+        let b = &self.base;
+        b.is_active() && x >= f64::from(b.x) && y >= f64::from(b.y) && x < f64::from(b.x + b.w) && y < f64::from(b.y + b.h)
+    }
+
+    /// `updateScrolling`: a click on the bar of a list that scrolls.
+    pub fn over_scrollbar(&self, x: f64, y: f64) -> bool {
+        let (bx, b) = (f64::from(self.scroll_bar_x()), &self.base);
+        self.max_scroll() > 0 && x >= bx && x <= bx + 6.0 && y >= f64::from(b.y) && y < f64::from(b.y + b.h)
+    }
+
+    /// `AbstractScrollArea.mouseDragged` while the bar is held: the mouse at `y`, moved `dy`.
+    pub fn drag_scrollbar(&mut self, y: f64, dy: f64) {
+        let b = &self.base;
+        if y < f64::from(b.y) {
+            self.set_scroll(0.0);
+        } else if y > f64::from(b.y + b.h) {
+            self.set_scroll(f64::from(self.max_scroll()));
+        } else {
+            let max = f64::from(self.max_scroll().max(1));
+            let scale = (max / f64::from(b.h - self.scroller_height())).max(1.0);
+            self.set_scroll(self.scroll + dy * scale);
+        }
     }
 
     fn scroll_bar_y(&self) -> i32 {

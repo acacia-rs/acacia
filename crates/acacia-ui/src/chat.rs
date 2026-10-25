@@ -72,11 +72,21 @@ impl Chat {
         if text.is_empty() {
             return None;
         }
-        if self.sent.front() != Some(&text) {
-            self.sent.push_front(text.clone());
+        self.record(&text);
+        Some(text)
+    }
+
+    /// `addRecentChat`: kept for the up arrow unless it repeats the last.
+    pub fn record(&mut self, text: &str) {
+        if self.sent.front().is_none_or(|last| last != text) {
+            self.sent.push_front(text.to_owned());
             self.sent.truncate(HISTORY);
         }
-        Some(text)
+    }
+
+    /// What was sent, oldest first (`getRecentChat`).
+    pub fn history(&self) -> Vec<String> {
+        self.sent.iter().rev().cloned().collect()
     }
 
     /// Up (`older`) and down through what was sent before.
@@ -156,6 +166,8 @@ mod tests {
             chat.type_text(text);
             assert_eq!(chat.submit().as_deref(), Some(text));
         }
+        chat.record("/time set day");
+        assert_eq!(chat.history(), ["hi", "/time set day"], "oldest first, a repeat not kept");
         chat.open("");
         chat.recall(true);
         assert_eq!(chat.input.as_deref(), Some("/time set day"));

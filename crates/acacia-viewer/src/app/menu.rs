@@ -1,4 +1,6 @@
-//! The pause menu (Esc) and the options it leads to. Options change the saved settings at once.
+//! The pause menu (Esc), the options it leads to, and the death and disconnected screens. Options
+//! change the saved settings at once. The Bedrock look's menus are here; the Java look draws and
+//! routes Java's own screens (java_menu.rs).
 
 use acacia_ui::menu;
 
@@ -12,14 +14,19 @@ pub enum Menu {
     Options,
     /// Shown while the player is dead; Esc does not close it.
     Death,
+    /// Java's "quit to title?" over the death screen.
+    TitleConfirm,
+    /// The session ended (the Java look's; the reason is in `JavaScreens`).
+    Disconnected,
 }
 
-/// Largest GUI scale the options cycle through before auto.
+/// Largest GUI scale the Bedrock options cycle through before auto.
 const MAX_GUI_SCALE: u32 = 6;
 
 impl App {
     pub(super) fn open_menu(&mut self, menu: Menu) {
         self.play.release_all();
+        self.java.opened(menu);
         self.menu = Some(menu);
         self.grab(false);
     }
@@ -27,8 +34,12 @@ impl App {
     /// Esc in a menu: options go back to the pause menu, which goes back to the game.
     pub(super) fn menu_back(&mut self) {
         match self.menu {
-            Some(Menu::Options) => self.menu = Some(Menu::Pause),
-            Some(Menu::Death) => {}
+            Some(Menu::Options) if self.java.pages.len() > 1 => {
+                self.java.pages.pop();
+                self.java.interaction = Default::default();
+            }
+            Some(Menu::Options) => self.open_menu(Menu::Pause),
+            Some(Menu::Death | Menu::TitleConfirm | Menu::Disconnected) => {}
             _ => {
                 self.menu = None;
                 self.grab(true);
@@ -36,15 +47,14 @@ impl App {
         }
     }
 
+    /// The Bedrock look's menu: its title and buttons.
     pub(super) fn menu_content(&self, menu: Menu) -> (&'static str, Vec<String>) {
         let on = |b: bool| if b { "On" } else { "Off" };
         match menu {
-            // Bedrock's pause screen has the logo for a title (an empty one, acacia_ui::menu).
-            Menu::Pause => match self.settings.look {
-                LookChoice::Java => ("Game Menu", vec!["Back to Game".into(), "Options...".into(), "Disconnect".into()]),
-                LookChoice::Bedrock => ("", vec!["Resume Game".into(), "Settings".into(), "Save & Quit".into()]),
-            },
-            Menu::Death => ("You Died!", vec!["Respawn".into(), "Disconnect".into()]),
+            // The pause screen has the logo for a title (an empty one, acacia_ui::menu).
+            Menu::Pause => ("", vec!["Resume Game".into(), "Settings".into(), "Save & Quit".into()]),
+            Menu::Death | Menu::TitleConfirm => ("You Died!", vec!["Respawn".into(), "Disconnect".into()]),
+            Menu::Disconnected => ("Disconnected", vec!["Quit".into()]),
             Menu::Options => {
                 let s = &self.settings;
                 let scale = if s.gui_scale == 0 { "Auto".to_owned() } else { s.gui_scale.to_string() };
@@ -63,21 +73,20 @@ impl App {
         }
     }
 
+    /// A left click in the Bedrock look's menu.
     pub(super) fn menu_click(&mut self) {
         let Some(open) = self.menu else { return };
         let (title, buttons) = self.menu_content(open);
         let ([w, h], scale) = self.gui();
         let size = [(w / scale) as f32, (h / scale) as f32];
-        let theme = self.ui.theme(self.settings.look);
+        let theme = self.ui.theme(LookChoice::Bedrock);
         let Some(i) = menu::hit(theme, title, buttons.len(), size, self.gui_mouse()) else { return };
         match (open, i) {
             (Menu::Pause, 0) => self.menu_back(),
             (Menu::Pause, 1) => self.menu = Some(Menu::Options),
-            (Menu::Pause, _) | (Menu::Death, 1) => self.quit = true,
+            (Menu::Pause | Menu::Disconnected, _) | (Menu::Death | Menu::TitleConfirm, 1) => self.quit = true,
             // The screen stays until the server has the player alive again (events.rs).
-            (Menu::Death, _) => {
-                let _ = self.net.commands.send(Command::Respawn);
-            }
+            (Menu::Death | Menu::TitleConfirm, _) => self.respawn(),
             (Menu::Options, 0) => self.switch_look(),
             (Menu::Options, 1) => self.settings.change_and_save(|s| s.gui_scale = (s.gui_scale + 1) % (MAX_GUI_SCALE + 1)),
             (Menu::Options, 2) => self.toggle_vsync(),
@@ -96,6 +105,10 @@ impl App {
         }
     }
 
+    pub(super) fn respawn(&mut self) {
+        let _ = self.net.commands.send(Command::Respawn);
+    }
+
     /// The other look, saved; the world is meshed anew in it.
     pub(super) fn switch_look(&mut self) {
         self.settings.change_and_save(|s| s.look = s.look.next());
@@ -106,6 +119,10 @@ impl App {
 
     pub(super) fn toggle_vsync(&mut self) {
         self.settings.change_and_save(|s| s.vsync = !s.vsync);
+        self.apply_vsync();
+    }
+
+    pub(super) fn apply_vsync(&mut self) {
         if let Some(r) = &mut self.renderer {
             r.set_vsync(self.settings.vsync);
         }

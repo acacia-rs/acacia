@@ -14,11 +14,19 @@ struct Widgets {
 
 impl Entry for Widgets {
     fn extract_content(&mut self, ctx: &mut Ctx, row: [i32; 4], _hovered: bool) {
+        self.place(row);
+        for w in &mut self.widgets {
+            render(w.as_mut(), ctx);
+        }
+    }
+    fn children(&mut self) -> Vec<&mut dyn Widget> {
+        self.widgets.iter_mut().map(|w| w.as_mut() as &mut dyn Widget).collect()
+    }
+    fn place(&mut self, row: [i32; 4]) {
         let x = self.screen_width / 2 - 155;
         for (i, w) in self.widgets.iter_mut().enumerate() {
             w.set_x(x + 160 * i as i32);
             w.set_y(row[1] + 2);
-            render(w.as_mut(), ctx);
         }
     }
 }
@@ -32,10 +40,16 @@ struct Header {
 
 impl Entry for Header {
     fn extract_content(&mut self, ctx: &mut Ctx, row: [i32; 4], _hovered: bool) {
+        self.place(row);
+        render(&mut self.widget, ctx);
+    }
+    fn children(&mut self) -> Vec<&mut dyn Widget> {
+        vec![&mut self.widget as &mut dyn Widget]
+    }
+    fn place(&mut self, row: [i32; 4]) {
         let w = self.widget.width();
         self.widget.set_x(self.screen_width / 2 - w / 2);
         self.widget.set_y(row[1] + 2 + self.pad_top);
-        render(&mut self.widget, ctx);
     }
 }
 
@@ -81,4 +95,16 @@ impl OptionsList {
         (b.x, b.y, b.w, b.h) = (0, y, width, height);
         self.list.set_scroll(self.list.scroll);
     }
+
+    /// The row holding the list's `i`th child widget.
+    pub fn row_of(&mut self, i: usize) -> Option<usize> {
+        let mut seen = 0;
+        self.list.rows.iter_mut().position(|row| {
+            seen += row.entry.children().len();
+            i < seen
+        })
+    }
 }
+
+/// `scrollRate`: half the 25-pixel row (`defaultEntryHeight / 2`).
+pub const SCROLL_RATE: f64 = 12.0;

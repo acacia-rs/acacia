@@ -3,12 +3,15 @@
 
 mod hud;
 mod inputs;
+pub mod menus;
+mod options;
 mod picture;
 
 pub use hud::{HudView, hotbar_stack};
 pub use inputs::screen_info;
 pub use picture::PictureRequest;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -37,6 +40,8 @@ pub struct JavaGui {
     ticks: i64,
     last_frame: i64,
     started: Instant,
+    /// The game's `en_us` translations.
+    lang: HashMap<String, String>,
 }
 
 impl JavaGui {
@@ -46,7 +51,11 @@ impl JavaGui {
         for w in &fonts.warnings {
             tracing::debug!(target: "ui", "font: {w}");
         }
-        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now() }
+        let lang = acacia_ui::java::lang::load(root);
+        if lang.is_empty() {
+            tracing::warn!(looked = %root.display(), "no lang/en_us.json, so screens show translation keys: bake the Java look again (tools/lookbake)");
+        }
+        JavaGui { root: root.to_owned(), images: Images::new(root), fonts, random: JavaRandom::new(0), hud: Hud::default(), ticks: 0, last_frame: 0, started: Instant::now(), lang }
     }
 
     /// Whether the pack has the GUI's sprites.
