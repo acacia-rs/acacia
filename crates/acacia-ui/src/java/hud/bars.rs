@@ -30,6 +30,10 @@ fn boss_part(gui: &mut Gui, bar: &BossBar, x: i32, y: i32, width: i32, part: &st
 /// `BossHealthOverlay.extractRenderState`: bars in event order 19 pixels apart from y = 12, until
 /// a third of the screen height.
 pub fn boss_overlay(gui: &mut Gui, font: &dyn Metrics, bars: &[BossBar]) {
+    if bars.is_empty() {
+        return;
+    }
+    gui.next_stratum();
     let mut y = 12;
     for bar in bars {
         let x = gui.width / 2 - 91;
@@ -72,8 +76,8 @@ mod tests {
         let bar = BossBar { name: Text::literal("Boss"), progress: 0.5, color: 2, overlay: 1 };
         let mut gui = Gui::new(320, 90);
         boss_overlay(&mut gui, &Fixed(6.0), &[bar.clone(), bar]);
-        assert_eq!(gui.draws.len(), 5);
-        assert!(matches!(&gui.draws[2], GuiDraw::Sprite { sprite, w: 91, .. } if sprite == "boss_bar/red_progress"));
+        assert_eq!(gui.draws.len(), 6);
+        assert!(matches!(&gui.draws[3], GuiDraw::Sprite { sprite, w: 91, .. } if sprite == "boss_bar/red_progress"));
     }
 
     #[test]

@@ -142,6 +142,7 @@ pub fn sleep_overlay(gui: &mut Gui, sleep_timer: i32) {
         amount = 1.0 - (timer - 100.0) / 10.0;
     }
     let (w, h) = (gui.width, gui.height);
+    gui.next_stratum();
     gui.fill(0, 0, w, h, (((220.0 * amount) as i32) << 24) as u32 | 0x10_1020);
 }
 
@@ -170,6 +171,6 @@ mod tests {
     fn sleep_fades_out_after_100_ticks() {
         let mut gui = Gui::new(10, 10);
         sleep_overlay(&mut gui, 105);
-        assert_eq!(gui.draws[0], GuiDraw::Fill { x0: 0, y0: 0, x1: 10, y1: 10, color: 0x6E10_1020 });
+        assert_eq!(gui.draws[1], GuiDraw::Fill { x0: 0, y0: 0, x1: 10, y1: 10, color: 0x6E10_1020 });
     }
 }

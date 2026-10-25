@@ -109,6 +109,7 @@ impl Titles {
         if alpha <= 0 {
             return;
         }
+        gui.next_stratum();
         gui.push(vec![PoseOp::Translate((gui.width / 2) as f32, (gui.height - 68) as f32)]);
         let color = if self.overlay_animated { hsv_to_argb(t / 50.0, 0.7, 0.6, alpha as u32) } else { with_alpha(alpha as u32, 0xFF_FFFF) };
         let width = font.width(message);
@@ -132,6 +133,7 @@ impl Titles {
         if alpha <= 0 {
             return;
         }
+        gui.next_stratum();
         gui.push(vec![PoseOp::Translate((gui.width / 2) as f32, (gui.height / 2) as f32)]);
         gui.push(vec![PoseOp::Scale(4.0, 4.0)]);
         let color = with_alpha(alpha as u32, 0xFF_FFFF);
@@ -213,7 +215,7 @@ mod tests {
         let mut gui = Gui::new(320, 240);
         t.title(&mut gui, &Fixed(6.0), 0.5, 0);
         // 0.5 ticks into a 10-tick fade in.
-        assert!(matches!(&gui.draws[2], GuiDraw::Text { color: 0x0CFF_FFFF, x: -6, .. }));
+        assert!(matches!(&gui.draws[3], GuiDraw::Text { color: 0x0CFF_FFFF, x: -6, .. }));
         for _ in 0..100 {
             t.tick();
         }
