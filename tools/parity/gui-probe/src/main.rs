@@ -4,6 +4,7 @@
 //! `acacia_ui::java::encode` writes them. `assets` is an unpacked jar's `assets/minecraft`. Run by
 //! `tools/parity/gui/guiparity.py`.
 
+mod chat;
 mod font;
 mod hud;
 
@@ -33,6 +34,7 @@ fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
         "font" => font::replay,
         "hud" => hud::replay,
+        "chat_screen" => chat::replay_screen,
         _ => return None,
     })
 }

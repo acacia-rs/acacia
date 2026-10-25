@@ -3,10 +3,12 @@
 //! probes compare those calls with the game's, and `paint` turns them into quads. Design:
 //! README.md "Java GUI".
 
+pub mod chat;
 pub mod encode;
 pub mod font;
 pub mod gui;
 pub mod hud;
 pub mod mth;
 pub mod paint;
+pub mod split;
 pub mod text;

@@ -11,6 +11,7 @@ use crate::Assets;
 pub fn replay(c: &Value, assets: &Assets, state: &mut Map<String, Value>) -> Vec<GuiDraw> {
     match c["kind"].as_str().unwrap_or_default() {
         "decorations" => decorations(c, assets, state),
+        "chat" => crate::chat::replay_hud(c, assets, state),
         // A kind not ported yet draws nothing, so it shows as a divergence.
         _ => Vec::new(),
     }
