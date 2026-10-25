@@ -10,6 +10,7 @@ pub mod effects;
 pub mod entity;
 pub mod mount;
 pub mod menus;
+pub mod recipe_book;
 pub mod simple;
 
 use super::gui::{Gui, Metrics};
