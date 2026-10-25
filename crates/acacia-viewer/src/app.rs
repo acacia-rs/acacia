@@ -250,7 +250,7 @@ impl App {
         let menu = self.menu.filter(|_| !java).map(|m| self.menu_content(m));
         let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice()));
         let tags = self.name_tags([(size[0] / scale) as f32, (size[1] / scale) as f32], scale as f32);
-        let under = self.java_screen().filter(|_| java);
+        let under = self.java_under().filter(|_| java);
         let java_screens = java.then(|| java_menu::shown(&mut self.java, self.menu, under, &self.settings, &self.players, now));
         let Some(r) = &mut self.renderer else { return };
         let players = self.show_players.then_some(self.players.as_slice());

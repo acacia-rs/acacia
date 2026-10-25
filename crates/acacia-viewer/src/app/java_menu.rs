@@ -70,7 +70,7 @@ pub fn view(java: &JavaScreens, menu: Menu, settings: &Settings, now: Instant) -
 }
 
 /// What the Java look shows this frame: the chat input completing `players`' names, and the menu,
-/// or else the screen `under` it (`App::java_screen`).
+/// or else the screen `under` it (`App::java_under`).
 pub fn shown<'a>(java: &'a mut JavaScreens, menu: Option<Menu>, under: Option<View>, settings: &Settings, players: &[String], now: Instant) -> Shown<'a> {
     let menu = menu.map(|m| (view(java, m, settings, now), java.interaction)).or_else(|| under.map(|v| (v, Interaction::default())));
     let chat = java.chat.as_mut().map(|(chat, at)| {
@@ -201,7 +201,7 @@ impl App {
 
     /// The Java screen shown when no menu is: the sign editor, the book, or `LevelLoadingScreen`
     /// while the player has not arrived.
-    pub(super) fn java_screen(&self) -> Option<View> {
+    pub(super) fn java_under(&self) -> Option<View> {
         if let Some(sign) = &self.shown.sign {
             let line = &sign.lines[sign.line];
             let lines = std::array::from_fn(|i| sign.lines[i].text());
