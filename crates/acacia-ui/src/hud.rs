@@ -121,8 +121,11 @@ fn icons(list: &mut DrawList, atlas: &Atlas, count: u32, value: f32, at: impl Fn
     }
 }
 
+/// Bedrock's experience level colour, drawn with a drop shadow.
+const XP_COLOUR: u32 = 0x80FF00;
+
 fn xp(list: &mut DrawList, theme: &Theme, state: &HudState, centre: f32, h: f32) {
-    let (atlas, style) = (&theme.atlas, theme.style);
+    let atlas = &theme.atlas;
     let left = centre - 91.0;
     if let Some(bg) = atlas.get(sprite::XP_BACKGROUND) {
         list.sprite(bg, left, h - 29.0, WHITE);
@@ -136,13 +139,7 @@ fn xp(list: &mut DrawList, theme: &Theme, state: &HudState, centre: f32, h: f32)
     if let (true, Some(font)) = (state.xp_level > 0, &theme.font) {
         let text = state.xp_level.to_string();
         let x = centre - (font.width(&text) / 2.0).floor();
-        let y = h - 35.0;
-        if style.xp_outline {
-            for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
-                font.draw(list, &text, x + dx, y + dy, 0x000000, 1.0, false);
-            }
-        }
-        font.draw(list, &text, x, y, style.xp_colour, 1.0, !style.xp_outline);
+        font.draw(list, &text, x, h - 35.0, XP_COLOUR, 1.0, true);
     }
 }
 
@@ -167,7 +164,7 @@ mod tests {
     fn hotbar_and_hearts_sit_where_java_puts_them() {
         let mut atlas = atlas();
         let widgets = crate::widget::Widgets::Bedrock(crate::widget::bedrock::Kit::load(std::path::Path::new(""), &mut atlas));
-        let theme = Theme { atlas, font: None, galactic: None, style: crate::theme::java::STYLE, widgets };
+        let theme = Theme { atlas, font: None, galactic: None, style: crate::theme::bedrock::STYLE, widgets };
         let atlas = &theme.atlas;
         let mut list = DrawList::new(1.0);
         draw(&mut list, &theme, &state(), [320.0, 240.0]);
