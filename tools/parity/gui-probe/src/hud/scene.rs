@@ -21,7 +21,7 @@ fn style(assets: &Assets, v: &Value) -> Style {
 }
 
 /// `null`, `{type: blank}`, `{type: fixed, value}` or `{type: styled, style}`.
-fn number_format(assets: &Assets, v: &Value) -> Option<NumberFormat> {
+pub fn number_format(assets: &Assets, v: &Value) -> Option<NumberFormat> {
     Some(match v["type"].as_str()? {
         "blank" => NumberFormat::Blank,
         "fixed" => NumberFormat::Fixed(comp(assets, &v["value"])),

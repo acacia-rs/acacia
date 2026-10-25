@@ -9,4 +9,6 @@ pub mod overlays;
 pub mod sidebar;
 pub mod sort;
 pub mod subtitles;
+pub mod tab_hearts;
+pub mod tab_list;
 pub mod titles;

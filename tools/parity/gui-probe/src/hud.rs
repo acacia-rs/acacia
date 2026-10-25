@@ -11,6 +11,8 @@ use crate::Assets;
 mod kinds;
 mod scene;
 
+pub use scene::number_format;
+
 pub fn replay(c: &Value, assets: &Assets, state: &mut Map<String, Value>) -> Vec<GuiDraw> {
     let mut gui = kinds::screen(c);
     match c["kind"].as_str().unwrap_or_default() {

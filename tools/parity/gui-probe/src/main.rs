@@ -7,6 +7,7 @@
 mod chat;
 mod hud;
 mod lang;
+mod players;
 mod subtitles;
 
 use std::io::{BufWriter, Write};
@@ -39,6 +40,7 @@ impl Metrics for Ascii {
 fn replay(harness: &str) -> Option<Replay> {
     Some(match harness {
         "hud" => hud::replay,
+        "players" => players::replay,
         "subtitles" => subtitles::replay,
         _ => return None,
     })
