@@ -7,21 +7,28 @@ use serde_json::{Value, json};
 use super::gui::{GuiDraw, IDENTITY, Pose, pose_apply};
 use super::text::Text;
 
-/// Style runs `[text, rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null]`
-/// per run of equally styled characters, or `None` for unstyled text.
+/// Style runs `[text, rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null]`,
+/// the shadow colour (ARGB) appended when the style has one, per run of equally styled
+/// characters, or `None` for unstyled text.
 pub fn runs(t: &Text) -> Option<Value> {
-    type Key = (Option<u32>, bool, bool, bool, bool, bool, Option<String>);
+    type Key = (Option<u32>, bool, bool, bool, bool, bool, Option<String>, Option<u32>);
     let mut out: Vec<(String, Key)> = Vec::new();
     let mut styled = false;
     for (ch, s) in t.chars() {
-        let key: Key = (s.color, s.is_bold(), s.is_italic(), s.is_underlined(), s.is_strikethrough(), s.is_obfuscated(), s.font.clone().filter(|f| f != "minecraft:default"));
-        styled |= key != (None, false, false, false, false, false, None);
+        let font = s.font.clone().filter(|f| f != "minecraft:default");
+        let key: Key = (s.color, s.is_bold(), s.is_italic(), s.is_underlined(), s.is_strikethrough(), s.is_obfuscated(), font, s.shadow_color);
+        styled |= key != (None, false, false, false, false, false, None, None);
         match out.last_mut() {
             Some(last) if last.1 == key => last.0.push(ch),
             _ => out.push((ch.to_string(), key)),
         }
     }
-    styled.then(|| json!(out.into_iter().map(|(s, k)| json!([s, k.0, k.1, k.2, k.3, k.4, k.5, k.6])).collect::<Vec<_>>()))
+    let run = |(s, k): (String, Key)| {
+        let mut v = vec![json!(s), json!(k.0), json!(k.1), json!(k.2), json!(k.3), json!(k.4), json!(k.5), json!(k.6)];
+        v.extend(k.7.map(|c| json!(c as i32)));
+        Value::Array(v)
+    };
+    styled.then(|| Value::Array(out.into_iter().map(run).collect()))
 }
 
 pub fn encode(draws: &[GuiDraw]) -> Vec<Value> {

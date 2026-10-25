@@ -133,7 +133,7 @@ impl Painter<'_> {
             GuiDraw::Stratum => self.layers.next_stratum(),
             GuiDraw::Blur => self.layers.blur(),
             GuiDraw::Sprite { sprite, x, y, w, h, region, color, blend } => {
-                let Some((s, scaling)) = self.src.sprite(sprite) else { return };
+                let Some((s, scaling)) = self.src.sprite(sprite).or_else(|| self.src.sprite(assets::MISSING)) else { return };
                 let mut prims = Vec::new();
                 match region {
                     Some([sw, sh, u, v]) if scaling != Scaling::Stretch => {
@@ -169,6 +169,8 @@ impl Painter<'_> {
                 }
                 self.fill(rect, 0xFF00_00FF, 0xFF00_00FF, QuadBlend::Add);
             }
+            // GuiGraphicsExtractor.text and the text collectors add nothing without alpha.
+            GuiDraw::Text { color, .. } if color >> 24 == 0 => {}
             GuiDraw::Text { text, x, y, color, shadow } => {
                 let glyphs = self.src.text(text, *x, *y, *color, *shadow);
                 let Some([l, t, r, b]) = glyphs.bounds.filter(|[l, t, r, b]| l < r && t < b) else { return };

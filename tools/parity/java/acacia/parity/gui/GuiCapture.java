@@ -160,7 +160,7 @@ public class GuiCapture extends GuiGraphicsExtractor {
     // ScissorStack.containsPoint tests the first scissor pushed, not the innermost.
     @Override public boolean containsPointInScissor(int x, int y) { return scissors.isEmpty() || scissors.peekFirst().containsPoint(x, y); }
 
-    /** Runs `[text, rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null]`; null when unstyled. */
+    /** Runs `[text, rgb|null, bold, italic, underlined, strikethrough, obfuscated, font|null(, shadow ARGB)]`; null when unstyled. */
     static JsonArray runs(FormattedCharSequence str, StringBuilder plain) {
         var runs = new JsonArray();
         boolean[] styled = {false};
@@ -174,11 +174,12 @@ public class GuiCapture extends GuiGraphicsExtractor {
             String font = style.getFont() instanceof FontDescription.Resource r && !r.id().equals(Identifier.withDefaultNamespace("default"))
                 ? r.id().toString() : null;
             if (font == null) run.add(JsonNull.INSTANCE); else run.add(font);
+            if (style.getShadowColor() != null) run.add(style.getShadowColor());
             styled[0] |= !run.get(1).isJsonNull() || style.isBold() || style.isItalic() || style.isUnderlined() || style.isStrikethrough()
-                || style.isObfuscated() || font != null;
+                || style.isObfuscated() || font != null || style.getShadowColor() != null;
             JsonArray last = runs.isEmpty() ? null : runs.get(runs.size() - 1).getAsJsonArray();
-            boolean same = last != null;
-            for (int i = 1; same && i < 8; i++) same = Objects.equals(last.get(i), run.get(i));
+            boolean same = last != null && last.size() == run.size();
+            for (int i = 1; same && i < run.size(); i++) same = Objects.equals(last.get(i), run.get(i));
             if (same) last.set(0, new JsonPrimitive(last.get(0).getAsString() + run.get(0).getAsString()));
             else runs.add(run);
             return true;
