@@ -5,4 +5,4 @@ OWNER = "gui (Java look GUI)"
 
 
 def run(h):
-    guiparity.run(h, "acacia.parity.gui.PlayersOracle", "--count", 1000)
+    guiparity.run(h, "acacia.parity.gui.PlayersOracle", "--count", 1100)
