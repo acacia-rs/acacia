@@ -37,7 +37,7 @@ impl<'a, B: LightBlocks> Lighter<'a, B> {
     }
 
     /// The world's sections and the padding.
-    fn section_range(&self) -> std::ops::Range<i32> {
+    pub(super) fn section_range(&self) -> std::ops::Range<i32> {
         let min = self.dim.min_y >> 4;
         min - self.padding()..min + (self.dim.height / 16) as i32 + self.padding()
     }
@@ -58,8 +58,10 @@ impl<'a, B: LightBlocks> Lighter<'a, B> {
         let air = self.blocks.air();
         let padding = std::iter::repeat_with(|| None).take(self.padding() as usize);
         let sections = padding.clone().chain(sections).chain(padding);
+        let mut empty = Vec::new();
         for (sy, cells) in self.section_range().zip(sections) {
             let key = (cx, sy, cz);
+            empty.push(cells.is_none());
             match cells {
                 Some(cells) => {
                     data.props.insert(key, &cells.map(|c| c.props));
@@ -90,7 +92,7 @@ impl<'a, B: LightBlocks> Lighter<'a, B> {
                 p.run();
             }
             if ch == Channel::Sky && self.rules.is_java() {
-                self.find_sky_sources(data, cx, cz);
+                self.find_sky_sources(data, cx, cz, &empty);
             }
             let mut p = self.propagator(data, ch);
             match ch {
@@ -123,7 +125,7 @@ impl<'a, B: LightBlocks> Lighter<'a, B> {
         data.props.set(x, y, z, new.props);
         data.shapes.set(x, y, z, new.shape);
         for &ch in self.channels() {
-            let sources = (ch == Channel::Sky && self.rules.is_java()).then(|| self.move_sky_sources(data, x, z));
+            let sources = (ch == Channel::Sky && self.rules.is_java()).then(|| self.move_sky_sources(data, x, y, z));
             let mut p = self.propagator(data, ch);
             p.remove([x, y, z]);
             if let Some((lost, gained)) = sources {
