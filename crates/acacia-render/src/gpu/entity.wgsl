@@ -35,7 +35,7 @@ struct VsIn {
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) uv: vec2<f32>,
-    @location(1) shade: f32,
+    @location(1) light: vec3<f32>,
     @location(2) dist: vec2<f32>,
     @location(3) @interpolate(flat) tint: vec4<f32>,
     @location(4) @interpolate(flat) hurt: f32,
@@ -48,6 +48,19 @@ struct VsOut {
 const GLINT_STRENGTH: f32 = 0.75;
 const GLINT_TURN: vec2<f32> = vec2(0.17364818, 0.98480775);
 
+// Lighting's LEVEL pair (DIFFUSE_LIGHT_0 and _1, normalized), in world space as Java's entity
+// normals are. TODO: the Nether's pair (0.2, -1, 0.7 for the second) once the globals say which.
+const LIGHT_0: vec3<f32> = vec3(0.16169041, 0.80845207, -0.56591645);
+const LIGHT_1: vec3<f32> = vec3(-0.16169041, 0.80845207, 0.56591645);
+
+// Java's minecraft_mix_light (entity.vsh); the Bedrock look keeps the terrain's directional shades.
+fn diffuse(n: vec3<f32>) -> f32 {
+    if g.light.x == 0.0 {
+        return n.x * n.x * 0.6 + n.z * n.z * 0.8 + n.y * n.y * select(0.5, 1.0, n.y > 0.0);
+    }
+    return min(1.0, (max(0.0, dot(LIGHT_0, n)) + max(0.0, dot(LIGHT_1, n))) * 0.6 + 0.4);
+}
+
 @vertex
 fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
     let instance = instances[index];
@@ -55,8 +68,6 @@ fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
     let m = bones[instance.bones.x + bone];
     let rel = (m * vec4(in.position, 1.0)).xyz;
     let n = normalize((m * vec4(in.normal, 0.0)).xyz);
-    // The terrain's directional shades, blended by how much the normal faces each axis.
-    let directional = n.x * n.x * 0.6 + n.z * n.z * 0.8 + n.y * n.y * select(0.5, 1.0, n.y > 0.0);
     var out: VsOut;
     out.clip = g.view_proj * vec4(rel, 1.0);
     if ((instance.hidden[bone / 32u] >> (bone % 32u)) & 1u) == 1u {
@@ -64,7 +75,7 @@ fn vs_main(in: VsIn, @builtin(instance_index) index: u32) -> VsOut {
         out.clip = vec4(2.0, 2.0, 2.0, 1.0);
     }
     out.uv = in.uv;
-    out.shade = directional * curve(instance.light.xy);
+    out.light = diffuse(n) * select(vec3(curve(instance.light.xy)), lightmap(instance.light.xy), g.light.x != 0.0);
     out.dist = fog_dist(rel);
     out.tint = instance.tint;
     out.hurt = instance.light.z;
@@ -103,7 +114,7 @@ fn shaded(in: VsOut, texel: vec4<f32>) -> vec3<f32> {
     }
     // Java's hurt overlay: 30% red, before the light.
     rgb = mix(rgb, vec3(1.0, 0.0, 0.0), 0.3 * in.hurt);
-    return fogged(glinted(rgb * in.shade, in), in.dist);
+    return fogged(glinted(lit(rgb, in.light), in), in.dist);
 }
 
 @fragment
