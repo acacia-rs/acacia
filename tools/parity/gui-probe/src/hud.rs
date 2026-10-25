@@ -8,13 +8,28 @@ use acacia_ui::java::hud::hotbar::{self, Hotbar};
 
 use crate::Assets;
 
+mod kinds;
+mod scene;
+
+pub use scene::number_format;
+
 pub fn replay(c: &Value, assets: &Assets, state: &mut Map<String, Value>) -> Vec<GuiDraw> {
+    let mut gui = kinds::screen(c);
     match c["kind"].as_str().unwrap_or_default() {
-        "decorations" => decorations(c, assets, state),
-        "chat" => crate::chat::replay_hud(c, assets, state),
+        "decorations" => return decorations(c, assets, state),
+        "chat" => return crate::chat::replay_hud(c, assets, state),
+        "effects" => kinds::effects(c, &mut gui),
+        "title" => kinds::title(c, assets, &mut gui),
+        "selected" => kinds::selected(c, assets, &mut gui),
+        "boss" => kinds::boss(c, assets, &mut gui),
+        "jump" => kinds::jump(c, &mut gui),
+        "sidebar" => scene::sidebar(c, assets, &mut gui),
+        "decor" => kinds::decor(c, assets, &mut gui),
+        "overlays" => scene::overlays(c, &mut gui, state),
         // A kind not ported yet draws nothing, so it shows as a divergence.
-        _ => Vec::new(),
+        _ => {}
     }
+    gui.draws
 }
 
 fn decorations(c: &Value, assets: &Assets, _: &mut Map<String, Value>) -> Vec<GuiDraw> {

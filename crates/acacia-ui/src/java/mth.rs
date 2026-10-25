@@ -40,6 +40,23 @@ pub fn lerp_discrete(alpha: f32, p0: i32, p1: i32) -> i32 {
     p0 + floor(alpha * (p1 - p0 - 1) as f32) + i32::from(alpha > 0.0)
 }
 
+const SIN_SCALE: f64 = 10430.378350470453;
+
+fn sin_table() -> &'static [f32] {
+    static TABLE: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| (0..65536).map(|i| (f64::from(i) / SIN_SCALE).sin() as f32).collect())
+}
+
+/// `Mth.sin`: the 65536-entry table, indexed through Java's `(long)` cast.
+pub fn sin(x: f64) -> f32 {
+    sin_table()[((x * SIN_SCALE) as i64 & 65535) as usize]
+}
+
+/// `Mth.cos`.
+pub fn cos(x: f64) -> f32 {
+    sin_table()[((x * SIN_SCALE + 16384.0) as i64 & 65535) as usize]
+}
+
 /// `Mth.hsvToArgb`.
 pub fn hsv_to_argb(hue: f32, saturation: f32, value: f32, alpha: u32) -> u32 {
     let h = (hue * 6.0) as i32 % 6;

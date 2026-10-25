@@ -7,6 +7,9 @@
 mod chat;
 mod font;
 mod hud;
+mod lang;
+mod players;
+mod subtitles;
 
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -35,6 +38,8 @@ fn replay(harness: &str) -> Option<Replay> {
         "font" => font::replay,
         "hud" => hud::replay,
         "chat_screen" => chat::replay_screen,
+        "players" => players::replay,
+        "subtitles" => subtitles::replay,
         _ => return None,
     })
 }
