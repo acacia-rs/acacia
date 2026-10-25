@@ -6,6 +6,8 @@ use serde_json::{Map, Value};
 use acacia_ui::java::container::brewing::Brewing;
 use acacia_ui::java::container::crafter::Crafter;
 use acacia_ui::java::container::effects;
+use acacia_ui::java::container::entity::Figure;
+use acacia_ui::java::container::mount::{self, Mount};
 use acacia_ui::java::container::simple::{Kind, Simple};
 use acacia_ui::java::container::{Env, Screen, frame};
 use acacia_ui::java::gui::{Gui, GuiDraw};
@@ -34,6 +36,7 @@ pub fn replay(c: &Value, assets: &Assets, _state: &mut Map<String, Value>) -> Ve
         "hopper" => Box::new(simple(Kind::Hopper, "container.hopper")),
         "brewing" => Box::new(Brewing::new(width, height, kit::title(c, "container.brewing", &lang), inventory, data(c), env.font)),
         "crafter" => Box::new(Crafter::new(width, height, kit::title(c, "container.crafter", &lang), inventory, data(c), env.font)),
+        "mount" => Box::new(mount(c, width, height, inventory, &lang)),
         // A kind not ported yet draws nothing, so it shows as a divergence.
         _ => return Vec::new(),
     };
@@ -41,6 +44,29 @@ pub fn replay(c: &Value, assets: &Assets, _state: &mut Map<String, Value>) -> Ve
     let mut gui = Gui::new(width, height);
     frame(screen.as_mut(), &mut gui, &env, kit::mouse(c), kit::float(c, "partial", 0.0));
     gui.draws
+}
+
+/// `ContainerScreens.mount`: what the oracle found of the mount in `game`.
+fn mount(c: &Value, width: i32, height: i32, inventory: Text, lang: &dyn Fn(&str) -> Option<String>) -> Mount {
+    let g = &c["game"];
+    let kind = match g["mount"].as_str() {
+        Some("llama") => mount::Kind::Llama,
+        Some("horse") => mount::Kind::Horse,
+        _ => mount::Kind::Nautilus,
+    };
+    let f = &g["figure"];
+    let figure = Figure {
+        entity: f["entity"].as_str().unwrap_or_default().to_owned(),
+        bb_height: kit::float(f, "bbHeight", 0.0),
+        scale: f["scale"].as_f64().map(|s| s as f32),
+        fall_flying: kit::bool(f, "fallFlying"),
+    };
+    let title = Text::from_json(&g["title"], lang);
+    let saddle = kit::bool(g, "saddle");
+    let mut screen = Mount::new(kind, width, height, title, inventory, kit::int(c, "columns", 0), saddle, kit::bool(g, "armor"), figure);
+    let last = &c["lastMouse"];
+    screen.last_mouse = [last[0].as_f64().unwrap_or(0.0) as f32, last[1].as_f64().unwrap_or(0.0) as f32];
+    screen
 }
 
 /// The case's menu data slots, zero beyond those given.
