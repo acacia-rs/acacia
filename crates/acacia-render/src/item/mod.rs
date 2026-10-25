@@ -5,6 +5,7 @@ pub mod arm;
 mod block;
 pub mod drop;
 mod extrude;
+pub mod first_person;
 pub mod framed;
 pub mod hand;
 mod held_banner;
