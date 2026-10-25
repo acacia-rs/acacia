@@ -78,6 +78,13 @@ fn squared() -> Set {
     Set::UnitMapped { to: |v| v * v, from: f64::sqrt }
 }
 
+/// `Options.unlogMouse`: `floor(log10(v) * 100)`. Java's log10 inverts its own `pow(10, k / 100)`
+/// exactly where libm's lands an ulp under k, so a result within 1e-9 of an integer snaps to it.
+fn unlog_mouse(v: f64) -> i32 {
+    let x = v.log10() * 100.0;
+    if (x - x.round()).abs() < 1e-9 { x.round() as i32 } else { x.floor() as i32 }
+}
+
 fn toggle_hold(ctx: &Ctx, _: Text, v: &V) -> Text {
     ctx.tr(if v.b() { "options.key.toggle" } else { "options.key.hold" })
 }
@@ -209,7 +216,7 @@ pub fn def(id: &str) -> Def {
         }),
         "mouseWheelSensitivity" => slider(
             "options.mouseWheelSensitivity",
-            Set::Mapped { min: -200, max: 100, to: |v| 10f64.powf(f64::from(v) / 100.0), from: |v| (v.log10() * 100.0).floor() as i32 },
+            Set::Mapped { min: -200, max: 100, to: |v| 10f64.powf(f64::from(v) / 100.0), from: unlog_mouse },
             V::Num(1.0),
             |ctx, c, v| generic(ctx, c, lit(format!("{:.2}", v.f()))),
         ),
