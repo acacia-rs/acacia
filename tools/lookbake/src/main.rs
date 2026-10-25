@@ -11,6 +11,8 @@
 //! - `lookbake java-check <quads.json.gz> [java dir]`: our bake of every Java block state against a
 //!   dump of the game's own (check.rs); tools/parity's harness `bake` makes the dump. Exits nonzero
 //!   on any divergence.
+//! - `lookbake java-light-check <facts.json> [pack dir] [java dir]`: the Java look's light facts
+//!   (light.rs) against the game's; tools/parity's harness `light_facts` makes the dump.
 
 mod banners;
 mod biomes;
@@ -22,6 +24,7 @@ mod entities;
 mod environment;
 mod jar;
 mod java;
+mod light;
 mod mapping;
 mod model;
 mod offset;
@@ -40,7 +43,7 @@ use acacia_render::{Look, LookPack};
 
 use download::Error;
 
-const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-entities [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir]";
+const USAGE: &str = "usage: lookbake bedrock [pack dir] [out dir] | java [pack dir] [java dir] [out dir] | fetch-java [java dir] | java-entities [java dir] [out dir] | java-report [java dir] | java-check <quads.json.gz> [java dir] | java-light-check <facts.json> [pack dir] [java dir]";
 
 fn main() -> Result<(), Error> {
     let mut args = std::env::args().skip(1);
@@ -93,6 +96,14 @@ fn main() -> Result<(), Error> {
             if !outcome.divergences.is_empty() {
                 return Err(format!("{} divergences from the game", outcome.divergences.len()).into());
             }
+        }
+        Some("java-light-check") => {
+            let truth = Some(dir(PathBuf::new)).filter(|p| !p.as_os_str().is_empty()).ok_or(USAGE)?;
+            let (pack, java) = (Pack::load(&dir(Pack::default_dir))?, dir(jar::default_dir));
+            let (jar, mapping) = (jar::fetch(&java)?, mapping::Mapping::fetch(&java)?);
+            let (look, _) = java::bake_look(&pack, &jar.assets, &mapping);
+            let outcome = check::light::print(&look, &mapping, &truth)?;
+            outcome.print_for_parity();
         }
         _ => return Err(USAGE.into()),
     }
