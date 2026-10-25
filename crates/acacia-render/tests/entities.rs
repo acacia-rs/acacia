@@ -204,10 +204,10 @@ fn humanoids_hold_items_in_their_right_hand() {
     }
     // A zombie's raised arm (`attack_bare_hand`: -90° x): Java's chain stands the blade up at the fist.
     let model = look(&models, "minecraft:zombie", &[]).0[0].model;
-    let raised = Pose(vec![BonePose { bone: "rightarm".into(), rotation: [-90.0, 0.0, 0.0], position: [0.0; 3], scale: [1.0; 3] }]);
+    let raised = Pose::bones(vec![BonePose { bone: "rightarm".into(), rotation: [-90.0, 0.0, 0.0], position: [0.0; 3], scale: [1.0; 3] }]);
     let hand = models.models()[model as usize].mesh.right_hand(&raised).unwrap();
     let display = acacia_render::item::hand::Display::third_person(acacia_render::item::Form::Flat, false, false);
-    let frame = acacia_render::item::hand::held_frame(display, hand, false);
+    let frame = acacia_render::item::hand::held_frame(display, hand, acacia_render::item::hand::Grip::hand(false));
     let (hilt, tip) = (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
     assert!((tip - hilt).normalize().y > 0.8 && (hilt + tip).z < -1.0, "hilt {hilt}, tip {tip}");
 }
