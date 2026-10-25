@@ -11,15 +11,16 @@ use crate::assets::image_file;
 pub const STRENGTH: f32 = 0.75;
 /// Java's default `glintSpeed` times `MAX_ENCHANTMENT_GLINT_SPEED_MILLIS`.
 const SPEED: f64 = 0.5 * 8.0;
-/// Java's `TextureTransform` scales: `GLINT_TEXTURING` over atlas UVs, `ARMOR_ENTITY_GLINT_TEXTURING`
-/// over the armour texture's own.
-const ITEM_SCALE: f32 = 8.0;
-const ARMOR_SCALE: f32 = 0.16;
+/// Java's `TextureTransform` scales: `GLINT_TEXTURING` over atlas UVs, `ENTITY_GLINT_TEXTURING`
+/// and `ARMOR_ENTITY_GLINT_TEXTURING` over an entity texture's own.
+pub const ITEM_SCALE: f32 = 8.0;
+pub const ENTITY_SCALE: f32 = 0.5;
+pub const ARMOR_SCALE: f32 = 0.16;
 /// Side of Java's item and block atlases in texels, which the item scale applies to. Not dumped
 /// from the game: see the README.
 const JAVA_ATLAS: f32 = 2048.0;
 /// The turn of the glint texture, `rotateZ(π / 18)`.
-const TURN: f32 = std::f32::consts::PI / 18.0;
+const TURN: f32 = (std::f64::consts::PI / 18.0) as f32;
 
 /// What a glinting instance is, which picks the texture and its scale.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,7 +58,7 @@ impl Foil {
         match (name, self) {
             ("enchanted_golden_apple" | "nether_star" | "enchanted_book" | "experience_bottle", _) => true,
             ("potion" | "splash_potion" | "lingering_potion", Foil::Bedrock) => true,
-            ("written_book" | "end_crystal", Foil::Java) => true,
+            ("written_book" | "end_crystal" | "debug_stick", Foil::Java) => true,
             _ => false,
         }
     }
@@ -66,8 +67,21 @@ impl Foil {
 /// How far the glint texture has slid `millis` after the start, in repeats: Java's
 /// `setupGlintTexturing`, once across in 27.5 s and once up in 7.5 s.
 pub fn scroll(millis: u64) -> [f32; 2] {
-    let ticks = (millis as f64 * SPEED) as u64;
+    scroll_at(millis, SPEED)
+}
+
+fn scroll_at(millis: u64, speed: f64) -> [f32; 2] {
+    let ticks = (millis as f64 * speed) as u64;
     [-((ticks % 110_000) as f32 / 110_000.0), (ticks % 30_000) as f32 / 30_000.0]
+}
+
+/// Java's `TextureTransform.setupGlintTexturing(scale)` at `millis` with the `glintSpeed`
+/// option `speed`: the matrix the glint's UVs go through.
+pub fn texturing(millis: u64, speed: f64, scale: f32) -> glam::Mat4 {
+    let [u, v] = scroll_at(millis, speed * 8.0);
+    let (sin, cos) = crate::entity::java::mth::joml_sin_cos(TURN);
+    let turn = glam::Mat4::from_cols_array(&[cos, sin, 0.0, 0.0, -sin, cos, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
+    glam::Mat4::from_translation(glam::Vec3::new(u, v, 0.0)) * turn * glam::Mat4::from_scale(glam::Vec3::splat(scale))
 }
 
 /// Where a vertex samples the glint texture: scaled, turned, then slid. `gpu/entity.wgsl` and

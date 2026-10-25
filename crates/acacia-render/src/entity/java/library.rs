@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use super::equipment::{self, Equipment};
 use super::kinds::{self, Look, When};
+use super::trims::{Trim, Trims};
 use super::{Family, Poses, anim, bedrock, mesh};
 use crate::entity::bake::Mesh;
 use crate::entity::molang::Value;
@@ -24,10 +25,13 @@ pub struct Library {
     /// By Bedrock identifier, the adult's and the baby's armour models per slot ([`equipment::SLOTS`]).
     armor: HashMap<&'static str, [[Option<ModelId>; 4]; 2]>,
     equipment: Equipment,
-    /// Equipment textures by path.
+    trims: Trims,
+    /// Equipment and trim textures by path.
     equipment_textures: HashMap<String, TextureId>,
     /// By Bedrock identifier, the second layers' adult and own-baby (model, texture).
     overlays: HashMap<&'static str, Vec<(When, [Option<(ModelId, TextureId)>; 2])>>,
+    /// [`kinds::VARIANTS`]' adult and baby textures.
+    variants: HashMap<(&'static str, i32), [TextureId; 2]>,
 }
 
 /// `ColorLerper.Type.SHEEP`'s colour of the wool dyed `color` (white first): white is 0xE6E6E6,
@@ -98,8 +102,15 @@ impl Library {
             }
             out.overlays.entry(identifier).or_default().push((overlay.when, pair));
         }
+        for (identifier, variant, adult, baby) in kinds::VARIANTS {
+            let mut path = |p: &str| texture(&format!("java/textures/entity/{p}"));
+            let Some(adult) = path(adult) else { continue };
+            out.variants.insert((identifier, variant), [adult, path(baby).unwrap_or(adult)]);
+        }
         out.equipment = Equipment::load(root);
-        out.equipment_textures = out.equipment.textures().filter_map(|path| Some((path.clone(), texture(&path)?))).collect();
+        out.trims = Trims::load(root);
+        let paths = out.equipment.textures().chain(Trims::images(root));
+        out.equipment_textures = paths.filter_map(|path| Some((path.clone(), texture(&path)?))).collect();
         tracing::info!(kinds = out.kinds.len(), layers = layers.len(), "java entity models");
         out
     }
@@ -110,6 +121,7 @@ impl Library {
         let (variants, own_baby) = self.kinds.get(kind)?;
         let baby = query("is_baby").truthy();
         let (model, texture) = variants[usize::from(baby)];
+        let texture = self.variants.get(&(kind, query("variant").num() as i32)).map_or(texture, |t| t[usize::from(baby && *own_baby)]);
         let scale = if baby && *own_baby { 2.0 } else { 1.0 };
         let mut layers = vec![Layer::plain(model, texture)];
         let color = query("color").num().max(0.0) as usize % DYES.len();
@@ -121,6 +133,7 @@ impl Library {
                 When::Wool if !query("is_sheared").truthy() => Layer { dye: Some(wool(color)), ..plain },
                 When::Undercoat if !baby && color != 0 => Layer { dye: Some(wool(color)), ..plain },
                 When::Powered if query("is_powered").truthy() => Layer { blend: Blend::Swirl, ..plain },
+                When::Eyes => Layer { blend: Blend::Eyes, ..plain },
                 _ => continue,
             });
         }
@@ -138,11 +151,11 @@ impl Library {
     }
 
     /// What armour `item` draws on a `kind` that draws a Java model, as one layer (a second texture
-    /// is an overlay); posed by [`Library::pose`] on its own model. `dye` is the stack's.
-    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>) -> Option<Arc<[Layer]>> {
+    /// is an overlay); posed by [`Library::pose`] on its own model. `dye` and `trim` are the stack's.
+    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>, trim: Option<&Trim>) -> Option<Arc<[Layer]>> {
         let (_, own_baby) = self.kinds.get(kind)?;
         let baby = *own_baby && query("is_baby").truthy();
-        let (slot, draws) = self.equipment.worn(item, baby, dye)?;
+        let (slot, draws) = self.equipment.worn(item, baby, dye, trim.map(|t| (&self.trims, t)))?;
         let model = self.armor.get(kind)?[usize::from(baby)][slot]?;
         let mut textures = [NO_TEXTURE; 3];
         for (to, draw) in textures.iter_mut().zip(&draws) {

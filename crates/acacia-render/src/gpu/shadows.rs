@@ -6,12 +6,18 @@ use glam::DVec3;
 use super::Renderer;
 use super::pipeline::DEPTH_FORMAT;
 use crate::shadows::{self, ShadowVertex};
+use crate::sky::{Realm, Sky};
 
 impl Renderer {
-    /// Lays this frame's [`Renderer::shadows`] on the loaded ground.
-    pub(super) fn prepare_shadows(&mut self, camera: DVec3) {
+    /// Lays this frame's [`Renderer::shadows`] on the loaded ground, under `sky`.
+    pub(super) fn prepare_shadows(&mut self, camera: DVec3, sky: &Sky) {
         let vertices = match &self.scene {
-            Some(scene) => shadows::quads(&self.shadows, camera, shadows::full_cubes(scene.world())),
+            Some(scene) => {
+                let light = self.light_cache.reader(Some(&**scene.light()));
+                let realm = Realm::of(&scene.world().dimension());
+                let ground = shadows::WorldGround { world: scene.world(), table: scene.table(), light: |p| light.at(p), sky_darken: sky.darken() as i32 };
+                shadows::quads(&self.shadows, camera, &ground, shadows::ambient_light(realm))
+            }
             None => Vec::new(),
         };
         self.shadow_pass.prepare(&self.device, &self.queue, &vertices);

@@ -30,6 +30,13 @@ pub fn layers(layers: &BTreeMap<String, Part>, record: &Value, report: &mut Repo
         let got = body * fist(hand, Grip { left, baby: state.baby() });
         case.numbers(&format!("hand {arm}"), &floats(matrix), &got.to_cols_array(), 1e-5);
     }
+    for (what, matrix) in record["heads"].as_object().into_iter().flatten() {
+        let Some(head) = mesh::head(model, &poses, mesh::HeadTransforms::DEFAULT, what == "skull") else {
+            case.diverge(&format!("head {what}"), "a head", "none");
+            continue;
+        };
+        case.numbers(&format!("head {what}"), &floats(matrix), &(body * head).to_cols_array(), 1e-5);
+    }
     for (slot, worn) in record["armor"].as_object().into_iter().flatten() {
         let mut case = report.case(&format!("{name} {slot}"));
         let Some(armor) = worn["layer"].as_str().and_then(|layer| layers.get(layer)) else {

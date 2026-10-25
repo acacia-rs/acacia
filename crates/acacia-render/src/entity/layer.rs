@@ -29,6 +29,8 @@ pub enum Blend {
     Swirl,
     /// Written to the depth only, after the opaque layers: hides the water behind it (a boat's hull).
     Mask,
+    /// Over what is behind by the texture's alpha, unlit (Java's `eyes`: a spider's eyes).
+    Eyes,
 }
 
 /// Materials blended by their texture's alpha: the shells of slimes and sulfur cubes.

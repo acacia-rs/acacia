@@ -260,12 +260,17 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
   baby's is smaller).
 - **Armour** (`equipment.rs`, `Library::armor`): the wearer's slot layer (`zombie#helmet`; a
   baby's own), textured from the equipment asset (`java/equipment/*.json`: per layer type its
-  textures, leather multiplied by the dye or `color_when_undyed`). Trims are not drawn.
+  textures, leather multiplied by the dye or `color_when_undyed`). Trims (`trims.rs`, not on
+  babies): `TrimTextureKey`'s texture and palette, the asset's `trim_overrides` first; lookbake
+  bakes each paletted texture (`PaletteMapping`) under `java/textures/trims/baked`. Proof:
+  `armor_trims`.
 - **Second layers** (`kinds::OVERLAYS`): wool and undercoat (in `ColorLerper`'s sheep colour, not
   sheared), drowned, stray and bogged clothes, the charged creeper's swirl. Each is its own model
   and, like armour, runs the wearer's `setupAnim` on itself: its rest poses differ from the body's
   (a stray's clothed legs sit 1.9 px out, not 2), so copying the body's poses is wrong. The viewer
-  draws each as its own instance (`EntityModels::split_posed_apart`). Spider eyes are not drawn.
+  draws each as its own instance (`EntityModels::split_posed_apart`). Spider eyes are the body
+  model again in `Blend::Eyes` (Java's `eyes`: unlit, alpha-blended, no depth write). A brown
+  mooshroom (Bedrock variant 1) takes its texture from `kinds::VARIANTS`.
 - **Math** (`mth.rs`): `Mth.sin`/`cos` are Java's 65536-entry table; `(float)(Math.PI / d)`
   constants are `pi_div(d)`. Plain `f32` trig drifts past the harness tolerance.
 - **Proof**: parity harnesses `entity_models` (rest pose of every layer), `entity_poses`
@@ -415,12 +420,21 @@ names the Java item for a Bedrock item and aux; unlisted names are taken as they
   placement before the display: arm offset and lowering, swing, eat and drink, bow, trident and
   crossbow draws, a raised sword, the riptide spin. Turns go through `mth::joml_rotation`
   (JOML's `cosFromSin` is off by 1e-5 near 90°, past the harness tolerance).
+- Dropped (`drop::java_frames`): `ItemEntityRenderer`'s bob, spin (JOML `rotateY`), lift by the
+  model's lowest point under its `ground` display (`JavaItems::bounds`), and its copies, scattered
+  or stacked by the model's depth, then the `ground` display. The scatter's seed is Java's item
+  id plus damage; acacia passes the Bedrock network id plus aux, so the pattern differs.
+- Framed (`framed::java_frame`): `ItemFrameRenderer`'s turn to the frame's direction, 7/16 out
+  from the wall, the eighth-turns, half size, then the `fixed` display.
+- Potions (`item::potion`, `item::first_tint`): a Bedrock potion's aux names the Java potion
+  (a tipped arrow's less one); its `PotionContents` colour replaces the first tint.
 - Proof: harness `item_models` (docs/parity.md) compares every quad of every item and context,
-  after the display, with what `ItemStackRenderState.submit` hands the game's renderer;
-  `item_transforms` the first-person placement.
-- Not yet: stack components (potions, maps, trims and the like draw as their default stack);
-  dropped and framed Java items keep the Bedrock-look rules by form, not the `ground` and `fixed`
-  displays.
+  after the display, with what `ItemStackRenderState.submit` hands the game's renderer, the
+  dropped and framed poses and boxes, and potion tints; `item_transforms` the first-person
+  placement.
+- Not yet: the other stack components (maps' marking colour, trimmed armour items, dyed items
+  other than leather); the dropped and framed mesh is the right hand's (items whose `ground` or
+  `fixed` model differs, like the trident and spyglass, show their held model).
 
 ### Enchantment glint (`glint.rs`, `gpu/glint.rs`)
 
@@ -448,7 +462,8 @@ so do `gpu/entity.wgsl` and `gpu/ui.wgsl`.
   either nothing shimmers: fetch the pack or bake the look again.
 - **Which items** (`glint::Foil`, the look's `foil`): Java's are the items its `Items` gives
   `ENCHANTMENT_GLINT_OVERRIDE` (enchanted golden apple, experience bottle, written book, nether
-  star, enchanted book, end crystal). Bedrock's list is the client's and was not read: potions,
+  star, enchanted book, end crystal, debug stick). Proof of the list and of `glint::texturing`:
+  parity harness `glint`. Bedrock's list is the client's and was not read: potions,
   the enchanted golden apple, nether star, enchanted book and experience bottle are assumed.
 - **Bedrock**: only the textures are its own. How its glint materials (the attachables'
   `armor_enchanted`) scale, turn, colour and blend them is in the client, not in the pack, so
@@ -599,14 +614,25 @@ way from the Bedrock one (docs/java-look.md).
   opaque white dots cleared). `BiomeColors::fall` decides per column (`Biome.getPrecipitationAt`):
   nothing where the biome has no downfall, snow below 0.15 at the ground's height, else rain.
   Snow drifts down one repeat per 512 ticks.
-- **Hurt** (`EntityInstance::hurt`): Java's overlay, 30% red before the light.
-- **Shadows** (`shadows.rs`, `gpu/shadows.rs`, `Renderer::shadows`): Java's
-  `EntityRenderDispatcher.renderShadow`. Every cell within an entity's radius that rests on a full
-  cube gets a quad on the ground; alpha is half the strength (1 at the camera, 0 at 16 blocks)
-  less half the entity's height over that ground. The dot is drawn by the shader, and the alpha
-  is converted (`1 - (1 - a)^2.2`) because Java blends in sRGB and this target is linear. Not
-  done: Java's scaling by the cell's light. The caller gives the radii (the viewer takes them
-  from the hitbox; the pack has none).
+- **Hurt** (`EntityInstance::hurt`): Java's `OverlayTexture` before the light: the red row keeps
+  0xB2/255 of the colour (`entity::java::overlay::keep`, which also gives the creeper's white
+  ramp). The frozen and converting shake (`overlay::shaking`, `shake_degrees`) and the creeper's
+  flash are ported but not wired to Bedrock's state yet. Proof: parity harness `overlays`.
+- **Name tags** (`entity::java::types::name_tag`): the `NAME_TAG` attachment per Java type, age
+  and pose (the box's height, a sleeper's 0.2, the camel's and goat's own), shown within 64
+  blocks, a sneaker's within 32; the text's top hangs half a block over it. Proof: `name_tags`.
+- **Capes and elytra** (`entity::java::avatar`): `ClientAvatarState`'s cloak and
+  `ElytraAnimationState` per tick, `extractCapeState`'s flap and leans; the models' `setupAnim`
+  in `anim/player.rs`. Proof: `capes_elytra`, `entity_poses`.
+- **Shadows** (`shadows/`, `gpu/shadows.rs`, `Renderer::shadows`): 26.3's
+  `EntityRenderer.extractShadow` and `ShadowFeatureRenderer`. Every cell around the entity, from
+  its feet down as deep as the strength reaches, whose block below is drawn and has a full
+  collision shape and whose raw brightness (block light, or sky light less the sky's darkening)
+  is over 3, gets a quad on that block's top; alpha is the strength (camera distance) less half
+  the depth, halved, times the lightmap brightness of that cell in the dimension's ambient
+  light. The dot is drawn by the shader, and the alpha is converted (`1 - (1 - a)^2.2`) because
+  Java blends in sRGB and this target is linear. Radii and strengths per kind, adult and baby,
+  are `shadows::radius` (each renderer's). Proof: parity harness `shadows`.
 - **UI** (`render(camera, Some((atlas, quads)))`): acacia-ui's draw list in its own pass.
 - `EntityInstance::frame` carries a model with the camera (the held item, `item/hand.rs`).
 

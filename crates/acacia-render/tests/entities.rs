@@ -175,7 +175,7 @@ fn animations_swing_legs_and_turn_heads() {
 fn armor_is_posed_by_humanoid_bones() {
     let Some(models) = models() else { return };
     // On a kind that keeps Bedrock geometry.
-    let worn = |item: &str| models.armor("minecraft:player", &|_| Value::Num(0.0), item, None);
+    let worn = |item: &str| models.armor("minecraft:player", &|_| Value::Num(0.0), item, None, None);
     for (item, bone) in [("minecraft:diamond_helmet", "head"), ("minecraft:iron_chestplate", "body"), ("minecraft:golden_boots", "rightleg")] {
         let layers = worn(item).unwrap_or_else(|| panic!("no armour for {item}"));
         let mesh = &models.models()[layers[0].model as usize].mesh;

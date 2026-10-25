@@ -2,7 +2,7 @@
 // Instance layout: src/gpu/entities.rs.
 
 struct Instance {
-    // x: block light, y: sky light, z: 1 while hurt or dying (Java's red overlay),
+    // x: block light, y: sky light, z: the colour overlay (entity::java::overlay::keep),
     // w: the glint texture (0 none, 1 the item's, 2 the armour's)
     light: vec4<f32>,
     // rgb: tint, a: 1 when the texture's alpha is a tint mask
@@ -112,8 +112,10 @@ fn shaded(in: VsOut, texel: vec4<f32>) -> vec3<f32> {
     if in.tint.a > 0.5 {
         rgb = mix(rgb * in.tint.rgb, rgb, texel.a);
     }
-    // Java's hurt overlay: 30% red, before the light.
-    rgb = mix(rgb, vec3(1.0, 0.0, 0.0), 0.3 * in.hurt);
+    // Java's OverlayTexture before the light: |hurt| of the colour stays, the rest goes red when
+    // negative, white otherwise (entity::java::overlay::keep).
+    let towards = select(vec3(1.0), vec3(1.0, 0.0, 0.0), in.hurt < 0.0);
+    rgb = mix(towards, rgb, abs(in.hurt));
     return fogged(glinted(lit(rgb, in.light), in), in.dist);
 }
 
@@ -131,6 +133,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 fn fs_blend(in: VsOut) -> @location(0) vec4<f32> {
     let texel = textureSample(skin, skin_sampler, in.uv);
     return vec4(shaded(in, texel), texel.a);
+}
+
+// Java's `eyes` (EMISSIVE, NO_OVERLAY, NO_CARDINAL_LIGHTING): the texel as it is, fogged, over
+// what is behind by its alpha.
+@fragment
+fn fs_eyes(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = textureSample(skin, skin_sampler, in.uv);
+    return vec4(fogged(texel.rgb, in.dist), texel.a);
 }
 
 // A charged creeper's aura (Java's rendertype_energy_swirl with EnergySwirlLayer's grey): the
