@@ -212,7 +212,12 @@ impl Smoother {
         out.extend(worn);
         let cape = e.cape.iter().map(|cape| EntityInstance { layers: cape::layers(), skin: Some(cape.clone()), position: m.position, yaw: m.yaw, pose: cape::pose(&pose, m.walk.speed), frame, hurt, ..e.instance.clone() });
         out.extend(cape);
-        out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
+        let (layers, apart) = self.models.split_posed_apart(&e.instance.layers);
+        for layer in apart {
+            let pose = self.models.pose(&e.kind, layer.model, &query);
+            out.push(EntityInstance { layers: [layer].into(), position: m.position, yaw: m.yaw, pose, frame, hurt, glint: None, ..e.instance.clone() });
+        }
+        out.push(EntityInstance { layers, position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
         out
     }
 

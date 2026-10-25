@@ -214,6 +214,14 @@ impl EntityModels {
         self.models.get(model as usize).is_some_and(|m| m.mesh.java.is_some())
     }
 
+    /// Splits an appearance into the body's layers and the Java second layers that run their own
+    /// `setupAnim` (a stray's clothes start from other rest poses), each drawn as its own instance.
+    pub fn split_posed_apart(&self, layers: &[Layer]) -> (Arc<[Layer]>, Vec<Layer>) {
+        let Some(body) = layers.first().map(|l| l.model) else { return (layers.into(), Vec::new()) };
+        let (apart, together): (Vec<Layer>, Vec<Layer>) = layers.iter().partition(|l| self.java.posed_apart(body, l.model));
+        (together.into(), apart)
+    }
+
     pub fn textures(&self) -> &[PathBuf] {
         &self.textures
     }

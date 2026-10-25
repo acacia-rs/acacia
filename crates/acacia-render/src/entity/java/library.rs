@@ -6,11 +6,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use super::equipment::{self, Equipment};
-use super::kinds::{self, Look};
+use super::kinds::{self, Look, When};
 use super::{Family, Poses, anim, bedrock, mesh};
 use crate::entity::bake::Mesh;
 use crate::entity::molang::Value;
-use crate::entity::{Layer, ModelId, NO_TEXTURE, Pose, TextureId};
+use crate::entity::{Blend, DYES, Layer, ModelId, NO_TEXTURE, Pose, TextureId};
 
 pub const MODELS: &str = "java/entity_models.json";
 
@@ -26,6 +26,17 @@ pub struct Library {
     equipment: Equipment,
     /// Equipment textures by path.
     equipment_textures: HashMap<String, TextureId>,
+    /// By Bedrock identifier, the second layers' adult and own-baby (model, texture).
+    overlays: HashMap<&'static str, Vec<(When, [Option<(ModelId, TextureId)>; 2])>>,
+}
+
+/// `ColorLerper.Type.SHEEP`'s colour of the wool dyed `color` (white first): white is 0xE6E6E6,
+/// any other dye's diffuse colour at 3/4.
+fn wool(color: usize) -> [u8; 3] {
+    if color == 0 {
+        return [0xE6; 3];
+    }
+    [16, 8, 0].map(|shift| ((((DYES[color] >> shift) & 255) as f32) * 0.75).floor() as u8)
 }
 
 impl Library {
@@ -74,6 +85,19 @@ impl Library {
                 out.armor.insert(identifier, worn);
             }
         }
+        for (identifier, overlay) in &kinds::OVERLAYS {
+            let Some(kind) = kinds::of(identifier).filter(|_| out.kinds.contains_key(identifier)) else { continue };
+            let mut pair = [None; 2];
+            for (to, (look, path)) in pair.iter_mut().zip([(Some(&kind.adult), Some(overlay.texture)), (kind.baby.as_ref(), overlay.baby_texture)]) {
+                let (Some(look), Some(path)) = (look, path) else { continue };
+                let Some(part) = layers.get(&look.layer.replace("#main", &format!("#{}", overlay.suffix))) else { continue };
+                let Some(texture) = texture(&format!("java/textures/entity/{path}")) else { continue };
+                let id = model(mesh::bake(&Arc::new(part.clone())));
+                out.families.extend(Family::of_layer(look.layer).map(|f| (id, f)));
+                *to = Some((id, texture));
+            }
+            out.overlays.entry(identifier).or_default().push((overlay.when, pair));
+        }
         out.equipment = Equipment::load(root);
         out.equipment_textures = out.equipment.textures().filter_map(|path| Some((path.clone(), texture(&path)?))).collect();
         tracing::info!(kinds = out.kinds.len(), layers = layers.len(), "java entity models");
@@ -87,7 +111,25 @@ impl Library {
         let baby = query("is_baby").truthy();
         let (model, texture) = variants[usize::from(baby)];
         let scale = if baby && *own_baby { 2.0 } else { 1.0 };
-        Some(([Layer::plain(model, texture)].into(), scale))
+        let mut layers = vec![Layer::plain(model, texture)];
+        let color = query("color").num().max(0.0) as usize % DYES.len();
+        for (when, pair) in self.overlays.get(kind).into_iter().flatten() {
+            let Some((model, texture)) = pair[usize::from(baby && *own_baby)] else { continue };
+            let plain = Layer::plain(model, texture);
+            layers.push(match when {
+                When::Always => plain,
+                When::Wool if !query("is_sheared").truthy() => Layer { dye: Some(wool(color)), ..plain },
+                When::Undercoat if !baby && color != 0 => Layer { dye: Some(wool(color)), ..plain },
+                When::Powered if query("is_powered").truthy() => Layer { blend: Blend::Swirl, ..plain },
+                _ => continue,
+            });
+        }
+        Some((layers.into(), scale))
+    }
+
+    /// Whether `id` is a Java second layer or armour piece, posed on its own ([`Library::pose`]).
+    pub fn posed_apart(&self, body: ModelId, id: ModelId) -> bool {
+        id != body && self.families.contains_key(&id)
     }
 
     /// Whether `kind` draws a Java model.
@@ -117,5 +159,15 @@ impl Library {
             anim::setup(family, &bedrock::render_state(family, query), &mut poses);
         }
         Some(Pose::java(poses))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn wool_is_the_dye_at_three_quarters_and_white_is_grey() {
+        assert_eq!(super::wool(0), [0xE6; 3]);
+        // Orange, 0xF9801D.
+        assert_eq!(super::wool(1), [186, 96, 21]);
     }
 }

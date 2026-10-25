@@ -1,7 +1,7 @@
 //! `layers.jsonl` of entity_layers: where each arm hands its item (`Mesh::hand`, then
 //! `item::hand::fist`), under the entity pass's placement at yaw 0; and each armour slot's layer
-//! posed by the wearer's `setupAnim` run on it (as `Library::pose` poses an armour model); each
-//! second layer (wool, clothes, aura) with the body's poses, as one instance draws them.
+//! and each second layer (wool, clothes, aura) posed by the wearer's `setupAnim` run on it (as
+//! `Library::pose` poses them).
 
 use std::collections::BTreeMap;
 
@@ -46,6 +46,8 @@ pub fn layers(layers: &BTreeMap<String, Part>, record: &Value, report: &mut Repo
             case.diverge("layer", &overlay["layer"], "absent in the look");
             continue;
         };
-        compare_posed(&mut case, overlay, part, &poses.retarget(part));
+        let mut posed = Poses::new(part);
+        anim::setup(family, &state, &mut posed);
+        compare_posed(&mut case, overlay, part, &posed);
     }
 }

@@ -24,8 +24,42 @@ const fn both(layer: &'static str, texture: &'static str, baby_layer: &'static s
     Kind { adult: Look { layer, texture }, baby: Some(Look { layer: baby_layer, texture: baby_texture }) }
 }
 
-// TODO: climate variants (cold/warm cows, pigs, chickens), the brown mooshroom, and the second
-// layers (sheep wool, drowned and stray overlays, spider eyes, the creeper's aura).
+/// When a second layer draws.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum When {
+    Always,
+    /// `SheepWoolLayer`: unsheared, in the wool's colour.
+    Wool,
+    /// `SheepWoolUndercoatLayer`: an adult's, unsheared or not, unless white.
+    Undercoat,
+    /// `CreeperPowerLayer`: charged, as a swirl.
+    Powered,
+}
+
+/// A second layer over the body: its own model (`<layer>#<suffix>`, beside the body's) and texture.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Overlay {
+    pub suffix: &'static str,
+    pub texture: &'static str,
+    /// A baby with its own model draws the overlay only when this is given.
+    pub baby_texture: Option<&'static str>,
+    pub when: When,
+}
+
+const fn overlay(suffix: &'static str, texture: &'static str, baby_texture: Option<&'static str>, when: When) -> Overlay {
+    Overlay { suffix, texture, baby_texture, when }
+}
+
+pub const OVERLAYS: [(&str, Overlay); 6] = [
+    ("minecraft:sheep", overlay("wool", "sheep/sheep_wool", Some("sheep/sheep_wool_baby"), When::Wool)),
+    ("minecraft:sheep", overlay("wool_undercoat", "sheep/sheep_wool_undercoat", None, When::Undercoat)),
+    ("minecraft:drowned", overlay("outer", "zombie/drowned_outer_layer", Some("zombie/drowned_outer_layer_baby"), When::Always)),
+    ("minecraft:stray", overlay("outer", "skeleton/stray_overlay", None, When::Always)),
+    ("minecraft:bogged", overlay("outer", "skeleton/bogged_overlay", None, When::Always)),
+    ("minecraft:creeper", overlay("armor", "creeper/creeper_armor", None, When::Powered)),
+];
+
+// TODO: climate variants (cold/warm cows, pigs, chickens), the brown mooshroom, spider eyes.
 pub const KINDS: [(&str, Kind); 15] = [
     ("minecraft:cow", both("minecraft:cow#main", "cow/cow_temperate", "minecraft:cow_baby#main", "cow/cow_temperate_baby")),
     ("minecraft:mooshroom", both("minecraft:mooshroom#main", "cow/mooshroom_red", "minecraft:mooshroom_baby#main", "cow/mooshroom_red_baby")),
