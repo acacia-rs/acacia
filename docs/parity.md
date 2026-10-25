@@ -168,3 +168,4 @@ Cases and divergences as of the last merge that touched the harness.
 | `screens_widgets` | widgets on their own: buttons, cycle buttons, checkboxes, sliders, edit boxes, text widgets, tab bar, selection list and layouts, in hover, press, focus and disabled states; probe `gui-probe screens_widgets` | 2,600 | 0 | gui |
 | `screens_menus` | pause, death, confirm, alert, progress, disconnected and completed-waiting screens; probe `gui-probe screens_menus` | 2,400 | 0 | gui |
 | `screens_options` | OptionsScreen and its option-list pages (values, sliders with Java's `unlogMouse`, hover, scroll); probe `gui-probe screens_options` | 2,000 | 0 | gui |
+| `screens_text` | sign and hanging-sign editors (every wood, dye, glow, cursor, selection, blink), book viewer and editor (styled pages, editing ops, scroll, selection) and telemetry info (opt-in, scroll); probe `gui-probe screens_text` | 2,400 | 0 | gui |

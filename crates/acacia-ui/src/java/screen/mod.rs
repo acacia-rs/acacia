@@ -2,14 +2,20 @@
 //! as its `init()` does and draws as `Screen.extractRenderStateWithTooltipAndSubtitles` does —
 //! a stratum, the background, a stratum, the widgets and whatever the screen adds.
 
+pub mod book;
+pub mod book_edit;
 pub mod confirm;
 pub mod death;
 pub mod message;
 pub mod options;
 pub mod pause;
+pub mod sign;
+pub mod telemetry;
 
 #[cfg(test)]
 mod input_tests;
+#[cfg(test)]
+mod text_tests;
 
 use crate::java::widget::input::{self, Child, Fired, Interaction, Key};
 use crate::java::widget::layout::Arena;

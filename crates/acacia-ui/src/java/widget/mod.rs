@@ -10,9 +10,12 @@ pub mod input;
 pub mod layout;
 pub mod list;
 pub mod measure;
+pub mod multiline;
+pub mod multiline_box;
 pub mod slider;
 pub mod tabs;
 pub mod text;
+pub mod text_area;
 
 use std::borrow::Cow;
 
