@@ -50,7 +50,7 @@ enum TextureKey {
 
 pub struct EntityPass {
     /// By [`pipelines::index`] of a layer's [`Blend`].
-    pipelines: [wgpu::RenderPipeline; 4],
+    pipelines: [wgpu::RenderPipeline; pipelines::BLENDS.len()],
     /// The clock a swirl scrolls by.
     started: Instant,
     layout: wgpu::BindGroupLayout,
@@ -247,6 +247,7 @@ impl EntityPass {
     /// The world's blended layers, after everything opaque.
     pub fn draw_blended(&self, pass: &mut wgpu::RenderPass<'_>) {
         self.draw_range(pass, 0..self.world_draws, Blend::Alpha);
+        self.draw_range(pass, 0..self.world_draws, Blend::Eyes);
         self.draw_range(pass, 0..self.world_draws, Blend::Swirl);
     }
 

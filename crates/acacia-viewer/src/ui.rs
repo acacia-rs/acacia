@@ -295,7 +295,7 @@ impl Skin {
         if let Some(sprite) = self.added.get(&key) {
             return *sprite;
         }
-        let java = self.java_items.as_deref().filter(|_| banner.is_none()).and_then(|items| java_icon::icon(items, name, aux, dyed.flatten()));
+        let java = self.java_items.as_deref().filter(|_| banner.is_none()).and_then(|items| java_icon::icon(items, name, aux, acacia_render::item::first_tint(name, aux, s.dye)));
         let model = java.or_else(|| model_icon(&self.root, name, banner)).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, banner));
         let image = model.or_else(|| self.icons.path(name, aux).and_then(|p| leather::icon(&self.root, p, dyed)));
         let sprite = match image {

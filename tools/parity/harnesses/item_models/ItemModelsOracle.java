@@ -68,11 +68,7 @@ public final class ItemModelsOracle {
 
     public static void main(String[] args) throws Exception {
         Game.init();
-        SpriteGetter sprites = id -> {
-            var atlas = atlas(id.atlasLocation());
-            return atlas.regions().getOrDefault(id.texture(), atlas.missing());
-        };
-        var baked = bake(Game.resources(), sprites);
+        var baked = bake();
         try (var out = new Out.Lines(Path.of(args[0]).resolve("items.jsonl"))) {
             for (var id : new TreeSet<>(BuiltInRegistries.ITEM.keySet())) {
                 var model = baked.itemStackModels().get(id);
@@ -98,11 +94,20 @@ public final class ItemModelsOracle {
         }
     }
 
-    private static synchronized SpriteLoader.Preparations atlas(Identifier sheet) {
+    static synchronized SpriteLoader.Preparations atlas(Identifier sheet) {
         return ATLAS.computeIfAbsent(sheet, s -> UnitAtlas.load(Objects.requireNonNull(ATLASES.get(s), s::toString), s, Set.of(), false));
     }
 
     /** ModelManager's discovery and ModelBakery's bake, for item models only. */
+    /** Every item model, baked against the game's resources and unit atlases. */
+    static ModelBakery.BakingResult bake() throws Exception {
+        SpriteGetter sprites = id -> {
+            var atlas = atlas(id.atlasLocation());
+            return atlas.regions().getOrDefault(id.texture(), atlas.missing());
+        };
+        return bake(Game.resources(), sprites);
+    }
+
     private static ModelBakery.BakingResult bake(ResourceManager resources, SpriteGetter sprites) throws Exception {
         Map<Identifier, UnbakedModel> models = new HashMap<>();
         for (var entry : MODELS.listMatchingResources(resources).entrySet()) {
@@ -121,7 +126,7 @@ public final class ItemModelsOracle {
     }
 
     /** Components are bound to a level's registries, which are absent here: the stack has none. */
-    private static ItemStack stack(Identifier id) throws Exception {
+    static ItemStack stack(Identifier id) throws Exception {
         var item = BuiltInRegistries.ITEM.wrapAsHolder(BuiltInRegistries.ITEM.getValue(id));
         var ctor = ItemStack.class.getDeclaredConstructor(Holder.class, int.class, PatchedDataComponentMap.class);
         ctor.setAccessible(true);

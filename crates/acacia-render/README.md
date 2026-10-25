@@ -268,7 +268,9 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
   sheared), drowned, stray and bogged clothes, the charged creeper's swirl. Each is its own model
   and, like armour, runs the wearer's `setupAnim` on itself: its rest poses differ from the body's
   (a stray's clothed legs sit 1.9 px out, not 2), so copying the body's poses is wrong. The viewer
-  draws each as its own instance (`EntityModels::split_posed_apart`). Spider eyes are not drawn.
+  draws each as its own instance (`EntityModels::split_posed_apart`). Spider eyes are the body
+  model again in `Blend::Eyes` (Java's `eyes`: unlit, alpha-blended, no depth write). A brown
+  mooshroom (Bedrock variant 1) takes its texture from `kinds::VARIANTS`.
 - **Math** (`mth.rs`): `Mth.sin`/`cos` are Java's 65536-entry table; `(float)(Math.PI / d)`
   constants are `pi_div(d)`. Plain `f32` trig drifts past the harness tolerance.
 - **Proof**: parity harnesses `entity_models` (rest pose of every layer), `entity_poses`
@@ -418,12 +420,21 @@ names the Java item for a Bedrock item and aux; unlisted names are taken as they
   placement before the display: arm offset and lowering, swing, eat and drink, bow, trident and
   crossbow draws, a raised sword, the riptide spin. Turns go through `mth::joml_rotation`
   (JOML's `cosFromSin` is off by 1e-5 near 90°, past the harness tolerance).
+- Dropped (`drop::java_frames`): `ItemEntityRenderer`'s bob, spin (JOML `rotateY`), lift by the
+  model's lowest point under its `ground` display (`JavaItems::bounds`), and its copies, scattered
+  or stacked by the model's depth, then the `ground` display. The scatter's seed is Java's item
+  id plus damage; acacia passes the Bedrock network id plus aux, so the pattern differs.
+- Framed (`framed::java_frame`): `ItemFrameRenderer`'s turn to the frame's direction, 7/16 out
+  from the wall, the eighth-turns, half size, then the `fixed` display.
+- Potions (`item::potion`, `item::first_tint`): a Bedrock potion's aux names the Java potion
+  (a tipped arrow's less one); its `PotionContents` colour replaces the first tint.
 - Proof: harness `item_models` (docs/parity.md) compares every quad of every item and context,
-  after the display, with what `ItemStackRenderState.submit` hands the game's renderer;
-  `item_transforms` the first-person placement.
-- Not yet: stack components (potions, maps, trims and the like draw as their default stack);
-  dropped and framed Java items keep the Bedrock-look rules by form, not the `ground` and `fixed`
-  displays.
+  after the display, with what `ItemStackRenderState.submit` hands the game's renderer, the
+  dropped and framed poses and boxes, and potion tints; `item_transforms` the first-person
+  placement.
+- Not yet: the other stack components (maps' marking colour, trimmed armour items, dyed items
+  other than leather); the dropped and framed mesh is the right hand's (items whose `ground` or
+  `fixed` model differs, like the trident and spyglass, show their held model).
 
 ### Enchantment glint (`glint.rs`, `gpu/glint.rs`)
 

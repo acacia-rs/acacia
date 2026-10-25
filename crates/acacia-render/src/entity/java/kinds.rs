@@ -34,6 +34,8 @@ pub enum When {
     Undercoat,
     /// `CreeperPowerLayer`: charged, as a swirl.
     Powered,
+    /// `EyesLayer`: always, unlit (`suffix` is the body's own).
+    Eyes,
 }
 
 /// A second layer over the body: its own model (`<layer>#<suffix>`, beside the body's) and texture.
@@ -50,7 +52,9 @@ const fn overlay(suffix: &'static str, texture: &'static str, baby_texture: Opti
     Overlay { suffix, texture, baby_texture, when }
 }
 
-pub const OVERLAYS: [(&str, Overlay); 6] = [
+pub const OVERLAYS: [(&str, Overlay); 8] = [
+    ("minecraft:spider", overlay("main", "spider/spider_eyes", None, When::Eyes)),
+    ("minecraft:cave_spider", overlay("main", "spider/spider_eyes", None, When::Eyes)),
     ("minecraft:sheep", overlay("wool", "sheep/sheep_wool", Some("sheep/sheep_wool_baby"), When::Wool)),
     ("minecraft:sheep", overlay("wool_undercoat", "sheep/sheep_wool_undercoat", None, When::Undercoat)),
     ("minecraft:drowned", overlay("outer", "zombie/drowned_outer_layer", Some("zombie/drowned_outer_layer_baby"), When::Always)),
@@ -59,7 +63,7 @@ pub const OVERLAYS: [(&str, Overlay); 6] = [
     ("minecraft:creeper", overlay("armor", "creeper/creeper_armor", None, When::Powered)),
 ];
 
-// TODO: climate variants (cold/warm cows, pigs, chickens), the brown mooshroom, spider eyes.
+// TODO: climate variants (cold/warm cows, pigs, chickens), the brown mooshroom.
 pub const KINDS: [(&str, Kind); 15] = [
     ("minecraft:cow", both("minecraft:cow#main", "cow/cow_temperate", "minecraft:cow_baby#main", "cow/cow_temperate_baby")),
     ("minecraft:mooshroom", both("minecraft:mooshroom#main", "cow/mooshroom_red", "minecraft:mooshroom_baby#main", "cow/mooshroom_red_baby")),
@@ -77,6 +81,9 @@ pub const KINDS: [(&str, Kind); 15] = [
     ("minecraft:wither_skeleton", adult("minecraft:wither_skeleton#main", "skeleton/wither_skeleton")),
     ("minecraft:bogged", adult("minecraft:bogged#main", "skeleton/bogged")),
 ];
+
+/// Textures a Bedrock `variant` picks over the kind's own: (kind, variant, adult's, own baby's).
+pub const VARIANTS: [(&str, i32, &str, &str); 1] = [("minecraft:mooshroom", 1, "cow/mooshroom_brown", "cow/mooshroom_brown_baby")];
 
 pub fn of(identifier: &str) -> Option<&'static Kind> {
     KINDS.iter().find(|(id, _)| *id == identifier).map(|(_, k)| k)
