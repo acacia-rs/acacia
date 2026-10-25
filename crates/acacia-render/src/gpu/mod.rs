@@ -53,6 +53,7 @@ use atlas::BlockTextures;
 use crate::biome::BiomeColors;
 use crate::camera::{Camera, Frustum};
 use crate::cull;
+use crate::light::environment::LightConditions;
 use crate::look::Look;
 use crate::scene::{Scene, Update};
 use crate::sky::{NOON, Realm, Sky};
@@ -126,7 +127,8 @@ pub struct Renderer {
     pub moon_phase: u8,
     pub look: Look,
     /// The brightness option and the effects on the lightmap.
-    pub light_conditions: crate::light::environment::LightConditions,
+    pub light_conditions: LightConditions,
+    flicker: crate::light::environment::Flicker,
     screenshot: Option<PathBuf>,
 }
 
@@ -198,6 +200,7 @@ impl Renderer {
             moon_phase: 0,
             look: Look::default(),
             light_conditions: Default::default(),
+            flicker: Default::default(),
             screenshot: None,
         })
     }
@@ -224,7 +227,8 @@ impl Renderer {
         let view_proj = camera.view_proj();
         let realm = self.world().map_or(Realm::Overworld, |w| Realm::of(&w.dimension()));
         let sky = Sky::of(realm, self.time, self.weather);
-        let lightmap = crate::light::environment::frame_lightmap(self.look.lighting, realm, self.time, self.weather, &self.light_conditions);
+        let conditions = LightConditions { flicker: self.flicker.at((self.started.elapsed().as_secs_f64() * 20.0) as u64), ..self.light_conditions };
+        let lightmap = crate::light::environment::frame_lightmap(self.look.lighting, realm, self.time, self.weather, &conditions);
         let fog = self.frame_fog(sky.color_towards(camera.forward()), camera.biome);
         let sky_pass = self.sky.as_ref().filter(|_| !fog.in_fluid);
         if let Some(pass) = sky_pass {

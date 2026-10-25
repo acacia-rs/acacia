@@ -7,7 +7,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::camera::Frustum;
 use crate::light::LightVolume;
 use crate::light::data::SIDE;
-use crate::mesh::{Quad, SectionMesh};
+use crate::mesh::SectionMesh;
 use crate::workers::SectionKey;
 
 /// A quad's words and its [`crate::mesh::quad::VertexLight`], kept in two buffers at one index.

@@ -5,6 +5,8 @@
 /// Texels, `[sky * 16 + block]`, RGBA8 as Java's lightmap texture holds them.
 pub type Table = [[u8; 4]; 256];
 
+const BOSS_DARKENED: [f32; 3] = [0.7, 0.6, 0.6];
+
 /// What `lightmap.fsh` reads: Java's `LightmapRenderState`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LightmapState {
@@ -22,6 +24,8 @@ pub struct LightmapState {
     pub darkness: f32,
     /// The brightness option, less the darkness effect.
     pub brightness: f32,
+    /// How far a boss fight darkens the world, 0 to 1.
+    pub boss_darkening: f32,
 }
 
 impl LightmapState {
@@ -43,11 +47,17 @@ impl LightmapState {
         let mut color = [0.0f32; 3];
         for i in 0..3 {
             let block_color = lerp(0.9 * parabolic, self.block_tint[i], 1.0);
-            color[i] = self.ambient[i].max(vision[i]) + self.sky_color[i] * sky_brightness + block_color * block_brightness;
-            color[i] = (color[i] - self.darkness).clamp(0.0, 1.0);
+            let c = self.ambient[i].max(vision[i]) + self.sky_color[i] * sky_brightness + block_color * block_brightness;
+            let c = lerp(self.boss_darkening, c, c * BOSS_DARKENED[i]);
+            color[i] = (c - self.darkness).clamp(0.0, 1.0);
         }
-        let max = color[0].max(color[1]).max(color[2]).max(1e-6);
-        let not_gamma = (1.0 - (1.0 - max).powi(4)) / max;
+        // Black stays black: the shader's 0/0 is NaN, which the mix keeps and the target writes as 0.
+        let max = color[0].max(color[1]).max(color[2]);
+        if max == 0.0 {
+            return [0.0; 3];
+        }
+        let inverted = 1.0 - max;
+        let not_gamma = (1.0 - inverted * inverted * inverted * inverted) / max;
         color.map(|c| lerp(self.brightness, c, c * not_gamma))
     }
 }
@@ -90,8 +100,9 @@ pub fn packed(table: &Table) -> [[u32; 4]; 64] {
     out
 }
 
+/// GLSL's `mix(a, b, t)`.
 fn lerp(t: f32, a: f32, b: f32) -> f32 {
-    a + (b - a) * t
+    a * (1.0 - t) + b * t
 }
 
 /// A float written to an 8-bit unorm target: rounded to nearest.
@@ -114,6 +125,7 @@ mod tests {
         night_vision_color: [0.6; 3],
         darkness: 0.0,
         brightness: 0.5,
+        boss_darkening: 0.0,
     };
 
     #[test]
