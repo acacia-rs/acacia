@@ -50,6 +50,8 @@ fn gcd(a: i64, b: i64) -> i64 {
 /// `BundleContents`: its templates created, its weight, and the texts its image shows.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Bundle {
+    /// The templates (their counts unchecked), and the stacks they create.
+    templates: Vec<ItemStack>,
     items: Vec<ItemStack>,
     weight: Option<Fraction>,
     description: Vec<Text>,
@@ -60,7 +62,7 @@ pub struct Bundle {
 /// `BundleContents.getWeight`: a nested bundle's weight and 1/16, a beehive's 1, else one stack's share.
 fn item_weight(stack: &ItemStack, game: &Game) -> Option<Fraction> {
     if let Some(contents) = stack.get("bundle_contents") {
-        return content_weight(&created(contents, game), game)?.add(Fraction(1, 16));
+        return content_weight(&templates(contents, game), game)?.add(Fraction(1, 16));
     }
     if stack.get("bees").and_then(Value::as_array).is_some_and(|b| !b.is_empty()) {
         return Some(Fraction::ONE);
@@ -75,17 +77,18 @@ fn content_weight(items: &[ItemStack], game: &Game) -> Option<Fraction> {
     })
 }
 
-/// `ItemStackTemplate.create()` of each template.
-fn created(contents: &Value, game: &Game) -> Vec<ItemStack> {
-    contents.as_array().into_iter().flatten().filter_map(|t| game.stack(t)).collect()
+fn templates(contents: &Value, game: &Game) -> Vec<ItemStack> {
+    contents.as_array().into_iter().flatten().filter_map(|t| game.template(t)).collect()
 }
 
 impl Bundle {
     fn new(contents: &Value, font: &dyn Metrics, lang: Lang, game: &Game) -> Bundle {
-        let items = created(contents, game);
+        let templates = templates(contents, game);
+        let items = contents.as_array().into_iter().flatten().filter_map(|t| game.stack(t)).collect();
         let description = Text::translate("item.minecraft.bundle.empty.description", &[], lang);
         Bundle {
-            weight: content_weight(&items, game),
+            weight: content_weight(&templates, game),
+            templates,
             items,
             description: split(font, &description, GRID_WIDTH),
             empty: Text::translate("item.minecraft.bundle.empty", &[], lang),
@@ -132,7 +135,7 @@ impl Bundle {
             for column in 1..=4 {
                 let (dx, dy) = (right - column * SLOT_SIZE, bottom - row * SLOT_SIZE);
                 if self.items.len() > 12 && column * row == 1 {
-                    let hidden: i32 = self.items[shown..].iter().map(|s| s.count).sum();
+                    let hidden: i32 = self.templates[shown..].iter().map(|s| s.count).sum();
                     let text = Text::literal(format!("+{hidden}"));
                     gui.centered(text.clone(), font.width(&text), dx + 12, dy + 10, WHITE);
                 } else if shown >= slot {
@@ -199,7 +202,7 @@ mod tests {
         bundle.extract(&mut gui, &Fixed(6.0), 10, 20, 96);
         let items: Vec<i32> = gui.draws.iter().filter_map(|d| if let GuiDraw::Item { key, .. } = d { Some(*key) } else { None }).collect();
         assert_eq!(items, vec![CONTENT_KEY; 8]);
-        assert!(gui.draws.iter().any(|d| matches!(d, GuiDraw::Text { text, x: 16, y: 30, .. } if text.plain() == "+5")));
+        assert!(gui.draws.iter().any(|d| matches!(d, GuiDraw::Text { text, x: 88, y: 78, .. } if text.plain() == "+5")));
         let fill = gui.draws.iter().find_map(|d| if let GuiDraw::Sprite { sprite, w, .. } = d { sprite.ends_with("_fill").then_some(*w) } else { None });
         assert_eq!(fill, Some(13 * 94 / 64));
     }
