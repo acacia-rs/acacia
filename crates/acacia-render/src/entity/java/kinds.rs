@@ -219,6 +219,18 @@ pub const VARIANTS: [(&str, &str, i32, &str, &str); 46] = [
     ("minecraft:vex", "is_charging", 1, "illager/vex_charging", "illager/vex_charging"),
 ];
 
+/// The Java entity id (no namespace) of a Bedrock `identifier`.
+pub fn java_id(identifier: &str) -> &str {
+    match identifier.trim_start_matches("minecraft:") {
+        "tropicalfish" => "tropical_fish",
+        "zombie_pigman" => "zombified_piglin",
+        "evocation_illager" => "evoker",
+        "villager_v2" => "villager",
+        "zombie_villager_v2" => "zombie_villager",
+        id => id,
+    }
+}
+
 pub fn of(identifier: &str) -> Option<&'static Kind> {
     KINDS.iter().find(|(id, _)| *id == identifier).map(|(_, k)| k)
 }

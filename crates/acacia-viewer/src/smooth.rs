@@ -190,9 +190,13 @@ impl Smoother {
         // The body transform the entity pass gives this instance, toppled while dying.
         let s = e.instance.scale;
         let topple = glam::Mat4::from_rotation_z(-dying.map_or(0.0, topple_degrees).to_radians());
-        let stood = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * topple * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
+        // A Java model takes its renderer's own turn, scale and topple (entity::java::body).
+        let death_ticks = dying.map_or(0.0, |secs| (secs * 20.0).max(1.0));
+        let java = self.models.body(&e.kind, &query, m.yaw, s, death_ticks);
+        let at = glam::Mat4::from_translation((m.position - camera).as_vec3());
+        let stood = java.map_or_else(|| at * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * topple * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s)), |j| at * j);
         let body = place.map_or(stood, |place| place * glam::Mat4::from_scale(glam::Vec3::splat(s)));
-        let frame = (dying.is_some() || place.is_some()).then_some(body);
+        let frame = (dying.is_some() || place.is_some() || java.is_some()).then_some(body);
         let held = self.held.get(&e.runtime_id).into_iter().flatten().enumerate();
         let baby = e.facts.query("is_baby").truthy() && e.kind != "minecraft:armor_stand";
         for (left, item) in held.filter_map(|(side, item)| Some((side == 1, item.as_ref()?))) {

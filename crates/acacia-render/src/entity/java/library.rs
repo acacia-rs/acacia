@@ -8,6 +8,7 @@ use std::sync::Arc;
 use super::equipment::{self, Equipment};
 use super::kinds::{self, Look, When};
 use super::trims::{Trim, Trims};
+use super::state::Field;
 use super::villager::Professions;
 use super::{Family, Poses, anim, bedrock, mesh};
 use crate::entity::bake::Mesh;
@@ -188,6 +189,20 @@ impl Library {
             *to = *self.equipment_textures.get(&draw.texture)?;
         }
         Some([Layer { textures, dye: draws.first()?.color, ..Layer::plain(model, NO_TEXTURE) }].into())
+    }
+
+    /// The whole-body transform of a `kind` drawn by a Java model ([`super::body`]), in the entity
+    /// pass's model space: turned by `yaw`, scaled by `scale`, toppled `death_ticks` into dying.
+    pub fn body(&self, kind: &str, query: &dyn Fn(&str) -> Value, yaw: f32, scale: f32, death_ticks: f32) -> Option<glam::Mat4> {
+        let family = Family::of_layer(kinds::of(kind)?.adult.layer)?;
+        let java = kinds::java_id(kind);
+        let mut state = bedrock::render_state(family, query);
+        state.set("bodyRot", Field::Num(yaw)).set("scale", Field::Num(scale)).set("deathTime", Field::Num(death_ticks));
+        // Bedrock's scale already carries a cube's size.
+        state.set("size", Field::Num(if matches!(java, "slime" | "magma_cube") { 1.0 } else { 0.0 }));
+        let java_frame = super::body::transform(java, &state);
+        // The mesh's own root (mesh.rs) is the flip and the drop; take them back off.
+        Some(java_frame * glam::Mat4::from_translation(glam::Vec3::new(0.0, 1.501, 0.0)) * glam::Mat4::from_scale(glam::Vec3::new(1.0, -1.0, 1.0)))
     }
 
     /// The pose of a Java model (`mesh`, model `id`); `None` for a Bedrock one.

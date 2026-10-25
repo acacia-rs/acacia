@@ -252,6 +252,9 @@ textures, in place of the Bedrock geometry; other kinds keep theirs.
   `AnimationExporter` writes from the user's jar (`java/entity_animations.json`, never committed).
   An `AnimationState` field holds the tick it started at; the Bedrock bridge starts only the
   looping ones (a bat's flight or rest, a breeze's idle).
+- **Body** (`body/`): `LivingEntityRenderer.submit`'s preamble (bed offset, entity scale, the
+  renderer's `setupRotations` with shake, death fall, spin, sleep and upside-down, the flip, its
+  `scale`) per kind; the viewer places a Java-drawn entity with it instead of its own turn.
 - **Normals**: the shader takes the bone matrix's inverse transpose (as cofactors signed by the
   determinant), which is PoseStack's normal matrix once a part is scaled unevenly.
 - **Drawing** (`draw.rs`, `mesh.rs`): `ModelPart.render`'s walk. A hidden part, or one with neither
