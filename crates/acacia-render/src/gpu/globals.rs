@@ -68,7 +68,10 @@ mod tests {
     use super::Globals;
 
     /// Every shader module, as the pipelines assemble them.
-    const MODULES: [(&str, &str); 5] = [
+    const MODULES: [(&str, &str); 8] = [
+        ("weather", concat!(include_str!("globals.wgsl"), include_str!("weather.wgsl"))),
+        ("bolts", concat!(include_str!("globals.wgsl"), include_str!("bolts.wgsl"))),
+        ("clouds", concat!(include_str!("globals.wgsl"), include_str!("clouds.wgsl"))),
         ("sign text", concat!(include_str!("globals.wgsl"), include_str!("sign_text.wgsl"))),
         ("screen effect", concat!(include_str!("globals.wgsl"), include_str!("screen_effect.wgsl"))),
         ("terrain", concat!(include_str!("globals.wgsl"), include_str!("terrain.wgsl"), include_str!("light.wgsl"), include_str!("model.wgsl"))),
