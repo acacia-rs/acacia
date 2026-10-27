@@ -23,6 +23,7 @@ mod costs;
 mod execute;
 mod exit;
 mod favour;
+pub mod flight;
 mod follow;
 mod follow_macro;
 mod frontier;
