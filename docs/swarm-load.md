@@ -35,7 +35,7 @@ with a Monitor. Local polls get reaped on this machine when memory runs short.
   mobs, and A* is cut by wall-clock budgets. Lifting the budget (465-727 G) showed the work itself is chaotic.
   Pathfinding changes go to its own benches, not to this.
 - `mixed150` disconnects bots: sapling batches ~290 KB per PlayerList entry per tick (44 MB batches), past
-  acacia's 16 MiB decompressed limit.
+  acacia's decompressed limit (32 MiB by default; `ClientBuilder::max_batch_bytes`).
 
 ## Results
 
@@ -82,6 +82,6 @@ E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%
   up across connections, a fingerprint; bots keep independent vanilla-shaped cadences.
 - Declined (2026-10-24): running the connection in the bot's task (estimated crowd and mobs -8-12%). A
   connection would live only while its bot is polled; the driver task keeps it alive through any await.
-- Server: sapling sends every player's skin to each joiner in one PlayerList batch; past ~57 bots that tops
-  acacia's 16 MiB batch limit and bots reconnect in a loop.
+- Server: sapling and BDS send every player's skin to each joiner in one PlayerList batch (~330 KB per persona
+  skin). That topped the old 16 MiB limit at ~50 bots (BDS: exactly 49); the 32 MiB default holds ~100.
 - Inherent: sha256 per packet (testbox lacks SHA-NI), one wakeup per datagram.

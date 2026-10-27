@@ -5,7 +5,9 @@ use crate::crypto::Encryption;
 use crate::Error;
 
 pub const GAME_MESSAGE_ID: u8 = 0xfe;
-const DEFAULT_MAX_DECOMPRESSED: usize = 16 * 1024 * 1024;
+/// Largest decompressed batch accepted by default. A joiner's PlayerList carries every player's skin
+/// (~330 KB for a 256x256 persona) in one batch, so 16 MiB refused joins past ~50 players.
+pub const DEFAULT_MAX_DECOMPRESSED: usize = 32 * 1024 * 1024;
 
 /// Frames packets into 0xfe game messages: `[0xfe][compression id][varint len + packet]*`, with
 /// everything after 0xfe encrypted once the handshake completes.
@@ -68,6 +70,11 @@ impl BatchCodec {
 
     pub fn enable_compression(&mut self, alg: Algorithm, threshold: usize) {
         self.compression = Some((alg, threshold));
+    }
+
+    /// Refuse batches that decompress past `limit` bytes ([`DEFAULT_MAX_DECOMPRESSED`] by default).
+    pub fn set_max_decompressed(&mut self, limit: usize) {
+        self.max_decompressed = limit;
     }
 
     pub fn enable_encryption(&mut self, key: [u8; 32]) {
@@ -207,6 +214,19 @@ mod tests {
         for _ in 0..3 {
             roundtrip(&mut tx, &mut rx, packets);
         }
+    }
+
+    #[test]
+    fn decompressed_limit_is_configurable() {
+        let big = vec![3u8; 4096];
+        let (mut tx, mut rx) = (BatchCodec::default(), BatchCodec::default());
+        tx.enable_compression(Algorithm::Deflate, 0);
+        rx.enable_compression(Algorithm::Deflate, 0);
+        let msg = tx.encode([&big[..]]);
+        rx.set_max_decompressed(1024);
+        assert!(matches!(rx.decode(&msg, &mut vec![]), Err(Error::BatchTooLarge)));
+        rx.set_max_decompressed(8192);
+        roundtrip(&mut tx, &mut rx, &[&big]);
     }
 
     #[test]
