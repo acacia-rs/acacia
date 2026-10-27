@@ -40,7 +40,8 @@ change the click predicted (`unpredict`), unless the server has set that slot si
 
 - Echo round-trip: RFC 6298 smoothing of first-try echoes (Karn: retried actions are not sampled).
   Timeout = srtt + 4·rttvar + 2 ticks, clamped to 0.5–5 s; 600 ms before the first sample.
-- Admission (`Bot::admit_action`): at most 2 actions awaiting their echo, at least 1 tick apart, and none
+- Admission (`Bot::admit_action`): at most `Limits::max_in_flight` actions awaiting their echo (default 4),
+  spaced by a gap drawn from `min_gap_ticks..=max_gap_ticks` (1..=3), and none
   within `SETTLE_TICKS` (10) of a setback.
 - Counters: `actions_sent`, `retries`, `rtt`, `lagging` (srtt > 300 ms).
 
@@ -65,6 +66,26 @@ Inbound only: every server packet is held for `delay` + jitter, and a "lost" dat
 to everything behind it (RakNet resends in order, so loss is never a missing packet). The echo round trip
 the bot sees includes the whole delay. Outbound packets are not delayed, since `Client::send` is
 synchronous. Test and lab use only.
+
+## Reach and line of sight
+
+BDS judges clicks, breaks and hits by distance only; it never casts a ray through blocks. Measured on BDS
+1.26.52.3 (2026-10-27, devbox), all judged by server state:
+
+| Drill | Result |
+|---|---|
+| StartGame | `server_authoritative_block_breaking = true` |
+| Place on the far face of a stone behind a wall | placed |
+| Mine a stone behind a wall (Start, Continue, Predict, Abort) | broken |
+| Place, survival, eye to the clicked block's integer corner 7.10 (centre 7.56) / 7.30 (centre 7.76) | placed / refused, with `UpdateBlock` resends |
+| Same in creative, 12.40 / 12.60 | placed / refused |
+| Attack a cow, eye to its feet 6.40 / 7.00 | hurt / nothing sent back |
+
+So the limits are 7.2 (survival) and 12.5 (creative) to the block's corner, and 6.7 to an entity's position;
+the bot's own `BLOCK_REACH` / `ENTITY_REACH` are stricter on purpose, for vanilla-looking play and proxies that
+do raycast. Rerun: `REMOTE_HOST=devbox BDS_DIR=work/bds-raycast BDS_PORT=19230 tools/testbox-bds.sh install && …
+start`, then `REMOTE_HOST=devbox tools/remote-run.sh cargo run --release -p acacia-bot --example reach_drills --
+127.0.0.1:19230 RayBot [drill,...]` (test pack off: `tools/testbox-bds.sh unpack`).
 
 ## Tests
 

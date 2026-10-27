@@ -57,6 +57,7 @@ pub struct ClientBuilder {
     /// The Login `Nonce` a friend's world handed out.
     nonce: Option<String>,
     skin: Option<acacia_auth::login::Skin>,
+    mouse_input: bool,
     /// Held by the connection; dropping it leaves the friend's Xbox session.
     friend_session: Option<oneshot::Sender<()>>,
     blob_cache: BlobCache,
@@ -83,6 +84,7 @@ impl ClientBuilder {
             via: Via::Address,
             nonce: None,
             skin: None,
+            mouse_input: false,
             friend_session: None,
             blob_cache: BlobCache::Memory,
             blob_payloads: false,
@@ -115,6 +117,13 @@ impl ClientBuilder {
     /// Wears `skin` instead of the account's pool skin.
     pub fn skin(mut self, skin: acacia_auth::login::Skin) -> Self {
         self.skin = Some(skin);
+        self
+    }
+
+    /// Logs in with a mouse as the current input mode (default: touch, as the Android device it claims).
+    /// Should match the input mode `PlayerAuthInput` reports.
+    pub fn mouse_input(mut self, on: bool) -> Self {
+        self.mouse_input = on;
         self
     }
 
@@ -274,7 +283,7 @@ impl ClientBuilder {
             Login::Online { credentials, .. } => format!("xbox:{}", credentials.xuid),
         };
         let blob_store = self.blob_cache.open(&account, self.blob_payloads);
-        let (key, login_request, identity) = build_login(self.login, offline_key, &route.server_address, self.nonce, self.skin);
+        let (key, login_request, identity) = build_login(self.login, offline_key, &route.server_address, self.nonce, self.skin, self.mouse_input);
         let cfg = SessionConfig {
             link: route.link,
             key,

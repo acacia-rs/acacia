@@ -154,6 +154,9 @@ impl Bot {
         let request = plan.request(id);
         tracing::debug!(?request, "item stack request");
         self.client.send(&request);
+        if let Some(m) = self.movement.as_mut() {
+            m.still_ticks = 1;
+        }
         id
     }
 

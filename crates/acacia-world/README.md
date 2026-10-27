@@ -19,6 +19,11 @@ chunk storage shared between bots on one server.
   its Bedrock filter table (leaves and ice 2, slabs 1, beacon 14...) and state-dependent emitters (`lit_*`
   blocks, candles, sea pickles, respawn anchors, copper bulbs, campfires, lava cauldrons, `light_block_N`).
 - Output: `data/blocks.bin` (~610 KB, `include_bytes!`, parsed once on first use).
+- **Selection** (aim shapes): a static BDS read, packed by `tools/gen-selection.py` into `data/selection.bin` (~80 KB)
+  in `blocks.bin` order. Regenerate it whenever `blocks.bin` changes. `selection::boxes_at(world, registry, pos)`
+  gives the boxes where a block stands, with its random offset and neighbours. See docs/selection-shapes.md.
+- **Raycast**: `ray::cast(world, origin, dir, reach, shape)` gives the first shape the ray enters, block by block.
+  The caller chooses which boxes count.
 
 ## Runtime ids
 
@@ -33,7 +38,7 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
 
 - `BlockRegistry`: `vanilla()`, `vanilla_arc()`, `with_custom_blocks`, `get(id)`, `air_id()`, `find(name, props)`,
   `states_of(name)`, `runtime_id_from_hash`. `BlockState`: `name`, `properties` (`k=v,...` sorted), `boxes`,
-  `friction`, `flags` (`BlockFlags`), `liquid_depth`, `network_hash`, `light_emission`, `light_filter`, `mining` (`Mining`: hardness, `Material`,
+  `selection` (BDS aim shapes from `data/selection.bin`, see docs/selection-shapes.md), `friction`, `flags` (`BlockFlags`), `liquid_depth`, `network_hash`, `light_emission`, `light_filter`, `mining` (`Mining`: hardness, `Material`,
   `can_harvest(Option<Tool>)`; `Tool::from_identifier("minecraft:iron_pickaxe")`), plus `is_solid`, `is_liquid`,
   `fluid_height`, `jump_factor`, `stuck_multiplier`, `property(key)`.
 - `Chunk::decode(x, z, Dimension, sub_chunk_count, payload)`, `block`/`liquid(x, y, z)` (world coords),

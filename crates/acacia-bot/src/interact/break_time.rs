@@ -84,11 +84,49 @@ fn tool_speed(material: Material, tool: Option<Tool>) -> Option<f32> {
     })
 }
 
+/// Destroy progress summed tick by tick at each tick's own speed, as BDS sums it: jumping, entering water or
+/// an effect mid-break changes the remaining time, not the whole break.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct Progress {
+    done: f64,
+    ticks: u32,
+}
+
+impl Progress {
+    /// One tick of mining at `ticks_now`, the break time under this tick's conditions; true when it finishes.
+    pub fn step(&mut self, ticks_now: u32) -> bool {
+        self.ticks += 1;
+        self.done += 1.0 / f64::from(ticks_now.max(1));
+        self.done >= 1.0 - 1e-9
+    }
+
+    /// Ticks mined so far.
+    pub fn ticks(&self) -> u32 {
+        self.ticks
+    }
+
+    pub fn fraction(&self) -> f32 {
+        self.done.min(1.0) as f32
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use acacia_world::BlockRegistry;
 
     use super::*;
+
+    #[test]
+    fn progress_finishes_on_the_last_tick_and_follows_slowdowns() {
+        let mut p = Progress::default();
+        assert!(!(0..17).any(|_| p.step(18)));
+        assert!(p.step(18), "18 ticks at 18 per break");
+        let mut p = Progress::default();
+        assert!(!(0..9).any(|_| p.step(18)));
+        assert!(!(0..44).any(|_| p.step(90)), "airborne: five times slower");
+        assert!(p.step(90));
+        assert_eq!(p.ticks(), 54);
+    }
 
     fn mining(name: &str) -> Mining {
         BlockRegistry::vanilla().states_of(name).next().unwrap().1.mining

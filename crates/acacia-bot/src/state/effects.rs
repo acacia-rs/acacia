@@ -23,6 +23,7 @@ pub mod effect {
     pub const WITHER: i32 = 20;
     pub const ABSORPTION: i32 = 22;
     pub const LEVITATION: i32 = 24;
+    pub const CONDUIT_POWER: i32 = 26;
     pub const SLOW_FALLING: i32 = 27;
     pub const DARKNESS: i32 = 30;
     pub const WEAVING: i32 = 33;

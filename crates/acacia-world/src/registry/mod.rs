@@ -6,6 +6,7 @@
 
 mod blob;
 mod mining;
+mod offset;
 mod state;
 
 use std::ops::Range;
@@ -15,6 +16,7 @@ use parking_lot::Mutex;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 pub use mining::{Material, Mining, Tool, ToolKind, ToolTier};
+pub use offset::SelectionOffset;
 pub use state::{Aabb, BlockFlags, BlockState};
 
 #[derive(Debug)]
@@ -163,6 +165,8 @@ fn custom_state(name: &'static str) -> BlockState {
         name,
         properties: "",
         boxes: &FULL,
+        selection: &FULL,
+        selection_offset: SelectionOffset::None,
         friction: 0.6,
         flags: BlockFlags::FULL_CUBE,
         liquid_depth: 0,

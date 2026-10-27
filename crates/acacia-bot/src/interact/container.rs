@@ -5,7 +5,6 @@ use acacia_client::proto::types::{WindowID, WindowType};
 use acacia_client::proto::RawPacket;
 use acacia_physics::BlockPos;
 
-use super::geometry::facing_face;
 use crate::state::{Container, Inventory};
 use crate::{ActionError, Bot};
 
@@ -15,15 +14,14 @@ const CONTENTS_TIMEOUT: Duration = Duration::from_secs(1);
 
 impl Bot {
     /// Opens the container block at `pos` (chest, barrel, furnace, shop GUI block...) by clicking
-    /// the face towards the eye, and waits for the server's `ContainerOpen`. An open window
+    /// a face the eye sees, and waits for the server's `ContainerOpen`. An open window
     /// (including the own inventory) is closed first.
     pub async fn open_container_at(&mut self, pos: BlockPos) -> Result<Container, ActionError> {
         if self.state.containers.open.is_some() {
             self.close_container().await?;
         }
         self.container_settled().await?;
-        let face = facing_face(self.eye_position(), pos);
-        self.use_item_on_block(pos, face).await?;
+        self.use_item_on_block(pos, super::facing_face(self.eye_position(), pos)).await?;
         let opened = self.wait_until(CONTAINER_TIMEOUT, |bot, _| bot.open_container().cloned()).await?;
         // Contents follow ContainerOpen in a separate InventoryContent; slot actions need them.
         let filled = |bot: &Bot, _: &RawPacket| bot.open_container().filter(|c| !c.slots.is_empty()).cloned();

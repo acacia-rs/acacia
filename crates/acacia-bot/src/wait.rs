@@ -17,6 +17,9 @@ pub enum ActionError {
     Rejected(String),
     #[error("not possible: {0}")]
     NotPossible(String),
+    /// Nothing was sent: the target is in reach but hidden behind blocks.
+    #[error("not visible: {0}")]
+    NotVisible(String),
 }
 
 enum Progress {
