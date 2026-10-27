@@ -100,7 +100,9 @@ impl FlightPilot {
                 if rockets == 0 {
                     return Order::Fail("on the ground with no rockets to take off with".into());
                 }
-                *c = Controls { forward: 1.0, jump: true, yaw, pitch: self.pitch_aim.turn(st.pitch, -15.0), ..Controls::default() };
+                // A standing jump: an off-axis running jump drifts an ulp from strict BDS and the glide carries it
+                // (DESIGN.md "Off-axis ulp corrections"); a glide ignores movement keys.
+                *c = Controls { jump: true, yaw, pitch: self.pitch_aim.turn(st.pitch, -15.0), ..Controls::default() };
                 self.phase = Phase::Rising;
                 return Order::Fly;
             }
