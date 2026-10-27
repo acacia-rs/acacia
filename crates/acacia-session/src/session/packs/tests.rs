@@ -26,6 +26,7 @@ fn session(store: Arc<dyn PackStore>, now: Instant) -> Session {
         blob_store: None,
         pack_store: store,
         strict: false,
+        max_batch_bytes: crate::batch::DEFAULT_MAX_DECOMPRESSED,
     };
     let mut s = Session::new(cfg, "127.0.0.1:19132".parse().unwrap(), now);
     sent(&mut s, now);

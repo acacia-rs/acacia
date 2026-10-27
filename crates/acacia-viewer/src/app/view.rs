@@ -4,8 +4,9 @@ use std::time::Instant;
 
 use acacia_render::Outline;
 use acacia_render::entity::EntityInstance;
-use acacia_render::item::{ItemKey, SHIELD, hand, map};
+use acacia_render::item::{ItemKey, SHIELD, first_person, hand, map};
 use acacia_ui::nametags::Tag;
+use glam::DVec3;
 
 use super::{App, Mode};
 use crate::keyscript::Step;
@@ -52,19 +53,22 @@ impl App {
     }
 
     /// Name tags projected onto the screen (`gui` GUI pixels big, `scale` window pixels each):
-    /// Java draws a font pixel 0.025 blocks big in the world; tags beyond 64 blocks or behind
-    /// the camera are left out.
+    /// Java draws a font pixel 0.025 blocks big in the world, the line's top at the anchor; tags
+    /// out of reach (distance from the feet, as Java's) or behind the camera are left out.
     pub(super) fn name_tags(&self, gui: [f32; 2], scale: f32) -> Vec<Tag> {
+        // acacia-ui's Tag is anchored at the line's foot: 9 font pixels under Java's anchor.
+        const LINE: f64 = 9.0 * 0.025;
         let view_proj = self.camera.view_proj();
         let pixels_per_block = gui[1] * scale / 2.0 / (self.camera.fov_y / 2.0).tan();
         self.entities
             .name_tags()
             .into_iter()
-            .filter_map(|(text, at)| {
-                let relative = (at - self.camera.position).as_vec3();
+            .filter_map(|tag| {
+                let text = tag.text;
+                let relative = (tag.anchor - DVec3::Y * LINE - self.camera.position).as_vec3();
                 let distance = relative.length();
                 let clip = view_proj * relative.extend(1.0);
-                if clip.w <= 0.1 || distance > 64.0 {
+                if clip.w <= 0.1 || tag.feet.distance_squared(self.camera.position) >= tag.reach * tag.reach {
                     return None;
                 }
                 let (x, y) = (clip.x / clip.w, clip.y / clip.w);
@@ -99,20 +103,32 @@ impl App {
                 out.push(map::first_person(&sheet, &self.camera, hold));
                 continue;
             }
-            let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block, dye: stack.dye, banner: stack.banner.clone() }, stack.enchanted) else { continue };
-            let display = hand::Display::first_person(&stack.name, model.form, left, sneaking && (left || !off_shield));
-            let (swing, using) = if left { (0.0, None) } else { (swing, using) };
-            out.push(hand::first_person(&model, display, &self.camera, left, swing, using));
+            let Some(model) = self.entities.item(&ItemKey { name: stack.name.clone(), aux: stack.aux, block: stack.block, dye: stack.dye, banner: stack.banner.clone(), trim: stack.trim.clone() }, stack.enchanted) else { continue };
+            let display = hand::Display::held(&model, &stack.name, true, left, sneaking && (left || !off_shield));
+            let crossbow = (stack.name == CROSSBOW).then_some(false);
+            let hold = if left {
+                first_person::Hold { left, crossbow, ..Default::default() }
+            } else {
+                first_person::Hold { main_hand: true, attack: swing, swinging: swing > 0.0, using, crossbow, ..Default::default() }
+            };
+            out.push(hand::first_person(&model, display, &self.camera, &hold));
         }
         out
     }
 }
 
-/// How an item in use looks held: a bow drawn, or food and drink eaten (again each `duration`).
-fn using(name: &str, ticks: f32) -> Option<hand::Using> {
-    if matches!(name, "minecraft:bow" | "minecraft:crossbow") {
-        return Some(hand::Using::Bow { ticks });
+const CROSSBOW: &str = "minecraft:crossbow";
+
+/// How an item in use looks held, `held` ticks in: a bow, trident or crossbow drawn, or food and
+/// drink eaten (again each `duration`).
+fn using(name: &str, held: f32) -> Option<first_person::Using> {
+    match name {
+        "minecraft:bow" => return Some(first_person::Using::Bow { held }),
+        "minecraft:trident" => return Some(first_person::Using::Trident { held }),
+        // Unenchanted: Quick Charge is not read.
+        CROSSBOW => return Some(first_person::Using::Crossbow { held, charge: 25.0 }),
+        _ => {}
     }
     let duration = acacia_bot::survival::use_ticks(name)? as f32;
-    Some(hand::Using::Eat { ticks: ticks % duration, duration })
+    Some(first_person::Using::Eat { held: held % duration, duration })
 }

@@ -31,6 +31,32 @@ fn vehicle_corrections_do_not_move_the_player() {
     assert_eq!(m.position().map(|p| p[1]), Some(-57.0 - EYE_HEIGHT));
 }
 
+/// Sprinting state after sprinting forward with the key, then releasing the key for 10 ticks with forward held.
+fn sprinting_after_key_release(mouse_input: bool) -> bool {
+    use acacia_physics::test_world::{TestBlock, TestWorld};
+    let mut world = TestWorld::new();
+    world.fill(Some(TestBlock::Stone), [-5, 63, -5], [5, 63, 100]);
+    let mut m = Movement::new();
+    m.mouse_input = mouse_input;
+    m.start([0.5, 64.0, 0.5], 0.0, 0.0);
+    m.controls = Controls { forward: 1.0, sprint: true, ..Controls::default() };
+    for _ in 0..10 {
+        m.tick(&world);
+    }
+    assert!(m.sprinting());
+    m.controls.sprint = false;
+    for _ in 0..10 {
+        m.tick(&world);
+    }
+    m.sprinting()
+}
+
+#[test]
+fn a_keyboard_sprint_outlasts_its_key_and_a_touch_one_does_not() {
+    assert!(sprinting_after_key_release(true));
+    assert!(!sprinting_after_key_release(false));
+}
+
 #[test]
 fn a_dimension_change_stops_the_simulation_until_it_starts_again_standing() {
     let world = acacia_physics::test_world::TestWorld::new();

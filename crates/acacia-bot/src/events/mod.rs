@@ -30,7 +30,7 @@ impl Events {
     pub const HEALTH: Self = Self(1 << 2);
     /// [`BotEvent::PlayerJoined`], [`BotEvent::PlayerLeft`] (the list sent at spawn counts as joins).
     pub const PLAYERS: Self = Self(1 << 3);
-    /// [`BotEvent::WindowOpened`], [`BotEvent::WindowClosed`], [`BotEvent::SignEditor`].
+    /// [`BotEvent::WindowOpened`], [`BotEvent::WindowContents`], [`BotEvent::WindowClosed`], [`BotEvent::SignEditor`].
     pub const WINDOWS: Self = Self(1 << 4);
     /// [`BotEvent::Title`].
     pub const TITLES: Self = Self(1 << 5);
@@ -76,6 +76,9 @@ pub enum BotEvent {
     PlayerLeft(PlayerListEntry),
     /// A window opened (the own inventory too); its contents usually follow in later packets.
     WindowOpened(Container),
+    /// The open window's contents arrived (`InventoryContent`): first after its [`BotEvent::WindowOpened`],
+    /// then on every full refresh (live-updating GUIs resend them). Not for the own inventory.
+    WindowContents(Container),
     WindowClosed { window_id: i32 },
     /// The server opened a sign editor ([`crate::Bot::write_sign`]).
     SignEditor { position: [i32; 3], front: bool },
@@ -132,12 +135,13 @@ pub(crate) struct EventSource {
     vitals: (f32, f32, f32),
     alive: bool,
     window: Option<i32>,
+    contents: u64,
     sleeping: bool,
 }
 
 impl EventSource {
     pub(crate) fn new(events: Events, patterns: Vec<ChatPattern>) -> Self {
-        Self { events, patterns, vitals: (20.0, 20.0, 5.0), alive: true, window: None, sleeping: false }
+        Self { events, patterns, vitals: (20.0, 20.0, 5.0), alive: true, window: None, contents: 0, sleeping: false }
     }
 
     /// Packets the enabled events need beyond the always-on trackers.
@@ -229,16 +233,21 @@ impl EventSource {
     fn on_window(&mut self, state: &GameState, out: &mut VecDeque<BotEvent>) {
         let open = state.containers.open.as_ref();
         let id = open.map(|c| c.window_id);
-        if id == self.window {
-            return;
+        if id != self.window {
+            if let Some(window_id) = self.window {
+                out.push_back(BotEvent::WindowClosed { window_id });
+            }
+            if let Some(container) = open {
+                out.push_back(BotEvent::WindowOpened(container.clone()));
+            }
+            self.window = id;
         }
-        if let Some(window_id) = self.window {
-            out.push_back(BotEvent::WindowClosed { window_id });
+        if state.containers.contents != self.contents {
+            self.contents = state.containers.contents;
+            if let Some(container) = open {
+                out.push_back(BotEvent::WindowContents(container.clone()));
+            }
         }
-        if let Some(container) = open {
-            out.push_back(BotEvent::WindowOpened(container.clone()));
-        }
-        self.window = id;
     }
 }
 

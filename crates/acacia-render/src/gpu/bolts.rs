@@ -1,5 +1,5 @@
-//! The lightning pass (`bolts.wgsl`): [`crate::lightning`] bolts as translucent triangles added
-//! onto the frame after the terrain, depth-tested without writing depth.
+//! The lightning pass (`bolts.wgsl`): [`crate::lightning`] bolts added onto the frame after the
+//! terrain, back faces culled and depth written as 26.3's `RenderPipelines.LIGHTNING` does.
 
 use glam::DVec3;
 
@@ -49,11 +49,11 @@ impl BoltPass {
                     attributes: &wgpu::vertex_attr_array![0 => Float32x3],
                 })],
             },
-            primitive: wgpu::PrimitiveState::default(),
+            primitive: wgpu::PrimitiveState { cull_mode: Some(wgpu::Face::Back), ..Default::default() },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
-                depth_write_enabled: Some(false),
-                depth_compare: Some(wgpu::CompareFunction::Greater),
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
@@ -75,7 +75,9 @@ impl BoltPass {
         let mut out: Vec<[f32; 3]> = Vec::new();
         for &(seed, at) in bolts {
             let foot = (at - camera).as_vec3();
-            out.extend(lightning::bolt(seed).into_iter().map(|v| (foot + v).to_array()));
+            for q in lightning::bolt(seed as i64) {
+                out.extend([q[0], q[1], q[2], q[2], q[3], q[0]].map(|v| (foot + v).to_array()));
+            }
         }
         self.count = out.len() as u32;
         if out.is_empty() {

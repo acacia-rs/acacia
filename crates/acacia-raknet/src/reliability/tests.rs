@@ -164,6 +164,17 @@ fn a_resend_timeout_shrinks_the_window_and_backs_off() {
 }
 
 #[test]
+fn a_late_ack_gives_back_what_the_timeout_took() {
+    let t0 = Instant::now();
+    let mut send = windowed(20);
+    assert_eq!(drain(&mut send, t0).len(), 10);
+    let first = send.next_resend().unwrap();
+    send.on_timeout(first);
+    send.on_ack(first, 0, 9);
+    assert_eq!((send.window(), send.next_resend()), (10, None));
+}
+
+#[test]
 fn a_split_costs_what_arrived_not_what_it_claims() {
     let mut recv = RecvState::new(RecvLimits::SERVER);
     for id in 0..RecvLimits::SERVER.max_splits as u16 {

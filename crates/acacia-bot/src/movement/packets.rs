@@ -130,9 +130,9 @@ impl Movement {
                 }
                 self.corrections += 1;
             }
-            UpdateAttributes::ID => {
+            UpdateAttributes::ID if crate::state::leading_entity(packet) == Some(me.runtime_entity_id) => {
                 let p: UpdateAttributes = packet.decode()?;
-                if p.runtime_entity_id == me.runtime_entity_id {
+                {
                     // Speed and Slowness arrive as modifiers on the movement attribute, and so do the sprint
                     // boost (multiplying) and freezing (adding), which the simulation applies itself.
                     for a in p.attributes.iter().filter(|a| a.name == "minecraft:movement") {

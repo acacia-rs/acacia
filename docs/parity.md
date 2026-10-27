@@ -1,0 +1,177 @@
+# Parity harnesses: the Java look against Java Edition
+
+The Java look must draw what Minecraft: Java Edition 26.3 draws. A parity harness proves one piece
+of it: a **Java oracle** runs the game's own code headlessly and writes what it computes (geometry,
+light, colours, draw calls, layouts), a **Rust probe** computes the same from acacia, and a
+**comparison** names every divergence as case, field, expected (the game) and got (acacia).
+Screenshots are not evidence. Adapted from [Horizon](https://github.com/ludovic111/horizon)'s
+oracle workflow (THIRD-PARTY.md).
+
+## Running
+
+```sh
+tools/parity/remote.sh             # from Windows: syncs the worktree to devbox, runs every harness there
+tools/parity/remote.sh bake        # one harness (several: bake light)
+tools/parity/remote.sh --list      # harnesses, owners
+python3 tools/parity/parity.py bake   # on devbox itself, in a checkout
+```
+
+Options: `--fresh` reruns cached oracle runs, `--detail N` shows N divergences per harness (all
+of them are in `~/java-truth/runs/<name>/divergences.tsv`, the log in `log.txt`). The exit code is
+1 if any harness diverges or fails. `remote.sh` runs in `work/<worktree folder>` on devbox; long
+runs: `DETACH=1` (see `tools/remote-run.sh`).
+
+## The oracle home
+
+`python3 tools/parity/setup.py` builds it on a Linux x86-64 host (devbox has it at `~/java-truth`;
+`JAVA_TRUTH` overrides): the pinned Temurin JDK 25, the 26.3 client and server jars and the
+client's libraries from Mojang's version manifest (every file SHA-checked against
+`tools/parity/lock.json` and the manifest), the server bundle unpacked, and the client
+decompiled by Vineflower into `sources/client/` for reading (26.3 ships unobfuscated, so there is
+no remapping). Linux x86-64 matters: `Math.sin` and the like round as HotSpot does there.
+Nothing from it is committed: no game code, decompiled source, assets or dumps.
+
+Oracle classes and runs are cached under `~/java-truth/cache/`: classes by the content of every
+Java source compiled, a run by its classes, arguments and input files. A Rust-only change reruns
+only the probe.
+
+## The shared bootstrap (`tools/parity/java/acacia/parity/`)
+
+- `Game.init()`: version, `Bootstrap` and `ClientBootstrap`, the client jar's vanilla pack as a
+  `ResourceManager` (`Game.resources()`, no window, no GPU, no asset index), the grass, foliage and
+  dry foliage colour maps; `Game.world()` vanilla's world registries; `Game.blockColors()`.
+- `Data.get()`: the vanilla data pack loaded as a server loads it (world registries with tags,
+  loot, default components): the registries a client receives.
+- `Atlases.manager()`: every atlas the client knows over `UnitAtlas` (sprites from the
+  `atlases/*.json` sources, real images and metadata, each alone in a unit atlas: UVs are
+  sprite-local in [0,1]). Gui sprites name themselves: a blit's texture reads
+  `minecraft:textures/atlas/gui.png#minecraft:hud/heart/full`.
+- `Models.get()`: the client's full `ModelManager` reload (block states, items, entity models,
+  fluids) over those atlases; `blockStateModel(state)`, `.manager`, `.entityModels`.
+- `Fonts.font()`: the default font on a real `FontSet` (space and default providers, the game's
+  metrics, bounds, missing and white glyphs); unifont is not in the jar, its codepoints come out
+  missing.
+- `Client`: a `Minecraft` shell as `Minecraft.getInstance()` (real `Options`, window size and GUI
+  scale via `Client.window`, font, atlases, models, textures, `Gui`/`Hud`). `overworld()` /
+  `level(...)` a real `ClientLevel`; `setBlock`, `setBiome`, `chunk`; `spawn(level, type, x, y, z)`;
+  `entityRenderers()` the real `EntityRenderDispatcher`, so
+  `Client.entityRenderers().extractEntity(entity, partial)` is the game's render state.
+- `View`: `player(level, x, y, z, yRot, xRot)` a real `LocalPlayer`; `camera(partial)` the main
+  camera aligned to it (fov, fluid, attribute probe); `lightmap(partial)` the
+  `LightmapRenderState` the lightmap shader takes; `fog(camera, partial)` `FogRenderer.setupFog`.
+- `Gui`: a real `GuiGraphicsExtractor` into a `GuiRenderState`. `Gui.record(mx, my, g -> ...)`
+  lists elements, text (styled runs, laid-out glyphs), items and picture-in-picture states;
+  `Gui.frame(mx, my, g -> ...)` adds `draws`: what `GuiRenderer` draws, in its order (items as
+  blits, text as glyphs, sorted by its comparator, `afterBlur`).
+- `Dump.of(x)`: any render state, record or game value as a JSON tree (registry names, joml as
+  float arrays, formatted text as runs). `Shell`: Unsafe allocation and reflective access for
+  shells. `Out`: JSON and JSON-lines writers, `stateKey`
+  (`minecraft:oak_slab[type=double,waterlogged=false]`, properties sorted), colour hex.
+
+What is not here stays null on the shells: set it with `Shell.set` in your oracle, then fold it
+into the bootstrap (tell the oracle owner). Harness `bootstrap` runs each piece once; its oracle
+is the shortest example of each.
+
+Pieces the areas added, shared as they are (their harnesses pin their behaviour):
+
+- `EntityModels`: every entity model layer by name (`LayerDefinitions.createRoots`), a part's
+  cubes and children, part poses by path, `livingRoot(yaw, scale)` (`LivingEntityRenderer`'s root
+  transform) and `ModelPart.render`'s walk to drawn corners. Used by `entity_models`,
+  `entity_poses`, `entity_layers`.
+- `RenderStates.pose(case)`: a model baked from a layer and posed by its own `setupAnim` from a
+  JSON case (`{layer, model, state, swingHand}`; the state class is resolved from the model's
+  generics; `?field` is optional). Same harnesses.
+- `gui/` (GUI harnesses): `GuiCapture`, a `GuiGraphicsExtractor` recording calls (blits, fills,
+  gradients, text runs, items by key, decorations, scissors, strata, blur) as JSON, the call-level
+  counterpart of `Gui.frame`; `GuiGame` (data-pack registries, the client resources with the asset
+  index at `GUI_ASSETS_ROOT`, `ClientLanguage`, every vanilla font via `GuiFonts`, unifont included
+  when the assets are there); `ScreenGame`/`ScreenKit` (a client with a level and a `LocalPlayer`
+  for screen oracles, case loop), `Markers` (picture-in-picture and tooltip images recorded by
+  parameter), `EntityStub`, `TooltipFacts`.
+- `Environments` (atmos): environment attributes over a minimal `ClientLevel` (dimension, clock,
+  rain, thunder, flash), biome blending, a boss-overlay stand-in. `Headless`: shells plus
+  `inert(type)` and GPU-buffer capture for the cloud and sky oracles. `LightShapes` (light): a
+  state's face occlusion shapes as the light engine sees them.
+
+Overlaps left to merge with their owners rather than under running harnesses: three shell helpers
+(`Shell`, `gui/Stub`, `Headless`), three `Minecraft` stand-ins (`Client`, `gui/ScreenGame`,
+`Environments.installMinecraft`; one per JVM), two fonts (`Fonts` jar only, `GuiFonts` with
+unifont from the asset index). New oracles use `Shell`, `Client` and, when they need unifont,
+`GuiFonts`.
+
+## Adding a harness
+
+1. `tools/parity/harnesses/<name>/`: one directory per harness.
+2. The oracle, `<Name>Oracle.java` in package `acacia.parity.<name>` (MIT, ours or adapted from
+   Horizon's `mods/horizon/src/test/java/dev/horizonlab/parity`). `main(String[] args)`:
+   `args[0]` is the directory to write into, the rest are the harness's arguments. Start from
+   `Game.init()`. Prefer one JSON line per case with a `case` key (`Out.Lines`).
+3. The probe: a CPU-side example or binary in the crate it tests (no GPU; a rule that lives only
+   in WGSL moves CPU-side first). It reads the same inputs and writes the same records.
+4. `harness.py`, with a one-line docstring, `OWNER` (the area) and `run(h)`:
+
+   ```python
+   def run(h):
+       expected = h.oracle("acacia.parity.light.LightOracle", "--cases", 500)  # out dir
+       h.probe("acacia-render", "light_probe", expected / "cases.jsonl", h.out / "rust.jsonl")
+       h.compare_jsonl(expected / "records.jsonl", h.out / "rust.jsonl", key="case", tolerance=1e-4)
+   ```
+
+   `h.compare_jsonl` matches records by key and compares them field by field (numbers within a
+   relative tolerance). A probe that compares by itself prints `CASES\t<n>` and one
+   `DIVERGENCE\t<case>\t<field>\t<expected>\t<got>` line per divergence; pass its output to
+   `h.read_probe` (harness `bake` does). `h.diverge(...)` and `h.add(cases, list)` take
+   divergences computed in Python.
+5. Run it, then add or update its row below when you merge. A general piece of headless game
+   (a subsystem the bootstrap lacks) goes in your harness first; tell the oracle owner to fold it in.
+
+## Harnesses
+
+Cases and divergences as of the last merge that touched the harness.
+
+| Harness | What | Cases | Divergences | Owner |
+|---|---|---|---|---|
+| `chat_screen` | the chat screen: input (EditBox: typing, caret, selection, scrolling, word moves, history), name completion, Brigadier command suggestions (usage hints, list scroll and Tab cycling, argument colours, errors) over a case command tree, and the chat lines under the mouse (hover_event show_text/show_item/show_entity tooltips, tag indicator and icon tooltips); probe `gui-probe chat_screen` | 6,000 | 0 | gui |
+| `hud` | `Hud` pieces over random states (2,200 cases, 220 per kind): crosshair with attack indicator, hotbar with offhand and pop, hearts of every kind (poison, wither, frozen, absorption, hardcore, blinking, regen bob, mounted), food with shake, armour, air, xp bar and level; effect icons; titles, subtitle, overlay message, held item name; boss bars, jump bar, sidebar, item decorations, camera overlays (vignette, pumpkin, spyglass, portal, nausea, sleep), chat with fade, width and scroll; probe `gui-probe hud` | 2,200 | 0 | gui |
+| `subtitles` | SubtitleOverlay over 1,500 scripts of clock changes, sound plays (subtitle, position, range, looping) and frames (listener, options, GUI size): merging, expiry, fade, arrows, box width; one case per frame; probe `gui-probe subtitles` | 13,659 | 0 | gui |
+| `players` | PlayerTabOverlay over 1,100 lists (up to 100 players, 1 to 6 frames each; 885k draw calls): order, columns, heads with hats and flips, names with teams and spectator italics, ping bars, scores with number formats, hearts with blinking, header and footer wrapping; probe `gui-probe players` | 3,839 | 0 | gui |
+| `bake` | every block state's baked quads (corners in the game's vertex order, texture, UVs, cull, tint, shade direction, AO) and alternatives (35,723 states, 644 with alternatives picked at 48 positions), off-grid shifts (39 blocks), biome colours (67 biomes, grass at 64 columns), AO shade (22,091 mapped Bedrock states); probe `lookbake java-check` | 57,920 | 0 | lookbake |
+| `containers` | container screen frames (chests 1-6 rows, shulker, dispenser, hopper, brewing, crafter, horse/llama/camel/nautilus with the entity figure marker, lectern books): background, slots, quick-craft drag, highlights, labels, carried stack, hovered tooltip; EffectsInInventory beside a window; probe `gui-probe containers` | 2,700 | 0 | gui |
+| `trading` | merchant (offers, scroller, discounts, out of stock, xp bar, tooltips), stonecutter (recipe grid, scroll, tooltips), loom (pattern grid, scroll, banner marker, error); probe `gui-probe trading` | 2,400 | 0 | gui |
+| `recipe_book` | recipe book (tabs and their animation, filter, search box, pages, cycling buttons, alternatives overlay, ghost recipe, tooltips) alone and in the crafting, furnace, blast furnace, smoker and inventory screens (narrow widths, player figure, effects); probe `gui-probe recipe_book` | 2,500 | 0 | gui |
+| `font` | the default, alt, uniform and illageralt fonts as `FontManager` loads them from the jar plus asset index 34 (unifont, filters uniform/jp): per-codepoint glyphs (advance, bold/shadow offset, texture, texels hash) over 4,096-codepoint ranges, `glyphsByWidth` order for obfuscated text, and 30,000 styled strings' widths, bounds and `prepareText` glyph quads (shadow, bold, italic, underline, strikethrough, obfuscated, legacy codes); right-to-left text (`ClientLanguage.getVisualOrder`: ICU Bidi, Arabic shaping, mirroring): 10,000 styled Hebrew/Arabic/mixed strings' quads, 10,000 visual orders char by char, 10,000 `Font.split` results (each line's sequence and width), ICU's bidi properties over every codepoint; probe `gui-probe font` | 65,204 | 0 | gui |
+| `weather` | rain/snow columns and quads from `extractRenderState` over random scenes (400: heights, biomes, unloaded chunks, light), height-adjusted temperature and precipitation per biome (4,000 positions), `tickWeatherEffects` splashes and rain sound over 8 ticks (400 scenes, 21 ground blocks, all particle options), lightning bolt vertices (400 seeds); probe `weather_probe` | 5,200 | 0 | atmos (weather) |
+| `sky` | every rendered environment attribute (sky, fog, cloud, sunrise colours; sun, moon, star angles and brightness; moon phase; fog, sky, cloud and water fog distances; light attributes; sky light level) from a headless `ClientLevel`'s own `EnvironmentAttributeSystem` over Horizon's grid (3 dimensions × 195 times × weathers, every biome per dimension at 4 times), weighted biome blends, `GaussianSampler` blends and lightning flashes; `SkyRenderer`'s vertex buffers recorded off its GPU device (sky and dark discs, stars, sunrise fan, sun quad, 8 moon phases, End box) and its sun, moon, star, sunrise and dark-disc frames over 10 angles; probe `sky_probe` | 1,949 | 0 | atmos (sky) |
+| `fog` | `FogRenderer.setupFog` (colour and every `FogData` distance) for a headless camera and player: atmospheric over 3 dimensions, 9 biomes, 7 times, 4 view directions, 4 render distances and storm; rain fog easing (sky light, precipitation, delta ticks); void darkness (flat or not); cloud range; boss darkening and world fog; water (5 biomes, water vision), lava and powder snow (spectator, fire resistance); blindness, darkness blend and night vision durations; probe `fog_probe` | 1,370 | 0 | atmos (fog) |
+| `clouds` | cloud-map cells and empty neighbours (vanilla and 4 made-up maps), per frame `CloudInfo` (colour, offset, cell size) and fancy/fast faces in build order (120 frames, ranges 2–128); probe `clouds_probe` | 125 | 0 | atmos (clouds) |
+| `fluids` | `FluidRenderer.tesselate` over pools, levels 0–15, falls, spills, lava, waterlogged blocks, neighbours of every kind, 80 random mixes and 6 biomes (Nether included): each quad's corners, UVs, sprite, layer, colour and per-vertex light coords, against `mesh::liquid`; and every mapped state's fluid facts (face cover, sturdy faces, solid, `#blocks_fluid_flow`, overlay, ice, solid render) in the Java look; probe `acacia-render --example fluids_probe` | 29,026 | 0 | atmos (liquids) |
+| `bootstrap` | the shared bootstrap runs headless: level and blocks, entity render states (pig, zombie, armor stand, item frame, creeper), GUI records and frame order, lightmap and fog; oracle only | 10 | 0 | parity oracle |
+| `entity_models` | every entity model layer the client bakes (361), at rest under `LivingEntityRenderer`'s root transform: each part's pose, visibility and `skipDraw`, each drawn corner's position, normal and UV, against the look's `java/entity_models.json` drawn as the entity pass draws it; probe `acacia-render --example java_entities` | 361 | 0 | acacia-render entity |
+| `entity_poses` | `setupAnim` of the layers the look draws (cows, pigs, sheep, chickens, creeper, spiders, zombies, husks, drowned, skeletons, zombie villagers, villagers, wandering traders, golems, silverfish, endermites, blazes, ghasts, slimes, magma cubes, witches, vexes, piglins, brutes, zombified piglins, endermen, illagers, polar bears, pandas, goats, turtles, hoglins, zoglins, wolves, llamas, squids, dolphins, cats, ocelots, fish, guardians, phantoms, allays, horses, donkeys, mules, bees, parrots, foxes, striders, ravagers, shulkers, the wither, axolotls, tadpoles, armour stands, the ender dragon (flight history), happy ghasts, and the keyframed bats, rabbits, frogs, armadillos, camels, sniffers, breezes, creakings, wardens, copper golems and nautiluses (`AnimationExporter`'s definitions, `AnimationState` start ticks), babies; wide and slim players with their part visibility, the cape's `PlayerCapeModel`, adult and baby elytra) on walks, looks, ages, swings with either hand, aggression, held items, every arm pose but `SPEAR`, crouching, riding, gliding, swimming, grazing, flapping, cape flap and lean, mob arm poses (piglin, illager), squish, charging, each family's own state (sitting, rearing, lying, peeking, dancing...): parts and drawn corners (normals by the inverse transpose, as PoseStack's normal matrix); gear models (saddles of pigs, striders, horses, donkeys, camels and nautili, horse, undead horse, wolf and nautilus armour, llama decor, cat collars, the happy ghast's harness and ropes) by their own model classes; same probe | 23,832 | 0 | acacia-render entity |
+| `entity_gear` | what the render layers of 16 kinds submit over random gear (saddle, body-slot stack among horse, nautilus and wolf armour of every material, carpets, harnesses and a non-wearable; dye; damage; collar dye; markings; baby; invisible; leash holder; ridden): `SimpleEquipmentLayer`, `WolfArmorLayer` and its cracks, `LlamaDecorLayer` (trader llamas' default), `CatCollarLayer`, `WolfCollarLayer`, `HorseMarkingLayer`, `RopesLayer`, recorded by a proxy `SubmitNodeCollector`: each model in order (named by matching its geometry to the model layers), texture, colour, render type; against `entity::java::gear::draws`; probe `gear_probe` | 2,400 | 0 | acacia-render entity |
+| `entity_draws` | everything the renderers of 87 Java-drawn kinds submit (guardians extracted without their look target, which asks the game's camera entity) for 24 states each: a new entity, baby every third seed, cows, pigs, chickens and zombie nautiluses in each climate variant (answered as Bedrock's `climate_variant` or `variant` property), wolves in each variant, tame, angry or both, its render state's own booleans, enums, dyes, colours and puff set at random; each model in order, texture, colour, alpha and render type, recorded by `Submits`' proxy collector; against `Library::appearance` and `Library::gear` with the state answered as Bedrock queries (`draws_probe/bridge.rs`). States no Bedrock server sends (the killer bunny, salmon sizes) are counted on stderr, not compared; probe `draws_probe` | 2,088 | 0 | acacia-render entity |
+| `capes_elytra` | the cape's motion: 300 random 40-tick walks of a `RemotePlayer` (its `ClientAvatarState` cloak trailing, bob, walk) through `AvatarRenderer.extractCapeState`, against `avatar::Cloak` and `avatar::cape`; the wings: 300 random 30-tick runs of gliding (any pitch), crouching or standing through `ElytraAnimationState`, against `avatar::Wings`; probe `acacia-render --example capes_elytra` | 600 | 0 | acacia-render entity |
+| `name_tags` | every entity type, adult and baby, in every `Pose`: the `NAME_TAG` attachment point (as placed and turned) and `NAME_TAG_DISTANCE`, against `types::name_tag`; probe `name_tags_probe` | 2,498 | 0 | acacia-render entity |
+| `body_transforms` | the matrix `LivingEntityRenderer.submit` gives a model before `setupAnim` (bed offset, entity scale, the renderer's `setupRotations`, `scale(-1,-1,1)`, the renderer's `scale`, the 1.501 drop) for 30 kinds (every renderer overriding either, plus plain ones) × 48 random render states (death fall, spin attack, sleeping with and without a bed, upside down, shake, swim and fall-flying players, panda roll/sit/lie, shulker faces, cube sizes, swelling, phantom size, wither invulnerability), against `entity::java::body::transform`; probe `body_probe`. The player state is the wide avatar renderer's fresh one | 1,440 | 0 | acacia-render entity |
+| `overlays` | the colour overlay (`getOverlayCoords` for hurt or not over the white ramp, the texel `OverlayTexture` writes there, transcribed: it needs a GPU), the creeper's `getWhiteOverlayProgress`, and the shake: `isShaking` and the `setupRotations` matrix for 17 kinds × frozen, converting, suffocating × ages, against `entity::java::overlay`; probe `overlays_probe` | 591 | 0 | acacia-render entity |
+| `glint` | the glint texture matrix of `GLINT_TEXTURING`, `ENTITY_GLINT_TEXTURING` and `ARMOR_ENTITY_GLINT_TEXTURING` at 400 clocks (Util's time source) and `glintSpeed` settings each, and every item's default stack's `hasFoil`, against `glint::texturing` and `Foil::Java`; probe `glint_probe` | 2,858 | 0 | acacia-render glint |
+| `lightmap` | the 16x16 lightmap: the real client's `LightmapRenderState` (a `ClientLevel` per dimension with its clocks, rain, thunder, lightning and End flash set; a `LocalPlayer` with night vision and darkness; gamma, darkness scale, boss darkening, flicker) through `LightmapRenderStateExtractor`, and `lightmap.fsh` transliterated to Java floats over it (the game runs it on the GPU); 3 dimensions × 14 times × 6 weathers × lightning, and 15 player settings × 4 skies; state fields and texture bytes; probe `acacia-render --example lightmap_probe` | 564 | 0 | acacia-render light |
+| `smooth_light` | the client's `BlockModelLighter` over 1,500 random 5³ scenes (55 states: cubes, slabs, stairs, partial models, glass, leaves, emitters, darkening blocks; random light; Nether or not), in `ModelBlockRenderer`'s loop: each drawn quad's (14,639, 6,590 not uniform) per-vertex light coords and grey, against `mesh::smooth::Lighter` from the oracle's cell facts; probe `smooth_light_probe` | 1,500 | 0 | acacia-render light |
+| `light_engine` | the game's `LevelLightEngine` over 260 generated layouts (160 dense 2x1 chunks 32 high; 60 sparse 3x2 chunks 96 high; 40 floor-and-floating-platform 3x3 chunks 96 high, leaving whole sections empty) with stone floors, roofs, 50 states (liquids, slabs, stairs, snow, glass, leaves, emitters), sky or not, then 0–12 block edits each: block and sky level of every cell of every section Java stores light for, the padding sections above and below included (51,781,632), against `light::column::Lighter` under Java rules from the oracle's light facts; probe `light_engine_probe` | 260 | 0 | acacia-render light |
+| `light_facts` | every mapped Bedrock state's light facts in the Java look (emission, dampening, solid render, full collision, emissive, AO darkening, the 16x16 face occlusion shapes the light engine reads; for face culling, `canOcclude`, every face occlusion shape and which are `Shapes.block()`, and the `skipRendering` rule) against the game's state; probe `lookbake java-light-check` | 22,091 | 0 | acacia-render light, mesh |
+| `entity_layers` | held items: the matrix `ItemInHandLayer` hands each arm's item (the model's `translateToHand`, skeletons' 1 px shift included; the layer's turn and adult or baby fist offset, transcribed in the oracle) on the armed models of the `entity_poses` corpus, against `Mesh::hand` and `item::hand::fist`; armour: each slot's layer as `HumanoidArmorLayer` draws it (the body's model class, its own `setupAnim` on the wearer's state); second layers (sheep wool and undercoat, drowned, stray and bogged clothes, the creeper's aura) the same way; parts and drawn corners; worn heads: `CustomHeadLayer`'s matrix for a skull and a head item with the default transforms, against `mesh::head`; same probe | 36,000 | 0 | acacia-render entity |
+| `world_light` | end to end on real Bedrock terrain: 16 scenes (5x5 chunks) the test BDS sent in recorded traces (`acacia-bot --example trace_region`: overworld courses, generated Nether and End), mapped to Java by lookbake's table, lit by the game's `LevelLightEngine` and drawn in `ModelBlockRenderer`'s loop with `BlockModelLighter` and `FluidRenderer`; against acacia's light engine and mesher with the Java look: every cell's block and sky light in the inner 3x3 chunks and every face either side draws (blocks and liquids), corner by corner (block light, sky light, grey). A face only one side draws is a divergence, as is a state the table has no Java state for; probe `lookbake java-world-light` | 14,461,031 | 0 | acacia-render light, mesh (`mesh/cull.rs`) |
+| `armor_trims` | every equipment asset × humanoid layer type × trim pattern × material: the texture and palette `TrimTextureKey` picks (the asset's `trim_overrides` first) and the hash of the image `PaletteMapping` makes of them, against `Equipment::trim_texture` and lookbake's baked PNG; probe `acacia-render --example armor_trims` | 3,168 | 0 | acacia-render entity |
+| `shadows` | every entity type's `getShadowRadius` and `getShadowStrength`, adult and baby, from a render state extracted from a new entity; and 1,500 random scenes (ground of full, partial, invisible and see-through blocks; scripted raw brightness per cell; radii, heights, strengths and camera distances) through `EntityRenderer.extractShadow` on the real client level and `ShadowFeatureRenderer.prepare`: pieces, their alpha and the vertices, against `shadows::radius`, `pieces` and `corners`; probe `acacia-render --example shadows_probe`. Players are left out (the oracle cannot make one) | 1,702 | 0 | acacia-render entity |
+| `item_models` | every item's default stack (1,658) in every `ItemDisplayContext` but `NONE`: the quads `ItemStackRenderState.submit` hands `submitItem` (and special renderers' models), after `ItemTransform.apply`: image, tint, positions and UVs, compared unordered (`ItemModelGenerator`'s side faces come out of a hash set), against the look's `java/item_models.json` built as `item::java` builds it; probe `acacia-render --example java_items`. Dropped and framed: each item at 5 counts through `ItemEntityRenderer.submit` (random age and bob offset) and hung in a frame (a random direction and rotation; all 48 with invisibility for three items) through `ItemFrameRenderer.submit`: the model box, each submission's pose less the layer transform and the images submitted (against the mesh `JavaItems::drawn_context` picks), against `JavaItems::bounds`, `drop::java_frames` and `framed::java_frame`; probe `item_entities`. Potions: the four potion-holding items × every potion, the tints their models resolve, against `item::potion::color`; trims: every item whose GUI images change with an `ArmorTrim` of each `TrimMaterials` material (319), the images per layer, against the model `JavaItems::stack_name` picks (lookbake exports `<id>#trim=<material>`); probe `item_components`. Maps: 26.3 has no `map_color` tint, so every filled map draws alike | 25,521 | 0 | acacia-render item |
+| `item_transforms` | first-person placement: the pose `FirstPersonHandsAndItemsRenderer.submitArmWithItem` gives the item before its display (the game's own `applyItemArmTransform`, `swingArm`, `applyEatTransform` by reflection; the bow, trident, crossbow, block and spin branches transcribed) over hands, lowering, swings, eat and drink, draws and charged crossbows, against `item::first_person::frame`; probe `acacia-render --example first_person` | 832 | 0 | acacia-render item |
+| `stations` | station screen frames: anvil (name field, cost line, Too Expensive), grindstone, smithing (cycling slot icons, armor stand marker, onboarding tooltips), cartography (map preview markers), enchanting (book marker, galactic option names, costs, clue tooltip), beacon (power/confirm/cancel buttons, menu-positioned tooltips); probe `gui-probe stations` | 2,400 | 0 | gui |
+| `creative` | CreativeModeInventoryScreen over its real tabs and ItemPickerMenu: tab buttons (both rows), grid scroll and scroll bar, inventory tab (armor/shield icons, destroy slot, player figure marker), search box (text, cursor, selection), saved hotbars, tab and item tooltips (blue tab names, `#tag` lines), effects; probe `gui-probe creative` | 2,400 | 0 | gui |
+| `tooltips` | `ItemStack.getTooltipLines` over 19 item areas (every component's lines, attribute modifiers per slot group, enchantments in `tooltip_order`, potions, fireworks, can-break/place, advanced durability/id/components, op warning) with registry facts the oracle writes per case; Default/BelowOrAbove/Menu positioners, tooltip styles, the bundle image; probe `gui-probe tooltips` | 5,200 | 0 | gui |
+| `screens_widgets` | widgets on their own: buttons, cycle buttons, checkboxes, sliders, edit boxes, text widgets, tab bar, selection list and layouts, in hover, press, focus and disabled states; probe `gui-probe screens_widgets` | 2,600 | 0 | gui |
+| `screens_menus` | pause, death, confirm, alert, progress, disconnected and completed-waiting screens; probe `gui-probe screens_menus` | 2,400 | 0 | gui |
+| `screens_options` | OptionsScreen and its option-list pages (values, sliders with Java's `unlogMouse`, hover, scroll); probe `gui-probe screens_options` | 2,000 | 0 | gui |
+| `gui_frame` | the painted frame: slices of hud (300), containers, tooltips, screens_widgets, screens_menus, screens_lists, screens_more, screens_text, chat_screen, creative, recipe_book, trading and stations (200 each); the oracles' recorded calls replayed onto a real GuiGraphicsExtractor and sorted by GuiRenderer (`Gui.frame`), against `acacia_ui::java::paint` over the same source's draws and the real assets: texture, sprite-local uv, colours, blend, after-blur, window rect cut to the scissor, in order (or the same order for every overlapping pair); glyphs by rect and colour, items by rect; item decorations (count, damage and bundle bars) from the cases' resolved stacks, not the HUD's or cooldowns; picture-in-picture not covered; probe `gui-probe frame:<source>` | 2,700 | 0 | gui |
+| `screens_more` | LevelLoadingScreen (portal, end and menu backgrounds, chunk status map, eased progress bar), GenericMessageScreen, CreditsAndAttributionScreen and WinScreen (credits and end poem from the jar's texts, logo, vignette, scroll speeds, last-line hold), in and out of a world; probe `gui-probe screens_more` | 2,400 | 0 | gui |
+| `screens_lists` | KeyBindsScreen (categories, rebinds, collisions, mouse buttons, the key waiting for input, reset buttons; OS key names a US layout's), LanguageSelectScreen (search, selection centred, focus) and PackSelectionScreen (available/selected lists, hover arrows by quadrant, incompatible packs, clipped titles, two-line descriptions, focus); probe `gui-probe screens_lists` | 2,400 | 0 | gui |
+| `screens_text` | sign and hanging-sign editors (every wood, dye, glow, cursor, selection, blink), book viewer and editor (styled pages, editing ops, scroll, selection) and telemetry info (opt-in, scroll); probe `gui-probe screens_text` | 2,400 | 0 | gui |

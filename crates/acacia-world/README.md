@@ -71,6 +71,8 @@ If `block_network_ids_are_hashes`, create the world with `BlockIds::Hashed`.
   the same shape.
 - `DYNAMIC_SHAPE` blocks (scaffolding, powder snow, bamboo, pointed dripstone) need physics-side handling.
 - Fence arms use Java's post width (0.375 to 0.625, 1.5 high). Panes and bars use Boar's thin-bar boxes.
+- Piston arms have BDS's plate, rod and collar (`tools/rules.mjs`), fully extended and always with a base: BDS
+  shifts them by the piston's progress and gives an arm without its base's piston actor no collision.
 - Custom blocks collide as full cubes, block all light, and have no properties or hash.
 - `Dimension::sky` is true for the overworld only.
 - Encoded chunks are checked against our own decoder and the bot's `WorldTracker` only, never a vanilla client.

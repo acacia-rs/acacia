@@ -13,6 +13,36 @@ pub(crate) fn skip_checking_utf8<F: Flavor>(r: &mut &[u8]) -> Result<bool> {
     Ok(lossy)
 }
 
+/// The string under `key` in a root compound, as [`crate::Value::get`] on the decoded document
+/// would find it (first match, invalid UTF-8 replaced), with every other entry skipped unbuilt.
+pub fn root_string<'a, F: Flavor>(mut doc: &'a [u8], key: &str) -> Result<Option<std::borrow::Cow<'a, str>>> {
+    // A key whose bytes appear nowhere is absent; walking the tags would only prove it.
+    if !key.is_empty() && memchr::memmem::find(doc, key.as_bytes()).is_none() {
+        return Ok(None);
+    }
+    let r = &mut doc;
+    if read_u8(r)? != 10 {
+        return Ok(None);
+    }
+    skip_str::<F, false>(r, &mut false)?;
+    loop {
+        let tag = read_u8(r)?;
+        if tag == 0 {
+            return Ok(None);
+        }
+        let n = F::read_str_len(r)?;
+        let name = take(r, n)?;
+        if name == key.as_bytes() {
+            if tag != 8 {
+                return Ok(None);
+            }
+            let n = F::read_str_len(r)?;
+            return Ok(Some(String::from_utf8_lossy(take(r, n)?)));
+        }
+        skip_payload::<F, false>(r, tag, 1, &mut false)?;
+    }
+}
+
 fn skip_root<F: Flavor, const UTF8: bool>(r: &mut &[u8], lossy: &mut bool) -> Result<()> {
     let tag = read_u8(r)?;
     if tag == 0 {

@@ -81,7 +81,7 @@ pub(super) fn state(main: &[(usize, ItemStack)]) -> GameState {
 }
 
 pub(super) fn open(state: &mut GameState, window_type: WindowType) {
-    state.containers.open = Some(Container { window_id: 3, window_type, position: None, entity: None, slots: Vec::new() });
+    state.containers.open = Some(Container { window_id: 3, window_type, position: None, entity: None, title: None, slots: Vec::new() });
 }
 
 /// The encoded request (decoded back from its bytes) for a craft plan.

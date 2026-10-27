@@ -123,12 +123,7 @@ impl WorldTracker {
         match packet.id {
             StartGame::ID => {
                 let sg: StartGame = packet.decode()?;
-                let custom = custom_blocks(&sg);
-                self.registry = Some(if custom.is_empty() {
-                    BlockRegistry::vanilla_arc()
-                } else {
-                    Arc::new(BlockRegistry::vanilla().with_custom_blocks(&custom))
-                });
+                self.registry = Some(BlockRegistry::vanilla_with_custom_blocks(&custom_blocks(&sg)));
                 self.ids = if sg.block_network_ids_are_hashes { BlockIds::Hashed } else { BlockIds::Runtime };
                 self.enter_dimension(sg.dimension.to_raw() as i32);
             }

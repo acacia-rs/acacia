@@ -23,26 +23,22 @@ What the dump cannot cover is how the faces are drawn. That is the first item be
 
 Each is checked against the decompiled 26.3 client, not by eye. None is started.
 
-- **Light curve.** `globals.wgsl`'s `curve` is the renderer's own. Java's is its lightmap
-  (`LightmapRenderStateExtractor`, `lightmap.fsh`): block and sky level to brightness, with the
-  dimension's ambient light and the brightness option. Make the curve the look's.
-- **Light smoothing.** Java blends the light of four cells per face corner
-  (`BlockModelLighter`, `LightCoordsUtil.smoothBlend`). We sample the light volume per fragment.
-  Decide whether that is close enough or whether corners carry light.
-- **Ambient occlusion detail.** The strengths and the darkening blocks are Java's. Not compared:
-  the centre cell's share, the rule that takes a corner for dark when both its sides block light,
-  and the weights Java gives a face that does not reach the block's edge (`doNonCubicWeight`); we
-  interpolate the corner values instead. A dump of the game's per-vertex shade for a set of
-  neighbourhoods would settle all three.
+- **World light: done (2026-10-25).** The lightmap, smooth light, AO and directional shade per
+  vertex (cubes, boxes, models, cross planes), the light engine's rules and every state's light
+  facts are Java's, checked by harnesses `lightmap`, `smooth_light`, `light_engine`,
+  `light_facts` and, end to end on real Bedrock terrain, `world_light` (docs/parity.md).
+  Entities take the lightmap through `lightmap(levels)`.
+- **World mesh: done (2026-10-25).** Faces cull as `Block.shouldRenderFace` does (face occlusion
+  shapes from `BlockShapeExporter`, `skipRendering` by block class), the grass block draws Java's
+  overlay as a second quad, and on real Bedrock terrain every face Java draws, liquids included,
+  acacia draws the same and nothing more (`world_light`, docs/parity.md). Without a JDK 25 the
+  look keeps the renderer's own culling.
 - **Liquids.** Geometry is the renderer's, after an older `LiquidBlockRenderer`. Compare corner
   heights, the flow angle and the side faces with 26.3's `FluidRenderer`.
 - **Fog.** Both bands are drawn, in the renderer's sky colour. Java's is `fog_color` mixed with
   the sky colour by render distance (`AtmosphericFogEnvironment.getBaseColor`), and rain pulls the
   haze in. The Nether's haze is chosen by the dimension's height, since `Dimension` has no name.
   The haze has only been through shader validation; look at it once.
-- **Grass block and the other overlaid models** (182 states) keep Bedrock's overlay cube and
-  textures. Drawing Java's two layers needs a second face on the same quad without depth
-  fighting.
 - **States with no Java geometry** (193) and **block entities** (382: chests, signs, beds,
   banners, heads) keep their Bedrock rendering. The second group belongs with J4.
 - **Biomes.** Where a biome is comes from the Bedrock server, so only colours are Java's.

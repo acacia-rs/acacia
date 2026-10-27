@@ -22,7 +22,10 @@ const OPEN_TIMEOUT: Duration = Duration::from_secs(1);
 ///
 /// Every method waits for the server's `ItemStackResponse` (3 s) and then updates the tracked
 /// slots, including items landing in empty slots; a rejection returns [`ActionError::Rejected`]
-/// and leaves the tracked state as it was. If no container is open, each call opens the player's
+/// and leaves the tracked state as it was. [`ActionError::Timeout`] means the request was sent but
+/// never answered, tracked state unchanged: Geyser often leaves clicks in server-side GUIs (chest
+/// shops, menus) unanswered, so callers driving such GUIs treat it as sent and watch the window for
+/// the effect. If no container is open, each call opens the player's
 /// own inventory screen around the request and closes it afterwards: Geyser drops item requests
 /// while no screen is open.
 impl Bot {
@@ -48,7 +51,8 @@ impl Bot {
 
     /// Picks the whole stack up into the cursor: a left click, which is how server GUI menus
     /// (chest-based shops through Geyser) see a button press. The server usually answers by
-    /// resetting the menu and cursor with `InventorySlot`/`InventoryContent`.
+    /// resetting the menu and cursor with `InventorySlot`/`InventoryContent`, often without an
+    /// `ItemStackResponse`: then this returns [`ActionError::Timeout`] after 3 s although the click went out.
     pub async fn pick_up(&mut self, from: SlotRef) -> Result<(), ActionError> {
         let count = from.stack(&self.state).map_or(0, |s| u8::try_from(s.count).unwrap_or(u8::MAX));
         self.item_stack_request(&[Op::Transfer { from, to: SlotRef::Cursor, count }]).await
@@ -170,6 +174,7 @@ impl Bot {
         if self.state.containers.open.is_some() {
             return Ok(false);
         }
+        self.container_settled().await?;
         self.send_open_inventory();
         match self.wait_until(OPEN_TIMEOUT, |bot, _| bot.state.containers.open.is_some().then_some(())).await {
             Ok(()) | Err(ActionError::Timeout) => Ok(true),
@@ -189,7 +194,7 @@ impl Bot {
     pub(crate) fn close_own_inventory_screen(&mut self) {
         // Vanilla closes the window id the server opened the screen as, with window type None.
         let window_id = self.state.containers.open.as_ref().map_or(WindowID::Inventory, |c| WindowID::from_raw(i64::from(c.window_id)));
-        self.client.send(&ContainerClose { window_id, window_type: WindowType::None, server: false });
+        self.send_close(window_id.to_raw() as i32, ContainerClose { window_id, window_type: WindowType::None, server: false });
         // Cleared now rather than on the server's echo, so the next request reopens the screen.
         self.state.containers.open = None;
     }

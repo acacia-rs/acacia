@@ -127,6 +127,9 @@ fn bedrock_specific_shapes() {
     assert_eq!(chest.boxes[0].min, [0.025, 0.0, 0.025]);
     assert!(state("minecraft:scaffolding", "stability=0,stability_check=0").flags.contains(BlockFlags::DYNAMIC_SHAPE));
     assert_eq!(state("minecraft:end_portal_frame", "end_portal_eye_bit=1,minecraft:cardinal_direction=north").boxes.len(), 1);
+    let up = state("minecraft:piston_arm_collision", "facing_direction=1");
+    assert_eq!(up.boxes, &[b([0.3125, -0.25, 0.3125], [0.6875, 0.25, 0.6875]), b([0.375, 0.25, 0.375], [0.625, 0.75, 0.625]), b([0.0, 0.75, 0.0], [1.0; 3])]);
+    assert_eq!(state("minecraft:sticky_piston_arm_collision", "facing_direction=5").boxes[2], b([0.0; 3], [0.25, 1.0, 1.0]));
 }
 
 #[test]

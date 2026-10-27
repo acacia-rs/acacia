@@ -11,6 +11,7 @@ mod fishing;
 mod hurts;
 mod inventory;
 mod items;
+mod kept;
 mod metadata;
 mod player;
 mod player_list;
@@ -28,7 +29,7 @@ pub use abilities::Abilities;
 pub use block_entities::{BlockEntities, BlockEntityTracking};
 pub use containers::{Container, Containers};
 pub use effects::{effect, Effect, Effects};
-pub use entities::{Entities, Entity, Equipment, ITEM_KIND, PLAYER_EYE_HEIGHT, PLAYER_KIND};
+pub use entities::{Entities, Entity, Equipment, ITEM_KIND, PLAYER_EYE_HEIGHT, PLAYER_KIND, Property};
 pub use maps::{MAP_SIZE, MapImage, MapMarker, Maps};
 pub use skins::{PlayerSkin, SkinTexture, Skins};
 pub use environment::{BossBar, Environment};
@@ -47,10 +48,23 @@ pub(crate) use player_list::PlayerChange;
 pub use scoreboard::{Objective, ScoreEntry, Scoreboard, SortOrder, SLOT_BELOW_NAME, SLOT_LIST, SLOT_SIDEBAR};
 pub use signs::{SignEditor, Signs};
 
-use acacia_client::proto::packets::SetEntityData;
+use acacia_client::proto::packets::{BlockEntityData, SetEntityData};
+use acacia_client::proto::types::BlockCoordinates;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
 use crate::forms::Forms;
+
+/// A `BlockEntityData`'s position and its NBT read in place: decoding it copies the NBT, and pistons
+/// and observers send one every move.
+pub(crate) fn block_entity_parts(packet: &RawPacket) -> Result<(BlockCoordinates, &[u8]), DecodeError> {
+    let mut r = &packet.body[..];
+    Ok((BlockCoordinates::read(&mut r)?, r))
+}
+
+/// The runtime entity id a packet leads with (SetEntityData, UpdateAttributes), read without decoding the rest.
+pub(crate) fn leading_entity(packet: &RawPacket) -> Option<u64> {
+    acacia_client::proto::codec::read_varint64(&mut &packet.body[..]).ok()
+}
 
 /// Which optional trackers run (see [`crate::BotConfig`]); the rest always run.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -144,6 +158,15 @@ impl GameState {
     /// Routes one packet to every tracker that consumes its ID.
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
         let id = packet.id;
+        // Two trackers read it, and decoding it walks the NBT (pistons send one every move): decode once.
+        if id == BlockEntityData::ID {
+            let (position, nbt) = block_entity_parts(packet)?;
+            self.containers.block_entity(&position, nbt)?;
+            if self.trackers.block_entities.packets().contains(&id) {
+                self.block_entities.block_entity(position, nbt)?;
+            }
+            return Ok(());
+        }
         if PlayerState::PACKETS.contains(&id) {
             self.player.apply(packet)?;
         }

@@ -15,6 +15,7 @@ use crate::driver::{Command, Driver};
 use crate::friend::FriendJoin;
 use crate::pack_cache;
 use crate::filter::PacketFilter;
+use crate::packet_trace::PacketTrace;
 use crate::login::build_login;
 use crate::route;
 use crate::lan::LanServer;
@@ -72,6 +73,7 @@ pub struct ClientBuilder {
     filter: PacketFilter,
     event_capacity: usize,
     login_timeout: Duration,
+    max_batch_bytes: usize,
 }
 
 impl ClientBuilder {
@@ -96,6 +98,7 @@ impl ClientBuilder {
             filter: PacketFilter::all(),
             event_capacity: 256,
             login_timeout: Duration::from_secs(30),
+            max_batch_bytes: acacia_session::batch::DEFAULT_MAX_DECOMPRESSED,
         }
     }
 
@@ -194,6 +197,13 @@ impl ClientBuilder {
         self
     }
 
+    /// Largest decompressed server batch accepted; a bigger one ends the session as a protocol error.
+    /// Default [`acacia_session::batch::DEFAULT_MAX_DECOMPRESSED`].
+    pub fn max_batch_bytes(mut self, limit: usize) -> Self {
+        self.max_batch_bytes = limit;
+        self
+    }
+
     pub fn login_timeout(mut self, timeout: Duration) -> Self {
         self.login_timeout = timeout;
         self
@@ -275,12 +285,14 @@ impl ClientBuilder {
             blob_store: blob_store.clone(),
             pack_store: self.pack_store.unwrap_or_else(|| pack_cache::open(self.pack_cache_dir.as_deref(), &account)),
             strict: self.strict,
+            max_batch_bytes: self.max_batch_bytes,
         };
         let session = Session::new(cfg, addr, Instant::now());
 
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let (ev_tx, ev_rx) = mpsc::channel(self.event_capacity);
+        let (ev_tx, ev_rx) = crate::event_queue::channel(self.event_capacity);
         let (spawn_tx, spawn_rx) = oneshot::channel();
+        let trace = PacketTrace::default();
         let driver = Driver {
             session,
             wire: route.wire,
@@ -289,6 +301,7 @@ impl ClientBuilder {
             events: ev_tx,
             spawned: Some(spawn_tx),
             filter: self.filter,
+            trace: trace.clone(),
             capacity: self.event_capacity,
             proxy: self.proxy.clone(),
             _signaling: route.keepalive,
@@ -298,7 +311,7 @@ impl ClientBuilder {
 
         let result = tokio::time::timeout(self.login_timeout, spawn_rx).await;
         match result {
-            Ok(Ok(Ok(runtime_entity_id))) => Ok(Client { commands: cmd_tx, events: ev_rx, runtime_entity_id, identity, blob_store }),
+            Ok(Ok(Ok(runtime_entity_id))) => Ok(Client { commands: cmd_tx, events: ev_rx, runtime_entity_id, identity, blob_store, trace }),
             Ok(Ok(Err(reason))) => Err(ConnectError::Disconnected(reason)),
             Ok(Err(_)) => Err(ConnectError::Disconnected(DisconnectReason::LocalClose)),
             Err(_) => {

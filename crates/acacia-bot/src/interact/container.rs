@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use acacia_client::proto::packets::{ContainerClose, Interact, InteractActionId};
 use acacia_client::proto::types::{WindowID, WindowType};
-use acacia_client::proto::{Packet, RawPacket};
+use acacia_client::proto::RawPacket;
 use acacia_physics::BlockPos;
 
 use super::geometry::facing_face;
@@ -21,6 +21,7 @@ impl Bot {
         if self.state.containers.open.is_some() {
             self.close_container().await?;
         }
+        self.container_settled().await?;
         let face = facing_face(self.eye_position(), pos);
         self.use_item_on_block(pos, face).await?;
         let opened = self.wait_until(CONTAINER_TIMEOUT, |bot, _| bot.open_container().cloned()).await?;
@@ -33,15 +34,17 @@ impl Bot {
         }
     }
 
-    /// Closes the open container (`ContainerClose`, not server-initiated) and waits for the
-    /// server's confirming `ContainerClose`.
+    /// Closes the open container (`ContainerClose`, not server-initiated) and returns once the
+    /// close has settled: on Geyser after acking its server close, on vanilla shortly after the
+    /// echo (see interact/closing.rs). `ActionError::Timeout` if the server answered nothing.
     pub async fn close_container(&mut self) -> Result<(), ActionError> {
+        self.container_settled().await?;
         let Some(open) = self.state.containers.open.as_ref() else {
             return Err(ActionError::NotPossible("no container is open".into()));
         };
-        let packet = close_packet(open);
-        self.client.send(&packet);
-        self.wait_until(CONTAINER_TIMEOUT, |_, p| (p.id == ContainerClose::ID).then_some(())).await
+        let (window_id, packet) = (open.window_id, close_packet(open));
+        self.send_close(window_id, packet);
+        self.await_close().await
     }
 
     /// Opens the player's own inventory screen (`Interact` OpenInventory). The server answers with
@@ -74,7 +77,7 @@ mod tests {
 
     #[test]
     fn close_names_the_window_but_not_its_type_and_not_the_trade_screen() {
-        let open = |window_type| Container { window_id: 6, window_type, position: None, entity: None, slots: Vec::new() };
+        let open = |window_type| Container { window_id: 6, window_type, position: None, entity: None, title: None, slots: Vec::new() };
         let beacon = close_packet(&open(WindowType::Beacon));
         assert_eq!((beacon.window_id.to_raw(), beacon.window_type, beacon.server), (6, WindowType::None, false));
         assert_eq!(close_packet(&open(WindowType::Trading)).window_id, WindowID::None);

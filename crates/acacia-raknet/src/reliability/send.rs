@@ -199,6 +199,7 @@ impl SendQueue {
             let acked = self.in_flight.remove(&seq).expect("key from range");
             self.congestion.on_ack(now.saturating_duration_since(acked.sent_at), self.window_limited);
         }
+        self.congestion.on_received(start..=end);
     }
 
     pub fn on_nack(&mut self, start: u32, end: u32) {

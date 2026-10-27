@@ -1,12 +1,17 @@
 //! Round-trip estimate, resend timeout and congestion window of the send side.
 //!
 //! The window is RakNet's sliding window (`CCRakNetSlidingWindow`) counted in datagrams: slow
-//! start until the first loss, then one datagram of growth per window of ACKs. A NACK halves it;
-//! a resend timeout restarts slow start and doubles the timeout until an ACK comes back. Losses
-//! among datagrams sent before the last reaction are the same event and change nothing. The
-//! window grows only while the sender fills it, so a quiet connection cannot bank a large
-//! window for its next burst.
+//! start until the first loss, then one datagram of growth per window of ACKs. A NACK ends slow
+//! start, as RakNet's `OnNAK` does, but halves the window only once [`BURST_LOSS`] datagrams of one
+//! flight are NACKed: halving per NACK held a link with 2% random loss to about ten datagrams a
+//! round trip, where BDS kept sending five times as fast, and never halving overran a narrow
+//! link's queue (measured with acacia's `tools/netem`). A resend timeout restarts slow start and doubles the timeout until an
+//! ACK comes back; an ACK for the datagram that timed out undoes both, since only its ACK was late
+//! or lost. Losses among datagrams sent before the last reaction are the same event and change
+//! nothing. The window grows only while the sender fills it, so a quiet connection cannot bank a
+//! large window for its next burst.
 
+use std::ops::RangeInclusive;
 use std::time::Duration;
 
 const INITIAL_RTO: Duration = Duration::from_millis(500);
@@ -16,6 +21,8 @@ const MAX_BACKOFF: u32 = 4;
 const INITIAL_WINDOW: u32 = 10;
 const MIN_WINDOW: u32 = 2;
 const MAX_WINDOW: u32 = 2048;
+/// NACKed datagrams in one flight that read as a full queue rather than random loss.
+const BURST_LOSS: u32 = 3;
 
 /// RFC 6298 round-trip estimator.
 #[derive(Default)]
@@ -43,6 +50,13 @@ impl Rtt {
     }
 }
 
+/// The window before the last resend timeout, and the datagram whose silence caused it.
+struct Undo {
+    seq: u64,
+    window: u32,
+    threshold: u32,
+}
+
 pub(crate) struct Congestion {
     rtt: Rtt,
     /// `None` sends without a window.
@@ -54,11 +68,15 @@ pub(crate) struct Congestion {
     /// Datagrams numbered below this were sent before the last reaction to a loss.
     recover: u64,
     backoff: u32,
+    /// Datagrams NACKed since the last reaction to a NACK.
+    nacked: u32,
+    undo: Option<Undo>,
 }
 
 impl Congestion {
     pub fn new(windowed: bool) -> Self {
-        Self { rtt: Rtt::default(), window: windowed.then_some(INITIAL_WINDOW), threshold: u32::MAX, acked: 0, recover: 0, backoff: 0 }
+        let window = windowed.then_some(INITIAL_WINDOW);
+        Self { rtt: Rtt::default(), window, threshold: u32::MAX, acked: 0, recover: 0, backoff: 0, nacked: 0, undo: None }
     }
 
     pub fn srtt(&self) -> Option<Duration> {
@@ -98,7 +116,17 @@ impl Congestion {
     pub fn on_nack(&mut self, seq: u64, next: u64) {
         if seq >= self.recover {
             self.recover = next;
-            self.shrink(|half| half);
+            self.nacked = 0;
+            if let Some(window) = self.window {
+                self.threshold = (window / 2).max(MIN_WINDOW);
+                self.acked = 0;
+            }
+        }
+        self.nacked += 1;
+        if self.nacked == BURST_LOSS {
+            if let Some(window) = &mut self.window {
+                *window = (*window).min(self.threshold);
+            }
         }
     }
 
@@ -107,15 +135,23 @@ impl Congestion {
         if seq >= self.recover {
             self.recover = next;
             self.backoff = (self.backoff + 1).min(MAX_BACKOFF);
-            self.shrink(|_| MIN_WINDOW);
+            if let Some(window) = &mut self.window {
+                self.undo = Some(Undo { seq, window: *window, threshold: self.threshold });
+                self.threshold = (*window / 2).max(MIN_WINDOW);
+                *window = MIN_WINDOW;
+                self.acked = 0;
+            }
         }
     }
 
-    fn shrink(&mut self, to: impl Fn(u32) -> u32) {
-        if let Some(window) = &mut self.window {
-            self.threshold = (*window / 2).max(MIN_WINDOW);
-            *window = to(self.threshold);
-            self.acked = 0;
+    /// The peer ACKed datagrams `seqs`, whether or not they were still awaited.
+    pub fn on_received(&mut self, seqs: RangeInclusive<u64>) {
+        if let Some(undo) = self.undo.take_if(|u| seqs.contains(&u.seq)) {
+            self.backoff = 0;
+            if let Some(window) = &mut self.window {
+                *window = (*window).max(undo.window);
+                self.threshold = undo.threshold;
+            }
         }
     }
 }
@@ -134,21 +170,44 @@ mod tests {
     }
 
     #[test]
-    fn slow_start_doubles_and_a_nack_halves() {
+    fn slow_start_doubles_until_a_nack() {
         let mut c = Congestion::new(true);
         assert_eq!(c.window(), 10);
         acks(&mut c, 10);
         assert_eq!(c.window(), 20);
         c.on_nack(5, 30);
+        assert_eq!(c.window(), 20, "a NACK keeps the window");
+        acks(&mut c, 20);
+        assert_eq!(c.window(), 21, "after slow start, one more per window of ACKs");
+        acks(&mut c, 20);
+        assert_eq!(c.window(), 21);
+    }
+
+    #[test]
+    fn a_burst_of_nacks_in_one_flight_halves_once() {
+        let mut c = Congestion::new(true);
+        acks(&mut c, 10);
+        c.on_nack(5, 30);
+        c.on_nack(6, 30);
+        assert_eq!(c.window(), 20);
+        c.on_nack(7, 30);
         assert_eq!(c.window(), 10);
-        c.on_nack(6, 31);
-        assert_eq!(c.window(), 10, "a second loss in the same flight is the same event");
+        c.on_nack(8, 30);
+        assert_eq!(c.window(), 10, "one flight halves once");
+    }
+
+    #[test]
+    fn an_ack_for_the_timed_out_datagram_undoes_the_timeout() {
+        let mut c = Congestion::new(true);
         acks(&mut c, 10);
-        assert_eq!(c.window(), 11, "after slow start, one more per window of ACKs");
-        acks(&mut c, 10);
-        assert_eq!(c.window(), 11);
-        c.on_nack(31, 50);
-        assert_eq!(c.window(), 5);
+        c.on_resend_timeout(4, 30);
+        assert_eq!((c.window(), c.rto()), (2, MIN_RTO * 2));
+        c.on_received(0..=3);
+        assert_eq!(c.window(), 2, "older datagrams say nothing of the one that timed out");
+        c.on_received(4..=6);
+        assert_eq!((c.window(), c.rto()), (20, MIN_RTO));
+        c.on_received(4..=6);
+        assert_eq!(c.window(), 20, "undone once");
     }
 
     #[test]

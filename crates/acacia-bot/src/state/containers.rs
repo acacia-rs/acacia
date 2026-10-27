@@ -1,13 +1,18 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use acacia_client::proto::packets::{
-    ContainerClose, ContainerOpen, ContainerSetData, InventoryContent, InventorySlot, ItemStackResponse, UpdateTrade,
+    BlockEntityData, ContainerClose, ContainerOpen, ContainerSetData, InventoryContent, InventorySlot, ItemStackResponse,
+    UpdateTrade,
 };
+use acacia_client::proto::nbt::{root_string, Network};
 use acacia_client::proto::types::{BlockCoordinates, ContainerSlotType, WindowType};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
 use super::inventory::successful_slots;
 use super::{Inventory, ItemStack, Me};
+
+/// Block-entity names remembered for titling windows opened later.
+const TITLES: usize = 8;
 
 /// One open container window (chest, shop GUI, furnace, ...).
 #[derive(Debug, Clone, PartialEq)]
@@ -18,6 +23,9 @@ pub struct Container {
     pub position: Option<BlockCoordinates>,
     /// Unique id of the entity that was opened (horse, chest minecart, ...).
     pub entity: Option<i64>,
+    /// The window's title with `§` codes: the opened block entity's `CustomName` (Geyser titles its
+    /// fake GUI blocks this way) or the trade screen's display name. `None` for default names.
+    pub title: Option<String>,
     /// Filled by the `InventoryContent` that follows the open; empty until then.
     pub slots: Vec<ItemStack>,
 }
@@ -41,6 +49,12 @@ pub struct Containers {
     /// The open window's `ContainerSetData` properties: a furnace's 0 cook ticks, 1 lit time,
     /// 2 lit duration; a brewing stand's 0 brew time, 1 fuel, 2 fuel total.
     pub data: HashMap<i32, i32>,
+    /// The last window opened, whether or not it is still open.
+    pub last_window_id: Option<i32>,
+    /// Bumped by every `InventoryContent` for the open window.
+    pub(crate) contents: u64,
+    /// Recent block-entity `CustomName`s by position, newest last.
+    titles: VecDeque<([i32; 3], String)>,
 }
 
 impl Containers {
@@ -52,6 +66,7 @@ impl Containers {
         InventorySlot::ID,
         ItemStackResponse::ID,
         UpdateTrade::ID,
+        BlockEntityData::ID,
     ];
 
     pub fn apply(&mut self, packet: &RawPacket, _me: &Me) -> Result<(), DecodeError> {
@@ -61,20 +76,25 @@ impl Containers {
                 // Named runtime_entity_id in the schema, but it is the unique id; -1 means a block container.
                 let entity = (p.runtime_entity_id != -1).then_some(p.runtime_entity_id);
                 tracing::debug!(window = ?p.window_type, id = ?p.window_id, "container open");
-                self.data.clear();
-                self.open = Some(Container {
+                let title = entity.is_none().then(|| self.title_at(&p.coordinates)).flatten();
+                self.opened(Container {
                     window_id: p.window_id.to_raw() as i32,
                     window_type: p.window_type,
                     position: entity.is_none().then_some(p.coordinates),
                     entity,
+                    title,
                     slots: Vec::new(),
                 });
             }
             ContainerClose::ID => {
                 let p: ContainerClose = packet.decode()?;
                 tracing::debug!(id = ?p.window_id, server = p.server, "container close");
-                self.open = None;
-                self.data.clear();
+                let id = p.window_id.to_raw() as i32;
+                // A late close for a reused id must not wipe a newer window; -1 (WindowID::None) names none, so it closes any.
+                if self.open.as_ref().is_some_and(|c| c.window_id == id || id == -1) {
+                    self.open = None;
+                    self.data.clear();
+                }
             }
             ContainerSetData::ID => {
                 let p: ContainerSetData = packet.decode()?;
@@ -87,11 +107,12 @@ impl Containers {
                 let p: UpdateTrade = packet.decode()?;
                 let window_id = p.window_id.to_raw() as i32;
                 if self.open.as_ref().is_none_or(|c| c.window_id != window_id) {
-                    self.open = Some(Container {
+                    self.opened(Container {
                         window_id,
                         window_type: p.window_type,
                         position: None,
                         entity: Some(p.entity_unique_id as i64),
+                        title: (!p.display_name.is_empty()).then_some(p.display_name),
                         slots: Vec::new(),
                     });
                 }
@@ -100,6 +121,7 @@ impl Containers {
                 let p: InventoryContent = packet.decode()?;
                 if let Some(open) = self.open_window(p.window_id.to_raw() as i32) {
                     open.slots = p.input.into_iter().map(ItemStack::from).collect();
+                    self.contents += 1;
                 }
             }
             InventorySlot::ID => {
@@ -119,7 +141,19 @@ impl Containers {
                     }
                 }
             }
+            BlockEntityData::ID => {
+                let (position, nbt) = super::block_entity_parts(packet)?;
+                self.block_entity(&position, nbt)?;
+            }
             _ => {}
+        }
+        Ok(())
+    }
+
+    /// A block entity's update: remembers its `CustomName` for titling windows.
+    pub(crate) fn block_entity(&mut self, position: &BlockCoordinates, nbt: &[u8]) -> Result<(), DecodeError> {
+        if let Some(name) = root_string::<Network>(nbt, "CustomName")? {
+            self.name_block(position, &name);
         }
         Ok(())
     }
@@ -133,8 +167,32 @@ impl Containers {
         open.slots.get_mut(usize::from(slot))
     }
 
+    fn opened(&mut self, container: Container) {
+        self.last_window_id = Some(container.window_id);
+        self.data.clear();
+        self.open = Some(container);
+    }
+
     fn open_window(&mut self, window: i32) -> Option<&mut Container> {
         self.open.as_mut().filter(|c| c.window_id == window && !Inventory::is_player_window(window))
+    }
+
+    fn title_at(&self, pos: &BlockCoordinates) -> Option<String> {
+        let key = [pos.x, pos.y, pos.z];
+        self.titles.iter().rev().find(|(at, _)| *at == key).map(|(_, name)| name.clone())
+    }
+
+    /// Remembers a block entity's name; also titles the open window if it is that block.
+    fn name_block(&mut self, pos: &BlockCoordinates, name: &str) {
+        if let Some(open) = self.open.as_mut().filter(|c| c.position.as_ref() == Some(pos)) {
+            open.title = Some(name.to_owned());
+        }
+        let key = [pos.x, pos.y, pos.z];
+        self.titles.retain(|(at, _)| *at != key);
+        if self.titles.len() == TITLES {
+            self.titles.pop_front();
+        }
+        self.titles.push_back((key, name.to_owned()));
     }
 }
 
@@ -160,75 +218,4 @@ fn is_container_slot(kind: ContainerSlotType) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use acacia_client::proto::types::{WindowID, WindowIDVarint};
-
-    use super::*;
-    use crate::state::queries::test_support::{content, empty_item, fixtures, item, named_item, raw, response, slot_packet};
-
-    const ME: Me = Me { runtime_entity_id: 7, unique_entity_id: -7 };
-    const CHEST: WindowIDVarint = WindowIDVarint::First;
-
-    fn open_chest(containers: &mut Containers) {
-        let open = ContainerOpen {
-            window_id: WindowID::First,
-            window_type: WindowType::Container,
-            coordinates: BlockCoordinates { x: 10, y: 64, z: -3 },
-            runtime_entity_id: -1,
-        };
-        containers.apply(&raw(&open), &ME).unwrap();
-    }
-
-    #[test]
-    fn open_fill_update_close() {
-        let mut containers = Containers::default();
-        open_chest(&mut containers);
-        let open = containers.open.as_ref().unwrap();
-        assert_eq!((open.window_id, open.window_type), (1, WindowType::Container));
-        assert_eq!(open.position, Some(BlockCoordinates { x: 10, y: 64, z: -3 }));
-        assert_eq!(open.entity, None);
-
-        let mut items = vec![empty_item(); 27];
-        items[13] = named_item(304, 1, "§aBuy Diamond", &["$100"]);
-        containers.apply(&raw(&content(CHEST, items)), &ME).unwrap();
-        containers.apply(&raw(&content(WindowIDVarint::Inventory, vec![item(1, 1, 1)])), &ME).unwrap();
-        containers.apply(&raw(&slot_packet(CHEST, 2, item(5, 8, 50))), &ME).unwrap();
-        containers.apply(&raw(&response(true, ContainerSlotType::Container, 2, 3, 51, "")), &ME).unwrap();
-        containers.apply(&raw(&response(true, ContainerSlotType::Hotbar, 13, 0, 0, "")), &ME).unwrap();
-
-        let open = containers.open.as_ref().unwrap();
-        assert_eq!(open.slots.len(), 27);
-        assert_eq!(open.slot(13).unwrap().custom_name.as_deref(), Some("§aBuy Diamond"));
-        assert_eq!((open.slot(2).unwrap().count, open.slot(2).unwrap().stack_network_id), (3, Some(51)));
-        assert_eq!(open.iter().count(), 2);
-
-        containers.apply(&raw(&ContainerClose { window_id: WindowID::First, window_type: WindowType::Container, server: true }), &ME).unwrap();
-        assert!(containers.open.is_none());
-    }
-
-    #[test]
-    fn entity_container_and_slot_growth() {
-        let mut containers = Containers::default();
-        let open = ContainerOpen {
-            window_id: WindowID::First,
-            window_type: WindowType::Horse,
-            coordinates: BlockCoordinates { x: 0, y: 0, z: 0 },
-            runtime_entity_id: 42,
-        };
-        containers.apply(&raw(&open), &ME).unwrap();
-        containers.apply(&raw(&slot_packet(CHEST, 4, item(9, 1, 2))), &ME).unwrap();
-        let open = containers.open.as_ref().unwrap();
-        assert_eq!((open.entity, open.position.clone()), (Some(42), None));
-        assert_eq!(open.slots.len(), 5);
-        assert_eq!(open.slot(4).unwrap().network_id, 9);
-    }
-
-    #[test]
-    fn decodes_fixtures() {
-        let mut containers = Containers::default();
-        for packet in fixtures::<ContainerOpen>().into_iter().chain(fixtures::<InventoryContent>()).chain(fixtures::<ContainerClose>()) {
-            containers.apply(&packet, &ME).unwrap();
-        }
-        assert!(containers.open.is_none());
-    }
-}
+mod tests;

@@ -10,10 +10,50 @@ pub struct Quad {
     pub rect: [f32; 4],
     /// Left, top, right, bottom in atlas texels.
     pub uv: [f32; 4],
-    /// Multiplies the texel, straight alpha.
+    /// Multiplies the texel, straight alpha: the top edge's colour.
     pub color: [u8; 4],
+    /// The bottom edge's colour (a vertical gradient when it differs from `color`).
+    pub bottom: [u8; 4],
+    /// Window pixels the top and the bottom edge are shifted right (italic glyphs).
+    pub skew: [f32; 2],
+    pub blend: Blend,
     /// An enchanted item's icon: the renderer shimmers its opaque texels.
     pub glint: bool,
+    /// Samples the renderer's picture-in-picture texture (window-sized; `uv` in its texels, which
+    /// are window pixels) instead of the atlas.
+    pub picture: bool,
+    /// The sprite (atlas texels, left, top, right, bottom) a repeating texture's `uv` wraps
+    /// within: Java samples those with `REPEAT`, the atlas would bleed into its neighbours.
+    pub wrap: Option<[f32; 4]>,
+}
+
+/// How a quad's colour meets what is under it (Java's GUI pipelines' blend functions).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Blend {
+    /// Straight alpha (`GUI_TEXTURED`, `GUI`).
+    #[default]
+    Alpha,
+    /// The colour under it inverted where the texel is opaque (`CROSSHAIR`, `GUI_INVERT`).
+    Invert,
+    /// `dst * (1 - src)` (`VIGNETTE`).
+    Darken,
+    /// `src + dst` (`GUI_NAUSEA_OVERLAY`).
+    Add,
+    /// `src + dst * (1 - src alpha)` (`GUI_TEXTURED_PREMULTIPLIED_ALPHA`: pictures-in-picture).
+    Premultiplied,
+}
+
+impl Quad {
+    /// A flat-coloured, upright, alpha-blended quad.
+    pub fn plain(rect: [f32; 4], uv: [f32; 4], color: [u8; 4]) -> Quad {
+        Quad { rect, uv, color, bottom: color, skew: [0.0; 2], blend: Blend::Alpha, glint: false, picture: false, wrap: None }
+    }
+
+    /// The part `rect` (window pixels) of the picture-in-picture texture, drawn where it was
+    /// rendered: premultiplied, untinted.
+    pub fn picture(rect: [f32; 4]) -> Quad {
+        Quad { blend: Blend::Premultiplied, picture: true, ..Quad::plain(rect, rect, WHITE) }
+    }
 }
 
 pub const WHITE: [u8; 4] = [255; 4];
@@ -26,11 +66,19 @@ pub struct DrawList {
     pub scale: f32,
     /// Quads added are cut to this rectangle (GUI pixels), UVs with them.
     pub clip: Option<[f32; 4]>,
+    /// The menu blur under the quads from its index on: the first one asked for counts.
+    pub blur: Option<crate::blur::Blur>,
 }
 
 impl DrawList {
     pub fn new(scale: f32) -> DrawList {
-        DrawList { quads: Vec::new(), scale, clip: None }
+        DrawList { quads: Vec::new(), scale, clip: None, blur: None }
+    }
+
+    /// The menu blur, of `radius`, under the quads added from now on.
+    pub fn blur_here(&mut self, radius: u32) {
+        let at = self.quads.len();
+        self.blur.get_or_insert(crate::blur::Blur { at, radius });
     }
 
     /// `sprite` at its own size with its top-left at (`x`, `y`) GUI pixels.
@@ -72,7 +120,7 @@ impl DrawList {
         let Some((cut, uv)) = clipped(rect, uv, self.clip) else { return };
         let s = self.scale;
         // A cut icon does not shimmer: the renderer lays the glint over a whole quad.
-        self.quads.push(Quad { rect: cut.map(|v| v * s), uv, color, glint: glint && cut == rect });
+        self.quads.push(Quad { glint: glint && cut == rect, ..Quad::plain(cut.map(|v| v * s), uv, color) });
     }
 }
 

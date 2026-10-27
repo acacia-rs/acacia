@@ -21,6 +21,8 @@ unit or pack tests only.
 | Particles | Server particles; torches, fires, furnaces, campfires, drips; block chips | live, both looks |
 | Entities | Pack models and animations, skins, name tags, dropped items | live |
 | Entities | Held items in both hands, worn armour, hurt flash | live |
+| Entities | Java look: 15 mob kinds on Java's models (cows, mooshrooms, pigs, sheep, chickens, creeper, spiders, zombies, husks, drowned, skeletons, strays, wither skeletons, bogged; own-model babies) posed by a port of their `setupAnim`; armour on Java's slot models with the equipment assets' textures; wool, clothes and the creeper's aura as their own models; lit by the lightmap and Java's two lights | parity harnesses `entity_models`, `entity_poses`, `entity_layers`; not seen live this session |
+| Items | Java look: items from the 26.3 item models (every display context, tints, foil), the GUI slot icons drawn from them, first-person placement with swings and use animations | parity harnesses `item_models`, `item_transforms`; slot icons by tests; not seen live this session |
 | Entities | Leather dyed worn, held and in slots: undyed brown, or the stack's own dye | undyed: live; a stack's dye: tests (no command dyes armour) |
 | Entities | Enchantment glint on held items, worn armour and slot icons | live in the Java look (armour: faint on netherite, not told apart on diamond); Bedrock look: faint, its rules assumed; dropped items and other entities' hands: tests |
 | Entities | Death topple | tests |
@@ -49,6 +51,7 @@ unit or pack tests only.
 | Acting | Eating, drinking and the bow in first person | bow pose live, not compared with the game; eating and drinking: the pose by test (bottom centre through the use), the rise and the emptied bottle seen live |
 | HUD | Hotbar, hearts, food, armour, air, XP, item name, effects, boss bars, titles, action bar | live |
 | HUD | Chat with translations (rawtext and keys), Tab list, sidebar, F3 | live |
+| HUD | Java look: the whole HUD (hotbar, bars, effects, titles, boss bars, chat, sidebar, Tab list, subtitles) and every Java screen drawn by the ported 26.3 GUI (`acacia_ui::java`) with the game's fonts and sprite scaling; repeating menu backgrounds and the menu blur (`menuBackgroundBlurriness`) behind screens | the draw calls match the game's (parity `hud`, `font`, the `screens_*` and container harnesses, `gui_frame`). Live on testbox 2026-10-25: HUD, inventory, a container, pause, options, controls, key binds, chat, Tab list, credits (`research/gui-live/`) |
 | Screens | Inventory with the player's figure, chests, recipe book and crafting by click | live |
 | Screens | Crafting by hand: the 2×2 grid and the crafting table's 3×3; a click takes the result onto the cursor, Shift into the inventory | table live; live |
 | Screens | Anvil with its name box and level cost, smithing table, stonecutter, enchanting table | live (the cost: both looks, a rename). A cost above the player's levels is red, and 40 or more reads "Too Expensive!": the red line by its pixels in a testbox shot (a levelless rename, image not looked at), "Too Expensive!" by the bot's tests only; the result stays empty in both cases |
@@ -103,6 +106,23 @@ unit or pack tests only.
   had none, one had one and one had five, each in mid-jump (the same route run again had none,
   so it is not a block on the way); and once, standing where it joined, the player was
   corrected 19 times in 6 s (two later joins: none). The user has not yet said how it feels.
+  2026-10-21 ("sprint teleports back / cancels"): releasing Ctrl with W held ended our sprint but
+  not the server's, which then corrected every ~1.3 s (13 times in one sprint-jump run). The key
+  now latches with mouse input (DESIGN.md "Movement vs the servers"): 0 corrections in 7 runs.
+  Draw stalls of 0.3 to 5.4 s were the light thread holding its write lock over a whole batch of
+  columns (each frame reads light for entities and particles); it now locks per column, and frames
+  never wait on it (`gpu/light_probe.rs`: while it is held, last frame's values): no draw over
+  100 ms after joining in two walks (before: 17 in the first 5 s). Slow draws log their stages
+  (`RUST_LOG=frame=warn`, `gpu/stages.rs`). The 0.8 to 4.3 s frame at joining, and 0.3 s ones
+  when a sound first played, were sound loading on the frame: it has its own thread now
+  (`audio.rs`). The world's setup still takes 0.1 to 0.9 s once per join (`frame=debug` logs
+  its steps; mostly the block table and the texture upload).
+- **Text:** the only font is the Java look's `ascii.png`: without a baked Java look the viewer
+  has no text (it warns). Baked looks are found beside `ACACIA_ASSETS` (`<pack>/../looks`).
+- **Six-way blocks** (pistons, dispensers, droppers, observers) face their `facing_direction`
+  (`blocks/facing.rs`): seen live from the front (2026-10-21), sideways pistons and dispensers also
+  from above (2026-10-22). The observer's top arrow points at its back as in Java's model, which
+  flips that face; not seen live (four testbox shots missed the row).
   `RUST_LOG=moves=debug,keys=debug` logs every correction with the blocks under the feet, the
   position and longest tick gap each 20 ticks, and each scripted key.
 - **Performance:** on a GPU only a light scene was measured (2026-10-11, Intel Arc integrated,

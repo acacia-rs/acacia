@@ -174,18 +174,20 @@ fn animations_swing_legs_and_turn_heads() {
 #[test]
 fn armor_is_posed_by_humanoid_bones() {
     let Some(models) = models() else { return };
+    // On a kind that keeps Bedrock geometry.
+    let worn = |item: &str| models.armor("minecraft:player", &|_| Value::Num(0.0), item, None, None);
     for (item, bone) in [("minecraft:diamond_helmet", "head"), ("minecraft:iron_chestplate", "body"), ("minecraft:golden_boots", "rightleg")] {
-        let layers = models.armor(item).unwrap_or_else(|| panic!("no armour for {item}"));
+        let layers = worn(item).unwrap_or_else(|| panic!("no armour for {item}"));
         let mesh = &models.models()[layers[0].model as usize].mesh;
         assert!(mesh.bones.iter().any(|b| b == bone), "{item}: {:?}", mesh.bones);
         assert_ne!(layers[0].textures[0], NO_TEXTURE, "{item}");
     }
-    assert!(models.armor("minecraft:diamond_sword").is_none());
+    assert!(worn("minecraft:diamond_sword").is_none());
     // Leggings are the second armour layer's texture, on leg bones that carry cubes.
-    let leggings = models.armor("minecraft:golden_leggings").expect("golden leggings");
+    let leggings = worn("minecraft:golden_leggings").expect("golden leggings");
     assert_eq!(texture(&models, &leggings[0], 0), "gold_2");
     // Leather is a TGA whose empty texels are white at alpha 0: the decoder must keep the alpha.
-    let boots = models.armor("minecraft:leather_boots").expect("leather boots");
+    let boots = worn("minecraft:leather_boots").expect("leather boots");
     let image = image::open(&models.textures()[boots[0].textures[0] as usize]).unwrap().into_rgba8();
     let clear = image.pixels().filter(|p| p.0[3] == 0).count();
     assert!(clear > 500, "{clear} clear texels of {}", image.pixels().len());
@@ -204,10 +206,10 @@ fn humanoids_hold_items_in_their_right_hand() {
     }
     // A zombie's raised arm (`attack_bare_hand`: -90° x): Java's chain stands the blade up at the fist.
     let model = look(&models, "minecraft:zombie", &[]).0[0].model;
-    let raised = Pose(vec![BonePose { bone: "rightarm".into(), rotation: [-90.0, 0.0, 0.0], position: [0.0; 3], scale: [1.0; 3] }]);
+    let raised = Pose::bones(vec![BonePose { bone: "rightarm".into(), rotation: [-90.0, 0.0, 0.0], position: [0.0; 3], scale: [1.0; 3] }]);
     let hand = models.models()[model as usize].mesh.right_hand(&raised).unwrap();
     let display = acacia_render::item::hand::Display::third_person(acacia_render::item::Form::Flat, false, false);
-    let frame = acacia_render::item::hand::held_frame(display, hand, false);
+    let frame = acacia_render::item::hand::held_frame(display, hand, acacia_render::item::hand::Grip::hand(false));
     let (hilt, tip) = (frame.transform_point3(Vec3::new(-0.5, -0.5, 0.0)), frame.transform_point3(Vec3::new(0.5, 0.5, 0.0)));
     assert!((tip - hilt).normalize().y > 0.8 && (hilt + tip).z < -1.0, "hilt {hilt}, tip {tip}");
 }

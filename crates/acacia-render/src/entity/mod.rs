@@ -10,6 +10,7 @@ pub mod cape;
 pub(crate) mod block_models;
 mod controller;
 pub mod geometry;
+pub mod java;
 mod layer;
 pub mod molang;
 mod pose;
@@ -25,7 +26,7 @@ use glam::DVec3;
 use crate::assets::image_file;
 pub use bake::{Mesh, Vertex};
 use controller::{Controller, Definition};
-pub use layer::{Blend, Layer};
+pub use layer::{Blend, Fade, Layer};
 use molang::{Loading, Scope};
 pub use molang::Value;
 pub use pose::{BonePose, Pose};
@@ -74,6 +75,8 @@ pub struct EntityModels {
     players: Option<[Arc<[Layer]>; 3]>,
     /// Worn armour by item identifier ([`armor`]).
     armor: HashMap<String, Arc<[Layer]>>,
+    /// The look's Java models, asked before the Bedrock definitions.
+    java: java::library::Library,
 }
 
 /// One entity to draw this frame.
@@ -94,6 +97,8 @@ pub struct EntityInstance {
     pub frame: Option<glam::Mat4>,
     /// Hurt or dying: drawn with the red overlay.
     pub hurt: bool,
+    /// The white overlay's progress (`overlay::creeper_white`), 0 for none.
+    pub white: f32,
     /// Enchanted: the glint shimmers over every layer.
     pub glint: Option<crate::glint::Glint>,
 }
@@ -155,6 +160,19 @@ impl EntityModels {
                 out.textures.push(file);
             }
         }
+        let (models, textures, texture_ids) = (&mut out.models, &mut out.textures, &mut out.texture_ids);
+        let mut model = |mesh| {
+            models.push(Model { mesh });
+            (models.len() - 1) as ModelId
+        };
+        let mut texture = |path: &str| {
+            let file = image_file(root, path)?;
+            Some(*texture_ids.entry(path.to_owned()).or_insert_with(|| {
+                textures.push(file);
+                (textures.len() - 1) as TextureId
+            }))
+        };
+        out.java = java::library::Library::load(root, &mut model, &mut texture);
         let steve = out.kinds.get("minecraft:player").and_then(|d| out.texture_ids.get(d.textures.get("default")?)).copied();
         let player = |geometry: &str| -> Option<Arc<[Layer]>> {
             let model = *out.by_geometry.get(geometry)?;
@@ -178,9 +196,44 @@ impl EntityModels {
         &self.models
     }
 
-    /// What armour item `item` (`minecraft:diamond_helmet`) draws when worn, posed as its wearer.
-    pub fn armor(&self, item: &str) -> Option<Arc<[Layer]>> {
-        self.armor.get(item).cloned()
+    /// What armour item `item` (`minecraft:diamond_helmet`) draws when worn by a `kind`: on a Java
+    /// model its equipment layer, posed by [`EntityModels::pose`] on its own model
+    /// ([`EntityModels::is_java`]); otherwise the pack's attachable, posed as its wearer. `dye` is
+    /// the stack's, and its trim (Java models only).
+    pub fn armor(&self, kind: &str, query: &dyn Fn(&str) -> Value, item: &str, dye: Option<[u8; 3]>, trim: Option<&java::trims::Trim>) -> Option<Arc<[Layer]>> {
+        if self.java.drawn(kind) {
+            return self.java.armor(kind, query, item, dye, trim);
+        }
+        let layers = self.armor.get(item)?;
+        Some(match dye {
+            Some(dye) => layers.iter().map(|l| Layer { dye: Some(dye), ..l.clone() }).collect(),
+            None => layers.clone(),
+        })
+    }
+
+    /// The body transform (model space to the entity's place, without its position) of a `kind`
+    /// drawn by a Java model; `None` for Bedrock geometry. See [`java::library::Library::body`].
+    pub fn body(&self, kind: &str, query: &dyn Fn(&str) -> Value, yaw: f32, scale: f32, death_ticks: f32) -> Option<glam::Mat4> {
+        self.java.drawn(kind).then(|| self.java.body(kind, query, yaw, scale, death_ticks)).flatten()
+    }
+
+    /// The layers a Java-drawn `kind`'s gear adds over its body; none for Bedrock geometry. See
+    /// [`java::library::Library::gear`].
+    pub fn gear(&self, kind: &str, query: &dyn Fn(&str) -> Value, body: Option<java::gear::Body>) -> Vec<Layer> {
+        self.java.gear(kind, query, body)
+    }
+
+    /// Whether `model` is a Java model, posed by its own `setupAnim`.
+    pub fn is_java(&self, model: ModelId) -> bool {
+        self.models.get(model as usize).is_some_and(|m| m.mesh.java.is_some())
+    }
+
+    /// Splits an appearance into the body's layers and the Java second layers that run their own
+    /// `setupAnim` (a stray's clothes start from other rest poses), each drawn as its own instance.
+    pub fn split_posed_apart(&self, layers: &[Layer]) -> (Arc<[Layer]>, Vec<Layer>) {
+        let Some(body) = layers.first().map(|l| l.model) else { return (layers.into(), Vec::new()) };
+        let (apart, together): (Vec<Layer>, Vec<Layer>) = layers.iter().cloned().partition(|l| self.java.posed_apart(body, l.model));
+        (together.into(), apart)
     }
 
     pub fn textures(&self) -> &[PathBuf] {
@@ -200,6 +253,9 @@ impl EntityModels {
     /// answers Molang queries about the entity by name (`is_baby`, `variant`); see
     /// [`molang::Scope::query`].
     pub fn appearance(&self, kind: &str, query: &dyn Fn(&str) -> Value) -> Option<(Arc<[Layer]>, f32)> {
+        if let Some(java) = self.java.appearance(kind, query) {
+            return Some(java);
+        }
         let definition = self.kinds.get(kind)?;
         let mut scope = self.scope(query);
         for script in &definition.scripts {
@@ -247,7 +303,7 @@ impl EntityModels {
             }
         }
         let tint = (material == "sheep").then(|| dye((scope.query)("color").num()));
-        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, dye: None, hidden, blend })
+        (textures[0] != NO_TEXTURE && shown > 0).then_some(Layer { model, textures, tint, dye: None, hidden, blend, fade: layer::Fade::Full })
     }
 
     /// The default geometry in the default texture, for kinds whose controllers yield nothing.

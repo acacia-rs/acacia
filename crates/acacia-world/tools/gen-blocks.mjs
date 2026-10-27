@@ -80,7 +80,7 @@ const unresolved = new Set();
 function shapeFor({ name, props }) {
   const override = R.shapeOverride(name);
   if (override) return override;
-  const computed = R.stairShape(props) ?? R.connectedShape(name, props);
+  const computed = R.stairShape(props) ?? R.connectedShape(name, props) ?? R.pistonArmShape(name, props);
   if (computed) return computed;
   const n = R.short(name);
   const key = propsKey(props);

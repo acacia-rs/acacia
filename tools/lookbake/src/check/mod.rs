@@ -1,9 +1,12 @@
 //! `lookbake java-check`: our bake of every Java block state against the game's own, from a dump
-//! of its baked quads (the workspace's `research/java-truth`, whose README has the format).
+//! of its baked quads (written by `tools/parity/harnesses/bake/BakeOracle.java`).
 
 mod biomes;
+pub mod light;
 mod placed;
 mod shade;
+pub mod world_light;
+mod world_scene;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
@@ -72,9 +75,32 @@ struct Quad {
     cullface: Option<String>,
 }
 
+/// What a check compared, in the shape tools/parity reads (docs/parity.md).
+#[derive(Default)]
+pub struct Outcome {
+    pub cases: usize,
+    /// Case, field, the game's value, ours.
+    pub divergences: Vec<[String; 4]>,
+}
+
+impl Outcome {
+    fn diverge(&mut self, case: &str, field: &str, expected: impl ToString, got: impl ToString) {
+        self.divergences.push([case.to_owned(), field.to_owned(), expected.to_string(), got.to_string()]);
+    }
+
+    /// `CASES`, then one `DIVERGENCE` line per divergence, tab-separated.
+    pub fn print_for_parity(&self) {
+        println!("CASES\t{}", self.cases);
+        for d in &self.divergences {
+            println!("DIVERGENCE\t{}", d.join("\t"));
+        }
+    }
+}
+
 /// `assets` is the jar's `assets/minecraft`, `biome_colors` our colours by Java biome, `dump` the
 /// game's `quads.json.gz`; its `placement.json`, `biomes.json` and `shade.json` are beside it.
-pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, mapping: &Mapping, dump: &Path) -> Result<(), Error> {
+pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, mapping: &Mapping, dump: &Path) -> Result<Outcome, Error> {
+    let mut outcome = Outcome::default();
     let placement: placed::Placement = serde_json::from_slice(&std::fs::read(dump.with_file_name("placement.json"))?)?;
     let truth: Truth = serde_json::from_reader(flate2::read::GzDecoder::new(File::open(dump)?))?;
     let mut models = Models::new(assets.to_owned());
@@ -94,6 +120,7 @@ pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, mapping: &M
         let mut found = BTreeSet::new();
         if our_weights != their_weights {
             found.insert("alternatives or their weights");
+            outcome.diverge(key, "weights", format!("{their_weights:?}"), format!("{our_weights:?}"));
         } else {
             let pairs = ours.parts.iter().flatten().zip(theirs.iter().flatten());
             let mut first = true;
@@ -111,6 +138,9 @@ pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, mapping: &M
         }
         same += usize::from(found.is_empty());
         for difference in found {
+            if difference != "alternatives or their weights" {
+                outcome.diverge(key, difference, "the game's", "ours");
+            }
             blocks.entry(difference).or_default().insert(key.split('[').next().unwrap_or(key));
             let (count, examples) = differences.entry(difference).or_default();
             *count += 1;
@@ -124,12 +154,17 @@ pub fn print(assets: &Path, biome_colors: &BTreeMap<String, Colors>, mapping: &M
         println!("  {difference}: {count} states, e.g. {}", examples.join(" "));
         println!("    blocks: {}", blocks[difference].iter().copied().collect::<Vec<_>>().join(" "));
     }
+    outcome.cases += truth.states.len() + placement.offset_blocks();
     match placement.offsets_differing() {
         differing if differing.is_empty() => println!("blocks stand off the grid as the game shifts them"),
-        differing => println!("blocks shifted otherwise than the game shifts them: {}", differing.join(" ")),
+        differing => {
+            println!("blocks shifted otherwise than the game shifts them: {}", differing.join(" "));
+            differing.iter().for_each(|block| outcome.diverge(block, "offset", "the game's shift", "ours"));
+        }
     }
-    biomes::print(biome_colors, &dump.with_file_name("biomes.json"))?;
-    shade::print(mapping, &dump.with_file_name("shade.json"))
+    biomes::print(biome_colors, &dump.with_file_name("biomes.json"), &mut outcome)?;
+    shade::print(mapping, &dump.with_file_name("shade.json"), &mut outcome)?;
+    Ok(outcome)
 }
 
 /// How `ours` differs from the game's quads of the same model, as kinds of difference.
@@ -152,6 +187,9 @@ fn compare(ours: &[BakedFace], theirs: &[Quad]) -> BTreeSet<&'static str> {
         let face = left.swap_remove(at);
         if face.texture != sprite {
             found.insert("texture");
+        }
+        if turn != 0 {
+            found.insert("vertex order");
         }
         if (0..4).any(|i| !near(&face.uvs[(i + turn) % 4], &quad.uvs[i])) {
             found.insert("texture coordinates");
@@ -207,9 +245,9 @@ mod tests {
     }
 
     #[test]
-    fn the_same_quad_matches_from_any_first_vertex() {
+    fn the_same_quad_matches_from_any_first_vertex_but_names_the_order() {
         assert!(compare(&[ours()], &[theirs(0)]).is_empty());
-        assert!(compare(&[ours()], &[theirs(3)]).is_empty());
+        assert_eq!(compare(&[ours()], &[theirs(3)]).into_iter().collect::<Vec<_>>(), ["vertex order"]);
     }
 
     #[test]

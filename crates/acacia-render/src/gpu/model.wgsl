@@ -1,8 +1,10 @@
 
-// Model faces: three records per face (layout: src/mesh/model.rs). Appended to terrain.wgsl.
+// Model faces: three records per face, four with CORNER2 (layout: src/mesh/model.rs). Appended to
+// terrain.wgsl.
 
 const MODEL: u32 = 0x80000000u;
 const CONTINUED: u32 = 0x40000000u;
+const CORNER2: u32 = 0x20000000u;
 
 // Section-local 1/16 block from the low 16 bits.
 fn model_coord(v: u32) -> f32 {
@@ -36,20 +38,31 @@ fn model_vertex(q: u32, vi: u32, slot: u32) -> VsOut {
     let t1 = vec2(model_texel(c0w >> 20u), model_texel(c1w >> 16u));
     let t3 = vec2(model_texel(c2w), model_texel(c2w >> 10u));
 
+    var p2 = p1 + p3 - p0;
+    var t2 = t1 + t3 - t0;
+    if (look & CORNER2) != 0u {
+        let d0w = quads[q * 3u + 9u];
+        let d1w = quads[q * 3u + 10u];
+        p2 = vec3(model_coord(d1w), model_coord(d1w >> 16u), model_coord(quads[q * 3u + 11u]));
+        t2 = vec2(model_texel(d0w), model_texel(d0w >> 10u));
+    }
+
+    // Java's vertex k is corner k; it splits along 0-2, which a lit face's flip bit keeps.
     let corner = TRIANGLES[((look >> 28u) & 1u) * 2u][vi % 6u];
+    let lights = vertex_light[q];
     let c = CORNERS[corner];
-    let pos = p0 + (p1 - p0) * c.x + (p3 - p0) * c.y;
+    let pos = mix(mix(p0, p1, c.x), mix(p3, p2, c.x), c.y);
     let kind = look & 15u;
     let rel = vec3<f32>(origins[slot].xyz - g.cam_block.xyz) + pos / 16.0 - g.cam_frac.xyz;
     out.clip = g.view_proj * vec4(rel, 1.0);
-    out.uv = (t0 + (t1 - t0) * c.x + (t3 - t0) * c.y) / 16.0;
+    out.uv = mix(mix(t0, t1, c.x), mix(t3, t2, c.x), c.y) / 16.0;
     out.shade = select(1.0, SHADE[min(kind, 5u)], kind < 6u) * g.ao[(look >> (4u + corner * 2u)) & 3u];
     out.layer = (look >> 16u) & 4095u;
     out.tint_material = ((look >> 14u) & 3u) | (((look >> 12u) & 3u) << 2u);
     out.dist = fog_dist(rel);
     out.local = pos / 16.0;
     out.face_slot = vec2(kind, slot);
-    let srgb = vec3<f32>(f32(color & 127u), f32((color >> 7u) & 127u), f32((color >> 14u) & 127u)) / 127.0;
-    out.tint = pow(srgb, vec3(2.2));
+    out.tint = vec3<f32>(f32(color & 127u), f32((color >> 7u) & 127u), f32((color >> 14u) & 127u)) / 127.0;
+    out.light = select(vec3(-1.0), corner_light(lights[corner]), (lights.x & LIT) != 0u);
     return out;
 }

@@ -25,7 +25,10 @@ bedsim files (`movement.rs` = `simulateMovement`, `collide.rs` = `tryCollisions`
 - Feature `acacia-world` (the crate's one dependency, off by default): `registry_world::RegistryWorld { view,
   registry }` is the `WorldView` of any `Terrain` (acacia-world's `BlockAccess` plus loaded columns) whose ids
   an acacia-world `BlockRegistry` names: the bot's `ChunkView`, or a server's level (sapling).
-  `block_physics(registry, id, liquid_layer)` is the per-cell rule on its own.
+  `block_physics(registry, id, liquid_layer)` is the per-cell rule on its own; `liquid_of(state)` decodes a
+  liquid's state.
+- `collide_box(world, &Aabb, motion) -> Vec3`: how far a box that is not a player's (an item, orb, falling block
+  or mob, as sapling moves them) gets, swept Y, X, Z with the player's clip and no step-up.
 - Vehicles a player drives, not from bedsim but fitted to strict BDS (docs/research/riding-fishing-elytra.md
   "Horse", "Boat"): `horse(feet, yaw, speed)` + `horse_tick(state, &mut HorseJump, &RiderInput, world)` run a
   horse as a `PlayerState` with its own box, step and unscaled keys; `boat_tick(&mut BoatState, keys, world)`

@@ -2,10 +2,11 @@
 
 use std::f32::consts::TAU;
 
-use glam::{DVec3, Mat3, Vec3};
+use glam::{DVec3, Mat3, Mat4, Vec3};
 
 use super::{Form, ItemModel, held_banner, shield};
 use crate::blocks::placed::Draw;
+use crate::entity::java::mth::{joml_sin_cos, sin};
 use crate::entity::{EntityInstance, Pose};
 use crate::look::{Dropped, Ground};
 
@@ -33,7 +34,32 @@ pub fn copies(motion: &Dropped, count: u16) -> usize {
     1 + motion.copies.iter().filter(|&&past| count > past).count()
 }
 
-pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop) -> Vec<EntityInstance> {
+/// The copies to draw; a Java look's item as [`java_frames`] places it under its `ground`
+/// display, else by the look's [`Dropped`] motion.
+pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop, camera: DVec3) -> Vec<EntityInstance> {
+    let java = model.java.as_deref().and_then(|d| Some((d.get(super::java::context::GROUND)?, d.ground?)));
+    if let Some((display, [lo, hi])) = java {
+        let feet = Mat4::from_translation((drop.feet - camera).as_vec3());
+        let skin = model.ground_skin();
+        return java_frames([lo.y, hi.z - lo.z], drop)
+            .into_iter()
+            .map(|frame| EntityInstance {
+                layers: model.layers.clone(),
+                skin: Some(skin.clone()),
+                position: drop.feet,
+                yaw: 0.0,
+                scale: 1.0,
+                pose: Pose::default(),
+                frame: Some(feet * frame * display.mesh_frame()),
+                hurt: false, white: 0.0,
+                glint: model.glint.then_some(crate::glint::Glint::Item),
+            })
+            .collect();
+    }
+    bedrock_instances(model, motion, drop)
+}
+
+fn bedrock_instances(model: &ItemModel, motion: &Dropped, drop: &Drop) -> Vec<EntityInstance> {
     // A shield's `ground` display brings its off-centre model over the entity.
     let (ground, aside, bottom) = match model.form {
         Form::Block => (motion.block, Vec3::ZERO, -0.5),
@@ -72,10 +98,60 @@ pub fn instances(model: &ItemModel, motion: &Dropped, drop: &Drop) -> Vec<Entity
             scale: ground.scale,
             pose: Pose::default(),
             frame: None,
-            hurt: false,
+            hurt: false, white: 0.0,
             glint: model.glint.then_some(crate::glint::Glint::Item),
         })
         .collect()
+}
+
+/// Java 26.3's `ItemEntityRenderer.submit` and `submitMultipleFromCount`: per copy, the pose
+/// each item is submitted under (before its `ground` display), from the feet. `bounds` is the
+/// model's box under that display ([`super::java::JavaItems::bounds`]): lowest y and depth.
+pub fn java_frames(bounds: [f32; 2], drop: &Drop) -> Vec<Mat4> {
+    const SCATTER: f32 = 0.15;
+    let [min_y, depth] = bounds;
+    let bob = sin(drop.age_ticks / 10.0 + drop.bob_offset) * 0.1 + 0.1;
+    let spin = drop.age_ticks / 20.0 + drop.bob_offset;
+    let mut pose = Mat4::from_translation(Vec3::new(0.0, bob + (-min_y + 0.0625), 0.0)) * joml_rotation_y(spin);
+    let n = copies_of(drop.count);
+    let mut draw = Draw::new(i64::from(drop.seed));
+    let mut stray = |reach: f32| (draw.float() * 2.0 - 1.0) * reach;
+    let mut out = Vec::with_capacity(n);
+    if depth > FLAT_DEPTH {
+        out.push(pose);
+        for _ in 1..n {
+            let (x, y, z) = (stray(SCATTER), stray(SCATTER), stray(SCATTER));
+            out.push(pose * Mat4::from_translation(Vec3::new(x, y, z)));
+        }
+    } else {
+        let step = depth * 1.5;
+        pose *= Mat4::from_translation(Vec3::new(0.0, 0.0, -(step * (n - 1) as f32 / 2.0)));
+        out.push(pose);
+        pose *= Mat4::from_translation(Vec3::new(0.0, 0.0, step));
+        for _ in 1..n {
+            let (x, y) = (stray(SCATTER * 0.5), stray(SCATTER * 0.5));
+            out.push(pose * Mat4::from_translation(Vec3::new(x, y, 0.0)));
+            pose *= Mat4::from_translation(Vec3::new(0.0, 0.0, step));
+        }
+    }
+    out
+}
+
+/// `ItemClusterRenderState.getRenderedAmount`.
+pub fn copies_of(count: u16) -> usize {
+    match count {
+        0..=1 => 1,
+        2..=16 => 2,
+        17..=32 => 3,
+        33..=48 => 4,
+        _ => 5,
+    }
+}
+
+/// `PoseStack.rotate(Axis.YP, angle)`: JOML's `rotateY`, whose cosine is `sqrt(1 - sin²)`.
+fn joml_rotation_y(angle: f32) -> Mat4 {
+    let (s, c) = joml_sin_cos(angle);
+    Mat4::from_cols_array(&[c, 0.0, -s, 0.0, 0.0, 1.0, 0.0, 0.0, s, 0.0, c, 0.0, 0.0, 0.0, 0.0, 1.0])
 }
 
 #[cfg(test)]

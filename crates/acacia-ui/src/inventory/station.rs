@@ -36,18 +36,6 @@ impl Station {
         }
     }
 
-    /// Java's sheet under `textures/gui/container`, and its progress sprites' folder.
-    pub fn sheet(self) -> &'static str {
-        match self {
-            Station::Furnace => "furnace",
-            Station::BlastFurnace => "blast_furnace",
-            Station::Smoker => "smoker",
-            Station::Hopper => "hopper",
-            Station::Dispenser | Station::Dropper => "dispenser",
-            Station::Brewing => "brewing_stand",
-        }
-    }
-
     pub fn is_furnace(self) -> bool {
         matches!(self, Station::Furnace | Station::BlastFurnace | Station::Smoker)
     }

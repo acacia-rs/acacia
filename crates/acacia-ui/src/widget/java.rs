@@ -2,7 +2,6 @@
 //! edit boxes, and cycle buttons for every choice. Numbers: research/forms-java-widgets.md §2.
 //! A missing sprite is drawn as a flat fill of its main colour.
 
-use std::collections::HashMap;
 use std::path::Path;
 
 use super::bedrock::rgba;
@@ -35,104 +34,12 @@ pub struct Kit {
     handle: [Option<Nine>; 2],
     field: [Option<Nine>; 2],
     scroller: [Option<Nine>; 2],
-    /// `container/inventory.png`'s 176×166 screen; `generic_54.png`'s six rows and title (176×125)
-    /// and its player part (176×96, from y 126).
-    pub inventory: Option<Sprite>,
-    pub chest_top: Option<Sprite>,
-    pub chest_bottom: Option<Sprite>,
-    /// `recipe_book.png`'s 147×166 book (from 1, 1) and a craftable recipe's 25×25 button.
-    pub recipe_book: Option<Sprite>,
-    pub recipe_slot: Option<Sprite>,
-    /// Workstation sheets by file name (`furnace`: 176×166, `hopper`: 176×133) and their progress
-    /// sprites (`furnace/lit_progress`), as `inventory::Station::sheet` names them.
-    pub stations: HashMap<String, Sprite>,
-    /// `villager.png`'s 276×166 trading screen.
-    pub trade: Option<Sprite>,
-    /// `creative_inventory/tab_items.png`'s 195×136 screen.
-    pub creative: Option<Sprite>,
 }
 
-/// Workstation sheets under `textures/gui/container` and the panel's height in each.
-const STATION_SHEETS: [(&str, u32); 14] = [("loom", 166), ("crafting_table", 166), ("cartography_table", 166), ("enchanting_table", 166), ("stonecutter", 166), ("anvil", 166), ("smithing", 166), ("grindstone", 166), ("furnace", 166), ("blast_furnace", 166), ("smoker", 166), ("hopper", 133), ("dispenser", 166), ("brewing_stand", 166)];
-/// Progress sprites under `textures/gui/sprites/container`.
-const STATION_SPRITES: [&str; 23] = [
-    "beacon/button",
-    "beacon/button_selected",
-    "beacon/button_highlighted",
-    "beacon/button_disabled",
-    "beacon/confirm",
-    "loom/pattern",
-    "loom/pattern_selected",
-    "loom/pattern_highlighted",
-    "anvil/text_field",
-    "enchanting_table/enchantment_slot",
-    "enchanting_table/enchantment_slot_highlighted",
-    "stonecutter/recipe",
-    "stonecutter/recipe_selected",
-    "stonecutter/recipe_highlighted",
-    "anvil/text_field_disabled",
-    "furnace/lit_progress",
-    "furnace/burn_progress",
-    "blast_furnace/lit_progress",
-    "blast_furnace/burn_progress",
-    "smoker/lit_progress",
-    "smoker/burn_progress",
-    "brewing_stand/brew_progress",
-    "brewing_stand/fuel_length",
-];
-
 impl Kit {
-    /// The button's nine-slice, highlighted under the mouse.
-    pub fn button_nine(&self, hover: bool) -> Option<Nine> {
-        self.button[usize::from(hover)]
-    }
-
     pub fn load(root: &Path, atlas: &mut Atlas) -> Kit {
-        let sheet = |file: &str, [x, y, w, h]: [u32; 4], atlas: &mut Atlas| {
-            let image = crate::theme::png(&root.join(format!("textures/gui/{file}.png")))?;
-            // The sheets are 256×256 at any pack resolution; crop in its units.
-            let s = (image.width() / 256).max(1);
-            Some(atlas.add(&format!("{file}/{x},{y}"), &image::imageops::crop_imm(&image, x * s, y * s, w * s, h * s).to_image()))
-        };
-        let inventory = sheet("container/inventory", [0, 0, 176, 166], atlas);
-        let creative = crate::theme::png(&root.join("textures/gui/container/creative_inventory/tab_items.png")).map(|image| {
-            let s = (image.width() / 256).max(1);
-            atlas.add("container/creative_inventory/tab_items", &image::imageops::crop_imm(&image, 0, 0, 195 * s, 136 * s).to_image())
-        });
-        // The one sheet that is 512×256.
-        let trade = crate::theme::png(&root.join("textures/gui/container/villager.png")).map(|image| {
-            let s = (image.width() / 512).max(1);
-            atlas.add("container/villager", &image::imageops::crop_imm(&image, 0, 0, 276 * s, 166 * s).to_image())
-        });
-        let chest_top = sheet("container/generic_54", [0, 0, 176, 125], atlas);
-        let chest_bottom = sheet("container/generic_54", [0, 126, 176, 96], atlas);
-        let recipe_book = sheet("recipe_book", [1, 1, 147, 166], atlas);
-        let recipe_slot = crate::theme::png(&root.join("textures/gui/sprites/recipe_book/slot_craftable.png")).map(|i| atlas.add("sprites/recipe_book/slot_craftable", &i));
-        let mut stations = HashMap::new();
-        for (name, height) in STATION_SHEETS {
-            if let Some(sprite) = sheet(&format!("container/{name}"), [0, 0, 176, height], atlas) {
-                stations.insert(name.to_owned(), sprite);
-            }
-        }
-        // The beacon's sheet is wider and taller than the others'.
-        if let Some(sprite) = sheet("container/beacon", [0, 0, 230, 219], atlas) {
-            stations.insert("beacon".to_owned(), sprite);
-        }
-        for name in STATION_SPRITES {
-            if let Some(image) = crate::theme::png(&root.join(format!("textures/gui/sprites/container/{name}.png"))) {
-                stations.insert(name.to_owned(), atlas.add(&format!("sprites/container/{name}"), &image));
-            }
-        }
         let mut n = |name: &str| Nine::java(root, &format!("widget/{name}"), atlas);
         Kit {
-            inventory,
-            chest_top,
-            chest_bottom,
-            recipe_book,
-            recipe_slot,
-            stations,
-            trade,
-            creative,
             button: [n("button"), n("button_highlighted")],
             checkbox: [n("checkbox"), n("checkbox_highlighted"), n("checkbox_selected"), n("checkbox_selected_highlighted")],
             slider: [n("slider"), n("slider_highlighted")],

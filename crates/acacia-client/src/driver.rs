@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
@@ -10,14 +9,18 @@ use crate::signaling::Keepalive;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot};
 
+use crate::event_queue::EventSender;
 use crate::filter::PacketFilter;
 use crate::pack_fetch;
+use crate::packet_trace::PacketTrace;
 use crate::socks5::Socks5Proxy;
 use crate::transport::Transport;
 use crate::Event;
 
 /// Largest datagram we accept; above the biggest RakNet MTU and the WebRTC (1200-byte) packets.
 const RECV_BUFFER: usize = 2048;
+/// How long the loop sleeps when neither the session nor the wire has a deadline.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub(crate) enum Command {
     Send(Bytes),
@@ -41,9 +44,10 @@ pub(crate) struct Driver {
     pub wire: Wire,
     pub transport: Transport,
     pub commands: mpsc::UnboundedReceiver<Command>,
-    pub events: mpsc::Sender<Event>,
+    pub events: EventSender,
     pub spawned: Option<oneshot::Sender<SpawnResult>>,
     pub filter: PacketFilter,
+    pub trace: PacketTrace,
     pub capacity: usize,
     /// The connection's proxy, for pack downloads too.
     pub proxy: Option<Socks5Proxy>,
@@ -61,8 +65,14 @@ impl Driver {
     /// reads pause while that queue is over capacity (backpressure without deadlock).
     pub async fn run(mut self) {
         let mut buf = vec![0u8; RECV_BUFFER];
-        let mut pending: VecDeque<Event> = VecDeque::new();
+        let mut pending: Vec<Event> = Vec::new();
+        let mut seen: Vec<u32> = Vec::new();
         let (fetched_tx, mut fetched) = mpsc::unbounded_channel();
+        // Downloads not yet reported; the channel is polled only while there are some.
+        let mut fetching = 0usize;
+        // One timer for the task's life: a fresh sleep each pass registered and cleared a wheel entry per datagram.
+        let sleep = tokio::time::sleep(IDLE_TIMEOUT);
+        tokio::pin!(sleep);
         loop {
             if let Err(e) = self.flush().await {
                 return self.finish(pending, DisconnectReason::Io(e.to_string())).await;
@@ -70,6 +80,7 @@ impl Driver {
             if let Some(reason) = self.wire_closed() {
                 return self.finish(pending, reason).await;
             }
+            let now = Instant::now();
             while let Some(event) = self.session.poll_event() {
                 match event {
                     SessionEvent::Spawned { runtime_entity_id } => {
@@ -77,10 +88,15 @@ impl Driver {
                             let _ = tx.send(Ok(runtime_entity_id));
                         }
                     }
-                    SessionEvent::Packet(p) if self.filter.allows(p.id) => pending.push_back(Event::Packet(p)),
-                    SessionEvent::Packet(_) => {}
-                    SessionEvent::Violation(v) => pending.push_back(Event::Violation(v)),
+                    SessionEvent::Packet(p) => {
+                        seen.push(p.id);
+                        if self.filter.allows(p.id) {
+                            pending.push(Event::Packet(p));
+                        }
+                    }
+                    SessionEvent::Violation(v) => pending.push(Event::Violation(v)),
                     SessionEvent::Disconnected(reason) => {
+                        self.trace.record(&seen, now);
                         let _ = self.flush().await;
                         self.close_wire();
                         let _ = self.flush().await;
@@ -88,16 +104,29 @@ impl Driver {
                     }
                 }
             }
+            if !seen.is_empty() {
+                self.trace.record(&seen, now);
+                seen.clear();
+            }
             while let Some(pack) = self.session.poll_pack_fetch() {
+                fetching += 1;
                 tokio::spawn(fetch_pack(pack, self.proxy.clone(), fetched_tx.clone()));
             }
+            // A pass's events go out as one message; the select below only waits for room in a full queue.
+            if !pending.is_empty() && self.events.try_send(&mut pending).is_err() {
+                self.session.close(Instant::now());
+            }
             let can_read = self.spawned.is_some() || pending.len() < self.capacity;
-            let deadline = self.poll_timeout().unwrap_or_else(|| Instant::now() + Duration::from_secs(60));
+            match self.poll_timeout() {
+                Some(deadline) if sleep.deadline() != deadline.into() => sleep.as_mut().reset(deadline.into()),
+                // Nothing due: an earlier deadline still armed only wakes handle_timeout early, which is harmless.
+                None if sleep.is_elapsed() => sleep.as_mut().reset((Instant::now() + IDLE_TIMEOUT).into()),
+                _ => {}
+            }
             let failed = tokio::select! {
-                permit = self.events.reserve(), if !pending.is_empty() => {
-                    match permit {
-                        Ok(permit) => permit.send(pending.pop_front().expect("non-empty")),
-                        Err(_) => self.session.close(Instant::now()),
+                sent = self.events.send(&mut pending), if !pending.is_empty() => {
+                    if sent.is_err() {
+                        self.session.close(Instant::now());
                     }
                     None
                 }
@@ -118,11 +147,12 @@ impl Driver {
                     }
                     None
                 }
-                Some((id, ok)) = fetched.recv() => {
+                Some((id, ok)) = fetched.recv(), if fetching > 0 => {
+                    fetching -= 1;
                     self.session.pack_fetched(Instant::now(), &id, ok);
                     None
                 }
-                _ = tokio::time::sleep_until(deadline.into()) => {
+                _ = &mut sleep => {
                     handle_timeout(&mut self.session, &mut self.wire, Instant::now());
                     None
                 }
@@ -183,17 +213,12 @@ impl Driver {
     }
 
     /// Delivers queued packets, then the disconnect (or fails the pending login).
-    async fn finish(mut self, pending: VecDeque<Event>, reason: DisconnectReason) {
+    async fn finish(mut self, pending: Vec<Event>, reason: DisconnectReason) {
         if let Some(tx) = self.spawned.take() {
             let _ = tx.send(Err(reason));
             return;
         }
-        for event in pending {
-            if self.events.send(event).await.is_err() {
-                return;
-            }
-        }
-        let _ = self.events.send(Event::Disconnected(reason)).await;
+        let _ = self.events.send_final(pending.into_iter().chain([Event::Disconnected(reason)]).collect());
     }
 }
 

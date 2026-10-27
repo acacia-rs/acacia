@@ -2,17 +2,21 @@ use std::collections::HashMap;
 
 use acacia_client::proto::packets::{
     AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MobArmorEquipment, MobEffect, MobEquipment, MoveEntity,
-    MoveEntityDelta, MovePlayer, RemoveEntity, SetEntityData, SetEntityMotion, UpdateAttributes,
+    MoveEntityDelta, MovePlayer, RemoveEntity, SetEntityData, SetEntityMotion, SyncEntityProperty, UpdateAttributes,
 };
 use acacia_client::proto::manual::Uuid;
 use acacia_client::proto::types::Vec3f;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
+use rustc_hash::FxHashMap;
 
 use super::{Effects, ItemStack, Me, Metadata};
 
 mod equipment;
+mod moves;
+mod properties;
 
 pub use equipment::Equipment;
+pub use properties::{Property, Values as PropertyValues};
 
 pub const PLAYER_KIND: &str = "minecraft:player";
 pub const ITEM_KIND: &str = "minecraft:item";
@@ -40,6 +44,8 @@ pub struct Entity {
     /// Players only; the key into [`super::PlayerList`] and [`super::Skins`].
     pub uuid: Option<Uuid>,
     pub metadata: Metadata,
+    /// Synced actor properties; read them through [`Entities::property`].
+    pub properties: PropertyValues,
     /// Current attribute values by name (`minecraft:health`, `minecraft:movement`, ...).
     pub attributes: HashMap<String, f32>,
     pub effects: Effects,
@@ -64,6 +70,7 @@ impl Entity {
             on_ground: false,
             uuid: None,
             metadata: Metadata::default(),
+            properties: PropertyValues::default(),
             attributes: HashMap::new(),
             effects: Effects::default(),
             equipment: None,
@@ -93,10 +100,13 @@ impl Entity {
 }
 
 /// Entities by runtime id, excluding the local player. Off by default (see [`crate::BotConfig`]).
+/// Fx-hashed and boxed: every entity move looks one up (~300 k/s across a 50-bot swarm among 300 mobs),
+/// and a table of whole entities missed the cache on its buckets.
 #[derive(Debug, Default)]
 pub struct Entities {
-    by_runtime: HashMap<u64, Entity>,
-    runtime_by_unique: HashMap<i64, u64>,
+    by_runtime: FxHashMap<u64, Box<Entity>>,
+    runtime_by_unique: FxHashMap<i64, u64>,
+    property_defs: properties::Definitions,
 }
 
 impl Entities {
@@ -115,10 +125,11 @@ impl Entities {
         MobEquipment::ID,
         MobArmorEquipment::ID,
         ChangeDimension::ID,
+        SyncEntityProperty::ID,
     ];
 
     pub fn get(&self, runtime_id: u64) -> Option<&Entity> {
-        self.by_runtime.get(&runtime_id)
+        self.by_runtime.get(&runtime_id).map(|e| &**e)
     }
 
     /// Moves a tracked entity the bot itself simulates (a vehicle it drives, which the server does not
@@ -132,7 +143,7 @@ impl Entities {
     }
 
     pub fn by_unique(&self, unique_id: i64) -> Option<&Entity> {
-        self.runtime_by_unique.get(&unique_id).and_then(|r| self.by_runtime.get(r))
+        self.runtime_by_unique.get(&unique_id).and_then(|&r| self.get(r))
     }
 
     pub fn len(&self) -> usize {
@@ -144,7 +155,7 @@ impl Entities {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Entity> {
-        self.by_runtime.values()
+        self.by_runtime.values().map(|e| &**e)
     }
 
     pub fn players(&self) -> impl Iterator<Item = &Entity> {
@@ -169,15 +180,16 @@ impl Entities {
             }
             SetEntityData::ID => {
                 // Peek the leading runtime id: most metadata is for entities out of view.
-                let id = acacia_client::proto::codec::read_varint64(&mut &packet.body[..])?;
-                if let Some(e) = self.by_runtime.get_mut(&id) {
-                    e.metadata.merge(packet.decode::<SetEntityData>()?.metadata);
+                if let Some(e) = super::leading_entity(packet).and_then(|id| self.by_runtime.get_mut(&id)) {
+                    let p = packet.decode::<SetEntityData>()?;
+                    e.metadata.merge(p.metadata);
+                    e.properties.merge(p.properties);
                 }
             }
+            SyncEntityProperty::ID => self.property_defs.apply(&packet.decode()?)?,
             UpdateAttributes::ID => {
-                let p: UpdateAttributes = packet.decode()?;
-                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
-                    e.attributes.extend(p.attributes.into_iter().map(|a| (a.name, a.current)));
+                if let Some(e) = super::leading_entity(packet).and_then(|id| self.by_runtime.get_mut(&id)) {
+                    e.attributes.extend(packet.decode::<UpdateAttributes>()?.attributes.into_iter().map(|a| (a.name, a.current)));
                 }
             }
             MobEffect::ID => {
@@ -213,6 +225,7 @@ impl Entities {
                 let mut e = Entity::spawned(p.runtime_id, p.unique_id, p.entity_type, p.position, p.velocity);
                 (e.yaw, e.pitch, e.head_yaw) = (p.yaw, p.pitch, p.head_yaw);
                 e.metadata = p.metadata.into();
+                e.properties.merge(p.properties);
                 e.attributes = p.attributes.into_iter().map(|a| (a.name, a.value)).collect();
                 self.insert(me, e);
             }
@@ -247,51 +260,18 @@ impl Entities {
             self.runtime_by_unique.remove(&old.unique_id);
         }
         self.runtime_by_unique.insert(entity.unique_id, entity.runtime_id);
-        self.by_runtime.insert(entity.runtime_id, entity);
+        self.by_runtime.insert(entity.runtime_id, Box::new(entity));
     }
 
-    // Hot path (~300/s on busy servers): no allocation. Despite the name, all fields are absolute.
-    fn move_delta(&mut self, p: &MoveEntityDelta) {
-        let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) else { return };
-        if let Some(x) = p.x {
-            e.position.x = x;
-        }
-        if let Some(y) = p.y {
-            e.position.y = y;
-        }
-        if let Some(z) = p.z {
-            e.position.z = z;
-        }
-        if let Some(r) = p.rot_x {
-            e.pitch = r as f32 * BYTE_ROTATION;
-        }
-        if let Some(r) = p.rot_y {
-            e.yaw = r as f32 * BYTE_ROTATION;
-        }
-        if let Some(r) = p.rot_z {
-            e.head_yaw = r as f32 * BYTE_ROTATION;
-        }
-        e.on_ground = p.on_ground;
+    /// The value of synced property `name` (`minecraft:climate_variant`) on `e`, as its kind's
+    /// definition reads it; `None` when the kind has no such property or the server sent none.
+    pub fn property(&self, e: &Entity, name: &str) -> Option<Property<'_>> {
+        self.property_defs.value(&e.kind, name, &e.properties)
     }
 
-    fn move_absolute(&mut self, p: &MoveEntity) {
-        const ON_GROUND: u8 = 1;
-        let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) else { return };
-        e.position = p.position.clone();
-        // Generated field names are off: the wire order is pitch, yaw, head yaw (gophertunnel, PMMP).
-        e.pitch = p.rotation.yaw;
-        e.yaw = p.rotation.pitch;
-        e.head_yaw = p.rotation.head_yaw;
-        e.on_ground = p.flags & ON_GROUND != 0;
-    }
-
-    fn move_player(&mut self, p: &MovePlayer) {
-        let Some(e) = self.by_runtime.get_mut(&(p.runtime_id as u64)) else { return };
-        e.position = p.position.clone();
-        e.pitch = p.pitch;
-        e.yaw = p.yaw;
-        e.head_yaw = p.head_yaw;
-        e.on_ground = p.on_ground;
+    /// Every synced property of `e` the server has sent, by name.
+    pub fn properties<'a>(&'a self, e: &'a Entity) -> impl Iterator<Item = (&'a str, Property<'a>)> {
+        self.property_defs.all(&e.kind, &e.properties)
     }
 }
 

@@ -104,6 +104,7 @@ impl Bot {
                 window_type: WindowType::Inventory,
                 position: None,
                 entity: None,
+                title: None,
                 slots: Vec::new(),
             });
         }

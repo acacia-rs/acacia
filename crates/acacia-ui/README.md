@@ -71,12 +71,11 @@ A `Theme` is an atlas holding the HUD sprites under the names in `hud::sprite`, 
 
 | | Java (`theme::java`) | Bedrock (`theme::bedrock`) |
 |---|---|---|
-| Sprites | The jar's `textures/gui/sprites/hud/*.png`, one per name, copied into the Java look by `lookbake java` | The pack's `textures/ui`: the hotbar assembled from `hotbar_0..8` and the end caps at 65% opacity; hearts, food, armour, air by file; crosshair and experience bar from `textures/gui/icons.png` |
+| Sprites | None for the HUD: the Java look's HUD is `java::hud::frame`, painted from the jar's files; effect icons for screens | The pack's `textures/ui`: the hotbar assembled from `hotbar_0..8` and the end caps at 65% opacity; hearts, food, armour, air by file; crosshair and experience bar from `textures/gui/icons.png` |
 | Font | `textures/font/ascii.png`, characters per `font/include/default.json` | None in the pack: borrows the Java look's `ascii.png` (the same Mojangles glyphs) when that look was baked |
-| Level number | `0x80FF20`, black outline | `0x80FF00`, drop shadow |
 
 Without a font, text is not drawn; the sprites still are. A Java look that was not baked draws the
-Bedrock sprites (the same pixels) with the Java style.
+Bedrock HUD (the same pixels) with the Java style.
 
 ## Signs (`signs.rs`)
 
@@ -97,8 +96,54 @@ The sign editor (`sign_editor.rs`) follows Java's `AbstractSignEditScreen` in bo
 oak board with the four lines, the typed one between `>` and `<`, and Done. A hanging sign gets a smaller
 board on two chains; lines are capped at the sign's own width (90 px, or 60 hanging).
 
+## Java GUI (`java/`)
+
+Java 26.3's GUI ported call for call. Layouts (`hud/`, `screen/`, `container/`, `chat/`,
+`tooltip/`, `widget/`) take the state the game reads and emit `GuiGraphicsExtractor` calls
+(`gui::GuiDraw`). The parity harnesses compare these lists with the game's own, recorded headless
+by `GuiCapture` (`tools/parity/java/acacia/parity/gui`). See the `gui` rows of `docs/parity.md`.
+
+- **Font (`font/`):** FontManager and FontSet with the bitmap, space, unihex and reference
+  providers, filters, and Unifont from the asset index. Obfuscated glyphs are picked from same-width
+  glyphs in Java's hash-set order. `text.rs` handles components and legacy codes; `split*.rs`
+  ports StringSplitter.
+- **Paint (`paint/`):** turns calls into quads the way GuiRenderState does.
+  - Strata and nodes go through `findAppropriateNode`, with glyphs after the elements of each node.
+  - Blits handle stretch, tile and nine-slice sprites from `.mcmeta`.
+  - Scissors are intersected and poses applied.
+  - Highlight blends are invert and additive.
+  - Labels scroll by `defaultScrollingHelper`.
+  - A blit whose UVs run past its texture (menu backgrounds, separators, the credits background)
+    stays one quad, as the game's, with `Quad::wrap` naming the sprite. The UI shader folds the
+    UVs back into it, standing in for the game's `REPEAT` sampler. `Atlas::stray` finds lookups
+    that leave their sprite, and gui_frame's probe flags them (`"stray"`).
+- **Blur (`blur.rs`):** the menu blur's post chain (three horizontal and vertical box-blur
+  passes, `menuBackgroundBlurriness` as the radius) as data. `DrawList::blur` says which quads it
+  goes under, and acacia-render's `gpu/blur.rs` runs it.
+- **Pictures:** a picture-in-picture (entity, book, banner) is placed by its rect, without the
+  pose. It becomes a premultiplied blit (`Quad::picture`) after its node's other blits, as
+  `GuiRenderer.preparePictureInPicture` adds it.
+  - The renderer draws picture entities into a window-sized texture with an orthographic
+    projection and Java's `ENTITY_IN_UI` lights (acacia-render `gpu/over.rs`). The viewer poses
+    them as `PictureInPictureRenderer` does (`app/portrait.rs`).
+  - Java's model space is the mesh's flipped in y (`S(1,-1,1)·T(0,-1.501,0)`), so a living
+    entity's place is the PiP pose times `rotY(180° − bodyRot)·S(-1,1,1)`.
+  - Banners are composed flat: their face fills the picture unshaded under `ITEMS_FLAT`.
+  - Atlas sprite blits are ordinary blits.
+  - A map and other tooltip images come from the `Source` as calls. A bundle's image
+    (`tooltip/bundle.rs`) draws itself.
+  - Not drawn yet: the enchanting book (needs Java's `BookModel` posed by the renderer) and the
+    end portal background.
+- **Text:** `bidi/` ports ICU4J's Bidi and ArabicShaping for right-to-left text. `command/` is a
+  minimal Brigadier (parse, suggestions, usage) for the chat screen's suggestions. Chat lines
+  carry hover-event and tag tooltips.
+- **Frame:** the `gui_frame` harness checks the painter's whole frame. It replays each source's
+  calls through the real `GuiGraphicsExtractor` and compares the painted quads with
+  `GuiRenderer`'s sorted elements.
+- **Not ported:** creative and recipe-book search trees, BookSignScreen.
+
 ## Not yet
 
 The loom's banner preview, the beacon's own art, a cartography table's name box, Unicode glyph pages,
-offhand and attack indicator, Java's background blur, Bedrock's own settings screen and sidebar
+offhand and attack indicator, Bedrock's own settings screen and sidebar
 placement, multiselect form elements, JPEG button images.

@@ -37,6 +37,7 @@ pub(super) fn open_container(state: &mut GameState, window_type: WindowType, slo
         window_type,
         position: Some(BlockCoordinates { x: 0, y: 64, z: 0 }),
         entity: None,
+        title: None,
         slots,
     });
 }

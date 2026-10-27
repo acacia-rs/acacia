@@ -16,10 +16,6 @@ use crate::widget::Widgets;
 /// Layout choices the games make differently.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Style {
-    /// Colour of the experience level number.
-    pub xp_colour: u32,
-    /// Java outlines the level in black; Bedrock gives it a drop shadow.
-    pub xp_outline: bool,
     /// Sign text takes Java's dye colours, at 40% unless it glows; Bedrock draws the stored colour.
     pub java_signs: bool,
 }
@@ -46,7 +42,7 @@ pub(crate) fn png(path: &Path) -> Option<RgbaImage> {
 
 /// Java's ASCII page under `root` (unpacked jar layout), with the characters its font definition
 /// gives each cell.
-pub(crate) fn java_font(root: &Path, atlas: &mut Atlas) -> Option<Font> {
+pub fn java_font(root: &Path, atlas: &mut Atlas) -> Option<Font> {
     let image = png(&root.join("textures/font/ascii.png"))?;
     let rows = ascii_rows(root).unwrap_or_else(|| Font::code_page_rows());
     let page = atlas.add("font/ascii", &image);
@@ -55,7 +51,7 @@ pub(crate) fn java_font(root: &Path, atlas: &mut Atlas) -> Option<Font> {
 }
 
 /// Java's galactic page under `root`: its letters lie at their code points (`font/alt.json`).
-pub(crate) fn java_galactic(root: &Path, atlas: &mut Atlas) -> Option<Font> {
+pub fn java_galactic(root: &Path, atlas: &mut Atlas) -> Option<Font> {
     let image = png(&root.join("textures/font/ascii_sga.png"))?;
     let page = atlas.add("font/ascii_sga", &image);
     let rows = Font::code_page_rows();

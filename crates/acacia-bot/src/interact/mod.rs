@@ -20,6 +20,7 @@
 
 mod break_time;
 pub(crate) mod breaking;
+pub(crate) mod closing;
 pub(crate) mod confirm;
 mod container;
 mod direct;

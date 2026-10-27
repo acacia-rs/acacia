@@ -24,7 +24,8 @@ pub struct RegistryWorld<'a, T: ?Sized> {
     pub registry: &'a BlockRegistry,
 }
 
-fn liquid_of(state: &BlockState) -> Option<Liquid> {
+/// The liquid a block state is, if it is one.
+pub fn liquid_of(state: &BlockState) -> Option<Liquid> {
     let kind = if state.is_water() {
         LiquidKind::Water
     } else if state.is_lava() {
@@ -103,8 +104,8 @@ impl<T: Terrain + ?Sized> WorldView for RegistryWorld<'_, T> {
     }
 
     fn is_area_loaded(&self, area: &Aabb) -> bool {
-        let (x0, x1) = ((area.min[0].floor() as i32) >> 4, (area.max[0].floor() as i32) >> 4);
-        let (z0, z1) = ((area.min[2].floor() as i32) >> 4, (area.max[2].floor() as i32) >> 4);
+        let (min, max) = (crate::math::block_pos(area.min), crate::math::block_pos(area.max));
+        let (x0, x1, z0, z1) = (min[0] >> 4, max[0] >> 4, min[2] >> 4, max[2] >> 4);
         (x0..=x1).all(|cx| (z0..=z1).all(|cz| self.view.is_column_loaded(cx, cz)))
     }
 }

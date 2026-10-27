@@ -4,13 +4,17 @@
 mod creative;
 mod events;
 mod fluid;
+mod java_screen;
 mod form;
+mod java_menu;
+mod java_under;
 mod keys;
 mod menu;
 mod portrait;
 mod screen;
 mod sign;
 mod sky;
+mod title;
 mod view;
 mod window;
 
@@ -36,10 +40,9 @@ use crate::settings::{LookChoice, Settings};
 use crate::shot::Shot;
 use crate::smooth::Smoother;
 use crate::ui::{Frame, Ui};
-use acacia_ui::menu::Backdrop;
 use menu::Menu;
+use title::Overlay;
 
-const TITLE_EVERY: Duration = Duration::from_millis(500);
 /// A frame's work before drawing that takes longer than this is logged, by stage.
 const SLOW_FRAME: Duration = Duration::from_millis(250);
 
@@ -74,6 +77,8 @@ pub struct App {
     shown: screen::Shown,
     /// The pause menu or options (Esc).
     menu: Option<Menu>,
+    /// The Java look's screens' focus, pages and chat input.
+    java: java_menu::JavaScreens,
     /// Disconnect was chosen: the window closes.
     pub quit: bool,
     inventory: Inventory,
@@ -114,16 +119,6 @@ pub struct App {
     signs: crate::sign_text::Signs,
 }
 
-/// Frame-rate and memory figures shown in the title.
-struct Overlay {
-    since: Instant,
-    frames: u32,
-    reports: u32,
-}
-
-/// Title updates between stats lines in the log (5 s).
-const LOG_EVERY_TITLES: u32 = 10;
-
 impl App {
     pub fn new(net: Net, radius: i32, sky: Option<SkyTextures>, settings: Settings, looks: Looks) -> Self {
         let play = Play::new(net.commands.clone());
@@ -143,6 +138,7 @@ impl App {
             screen_open: std::env::var_os("ACACIA_SCREEN").is_some(),
             // For unattended screenshots of the pause menu.
             menu: std::env::var_os("ACACIA_MENU").map(|_| Menu::Pause),
+            java: Default::default(),
             quit: false,
             shown: screen::Shown::default(),
             inventory: Inventory::default(),
@@ -178,7 +174,7 @@ impl App {
             bob: Default::default(),
             status: "starting".into(),
             last_frame: Instant::now(),
-            overlay: Overlay { since: Instant::now(), frames: 0, reports: 0 },
+            overlay: Overlay::new(),
             shot,
             failed: None,
             form: App::shot_form(),
@@ -224,9 +220,7 @@ impl App {
         }
         self.feed_sky(dt);
         self.feed_fluid(dt);
-        let portrait = self.portrait();
         let Some(r) = &mut self.renderer else { return };
-        r.ui_entities = portrait;
         r.shadows = self.entities.shadows(self.camera.position);
         self.signs.feed(self.settings.look, self.ui.theme(self.settings.look), r);
         r.set_outline(outline);
@@ -244,21 +238,28 @@ impl App {
         });
         self.update_form();
         self.drive_use();
+        self.fit_java_chat();
+        self.close_finished_credits(now);
         let (size, scale) = self.gui();
         let mouse = self.gui_mouse();
         let name = self.names().then(|| (self.shown.name.before_caret(), self.shown.name.text()));
         let name = name.as_ref().map(|(before, all)| (before.as_str(), &all[before.len()..]));
         let creative = self.creative_view();
         let creative = creative.as_ref().map(|(stacks, tab, scrolled)| (stacks.as_slice(), *tab, *scrolled));
-        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.shown.pick, first: self.first_pick(), name, creative });
-        let menu = self.menu.map(|m| self.menu_content(m));
-        let backdrop = if self.menu == Some(Menu::Death) { Backdrop::Death } else { Backdrop::Dim };
-        let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice(), backdrop));
+        let screen = self.screen_open.then_some(crate::ui::Screen { inventory: &self.inventory, layout: self.layout(), picked: self.shown.pick, first: self.first_pick(), name, creative, java: (crate::ui::JavaScreen { entries: &self.shown.items, creative: self.shown.creative.map(|c| c.0), name: &self.shown.name }, &self.shown.java) });
+        let java = self.java_look();
+        let menu = self.menu.filter(|_| !java).map(|m| self.menu_content(m));
+        let menu = menu.as_ref().map(|(title, buttons)| (*title, buttons.as_slice()));
         let tags = self.name_tags([(size[0] / scale) as f32, (size[1] / scale) as f32], scale as f32);
+        let under = self.java_under().filter(|_| java);
+        let java_screens = java.then(|| java_menu::shown(&mut self.java, self.menu, under, &self.settings, &self.players, now));
         let Some(r) = &mut self.renderer else { return };
         let players = self.show_players.then_some(self.players.as_slice());
-        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, form: self.form.as_ref(), book: self.shown.book.as_ref().zip(self.play.me.as_ref().and_then(|m| m.book.as_ref())).map(|(open, held)| open.shown(&held.0)), sign: self.shown.sign.as_ref().map(|s| acacia_ui::sign_editor::Editing { lines: &s.lines, line: s.line, hanging: s.hanging }), players, tags, mouse, size, scale, now };
-        let ui = self.ui.draw(frame);
+        let frame = Frame { look: self.settings.look, me: self.play.me.as_ref(), debug, screen, menu, java_screens, form: self.form.as_ref(), book: self.shown.book.as_ref().zip(self.play.me.as_ref().and_then(|m| m.book.as_ref())).map(|(open, held)| open.shown(&held.0)), sign: self.shown.sign.as_ref().map(|s| acacia_ui::sign_editor::Editing { lines: &s.lines, line: s.line, hanging: s.hanging }), players, tags, mouse, size, scale, now, menu_blur: self.settings.menu_blur };
+        let (atlas, quads, blur, pictures) = self.ui.draw(frame);
+        r.ui_entities = portrait::instances(&self.entities, pictures, self.camera.position);
+        r.ui_blur = blur;
+        let ui = (atlas, quads);
         let view = match self.mode == Mode::Play && self.play.view_turned() {
             true => Camera { yaw: self.camera.yaw + std::f32::consts::PI, pitch: -self.camera.pitch, ..self.camera },
             false => self.camera,
@@ -268,22 +269,8 @@ impl App {
         if drawing.elapsed() > SLOW_FRAME {
             tracing::warn!(ui = ?(drawing - held), render = ?drawing.elapsed(), "slow draw");
         }
+        self.count_frame(&stats, now);
         self.stats = stats;
-        self.overlay.frames += 1;
-        let elapsed = self.overlay.since.elapsed();
-        if elapsed >= TITLE_EVERY {
-            let fps = self.overlay.frames as f32 / elapsed.as_secs_f32();
-            self.fps = fps;
-            let line = crate::overlay::title(fps, &stats, &self.status);
-            if let Some(w) = &self.window {
-                w.set_title(&line);
-            }
-            self.overlay.reports += 1;
-            if self.overlay.reports.is_multiple_of(LOG_EVERY_TITLES) {
-                tracing::info!("{line}");
-            }
-            self.overlay = Overlay { since: now, frames: 0, reports: self.overlay.reports };
-        }
     }
 
     fn grab(&mut self, on: bool) {

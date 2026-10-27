@@ -1,4 +1,5 @@
 mod atlas;
+mod blur;
 mod bolts;
 mod clouds;
 mod crack;
@@ -10,6 +11,7 @@ mod fog;
 mod glint;
 mod globals;
 mod inputs;
+mod light_probe;
 mod outline;
 mod over;
 mod shadows;
@@ -22,9 +24,11 @@ mod screenshot;
 mod sign_text;
 mod sky;
 mod sprites;
+mod stages;
 mod store;
 mod ui;
 mod weather;
+mod world_pass;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -38,6 +42,7 @@ use entities::EntityPass;
 use crack::CrackPass;
 pub use crack::load_stages as load_crack_stages;
 use outline::OutlinePass;
+use stages::StageClock;
 use ui::UiPass;
 pub use outline::Outline;
 use sky::SkyPass;
@@ -49,9 +54,10 @@ use atlas::BlockTextures;
 use crate::biome::BiomeColors;
 use crate::camera::{Camera, Frustum};
 use crate::cull;
+use crate::light::environment::LightConditions;
 use crate::look::Look;
 use crate::scene::{Scene, Update};
-use crate::sky::{NOON, Realm, Sky};
+use crate::sky::{NOON, Realm};
 use globals::Globals;
 use pipeline::Pipelines;
 use store::Store;
@@ -82,8 +88,11 @@ pub struct Renderer {
     store: Store,
     entities: EntityPass,
     entity_list: Vec<EntityInstance>,
-    /// Entities drawn over the UI, fully lit (`over.rs`): each needs a `frame`.
+    /// Pictures-in-picture's entities (`over.rs`): each needs a `frame` from model space to the
+    /// window's pixels (y down, z towards the viewer); the UI's picture quads show them.
     pub ui_entities: Vec<EntityInstance>,
+    /// The menu blur under the UI's quads from its index on (`blur.rs`).
+    pub ui_blur: Option<acacia_ui::blur::Blur>,
     block_models: BlockModels,
     sign_text: sign_text::SignTextPass,
     /// `None` until [`Renderer::set_sky_textures`]: the sky is then a plain colour.
@@ -93,9 +102,12 @@ pub struct Renderer {
     crack_pass: CrackPass,
     ui_pass: UiPass,
     particles: particle_feed::ParticleFeed,
+    light_cache: light_probe::LightCache,
     weather_pass: weather::WeatherPass,
     /// Rain, thunder and lightning: the falling streaks and the sky.
     pub weather: crate::sky::Weather,
+    /// The player's fog effects, and the rain fog's state.
+    pub atmosphere: crate::sky::fog::Atmosphere,
     cloud_pass: clouds::CloudPass,
     bolt_pass: bolts::BoltPass,
     shadow_pass: shadows::ShadowPass,
@@ -120,6 +132,9 @@ pub struct Renderer {
     /// [`crate::sky::moon_phase`]; full until set.
     pub moon_phase: u8,
     pub look: Look,
+    /// The brightness option and the effects on the lightmap.
+    pub light_conditions: LightConditions,
+    flicker: crate::light::environment::Flicker,
     screenshot: Option<PathBuf>,
 }
 
@@ -138,7 +153,7 @@ impl Renderer {
         let store = Store::new(&device);
         let entities = EntityPass::new(&device, config.format, &globals);
         let outline_pass = OutlinePass::new(&device, config.format, &globals);
-        let ui_pass = UiPass::new(&device, config.format.remove_srgb_suffix());
+        let ui_pass = UiPass::new(&device, config.format);
         let particles = particle_feed::ParticleFeed::new(&device, config.format, &globals);
         let weather_pass = weather::WeatherPass::new(&device, config.format, &globals);
         let cloud_pass = clouds::CloudPass::new(&device, config.format, &globals);
@@ -164,6 +179,7 @@ impl Renderer {
             entities,
             entity_list: Vec::new(),
             ui_entities: Vec::new(),
+            ui_blur: None,
             block_models: BlockModels::default(),
             sky: None,
             outline_pass,
@@ -171,8 +187,10 @@ impl Renderer {
             crack_pass,
             ui_pass,
             particles,
+            light_cache: Default::default(),
             weather_pass,
             weather: Default::default(),
+            atmosphere: Default::default(),
             cloud_pass,
             clouds: None,
             bolt_pass,
@@ -189,43 +207,50 @@ impl Renderer {
             time: NOON,
             moon_phase: 0,
             look: Look::default(),
+            light_conditions: Default::default(),
+            flicker: Default::default(),
             screenshot: None,
         })
     }
 
     /// Draws a frame from `camera`, with `ui` (its atlas and this frame's quads) over it.
     pub fn render(&mut self, camera: &Camera, ui: Option<(&acacia_ui::Atlas, &[acacia_ui::Quad])>) -> FrameStats {
+        let mut clock = StageClock::start();
         let (cam_block, cam_frac) = camera.split_position();
         self.take_updates(cam_block);
+        self.light_cache.next_frame();
+        clock.mark("updates");
         self.textures.animate(&self.queue, (self.started.elapsed().as_secs_f64() * 20.0) as u64);
         self.prepare_particles(camera);
         let world = self.scene.as_ref().map(|s| s.world().clone());
         // Rain and clouds only under an open sky: the server's rain level outlasts a trip to the End.
         let open_sky = world.as_ref().is_none_or(|w| w.dimension().sky);
         let (rain, clouds) = if open_sky { (self.weather.rain, self.clouds) } else { (0.0, None) };
-        self.weather_pass.prepare(&self.queue, world.as_deref(), &self.biomes, camera.position, rain, self.started.elapsed().as_secs_f32());
-        self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, crate::sky::cloud_tint(self.weather), self.started.elapsed().as_secs_f64());
+        // TODO: the level's game time; the renderer's clock stands in for it.
+        let ticks = self.started.elapsed().as_secs_f64() * 20.0;
+        let (sky, fog) = self.frame_environment(camera);
+        let clouds = clouds.map(|layer| crate::clouds::CloudLayer { fog_end: fog.cloud_end.min((layer.range * 16) as f32), ..sky.clouds().layer(layer) });
+        self.cloud_pass.prepare(&self.device, &self.queue, camera.position, clouds, ticks);
         self.bolt_pass.prepare(&self.device, &self.queue, &self.bolts, camera.position);
-        self.prepare_shadows(camera.position);
+        self.prepare_shadows(camera.position, &sky);
+        clock.mark("effects");
 
         let view_proj = camera.view_proj();
         let realm = self.world().map_or(Realm::Overworld, |w| Realm::of(&w.dimension()));
-        let has_sky = realm == Realm::Overworld;
-        let sky = Sky::of(realm, self.time, self.weather);
-        let fog = self.frame_fog(sky.color_towards(camera.forward()), camera.biome);
+        let conditions = LightConditions { flicker: self.flicker.at((self.started.elapsed().as_secs_f64() * 20.0) as u64), ..self.light_conditions };
+        let lightmap = crate::light::environment::frame_lightmap(self.look.lighting, realm, self.time, self.weather, &conditions);
         let sky_pass = self.sky.as_ref().filter(|_| !fog.in_fluid);
         if let Some(pass) = sky_pass {
-            pass.prepare(&self.queue, &sky, self.moon_phase);
+            pass.prepare(&self.queue, &sky, fog.sky_end, camera.position.y, fog.underwater);
         }
-        let globals = Globals::new(view_proj, (cam_block, cam_frac), fog.color, self.fog_distance, &self.look, fog.haze, has_sky, sky.darken);
+        let globals = Globals::new(view_proj, (cam_block, cam_frac), fog.color, self.fog_distance, &self.look, fog.haze, &lightmap);
         self.queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&globals));
-        let light = self.scene.as_ref().map(|s| s.light().read());
-        // Outside lit columns an entity is as bright as open sky.
-        let light_at = |p: DVec3| {
-            let p = p.floor().as_ivec3();
-            let byte = light.as_ref().and_then(|l| l.light(p.x, p.y, p.z)).unwrap_or(15);
-            [f32::from(byte >> 4), f32::from(byte & 15)]
-        };
+        let window = [self.config.width, self.config.height];
+        self.entities.set_over_globals(&self.queue, &globals.in_pictures(window));
+        self.ui_pass.pictures(&self.device, window);
+        let light_data = self.scene.as_ref().map(|s| s.light().clone());
+        let light = self.light_cache.reader(light_data.as_deref());
+        let light_at = |p: DVec3| light.at(p);
         let blocks = self.block_models.near(camera.position, f64::from(self.fog_distance), self.started.elapsed().as_secs_f64() * 20.0);
         self.screen_effect.prepare(&self.queue, camera, fog.underwater, light_at(camera.position));
         self.entities.prepare(&self.device, &self.queue, &self.globals, self.entity_list.iter().chain(blocks), &self.ui_entities, camera.position, crate::glint::scroll(self.started.elapsed().as_millis() as u64), light_at);
@@ -233,10 +258,14 @@ impl Renderer {
         self.crack_pass.prepare(&self.queue, self.outline.as_ref(), camera.position);
         let (atlas, quads) = ui.map_or((None, &[][..]), |(a, q)| (Some(a), q));
         if let Some(atlas) = atlas {
-            self.ui_pass.prepare(&self.device, &self.queue, atlas, quads, [self.config.width, self.config.height], crate::glint::scroll(self.started.elapsed().as_millis() as u64));
+            self.ui_pass.prepare(&self.device, &self.queue, atlas, (quads, self.ui_blur), [self.config.width, self.config.height], crate::glint::scroll(self.started.elapsed().as_millis() as u64));
         }
         self.sign_text.prepare(&self.device, &self.queue, self.ui_pass.texture.as_ref(), self.block_models.sign_text(), camera.position, light_at);
+        let weather_light = |p: [i32; 3]| light.at(glam::IVec3::from(p).as_dvec3()).map(|l| l as u8);
+        let level = world.as_deref().map(|world| crate::weather::level::WorldWeather { world, biomes: &*self.biomes, light: &weather_light });
+        self.weather_pass.prepare(&self.queue, level.as_ref(), camera.position, rain, ticks);
         drop(light);
+        clock.mark("entities+ui");
         let frustum = Frustum::new(view_proj);
         let reachable = self
             .scene
@@ -252,42 +281,19 @@ impl Renderer {
             pending: self.scene.as_ref().map_or(0, Scene::pending),
         };
 
+        clock.mark("cull");
         let Some(frame) = device::acquire_or_reconfigure(&self.surface, &self.device, &self.config) else { return stats };
+        clock.mark("acquire");
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
-        {
-            let mut pass = pipeline::begin_pass(&mut encoder, &view, &self.depth, fog.color);
-            if let Some(sky) = sky_pass {
-                sky.draw(&mut pass, realm);
-            }
-            for (pipeline, draws) in [(&self.pipelines.solid, &solid), (&self.pipelines.translucent, &translucent)] {
-                pass.set_pipeline(pipeline);
-                pass.set_bind_group(0, &self.bind_group, &[]);
-                for d in draws {
-                    pass.draw(d.first * 6..(d.first + d.count) * 6, d.slot..d.slot + 1);
-                }
-                if std::ptr::eq(pipeline, &self.pipelines.solid) {
-                    self.entities.draw(&mut pass);
-                    self.sign_text.draw(&mut pass);
-                }
-            }
-            self.entities.draw_blended(&mut pass);
-            self.shadow_pass.draw(&mut pass);
-            self.particles.draw(&self.device, &mut pass, &self.globals, &self.textures.view, &self.sampler);
-            if !fog.in_fluid {
-                self.cloud_pass.draw(&mut pass);
-            }
-            self.bolt_pass.draw(&mut pass);
-            self.weather_pass.draw(&mut pass);
-            self.crack_pass.draw(&mut pass);
-            self.outline_pass.draw(&mut pass);
-            self.screen_effect.draw(&mut pass);
-        }
+        self.world_pass(&mut encoder, &view, [&solid, &translucent], realm, &fog);
+        self.draw_pictures(&mut encoder);
         if atlas.is_some() {
             self.ui_pass.draw(&mut encoder, &frame.texture);
         }
-        self.draw_over_ui(&mut encoder, &view);
+        clock.mark("encode");
         self.queue.submit([encoder.finish()]);
+        clock.mark("submit");
         if let Some(path) = self.screenshot.take() {
             match screenshot::save(&self.device, &self.queue, &frame.texture, &path) {
                 Ok(()) => tracing::info!(path = %path.display(), "screenshot"),
@@ -295,6 +301,8 @@ impl Renderer {
             }
         }
         self.queue.present(frame);
+        clock.mark("present");
+        clock.report();
         stats
     }
 }

@@ -14,10 +14,12 @@ pub(crate) struct KeyLatch {
     /// Ticks left in which pressing forward again starts a sprint (double tap).
     sprint_trigger: u32,
     prev_impulse: bool,
-    /// The sprint was started by a double tap, so it outlives the (unheld) sprint key.
-    tapped_sprint: bool,
+    /// The sprint outlives the (unheld) sprint key: a double tap started it, or a mouse client's key did.
+    latched_sprint: bool,
     /// Ticks left of the jump double tap toggling the flight (`flight::fly_jump`).
     fly_taps: u8,
+    /// Mouse input ([`crate::BotConfig::mouse_input`]): a released sprint key keeps the sprint.
+    pub(crate) mouse_input: bool,
 }
 
 impl KeyLatch {
@@ -46,7 +48,7 @@ impl KeyLatch {
             }
         }
         self.prev_impulse = impulse;
-        self.tapped_sprint = (self.tapped_sprint && st.sprinting || double_tap) && !c.sprint;
+        self.latched_sprint = if c.sprint { self.mouse_input } else { self.latched_sprint && st.sprinting || double_tap };
         Input {
             move_vector: keys(c.strafe, c.forward),
             yaw,
@@ -54,9 +56,10 @@ impl KeyLatch {
             jump: flight::fly_jump(&mut self.fly_taps, c, &st.flight),
             sneak: c.sneak,
             want_down,
-            // Strict BDS 1.26.52 ends a key sprint when the key is released (fuzz: 94% of such ticks were
-            // corrected); a double-tap sprint has no key and lasts while forward is held.
-            sprint: c.sprint || double_tap || (self.tapped_sprint && st.sprinting && forward),
+            // A touch bot's key sprint ends with the key (strict BDS 1.26.52 fuzz, touch input: 94% of
+            // key-released sprinting ticks were corrected). A mouse client's key sprint, like a double-tap
+            // one, lasts while forward is held (vanilla Bedrock; accepted by strict BDS with mouse input).
+            sprint: c.sprint || double_tap || (self.latched_sprint && st.sprinting && forward),
             using_item,
             glide: c.glide,
             ..Input::default()

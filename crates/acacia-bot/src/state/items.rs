@@ -1,44 +1,63 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, Weak};
 
 use acacia_client::proto::packets::ItemRegistry as ItemRegistryPacket;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
+use bytes::Bytes;
 
-/// Network item id <-> identifier (`minecraft:diamond`), from the server's `ItemRegistry`.
+/// Network item id <-> identifier (`minecraft:diamond`), from the server's `ItemRegistry`. Bots that
+/// receive the same registry share one copy (~300 KB each).
 #[derive(Debug, Default)]
-pub struct ItemRegistry {
-    names: HashMap<i32, String>,
-    ids: HashMap<String, i32>,
+pub struct ItemRegistry(Arc<Maps>);
+
+#[derive(Debug, Default)]
+struct Maps {
+    names: HashMap<i32, Arc<str>>,
+    ids: HashMap<Arc<str>, i32>,
 }
 
 impl ItemRegistry {
     pub const PACKETS: &'static [u32] = &[ItemRegistryPacket::ID];
 
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
+        static LAST: Mutex<Option<(Bytes, Weak<Maps>)>> = Mutex::new(None);
+        let body = super::kept::keep(packet).body;
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        // keep() hands identical bodies the same buffer.
+        if let Some((seen, maps)) = &*last
+            && seen.as_ptr() == body.as_ptr()
+            && let Some(maps) = maps.upgrade()
+        {
+            self.0 = maps;
+            return Ok(());
+        }
         let registry: ItemRegistryPacket = packet.decode()?;
-        self.names.clear();
-        self.ids.clear();
+        let mut maps = Maps::default();
         for item in registry.itemstates {
             let id = i32::from(item.runtime_id);
-            self.ids.insert(item.name.clone(), id);
-            self.names.insert(id, item.name);
+            let name: Arc<str> = item.name.into();
+            maps.ids.insert(name.clone(), id);
+            maps.names.insert(id, name);
         }
+        self.0 = Arc::new(maps);
+        *last = Some((body, Arc::downgrade(&self.0)));
         Ok(())
     }
 
     pub fn name(&self, network_id: i32) -> Option<&str> {
-        self.names.get(&network_id).map(String::as_str)
+        self.0.names.get(&network_id).map(|n| &**n)
     }
 
     pub fn id(&self, name: &str) -> Option<i32> {
-        self.ids.get(name).copied()
+        self.0.ids.get(name).copied()
     }
 
     pub fn len(&self) -> usize {
-        self.names.len()
+        self.0.names.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.names.is_empty()
+        self.0.names.is_empty()
     }
 }
 

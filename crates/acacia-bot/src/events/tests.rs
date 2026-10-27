@@ -2,10 +2,10 @@ use acacia_client::proto::packets::{
     ContainerClose, ContainerOpen, SetHealth, SetTitle, SetTitleType, Text, TextCategory, TextContent, TextContentRaw,
     TextType,
 };
-use acacia_client::proto::types::{BlockCoordinates, WindowID, WindowType};
+use acacia_client::proto::types::{BlockCoordinates, WindowID, WindowIDVarint, WindowType};
 
 use super::*;
-use crate::state::queries::test_support::raw;
+use crate::state::queries::test_support::{content, empty_item, item, raw, slot_packet};
 
 fn run(source: &mut EventSource, state: &mut GameState, packet: RawPacket) -> Vec<BotEvent> {
     state.apply(&packet).unwrap();
@@ -74,6 +74,11 @@ fn windows_open_and_close() {
     };
     let events = run(&mut source, &mut state, raw(&open));
     assert!(matches!(events.as_slice(), [BotEvent::WindowOpened(c)] if c.window_type == WindowType::Furnace));
+    let filled = content(WindowIDVarint::First, vec![item(5, 1, 9), empty_item()]);
+    let events = run(&mut source, &mut state, raw(&filled));
+    assert!(matches!(events.as_slice(), [BotEvent::WindowContents(c)] if c.slots.len() == 2));
+    assert!(run(&mut source, &mut state, raw(&content(WindowIDVarint::Inventory, vec![item(5, 1, 9)]))).is_empty());
+    assert!(run(&mut source, &mut state, raw(&slot_packet(WindowIDVarint::First, 0, empty_item()))).is_empty());
     let close = ContainerClose { window_id: WindowID::First, window_type: WindowType::Furnace, server: true };
     let events = run(&mut source, &mut state, raw(&close));
     assert!(matches!(events.as_slice(), [BotEvent::WindowClosed { window_id: 1 }]));

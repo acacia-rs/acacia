@@ -52,9 +52,10 @@ impl PredictionSync {
     pub const PACKETS: &[u32] = &[SetEntityData::ID, UpdateAttributes::ID];
 
     pub fn apply(&mut self, packet: &RawPacket, runtime_id: u64) {
-        if let Ok(p) = packet.decode::<SetEntityData>()
-            && p.runtime_entity_id == runtime_id
-        {
+        if !Self::PACKETS.contains(&packet.id) || crate::state::leading_entity(packet) != Some(runtime_id) {
+            return;
+        }
+        if let Ok(p) = packet.decode::<SetEntityData>() {
             for item in p.metadata {
                 match item.value {
                     MetadataDictionaryItemValue::Flags(f) => self.flags = f.0,
@@ -62,9 +63,7 @@ impl PredictionSync {
                     _ => {}
                 }
             }
-        } else if let Ok(p) = packet.decode::<UpdateAttributes>()
-            && p.runtime_entity_id == runtime_id
-        {
+        } else if let Ok(p) = packet.decode::<UpdateAttributes>() {
             for a in p.attributes {
                 let field = match a.name.as_str() {
                     "minecraft:movement" => &mut self.movement,

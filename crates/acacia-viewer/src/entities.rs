@@ -8,6 +8,8 @@ use acacia_bot::Bot;
 use acacia_bot::proto::manual::Uuid;
 use acacia_bot::proto::types::MetadataFlags1 as Flags;
 use acacia_bot::state::{Entity, ITEM_KIND, ItemStack, PlayerSkin};
+use acacia_render::entity::java::gear::Body;
+use acacia_render::entity::java::trims::Trim;
 use acacia_render::entity::{EntityInstance, EntityModels, Layer, Pose, Skin, SkinSource};
 use acacia_render::item::{ItemKey, SHIELD};
 use glam::{DVec3, Vec3};
@@ -18,6 +20,8 @@ use crate::facts::Facts;
 pub const SNAPSHOT_SECS: f32 = 0.05;
 const PLAYER: &str = "minecraft:player";
 const EYE_HEIGHT: f64 = acacia_bot::state::PLAYER_EYE_HEIGHT as f64;
+/// Wolf armour's durability (Java's and Bedrock's); its damage is the stack's aux value.
+const WOLF_ARMOR_DURABILITY: f32 = 64.0;
 
 pub struct Tracked {
     pub runtime_id: u64,
@@ -135,7 +139,7 @@ impl Feed {
             let sneaking = bot.movement().is_some_and(|m| m.sneaking());
             let blocking = sneaking && held.iter().flatten().any(|(key, _)| key.name == SHIELD);
             let (kind, facts) = (PLAYER.to_owned(), Facts::own(sneaking, blocking));
-            let armor = self.armor(bot, state.inventory.armor.iter());
+            let armor = self.armor(bot, &kind, &facts, state.inventory.armor.iter());
             let (hurts, dying) = (state.hurts.count(me.runtime_entity_id), state.hurts.dying(me.runtime_entity_id));
             out.push(Tracked { runtime_id: me.runtime_entity_id, own_eyes: Some(eyes), kind, facts, head_yaw, pitch, instance, dropped: None, hitbox: None, name: None, held, armor, hurts, dying, seat, tether: None, cape: self.cape(uuid) });
         }
@@ -158,7 +162,7 @@ impl Feed {
         }
         let feet = e.feet();
         let position = DVec3::new(feet.x.into(), feet.y.into(), feet.z.into());
-        let facts = Facts::of(&e.metadata);
+        let facts = Facts::of(&e.metadata, e.health(), bot.state().entities.properties(e));
         let mut dropped = None;
         let (kind, instance) = if e.is_player() {
             (PLAYER.to_owned(), self.player(bot, e.uuid, position, e.yaw, e.metadata.scale())?)
@@ -166,11 +170,12 @@ impl Feed {
             let stack = e.item.as_ref()?;
             let key = crate::item_look::key(bot, stack)?;
             dropped = Some(DroppedStack { key, count: stack.count, seed: stack.network_id.wrapping_add(stack.metadata as i32), enchanted: stack.is_enchanted() });
-            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None, hurt: false, glint: None };
+            let instance = EntityInstance { layers: Arc::from([]), skin: None, position, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: None, hurt: false, white: 0.0, glint: None };
             (e.kind.clone(), instance)
         } else {
             let (layers, scale) = self.models.appearance(&e.kind, &|name| facts.query(name))?;
-            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false, glint: None };
+            let layers = self.with_gear(bot, &e.kind, &facts, layers, e.equipment.as_ref().map(|q| &q.body));
+            let instance = EntityInstance { layers, skin: None, position, yaw: e.yaw, scale: scale * e.metadata.scale(), pose: Pose::default(), frame: None, hurt: false, white: 0.0, glint: None };
             (e.kind.clone(), instance)
         };
         // The player's own vehicle is not under its crosshair.
@@ -180,21 +185,36 @@ impl Feed {
         let name = e.metadata.name_tag().filter(|n| !n.is_empty()).map(str::to_owned).or_else(|| e.username.clone());
         let held = e.equipment.as_ref().map_or([None, None], |q| [held_key(bot, &q.main_hand), held_key(bot, &q.off_hand)]);
         let facts = if held.iter().flatten().any(|(key, _)| key.name == SHIELD) { facts.with_a_shield() } else { facts };
-        let armor = self.armor(bot, e.equipment.iter().flat_map(|q| &q.armor));
+        let armor = self.armor(bot, &kind, &facts, e.equipment.iter().flat_map(|q| &q.armor));
         let hurts = &bot.state().hurts;
         let (hurts, dying) = (hurts.count(e.runtime_id), hurts.dying(e.runtime_id));
         Some(Tracked { runtime_id: e.runtime_id, own_eyes: None, kind, facts, head_yaw: e.head_yaw, pitch: e.pitch, instance, dropped, hitbox, name, held, armor, hurts, dying, seat, tether: crate::smooth::ropes::tether(bot, e), cape: self.cape(e.uuid.filter(|_| e.is_player())) })
     }
 
-    /// The layers of the armour pieces among `worn` that the pack has attachables for, each with
+    /// The layers of the armour pieces among `worn` that a `kind` (with `facts`) draws, each with
     /// whether it is enchanted; dyed leather takes its stack's colour.
-    fn armor<'a>(&self, bot: &Bot, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<(Arc<[Layer]>, bool)> {
+    fn armor<'a>(&self, bot: &Bot, kind: &str, facts: &Facts, worn: impl Iterator<Item = &'a ItemStack>) -> Vec<(Arc<[Layer]>, bool)> {
         let layers = |s: &ItemStack| {
-            let layers = self.models.armor(&format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:")))?;
-            let Some(dye) = s.custom_color() else { return Some(layers) };
-            Some(layers.iter().map(|l| Layer { dye: Some(dye), ..l.clone() }).collect())
+            let item = format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:"));
+            let trim = s.trim().map(|(material, pattern)| Trim { material, pattern });
+            self.models.armor(kind, &|name| facts.query(name), &item, s.custom_color(), trim.as_ref())
         };
         worn.filter(|s| !s.is_empty()).filter_map(|s| Some((layers(s)?, s.is_enchanted()))).collect()
+    }
+
+    /// `layers` with what a `kind`'s saddle, collar, markings and body-slot stack add over it.
+    fn with_gear(&self, bot: &Bot, kind: &str, facts: &Facts, layers: Arc<[Layer]>, body: Option<&ItemStack>) -> Arc<[Layer]> {
+        let name = body.filter(|s| !s.is_empty()).and_then(|s| Some(format!("minecraft:{}", bot.state().item_name(s)?.trim_start_matches("minecraft:"))));
+        let body = body.zip(name.as_deref()).map(|(s, item)| Body {
+            item,
+            dye: s.custom_color(),
+            durability: (item == "minecraft:wolf_armor").then(|| (WOLF_ARMOR_DURABILITY - s.metadata as f32) / WOLF_ARMOR_DURABILITY),
+        });
+        let gear = self.models.gear(kind, &|name| facts.query(name), body);
+        if gear.is_empty() {
+            return layers;
+        }
+        layers.iter().cloned().chain(gear).collect()
     }
 
     /// The cape of a player [`Feed::player`] has drawn.
@@ -224,7 +244,7 @@ impl Feed {
         let layers = self.models.player(skin.as_ref().map(|(s, slim)| (&**s, *slim)))?;
         // The pack's player definition (and Java) draws the 2-block model at 0.9375.
         let scale = scale * 0.9375;
-        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None, hurt: false, glint: None })
+        Some(EntityInstance { layers, skin: skin.map(|(s, _)| s), position, yaw, scale, pose: Pose::default(), frame: None, hurt: false, white: 0.0, glint: None })
     }
 }
 

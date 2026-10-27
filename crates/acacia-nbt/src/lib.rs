@@ -14,7 +14,7 @@ mod write;
 pub use error::Error;
 pub use raw::Raw;
 pub use read::{read, read_lossy};
-pub use skip::skip;
+pub use skip::{root_string, skip};
 pub use wire::{Flavor, LittleEndian, Network};
 // For acacia-proto's codec, so the one `unsafe` has one home.
 #[doc(hidden)]

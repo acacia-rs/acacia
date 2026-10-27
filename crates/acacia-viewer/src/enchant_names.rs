@@ -21,15 +21,26 @@ pub fn option(level: u8, hint: Option<(u8, u8)>) -> String {
     format!("{level}: {short}{cut} {}...", ROMAN.get(usize::from(rank).saturating_sub(1)).copied().unwrap_or("?"))
 }
 
+/// Java's id and maximum level of each of Bedrock's enchantments, in Bedrock's order.
+pub const JAVA: [(&str, i32); 42] = [
+    ("protection", 4), ("fire_protection", 4), ("feather_falling", 4), ("blast_protection", 4), ("projectile_protection", 4),
+    ("thorns", 3), ("respiration", 3), ("depth_strider", 3), ("aqua_affinity", 1), ("sharpness", 5), ("smite", 5),
+    ("bane_of_arthropods", 5), ("knockback", 2), ("fire_aspect", 2), ("looting", 3), ("efficiency", 5), ("silk_touch", 1),
+    ("unbreaking", 3), ("fortune", 3), ("power", 5), ("punch", 2), ("flame", 1), ("infinity", 1), ("luck_of_the_sea", 3),
+    ("lure", 3), ("frost_walker", 2), ("mending", 1), ("binding_curse", 1), ("vanishing_curse", 1), ("impaling", 5),
+    ("riptide", 3), ("loyalty", 3), ("channeling", 1), ("multishot", 1), ("piercing", 4), ("quick_charge", 3),
+    ("soul_speed", 3), ("swift_sneak", 3), ("wind_burst", 3), ("density", 5), ("breach", 4), ("lunge", 3),
+];
+
 /// A tooltip's lines under a stack's name: each enchantment in grey (curses red), then its lore.
-pub fn notes(stack: &acacia_bot::state::ItemStack) -> Vec<String> {
-    let enchantment = |(id, rank): (i16, i16)| {
+pub fn notes(stack: &crate::control::Stack) -> Vec<String> {
+    let enchantment = |&(id, rank): &(i16, i16)| {
         let name = usize::try_from(id).ok().and_then(|id| NAMES.get(id))?;
         let rank = usize::try_from(rank - 1).ok().and_then(|r| ROMAN.get(r)).map_or_else(|| rank.to_string(), |r| (*r).to_owned());
         Some(format!("§{}{name} {rank}", if name.starts_with("Curse") { 'c' } else { '7' }))
     };
     let lore = stack.lore.iter().map(|line| format!("§5§o{line}"));
-    stack.enchantments().into_iter().filter_map(enchantment).chain(lore).collect()
+    stack.enchantments.iter().filter_map(enchantment).chain(lore).collect()
 }
 
 #[cfg(test)]

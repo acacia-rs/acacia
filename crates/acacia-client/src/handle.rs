@@ -7,16 +7,19 @@ use tokio::sync::mpsc;
 
 use crate::client::ClientBuilder;
 use crate::driver::Command;
+use crate::event_queue::EventReceiver;
 use crate::login::Identity;
+use crate::packet_trace::PacketTrace;
 use crate::Event;
 
 /// A spawned connection. Dropping it disconnects.
 pub struct Client {
     pub(crate) commands: mpsc::UnboundedSender<Command>,
-    pub(crate) events: mpsc::Receiver<Event>,
+    pub(crate) events: EventReceiver,
     pub(crate) runtime_entity_id: u64,
     pub(crate) identity: Identity,
     pub(crate) blob_store: Option<Arc<dyn BlobStore>>,
+    pub(crate) trace: PacketTrace,
 }
 
 impl Client {
@@ -47,10 +50,16 @@ impl Client {
         self.events.recv().await
     }
 
+    /// The next event if one is already queued.
+    pub fn try_recv(&mut self) -> Option<Event> {
+        self.events.try_recv()
+    }
+
     /// Queues a packet; returns false if the connection has closed.
     pub fn send<T: Packet + std::fmt::Debug>(&self, packet: &T) -> bool {
         tracing::trace!(target: "acacia_client::send", ?packet);
-        let mut buf = BytesMut::new();
+        // Fits a PlayerAuthInput, the packet sent every tick.
+        let mut buf = BytesMut::with_capacity(128);
         encode_packet(packet, &mut buf);
         self.send_raw(buf.freeze())
     }

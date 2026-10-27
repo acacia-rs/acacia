@@ -5,16 +5,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use acacia_render::entity::{EntityInstance, EntityModels, Value, cape};
+use acacia_render::entity::java::{bedrock, overlay};
+use acacia_render::entity::{EntityInstance, EntityModels, Layer, Value, cape};
 use acacia_render::item::drop::{self, Drop};
 use acacia_render::item::{ItemModel, ItemModels, SHIELD, hand};
-use acacia_render::shadows::Shadow;
 use glam::DVec3;
 
 use crate::entities::{SNAPSHOT_SECS, Tracked, wrap_degrees};
 use crate::pick::EntityBox;
 
 mod arm;
+mod marks;
 mod motion;
 pub mod ropes;
 
@@ -141,10 +142,19 @@ impl Smoother {
         Some((Motion { position: v.position + offset.as_dvec3(), yaw: seat.turn.map_or(m.yaw, |turn| v.yaw + turn), walk: Walk::default(), ..m }, &vehicle.kind))
     }
 
-    /// The own player standing still at `place` (model space to camera-relative space), its head
-    /// turned by `head_yaw` and `pitch` degrees: the figure in the inventory screen.
-    pub fn portrait(&self, place: glam::Mat4, head_yaw: f32, pitch: f32, camera: DVec3) -> Vec<EntityInstance> {
-        let Some((e, _)) = self.to.iter().find(|(e, _)| e.own_eyes.is_some()) else { return Vec::new() };
+    /// The own player (or, with `vehicle`, what it rides) standing still at `place` (model space to
+    /// where the instance is drawn), its head turned by `head_yaw` and `pitch` degrees from its
+    /// body: a figure in a screen.
+    pub fn figure(&self, vehicle: bool, place: glam::Mat4, head_yaw: f32, pitch: f32, camera: DVec3) -> Vec<EntityInstance> {
+        let Some((me, _)) = self.to.iter().find(|(e, _)| e.own_eyes.is_some()) else { return Vec::new() };
+        let e = match (vehicle, me.seat) {
+            (false, _) => me,
+            (true, Some(seat)) => match self.to.iter().find(|(v, _)| v.runtime_id == seat.vehicle) {
+                Some((v, _)) => v,
+                None => return Vec::new(),
+            },
+            (true, None) => return Vec::new(),
+        };
         let still = Motion { position: camera, yaw: 0.0, head_yaw, pitch, walk: Walk::default() };
         self.pieces(e, still, camera, Some(place), None)
     }
@@ -157,7 +167,7 @@ impl Smoother {
             let (Some(model), Some(items)) = (self.dropped.get(&e.runtime_id), &self.items) else { return Vec::new() };
             let age_ticks = life / SNAPSHOT_SECS;
             let at = Drop { feet: m.position, count: stack.count, seed: stack.seed, age_ticks, bob_offset: drop::bob_offset(e.runtime_id) };
-            return drop::instances(model, items.dropped(), &at);
+            return drop::instances(model, items.dropped(), &at, camera);
         }
         let query = |name: &str| {
             Value::Num(match name {
@@ -190,35 +200,40 @@ impl Smoother {
         // The body transform the entity pass gives this instance, toppled while dying.
         let s = e.instance.scale;
         let topple = glam::Mat4::from_rotation_z(-dying.map_or(0.0, topple_degrees).to_radians());
-        let stood = glam::Mat4::from_translation((m.position - camera).as_vec3()) * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * topple * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s));
+        // A Java model takes its renderer's own turn, scale and topple (entity::java::body).
+        let death_ticks = dying.map_or(0.0, |secs| (secs * 20.0).max(1.0));
+        let java = self.models.body(&e.kind, &query, m.yaw, s, death_ticks);
+        let at = glam::Mat4::from_translation((m.position - camera).as_vec3());
+        let stood = java.map_or_else(|| at * glam::Mat4::from_rotation_y(-m.yaw.to_radians()) * topple * glam::Mat4::from_scale(glam::Vec3::new(s, s, -s)), |j| at * j);
         let body = place.map_or(stood, |place| place * glam::Mat4::from_scale(glam::Vec3::splat(s)));
-        let frame = (dying.is_some() || place.is_some()).then_some(body);
+        let frame = (dying.is_some() || place.is_some() || java.is_some()).then_some(body);
         let held = self.held.get(&e.runtime_id).into_iter().flatten().enumerate();
+        let baby = e.facts.query("is_baby").truthy() && e.kind != "minecraft:armor_stand";
         for (left, item) in held.filter_map(|(side, item)| Some((side == 1, item.as_ref()?))) {
             let mesh = e.instance.layers.first().and_then(|l| self.models.models().get(l.model as usize)).map(|model| &model.mesh);
             let skin_mesh = e.instance.skin.as_ref().and_then(|skin| skin.mesh.as_ref());
             if let Some(hand) = skin_mesh.or(mesh).and_then(|mesh| mesh.hand(&pose, left)) {
-                out.push(hand::third_person(item, body, hand, left, raised == Some(usize::from(left)), m.position + DVec3::Y));
+                out.push(hand::third_person(item, body, hand, hand::Grip { left, baby }, raised == Some(usize::from(left)), m.position + DVec3::Y));
             }
         }
         let glint = |enchanted: bool| enchanted.then_some(acacia_render::glint::Glint::Armor);
-        let worn = e.armor.iter().map(|(layers, enchanted)| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: pose.clone(), frame, hurt, glint: glint(*enchanted), ..e.instance.clone() });
+        // A Java armour layer runs its wearer's setupAnim on its own model; a Bedrock one takes the wearer's pose.
+        let worn_pose = |layers: &[Layer]| match layers.first().filter(|l| self.models.is_java(l.model)) {
+            Some(l) => self.models.pose(&e.kind, l.model, &query),
+            None => pose.clone(),
+        };
+        let worn = e.armor.iter().map(|(layers, enchanted)| EntityInstance { layers: layers.clone(), skin: None, position: m.position, yaw: m.yaw, pose: worn_pose(layers), frame, hurt, glint: glint(*enchanted), ..e.instance.clone() });
         out.extend(worn);
         let cape = e.cape.iter().map(|cape| EntityInstance { layers: cape::layers(), skin: Some(cape.clone()), position: m.position, yaw: m.yaw, pose: cape::pose(&pose, m.walk.speed), frame, hurt, ..e.instance.clone() });
         out.extend(cape);
-        out.push(EntityInstance { position: m.position, yaw: m.yaw, pose, frame, hurt, ..e.instance.clone() });
-        out
-    }
-
-    /// Name tags and where they hang this frame: half a block over the entity's box.
-    pub fn name_tags(&self) -> Vec<(&str, DVec3)> {
-        let t = self.progress();
-        let mut out = Vec::new();
-        for (e, to) in &self.to {
-            let Some(name) = e.name.as_deref() else { continue };
-            let height = e.hitbox.map_or(1.8, |(_, h)| h);
-            out.push((name, self.blend(e.runtime_id, *to, t).position + DVec3::Y * f64::from(height + 0.5)));
+        let (layers, apart) = self.models.split_posed_apart(&e.instance.layers);
+        for layer in apart {
+            let pose = self.models.pose(&e.kind, layer.model, &query);
+            out.push(EntityInstance { layers: [layer].into(), position: m.position, yaw: m.yaw, pose, frame, hurt, glint: None, ..e.instance.clone() });
         }
+        // CreeperRenderer's flash is on the body's own layers, not its charged aura.
+        let white = if e.kind == "minecraft:creeper" { overlay::creeper_white(bedrock::swelling(&query)) } else { 0.0 };
+        out.push(EntityInstance { layers, position: m.position, yaw: m.yaw, pose, frame, hurt, white, ..e.instance.clone() });
         out
     }
 
@@ -230,26 +245,6 @@ impl Smoother {
             Some(EntityBox { runtime_id: e.runtime_id, feet: self.blend(e.runtime_id, *to, t).position, width, height })
         };
         self.to.iter().filter_map(hittable).collect()
-    }
-
-    /// The round shadows under what is drawn from `camera`. Java gives each kind a radius; the
-    /// pack has none, so it is taken from the hitbox (players 0.5, cows 0.7, chickens 0.3 as in
-    /// Java), 0.15 under dropped items, and none for the kinds Java gives none.
-    pub fn shadows(&self, camera: DVec3) -> Vec<Shadow> {
-        const NONE: [&str; 4] = ["minecraft:armor_stand", "minecraft:painting", "minecraft:lightning_bolt", "minecraft:arrow"];
-        let t = self.progress();
-        let cast = |(e, to): &(Tracked, Motion)| {
-            let radius = match (&e.dropped, e.hitbox, e.own_eyes) {
-                (Some(_), ..) => 0.15,
-                (None, Some((width, _)), _) => (width * 0.8).min(0.8),
-                (None, None, Some(eyes)) if eyes.distance(camera) > OWN_HEAD_RADIUS => 0.5,
-                _ => return None,
-            };
-            let m = self.blend(e.runtime_id, *to, t);
-            let feet = self.seated(e, m, t).map_or(m.position, |(seat, _)| seat.position);
-            (!NONE.contains(&e.kind.as_str())).then_some(Shadow { feet, radius })
-        };
-        self.to.iter().filter_map(cast).collect()
     }
 }
 

@@ -72,6 +72,13 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue, layers: &[&PathBuf], tin
     let armor = layers[0].components().any(|c| c.as_os_str() == "armor");
     if mask_alpha && armor {
         crate::item::leather::dye(&mut image, dye);
+    } else if let Some(dye) = dye.filter(|_| !mask_alpha) {
+        // A Java equipment layer's colour multiplies its whole texture (`EquipmentLayerRenderer`).
+        for p in image.pixels_mut() {
+            for (c, by) in p.0.iter_mut().zip(dye) {
+                *c = (u16::from(*c) * u16::from(by) / 255) as u8;
+            }
+        }
     } else if mask_alpha && !tint_mask {
         // TGA alpha marks tinted or overlaid texels (sheep wool, horse markings), not holes.
         image.pixels_mut().for_each(|p| p.0[3] = 255);

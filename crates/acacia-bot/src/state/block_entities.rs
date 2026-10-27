@@ -4,7 +4,7 @@ mod chunks;
 
 use std::collections::HashMap;
 
-use acacia_client::proto::nbt::{Nbt, Value};
+use acacia_client::proto::nbt::{self, root_string, Nbt, Network, Value};
 use acacia_client::proto::packets::{
     BlockEntityData, ChangeDimension, LevelChunk, NetworkChunkPublisherUpdate, StartGame, Subchunk, UpdateBlock, UpdateBlockSynced,
     UpdateSubchunkBlocks,
@@ -81,11 +81,8 @@ impl BlockEntities {
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
         match packet.id {
             BlockEntityData::ID => {
-                let p: BlockEntityData = packet.decode()?;
-                let nbt = p.nbt.decode()?;
-                if self.keeps(&nbt) {
-                    self.insert(coords(p.position), nbt);
-                }
+                let (position, nbt) = super::block_entity_parts(packet)?;
+                self.block_entity(position, nbt)?;
             }
             ChangeDimension::ID => self.columns.clear(),
             StartGame::ID => self.air = Some(crate::world::air_wire_id(&packet.decode()?)),
@@ -146,12 +143,29 @@ impl BlockEntities {
         self.columns.values().all(HashMap::is_empty)
     }
 
+    pub(crate) fn block_entity(&mut self, position: BlockCoordinates, mut nbt: &[u8]) -> Result<(), DecodeError> {
+        // A piston or hopper sends this every move: look at the id before decoding it all, and when only signs
+        // are kept, skip a document without "Sign" anywhere (every one has an `id`, so its walk always ran).
+        if self.tracking != BlockEntityTracking::All && memchr::memmem::find(nbt, b"Sign").is_none() {
+            return Ok(());
+        }
+        if self.keeps_id(root_string::<Network>(nbt, "id")?.as_deref()) {
+            self.insert(coords(position), nbt::read::<Network>(&mut nbt)?);
+        }
+        Ok(())
+    }
+
     pub(crate) fn insert(&mut self, pos: [i32; 3], nbt: Nbt) {
         self.columns.entry(column(pos)).or_default().insert(pos, nbt);
     }
 
     fn keeps(&self, nbt: &Nbt) -> bool {
-        self.tracking == BlockEntityTracking::All || is_sign(nbt)
+        self.keeps_id(id(nbt))
+    }
+
+    /// [`Self::keeps`] from the block entity's `id` alone.
+    fn keeps_id(&self, id: Option<&str>) -> bool {
+        self.tracking == BlockEntityTracking::All || id.is_some_and(is_sign_id)
     }
 
     /// Only updates to air remove: servers resend the clicked block after a rejected use, which
@@ -169,7 +183,18 @@ impl BlockEntities {
 
 /// `Sign` or `HangingSign` block entity data.
 fn is_sign(nbt: &Nbt) -> bool {
-    matches!(nbt.value.get("id"), Some(Value::String(id)) if id.ends_with("Sign"))
+    id(nbt).is_some_and(is_sign_id)
+}
+
+fn is_sign_id(id: &str) -> bool {
+    id.ends_with("Sign")
+}
+
+fn id(nbt: &Nbt) -> Option<&str> {
+    match nbt.value.get("id") {
+        Some(Value::String(id)) => Some(id),
+        _ => None,
+    }
 }
 
 fn coords(p: BlockCoordinates) -> [i32; 3] {

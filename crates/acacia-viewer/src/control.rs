@@ -105,6 +105,12 @@ pub struct Inventory {
     pub beacon: u8,
     /// An open trading screen.
     pub trade: Option<crate::stations::Trade>,
+    /// The open window's type, the block it was opened on, and the name it was given.
+    pub window: Option<WindowType>,
+    pub block: Option<&'static str>,
+    pub custom_title: Option<String>,
+    /// The open window's properties (`ContainerSetData`).
+    pub data: std::collections::HashMap<i32, i32>,
 }
 
 pub fn crafted(bot: &Bot, name: Option<&str>) -> Option<Stack> {
@@ -135,7 +141,10 @@ pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
 pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
     let name = bot.state().item_name(s).filter(|_| !s.is_empty())?.to_owned();
     let (banner, map) = (crate::item_look::banner(&name, s), s.map_id().and_then(|id| bot.state().maps.get(id).cloned()));
-    Some(Stack { name, aux: s.metadata, count: s.count, block: block_of(bot, s), enchanted: s.is_enchanted(), dye: s.custom_color(), banner, map, title: s.custom_name.clone(), notes: crate::enchant_names::notes(s) })
+    let durability = acacia_bot::workstation::max_durability(&name).map(|max| (s.damage(), max));
+    let (block, enchanted, dye, title) = (block_of(bot, s), s.is_enchanted(), s.custom_color(), s.custom_name.clone());
+    let trim = s.trim().map(|(material, _)| material);
+    Some(Stack { name, aux: s.metadata, count: s.count, block, enchanted, dye, banner, map, title, enchantments: s.enchantments(), lore: s.lore.clone(), trim, durability })
 }
 
 /// The player list's names, sorted.
@@ -158,8 +167,8 @@ pub fn inventory(bot: &Bot) -> Inventory {
         offhand: stack(&inv.offhand),
         cursor: stack(inv.cursor()),
         // A station's screen shows as soon as its window opens: its contents may come slot by slot.
-        container: bot.open_container().filter(|c| station.is_some() || c.window_type == WindowType::Container && !c.slots.is_empty() && c.slots.len() % 9 == 0).map(|c| Rows {
-            title: station.map_or(if c.slots.len() > 27 { "Large Chest" } else { "Chest" }, Station::title).into(),
+        container: bot.open_container().filter(|c| station.is_some() || c.window_type == WindowType::Crafter || c.window_type == WindowType::Container && !c.slots.is_empty() && c.slots.len() % 9 == 0).map(|c| Rows {
+            title: station.map_or(if c.window_type == WindowType::Crafter { "Crafter" } else if c.slots.len() > 27 { "Large Chest" } else { "Chest" }, Station::title).into(),
             slots: (0..c.slots.len().max(station.map_or(0, Station::slot_count))).map(|i| c.slots.get(i).and_then(stack)).collect(),
         }),
         workbench: bot.open_container().filter(|c| c.window_type == WindowType::Workbench).and_then(|c| c.position.as_ref()).map(|p| [p.x, p.y, p.z]),
@@ -173,6 +182,10 @@ pub fn inventory(bot: &Bot) -> Inventory {
         beacon: bot.beacon_levels().unwrap_or(0),
         trade: crate::stations::trade(bot),
         picks: bot.stonecutter_choices().into_iter().filter_map(|(id, s)| Some((id, stack_of(bot, &s)?))).collect(),
+        window: bot.open_container().map(|c| c.window_type),
+        block: bot.open_container().and_then(|c| c.position.as_ref()).and_then(|p| bot.block_name([p.x, p.y, p.z])),
+        custom_title: bot.open_container().and_then(|c| c.title.clone()),
+        data: state.containers.data.clone(),
     }
 }
 
@@ -194,8 +207,13 @@ pub struct Stack {
     pub map: Option<std::sync::Arc<acacia_bot::state::MapImage>>,
     /// The name an anvil gave it.
     pub title: Option<String>,
-    /// A tooltip's lines under the name: enchantments, then lore.
-    pub notes: Vec<String>,
+    /// Bedrock's enchantment ids and levels.
+    pub enchantments: Vec<(i16, i16)>,
+    pub lore: Vec<String>,
+    /// An armour trim's material (`quartz`).
+    pub trim: Option<String>,
+    /// Damage taken and the item's maximum, for the items whose durability the bot knows.
+    pub durability: Option<(i32, u16)>,
 }
 
 /// What a grid or workstation still holds goes back into the inventory first.

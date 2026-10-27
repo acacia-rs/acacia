@@ -25,10 +25,20 @@ pub struct BonePose {
     pub scale: [f32; 3],
 }
 
+/// What animations add per bone of a Bedrock geometry; for a Java model (`Mesh::java`) the second
+/// field holds its parts' poses as `setupAnim` left them, and the first is unused.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Pose(pub Vec<BonePose>);
+pub struct Pose(pub Vec<BonePose>, pub Option<Arc<super::java::Poses>>);
 
 impl Pose {
+    pub fn bones(bones: Vec<BonePose>) -> Pose {
+        Pose(bones, None)
+    }
+
+    pub fn java(poses: super::java::Poses) -> Pose {
+        Pose(Vec::new(), Some(Arc::new(poses)))
+    }
+
     pub fn get(&self, bone: &str) -> Option<&BonePose> {
         self.0.iter().find(|b| &*b.bone == bone)
     }
@@ -50,6 +60,9 @@ impl Pose {
 impl Mesh {
     /// Per bone, the matrix that moves its rest-pose vertices into `pose`.
     pub fn skin(&self, pose: &Pose) -> Vec<Mat4> {
+        if let Some(model) = &self.java {
+            return super::java::mesh::skin(model, &java_poses(model, pose));
+        }
         let local = |(joint, name): (&Joint, &String)| {
             let posed = pose.get(name);
             let turn = from_fn(|i| joint.rotation[i] + posed.map_or(0.0, |p| p.rotation[i]));
@@ -76,9 +89,22 @@ impl Mesh {
 
     /// [`Mesh::right_hand`] for either arm.
     pub fn hand(&self, pose: &Pose, left: bool) -> Option<Mat4> {
+        if let Some(model) = &self.java {
+            return super::java::mesh::hand(model, &java_poses(model, pose), left);
+        }
         let index = self.bones.iter().position(|b| b == if left { "leftarm" } else { "rightarm" })?;
         let posed = *self.skin(pose).get(index)?;
         Some(posed * Mat4::from_translation(self.joints[index].pivot))
+    }
+}
+
+/// A Java model's poses in `pose`, or its rest poses when it carries none.
+fn java_poses<'a>(model: &super::java::Part, pose: &'a Pose) -> std::borrow::Cow<'a, super::java::Poses> {
+    match &pose.1 {
+        Some(p) if p.fits(model) => std::borrow::Cow::Borrowed(&**p),
+        // Another model's poses (its wearer's, on an armour layer).
+        Some(p) => std::borrow::Cow::Owned(p.retarget(model)),
+        None => std::borrow::Cow::Owned(super::java::Poses::new(model)),
     }
 }
 
@@ -210,6 +236,9 @@ impl EntityModels {
     /// state: `life_time`, `modified_distance_moved`, `modified_move_speed`, `target_x_rotation`
     /// and `target_y_rotation` (the head's pitch and its yaw against the body, in degrees).
     pub fn pose(&self, kind: &str, model: ModelId, query: &dyn Fn(&str) -> Value) -> Pose {
+        if let Some(java) = self.models.get(model as usize).and_then(|m| self.java.pose(model, &m.mesh, query)) {
+            return java;
+        }
         let (time, lerp) = (Cell::new(0.0), Cell::new(0.0));
         let ask = |name: &str| match name {
             "anim_time" => Value::Num(time.get()),

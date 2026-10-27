@@ -17,6 +17,7 @@
   `BEDROCK_TRANSPORT=nethernet cargo run -p acacia-client --example afk -- 127.0.0.1:19160 @default 30`.
   In Git Bash, set `MSYS_NO_PATHCONV=1`, or it rewrites `/list` into a Windows path.
 - `cargo run -p acacia-client --example ping -- play.example.net` pings a server; set `BEDROCK_PROXY` to go through a proxy.
+- Java look against Java Edition itself: `tools/parity/remote.sh [harness]` (docs/parity.md).
 
 ## Strict mode
 
@@ -72,6 +73,9 @@ for every tick our position is off by more than 0.0001, so each correction is a 
 - Testbox jobs (`tools/remote-run.sh`, `tools/remote-test.sh`, `DETACH=1` to return at once) run under
   `tools/testbox-guard.sh`: killed with their process group on `TIMEOUT` or `STALL` seconds without output
   (done file 124 / 125); `tools/testbox-watch.sh` prints a line per job that finishes.
+- Their `target/` is a link to tmpfs (`tools/testbox-target.sh`): testbox's disk is two shared HDDs and was most
+  of every build. Each worktree gets `work/<folder>`; a new one fills from sccache, and the least recently used
+  idle targets are dropped when tmpfs or memory runs short (rebuilt from sccache on next use).
 - `tools/physics/drill.sh <names>` runs scripted drills (`crates/acacia-bot/examples/drills.rs`), exact control
   sequences that isolate one variable.
 - `cargo run -p acacia-bot --example flight -- <server> <name> [rounds]` drills creative flight (crates/acacia-physics

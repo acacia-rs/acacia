@@ -1,124 +1,200 @@
-//! Fancy clouds, as Java's `CloudRenderer` builds them: every opaque texel of the cloud map is a
-//! box 12 blocks square and 4 tall, faces between neighbouring cloud cells left out, each face
-//! shaded by its side (top 1.0, bottom 0.7, z sides 0.8, x sides 0.9).
+//! Clouds as 26.3's `CloudRenderer` builds them: the faces of the cloud map's cells within the
+//! cloud range, ring by ring outward from the camera's cell, and the scroll that moves them.
+//! `clouds.vsh` turns each face into a quad; [`face_quad`] is that, on the CPU.
 
+use glam::{DVec3, Vec3};
 use image::RgbaImage;
 
-/// Blocks per cloud-map texel, and a cloud's thickness.
-pub const CELL: f32 = 12.0;
-pub const THICKNESS: f32 = 4.0;
+/// Blocks a cell spans (`CellSize`).
+pub const CELL_SIZE: Vec3 = Vec3::new(12.0, 4.0, 12.0);
 
-/// A vertex in cells (x, z) and blocks above the layer's foot (y), with its face's shade.
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CloudVertex {
-    pub position: [f32; 3],
-    pub shade: f32,
+/// `Direction.get3DDataValue` order, as the shader indexes its tables.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dir {
+    Down,
+    Up,
+    North,
+    South,
+    West,
+    East,
 }
 
-/// The map's cloud cells as a set, wrapping at its edges like the sky does.
+const DIRS: [Dir; 6] = [Dir::Down, Dir::Up, Dir::North, Dir::South, Dir::West, Dir::East];
+const NORTH_EMPTY: u8 = 8;
+const EAST_EMPTY: u8 = 4;
+const SOUTH_EMPTY: u8 = 2;
+const WEST_EMPTY: u8 = 1;
+const CLOUD: u8 = 16;
+
+/// The map's cells: [`CLOUD`] and which neighbours are empty, as `TextureData` packs them.
 pub struct CloudMap {
-    width: i32,
-    height: i32,
-    cloud: Vec<bool>,
+    pub width: i32,
+    pub height: i32,
+    cells: Vec<u8>,
 }
 
 impl CloudMap {
     pub fn new(image: &RgbaImage) -> CloudMap {
-        let cloud = image.pixels().map(|p| p.0[3] >= 128).collect();
-        CloudMap { width: image.width() as i32, height: image.height() as i32, cloud }
+        let (width, height) = (image.width() as i32, image.height() as i32);
+        let empty = |x: i32, y: i32| image.get_pixel(x as u32, y as u32).0[3] < 10;
+        let mut cells = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                // East and west wrap by the height, not the width: the game's, kept.
+                let flags = [(x, (y - 1).rem_euclid(height), NORTH_EMPTY), ((x + 1).rem_euclid(height), y, EAST_EMPTY), (x, (y + 1).rem_euclid(height), SOUTH_EMPTY), ((x - 1).rem_euclid(height), y, WEST_EMPTY)];
+                let cell = if empty(x, y) { 0 } else { flags.iter().fold(CLOUD, |c, &(nx, ny, flag)| if empty(nx, ny) { c | flag } else { c }) };
+                cells.push(cell);
+            }
+        }
+        CloudMap { width, height, cells }
     }
 
-    pub fn is_cloud(&self, x: i32, z: i32) -> bool {
-        self.cloud[(z.rem_euclid(self.height) * self.width + x.rem_euclid(self.width)) as usize]
+    /// 0 for no cloud, else 16 and the empty neighbours (north 8, east 4, south 2, west 1).
+    pub fn cell(&self, x: i32, z: i32) -> u8 {
+        self.cells[(x.rem_euclid(self.width) + z.rem_euclid(self.height) * self.width) as usize]
     }
 }
 
-/// The layer the renderer draws: its world y, and boxes (`fancy`) or Java's fast flat sheet.
+/// What the renderer is given each frame: the environment's cloud attributes and the options.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CloudLayer {
+    /// `visual/cloud_height`.
     pub height: f32,
+    /// `visual/cloud_color`, ARGB; no clouds at alpha 0.
+    pub color: u32,
+    /// Fancy (boxes) or fast (flat) clouds.
     pub fancy: bool,
+    /// The Cloud Distance option, in chunks (2..=128, 128 by default).
+    pub range: i32,
+    /// `FogCloudsEnd`: the range's blocks or `visual/cloud_fog_end_distance`, the nearer.
+    pub fog_end: f32,
 }
 
-/// Java's fast clouds: each cell within `radius` cells of `(cx, cz)` is one face at the layer's
-/// foot, in the top's shade.
-pub fn sheet(map: &CloudMap, cx: i32, cz: i32, radius: i32) -> Vec<CloudVertex> {
-    let cells = (cz - radius..=cz + radius).flat_map(|z| (cx - radius..=cx + radius).map(move |x| (x, z)));
-    cells
-        .filter(|&(x, z)| map.is_cloud(x, z))
-        .flat_map(|(x, z)| {
-            let (x0, z0, x1, z1) = (x as f32, z as f32, x as f32 + 1.0, z as f32 + 1.0);
-            let v = [[x0, 0.0, z0], [x0, 0.0, z1], [x1, 0.0, z1], [x1, 0.0, z0]].map(|position| CloudVertex { position, shade: 1.0 });
-            [v[0], v[1], v[2], v[0], v[2], v[3]]
-        })
-        .collect()
+/// `CloudColor` of an ARGB colour (`ARGB.vector4fFromARGB32`), RGBA.
+pub fn color(argb: u32) -> [f32; 4] {
+    let [a, r, g, b] = argb.to_be_bytes().map(|c| f32::from(c) / 255.0);
+    [r, g, b, a]
 }
 
-/// The boxes of cells within `radius` cells of `(cx, cz)`, as triangles in cell coordinates.
-pub fn boxes(map: &CloudMap, cx: i32, cz: i32, radius: i32) -> Vec<CloudVertex> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelativePos {
+    Above,
+    Inside,
+    Below,
+}
+
+/// What `CloudRenderer.prepare` works out each frame. The mesh depends on `cell`, `pos` and the
+/// cloud status only.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CloudFrame {
+    pub cell: [i32; 2],
+    /// `CloudOffset`: the mesh's shift from the camera, in blocks.
+    pub offset: Vec3,
+    pub pos: RelativePos,
+}
+
+/// `bottom_y` is the `cloud_height` attribute.
+pub fn frame(map: &CloudMap, bottom_y: f32, camera: DVec3, game_time: i64, partial: f32) -> CloudFrame {
+    let rel_bottom = (f64::from(bottom_y) - camera.y) as f32;
+    let pos = match () {
+        _ if rel_bottom + 4.0 < 0.0 => RelativePos::Above,
+        _ if rel_bottom > 0.0 => RelativePos::Below,
+        _ => RelativePos::Inside,
+    };
+    let scroll = (game_time % (i64::from(map.width) * 400)) as f32 + partial;
+    let mut x = camera.x + f64::from(scroll * 0.030_000_001);
+    let mut z = camera.z + f64::from(3.96f32);
+    let (width, height) = (f64::from(map.width) * 12.0, f64::from(map.height) * 12.0);
+    x -= (x / width).floor() * width;
+    z -= (z / height).floor() * height;
+    let cell = [(x / 12.0).floor() as i32, (z / 12.0).floor() as i32];
+    let in_cell = [(x - f64::from(cell[0] as f32 * 12.0)) as f32, (z - f64::from(cell[1] as f32 * 12.0)) as f32];
+    CloudFrame { cell, offset: Vec3::new(-in_cell[0], rel_bottom, -in_cell[1]), pos }
+}
+
+/// Cells around the camera's for a cloud range in chunks.
+pub fn radius_cells(range: i32) -> i32 {
+    (range as f32 * 16.0 / 12.0).ceil() as i32
+}
+
+/// One face; `x`, `z` in cells from the camera's cell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Face {
+    pub x: i32,
+    pub z: i32,
+    pub dir: Dir,
+    /// Seen from inside the cloud: wound the other way.
+    pub inside: bool,
+    /// Flat clouds' faces, shaded as tops.
+    pub top_color: bool,
+}
+
+/// `buildMesh`: fancy clouds are boxes (`extrude`), fast ones a face a cell.
+pub fn build_mesh(map: &CloudMap, frame: &CloudFrame, extrude: bool, radius: i32) -> Vec<Face> {
     let mut out = Vec::new();
-    for z in cz - radius..=cz + radius {
-        for x in cx - radius..=cx + radius {
-            if !map.is_cloud(x, z) {
-                continue;
+    let [cx, cz] = frame.cell;
+    let mut cell = |x: i32, z: i32| {
+        let data = map.cell(cx + x, cz + z);
+        if data == 0 {
+            return;
+        }
+        let mut face = |dir, inside, top_color| out.push(Face { x, z, dir, inside, top_color });
+        if !extrude {
+            return face(Dir::Down, false, true);
+        }
+        if frame.pos != RelativePos::Below {
+            face(Dir::Up, false, false);
+        }
+        if frame.pos != RelativePos::Above {
+            face(Dir::Down, false, false);
+        }
+        let sides = [(NORTH_EMPTY, z > 0, Dir::North), (SOUTH_EMPTY, z < 0, Dir::South), (WEST_EMPTY, x > 0, Dir::West), (EAST_EMPTY, x < 0, Dir::East)];
+        for (flag, facing, dir) in sides {
+            if data & flag != 0 && facing {
+                face(dir, false, false);
             }
-            let (x0, z0, x1, z1) = (x as f32, z as f32, x as f32 + 1.0, z as f32 + 1.0);
-            let (y0, y1) = (0.0, THICKNESS);
-            let mut face = |corners: [[f32; 3]; 4], shade: f32| {
-                let v = corners.map(|position| CloudVertex { position, shade });
-                out.extend([v[0], v[1], v[2], v[0], v[2], v[3]]);
-            };
-            face([[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]], 1.0);
-            face([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], 0.7);
-            if !map.is_cloud(x, z - 1) {
-                face([[x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0]], 0.8);
-            }
-            if !map.is_cloud(x, z + 1) {
-                face([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], 0.8);
-            }
-            if !map.is_cloud(x - 1, z) {
-                face([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], 0.9);
-            }
-            if !map.is_cloud(x + 1, z) {
-                face([[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]], 0.9);
+        }
+        if x.abs() <= 1 && z.abs() <= 1 {
+            DIRS.iter().for_each(|&dir| face(dir, true, false));
+        }
+    };
+    for ring in 0..=2 * radius {
+        for x in -ring..=ring {
+            let z = ring - x.abs();
+            if z >= 0 && z <= radius && x * x + z * z <= radius * radius {
+                if z != 0 {
+                    cell(x, -z);
+                }
+                cell(x, z);
             }
         }
     }
     out
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// `clouds.vsh`'s unit-cube corners, four a direction.
+#[rustfmt::skip]
+const CORNERS: [[u8; 3]; 24] = [
+    [1, 0, 0], [1, 0, 1], [0, 0, 1], [0, 0, 0],
+    [0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0],
+    [0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0],
+    [1, 0, 1], [1, 1, 1], [0, 1, 1], [0, 0, 1],
+    [0, 0, 1], [0, 1, 1], [0, 1, 0], [0, 0, 0],
+    [1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1],
+];
+const SHADES: [f32; 6] = [0.7, 1.0, 0.8, 0.8, 0.9, 0.9];
 
-    fn map(cells: &[(u32, u32)]) -> CloudMap {
-        let mut image = RgbaImage::new(8, 8);
-        for &(x, z) in cells {
-            image.put_pixel(x, z, image::Rgba([255; 4]));
-        }
-        CloudMap::new(&image)
-    }
-
-    #[test]
-    fn a_lone_cell_is_a_closed_box_and_neighbours_share_no_wall() {
-        assert_eq!(boxes(&map(&[(3, 3)]), 3, 3, 2).len(), 6 * 6);
-        // Two cells side by side: 2 × (top + bottom) + 6 outer walls.
-        assert_eq!(boxes(&map(&[(3, 3), (4, 3)]), 3, 3, 2).len(), (4 + 6) * 6);
-    }
-
-    #[test]
-    fn fast_clouds_are_one_flat_face_a_cell() {
-        let flat = sheet(&map(&[(3, 3), (4, 3)]), 3, 3, 2);
-        assert_eq!(flat.len(), 2 * 6);
-        assert!(flat.iter().all(|v| v.position[1] == 0.0 && v.shade == 1.0));
-    }
-
-    #[test]
-    fn the_map_wraps() {
-        let m = map(&[(0, 0)]);
-        assert!(m.is_cloud(8, -8) && !m.is_cloud(1, 0));
-        // The cell one map-width away is the same cloud.
-        assert_eq!(boxes(&m, 8, 0, 0).len(), 6 * 6);
-    }
+/// The face's corners before `CloudOffset` is added, and its shade (times `CloudColor`).
+pub fn face_quad(face: &Face) -> ([Vec3; 4], f32) {
+    let dir = face.dir as usize;
+    let cell = Vec3::new(face.x as f32, 0.0, face.z as f32) * CELL_SIZE;
+    let corners = std::array::from_fn(|i| {
+        let [x, y, z] = CORNERS[dir * 4 + if face.inside { 3 - i } else { i }];
+        Vec3::new(f32::from(x), f32::from(y), f32::from(z)) * CELL_SIZE + cell
+    });
+    (corners, SHADES[if face.top_color { 1 } else { dir }])
 }
+
+#[cfg(test)]
+#[path = "clouds_tests.rs"]
+mod tests;

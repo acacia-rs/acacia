@@ -26,7 +26,7 @@ pub fn banner(name: &str, stack: &ItemStack) -> Option<Arc<Banner>> {
 pub fn key(bot: &Bot, stack: &ItemStack) -> Option<ItemKey> {
     let name = bot.state().item_name(stack).filter(|_| !stack.is_empty())?.to_owned();
     let banner = banner(&name, stack);
-    Some(ItemKey { name, aux: stack.metadata, block: crate::control::block_of(bot, stack), dye: stack.custom_color(), banner })
+    Some(ItemKey { name, aux: stack.metadata, block: crate::control::block_of(bot, stack), dye: stack.custom_color(), banner, trim: stack.trim().map(|(material, _)| material) })
 }
 
 /// Names the look in a cache key; empty for a stack that looks like any other of its kind.

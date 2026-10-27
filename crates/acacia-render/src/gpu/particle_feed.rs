@@ -75,13 +75,8 @@ impl Renderer {
         feed.tick = now;
         let partial = ticks.fract();
         let light = self.scene.as_ref().map(|s| s.light().clone());
-        let light = light.as_ref().map(|l| l.read());
-        // Outside lit columns a particle is as bright as open sky.
-        let light_at = |p: DVec3| {
-            let c = p.floor().as_ivec3();
-            let byte = light.as_ref().and_then(|l| l.light(c.x, c.y, c.z)).unwrap_or(15);
-            [f32::from(byte >> 4), f32::from(byte & 15)]
-        };
+        let light = self.light_cache.reader(light.as_deref());
+        let light_at = |p: DVec3| light.at(p);
         let (forward, right) = (camera.forward(), camera.right());
         let up = right.cross(forward);
         feed.chips.prepare(&self.device, &self.queue, &feed.particles.chips, partial, camera.position, right, up, light_at);

@@ -1,8 +1,14 @@
 //! The UI pass (`ui.wgsl`): an [`acacia_ui::DrawList`] over the finished frame, one instance per
 //! quad, sampling the UI atlas with nearest filtering so pixel art stays sharp at any GUI scale.
+//! Each run of quads with the same [`acacia_ui::draw::Blend`] is one draw through that blend's pipeline.
 
+mod blend;
+
+use acacia_ui::blur::Blur;
 use acacia_ui::{Atlas, Quad};
 
+use super::blur::MenuBlur;
+use blend::{BLENDS, blend_state, runs};
 use super::glint::GlintTextures;
 use crate::glint::Glint;
 
@@ -12,15 +18,29 @@ struct Instance {
     rect: [f32; 4],
     uv: [f32; 4],
     color: [u8; 4],
-    /// 1 for an enchanted item's icon.
-    glint: f32,
+    /// 1 for an enchanted item's icon, 2 for a quad of the picture texture.
+    flags: f32,
+    bottom: [u8; 4],
+    skew: [f32; 2],
+    /// The sprite rect `uv` repeats within; all zero for none.
+    wrap: [f32; 4],
+}
+
+/// The window-sized texture pictures-in-picture are rendered into (`over.rs`), in the surface's
+/// format so the entity pipelines draw into it.
+struct Pictures {
+    view: wgpu::TextureView,
+    size: [u32; 2],
 }
 
 /// `Screen` in the shader: two `vec4`s.
 const SCREEN_BYTES: u64 = 32;
 
 pub struct UiPass {
-    pipeline: wgpu::RenderPipeline,
+    /// One per [`BLENDS`].
+    pipelines: Vec<wgpu::RenderPipeline>,
+    /// Instance ranges and the blend each is drawn with.
+    runs: Vec<(std::ops::Range<u32>, usize)>,
     layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     screen: wgpu::Buffer,
@@ -33,10 +53,18 @@ pub struct UiPass {
     count: u32,
     /// A non-sRGB format: the UI blends in gamma space, and its colours are sRGB values.
     format: wgpu::TextureFormat,
+    /// The surface's own format, the pictures texture's.
+    surface_format: wgpu::TextureFormat,
+    pictures: Pictures,
+    menu_blur: MenuBlur,
+    /// This frame's blur, prepared.
+    blur: Option<Blur>,
 }
 
 impl UiPass {
-    pub fn new(device: &wgpu::Device, color: wgpu::TextureFormat) -> Self {
+    /// `surface` is the surface's format; the pass draws through a non-sRGB view of it.
+    pub fn new(device: &wgpu::Device, surface: wgpu::TextureFormat) -> Self {
+        let color = surface.remove_srgb_suffix();
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("ui"), source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()) });
         let entry = |binding, ty| wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, ty, count: None };
         let [glint_item, glint_armor, glint_sampler] = GlintTextures::layout_entries(3);
@@ -56,34 +84,45 @@ impl UiPass {
                     },
                 ),
                 entry(2, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
+                entry(
+                    6,
+                    wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                ),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("ui"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("ui"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[Some(wgpu::VertexBufferLayout {
-                    array_stride: size_of::<Instance>() as u64,
-                    step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Unorm8x4, 3 => Float32],
-                })],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format: color, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::COLOR })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
+        let pipeline = |blend| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("ui"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
+                    buffers: &[Some(wgpu::VertexBufferLayout {
+                        array_stride: size_of::<Instance>() as u64,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Unorm8x4, 3 => Float32, 4 => Unorm8x4, 5 => Float32x2, 6 => Float32x4],
+                    })],
+                },
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState { format: color, blend: Some(blend_state(blend)), write_mask: wgpu::ColorWrites::COLOR })],
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
+        let pipelines = BLENDS.map(pipeline).into();
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor { label: Some("ui"), ..Default::default() });
         let screen = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("ui screen"),
@@ -92,7 +131,22 @@ impl UiPass {
             mapped_at_creation: false,
         });
         let instances = instance_buffer(device, 1024);
-        UiPass { pipeline, layout, sampler, screen, atlas: None, glint: GlintTextures::new(device), texture: None, instances, count: 0, format: color }
+        let pictures = Pictures { view: pictures_texture(device, surface, [1, 1]), size: [1, 1] };
+        UiPass { pipelines, runs: Vec::new(), layout, sampler, screen, atlas: None, glint: GlintTextures::new(device), texture: None, instances, count: 0, format: color, surface_format: surface, pictures, menu_blur: MenuBlur::new(device, color), blur: None }
+    }
+
+    /// The pictures texture at `size` (the window's), made again when that changed.
+    pub fn pictures(&mut self, device: &wgpu::Device, size: [u32; 2]) -> &wgpu::TextureView {
+        if self.pictures.size != size {
+            self.pictures = Pictures { view: pictures_texture(device, self.surface_format, size), size };
+            // The bind group holds the old texture.
+            self.atlas = None;
+        }
+        &self.pictures.view
+    }
+
+    pub fn picture_view(&self) -> &wgpu::TextureView {
+        &self.pictures.view
     }
 
     /// The glint over enchanted items' icons from now on.
@@ -102,9 +156,13 @@ impl UiPass {
         self.atlas = None;
     }
 
-    /// Uploads the atlas when it changed and this frame's quads. `glint_scroll` is
-    /// [`crate::glint::scroll`] now.
-    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, atlas: &Atlas, quads: &[Quad], window: [u32; 2], glint_scroll: [f32; 2]) {
+    /// Uploads the atlas when it changed and this frame's quads, with the menu `blur` under some.
+    /// `glint_scroll` is [`crate::glint::scroll`] now.
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, atlas: &Atlas, (quads, blur): (&[Quad], Option<Blur>), window: [u32; 2], glint_scroll: [f32; 2]) {
+        self.blur = blur;
+        if let Some(blur) = blur {
+            self.menu_blur.prepare(device, queue, blur, window);
+        }
         if self.atlas.as_ref().is_none_or(|(_, version, _)| *version != atlas.version) {
             let image = atlas.image();
             let view = super::entity_textures::upload(device, queue, image.width(), image.height(), image);
@@ -116,6 +174,7 @@ impl UiPass {
                     wgpu::BindGroupEntry { binding: 0, resource: self.screen.as_entire_binding() },
                     wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view) },
                     wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                    wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&self.pictures.view) },
                     glint_item,
                     glint_armor,
                     glint_sampler,
@@ -129,7 +188,9 @@ impl UiPass {
         let [icon_scale, _] = Glint::Item.scale([16; 2]);
         let screen = [window[0] as f32, window[1] as f32, size[0], size[1], glint_scroll[0], glint_scroll[1], icon_scale, 0.0];
         queue.write_buffer(&self.screen, 0, bytemuck::cast_slice(&screen));
-        let data: Vec<Instance> = quads.iter().map(|q| Instance { rect: q.rect, uv: q.uv, color: q.color, glint: f32::from(u8::from(q.glint)) }).collect();
+        let data: Vec<Instance> =
+            quads.iter().map(|q| Instance { rect: q.rect, uv: q.uv, color: q.color, flags: flags(q), bottom: q.bottom, skew: q.skew, wrap: q.wrap.unwrap_or_default() }).collect();
+        self.runs = runs(quads);
         let needed = (data.len() * size_of::<Instance>()) as u64;
         if needed > self.instances.size() {
             self.instances = instance_buffer(device, data.len().next_power_of_two());
@@ -138,13 +199,22 @@ impl UiPass {
         self.count = data.len() as u32;
     }
 
-    /// A pass of its own over the finished frame, through a view of `target` in the pass's format.
+    /// Passes of their own over the finished frame, through a view of `target` in the pass's
+    /// format: the quads before the menu blur, the blur, the quads after it.
     pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::Texture) {
         let Some((bind_group, _, _)) = &self.atlas else { return };
-        if self.count == 0 {
+        let view = target.create_view(&wgpu::TextureViewDescriptor { format: Some(self.format), ..Default::default() });
+        let Some(blur) = self.blur else { return self.draw_range(encoder, &view, bind_group, 0..self.count) };
+        let at = (blur.at as u32).min(self.count);
+        self.draw_range(encoder, &view, bind_group, 0..at);
+        self.menu_blur.draw(encoder, target, &view);
+        self.draw_range(encoder, &view, bind_group, at..self.count);
+    }
+
+    fn draw_range(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView, bind_group: &wgpu::BindGroup, range: std::ops::Range<u32>) {
+        if range.is_empty() {
             return;
         }
-        let view = target.create_view(&wgpu::TextureViewDescriptor { format: Some(self.format), ..Default::default() });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("ui"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -158,11 +228,39 @@ impl UiPass {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, bind_group, &[]);
         pass.set_vertex_buffer(0, self.instances.slice(..));
-        pass.draw(0..6, 0..self.count);
+        for (run, blend) in &self.runs {
+            let part = run.start.max(range.start)..run.end.min(range.end);
+            if !part.is_empty() {
+                pass.set_pipeline(&self.pipelines[*blend]);
+                pass.draw(0..6, part);
+            }
+        }
     }
+}
+
+fn flags(q: &Quad) -> f32 {
+    if q.picture {
+        2.0
+    } else {
+        f32::from(u8::from(q.glint))
+    }
+}
+
+fn pictures_texture(device: &wgpu::Device, format: wgpu::TextureFormat, [width, height]: [u32; 2]) -> wgpu::TextureView {
+    device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("ui pictures"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+        .create_view(&Default::default())
 }
 
 #[cfg(test)]

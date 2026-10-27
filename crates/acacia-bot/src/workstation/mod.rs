@@ -35,6 +35,7 @@ mod tests;
 pub use anvil_cost::AnvilCost;
 pub use beacon::BeaconEffect;
 pub use craft::CraftMode;
+pub use repair::max_durability;
 
 use acacia_client::proto::types::WindowType;
 use acacia_physics::BlockPos;

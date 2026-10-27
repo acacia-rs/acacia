@@ -16,6 +16,7 @@ mod actions;
 mod blob_cache;
 mod client;
 mod driver;
+mod event_queue;
 mod filter;
 mod friend;
 mod handle;
@@ -25,6 +26,7 @@ mod net_wire;
 mod nethernet;
 mod pack_cache;
 mod pack_fetch;
+mod packet_trace;
 mod ping;
 #[cfg(feature = "online")]
 mod qos;
@@ -52,6 +54,7 @@ pub use filter::PacketFilter;
 pub use friend::FriendJoin;
 #[cfg(feature = "online")]
 pub use friend::{friend_builder, join_friend_world, FriendJoinError};
+pub use packet_trace::PacketTraceSummary;
 pub use lan::{discover_lan, LanServer};
 pub use ping::{ping, ServerStatus};
 #[cfg(feature = "online")]

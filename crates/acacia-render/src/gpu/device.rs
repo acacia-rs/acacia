@@ -51,9 +51,11 @@ pub(super) fn open(target: impl Into<wgpu::SurfaceTarget<'static>>, (width, heig
 pub(super) fn acquire_or_reconfigure(surface: &wgpu::Surface, device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Option<wgpu::SurfaceTexture> {
     match surface.get_current_texture() {
         wgpu::CurrentSurfaceTexture::Success(f) => Some(f),
+        // wgpu 30 refuses to configure while a texture is held: drop it and skip the frame.
         wgpu::CurrentSurfaceTexture::Suboptimal(f) => {
+            drop(f);
             surface.configure(device, config);
-            Some(f)
+            None
         }
         wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
             surface.configure(device, config);

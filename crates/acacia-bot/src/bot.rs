@@ -2,14 +2,14 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
-use acacia_client::proto::packets::ContainerClose;
 use acacia_client::proto::types::InputData;
 use acacia_client::proto::RawPacket;
-use acacia_client::{Client, ClientBuilder, ConnectError, DisconnectReason, Event, MemoryBlobStore, PacketFilter};
+use acacia_client::{Client, ClientBuilder, ConnectError, DisconnectReason, Event, MemoryBlobStore, PacketFilter, PacketTraceSummary};
 use crate::cadence::Ticker;
 use crate::events::{BotEvent, EventSource, Events};
 use crate::governor::Governor;
 use crate::human::Human;
+use crate::interact::closing::PendingClose;
 use crate::lag::LagLine;
 use crate::items::RequestIds;
 use crate::movement::{Controls, Idle, Movement};
@@ -71,6 +71,8 @@ pub struct Bot {
     /// Physics bots: the simulation has started once, and the spawn packets went out with it.
     spawned: bool,
     strict: bool,
+    /// A client container close still settling (interact/closing.rs).
+    pub(crate) closing: Option<PendingClose>,
     closed: Option<DisconnectReason>,
     pub(crate) governor: Governor,
     pub(crate) act_timing: crate::act_timing::ActTiming,
@@ -140,6 +142,7 @@ impl Bot {
             travel: None,
             spawned: false,
             strict: config.strict,
+            closing: None,
             closed: None,
             governor: Governor::default(),
             act_timing: Default::default(),
@@ -162,6 +165,11 @@ impl Bot {
 
     pub fn client(&self) -> &Client {
         &self.client
+    }
+
+    /// Recent inbound packets (filtered ones too) and the server's silence, for stall diagnostics.
+    pub fn packet_trace(&self) -> PacketTraceSummary {
+        self.client.packet_trace()
     }
 
     pub fn state(&self) -> &GameState {
@@ -225,30 +233,42 @@ impl Bot {
             self.apply(&packet);
             return Some(Step::Packet(packet));
         }
+        // A queued event with no tick due skips the select!, whose tick timer was registered and cleared per packet.
+        if self.lag.is_none()
+            && !self.ticker.due()
+            && let Some(event) = self.client.try_recv()
+        {
+            return self.on_event(event);
+        }
         let lagged = self.lag.as_ref().and_then(LagLine::next_at);
         tokio::select! {
-            event = self.client.recv() => match event? {
-                Event::Packet(packet) if self.lag.is_some() => {
-                    self.lag.as_mut()?.push(tokio::time::Instant::now(), packet);
-                    Some(Step::Idle)
-                }
-                Event::Packet(packet) => {
-                    self.apply(&packet);
-                    Some(Step::Packet(packet))
-                }
-                Event::Violation(violation) => {
-                    self.pending.push_back(BotEvent::Violation(violation));
-                    Some(Step::Idle)
-                }
-                Event::Disconnected(reason) => {
-                    self.closed = Some(reason.clone());
-                    Some(Step::Disconnected(reason))
-                }
-            },
-            _ = tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)), if lagged.is_some() => Some(Step::Idle),
+            event = self.client.recv() => self.on_event(event?),
+            // In an async block: select! builds a disabled branch's future too, and a bare sleep looks up the timer.
+            _ = async { tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)).await }, if lagged.is_some() => Some(Step::Idle),
             ticks = self.ticker.wait() => {
                 (0..ticks).for_each(|_| self.on_tick());
                 Some(Step::Tick)
+            }
+        }
+    }
+
+    fn on_event(&mut self, event: Event) -> Option<Step> {
+        match event {
+            Event::Packet(packet) if self.lag.is_some() => {
+                self.lag.as_mut()?.push(tokio::time::Instant::now(), packet);
+                Some(Step::Idle)
+            }
+            Event::Packet(packet) => {
+                self.apply(&packet);
+                Some(Step::Packet(packet))
+            }
+            Event::Violation(violation) => {
+                self.pending.push_back(BotEvent::Violation(violation));
+                Some(Step::Idle)
+            }
+            Event::Disconnected(reason) => {
+                self.closed = Some(reason.clone());
+                Some(Step::Disconnected(reason))
             }
         }
     }
@@ -274,12 +294,7 @@ impl Bot {
         if let Err(e) = result {
             tracing::debug!(id = packet.id, error = %e, "tracker failed to decode packet");
         }
-        // Acknowledge server-initiated closes like vanilla: Geyser opens no further window until it gets this.
-        if let Ok(close) = packet.decode::<ContainerClose>()
-            && close.server
-        {
-            self.client.send(&ContainerClose { server: false, ..close });
-        }
+        self.on_container_close(packet);
         self.sync.apply(packet, self.state.player.runtime_entity_id);
         if let Some(subchunks) = &mut self.subchunks {
             subchunks.apply(packet);

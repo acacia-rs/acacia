@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use acacia_proto::packets::NetworkSettingsCompressionAlgorithm;
 use bytes::BytesMut;
 
-use crate::Error;
+use crate::{Error, small_deflate};
 
 /// Batch header byte meaning "not compressed" (used below the server's compression threshold).
 pub const NONE_ID: u8 = 0xff;
@@ -53,6 +53,7 @@ impl Algorithm {
 
     pub fn compress(self, input: &[u8], out: &mut BytesMut) {
         match self {
+            Self::Deflate if input.len() <= small_deflate::MAX_INPUT => small_deflate::compress(input, out),
             Self::Deflate => DEFLATE.with_borrow_mut(|deflate| {
                 deflate.reset();
                 let start = out.len();

@@ -162,6 +162,7 @@ impl Movement {
             tracing::debug!(tick = self.tick, replayed, "rewound");
         }
         st.equipment = self.equipment;
+        self.keys.mouse_input = self.mouse_input;
         let input = self.keys.advance(&c, st, world, self.using_item, self.recorded_want_down.unwrap_or(c.sneak));
         let jump = input.jump;
         let (was_sprinting, was_sneaking, was_swimming, was_gliding) = (st.sprinting, st.sneaking, st.swimming, st.gliding);

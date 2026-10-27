@@ -23,6 +23,13 @@ impl JavaState {
         self.properties.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
     }
 
+    /// `minecraft:oak_log[axis=y]`, properties sorted: how the game's state keys are written.
+    pub fn key(&self) -> String {
+        let mut pairs: Vec<String> = self.properties.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        pairs.sort_unstable();
+        if pairs.is_empty() { format!("minecraft:{}", self.name) } else { format!("minecraft:{}[{}]", self.name, pairs.join(",")) }
+    }
+
     /// From `minecraft:oak_log[axis=y]` or a bare name.
     pub fn parse(text: &str) -> JavaState {
         let (name, properties) = text.split_once('[').map_or((text, ""), |(n, p)| (n, p.trim_end_matches(']')));

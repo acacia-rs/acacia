@@ -50,11 +50,13 @@ pub struct Settings {
     pub clouds: bool,
     /// Boxes; off is Java's fast flat sheet.
     pub fancy_clouds: bool,
+    /// The Java look's `menuBackgroundBlurriness`: 0 to 10, 0 for no blur behind menus.
+    pub menu_blur: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { look: LookChoice::default(), vsync: true, cave_culling: true, gui_scale: 0, volume: 100, fov: 70, view_bobbing: true, clouds: true, fancy_clouds: true }
+        Settings { look: LookChoice::default(), vsync: true, cave_culling: true, gui_scale: 0, volume: 100, fov: 70, view_bobbing: true, clouds: true, fancy_clouds: true, menu_blur: acacia_ui::blur::DEFAULT_RADIUS }
     }
 }
 

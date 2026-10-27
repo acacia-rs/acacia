@@ -1,6 +1,7 @@
 
 // Smooth lighting from a section's bordered light volume (layout and OPAQUE_CELL: src/light/data.rs).
-// Appended to terrain.wgsl, whose U_AXIS/V_AXIS it uses; `curve` is in globals.wgsl.
+// Appended to terrain.wgsl, whose U_AXIS/V_AXIS it uses; `lightmap` is in globals.wgsl.
+// Faces whose quads carry Java's vertex light (terrain.wgsl `vertex_light`) skip this.
 
 const OPAQUE: u32 = 255u;
 const LIGHT_SIDE: i32 = 18;
@@ -33,12 +34,12 @@ fn corner(center: u32, e1: u32, e2: u32, diagonal: u32) -> vec2<f32> {
     return sum / n;
 }
 
-fn flat_light(slot: u32, c: vec3<i32>) -> f32 {
+fn flat_light(slot: u32, c: vec3<i32>) -> vec3<f32> {
     let v = cell_light(slot, c);
-    return curve(levels(select(v, 0u, v == OPAQUE)));
+    return lightmap(levels(select(v, 0u, v == OPAQUE)));
 }
 
-fn brightness(slot: u32, face: u32, local: vec3<f32>) -> f32 {
+fn brightness(slot: u32, face: u32, local: vec3<f32>) -> vec3<f32> {
     if face >= 6u {
         return flat_light(slot, vec3<i32>(floor(local)));
     }
@@ -68,5 +69,5 @@ fn brightness(slot: u32, face: u32, local: vec3<f32>) -> f32 {
     let c11 = corner(center, cells[5], cells[7], cells[8]);
     let fa = fract(dot(s, u));
     let fb = fract(dot(s, v));
-    return curve(mix(mix(c00, c10, fa), mix(c01, c11, fa), fb));
+    return lightmap(mix(mix(c00, c10, fa), mix(c01, c11, fa), fb));
 }

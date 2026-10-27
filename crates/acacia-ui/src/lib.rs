@@ -3,6 +3,7 @@
 //! headless. Design: README.md.
 
 pub mod atlas;
+pub mod blur;
 pub mod book;
 pub mod chat;
 pub mod debug;
@@ -13,6 +14,7 @@ pub mod form;
 pub mod hud;
 pub mod input;
 pub mod inventory;
+pub mod java;
 pub mod lang;
 pub mod menu;
 pub mod nametags;
