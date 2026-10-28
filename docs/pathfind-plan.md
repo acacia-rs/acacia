@@ -402,10 +402,25 @@ Design and the user's decisions: `../research/pathfind-entities-design.md`. Phys
   (at most 2 arrows); cow corridor 20/20 both. Zombie: Optimal 17/20 then 20/20, Human 17/20 then 19/20 (two
   batches). Every hit came from a zombie that targeted the bot: it closes at 0.264 b/t (box 1.96 tall), against
   0.114 for the strolling ones that never do, and hits from 2.3–2.5 blocks as tracked. Each such run took one hit.
-- Open: the sim's chaser is the table's 0.12 b/t placeholder with Java's 1.43 reach. Set to the live 0.26 and 2.0
-  (tried 2026-10-28, reverted), the sim bot took 3–4 hits in most zombie runs: a pure-pursuit chaser almost as
-  fast as a sprinting player is not passed unhit by path choice alone, and attacking is out of M4 (decision 5).
-- Corrections: creeper runs draw 1–4 each (after the blast; not yet looked into), zombie runs 0–10.
+- Striking back (decision 5', `hazard/strike.rs`, `Pilot::strike` after each steering tick): a perceived melee
+  hostile that targets the bot (`TargetEid` = the bot's unique id; BDS sends it while a mob chases) or approaches
+  at over 0.18 b/t, and closes in or keeps pace within 3 blocks, is aimed at from 5 blocks and clicked
+  (`Bot::click_entity_aimed`) a tick after the crosshair is on its box, within `ENTITY_REACH` (3, eye to box) and a
+  clear line. On the course only the pitch turns; otherwise the keys keep the course (`keep_course`). Optimal clicks
+  once per 10-tick invulnerability; Human eases its aim, reacts 2–5 ticks, clicks every 4–7 (`human.rs`
+  placeholders). Strollers are never struck. BDS's `ItemUseOnActorInventoryTransaction::handle` checks the sent
+  player position within 6 of the server's (bdsre); reach and line of sight are ours to keep.
+- Sim zombie calibrated to live: chases at 0.264 b/t, hits from 2.3 (centre), cooldown 20, Java knockback from
+  the bot's strikes (0.4 push and lift, 10-tick invulnerability). Before striking, it hit in 3–4 of most runs.
+- Live zombie (made to chase by `/damage ... entity @s`, so every run's zombie targets the bot; hits counted until
+  arrival, the zombie killed before the late-hit wait), 7385dfd, 20 runs each: Human 20/20 (0 hits, 0–8 strikes a
+  run), Optimal 19/20 (seed 14: one hit with 2 strikes sent, cause not traced). The batch before the on-course
+  pitch-only aim (01ea98e): Optimal 0 hits in 18 runs seen. Sim (calibrated): 20/20 both profiles.
+- Corrections in zombie and creeper runs are the open off-axis ulp drift (DESIGN.md "Off-axis ulp corrections"),
+  not entities: every one logged is 1–2 ulps on an air or ground tick of an off-axis walk or hop, none follows a
+  knockback (hits taken drew 0), creeper runs drew no explosion knockback at all. Yaw changes mid-walk (Human
+  easing, strike aims, Evade's off-axis hops) raise them. `prev + wrap(sent − prev)` as the walk yaw was tried on
+  `course-human-linux` at tolerance 0: 6 → 28 mismatches, rejected.
 
 ## Running
 - Tests: `REMOTE_DIR=work/bc-pathfind tools/remote-test.sh -p acacia-bot` (testbox; never workspace-wide locally).
