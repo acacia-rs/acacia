@@ -65,6 +65,8 @@ pub(crate) const BOOK_SIGN: Range = (1000, 2000);
 pub(crate) const STOP_USE_ON: Range = (30, 140);
 /// Crosshair reported on an entity to clicking it (n=10: 75-1277 ms, most under 450).
 pub(crate) const ENTITY_HOVER: Range = (75, 450);
+/// One attack to the next at the earliest: 8-13 CPS, under every anticheat's limit (anticheat-interaction-checks.md).
+pub(crate) const ATTACK_GAP: Range = (75, 130);
 /// Entity right-click: the transaction to the client's own swing (n=5: 124-203 ms).
 pub(crate) const ENTITY_SWING: Range = (120, 210);
 /// Held item changed by the server or a container move, to the client's MobEquipment (n=15: 43-247 ms, two near 700).
@@ -113,6 +115,11 @@ impl Human {
     pub(crate) fn typing(&mut self, chars: usize) -> Duration {
         let per_char = Duration::from_millis(TYPE_PER_CHAR_MS * chars as u64);
         scaled((self.draw(TYPE_BASE) + per_char).min(Duration::from_millis(TYPE_MAX_MS)))
+    }
+
+    /// One of `n` choices (`n` > 0), uniformly.
+    pub(crate) fn pick(&mut self, n: usize) -> usize {
+        (splitmix(&mut self.rng) % n.max(1) as u64) as usize
     }
 
     /// [`Self::between`] in 50 ms client ticks.

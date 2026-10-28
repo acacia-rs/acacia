@@ -4,7 +4,9 @@
 mod access;
 mod change;
 mod chunk;
+pub mod ray;
 mod registry;
+pub mod selection;
 mod view;
 mod world;
 
@@ -15,7 +17,8 @@ pub use chunk::{
     sub_chunk_block_entities,
 };
 pub use registry::{
-    Aabb, BlockFlags, BlockRegistry, BlockState, CustomBlock, Material, Mining, Tool, ToolKind, ToolTier, fnv1_64,
+    Aabb, BlockFlags, BlockRegistry, BlockState, CustomBlock, Material, Mining, SelectionOffset, Tool, ToolKind, ToolTier,
+    fnv1_64,
 };
 pub use view::ChunkView;
 pub use world::{BlockIds, Inserted, SharedChunk, World};

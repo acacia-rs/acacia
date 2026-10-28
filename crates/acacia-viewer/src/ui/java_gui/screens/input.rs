@@ -75,11 +75,12 @@ impl JavaGui {
             Event::Release { button, shift } => {
                 state.held = None;
                 state.scrolling = false;
-                if let (Open::Creative(s), Some(tab)) = (&built.open, state.tab_press.take()) {
-                    if button == Button::Left && s.tab_at(mouse) == Some(tab) {
-                        out.tab = Some(tab);
-                        state.scroll = 0.0;
-                    }
+                if let (Open::Creative(s), Some(tab)) = (&built.open, state.tab_press.take())
+                    && button == Button::Left
+                    && s.tab_at(mouse) == Some(tab)
+                {
+                    out.tab = Some(tab);
+                    state.scroll = 0.0;
                 }
                 if std::mem::take(&mut state.swallow_release) {
                     return out;
@@ -153,10 +154,10 @@ fn widgets(built: &mut Built, view: &View, state: &mut State, mouse: [f64; 2], b
             let b = &s.book;
             (state.book.visible, state.book.filtering, state.book.page, state.book.overlay) = (b.visible, b.filtering, b.page, b.overlay);
             state.book.focused = b.search.focused;
-            if let RecipePress::Book(BookPress::Recipe { collection, .. }) = press {
-                if let Some(stack) = inv.craftable.get(collection) {
-                    out.commands.push(Command::Craft { name: stack.name.clone(), table: inv.workbench });
-                }
+            if let RecipePress::Book(BookPress::Recipe { collection, .. }) = press
+                && let Some(stack) = inv.craftable.get(collection)
+            {
+                out.commands.push(Command::Craft { name: stack.name.clone(), table: inv.workbench });
             }
             true
         }

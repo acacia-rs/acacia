@@ -1,5 +1,6 @@
 //! `.mcstructure` files: little-endian NBT with a size, a palette and per-cell palette indices (x outermost, z
-//! innermost; -1 is structure void). Only the first (block) layer is read; the waterlog layer is ignored.
+//! innermost; -1 is structure void). Only the first (block) layer is read; the waterlog layer is ignored. Of the
+//! block entities only sign text is kept (`block_position_data`, keyed by the cell's index).
 
 use acacia_client::proto::nbt::{self, LittleEndian, List, Nbt, Value};
 
@@ -27,12 +28,21 @@ impl Block {
     }
 }
 
+/// The text on a sign's two sides (lines joined by `\n`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SignText {
+    pub front: String,
+    pub back: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Structure {
     pub size: [i32; 3],
     pub palette: Vec<Block>,
     /// Palette index per cell, -1 for structure void.
     cells: Vec<i32>,
+    /// Sign text by cell index.
+    signs: std::collections::BTreeMap<usize, SignText>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -43,13 +53,17 @@ pub enum StructureError {
     Field(&'static str),
 }
 
+/// A bed's colour (its block entity's `color`, the item's aux) carried as a pseudo state of the bed's cells:
+/// `rules::twocell` compares it from the world's block entities, the item key carries it.
+pub const BED_COLOR: &str = "bed_color";
+
 /// Palette `version` written with fixtures; BDS upgrades older states by it.
 const BLOCK_VERSION: i32 = 18_168_865;
 
 impl Structure {
     /// All structure void.
     pub fn new(size: [i32; 3]) -> Self {
-        Self { size, palette: Vec::new(), cells: vec![-1; (size[0] * size[1] * size[2]).max(0) as usize] }
+        Self { size, palette: Vec::new(), cells: vec![-1; (size[0] * size[1] * size[2]).max(0) as usize], signs: Default::default() }
     }
 
     pub fn load(mut bytes: &[u8]) -> Result<Self, StructureError> {
@@ -65,7 +79,40 @@ impl Structure {
         if cells.len() != (size[0] * size[1] * size[2]).max(0) as usize || cells.iter().any(|&i| i >= palette.len() as i32 || i < -1) {
             return Err(StructureError::Field("block_indices"));
         }
-        Ok(Self { size, palette, cells })
+        let data = structure.get("palette").and_then(|p| p.get("default")).and_then(|d| d.get("block_position_data"));
+        let signs = match data {
+            Some(Value::Compound(entries)) => entries.iter().filter_map(|(k, v)| Some((k.to_string().parse().ok()?, sign_text(v.get("block_entity_data")?)?))).collect(),
+            _ => Default::default(),
+        };
+        let mut s = Self { size, palette, cells, signs };
+        if let Some(Value::Compound(entries)) = data {
+            for (k, v) in entries {
+                let color = v.get("block_entity_data").and_then(|d| d.get("color"));
+                let (Ok(i), Some(Value::Byte(c))) = (k.parse::<usize>(), color) else { continue };
+                let pos = s.pos(i);
+                if let Some(b) = s.get(pos).filter(|b| b.name == "minecraft:bed").cloned() {
+                    s.set(pos, Some(Block::new(&b.name, &format!("{},{BED_COLOR}={}", b.props, *c as u8))));
+                }
+            }
+        }
+        Ok(s)
+    }
+
+    fn pos(&self, i: usize) -> [i32; 3] {
+        let ([_, sy, sz], i) = (self.size, i as i32);
+        [i / (sy * sz), (i / sz) % sy, i % sz]
+    }
+
+    /// `block_position_data`: a `Bed` block entity with its colour for every cell with [`BED_COLOR`], and each
+    /// sign's text.
+    fn position_data(&self) -> Value {
+        let beds = self.cells.iter().enumerate().filter_map(|(i, &p)| {
+            let c: u8 = self.palette.get(usize::try_from(p).ok()?)?.prop(BED_COLOR)?.parse().ok()?;
+            let be = Value::Compound(vec![("id".into(), Value::String("Bed".into())), ("color".into(), Value::Byte(c as i8)), ("isMovable".into(), Value::Byte(1))]);
+            Some((i.to_string().into(), Value::Compound(vec![("block_entity_data".into(), be)])))
+        });
+        let signs = self.signs.iter().map(|(i, t)| (i.to_string().into(), sign_nbt(t)));
+        Value::Compound(beds.chain(signs).collect())
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -81,7 +128,7 @@ impl Structure {
                     "default".into(),
                     Value::Compound(vec![
                         ("block_palette".into(), Value::List(List { tag: 10, items: palette })),
-                        ("block_position_data".into(), Value::Compound(Vec::new())),
+                        ("block_position_data".into(), self.position_data()),
                     ]),
                 )]),
             ),
@@ -125,6 +172,19 @@ impl Structure {
         };
     }
 
+    /// The sign text of a local cell, if the structure gives one.
+    pub fn text(&self, pos: [i32; 3]) -> Option<&SignText> {
+        self.signs.get(&self.index(pos)?)
+    }
+
+    pub fn set_text(&mut self, pos: [i32; 3], text: Option<SignText>) {
+        let Some(i) = self.index(pos) else { return };
+        match text {
+            Some(t) => self.signs.insert(i, t),
+            None => self.signs.remove(&i),
+        };
+    }
+
     /// Every non-void cell, local position first.
     pub fn cells(&self) -> impl Iterator<Item = ([i32; 3], &Block)> + '_ {
         let [_, sy, sz] = self.size;
@@ -159,9 +219,25 @@ fn block(v: &Value) -> Option<Block> {
     Some(Block::new(name, &props.join(",")))
 }
 
+/// A sign's text from its block entity: `FrontText`/`BackText`, or the pre-1.20 single `Text`.
+fn sign_text(v: &Value) -> Option<SignText> {
+    let text = |v: Option<&Value>| match v {
+        Some(Value::String(t)) => Some(t.to_string()),
+        _ => None,
+    };
+    let (front, back, old) = (text(v.get("FrontText").and_then(|s| s.get("Text"))), text(v.get("BackText").and_then(|s| s.get("Text"))), text(v.get("Text")));
+    (front.is_some() || back.is_some() || old.is_some()).then(|| SignText { front: front.or(old).unwrap_or_default(), back: back.unwrap_or_default() })
+}
+
+fn sign_nbt(t: &SignText) -> Value {
+    let side = |text: &str| Value::Compound(vec![("Text".into(), Value::String(text.into()))]);
+    let data = vec![("BackText".into(), side(&t.back)), ("FrontText".into(), side(&t.front)), ("id".into(), Value::String("Sign".into()))];
+    Value::Compound(vec![("block_entity_data".into(), Value::Compound(data))])
+}
+
 /// Bits as bytes, numbers as ints, the rest as strings: how vanilla types block states.
 fn block_nbt(b: &Block) -> Value {
-    let states = b.props.split(',').filter_map(|kv| kv.split_once('=')).map(|(k, v)| {
+    let states = b.props.split(',').filter_map(|kv| kv.split_once('=')).filter(|(k, _)| *k != BED_COLOR).map(|(k, v)| {
         let value = match v.parse::<i32>() {
             Ok(n) if k.ends_with("_bit") => Value::Byte(n as i8),
             Ok(n) => Value::Int(n),

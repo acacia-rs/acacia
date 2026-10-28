@@ -93,7 +93,7 @@ impl Own {
                 let p = glam::IVec3::from_array(pos);
                 if let Some((block, id)) = block_at(bot, p) {
                     self.mined = Some((p, block, id));
-                    if self.mining_ticks % HIT_EVERY == 0 {
+                    if self.mining_ticks.is_multiple_of(HIT_EVERY) {
                         out.sounds.push(Cue::Block { block: block.to_owned(), event: "hit".into(), at: centre(p) });
                     }
                 }

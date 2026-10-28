@@ -4,7 +4,7 @@
 use acacia_physics::{BlockPos, Vec3};
 
 use super::builder::Builder;
-use super::reach::{click_for, in_reach, stands, Keep, Stand, STAND_SLACK};
+use super::reach::{breaks_from, click_for, fills_from, stands, Keep, Stand};
 use super::restock;
 use super::rules;
 use super::status::{HoldWhy, Phase};
@@ -68,11 +68,12 @@ pub(super) fn go(phase: Phase, task: BlockPos, found: Vec<Stand>, b: &Builder) -
 fn break_at(cx: &Ctx, pos: BlockPos, phase: Phase, b: &Builder) -> Option<Next> {
     let feet = cx.pos.map(|v| v.floor() as i32);
     let on_it = feet == [pos[0], pos[1] + 1, pos[2]];
-    if in_reach(cx.eye(), pos) && !on_it {
+    if breaks_from(cx.eye(), pos, cx.look) && !on_it {
         return Some(Next::Act(phase, Act::Break { pos }));
     }
     let above = [pos[0], pos[1] + 1, pos[2]];
-    go(phase, pos, stands(pos, cx.pos, cx.look, &Keep { feet: &|f| f == above || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &|_| true, STANDS), b)
+    let ok = |e: Vec3| breaks_from(e, pos, cx.look);
+    go(phase, pos, stands(pos, cx.pos, cx.look, &Keep { feet: &|f| f == above || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &ok, STANDS), b)
 }
 
 /// A liquid next to `pos` that breaking it would let in (from above or the sides), not held back by a target.
@@ -135,15 +136,25 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
             None if needs[i] == Need::Drain => Some(fill(b, pos)),
             None => None,
         };
+        let cell = match &act {
+            Some(Act::Fill { pos: c, .. }) => *c,
+            _ => pos,
+        };
+        let ok = |e: Vec3| fills_from(e, cell, cx.look);
         let next = match act {
-            Some(act) if in_reach(eye, pos) && free(b, cx, pos) => Some(Next::Act(Phase::Building, act)),
-            Some(_) => go(Phase::Building, pos, stands(pos, cx.pos, cx.look, &Keep { feet: &|f| no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &|_| true, STANDS), b),
+            Some(act) if ok(eye) && free(b, cx, pos) => Some(Next::Act(Phase::Building, act)),
+            Some(_) => go(Phase::Building, pos, stands(pos, cx.pos, cx.look, &Keep { feet: &|f| no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &ok, STANDS), b),
             None => break_at(cx, pos, Phase::Building, b),
         };
         match next {
             Some(next) => return next,
             None => b.rest(pos),
         }
+    }
+
+    let adjusts: Vec<usize> = order.iter().copied().filter(|&i| open(b, i, Need::Adjust)).collect();
+    if let Some(next) = super::adjust::next(b, cx, &adjusts) {
+        return next;
     }
 
     // Places, bottom up.
@@ -153,20 +164,33 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     let mut unsupported = None;
     let mut ready: Vec<(usize, String)> = Vec::new();
     // Never cover an open cell: a block over it takes away the click on the face below (and the stand above).
-    let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.given_up(b.cells[j].pos));
-    let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers(b, b.cells[i].pos)).take(TRIES * 2).collect();
+    let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.given_up(b.cells[j].pos) && rules::hangs(&b.cells[j].target).is_none());
+    // A pair's second half covers too (a bed's head), unless it stands on the first (a door's upper half).
+    let covers_pair = |b: &Builder, p: BlockPos| covers(b, p) || super::pairs::second(b, p).is_some_and(|o| [o[0], o[1] - 1, o[2]] != p && covers(b, o));
+    let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers_pair(b, b.cells[i].pos)).take(TRIES * 2).collect();
+    let held_back = super::pairs::held(b, cx.look, needs);
     for i in candidates {
         let (pos, target) = (b.cells[i].pos, &b.cells[i].target);
-        let Some(item) = rules::item(target) else { continue };
-        if missing.contains(&item) || (rules::gravity(&target.name) && cx.look.solid([pos[0], pos[1] - 1, pos[2]]) != Some(true)) {
+        let Some(item) = rules::redstone::item_now(target, cx.look.block(pos), cx.look).or_else(|| rules::item(target)) else { continue };
+        if held_back.contains(&pos) {
+            b.rest(pos);
+            continue;
+        }
+        let open_at = |dy: i32| cx.look.solid([pos[0], pos[1] + dy, pos[2]]) != Some(true);
+        let hangs_open = rules::hangs(target).is_some_and(|only| open_at(1) && (only || open_at(-1)));
+        if missing.contains(&item) || (rules::gravity(&target.name) && open_at(-1)) || hangs_open || !rules::redstone_order::ready(target, pos, cx.look, &|p| b.target(p).cloned()) {
             continue;
         }
         let supported = Face::ALL.iter().any(|f| {
             let o = f.offset();
-            cx.look.block([pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]]).is_some_and(|v| v.solid() && !v.interactive && (v.full || v.name.ends_with("_slab")))
+            cx.look.block([pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]]).is_some_and(|v| v.solid() && !v.interactive && (v.full || v.name.ends_with("_slab") || rules::post(&v) || rules::redstone::top(v.name).is_some()))
         });
         if !supported {
             unsupported.get_or_insert(pos);
+            continue;
+        }
+        if super::pairs::waits(b, cx.look, pos) {
+            b.rest(pos);
             continue;
         }
         if cx.look.count(&item) == 0 {
@@ -178,6 +202,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         }
         ready.push((i, item));
     }
+    rules::redstone_order::dry_first(&mut ready, |i| b.cells[i].target.clone());
     // The held item first: every switch costs an equip (live: 235 switches, a third of a build's time).
     ready.sort_by_key(|(_, item)| Some(item.as_str()) != cx.look.held());
     // Whatever can be clicked from here first (still lowest first), then walk for the lowest. Walking, a click
@@ -187,10 +212,12 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         let (pos, target) = (b.cells[*i].pos, &b.cells[*i].target);
         let slack = if walking { super::en_route::SLACK } else { 0.0 };
         if free(b, cx, pos)
-            && let Some(c) = click_for(pos, target, eye, cx.look, slack)
+            && super::pairs::second(b, pos).is_none_or(|o| free(b, cx, o))
+            && let Some(c) = super::sight_stats::at("from here", || click_for(pos, target, eye, cx.look, slack))
         {
-            let act = Act::Place { item: item.clone(), against: c.against, face: c.face, click: c.click };
-            if walking && super::en_route::look_free(&target.name) {
+            let act = rules::redstone::act(item.clone(), c.against, c.face, c.click, pos);
+            // A bucket pours along the look, so a pour (or till) made on the move lands elsewhere (live 2026-10-28).
+            if walking && super::en_route::look_free(&target.name) && matches!(act, Act::Place { .. }) {
                 b.en_route.get_or_insert(act);
             } else {
                 here.get_or_insert(act);
@@ -213,16 +240,16 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         return Next::Act(Phase::Building, act);
     }
     // Nothing to click against: a scaffold column up to the lowest such cell.
-    if let Some(pos) = unsupported {
-        if let Some(next) = support(b, cx, pos) {
-            return next;
-        }
+    if let Some(pos) = unsupported
+        && let Some(next) = support(b, cx, pos)
+    {
+        return next;
     }
 
     if let Some(i) = order.iter().copied().find(|&i| needs[i] == Need::Unknown && b.mine(b.cells[i].pos)) {
         return Next::Go(Phase::Surveying, b.cells[i].pos, Goal::Near(b.cells[i].pos, 3.0));
     }
-    let pending = cx.look.any_in_flight() || needs.iter().enumerate().any(|(i, n)| matches!(n, Need::Place | Need::Break | Need::Drain) && !b.given_up(b.cells[i].pos) && !(*n == Need::Break && held(b, i)));
+    let pending = cx.look.any_in_flight() || needs.iter().enumerate().any(|(i, n)| matches!(n, Need::Place | Need::Break | Need::Drain | Need::Adjust) && !b.given_up(b.cells[i].pos) && !(*n == Need::Break && held(b, i)));
     if pending {
         b.revive();
         let why = match () {
@@ -253,23 +280,6 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     Next::Done(if failed == 0 { Ok(()) } else { Err(ActionError::NotPossible(format!("{failed} cells could not be built"))) })
 }
 
-/// Why each open placement is not being done from `feet`.
-pub(crate) fn explain(b: &Builder, look: &dyn Look, feet: Vec3) -> Vec<String> {
-    let eye = [feet[0], feet[1] + crate::movement::EYE_HEIGHT, feet[2]];
-    let needs = b.survey(look);
-    b.cells
-        .iter()
-        .zip(&needs)
-        .filter(|(_, n)| **n == Need::Place)
-        .map(|(c, _)| {
-            let now = click_for(c.pos, &c.target, eye, look, 0.0);
-            let found = stands(c.pos, feet, look, &Keep { feet: &|_| false, pillar: &|_| false }, &|e| click_for(c.pos, &c.target, e, look, STAND_SLACK).is_some(), STANDS);
-            let item = rules::item(&c.target).map(|i| look.count(&i));
-            format!("{:?} {} [{}]: held {item:?} resting {} body {} now {now:?} stands {:?}", c.pos, c.target.name, c.target.props, b.resting(c.pos), in_body(feet, c.pos), found.iter().map(|s| s.feet).collect::<Vec<_>>())
-        })
-        .collect()
-}
-
 /// Fills the lowest empty cell of the column under `pos` (it stands on something), so the column grows up to it.
 fn support(b: &Builder, cx: &Ctx, pos: BlockPos) -> Option<Next> {
     let mut cell = [pos[0], pos[1] - 1, pos[2]];
@@ -282,8 +292,9 @@ fn support(b: &Builder, cx: &Ctx, pos: BlockPos) -> Option<Next> {
     if b.target(cell).is_some_and(|t| !t.is_air()) {
         return None;
     }
-    if in_reach(cx.eye(), cell) && free(b, cx, cell) {
+    let ok = |e: Vec3| fills_from(e, cell, cx.look);
+    if ok(cx.eye()) && free(b, cx, cell) {
         return Some(Next::Act(Phase::Building, fill(b, cell)));
     }
-    go(Phase::Building, cell, stands(cell, cx.pos, cx.look, &Keep { feet: &|f| f == cell || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &|_| true, STANDS), b)
+    go(Phase::Building, cell, stands(cell, cx.pos, cx.look, &Keep { feet: &|f| f == cell || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &ok, STANDS), b)
 }

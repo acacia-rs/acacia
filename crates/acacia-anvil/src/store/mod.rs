@@ -1,0 +1,271 @@
+//! Converted columns waiting for their neighbours, lit and written region by region.
+//!
+//! A column is lit once all eight neighbours are in memory, or when it has waited `max_wait` (an edge of
+//! the explored area). Columns lit without some neighbour are relit when one arrives. Written columns stay
+//! as neighbours until the memory bound evicts the least recently converted ones; an evicted column is
+//! read back from its region file when it is needed as a neighbour or must be relit (`disk.rs`).
+
+mod disk;
+mod memory;
+mod stats;
+mod write;
+
+pub use stats::{Census, StoreStats};
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use acacia_nbt::Value;
+use acacia_world::{BlockRegistry, Chunk, Dimension};
+
+use crate::Error;
+use crate::blockentity;
+use crate::codec::Compression;
+use crate::column::{Converter, JavaColumn, Scratch};
+use crate::dimension::java_dimension;
+use crate::fixup::Fixups;
+use crate::mapping::JavaState;
+use crate::props::PropsTable;
+use crate::section::VOLUME;
+use disk::Disk;
+use write::Worker;
+
+pub struct StoreConfig {
+    /// The dimension's `region/` folder ([`region_dir`]).
+    pub region_dir: PathBuf,
+    /// Java's answer, not Bedrock's: `dimension::java_dimension(dim).has_sky` (the End has sky light).
+    pub has_sky: bool,
+    /// Longest a column waits for missing neighbours before it is lit without them.
+    pub max_wait: Duration,
+    /// A region file is rewritten at most this often, and only once no column in it has changed for this
+    /// long (a bot still crossing it): every rewrite is the whole file, and BlueMap rescans it.
+    pub region_interval: Duration,
+    /// Longest a region's ready columns wait for it to go quiet before it is written anyway.
+    pub region_hold: Duration,
+    /// Rough cap on converted columns held in memory.
+    pub memory_limit: usize,
+    /// Threads lighting and encoding columns; 0 = one per core.
+    pub threads: usize,
+    /// For chunks written from now on; chunks kept unchanged keep the compression they were stored with.
+    pub compression: Compression,
+}
+
+struct Entry {
+    col: JavaColumn,
+    converted: Instant,
+    /// Hash of the chunk NBT last written, so an unchanged relight keeps the chunk's timestamp.
+    written: Option<u64>,
+    /// `col` is no longer the conversion as it came (neighbour fixups edited it, or it was read back).
+    fixed: bool,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct FlushStats {
+    pub columns: usize,
+    pub regions: usize,
+    pub waiting: usize,
+}
+
+pub struct AnvilStore {
+    registry: Arc<BlockRegistry>,
+    cfg: StoreConfig,
+    conv: Converter,
+    props: PropsTable,
+    fixups: Fixups,
+    columns: HashMap<(i32, i32), Entry>,
+    /// Columns to (re)light and write, with when they first became dirty.
+    dirty: HashMap<(i32, i32), Instant>,
+    /// Neighbours of updated columns that were not in memory: relit if they are on disk.
+    stale: HashMap<(i32, i32), Instant>,
+    disk: Disk,
+    /// Regions written, and regions a column was dirtied in, within the last `region_interval`.
+    region_written: HashMap<(i32, i32), Instant>,
+    touched: HashMap<(i32, i32), Instant>,
+    bytes: usize,
+    scratch: Scratch,
+    buf: Box<[JavaState; VOLUME]>,
+    workers: Vec<Worker>,
+    stats: StoreStats,
+}
+
+/// `<world>/dimensions/minecraft/<dimension>/region`, the 26.x layout BlueMap looks in first.
+pub fn region_dir(world: &Path, dim: Dimension) -> PathBuf {
+    world
+        .join("dimensions/minecraft")
+        .join(java_dimension(dim).name)
+        .join("region")
+}
+
+type Pos = (i32, i32);
+
+fn region_of((x, z): (i32, i32)) -> (i32, i32) {
+    (x >> 5, z >> 5)
+}
+
+const ALL: u16 = 0x1FF;
+
+impl AnvilStore {
+    pub fn new(registry: Arc<BlockRegistry>, cfg: StoreConfig) -> Result<Self, Error> {
+        std::fs::create_dir_all(&cfg.region_dir)
+            .map_err(|e| Error::Io(cfg.region_dir.clone(), e))?;
+        let threads = match cfg.threads {
+            0 => std::thread::available_parallelism().map_or(1, |n| n.get()),
+            n => n,
+        };
+        Ok(Self {
+            conv: Converter::new(&registry),
+            registry,
+            disk: Disk::new(cfg.region_dir.clone()),
+            cfg,
+            props: PropsTable::new(),
+            fixups: Fixups::new(),
+            columns: HashMap::new(),
+            dirty: HashMap::new(),
+            stale: HashMap::new(),
+            region_written: HashMap::new(),
+            touched: HashMap::new(),
+            bytes: 0,
+            scratch: Scratch::default(),
+            buf: Box::new([0; VOLUME]),
+            workers: (0..threads).map(|_| Worker::default()).collect(),
+            stats: StoreStats::default(),
+        })
+    }
+
+    pub fn converter(&self) -> &Converter {
+        &self.conv
+    }
+
+    /// Converts a chunk (new or changed) with its block entities (world position, Bedrock NBT) and queues
+    /// it and its neighbours for writing.
+    /// Skipped, returning false: a column with sections the server has not sent yet (request mode; written
+    /// as air they would be holes, the missing sections' `ChunkChange`s bring it back complete), Geyser's
+    /// filler for chunks it has no data for (`Converter::is_filler`), and any all-air column where one
+    /// was already seen.
+    pub fn update<'a>(
+        &mut self,
+        chunk: &Chunk,
+        block_entities: impl IntoIterator<Item = ([i32; 3], &'a Value)>,
+    ) -> bool {
+        if !(0..chunk.section_count()).all(|i| chunk.section_known(i))
+            || self.conv.is_filler(chunk, &mut self.scratch)
+        {
+            return false;
+        }
+        let mut col = self.conv.convert(chunk, &mut self.scratch);
+        blockentity::apply(
+            &mut col,
+            block_entities,
+            &self.registry,
+            &self.conv.map,
+            &mut self.buf,
+        );
+        let pos = (col.x, col.z);
+        if col.is_air() && (self.columns.contains_key(&pos) || self.disk.has(pos).unwrap_or(false)) {
+            return false;
+        }
+        // Sent again as it was (relog, overlapping views): nothing around it changes.
+        let now = Instant::now();
+        if let Some(e) = self.columns.get_mut(&pos).filter(|e| !e.fixed && e.col == col) {
+            e.converted = now;
+            return true;
+        }
+        self.bytes += col.heap_bytes();
+        let mut entry = Entry {
+            col,
+            converted: now,
+            written: None,
+            fixed: false,
+        };
+        if let Some(old) = self.columns.remove(&pos) {
+            self.bytes -= old.col.heap_bytes();
+            entry.written = old.written;
+        }
+        self.columns.insert(pos, entry);
+        for dz in -1..=1 {
+            for dx in -1..=1 {
+                let p = (pos.0 + dx, pos.1 + dz);
+                if self.columns.contains_key(&p) {
+                    self.dirty.entry(p).or_insert(now);
+                } else {
+                    self.stale.entry(p).or_insert(now);
+                }
+                self.touched.insert(region_of(p), now);
+            }
+        }
+        true
+    }
+
+    fn present(&self, (x, z): (i32, i32)) -> u16 {
+        let mut mask = 0;
+        for dz in -1..=1 {
+            for dx in -1..=1 {
+                if self.columns.contains_key(&(x + dx, z + dz)) {
+                    mask |= 1 << ((dz + 1) * 3 + dx + 1);
+                }
+            }
+        }
+        mask
+    }
+
+    /// Lights and writes ready columns; `force` writes everything dirty now (shutdown).
+    pub fn flush(&mut self, force: bool) -> Result<FlushStats, Error> {
+        self.reload()?;
+        let now = Instant::now();
+        // Per region: its ready columns and when the first of them became dirty.
+        let mut by_region: HashMap<Pos, (Vec<Pos>, Instant)> = HashMap::new();
+        for (&pos, &since) in &self.dirty {
+            if force || now.duration_since(since) >= self.cfg.max_wait || self.present(pos) == ALL {
+                let e = by_region.entry(region_of(pos)).or_insert((Vec::new(), since));
+                e.0.push(pos);
+                e.1 = e.1.min(since);
+            }
+        }
+        let (interval, hold) = (self.cfg.region_interval, self.cfg.region_hold);
+        let quiet = |t: Option<&Instant>| t.is_none_or(|t| now.duration_since(*t) >= interval);
+        by_region.retain(|r, (_, first)| {
+            force
+                || quiet(self.region_written.get(r))
+                    && (quiet(self.touched.get(r)) || now.duration_since(*first) >= hold)
+        });
+        let mut stats = FlushStats::default();
+        for (region, (cols, _)) in by_region {
+            self.write_region(region, &cols)?;
+            self.region_written.insert(region, now);
+            stats.columns += cols.len();
+            stats.regions += 1;
+        }
+        self.region_written.retain(|_, t| now.duration_since(*t) < interval);
+        self.touched.retain(|_, t| now.duration_since(*t) < interval);
+        stats.waiting = self.dirty.len();
+        self.evict();
+        Ok(stats)
+    }
+
+    pub fn columns(&self) -> usize {
+        self.columns.len()
+    }
+
+    pub fn heap_bytes(&self) -> usize {
+        self.bytes
+    }
+
+    pub fn stats(&self) -> &StoreStats {
+        &self.stats
+    }
+
+    pub fn census(&self) -> Census {
+        Census {
+            columns: self.columns.len(),
+            dirty: self.dirty.len(),
+            stale: self.stale.len(),
+            regions_known: self.disk.regions_known(),
+            regions_debounced: self.region_written.len(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

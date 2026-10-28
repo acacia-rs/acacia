@@ -187,7 +187,7 @@ async fn bounded<T>(act: impl std::future::Future<Output = Result<T, ActionError
 /// The placement's item is outside the hotbar: equipping it is an item stack request.
 fn needs_stack_request(bot: &Bot, act: &super::Act) -> bool {
     let super::Act::Place { item, .. } = act else { return false };
-    matches!(bot.find_item(item), Some(crate::items::SlotRef::Main(i)) if i >= crate::state::Inventory::HOTBAR_SLOTS)
+    matches!(super::act::find(bot, item), Some(crate::items::SlotRef::Main(i)) if i >= crate::state::Inventory::HOTBAR_SLOTS)
 }
 
 /// `moving`: the placement's item must be moved into the hotbar while placements are in flight.
@@ -204,7 +204,7 @@ pub(crate) fn pacing(act: &super::Act, human: bool, governor: &crate::governor::
 fn a_full_in_flight_cap_holds_instead_of_waiting_inside_the_tick() {
     use crate::governor::{Governor, Limits};
     let place = super::Act::Place { item: "minecraft:dirt".into(), against: [0, 0, 0], face: crate::interact::Face::Up, click: [0.5, 1.0, 0.5] };
-    let mut g = Governor::default();
+    let mut g = Governor::new(Limits { max_gap_ticks: 1, ..Limits::default() });
     for _ in 0..Limits::DEFAULT_IN_FLIGHT {
         assert_eq!(pacing(&place, false, &g, false), Pacing::Send);
         g.sent(false);
@@ -248,10 +248,17 @@ impl Look for BotLook<'_> {
         Some(BlockView::of(s))
     }
 
+    fn color(&self, pos: BlockPos) -> Option<u8> {
+        match self.0.state.block_entities.get(pos)?.value.get("color") {
+            Some(acacia_client::proto::nbt::Value::Byte(c)) => Some(*c as u8),
+            _ => None,
+        }
+    }
+
     fn count(&self, item: &str) -> u32 {
         let inv = &self.0.state.inventory;
         let items = &self.0.state.items;
-        inv.main.iter().filter(|s| !s.is_empty() && items.name(s.network_id) == Some(item)).map(|s| u32::from(s.count)).sum()
+        inv.main.iter().filter(|s| !s.is_empty() && super::item_key::fits(item, items.name(s.network_id), s.metadata)).map(|s| u32::from(s.count)).sum()
     }
 
     fn free_slots(&self) -> u32 {
@@ -268,5 +275,9 @@ impl Look for BotLook<'_> {
 
     fn any_in_flight(&self) -> bool {
         !self.0.in_flight.is_empty()
+    }
+
+    fn sign_text(&self, pos: BlockPos, front: bool) -> Option<String> {
+        self.0.state.block_entities.sign_text(pos, front).map(str::to_string)
     }
 }

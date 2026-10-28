@@ -30,6 +30,7 @@ mod geometry;
 mod item_use;
 pub(crate) mod legacy;
 pub(crate) mod pipeline;
+pub(crate) mod sight;
 pub(crate) mod wire;
 
 #[cfg(test)]
@@ -54,6 +55,35 @@ const AIM_TOLERANCE: f32 = 0.5;
 
 impl Bot {
     /// Eye position: the seat while riding, else simulated for physics bots, last server position otherwise.
+    /// Line of sight over the tracked world; `None` before the world is known.
+    pub(crate) fn sight(&self) -> Option<sight::Sight<'_, acacia_world::ChunkView>> {
+        let world = self.world.as_ref()?;
+        Some(sight::Sight { world: world.view()?, registry: world.registry()? })
+    }
+
+    /// A face of the block at `pos` the eye sees and a point on its shape to aim at, drawn among the visible ones
+    /// so aims vary as a player's do; on `prefer` when that face shows. Without a tracked world, `prefer` or the
+    /// face towards the centre, at its centre.
+    pub(crate) fn visible_aim(&mut self, pos: BlockPos, prefer: Option<Face>) -> Result<(Face, Vec3), ActionError> {
+        let eye = self.eye_position();
+        let Some(points) = self.sight().map(|s| s.visible_points(eye, pos)) else {
+            let face = prefer.unwrap_or_else(|| facing_face(eye, pos));
+            return Ok((face, geometry::face_point(pos, face)));
+        };
+        let preferred: Vec<_> = points.iter().copied().filter(|&(f, _)| Some(f) == prefer).collect();
+        let pool = if preferred.is_empty() { points } else { preferred };
+        if pool.is_empty() {
+            return Err(ActionError::NotVisible(format!("block {pos:?} is behind other blocks")));
+        }
+        Ok(pool[self.human.pick(pool.len())])
+    }
+
+    /// The eye sees the centre of `face` of the block at `pos` (true without a tracked world): the check a
+    /// placement against that face makes, for planners choosing among faces.
+    pub fn sees_face(&self, pos: BlockPos, face: Face) -> bool {
+        self.sight().is_none_or(|s| s.sees_face_centre(self.eye_position(), pos, face))
+    }
+
     pub fn eye_position(&self) -> Vec3 {
         if let Some(seat) = self.seat_eye() {
             return seat;

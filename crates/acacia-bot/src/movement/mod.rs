@@ -12,6 +12,7 @@ mod keys;
 mod lifecycle;
 mod packets;
 mod rewind;
+mod rotation_noise;
 #[cfg(test)]
 mod tests;
 
@@ -25,6 +26,7 @@ use acacia_physics::{self as physics, Effects, Equipment, PlayerState, Vec3, Wor
 
 use keys::KeyLatch;
 use rewind::History;
+pub(crate) use rotation_noise::RotationNoise;
 
 /// Players' wire positions are eye positions this far above the feet.
 pub(crate) const EYE_HEIGHT: f32 = crate::state::PlayerState::EYE_HEIGHT;
@@ -69,6 +71,10 @@ pub struct Movement {
     /// Replay only: the recorded `WantDown` (bot traces before 2026-10-02 never sent it), else it follows sneak.
     pub(crate) recorded_want_down: Option<bool>,
     last_setback: Option<u64>,
+    /// Live bots only: sims, tests and replays send `controls` rotations exactly.
+    pub(crate) rotation_noise: Option<RotationNoise>,
+    /// The next inputs carry no movement keys: Oomph bans moving on both sides of an `ItemStackRequest`.
+    pub(crate) still_ticks: u8,
 }
 
 /// A correction moving the bot further than this (blocks) is a setback: paths and actions pause.
@@ -101,6 +107,8 @@ impl Movement {
             server_flying: None,
             history: History::default(),
             last_setback: None,
+            rotation_noise: None,
+            still_ticks: 0,
         }
     }
 
@@ -156,7 +164,14 @@ impl Movement {
     /// Simulates one tick and returns the `PlayerAuthInput` describing it.
     pub fn tick(&mut self, world: &impl WorldView) -> Option<PlayerAuthInput> {
         let st = self.physics.as_mut()?;
-        let c = self.controls;
+        let mut c = self.controls;
+        if let Some(noise) = self.rotation_noise.as_mut() {
+            (c.yaw, c.pitch) = noise.apply(c.yaw, c.pitch);
+        }
+        if self.still_ticks > 0 {
+            self.still_ticks -= 1;
+            (c.forward, c.strafe) = (0.0, 0.0);
+        }
         let replayed = self.history.apply(st, world);
         if replayed > 0 {
             tracing::debug!(tick = self.tick, replayed, "rewound");

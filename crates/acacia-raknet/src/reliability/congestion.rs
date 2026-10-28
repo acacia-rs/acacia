@@ -123,10 +123,10 @@ impl Congestion {
             }
         }
         self.nacked += 1;
-        if self.nacked == BURST_LOSS {
-            if let Some(window) = &mut self.window {
-                *window = (*window).min(self.threshold);
-            }
+        if self.nacked == BURST_LOSS
+            && let Some(window) = &mut self.window
+        {
+            *window = (*window).min(self.threshold);
         }
     }
 

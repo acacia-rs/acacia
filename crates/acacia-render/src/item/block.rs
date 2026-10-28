@@ -79,7 +79,7 @@ pub(super) fn faces(block: &RenderBlock) -> Option<Vec<Face>> {
 pub(super) fn texels(texture: Option<&Texture>, tile: Tile) -> Vec<u8> {
     let mut rgba = texture.map_or_else(|| vec![255; TEXEL_BYTES], |t| t.rgba.to_vec());
     let colour = tile.tint.color(&PLAINS);
-    for px in rgba.chunks_exact_mut(4) {
+    for px in rgba.as_chunks_mut::<4>().0 {
         // Overlay alpha is the tint mask; the face itself is opaque.
         let tinted = colour.filter(|_| tile.material != Material::Overlay || px[3] == 255);
         if let Some(c) = tinted {
@@ -98,6 +98,8 @@ pub(super) fn tile_of(block: &RenderBlock, face: usize) -> Tile {
     Tile { layer: block.textures[face], tint: block.tint[face], material: block.material[face] }
 }
 
+type UvOf = fn(Vec3) -> [f32; 2];
+
 /// A box's six faces in [`crate::assets::FACE_NAMES`] order, with UVs that follow the block's
 /// texel grid as the terrain's do.
 fn box_faces(b: Box16, tile: impl Fn(usize) -> Tile) -> impl Iterator<Item = Face> {
@@ -105,7 +107,7 @@ fn box_faces(b: Box16, tile: impl Fn(usize) -> Tile) -> impl Iterator<Item = Fac
     let max = Vec3::new(b[3].into(), b[4].into(), b[5].into()) / 16.0;
     (0..6).filter_map(move |face| {
         // Corners counter-clockwise from outside, then each corner's texel position.
-        let (corners, uv): ([Vec3; 4], fn(Vec3) -> [f32; 2]) = match face {
+        let (corners, uv): ([Vec3; 4], UvOf) = match face {
             0 => (quad_corners(max.x, [min.z, max.z], [min.y, max.y], |x, z, y| Vec3::new(x, y, z), true), |p| [1.0 - p.z, 1.0 - p.y]),
             1 => (quad_corners(min.x, [min.z, max.z], [min.y, max.y], |x, z, y| Vec3::new(x, y, z), false), |p| [p.z, 1.0 - p.y]),
             2 => (quad_corners(max.y, [min.x, max.x], [min.z, max.z], |y, x, z| Vec3::new(x, y, z), true), |p| [p.x, p.z]),

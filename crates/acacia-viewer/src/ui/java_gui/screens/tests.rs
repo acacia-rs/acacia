@@ -8,7 +8,8 @@ use acacia_ui::lang::Lang;
 
 use super::super::items::{item_stack, plain};
 use super::super::items::JavaLang;
-use super::{Event, JavaGui, Open, Outcome, State, Target, View};
+use super::input::Outcome;
+use super::{Event, JavaGui, Open, State, Target, View};
 use crate::control::{Command, Inventory, Rows, Stack};
 use crate::creative_items::CreativeEntry;
 

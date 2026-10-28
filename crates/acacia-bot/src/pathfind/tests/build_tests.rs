@@ -42,7 +42,7 @@ const ITEMS: &[(&str, u32)] = &[("oak_planks", 64), ("cobblestone", 64), ("oak_l
 
 /// Cells whose block or click-decided states differ from the target.
 pub(super) fn wrong(g: &Grid, s: &Structure) -> Vec<(BlockPos, String, String)> {
-    let skip = |k: &str| k.contains("connection") || k.contains("corner");
+    let skip = |k: &str| k.contains("connection") || k.contains("corner") || k.starts_with(crate::build::BED_COLOR);
     s.cells()
         .filter_map(|(p, t)| {
             let pos = [ORIGIN[0] + p[0], ORIGIN[1] + p[1], ORIGIN[2] + p[2]];
@@ -122,6 +122,7 @@ fn house16_from(g: &Grid, start: [f32; 3]) {
     eprintln!("{ticks} ticks, {st:?}");
     explain(&w, &s, ORIGIN).iter().take(30).for_each(|l| eprintln!("OPEN {l}"));
     eprintln!("scaffold left {:?}", scaffold_left(g));
+    eprint!("{}", crate::build::sight_stats::dump());
     assert_eq!(arb.outcome(id), Some(&Ok(())), "status {st:?}");
     assert_eq!(wrong(g, &s), Vec::new());
     assert_eq!(scaffold_left(g), Vec::<BlockPos>::new());

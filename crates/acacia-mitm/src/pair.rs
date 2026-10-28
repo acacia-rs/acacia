@@ -13,7 +13,7 @@ use crate::intercept::Direction;
 use crate::relay::{Out, Relay};
 
 enum Upstream {
-    RakNet(raknet::Client),
+    RakNet(Box<raknet::Client>),
     /// Batches for the link; `None` once we have closed it.
     Raw(Option<mpsc::UnboundedSender<Bytes>>),
 }
@@ -32,7 +32,7 @@ impl Pair {
     pub fn new(server: SocketAddr, now: Instant, relay: Relay) -> Self {
         // go-raknet servers reject positive client GUIDs (DESIGN.md).
         let guid = rand_core::RngCore::next_u64(&mut rand_core::OsRng) | 1 << 63;
-        Self::over(Upstream::RakNet(raknet::Client::new(raknet::Config::new(guid), server, now)), relay)
+        Self::over(Upstream::RakNet(Box::new(raknet::Client::new(raknet::Config::new(guid), server, now))), relay)
     }
 
     /// Over a link that is already open: what goes into `link` reaches the server as one batch.

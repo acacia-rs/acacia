@@ -7,6 +7,7 @@ use acacia_physics::BlockPos;
 use super::builder::Builder;
 use super::plan::{go, no_stand, unbuilt, Next, SEARCHES, STANDS};
 use super::reach::{click_for, stands, Keep, Stand, STAND_SLACK};
+use super::sight_stats;
 use super::status::Phase;
 use crate::pathfind::process::Ctx;
 use crate::pathfind::Goal;
@@ -31,7 +32,7 @@ pub(super) fn walk(b: &mut Builder, cx: &Ctx, ready: &[(usize, String)], committ
     for (k, (i, _)) in ready.iter().take(searches()).enumerate() {
         let (pos, target) = (b.cells[*i].pos, b.cells[*i].target.clone());
         let keep = Keep { feet: &|f| no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) };
-        let found = stands(pos, cx.pos, cx.look, &keep, &|e| click_for(pos, &target, e, cx.look, STAND_SLACK).is_some(), STANDS);
+        let found = stands(pos, cx.pos, cx.look, &keep, &|e| sight_stats::at("stand search", || click_for(pos, &target, e, cx.look, STAND_SLACK).is_some()), STANDS);
         if found.is_empty() {
             b.rest(pos);
             continue;
@@ -43,7 +44,7 @@ pub(super) fn walk(b: &mut Builder, cx: &Ctx, ready: &[(usize, String)], committ
     }
     let reached = |s: &Stand| -> Vec<BlockPos> {
         let eye = s.eye();
-        ready.iter().map(|(j, _)| &b.cells[*j]).filter(|c| click_for(c.pos, &c.target, eye, cx.look, STAND_SLACK).is_some()).map(|c| c.pos).collect()
+        ready.iter().map(|(j, _)| &b.cells[*j]).filter(|c| sight_stats::at("stand reach", || click_for(c.pos, &c.target, eye, cx.look, STAND_SLACK).is_some())).map(|c| c.pos).collect()
     };
     let travel = |s: &Stand| {
         let d = [s.feet[0] as f32 + 0.5 - cx.pos[0], s.feet[1] as f32 - cx.pos[1], s.feet[2] as f32 + 0.5 - cx.pos[2]];

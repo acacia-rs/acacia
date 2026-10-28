@@ -13,10 +13,10 @@ const LOOKING_FOR_PDI: u8 = 3;
 /// `UTF16.charAt`: the code point at `i`, a lone surrogate as itself.
 fn char_at(text: &[u16], i: usize) -> u32 {
     let c = text[i];
-    if (0xD800..0xDC00).contains(&c) {
-        if let Some(&low) = text.get(i + 1).filter(|&&l| (0xDC00..0xE000).contains(&l)) {
-            return 0x10000 + ((u32::from(c) - 0xD800) << 10) + (u32::from(low) - 0xDC00);
-        }
+    if (0xD800..0xDC00).contains(&c)
+        && let Some(&low) = text.get(i + 1).filter(|&&l| (0xDC00..0xE000).contains(&l))
+    {
+        return 0x10000 + ((u32::from(c) - 0xD800) << 10) + (u32::from(low) - 0xDC00);
     }
     u32::from(c)
 }

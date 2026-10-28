@@ -21,11 +21,18 @@ use crate::entity::{Blend, DYES, Layer, ModelId, NO_TEXTURE, Pose, TextureId};
 
 pub const MODELS: &str = "java/entity_models.json";
 
+/// The adult's and the baby's (model, texture), and whether the baby has a model of its own.
+type KindModels = ([(ModelId, TextureId); 2], bool);
+/// When a second layer shows, and its adult and own-baby (model, texture).
+type Overlay = (When, [Option<(ModelId, TextureId)>; 2]);
+/// A variant's name, id and adult and baby textures.
+type Variant = (&'static str, i32, [TextureId; 2]);
+
 #[derive(Default)]
 pub struct Library {
     /// By Bedrock identifier: the adult's and the baby's (model, texture), and whether the baby
     /// has a model of its own.
-    kinds: HashMap<&'static str, ([(ModelId, TextureId); 2], bool)>,
+    kinds: HashMap<&'static str, KindModels>,
     /// The `setupAnim` of each baked layer; an armour layer's is its wearer's.
     families: HashMap<ModelId, Family>,
     /// By Bedrock identifier, the adult's and the baby's armour models per slot ([`equipment::SLOTS`]).
@@ -35,9 +42,9 @@ pub struct Library {
     /// Equipment and trim textures by path.
     equipment_textures: HashMap<String, TextureId>,
     /// By Bedrock identifier, the second layers' adult and own-baby (model, texture).
-    overlays: HashMap<&'static str, Vec<(When, [Option<(ModelId, TextureId)>; 2])>>,
+    overlays: HashMap<&'static str, Vec<Overlay>>,
     /// [`variants::VARIANTS`]' adult and baby textures.
-    variants: HashMap<&'static str, Vec<(&'static str, i32, [TextureId; 2])>>,
+    variants: HashMap<&'static str, Vec<Variant>>,
     professions: HashMap<&'static str, Professions>,
     worn: Worn,
 }

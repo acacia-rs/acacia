@@ -1,4 +1,6 @@
 //! Divergence bookkeeping: the first few per case are printed, all are counted.
+// Shared by many examples through `#[path]`; each uses only part of it.
+#![allow(dead_code)]
 
 use serde_json::Value;
 

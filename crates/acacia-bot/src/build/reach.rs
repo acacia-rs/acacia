@@ -2,9 +2,12 @@
 //! player's facing (see `rules`), so a cell is placed from a spot whose eye makes the click give the target.
 
 use acacia_physics::{BlockPos, Vec3};
+use acacia_world::{BlockAccess, BlockRegistry};
 
 use super::rules;
+use super::sight_stats::{self, Stage};
 use super::structure::Block;
+use crate::interact::sight::Sight;
 use crate::interact::Face;
 use crate::movement::EYE_HEIGHT;
 use crate::pathfind::process::{BlockView, Look};
@@ -13,9 +16,10 @@ use crate::pathfind::process::{BlockView, Look};
 const MARGIN: f32 = 0.35;
 /// More margin when choosing a stand: the pilot stops up to its tolerance off the cell's centre.
 pub const STAND_SLACK: f32 = 0.45;
-/// The reach stands are planned with (BDS keeps clicks to 6.7, `interact::BLOCK_REACH`). Live house16 A/B
-/// (tools/build-ab.sh): 5.5 against Java's 4.5 took one bot ~146 s against 161 s, two bots ~94 against 105.
-const PLAN_REACH: f32 = 5.5;
+/// The reach stands are planned with, eye to the block's centre like `interact::BLOCK_REACH`. Live house16 A/B
+/// (tools/build-ab.sh, then measured to the nearest point): 5.5 against Java's 4.5 took one bot ~146 s against
+/// 161 s, two bots ~94 against 105.
+const PLAN_REACH: f32 = 5.7;
 
 /// [`PLAN_REACH`], or `BUILD_REACH` for an A/B (capped at the act limit).
 fn plan_reach() -> f32 {
@@ -58,18 +62,12 @@ fn bottom_slab(b: &BlockView) -> bool {
     b.name.ends_with("_slab") && b.prop("minecraft:vertical_half") == Some("bottom")
 }
 
-fn dist_to_block(eye: Vec3, p: BlockPos) -> f32 {
-    let d = |e: f32, lo: i32| (lo as f32 - e).max(e - (lo + 1) as f32).max(0.0);
-    let (x, y, z) = (d(eye[0], p[0]), d(eye[1], p[1]), d(eye[2], p[2]));
-    (x * x + y * y + z * z).sqrt()
-}
-
 pub fn in_reach(eye: Vec3, p: BlockPos) -> bool {
     within(eye, p, 0.0)
 }
 
 pub fn within(eye: Vec3, p: BlockPos, slack: f32) -> bool {
-    dist_to_block(eye, p) <= plan_reach() - MARGIN - slack
+    crate::interact::block_distance(eye, p) <= plan_reach() - MARGIN - slack
 }
 
 /// The eye is on the outer side of `face` of the block at `p`: the face can be seen.
@@ -85,36 +83,108 @@ fn sees(eye: Vec3, p: BlockPos, face: Face) -> bool {
     }
 }
 
-/// Clicks on `face` of `against`: its centre, or low and high on a side face (a slab's or stair's half follows the
-/// click). Only points on the block's shape: a full cube anywhere, a half slab its own half of the side faces.
+/// Clicks on `face` of `against`, the usual ones first: its centre, or low and high on a side face (a slab's or
+/// stair's half follows the click); then a grid over the rest, so a partly hidden face still gives a seen click.
+/// Only points on the block's shape: a full cube anywhere, a half slab its own half of the side faces.
 fn points(face: Face, against: &BlockView) -> Vec<Vec3> {
     let [ox, oy, oz] = face.offset().map(|v| v as f32);
     let c = [0.5 + 0.5 * ox, 0.5 + 0.5 * oy, 0.5 + 0.5 * oz];
-    let side = |ys: &[f32]| ys.iter().map(|&y| [c[0], y, c[2]]).collect();
+    const GRID: [f32; 3] = [0.5, 0.2, 0.8];
+    // Side grids keep off y 0.5, where a stair's or slab's half flips.
+    let side = |ys: &[f32], more: &[f32]| {
+        let at = move |h: f32, y: f32| if ox != 0.0 { [c[0], y, h] } else { [h, y, c[2]] };
+        ys.iter().map(|&y| at(0.5, y)).chain(GRID.iter().flat_map(|&h| more.iter().map(move |&y| at(h, y)))).collect()
+    };
     let slab = against.name.ends_with("_slab").then(|| against.prop("minecraft:vertical_half")).flatten();
     match (face, slab) {
+        (Face::Up | Face::Down, None) if rules::post(against) => vec![c],
+        (Face::Up, None) if !against.full => rules::redstone::top(against.name).map(|y| vec![[c[0], y, c[2]]]).unwrap_or_default(),
         (_, None) if !against.full => Vec::new(),
-        (Face::Up | Face::Down, None) => vec![c],
-        (_, None) => side(&[0.25, 0.75]),
+        (Face::Up | Face::Down, None) => GRID.iter().flat_map(|&x| GRID.iter().map(move |&z| [x, c[1], z])).collect(),
+        (_, None) => side(&[0.25, 0.75], &[0.15, 0.4, 0.6, 0.85]),
         (Face::Up | Face::Down, _) => Vec::new(),
-        (_, Some("top")) => side(&[0.75]),
-        (_, Some(_)) => side(&[0.25]),
+        (_, Some("top")) => side(&[0.75], &[0.6, 0.9]),
+        (_, Some(_)) => side(&[0.25], &[0.1, 0.4]),
     }
 }
 
-/// A click from `eye` that places `target` into `pos` with its state, reaching `slack` short of the limit.
+/// A click from `eye` that places `target` into `pos` with its state, reaching `slack` short of the limit, on a
+/// point the eye sees: no other block's shape is in the way (`interact::sight`).
 pub fn click_for(pos: BlockPos, target: &Block, eye: Vec3, look: &dyn Look, slack: f32) -> Option<Click> {
+    let world = LookBlocks(look);
+    let sight = Sight { world: &world, registry: BlockRegistry::vanilla() };
+    let (mut stage, mut hidden) = (Stage::NothingToClick, None);
     for face in Face::ALL {
         let o = face.offset();
         let against = [pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]];
         let Some(b) = look.block(against) else { continue };
-        if !b.solid() || b.interactive || !sees(eye, against, face) || !within(eye, against, slack) {
+        let reached = match () {
+            _ if !b.solid() || b.interactive => Stage::NothingToClick,
+            _ if !sees(eye, against, face) => Stage::FaceAway,
+            _ if !within(eye, against, slack) => Stage::OutOfReach,
+            _ => Stage::Hidden,
+        };
+        if reached != Stage::Hidden {
+            stage = stage.max(reached);
             continue;
         }
-        let Some(click) = points(face, &b).into_iter().find(|c| rules::gives(target, face, *c, eye, pos, &b)) else { continue };
-        return Some(Click { against, face, click });
+        let into = look.block(pos).is_some_and(|t| t.solid()).then_some(pos);
+        let at = |c: &Vec3| std::array::from_fn(|i| against[i] as f32 + c[i]);
+        let giving: Vec<Vec3> = points(face, &b).into_iter().filter(|c| rules::gives(target, face, *c, eye, pos, &b)).collect();
+        if let Some(&click) = giving.iter().find(|c| sight.sees_face_into(eye, against, face, at(c), into)) {
+            sight_stats::count(|| "ok".into());
+            return Some(Click { against, face, click });
+        }
+        stage = stage.max(if giving.is_empty() { Stage::NoPointGivesState } else { Stage::Hidden });
+        if sight_stats::enabled() && hidden.is_none() && !giving.is_empty() {
+            hidden = Some(sight_stats::blocker(&world, eye, at(&giving[0]), pos, against));
+        }
     }
+    sight_stats::count(|| match stage {
+        Stage::Hidden => hidden.unwrap_or_default(),
+        s => format!("{s:?}"),
+    });
     None
+}
+
+/// Some point of the block's shape at `pos` shows to the eye: where a use-click or a break aims.
+pub fn sees_block(eye: Vec3, pos: BlockPos, look: &dyn Look) -> bool {
+    let world = LookBlocks(look);
+    !Sight { world: &world, registry: BlockRegistry::vanilla() }.visible_points(eye, pos).is_empty()
+}
+
+/// A break of `pos` from `eye` the act accepts: in reach and in view.
+pub fn breaks_from(eye: Vec3, pos: BlockPos, look: &dyn Look) -> bool {
+    in_reach(eye, pos) && sees_block(eye, pos, look)
+}
+
+/// A fill of `pos` from `eye` the act accepts (`pathfind::process::act::fill`): some solid, non-interactive
+/// neighbour in reach whose face towards `pos` the eye sees at its centre.
+pub fn fills_from(eye: Vec3, pos: BlockPos, look: &dyn Look) -> bool {
+    let world = LookBlocks(look);
+    let sight = Sight { world: &world, registry: BlockRegistry::vanilla() };
+    Face::ALL.into_iter().any(|face| {
+        let o = face.offset();
+        let against = [pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]];
+        look.block(against).is_some_and(|b| !b.air && !b.liquid && !b.interactive) && in_reach(eye, against) && sight.sees_face_centre(eye, against, face)
+    })
+}
+
+/// A [`Look`] as block ids for the shared ray. Unloaded cells, and blocks the vanilla registry lacks, read as air.
+struct LookBlocks<'a>(&'a dyn Look);
+
+impl BlockAccess for LookBlocks<'_> {
+    fn block(&self, x: i32, y: i32, z: i32) -> u32 {
+        let r = BlockRegistry::vanilla();
+        match self.0.block([x, y, z]) {
+            Some(b) if !b.air => r.find(b.name, b.props).unwrap_or_else(|| r.air_id()),
+            _ => r.air_id(),
+        }
+    }
+
+    fn liquid(&self, _: i32, _: i32, _: i32) -> u32 {
+        BlockRegistry::vanilla().air_id()
+    }
 }
 
 fn passable(look: &dyn Look, p: BlockPos) -> bool {

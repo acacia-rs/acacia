@@ -1,0 +1,18 @@
+# What bluemap-rs pays to read a region folder's chunks (decompress, then parse), one thread. Needs the
+# bluemap-rs checkout next to the acacia one (C:/Users/hexay/{acacia/acacia-anvil,bluemap-rs}); not part
+# of the acacia workspace. `cargo run --release --manifest-path crates/acacia-anvil/tools/readcost/Cargo.toml
+# -- <region dir>… [--iters N]`
+[package]
+name = "readcost"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+bm-world = { path = "../../../../../../bluemap-rs/crates/bm-world" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[workspace]

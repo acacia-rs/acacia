@@ -27,6 +27,9 @@ pub fn bds_state(item: &str, face: Face, click: Vec3, eye: Vec3, point: Vec3, ce
         "up" => "down",
         _ => "up",
     };
+    if let Some(props) = super::place_oneclick::bds_state(n, face, top, looks) {
+        return Some((n.to_string(), props));
+    }
     let props = match n {
         _ if n.ends_with("_slab") && cell == format!("minecraft:{n}") => return Some((n.replace("_slab", "_double_slab"), "minecraft:vertical_half=bottom".into())),
         _ if n.ends_with("_slab") => format!("minecraft:vertical_half={}", if top { "top" } else { "bottom" }),
@@ -44,7 +47,7 @@ pub fn bds_state(item: &str, face: Face, click: Vec3, eye: Vec3, point: Vec3, ce
             };
             format!("upside_down_bit={},weirdo_direction={weirdo}", u8::from(top))
         }
-        "torch" => match face {
+        "torch" | "redstone_torch" => match face {
             Face::Down => return None,
             Face::Up => "torch_facing_direction=top".into(),
             f => format!("torch_facing_direction={}", opposite(word(f))),

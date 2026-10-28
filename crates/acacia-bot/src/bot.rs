@@ -95,7 +95,7 @@ impl Bot {
         }
         let server = builder.server().to_owned();
         // Physics reads terrain from blobs; a trace must hold every blob it uses, so it gets a fresh store.
-        let mut builder = builder.keep_blob_payloads(config.physics);
+        let mut builder = builder.keep_blob_payloads(config.physics).mouse_input(config.mouse_input);
         if config.physics && config.record.is_some() {
             builder = builder.blob_store(Arc::new(MemoryBlobStore::with_payloads()));
         }
@@ -112,6 +112,7 @@ impl Bot {
         let (world, movement, idle) = if config.physics {
             let mut movement = Movement::new();
             movement.mouse_input = config.mouse_input;
+            movement.rotation_noise = Some(crate::movement::RotationNoise::new(crate::cadence::seed()));
             (world, Some(movement), None)
         } else {
             (world.nearby(), None, Some((Idle::default(), SpawnSequence::default())))

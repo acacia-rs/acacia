@@ -80,10 +80,10 @@ fn substring(plain: &[u16], styles: &[&Style], start: usize, len: usize, reverse
     }
     let mut pieces = Vec::new();
     let (mut piece_start, mut style) = (start, styles[start]);
-    for i in start + 1..start + len {
-        if styles[i] != style {
+    for (i, &s) in styles.iter().enumerate().take(start + len).skip(start + 1) {
+        if s != style {
             pieces.push((piece_start, i, style));
-            (piece_start, style) = (i, styles[i]);
+            (piece_start, style) = (i, s);
         }
     }
     pieces.push((piece_start, start + len, style));

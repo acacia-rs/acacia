@@ -83,7 +83,7 @@ pub fn load(root: &Path, java_root: Option<&Path>) -> Theme {
     }
     let font = java_root.and_then(|r| java_font(r, &mut atlas));
     let galactic = java_root.and_then(|r| super::java_galactic(r, &mut atlas));
-    let widgets = Widgets::Bedrock(Kit::load(root, &mut atlas));
+    let widgets = Widgets::Bedrock(Box::new(Kit::load(root, &mut atlas)));
     Theme { atlas, font, galactic, style: STYLE, widgets }
 }
 

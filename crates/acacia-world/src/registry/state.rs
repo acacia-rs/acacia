@@ -61,6 +61,10 @@ pub struct BlockState {
     pub properties: &'static str,
     /// Stairs, fences, panes and walls get their connected shape from the state (26.50+).
     pub boxes: &'static [Aabb],
+    /// What a crosshair ray hits (BDS `getOutline`, docs/selection-shapes.md); empty for air, liquids and fire.
+    /// Plants with a random offset hold their unshifted box: shift it by `selection_offset.at(x, z)`.
+    pub selection: &'static [Aabb],
+    pub selection_offset: super::offset::SelectionOffset,
     pub friction: f32,
     pub flags: BlockFlags,
     /// `liquid_depth` for water/lava (0 = source, 8+ = falling), 0 otherwise.

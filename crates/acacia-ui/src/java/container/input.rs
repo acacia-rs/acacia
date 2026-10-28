@@ -107,31 +107,29 @@ pub fn mouse_clicked<S: Screen + ?Sized>(s: &S, p: &mut Pointer, mouse: [f64; 2]
     p.skip_next_release = false;
     let mut out = Vec::new();
     // Otherwise checkHotbarMouseClicked: hotbar keys bound to mouse buttons, which are not bound here.
-    if matches!(button, Button::Left | Button::Right) || cloning {
-        if (slot.is_some() || outside) && !p.quick_crafting {
-            if s.base().carried().is_none() {
-                let input = if cloning {
-                    Input::Clone
-                } else if !outside && shift {
-                    p.last_quick_moved = slot.and_then(|i| s.base().slots[i].item.clone()).filter(|s| !s.is_empty());
-                    Input::QuickMove
-                } else if outside {
-                    Input::Throw
-                } else {
-                    Input::Pickup
-                };
-                out.push(Click::Slot { slot: slot.filter(|_| !outside), outside, button: button.num(), input });
-                p.skip_next_release = true;
+    if (matches!(button, Button::Left | Button::Right) || cloning) && (slot.is_some() || outside) && !p.quick_crafting {
+        if s.base().carried().is_none() {
+            let input = if cloning {
+                Input::Clone
+            } else if !outside && shift {
+                p.last_quick_moved = slot.and_then(|i| s.base().slots[i].item.clone()).filter(|s| !s.is_empty());
+                Input::QuickMove
+            } else if outside {
+                Input::Throw
             } else {
-                p.quick_crafting = true;
-                p.quick_button = Some(button);
-                p.quick_slots.clear();
-                match button {
-                    Button::Left => p.quick_kind = 0,
-                    Button::Right => p.quick_kind = 1,
-                    Button::Middle if cloning => p.quick_kind = 2,
-                    Button::Middle => {}
-                }
+                Input::Pickup
+            };
+            out.push(Click::Slot { slot: slot.filter(|_| !outside), outside, button: button.num(), input });
+            p.skip_next_release = true;
+        } else {
+            p.quick_crafting = true;
+            p.quick_button = Some(button);
+            p.quick_slots.clear();
+            match button {
+                Button::Left => p.quick_kind = 0,
+                Button::Right => p.quick_kind = 1,
+                Button::Middle if cloning => p.quick_kind = 2,
+                Button::Middle => {}
             }
         }
     }

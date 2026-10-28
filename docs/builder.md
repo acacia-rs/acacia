@@ -21,11 +21,28 @@ bot.run(&mut procs).await?;
 - Resume = re-survey. No progress log: only the job (structure path, transform, stations, options) is
   serialisable. Every tick the builder diffs the world against the structure, so a fresh builder after a restart
   carries on from what is there. Unloaded cells are `unknown` and visited.
-- Block set: full blocks, logs/pillars, slabs (both halves, double), stairs (facing, upside-down), facing blocks
-  (furnace, observer, piston, dispenser), fences/walls/panes, glass, torches, ladders, buttons. Everything else is
-  reported `unsupported` and skipped (doors, beds, signs, redstone, fluids, crops, chests...; `rules::DENIED`).
+- Block set (B1): full blocks, logs/pillars, slabs (both halves, double), stairs (facing, upside-down), facing
+  blocks (furnace, observer, piston, dispenser), fences/walls/panes, glass, torches, ladders, buttons. Widened on
+  2026-10-28, see "Block set" below. What is left is reported `unsupported` and skipped (`rules::DENIED`).
 
-## Placement rules (`build/rules.rs`)
+## Block set (2026-10-28)
+
+Four families, each in its own rules module, measured on strict BDS with `examples/place_probe.rs SET=<tier>` and
+accepted by a live scene (`tools/scenes.sh`). Each doc holds its rules table, evidence and what stays denied.
+
+| Tier | Blocks | Planner change | Doc |
+|---|---|---|---|
+| oneclick | trapdoors, gates, chests, barrels, anvils, lanterns, chains, hoppers, rods, bells, workstations, redstone block/lamp/torch, leaves, lit furnaces (as unlit) | hanging cells wait for the block above | `builder/oneclick.md` |
+| twocell | doors (hinge from neighbours), beds (colour from block entity), tall plants | `Need::Paired`; doors before the blocks that would flip their hinge | `builder/twocell.md` |
+| interact | open bits, repeaters, comparators, levers, candles/pickles/eggs counts, signs with text | `Need::Adjust`: use or write instead of break; re-centre on a stand after a missed click | `builder/interact.md` |
+| redstone | dust, rails (placement order), water/lava sources, plants, crops on tilled farmland | dry before wet; `Act::UseOn` for pours | `builder/redstone.md` |
+
+User decisions (2026-10-28): block-entity contents (container items, banner patterns) are not built, except bed
+colour and sign text; growth states and flowing liquid are not compared; natural leaves match persistent ones;
+dirt matches grass under a solid target; mushrooms are denied (BDS refuses them in daylight); the kit carries a
+hoe; a stand the bot reaches but cannot click from is re-centred on before another is tried.
+
+## Placement rules (`build/rules/mod.rs`)
 
 Measured on strict BDS 1.26.52.3 with `examples/place_probe.rs` (every item from four sides, every visible face,
 clicked low and high; `VERT=1` for six-way blocks close above and below). Tests: `build/tests/rules.rs`.
@@ -122,8 +139,11 @@ stands and the stands it could use: the first thing to read when a build stalls 
   why it held, the cell and what it shows, claims; acts, walks, rests). The examples print `build::findings` at
   the end: time by hold reason, walk statistics, and named findings (`DOUBLE_PLACE`, `LONG_HOLD`,
   `STALE_CLAIM`, `REST_LOOP`, `WALK_NO_ACT`, `GOAL_THRASH`, `WALK_STUCK`) with every wrong cell's history.
-- A/B: `tools/build-ab.sh <runs> name:ENV=v,...` builds once on testbox and spreads the runs over the three
-  20 TPS pathfind BDS, variants interleaved, as one detached job (a local reap can't stop it). Live spread is
+- Scenes: `tools/scenes.sh <scene>...` builds once and runs every scene at once, each on a fresh world of a leased
+  BDS from `tools/bds-pool.sh` (`up <n>` copies a configured strict BDS; ports 19400+2i). ~20 s a scene.
+- A/B: `tools/build-ab.sh <runs> name:ENV=v,...` builds once on testbox and runs every run at once on pool BDS,
+  variants interleaved, as one detached job (a local reap can't stop it). testbox is this host since 2026-10-24:
+  every other session shares the CPU, so interleave and check `uptime`. Live spread is
   ±7-15 s per run; 3-4 runs per side are the least to trust a 10% change. `BUILD_SEARCHES` and `BUILD_REACH`
   stay as knobs for later A/Bs.
 - What it found and changed, each judged live:
@@ -156,6 +176,25 @@ stands and the stands it could use: the first thing to read when a build stalls 
 - Pipelined placements (Optimal; `interact::pipeline`, governor cap 4 in flight; BDS kept 6 a tick from one
   spot, `examples/place_rate.rs`): one bot 213 s, acts 62 s (p50 49 ms), echo waits overlapped; sim
   `pipeline_sim` (refused, lost and late echoes, no ghosts, never done with placements in flight).
+- Line of sight regression (2026-10-28, one bot, house16, fresh pool worlds): 06ecb4c 133-190 s, 54-58 walks;
+  master 232-316 s, 119-160 walks. Bisect: bab306e 147/155 s, 56 walks; 713f1c6 (interactions refuse what the
+  eye can't see, the planner clicks only seen points) 226/335 s, 113-127 walks, 4.6-5.1 placements a walk
+  against 10.3, 25-40 breaks refused "not visible". Its reach change is not the cause (old reach: 228/249 s).
+  - Fixed: breaks and fills plan with the acts' sight checks (`reach::breaks_from`, `fills_from`), clicks try a
+    grid over each face, a pair's second half obeys the never-cover rule (a bed's head buried its floor plank).
+    After: 252-315 s, 3495-4577 ticks, 94-106 walks, 5.5-6.1 placements a walk, 0-1 refused breaks; Plan p95
+    3.7-4.3 ms (was 1.8-2.0).
+  - Followed up (2026-10-28): the sim reproduces it (`builds_house16_as_live`: bab306e 2505 ticks, 49 walks;
+    f1ca704 4049, 106). `BUILD_SIGHT_STATS=1` (`build/sight_stats.rs`) counts why `click_for` found nothing,
+    per caller: hidden faces are all collision hits on neighbouring wall or floor blocks, never selection boxes.
+    The check that costs walks is "from here" (ignoring sight there alone, sim only: 2446 ticks, 61 walks; at
+    stand scoring: no change). The cells: the top wall row (19 walks against 4, most placing one block) and the
+    corner logs at y3-6 (12 against 2), each seen only from close by a ground-level eye.
+  - Tried, sim ticks/walks: farthest first from here 3893/106 (live 263 s against 259 off), walk weight 4
+    3379/84 (live 282 s), searches 48/96, pillar cost 3/6, en route: none better than ~3800/85-100.
+  - Verdict: the cells are hidden; ~250-265 s is line of sight's price under this planner. Next, if wanted: build
+    a top row from its far end towards one stand beside the wall (each cell's far neighbour is then there to
+    click), and stack each corner log column in one visit from a stand beside it.
 
 ## Swarm (B2: `build/board.rs`, `build/swarm.rs`)
 
@@ -220,5 +259,4 @@ the rate and cost ~65 s of walking (stands farther away); the drops follow the p
 
 - Portable shulker restock (place, take, break, pick up); stations must be placed containers.
 - Crafting missing items; dumping junk when the inventory is full (drops from clearing are picked up).
-- Line of sight: clicks only need the face to point towards the eye.
 - Other bots as pilot obstacles; a networked board.

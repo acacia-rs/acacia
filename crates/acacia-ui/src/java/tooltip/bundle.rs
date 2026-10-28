@@ -121,7 +121,7 @@ impl Bundle {
     fn shown(&self) -> usize {
         let n = self.items.len();
         let available = if n > 12 { 11 } else { 12 };
-        let gap = if n % 4 == 0 { 0 } else { 4 - n % 4 };
+        let gap = if n.is_multiple_of(4) { 0 } else { 4 - n % 4 };
         n.min(available - gap)
     }
 

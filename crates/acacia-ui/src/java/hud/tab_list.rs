@@ -88,13 +88,16 @@ pub struct ListObjective {
     pub format: Option<NumberFormat>,
 }
 
+/// A score's value and number format override.
+pub type ScoreInfo = (i32, Option<NumberFormat>);
+
 /// What a frame reads besides the overlay's own state.
 pub struct TabInputs<'a> {
     /// `getListedOnlinePlayers` in listing order.
     pub players: &'a [TabPlayer],
     pub team: &'a dyn Fn(&str) -> Option<&'a Team>,
     /// `getPlayerScoreInfo`: value and number format override.
-    pub score: &'a dyn Fn(&str) -> Option<(i32, Option<NumberFormat>)>,
+    pub score: &'a dyn Fn(&str) -> Option<ScoreInfo>,
     pub objective: Option<&'a ListObjective>,
     /// `ClientPacketListener.onlineMode`: heads are shown.
     pub online_mode: bool,

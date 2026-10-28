@@ -133,7 +133,7 @@ impl Skin for Kit {
                 }
             }
             Widget::Input { label, placeholder, edit } => {
-                draw_lines(list, font, &[label.clone()], l, t, LINE_HEIGHT, false, WHITE, true);
+                draw_lines(list, font, std::slice::from_ref(label), l, t, LINE_HEIGHT, false, WHITE, true);
                 let field = Kit::field_rect(rect);
                 self.paint(list, self.field[usize::from(state.focus)], field, 0x000000);
                 let area = [field[0] + 4.0, field[1], field[2] - 4.0, field[3]];

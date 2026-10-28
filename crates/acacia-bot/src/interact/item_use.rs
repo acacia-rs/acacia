@@ -4,7 +4,7 @@ use acacia_client::proto::types::Action;
 use acacia_physics::{BlockPos, Vec3};
 
 use super::confirm::{unpredict, Confirm, Expect, Verdict};
-use super::geometry::{block_distance, block_min, face_point, facing_face, BLOCK_REACH};
+use super::geometry::{block_distance, block_min, relative, BLOCK_REACH};
 use super::legacy::{self, SlotChange};
 use super::wire::{self, SwingSource};
 use super::{is_interactive, Face};
@@ -39,29 +39,31 @@ impl Bot {
         self.client.send(&wire::release(self.hand()));
     }
 
-    /// Right-clicks `face` of the block at `pos` with the held item (`UseItem` ClickBlock): opens
-    /// doors, presses buttons, uses containers. Physics bots face the block first.
+    /// Right-clicks the block at `pos` with the held item (`UseItem` ClickBlock): opens doors, presses
+    /// buttons, uses containers. Clicks a point the eye sees on its shape, on `face` when that face shows,
+    /// else on another; physics bots face it first. `NotVisible` when the block is hidden.
     pub async fn use_item_on_block(&mut self, pos: BlockPos, face: Face) -> Result<(), ActionError> {
         let distance = block_distance(self.eye_position(), pos);
         if distance > BLOCK_REACH {
             return Err(ActionError::NotPossible(format!("block {pos:?} is {distance:.2} blocks away")));
         }
-        self.look_at(face_point(pos, face)).await?;
-        self.click_block(pos, face, face.click_offset(), SwingSource::Interact)
+        let (face, aim) = self.visible_aim(pos, Some(face))?;
+        self.look_at(aim).await?;
+        self.click_block(pos, face, relative(pos, aim), SwingSource::Interact)
     }
 
     /// Clicks the door, gate or trapdoor at `pos` and waits for the server to show it `open` (or closed). One
     /// click only: a second would toggle it back were the first just late.
     pub(crate) async fn door_confirmed(&mut self, pos: BlockPos, open: bool) -> Result<(), ActionError> {
-        let face = facing_face(self.eye_position(), pos);
         let distance = block_distance(self.eye_position(), pos);
         if distance > BLOCK_REACH {
             return Err(ActionError::NotPossible(format!("door {pos:?} is {distance:.2} blocks away")));
         }
-        self.look_at(face_point(pos, face)).await?;
+        let (face, aim) = self.visible_aim(pos, None)?;
+        self.look_at(aim).await?;
         self.admit_action().await?;
         let mut c = self.confirmation(pos, Expect::Prop("open_bit", if open { "1" } else { "0" }), 1);
-        let clicked = self.click_block(pos, face, face.click_offset(), SwingSource::Interact);
+        let clicked = self.click_block(pos, face, relative(pos, aim), SwingSource::Interact);
         let verdict = match clicked {
             Ok(()) => self.await_confirm(pos, &mut c, Instant::now()).await,
             Err(e) => Err(e),
@@ -70,6 +72,30 @@ impl Bot {
         match verdict? {
             Verdict::Done => Ok(()),
             _ => Err(ActionError::Rejected(format!("the door at {pos:?} did not move"))),
+        }
+    }
+
+    /// Right-clicks the block at `pos` (on `face` when it shows) and waits for the server to show the cell
+    /// changed: a use toggle (`open_bit`, a repeater's delay) or a held tool's work (tilled dirt). One click
+    /// only, as [`Self::door_confirmed`].
+    pub(crate) async fn use_confirmed(&mut self, pos: BlockPos, face: Face) -> Result<(), ActionError> {
+        let distance = block_distance(self.eye_position(), pos);
+        if distance > BLOCK_REACH {
+            return Err(ActionError::NotPossible(format!("block {pos:?} is {distance:.2} blocks away")));
+        }
+        let before = self.block_at(pos).map(|(id, _)| id).ok_or_else(|| ActionError::NotPossible(format!("{pos:?} is not loaded")))?;
+        let (face, aim) = self.visible_aim(pos, Some(face))?;
+        self.look_at(aim).await?;
+        self.admit_action().await?;
+        let mut c = self.confirmation(pos, Expect::Replaced(before), 1);
+        let verdict = match self.click_block(pos, face, relative(pos, aim), SwingSource::Interact) {
+            Ok(()) => self.await_confirm(pos, &mut c, Instant::now()).await,
+            Err(e) => Err(e),
+        };
+        self.governor.settled();
+        match verdict? {
+            Verdict::Done => Ok(()),
+            _ => Err(ActionError::Rejected(format!("using {pos:?} changed nothing"))),
         }
     }
 
@@ -110,7 +136,7 @@ impl Bot {
             && !s.is_air()
             && !s.is_liquid()
         {
-            if !s.name.ends_with("_slab") {
+            if !s.name.ends_with("_slab") && !adds_to(s.name, self.held_name()) {
                 return Err(ActionError::NotPossible(format!("{target:?} is occupied by {}", s.name)));
             }
             half_slab = Some(id);
@@ -127,8 +153,14 @@ impl Bot {
             return Err(ActionError::NotPossible(format!("block {against:?} is {distance:.2} blocks away")));
         }
         let m = block_min(against);
+        let point = [m[0] + click[0], m[1] + click[1], m[2] + click[2]];
+        let eye = self.eye_position();
+        let into = half_slab.map(|_| target);
+        if self.sight().is_some_and(|s| !s.sees_face_into(eye, against, face, point, into)) {
+            return Err(ActionError::NotVisible(format!("{face:?} of {against:?} is hidden from the eye")));
+        }
         let t = Instant::now();
-        self.look_at([m[0] + click[0], m[1] + click[1], m[2] + click[2]]).await?;
+        self.look_at(point).await?;
         self.act_timing.add(crate::act_timing::Phase::Aim, t.elapsed());
         Ok((target, half_slab))
     }
@@ -222,6 +254,11 @@ pub(crate) fn use_on_result(held: &ItemStack, is_sign: bool, pos: BlockPos, face
     } else {
         pos
     }
+}
+
+/// Placing `held` into a cell holding `cell` adds one to it (candles, sea pickles, turtle eggs).
+pub(crate) fn adds_to(cell: &str, held: Option<&str>) -> bool {
+    held == Some(cell) && (cell.ends_with("candle") || matches!(cell, "minecraft:sea_pickle" | "minecraft:turtle_egg"))
 }
 
 /// The stack left after placing one.

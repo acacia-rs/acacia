@@ -3,9 +3,11 @@
 use std::sync::LazyLock;
 
 use super::mining::{Material, Mining};
+use super::offset::SelectionOffset;
 use super::state::{Aabb, BlockFlags, BlockState};
 
 static BLOB: &[u8] = include_bytes!("../../data/blocks.bin");
+static SELECTION: &[u8] = include_bytes!("../../data/selection.bin");
 
 struct Blob {
     frictions: Vec<f32>,
@@ -18,14 +20,24 @@ struct Blob {
 static PARSED: LazyLock<Blob> = LazyLock::new(parse_tables);
 
 struct Reader {
+    blob: &'static [u8],
     pos: usize,
 }
 
 impl Reader {
     fn bytes(&mut self, n: usize) -> &'static [u8] {
-        let s = &BLOB[self.pos..self.pos + n];
+        let s = &self.blob[self.pos..self.pos + n];
         self.pos += n;
         s
+    }
+    /// A u8 box count, then each box as six f32 (min xyz, max xyz).
+    fn boxes(&mut self) -> Box<[Aabb]> {
+        (0..self.u8())
+            .map(|_| {
+                let v: [f32; 6] = std::array::from_fn(|_| self.f32());
+                Aabb::new([v[0], v[1], v[2]], [v[3], v[4], v[5]])
+            })
+            .collect()
     }
     fn u8(&mut self) -> u8 {
         self.bytes(1)[0]
@@ -42,7 +54,7 @@ impl Reader {
 }
 
 fn parse_tables() -> Blob {
-    let mut r = Reader { pos: 0 };
+    let mut r = Reader { blob: BLOB, pos: 0 };
     assert_eq!(r.bytes(4), b"BWB3", "blocks.bin: bad magic");
     let frictions = (0..r.u8()).map(|_| r.f32()).collect();
     let strings = (0..r.u32())
@@ -51,16 +63,7 @@ fn parse_tables() -> Blob {
             std::str::from_utf8(r.bytes(n)).expect("blocks.bin: bad utf8")
         })
         .collect();
-    let shapes = (0..r.u32())
-        .map(|_| {
-            (0..r.u8())
-                .map(|_| {
-                    let v: [f32; 6] = std::array::from_fn(|_| r.f32());
-                    Aabb::new([v[0], v[1], v[2]], [v[3], v[4], v[5]])
-                })
-                .collect()
-        })
-        .collect();
+    let shapes = (0..r.u32()).map(|_| r.boxes()).collect();
     let mining = (0..r.u16())
         .map(|_| Mining {
             hardness: r.f32(),
@@ -72,15 +75,35 @@ fn parse_tables() -> Blob {
     Blob { frictions, strings, shapes, mining, states_at: r.pos }
 }
 
+/// Distinct box lists, then each state's (list index, offset byte).
+type Selections = (Vec<Box<[Aabb]>>, Vec<(u16, u8)>);
+
+/// Every vanilla state's selection boxes and offset, in runtime-id order (layout: `tools/gen-selection.py`).
+fn selections() -> Vec<(&'static [Aabb], SelectionOffset)> {
+    static SHAPES: LazyLock<Selections> = LazyLock::new(|| {
+        let mut r = Reader { blob: SELECTION, pos: 0 };
+        assert_eq!(r.bytes(4), b"BSL2", "selection.bin: bad magic");
+        let shapes = (0..r.u32()).map(|_| r.boxes()).collect();
+        let ids = (0..r.u32()).map(|_| (r.u16(), r.u8())).collect();
+        (shapes, ids)
+    });
+    let (shapes, ids) = &*SHAPES;
+    ids.iter().map(|&(i, o)| (&shapes[i as usize][..], SelectionOffset::from_u8(o))).collect()
+}
+
 /// Every vanilla state in runtime-id order.
 pub(super) fn vanilla_states() -> Vec<BlockState> {
     let blob: &'static Blob = &PARSED;
-    let mut r = Reader { pos: blob.states_at };
-    (0..r.u32())
-        .map(|_| {
+    let selections = selections();
+    let mut r = Reader { blob: BLOB, pos: blob.states_at };
+    let n = r.u32();
+    assert_eq!(n, selections.len(), "selection.bin is stale: regenerate it with tools/gen-selection.py");
+    (0..n)
+        .map(|i| {
             let name = blob.strings[r.u16() as usize];
             let properties = blob.strings[r.u16() as usize];
             let boxes = &blob.shapes[r.u16() as usize][..];
+            let (selection, selection_offset) = selections[i];
             let flags = BlockFlags(r.u16());
             let liquid_depth = r.u8();
             let friction = blob.frictions[r.u8() as usize];
@@ -91,6 +114,8 @@ pub(super) fn vanilla_states() -> Vec<BlockState> {
                 name,
                 properties,
                 boxes,
+                selection,
+                selection_offset,
                 friction,
                 flags,
                 liquid_depth,

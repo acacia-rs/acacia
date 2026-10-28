@@ -13,10 +13,21 @@ pub(crate) struct Identity {
 
 /// `nonce` is a friend's world's per-player join nonce (ClientData `Nonce`). `offline_key` signs an
 /// offline login; an online one brings its own key. `skin` replaces the account's pool skin.
-pub(crate) fn build_login(login: Login, offline_key: SigningKey, server: &str, nonce: Option<String>, skin: Option<Skin>) -> (SigningKey, Vec<u8>, Identity) {
-    let dressed = |client: ClientData| match skin {
-        Some(skin) => ClientData { skin, ..client },
-        None => client,
+pub(crate) fn build_login(
+    login: Login,
+    offline_key: SigningKey,
+    server: &str,
+    nonce: Option<String>,
+    skin: Option<Skin>,
+    mouse_input: bool,
+) -> (SigningKey, Vec<u8>, Identity) {
+    let dressed = |client: ClientData| {
+        let current_input_mode = if mouse_input { acacia_auth::login::INPUT_MODE_MOUSE } else { client.current_input_mode };
+        let client = ClientData { current_input_mode, ..client };
+        match skin {
+            Some(skin) => ClientData { skin, ..client },
+            None => client,
+        }
     };
     match login {
         Login::Offline { name } => {

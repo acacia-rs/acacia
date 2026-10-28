@@ -151,9 +151,9 @@ fn lay(out: &mut RgbaImage, pattern: &RgbaImage, dye: u8) {
     let dye = rgb(dye);
     for (under, over) in out.pixels_mut().zip(pattern.pixels()).filter(|(u, o)| u.0[3] > 0 && o.0[3] > 0) {
         let alpha = u32::from(over.0[3]);
-        for channel in 0..3 {
-            let colour = u32::from(over.0[channel]) * dye[channel] / 255;
-            under.0[channel] = ((colour * alpha + u32::from(under.0[channel]) * (255 - alpha) + 127) / 255) as u8;
+        for ((u, &o), d) in under.0.iter_mut().zip(&over.0).zip(dye) {
+            let colour = u32::from(o) * d / 255;
+            *u = ((colour * alpha + u32::from(*u) * (255 - alpha) + 127) / 255) as u8;
         }
     }
 }
@@ -162,8 +162,8 @@ fn lay(out: &mut RgbaImage, pattern: &RgbaImage, dye: u8) {
 fn dye_flag(out: &mut RgbaImage, dye: u8) {
     let (dye, scale) = (rgb(dye), out.width() / 64);
     for (_, _, texel) in out.enumerate_pixels_mut().filter(|(x, y, _)| *x < FLAG[0] * scale && *y < FLAG[1] * scale) {
-        for channel in 0..3 {
-            texel.0[channel] = (u32::from(texel.0[channel]) * dye[channel] / 255) as u8;
+        for (t, d) in texel.0.iter_mut().zip(dye) {
+            *t = (u32::from(*t) * d / 255) as u8;
         }
     }
 }

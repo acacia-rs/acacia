@@ -8,6 +8,7 @@ use super::Act;
 use crate::act_timing::Phase;
 use crate::interact::{block_distance, Face, BLOCK_REACH};
 use crate::items::SlotRef;
+use crate::signs::SignSide;
 use crate::{ActionError, Bot};
 
 /// Faces to click, in preference order: placing on top of the block below first.
@@ -18,7 +19,7 @@ pub(super) async fn perform(bot: &mut Bot, act: &Act, human: bool) -> Result<(),
     match act {
         Act::Fill { pos, blocks } => fill(bot, *pos, blocks, human).await,
         Act::Place { item, against, face, click } => {
-            let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to place")))?;
+            let slot = find(bot, item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to place")))?;
             hand(bot, slot, human).await?;
             bot.place_block_at(*against, *face, *click).await
         }
@@ -37,14 +38,45 @@ pub(super) async fn perform(bot: &mut Bot, act: &Act, human: bool) -> Result<(),
             bot.act_timing.add(Phase::Restock, t.elapsed());
             r
         }
+        Act::UseOn { item, against, face, cell, expect } => use_on(bot, item, *against, *face, *cell, expect, human).await,
+        Act::Use { pos, item, face } => {
+            if let Some(item) = item {
+                let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
+                hand(bot, slot, human).await?;
+            }
+            bot.use_confirmed(*pos, *face).await
+        }
+        Act::Sign { pos, front, text } => bot.write_sign(*pos, if *front { SignSide::Front } else { SignSide::Back }, text).await,
     }
+}
+
+/// Ticks a use waits for its cell to change before it counts as refused.
+const USE_TICKS: u32 = 20;
+
+/// Uses `item` on `face` of `against` and waits for `cell` to show a block named `*expect`.
+async fn use_on(bot: &mut Bot, item: &str, against: BlockPos, face: Face, cell: BlockPos, expect: &str, human: bool) -> Result<(), ActionError> {
+    // A flow falling into the cell shows as `water` too, with a depth: only a source is the pour.
+    let shows = |bot: &Bot| bot.block_at(cell).is_some_and(|(_, s)| s.name.trim_start_matches("minecraft:") == expect && !s.properties.split(',').any(|kv| kv.starts_with("liquid_depth=") && kv != "liquid_depth=0"));
+    if shows(bot) {
+        return Ok(());
+    }
+    let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
+    hand(bot, slot, human).await?;
+    bot.use_item_on_block(against, face).await?;
+    for _ in 0..USE_TICKS {
+        bot.wait_ticks(1).await?;
+        if shows(bot) {
+            return Ok(());
+        }
+    }
+    Err(ActionError::Rejected(format!("{item} on {against:?}: {cell:?} shows no {expect}")))
 }
 
 /// Sends an [`Act::Place`] without awaiting its echo (Optimal profile); returns the target cell, whose outcome
 /// [`Bot::settle_placements`] gives on a later tick.
 pub(super) async fn send_place(bot: &mut Bot, act: &Act) -> Result<BlockPos, ActionError> {
     let Act::Place { item, against, face, click } = act else { unreachable!("placements only") };
-    let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to place")))?;
+    let slot = find(bot, item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to place")))?;
     hand(bot, slot, false).await?;
     bot.place_sent(*against, *face, *click).await?;
     Ok(face.adjacent(*against))
@@ -72,9 +104,12 @@ async fn fill(bot: &mut Bot, pos: BlockPos, blocks: &[String], human: bool) -> R
     let eye = bot.eye_position();
     let face = AGAINST.into_iter().find(|f| {
         let against = against(pos, *f);
-        solid(bot, against) == Some(true) && !bot.block_at(against).is_some_and(|(_, s)| crate::interact::is_interactive(s)) && block_distance(eye, against) <= BLOCK_REACH
+        solid(bot, against) == Some(true)
+            && !bot.block_at(against).is_some_and(|(_, s)| crate::interact::is_interactive(s))
+            && block_distance(eye, against) <= BLOCK_REACH
+            && bot.sees_face(against, *f)
     });
-    let face = face.ok_or_else(|| ActionError::NotPossible(format!("nothing to place against around {pos:?} within reach")))?;
+    let face = face.ok_or_else(|| ActionError::NotPossible(format!("nothing in view to place against around {pos:?} within reach")))?;
     let slot = blocks.iter().find_map(|b| bot.find_item(b));
     let slot = slot.ok_or_else(|| ActionError::NotPossible(format!("none of {blocks:?} to fill {pos:?} with")))?;
     hand(bot, slot, human).await?;
@@ -89,7 +124,7 @@ async fn restock(bot: &mut Bot, station: BlockPos, items: &[(String, u32)]) -> R
     let mut result = Ok(());
     for (slot, stack) in container.slots.iter().enumerate() {
         let Some(name) = bot.state.items.name(stack.network_id).map(str::to_string) else { continue };
-        let Some(w) = want.iter_mut().find(|(n, c)| *n == name && *c > 0) else { continue };
+        let Some(w) = want.iter_mut().find(|(n, c)| super::item_key::fits(n, Some(name.as_str()), stack.metadata) && *c > 0) else { continue };
         let Ok(slot) = u8::try_from(slot) else { continue };
         let moved = bot.move_to_inventory(slot).await;
         tracing::debug!(slot, %name, count = stack.count, ?moved, "restock take");
@@ -104,6 +139,12 @@ async fn restock(bot: &mut Bot, station: BlockPos, items: &[(String, u32)]) -> R
     }
     let closed = bot.close_container().await;
     result.and(closed)
+}
+
+/// The main-inventory slot holding item `key` ([`super::item_key`]).
+pub(super) fn find(bot: &Bot, key: &str) -> Option<SlotRef> {
+    let main = &bot.state.inventory.main;
+    (0..main.len()).find(|&i| !main[i].is_empty() && super::item_key::fits(key, bot.state.items.name(main[i].network_id), main[i].metadata)).map(|i| SlotRef::Main(i as u8))
 }
 
 /// The block whose `face` touches `pos`.

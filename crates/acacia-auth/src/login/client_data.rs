@@ -52,6 +52,7 @@ pub struct ClientData {
 }
 
 pub const DEVICE_OS_ANDROID: i32 = 1;
+pub const INPUT_MODE_MOUSE: i32 = 1;
 pub const INPUT_MODE_TOUCH: i32 = 2;
 const UI_PROFILE_POCKET: i32 = 1;
 const PLATFORM_TYPE_MOBILE: i32 = 1;
