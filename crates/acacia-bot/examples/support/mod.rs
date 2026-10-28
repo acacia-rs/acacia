@@ -41,6 +41,10 @@ pub async fn connect_with(server: &str, name: &str, record: Option<PathBuf>, wor
 /// [`connect`] with `config` (physics forced on).
 pub async fn connect_config(server: &str, name: &str, config: BotConfig) -> Result<(Bot, Pad), Error> {
     let mut builder = Client::builder(server);
+    // CHUNK_RADIUS: chunks requested around the bot (the client's default is 2; the server sends at least its own few).
+    if let Some(radius) = std::env::var("CHUNK_RADIUS").ok().and_then(|v| v.parse().ok()) {
+        builder = builder.chunk_radius(radius);
+    }
     builder = match name.strip_prefix('@') {
         Some(account) => {
             let account = Account::new(Arc::new(AuthClient::new(AuthConfig::default())?), Arc::new(FileTokenCache::new(".tokens")?), account);

@@ -1,5 +1,6 @@
 mod alter;
 mod alter_sim;
+mod boat_legs;
 mod build_sim;
 mod place_model;
 mod build_tests;

@@ -30,6 +30,8 @@ pub fn perform(g: &Grid, world: &PhysicsWorld, m: &mut Movement, node: &PathNode
                 g.set_state(pos, "air", "");
             }
             Step::Door { pos, .. } => g.toggle(pos),
+            // The leg itself is `boat::tests`'s: here the bot gets off at the far bank.
+            Step::Boat => m.start([node.pos[0] as f32 + 0.5, node.feet, node.pos[2] as f32 + 0.5], 0.0, 0.0),
             Step::Place { against, face } => {
                 let target = face.adjacent(against);
                 let [dx, _, dz] = face.offset();

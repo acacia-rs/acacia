@@ -5,6 +5,7 @@
 mod bot;
 mod grid;
 mod launch;
+mod legs;
 mod line;
 mod pilot;
 mod route;
@@ -13,6 +14,8 @@ mod stop;
 #[cfg(test)]
 mod tests;
 
+pub use legs::BoatSource;
+pub(crate) use legs::{BoatLegs, HEURISTIC_FLOOR};
 pub use pilot::{BoatOrder, BoatPilot};
 pub use route::Route;
 

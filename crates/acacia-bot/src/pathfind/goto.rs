@@ -133,7 +133,10 @@ pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus,
     }
     let s = &pilot.opts().search;
     let kit = (s.allow_dig || s.allow_bridge).then(|| bot.path_kit(&pilot.opts().scaffold));
-    let opts = pilot.search_opts(kit, bot.state.player.hunger);
+    let mut opts = pilot.search_opts(kit, bot.state.player.hunger);
+    if opts.boats {
+        opts.boat_source = bot.boat_source();
+    }
     let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_mut()) else {
         return (Ok(NavStatus::Searching), Worked::default());
     };
@@ -153,7 +156,7 @@ pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus,
     let places: Vec<_> = node.work.steps().filter_map(|s| if let Step::Place { against, face } = s { Some(face.adjacent(against)) } else { None }).collect();
     let before: Vec<_> = breaks.into_iter().filter_map(|p| Some((p, name(bot, p)?))).collect();
     let empty: Vec<_> = places.into_iter().filter(|p| !solid(bot, *p)).collect();
-    let done = execute::perform(bot, &node, &pilot.opts().scaffold).await;
+    let done = execute::perform(bot, &node, &pilot.opts().scaffold, pilot.opts().search.profile).await;
     let dug = before.into_iter().filter(|(p, _)| !solid(bot, *p)).collect();
     let worked = Worked { dug, placed: empty.into_iter().filter(|p| solid(bot, *p)).collect() };
     let status = match done {

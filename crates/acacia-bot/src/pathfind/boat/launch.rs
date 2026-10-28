@@ -6,6 +6,7 @@ use std::time::Duration;
 use acacia_client::proto::types::Vec3f;
 use acacia_physics::BlockPos;
 
+use super::BoatSource;
 use super::grid::WaterGrid;
 use crate::human::{BOAT_PUNCH, HOTBAR_SWITCH};
 use crate::interact::Face;
@@ -25,6 +26,9 @@ const PLAYER_CLEAR: f32 = 1.1;
 const SHOW_TIMEOUT: Duration = Duration::from_secs(2);
 /// Hits before a boat that will not break is left.
 const MAX_HITS: u32 = 12;
+/// Walks to a drop (it drifts on water) and the wait after each for the boat to be back in the inventory.
+const PICKUP_TRIES: u32 = 4;
+const PICKUP_WAIT: Duration = Duration::from_secs(1);
 
 impl Bot {
     /// Boards a boat for a leg towards `toward` and returns its runtime id: the nearest empty boat within reach,
@@ -63,9 +67,11 @@ impl Bot {
         Ok(id)
     }
 
-    /// After getting off: hits the boat until it breaks, then picks up what it dropped.
+    /// After getting off: hits the boat until it breaks, then walks to what it dropped until a boat is back in the
+    /// inventory.
     pub(super) async fn collect_boat(&mut self, id: u64) -> Result<(), ActionError> {
         let before: Vec<u64> = self.drops().collect();
+        let held = self.boats_held();
         for _ in 0..MAX_HITS {
             if self.state.entities.get(id).is_none() {
                 break;
@@ -79,16 +85,51 @@ impl Bot {
         }
         let dropped = move |bot: &Bot, _: &_| bot.drops().find(|d| !before.contains(d));
         let drop = match self.wait_until(SHOW_TIMEOUT, dropped).await {
-            Err(ActionError::Timeout) => return Ok(()),
+            Err(ActionError::Timeout) => {
+                let items: Vec<_> = self.state.entities.iter().filter(|e| e.kind == ITEM_KIND).map(|e| (e.runtime_id, e.feet())).collect();
+                tracing::debug!(?items, "no boat drop");
+                return Err(ActionError::Rejected("the broken boat dropped nothing in sight".into()));
+            }
             other => other?,
         };
-        if let Some(e) = self.state.entities.get(drop) {
-            let f = e.feet();
-            self.goto_with(Goal::Near([f.x.floor() as i32, f.y.floor() as i32, f.z.floor() as i32], 1.0), GotoOpts::default()).await?;
-            let picked = move |bot: &Bot, _: &_| bot.state.entities.get(drop).is_none().then_some(());
-            let _ = self.wait_until(SHOW_TIMEOUT, picked).await;
+        let back = move |bot: &Bot, _: &_| (bot.boats_held() > held).then_some(());
+        for _ in 0..PICKUP_TRIES {
+            let Some(f) = self.state.entities.get(drop).map(|e| e.feet()) else { break };
+            tracing::debug!(drop, feet = ?f, bot = ?self.movement.as_ref().and_then(|m| m.position()), "walking to the boat's drop");
+            if let Err(e) = self.goto_with(Goal::Near([f.x.floor() as i32, f.y.floor() as i32, f.z.floor() as i32], 1.0), GotoOpts::default()).await {
+                tracing::debug!(error = %e, "walk to the boat's drop");
+            }
+            if self.wait_until(PICKUP_WAIT, back).await.is_ok() {
+                return Ok(());
+            }
         }
-        Ok(())
+        // The slot update can trail the pickup.
+        if self.wait_until(PICKUP_WAIT, back).await.is_ok() {
+            return Ok(());
+        }
+        let left = self.state.entities.get(drop).map(|e| e.feet());
+        tracing::debug!(drop, ?left, bot = ?self.movement.as_ref().and_then(|m| m.position()), "boat drop not picked up");
+        Err(ActionError::Rejected(format!("the boat's drop was not picked up (left at {left:?})")))
+    }
+
+    /// What a boat leg could board now: a carried boat, and the empty boats in sight. Nothing without the entity
+    /// tracker, which `boat_to` needs.
+    pub(crate) fn boat_source(&self) -> BoatSource {
+        if !self.state.tracks_entities() {
+            return BoatSource::default();
+        }
+        let riders: Vec<i64> = self.state.riding.vehicle.iter().map(|v| v.unique_id).collect();
+        let seen = self.boats().filter(|(_, e)| !riders.contains(&e.unique_id)).map(|(_, e)| [e.position.x, e.position.y, e.position.z]).collect();
+        BoatSource { carried: self.hotbar_boat().is_some(), seen }
+    }
+
+    /// Boat items in the inventory.
+    fn boats_held(&self) -> u32 {
+        self.state.inventory.iter().filter(|(.., s)| self.is_boat(s)).map(|(.., s)| u32::from(s.count)).sum()
+    }
+
+    fn is_boat(&self, s: &crate::state::ItemStack) -> bool {
+        self.state.items.name(s.network_id).is_some_and(|n| n.ends_with("boat"))
     }
 
     fn boats(&self) -> impl Iterator<Item = (u64, &crate::state::Entity)> {
@@ -96,10 +137,7 @@ impl Bot {
     }
 
     fn drops(&self) -> impl Iterator<Item = u64> + '_ {
-        let boat_item = |name: &str| name.ends_with("boat");
-        self.state.entities.iter().filter(move |e| {
-            e.kind == ITEM_KIND && e.item.as_ref().and_then(|s| self.state.items.name(s.network_id)).is_some_and(boat_item)
-        }).map(|e| e.runtime_id)
+        self.state.entities.iter().filter(move |e| e.kind == ITEM_KIND && e.item.as_ref().is_some_and(|s| self.is_boat(s))).map(|e| e.runtime_id)
     }
 
     fn boat_in_reach(&self) -> Option<u64> {

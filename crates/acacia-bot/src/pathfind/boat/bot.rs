@@ -85,7 +85,7 @@ impl Bot {
                         (Some(leg), Some(p)) => p.reroute(&leg),
                         (Some(leg), None) => {
                             let Leg { route, exit, .. } = &leg;
-                            tracing::debug!(points = route.points.len(), length = route.length(), complete = route.complete, ?exit, "boat leg");
+                            tracing::debug!(from = ?st.pos, points = route.points.len(), length = route.length(), complete = route.complete, ?exit, "boat leg");
                             pilot = Some(BoatPilot::new(&leg, seat, opts.profile, opts.max_ticks, crate::cadence::seed()));
                         }
                         (None, None) => return Err(ActionError::NotPossible(format!("no water route from {:?} towards {target:?}", st.pos))),

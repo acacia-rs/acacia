@@ -4,10 +4,13 @@
 //! (docs/pathfind-plan.md "M3").
 //! `cargo run -p acacia-bot --example boat -- <server> <name> [a b c]`; `BEDROCK_PROFILE=human` for Human,
 //! `KEEP_BOAT=1` leaves the boat, `SUMMON_BOAT=1` boards a summoned one.
+//! `GOTO=1` digs a lake instead (`a` blocks east, `LAKE_HALF` either side) and `goto`s with boats on from
+//! `WALK_IN` blocks before it to `WALK_IN` past it: walk, boat, walk. Run it with `CHUNK_RADIUS=8`: the far bank
+//! must be loaded for the search to plan the boat leg.
 mod support;
 
 use acacia_bot::pathfind::boat::BoatOpts;
-use acacia_bot::pathfind::MovementProfile;
+use acacia_bot::pathfind::{Goal, GotoOpts, MovementProfile, SearchOpts};
 use acacia_bot::state::Trackers;
 use acacia_bot::{Bot, BotConfig};
 use support::{corrections, Error};
@@ -15,8 +18,11 @@ use support::{corrections, Error};
 const WIDTH: i32 = 6;
 /// Blocks of river per fill and teleport (the chunks must be loaded for a fill).
 const PIECE: i32 = 48;
-/// A piece centred this near the bot is filled without a teleport.
+/// A piece with every corner this near the bot is filled without a teleport.
 const NEAR: i32 = 24;
+/// `GOTO=1`: the lake's half width (z) and the walk before and after it.
+const LAKE_HALF: i32 = 40;
+const WALK_IN: i32 = 12;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Error> {
@@ -26,7 +32,8 @@ async fn main() -> Result<(), Error> {
     let server = args.first().cloned().unwrap_or_else(|| "127.0.0.1:19190".into());
     let name = args.get(1).cloned().unwrap_or_else(|| "Boater".into());
     let num = |i: usize, default: i32| args.get(i).and_then(|v| v.parse().ok()).unwrap_or(default);
-    let (a, b, c) = (num(2, 200), num(3, 60), num(4, 240));
+    let goto = std::env::var_os("GOTO").is_some();
+    let (a, b, c) = (num(2, if goto { 100 } else { 200 }), num(3, 60), num(4, 240));
     let profile = match std::env::var("BEDROCK_PROFILE").as_deref() {
         Ok("human") => MovementProfile::Human,
         _ => MovementProfile::Optimal,
@@ -38,11 +45,13 @@ async fn main() -> Result<(), Error> {
     // Water fills the two blocks under the walking surface; banks stay grass.
     let legs = [([x0 + 1, z0 - WIDTH / 2], [x0 + a, z0 + WIDTH / 2 - 1]), ([x0 + a - WIDTH + 1, z0 - WIDTH / 2], [x0 + a, z0 + b]),
         ([x0 + a - WIDTH + 1, z0 + b - WIDTH + 1], [x0 + a + c, z0 + b])];
-    for &(min, max) in &legs {
+    let lake = [([x0 + 1, z0 - LAKE_HALF], [x0 + a, z0 + LAKE_HALF])];
+    for &(min, max) in if goto { &lake[..] } else { &legs[..] } {
         dig(&mut bot, min, max, y).await?;
     }
-    if bot.block_position() != Some(start) {
-        run(&mut bot, &format!("/tp @s {} {y} {}", x0, z0)).await?;
+    let from = if goto { [x0 - WALK_IN, z0] } else { [x0, z0] };
+    if bot.block_position() != Some([from[0], y, from[1]]) {
+        run(&mut bot, &format!("/tp @s {} {y} {}", from[0], from[1])).await?;
     }
     // SUMMON_BOAT=1 floats an empty boat beside the bot instead of giving one to place.
     let source = match std::env::var_os("SUMMON_BOAT") {
@@ -52,11 +61,16 @@ async fn main() -> Result<(), Error> {
     for cmd in ["/gamemode survival @s", "/kill @e[type=boat]", "/clear @s", source.as_str()] {
         run(&mut bot, cmd).await?;
     }
-    bot.wait_ticks(40).await?;
-    let target = [x0 + a + c + 1, y, z0 + b - WIDTH / 2];
+    // A goto plans boat legs only over water it has loaded: the far bank streams in after the teleport.
+    bot.wait_ticks(if goto { 200 } else { 40 }).await?;
+    let target = if goto { [x0 + a + WALK_IN, y, z0] } else { [x0 + a + c + 1, y, z0 + b - WIDTH / 2] };
     let (before, boat_before, t0) = (corrections(&bot), bot.boat_corrections(), std::time::Instant::now());
-    let opts = BoatOpts { profile, keep_boat: std::env::var_os("KEEP_BOAT").is_some(), ..BoatOpts::default() };
-    let result = bot.boat_to(target, opts).await;
+    let result = if goto {
+        let search = SearchOpts { boats: true, profile, ..SearchOpts::default() };
+        bot.goto_with(Goal::Block(target), GotoOpts { search, ..GotoOpts::default() }).await
+    } else {
+        bot.boat_to(target, BoatOpts { profile, keep_boat: std::env::var_os("KEEP_BOAT").is_some(), ..BoatOpts::default() }).await
+    };
     let feet = bot.movement().and_then(|m| m.position()).ok_or("no position")?;
     let off = (feet[0] - (target[0] as f32 + 0.5)).hypot(feet[2] - (target[2] as f32 + 0.5));
     let (height, horizontal) = bot.boat_corrections();
@@ -87,7 +101,9 @@ async fn dig(bot: &mut Bot, min: [i32; 2], max: [i32; 2], y: i32) -> Result<(), 
             let z1 = (z + PIECE - 1).min(max[1]);
             let (cx, cz) = ((x + x1) / 2, (z + z1) / 2);
             let here = bot.block_position().ok_or("no position")?;
-            if (cx - here[0]).abs().max((cz - here[2]).abs()) > NEAR {
+            // A fill fails whole if a corner's chunk is not loaded.
+            let far = [x - here[0], x1 - here[0], z - here[2], z1 - here[2]].map(i32::abs).into_iter().max().unwrap_or(0);
+            if far > NEAR {
                 run(bot, &format!("/tp @s {cx} {} {cz}", y + 3)).await?;
                 bot.wait_ticks(30).await?;
             }
