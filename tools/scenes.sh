@@ -10,10 +10,14 @@ export PATH=$HOME/.cargo/bin:$PATH
 example=${EXAMPLE:-build}
 (cd "$here" && cargo +stable build --release -q -p acacia-bot --example "$example") || exit 1
 bin=$here/target/release/examples/$example
-for scene in "$@"; do
+run() {
   # shellcheck disable=SC2016,SC2086
-  bash "$here/tools/bds-pool.sh" run env ${LIVE_ENV:-} SCENE="$scene" BUILD_JOURNAL="$here/journal-$scene" \
-    sh -c 'exec "$0" 127.0.0.1:$BDS_PORT "B$BDS_PORT" "O$BDS_PORT"' "$bin" >"$here/scene-$scene.log" 2>&1 &
+  bash "$here/tools/bds-pool.sh" run env ${LIVE_ENV:-} SCENE="$1" BUILD_JOURNAL="$here/journal-$1" \
+    sh -c 'exec "$0" 127.0.0.1:$BDS_PORT "B$BDS_PORT" "O$BDS_PORT"' "$bin" >"$here/scene-$1.log" 2>&1
+}
+for scene in "$@"; do
+  # No verdict line means the run itself broke (live: an observer login refused AlreadyConnected): one retry.
+  { run "$scene"; grep -qE '(PASS|FAIL) after' "$here/scene-$scene.log" || { cp "$here/scene-$scene.log" "$here/scene-$scene.try1.log"; run "$scene"; }; } &
 done
 wait
 for scene in "$@"; do
