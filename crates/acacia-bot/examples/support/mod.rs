@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod house;
+pub mod oneclick;
 
 use std::path::PathBuf;
 use std::sync::Arc;

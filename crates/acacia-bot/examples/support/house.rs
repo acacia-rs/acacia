@@ -94,7 +94,7 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
             put(&mut s, [1, 1, 1], "furnace", "minecraft:cardinal_direction=south");
             (s, vec![(at([0, 0, 0]), at([2, 1, 2]), "dirt")])
         }
-        _ => return Err(format!("unknown scene {name}").into()),
+        _ => (super::oneclick::scene(name).ok_or_else(|| format!("unknown scene {name}"))?, vec![]),
     };
     let (s, junk) = s;
     let path = std::env::temp_dir().join(format!("acacia-scene-{name}.mcstructure"));
@@ -106,7 +106,8 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
 pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error> {
     let (structure, junk) = scene(name)?;
     pad.build(a, &junk, 5).await?;
-    for (station, items) in STATIONS.iter().zip(STOCK) {
+    let stock = super::oneclick::stock(name).map_or(STOCK, |s| [s, &[]]);
+    for (station, items) in STATIONS.iter().zip(stock) {
         let [x, y, z] = pad.block(*station);
         pad.run(a, &format!("/setblock {x} {y} {z} barrel"));
         a.wait_ticks(2).await?;

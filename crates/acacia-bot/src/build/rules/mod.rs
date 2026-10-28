@@ -7,17 +7,18 @@ use super::structure::Block;
 use crate::interact::Face;
 use crate::pathfind::process::BlockView;
 
+mod oneclick;
+
 /// Recomputed from the neighbours by the server (stair corners, wall/fence/pane connections), or redstone
 /// activity: never compared.
 fn derived(key: &str) -> bool {
-    key == "corner" || key.starts_with("wall_connection_type_") || key == "wall_post_bit" || key.starts_with("connection_") || matches!(key, "powered_bit" | "triggered_bit" | "button_pressed_bit")
+    key == "corner" || key.starts_with("wall_connection_type_") || key == "wall_post_bit" || key.starts_with("connection_") || matches!(key, "powered_bit" | "triggered_bit" | "button_pressed_bit") || oneclick::derived(key)
 }
 
 /// Outside the common building set (B1): their states take more than one click, or they are not blocks one places.
 const DENIED: &[&str] = &[
     "door", "bed", "sign", "redstone", "repeater", "comparator", "water", "lava", "rail", "banner", "skull", "head", "portal", "fire", "sapling", "wheat", "carrots",
-    "potatoes", "beetroot", "vine", "kelp", "seagrass", "bubble", "piston_arm", "moving_block", "bamboo", "cactus", "sugar_cane", "chest", "lever", "trapdoor",
-    "fence_gate", "pressure_plate", "lantern", "chain", "candle", "bell", "anvil", "hopper", "scaffolding",
+    "potatoes", "beetroot", "vine", "kelp", "seagrass", "bubble", "piston_arm", "moving_block", "bamboo", "cactus", "sugar_cane", "lever", "candle", "scaffolding",
 ];
 
 /// Facing kinds of `facing_direction` blocks.
@@ -52,10 +53,13 @@ fn is_double_slab(name: &str) -> bool {
 /// Every state of the target is one a click decides or the server derives.
 pub fn supported(name: &str) -> bool {
     let n = name.trim_start_matches("minecraft:");
-    !DENIED.iter().any(|d| n.contains(d))
+    oneclick::claims(n) || !DENIED.iter().any(|d| n.contains(d))
 }
 
 fn controlled(name: &str, k: &str) -> bool {
+    if oneclick::controls(name, k) {
+        return true;
+    }
     match k {
         "pillar_axis" | "vertical_half" | "upside_down_bit" | "weirdo_direction" | "cardinal_direction" => true,
         "torch_facing_direction" => true,
@@ -66,7 +70,7 @@ fn controlled(name: &str, k: &str) -> bool {
 
 /// The target's keys are all known: decided by the click, derived, or absent.
 fn keys_known(target: &Block) -> bool {
-    target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, _)| derived(key(k)) || controlled(&target.name, key(k)) || (is_double_slab(&target.name) && key(k) == "vertical_half"))
+    target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, v)| (derived(key(k)) || controlled(&target.name, key(k)) || (is_double_slab(&target.name) && key(k) == "vertical_half")) && oneclick::fixed_ok(key(k), v))
 }
 
 /// The item that places the target.
@@ -74,7 +78,7 @@ pub fn item(target: &Block) -> Option<String> {
     if !supported(&target.name) || !keys_known(target) {
         return None;
     }
-    Some(target.name.replace("_double_slab", "_slab"))
+    Some(oneclick::base(&target.name).replace("_double_slab", "_slab"))
 }
 
 pub fn items_per_cell(target: &Block) -> u32 {
@@ -89,17 +93,28 @@ pub fn thin(name: &str) -> bool {
 
 pub fn gravity(name: &str) -> bool {
     let n = name.trim_start_matches("minecraft:");
-    matches!(n, "sand" | "red_sand" | "gravel" | "suspicious_sand" | "suspicious_gravel") || n.ends_with("concrete_powder")
+    matches!(n, "sand" | "red_sand" | "gravel" | "suspicious_sand" | "suspicious_gravel") || n.ends_with("concrete_powder") || oneclick::gravity(n)
+}
+
+/// The target can hang from the block above, so that block may cover it while it is open: `Some(true)` if it
+/// only hangs, `Some(false)` if it can also be placed onto the block under it.
+pub fn hangs(target: &Block) -> Option<bool> {
+    oneclick::hangs(&target.name, &target.props)
+}
+
+/// A partial block whose Up and Down faces take a click at their centre.
+pub fn post(b: &BlockView) -> bool {
+    oneclick::post(b.name, b.props)
 }
 
 /// The world shows the target: same block, same states except derived ones (and a double slab's half).
 pub fn matches(target: &Block, w: &BlockView) -> bool {
-    if target.name != w.name {
+    if oneclick::base(&target.name) != oneclick::base(w.name) {
         return false;
     }
     target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, v)| {
         let k2 = key(k);
-        derived(k2) || (is_double_slab(&target.name) && k2 == "vertical_half") || w.prop(k).or_else(|| w.prop(k2)).is_none_or(|wv| wv == v)
+        derived(k2) || (is_double_slab(&target.name) && k2 == "vertical_half") || w.prop(k).or_else(|| w.prop(k2)).is_none_or(|wv| wv == v || oneclick::alike(k2, v, wv))
     })
 }
 
@@ -196,7 +211,11 @@ pub fn gives(target: &Block, face: Face, click: Vec3, eye: Vec3, pos: BlockPos, 
         _ => click[1] > 0.5,
     };
     let name = target.name.as_str();
+    let mine = oneclick::Click { dir, look: look(eye, point), toward: six_way(eye, pos, look(eye, point)) };
     target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, v)| {
+        if let Some(want) = oneclick::decide(name, key(k), &mine, v) {
+            return want == Some(v);
+        }
         let want = match key(k) {
             "pillar_axis" => Some(match dir {
                 Dir::Up | Dir::Down => "y",

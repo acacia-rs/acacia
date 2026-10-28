@@ -12,6 +12,21 @@ const ITEMS: &[&str] = &[
     "oak_stairs", "oak_slab", "oak_log", "furnace", "observer", "piston", "dispenser", "torch", "ladder", "stone_button", "cobblestone_wall", "oak_fence",
     "glass_pane",
 ];
+/// `SET=oneclick`: blocks one click decides beyond the B1 set (docs/builder/oneclick.md), from every stand.
+const ONECLICK: &[&str] = &[
+    "trapdoor", "iron_trapdoor", "fence_gate", "lantern", "soul_lantern", "iron_chain", "stone_pressure_plate", "anvil", "hopper", "end_rod", "lightning_rod",
+    "chest", "trapped_chest", "ender_chest", "barrel", "bell", "grindstone", "loom", "stonecutter_block", "smoker", "blast_furnace", "lectern", "campfire",
+    "beehive", "white_glazed_terracotta", "amethyst_cluster", "decorated_pot", "chiseled_bookshelf", "redstone_torch",
+];
+/// `SET=oneclick` blocks whose state no click should change: probed from the east stand only.
+const ONECLICK_PLAIN: &[&str] = &[
+    "white_carpet", "oak_leaves", "hay_block", "redstone_block", "redstone_lamp", "sea_lantern", "dead_fire_coral_block", "cauldron", "composter",
+    "copper_bulb", "tnt",
+];
+/// Chests and their kin placed side by side: does the second pair, and does it keep its own facing?
+const PAIRS: &[&str] = &["chest", "trapped_chest", "ender_chest", "barrel"];
+/// Side clicks into a cell over a fence or air, under stone or air (`SUPPORT=1`): what rests on what.
+const SUPPORTED: &[&str] = &["lantern", "bell", "grindstone", "white_carpet", "stone_pressure_plate", "iron_chain", "end_rod"];
 /// The target cell (pad offset); its neighbours are stone except the one between it and the bot.
 const T: [i32; 3] = [5, 1, 0];
 
@@ -73,8 +88,77 @@ async fn main() -> Result<(), Error> {
     let (mut bot, pad) = support::connect(&server, &name).await?;
     pad.build(&mut bot, &[], 5).await?;
     let vert = std::env::var("VERT").is_ok();
-    let (items, stands) = if vert { (VERT_ITEMS, VERT_STANDS) } else { (ITEMS, STANDS) };
+    let oneclick = std::env::var("SET").is_ok_and(|s| s == "oneclick");
+    if oneclick && std::env::var("SUPPORT").is_ok() {
+        for item in SUPPORTED.iter().filter(|i| only.as_deref().is_none_or(|o| o == **i)) {
+            for c in ["/clear @s".to_string(), format!("/give @s {item} 64")] {
+                pad.run(&bot, &c);
+                bot.wait_ticks(4).await?;
+            }
+            for (below, above) in [("oak_fence", "stone"), ("air", "stone"), ("oak_fence", "air"), ("air", "air")] {
+                for y in [0.25, 0.75] {
+                    let extra = [([0, -1, 0], below), ([0, 1, 0], above)];
+                    let r = probe_with(&mut bot, &pad, item, &STANDS[3], add(T, [-1, 0, 0]), Face::East, [1.0, y, 0.5], &extra).await?;
+                    println!("{item:<16} below {below} above {above} East@{y:.2} -> {r}");
+                }
+            }
+            if *item == "bell" {
+                // Does a side bell turn `multiple` when the cell across from its wall fills later?
+                let r = probe(&mut bot, &pad, item, &STANDS[3], add(T, [-1, 0, 0]), Face::East, [1.0, 0.5, 0.5]).await?;
+                pad.teleport(&mut bot, [9.5, 0.0, 0.5], 90.0).await?;
+                let e = pad.block(add(T, [1, 0, 0]));
+                pad.run(&bot, &format!("/setblock {} {} {} stone", e[0], e[1], e[2]));
+                bot.wait_ticks(10).await?;
+                let after = bot.block_state(pad.block(T)).map_or("unloaded".to_string(), |s| s.properties.to_string());
+                println!("bell side {r}; east filled -> [{after}]");
+            }
+            // Chain ends as the clicked block: a chandelier's lantern under a chain, a chain on a chain.
+            for (off, face, click) in [([0, 1, 0], Face::Down, [0.5, 0.0, 0.5]), ([0, -1, 0], Face::Up, [0.5, 1.0, 0.5])] {
+                let extra = [(off, "iron_chain")];
+                let r = probe_with(&mut bot, &pad, item, &STANDS[0], add(T, off), face, click, &extra).await?;
+                println!("{item:<16} on chain {face:?} -> {r}");
+            }
+        }
+        pad.go_home(&mut bot).await?;
+        bot.disconnect().await;
+        return Ok(());
+    }
+    if oneclick && vert {
+        // T's sides open so the eye sees the face over or under it (the shared sight rule hides it otherwise).
+        let sides = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
+        for item in ["barrel"] {
+            for c in ["/clear @s".to_string(), format!("/give @s {item} 64")] {
+                pad.run(&bot, &c);
+                bot.wait_ticks(4).await?;
+            }
+            for stand in VERT_STANDS {
+                let (face, against, open) = if stand.feet[1] > 0.0 { (Face::Up, [0, -1, 0], [0, 1, 0]) } else { (Face::Down, [0, 1, 0], [0, -1, 0]) };
+                let extra: Vec<([i32; 3], &str)> = sides.iter().chain([&open]).map(|o| (*o, "air")).collect();
+                let click = if face == Face::Up { [0.5, 1.0, 0.5] } else { [0.5, 0.0, 0.5] };
+                let r = probe_with(&mut bot, &pad, item, stand, add(T, against), face, click, &extra).await?;
+                println!("{item:<16} {:<7} {face:?} open sides -> {r}", stand.name);
+            }
+        }
+        pad.go_home(&mut bot).await?;
+        bot.disconnect().await;
+        return Ok(());
+    }
+    if oneclick && std::env::var("PAIR").is_ok() {
+        for item in PAIRS.iter().filter(|i| only.as_deref().is_none_or(|o| o == **i)) {
+            pair(&mut bot, &pad, item).await?;
+        }
+        pad.go_home(&mut bot).await?;
+        bot.disconnect().await;
+        return Ok(());
+    }
+    let plain: Vec<&str> = if oneclick { ONECLICK_PLAIN.to_vec() } else { Vec::new() };
+    let (items, stands) = match () {
+        _ if vert => (VERT_ITEMS, VERT_STANDS),
+        _ if oneclick => ([ONECLICK, ONECLICK_PLAIN].concat().leak() as &[&str], STANDS),
+        _ => (ITEMS, STANDS),
+    };
     for item in items.iter().filter(|i| only.as_deref().is_none_or(|o| o == **i)) {
+        let stands = if plain.contains(item) { &stands[3..4] } else { stands };
         for c in ["/clear @s".to_string(), format!("/give @s {item} 64")] {
             pad.run(&bot, &c);
             bot.wait_ticks(4).await?;
@@ -103,6 +187,12 @@ async fn main() -> Result<(), Error> {
 
 /// Resets the cell and its neighbours, stands at `stand`, places `item` against `against`'s `face`.
 async fn probe(bot: &mut Bot, pad: &Pad, item: &str, stand: &Stand, against: [i32; 3], face: Face, click: [f32; 3]) -> Result<String, Error> {
+    probe_with(bot, pad, item, stand, against, face, click, &[]).await
+}
+
+/// [`probe`] with `extra` cells (offsets from T) set after the reset.
+#[allow(clippy::too_many_arguments)]
+async fn probe_with(bot: &mut Bot, pad: &Pad, item: &str, stand: &Stand, against: [i32; 3], face: Face, click: [f32; 3], extra: &[([i32; 3], &str)]) -> Result<String, Error> {
     let (lo, hi) = (pad.block(add(T, [-1, -1, -1])), pad.block(add(T, [1, 1, 1])));
     let near = pad.block(add(T, stand.near));
     let [t0, t1, t2] = pad.block(T);
@@ -116,6 +206,10 @@ async fn probe(bot: &mut Bot, pad: &Pad, item: &str, stand: &Stand, against: [i3
     let s = pad.block(f);
     cmds.push(format!("/fill {} {} {} {} {} {} air", s[0], s[1], s[2], s[0], s[1] + 1, s[2]));
     cmds.push(format!("/setblock {} {} {} stone", s[0], s[1] - 1, s[2]));
+    for (off, block) in extra {
+        let p = pad.block(add(T, *off));
+        cmds.push(format!("/setblock {} {} {} {block}", p[0], p[1], p[2]));
+    }
     for c in &cmds {
         pad.run(bot, c);
         bot.wait_ticks(2).await?;
@@ -126,6 +220,37 @@ async fn probe(bot: &mut Bot, pad: &Pad, item: &str, stand: &Stand, against: [i3
     };
     pad.teleport(bot, stand.feet, yaw).await?;
     Ok(place(bot, pad, against, face, click, item).await)
+}
+
+/// Two of `item` side by side on the floor from the west stand (both facing west: a pairing row along z), then
+/// a third south of them from a stand south of it (facing south). Prints each cell's state and pairing NBT.
+async fn pair(bot: &mut Bot, pad: &Pad, item: &str) -> Result<(), Error> {
+    let (lo, hi, a, b) = (pad.block([3, 0, -2]), pad.block([7, 3, 4]), pad.block([5, 0, 0]), pad.block([5, 0, 2]));
+    for c in [
+        "/clear @s".to_string(),
+        format!("/give @s {item} 64"),
+        format!("/fill {} {} {} {} {} {} air", lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]),
+        format!("/fill {} {} {} {} {} {} stone", a[0], a[1], a[2], b[0], b[1], b[2]),
+    ] {
+        pad.run(bot, &c);
+        bot.wait_ticks(4).await?;
+    }
+    let cells = [add(T, [0, 0, 0]), add(T, [0, 0, 1]), add(T, [0, 0, 2])];
+    let stands: [([f32; 3], f32); 3] = [([3.5, 0.0, 0.5], -90.0), ([3.5, 0.0, 1.5], -90.0), ([5.5, 0.0, 4.5], 180.0)];
+    for (cell, (feet, yaw)) in cells.iter().zip(stands) {
+        pad.teleport(bot, feet, yaw).await?;
+        let r = place(bot, pad, add(*cell, [0, -1, 0]), Face::Up, [0.5, 1.0, 0.5], item).await;
+        println!("{item:<16} pair place {cell:?} -> {r}");
+    }
+    bot.wait_ticks(10).await?;
+    for cell in cells {
+        let p = pad.block(cell);
+        let state = bot.block_state(p).map_or("unloaded".to_string(), |s| format!("{} [{}]", s.name, s.properties));
+        let nbt = bot.state().block_entities.get(p);
+        let keys = ["pairx", "pairz", "pairlead", "Findable"].map(|k| format!("{k}={:?}", nbt.and_then(|n| n.value.get(k))));
+        println!("{item:<16} pair {cell:?}: {state} {}", keys.join(" "));
+    }
+    Ok(())
 }
 
 async fn place(bot: &mut Bot, pad: &Pad, against: [i32; 3], face: Face, click: [f32; 3], item: &str) -> String {
