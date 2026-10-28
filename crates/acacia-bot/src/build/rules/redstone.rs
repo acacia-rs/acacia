@@ -3,6 +3,7 @@
 //! (2026-10-28); see docs/builder/redstone.md.
 
 use acacia_physics::BlockPos;
+use acacia_world::BlockRegistry;
 
 use super::rails;
 use crate::build::structure::Block;
@@ -24,7 +25,7 @@ pub(super) enum Kind {
 
 const FLOWERS: &[&str] = &[
     "dandelion", "poppy", "blue_orchid", "allium", "azure_bluet", "red_tulip", "orange_tulip", "white_tulip", "pink_tulip", "oxeye_daisy", "cornflower", "lily_of_the_valley",
-    "wither_rose", "torchflower", "short_grass", "fern", "deadbush", "brown_mushroom", "red_mushroom", "bamboo_sapling",
+    "wither_rose", "torchflower", "short_grass", "fern", "deadbush", "bamboo_sapling",
 ];
 const CROPS: &[(&str, &str)] = &[("wheat", "wheat_seeds"), ("carrots", "carrot"), ("potatoes", "potato"), ("beetroot", "beetroot_seeds")];
 const HOES: &[&str] = &["netherite_hoe", "diamond_hoe", "iron_hoe", "golden_hoe", "stone_hoe", "wooden_hoe"];
@@ -51,9 +52,17 @@ pub(super) fn kind(name: &str) -> Option<Kind> {
 }
 
 /// Grown bamboo comes from a sapling (an item placed on the ground is `bamboo_sapling`); the stalk on top was
-/// not reachable for the probe's click.
+/// not reachable for the probe's click. Brown and red mushrooms: BDS refuses them in daylight.
 pub fn denied(name: &str) -> bool {
-    short(name) == "bamboo"
+    matches!(short(name), "bamboo" | "brown_mushroom" | "red_mushroom")
+}
+
+/// A grass_block target under a solid target matches dirt: BDS turns covered grass to dirt as soon as the block
+/// above is placed (live 2026-10-28).
+pub fn covered_grass(target: &Block, above: Option<&Block>, w: &BlockView) -> bool {
+    let r = BlockRegistry::vanilla();
+    let solid = |b: &Block| r.find(&b.name, &b.props).and_then(|id| r.get(id)).is_some_and(|s| s.is_solid());
+    short(&target.name) == "grass_block" && short(w.name) == "dirt" && above.is_some_and(solid)
 }
 
 /// States the server derives or that grow: never compared.
@@ -96,14 +105,10 @@ pub fn item(target: &Block) -> Option<String> {
     Some(format!("minecraft:{item}"))
 }
 
-/// An item the target also needs besides [`item`]: the water for kelp and seagrass, a hoe for farmland (any
-/// hoe held does; a station is asked for a wooden one).
+/// An item the target also needs besides [`item`]: the water for kelp and seagrass. Farmland's hoe is a tool
+/// the job's kit brings, not stock.
 pub fn extra_item(target: &Block) -> Option<String> {
-    match kind(&target.name)? {
-        Kind::Aquatic => Some("minecraft:water_bucket".into()),
-        Kind::Farmland => Some("minecraft:wooden_hoe".into()),
-        _ => None,
-    }
+    (kind(&target.name)? == Kind::Aquatic).then(|| "minecraft:water_bucket".into())
 }
 
 pub(super) fn liquid_of(name: &str) -> Option<&'static str> {
@@ -168,12 +173,12 @@ pub fn item_now(target: &Block, world: Option<BlockView>, look: &dyn Look) -> Op
     }
 }
 
-/// The act for a click into `pos` with `item`: a use for hoes and buckets (done once the cell shows the block),
-/// else a placement.
+/// The act for a click into `pos` with `item`: a hoe tills `pos` (the interact tier's use), a bucket pours (done
+/// once the cell shows a source), else a placement.
 pub fn act(item: String, against: BlockPos, face: Face, click: [f32; 3], pos: BlockPos) -> Act {
     let n = short(&item);
     match () {
-        _ if n.ends_with("_hoe") => Act::UseOn { item, against: pos, face: Face::Up, cell: pos, expect: "farmland".into() },
+        _ if n.ends_with("_hoe") => Act::Use { pos, item: Some(item), face: Face::Up },
         _ if n.ends_with("_bucket") => Act::UseOn { expect: n.trim_end_matches("_bucket").into(), item, against, face, cell: pos },
         _ => Act::Place { item, against, face, click },
     }

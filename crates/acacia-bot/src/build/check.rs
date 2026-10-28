@@ -25,7 +25,10 @@ pub fn check(structure: &Structure, at: &Transform, block: impl Fn(BlockPos) -> 
         .filter_map(|(local, b)| {
             let (pos, target) = (at.apply(structure.size, local), at.block(b));
             let seen = block(pos);
-            let ok = seen.as_ref().is_some_and(|v| rules::matches(&target, v) || (target.is_air() && v.air) || rules::redstone_order::spilled(&poured, &target, v));
+            let above = structure.get([local[0], local[1] + 1, local[2]]);
+            let ok = seen.as_ref().is_some_and(|v| {
+                rules::matches(&target, v) || (target.is_air() && v.air) || rules::redstone_order::spilled(&poured, &target, v) || rules::redstone::covered_grass(&target, above, v)
+            });
             let found = seen.map_or("unloaded".to_string(), |v| format!("{} [{}]", v.name, v.props));
             (!ok).then(|| Mismatch { pos, want: format!("{} [{}]", target.name, target.props), found })
         })

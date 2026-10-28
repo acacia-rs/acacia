@@ -14,7 +14,8 @@ fn build(s: &Structure, floor: &str) {
     let g = Grid::floor(-20, 30);
     g.fill(ORIGIN, [ORIGIN[0] + s.size[0] - 1, ORIGIN[1], ORIGIN[2] + s.size[2] - 1], floor);
     let mut stock: Vec<(&str, u32)> = Vec::new();
-    for (item, n) in STOCK.iter().chain(&[("dirt", 64)]) {
+    // The kit's dirt and hoe, as examples/support/house.rs `kit` gives them.
+    for (item, n) in STOCK.iter().chain(&[("dirt", 64), ("diamond_hoe", 1)]) {
         match stock.iter_mut().find(|(i, _)| i == item) {
             Some((_, c)) => *c += n,
             None => stock.push((item, *n)),
@@ -32,8 +33,7 @@ fn build(s: &Structure, floor: &str) {
     let wrong = check(s, &at, |p| g.registry.get(g.view.block(p[0], p[1], p[2])).map(BlockView::of));
     assert_eq!(arb.outcome(id), Some(&Ok(())), "status {st:?}");
     assert_eq!(wrong, Vec::new());
-    let wanted = |p: &BlockPos| s.get([p[0] - ORIGIN[0], p[1] - ORIGIN[1], p[2] - ORIGIN[2]]).is_some_and(|b| b.name.ends_with("dirt"));
-    assert_eq!(scaffold_left(&g).into_iter().filter(|p| !wanted(p)).collect::<Vec<BlockPos>>(), Vec::<BlockPos>::new());
+    assert_eq!(scaffold_left(&g), Vec::<BlockPos>::new());
 }
 
 #[test]

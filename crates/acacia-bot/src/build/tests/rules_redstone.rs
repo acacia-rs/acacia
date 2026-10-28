@@ -12,7 +12,7 @@ use crate::build::rules::{gives, item, matches, supported};
 use crate::build::survey::Need;
 use crate::build::Block;
 use crate::interact::Face;
-use crate::pathfind::process::{BlockView, Look, Target};
+use crate::pathfind::process::{Act, BlockView, Look, Target};
 
 const C: BlockPos = [5, 0, 0];
 const N: BlockPos = [5, 0, -1];
@@ -161,4 +161,32 @@ fn items_states_and_clicks() {
     assert!(!click(&Block::new("vine", "vine_direction_bits=8"), Face::North));
     assert!(click(&Block::new("wheat", "growth=0"), Face::Up) && !click(&Block::new("wheat", "growth=0"), Face::East));
     assert!(click(&Block::new("water", "liquid_depth=0"), Face::Up) && !click(&Block::new("water", "liquid_depth=0"), Face::East));
+}
+
+#[test]
+fn mushrooms_denied_and_hoes_till_by_use() {
+    assert!(!supported("minecraft:brown_mushroom") && !supported("minecraft:red_mushroom"), "BDS refuses them in daylight");
+    assert!(supported("minecraft:poppy"));
+    let act = redstone::act("minecraft:diamond_hoe".into(), C, Face::Up, [0.5, 1.0, 0.5], C);
+    assert_eq!(act, Act::Use { pos: C, item: Some("minecraft:diamond_hoe".into()), face: Face::Up });
+    assert!(matches!(redstone::act("minecraft:water_bucket".into(), C, Face::Up, [0.5, 1.0, 0.5], N), Act::UseOn { cell, .. } if cell == N));
+    assert_eq!(redstone::extra_item(&Block::new("farmland", "moisturized_amount=0")), None, "the hoe is a kit tool");
+}
+
+#[test]
+fn covered_grass_matches_dirt() {
+    let dirt = BlockView { name: "minecraft:dirt", props: "", air: false, liquid: false, full: true, interactive: false };
+    let grass = Block::new("grass_block", "");
+    let covered = |above: Option<Block>| redstone::covered_grass(&grass, above.as_ref(), &dirt);
+    assert!(covered(Some(Block::new("stone", ""))));
+    assert!(!covered(Some(Block::new("poppy", ""))), "a plant leaves grass green");
+    assert!(!covered(Some(Block::new("air", ""))) && !covered(None));
+    assert!(!redstone::covered_grass(&Block::new("dirt", ""), Some(&Block::new("stone", "")), &dirt));
+    // The survey settles it too.
+    let cells = vec![cell(C, grass.clone()), cell([C[0], C[1] + 1, C[2]], Block::new("stone", ""))];
+    let t = |p: BlockPos| cells.iter().find(|c| c.pos == p).map(|c| c.target.clone());
+    let look = Cells([(C, ("minecraft:dirt", "")), ([C[0], C[1] + 1, C[2]], ("minecraft:stone", ""))].into());
+    let mut needs = vec![Need::Break, Need::Done];
+    settle(&cells, &look, &t, &mut needs);
+    assert_eq!(needs, [Need::Done, Need::Done]);
 }

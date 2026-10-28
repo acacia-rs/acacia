@@ -13,18 +13,20 @@ from `rules/mod.rs`), order and survey `build/rules/redstone_order.rs`, the rail
 | redstone dust | `redstone` on an Up face | the wire is there (`redstone_signal` derived) |
 | rail, golden/detector/activator rail | Up face, in an order that gives the shape (below) | `rail_direction`; `rail_data_bit` derived |
 | water, lava source | `water_bucket`/`lava_bucket` on the Up face of the block under the cell (`Act::UseOn`) | a source of that liquid; flows never compared |
-| sapling, flower, mushroom, bamboo sapling | Up face of the block under it, once that is done | name; `age_bit` derived |
+| sapling, flower, bamboo sapling | Up face of the block under it, once that is done | name; `age_bit` derived |
 | sugar cane (`reeds`), cactus | Up face; cane once its sand and the water beside it are done | name; `age` derived |
 | vine (one side) | the clicked side face: North 1, East 2, South 4, West 8 (bit = the face clicked) | `vine_direction_bits` |
 | kelp, seagrass (`default`) | water bucket into the cell first, then the plant on the Up face | name, `sea_grass_type`; `kelp_age` derived |
-| farmland | dirt, then `wooden_hoe` on its Up face (`Act::UseOn`, done when the cell shows `farmland`) | name; `moisturized_amount` derived |
+| farmland | dirt, then the kit's hoe on its Up face (`Act::Use`, done once the cell changes) | name; `moisturized_amount` derived |
+| grass_block under a solid target | as grass | dirt matches too: BDS turns covered grass to dirt once the block above is placed (`covered_grass`) |
 | wheat, carrots, potatoes, beetroot | seed item on farmland, clicked at y 0.9375 | name; `growth` derived |
 
 Order: a plant waits for its support (and a vine for its side block); liquids, kelp and seagrass go after every
 dry cell that is ready (`dry_first`), so pours do not wash plants or dust away. Flows from the job's own sources
 into cells where air belongs are left alone by the survey and the check (draining them would fight the sources).
-Hoes and buckets come from the stations like blocks (`restock` counts the extra item); an emptied bucket stays in
-the inventory.
+Buckets come from the stations like blocks (`restock` counts the extra item); an emptied bucket stays in the
+inventory. A job with farmland needs a hoe in the bot's kit (`examples/support/house.rs` `kit` gives a diamond hoe
+beside the pickaxe and shovel): any hoe held is used, and without one the job waits with `wooden_hoe` missing.
 
 ### Rails (port of Java `RailState`, matches sapling `rails.rs`)
 
@@ -50,10 +52,12 @@ without its neighbours, and junction shapes whose neighbours were placed in an o
 - Live, pool BDS, fresh worlds, observer diff 0, 2026-10-28: `rs-rails` PASS 115 and 119 ticks (18 s, 17 s), 20
   placed, 1 broken; `rs-garden` PASS 144 and 146 ticks (22 s, 23 s), 25 placed, 7 broken (the floor cells the scene
   replaces). rs-rails passed on all four pool runs after the to-come fix.
+- Follow-up, same day: kit hoe and tilling by `Act::Use` (4 use acts), grass back under the garden's stone (matched
+  as dirt by `covered_grass`): `rs-garden` PASS 147 ticks (23 s), 20 placed, 6 broken; `rs-rails` PASS 118 ticks
+  (19 s). The garden saw 6 movement corrections (server vs simulated movement; 0-9 across runs), no mismatches.
 - Live fixes they needed: a pour against a side face grazing the neighbour's top edge landed on that top, so
   liquids pour on Up faces only; a falling flow shows as `water` with `liquid_depth=9`, so `UseOn` waits for a
-  source; pours and tilling are never en-route acts; grass under a placed block turns to dirt at once (the garden
-  puts dirt under its vine's stone).
+  source; pours and tilling are never en-route acts; grass under a placed block turns to dirt at once.
 - Sim: `cargo test -p acacia-bot --lib -- build:: pathfind::tests` (both scenes block-exact, no scaffold left).
 
 ## Still denied, and why
@@ -64,12 +68,12 @@ without its neighbours, and junction shapes whose neighbours were placed in an o
 - Waterlogged blocks are built dry: `.mcstructure` keeps the water in `block_indices` layer 2
   (`minecraft:water liquid_depth=0`), which `structure.rs` does not read.
 - A liquid source with nothing under it (Up-face pours only).
-- Mushrooms are supported but BDS refuses them in daylight; a lit build fails them as `acts failed`.
+- Brown and red mushrooms (not the mushroom blocks): BDS refuses them in daylight (user's call 2026-10-28).
 - Kelp on kelp: refused in air, unmeasured in water (the scenes use single kelp).
 - `waterlily`, `lava_cauldron`, `cactus_flower`, `bubble_column`: not probed.
 
 ## Seams for merging
 
-- `Act::UseOn { item, against, face, cell, expect }` (tilling and pouring) sits beside the interact tier's
-  `Act::Use`. Tilling could become `Act::Use`; a pour changes the cell beyond the clicked block, which `Use` does
-  not watch, so it stays its own act unless `Use` learns a watched cell.
+- Tilling is the interact tier's `Act::Use { pos, item: Some(hoe), face: Face::Up }`. `Act::UseOn { item,
+  against, face, cell, expect }` is left for pours only: a pour fills the cell beyond the clicked block, which
+  `Use` does not watch (TODO in `pathfind/process/mod.rs`).
