@@ -26,6 +26,15 @@ adds a schema type before generation, and each `patches` entry replaces one cont
   has `zigzag64`. BDS 1.26.52 announced a falling block as unique id
   -4294967286 and named it in UpdateBlockSynced with the varint that zigzag reads as 9223372034707292165
   (sapling `research/captures/bds-mechanisms.txt`).
+- `FullContainerName.dynamic_container_id` is `lu32`; minecraft-data has big-endian `u32`. BDS 1.26.52 removed
+  bundle 1 with ContainerRegistryCleanup body `013f0101000000` and answered a request naming the big-endian 1
+  with status 50 (sapling `research/captures/bds-container-cleanup.txt`).
+- `camera_instruction.fade` is two options, `time` (in, wait, out `lf32`) and `color_rgb` (`vec3f`, channel/255);
+  `camera_instruction.fov` carries its ease as a `string` (`linear`), not the `EaseType` byte. minecraft-data has
+  fade's four fields bare and an `EaseType` in fov. From BDS 1.26.52.3's bodies for `/camera @s fade [time 1 2 3]
+  [color 0 255 0]`, `fov_set 60 2 linear` and `fov_clear` (sapling `research/captures/bds-screen.txt`), which are
+  the `camera_instruction.hex` fixtures and `tests/roundtrip.rs` `bds_container_and_camera_bodies`; `gen.mjs`
+  would overwrite them from the bare schema.
 - Not an override: `craft_grindstone_request.recipe_network_id` stays `li32` although gophertunnel writes a varint;
   BDS 1.26.52 answers the varint form with PacketViolationWarning (Malformed) and drops the client. Mojang's docs
   type it `ItemStackNetIdVariant`: it carries the input stack's id, not a recipe id.

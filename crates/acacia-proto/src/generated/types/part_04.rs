@@ -15,7 +15,7 @@ impl FullContainerName {
             .map_err(|e| e.at("FullContainerName.container_id"))?;
         let f_dynamic_container_id = (|| -> Result<_> {
             Ok(if read_bool(r)? {
-                Some(read_u32(r)?)
+                Some(read_lu32(r)?)
             } else {
                 None
             })
@@ -31,7 +31,7 @@ impl FullContainerName {
         match &self.dynamic_container_id {
             Some(x0) => {
                 write_bool(w, true);
-                write_u32(w, *x0);
+                write_lu32(w, *x0);
             }
             None => write_bool(w, false),
         }
