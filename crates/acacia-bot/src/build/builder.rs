@@ -10,7 +10,7 @@ use super::job::BuildJob;
 use super::plan;
 use super::status::{BuildStatus, Phase, StatusHandle};
 use super::structure::{Block, Structure, StructureError};
-use super::survey::{need, Need};
+use super::survey::{need_with_text, Need};
 use crate::pathfind::process::Look;
 use crate::ActionError;
 
@@ -31,12 +31,16 @@ const MAX_REVIVES: u32 = 3;
 pub(super) struct Cell {
     pub pos: BlockPos,
     pub target: Block,
+    /// A sign's text to write.
+    pub text: Option<super::structure::SignText>,
 }
 
 #[derive(Default)]
 pub(super) struct Tries {
     pub fails: u32,
     pub places: u32,
+    /// Placements counted as adding to the cell (`rules::more_placements`), not as placing it again.
+    pub adds: u32,
     /// Times nowhere was found to do it from.
     pub rests: u32,
     pub revives: u32,
@@ -126,7 +130,7 @@ impl Builder {
         let cells: Vec<Cell> = structure
             .cells()
             .filter(|(_, b)| b.name != "minecraft:structure_void")
-            .map(|(local, b)| Cell { pos: job.at.apply(structure.size, local), target: job.at.block(b) })
+            .map(|(local, b)| Cell { pos: job.at.apply(structure.size, local), target: job.at.block(b), text: structure.text(local).cloned() })
             .collect();
         let index = cells.iter().enumerate().map(|(i, c)| (c.pos, i)).collect();
         let thin = Arc::new(cells.iter().filter(|c| super::rules::thin(&c.target.name)).map(|c| c.pos).collect());
@@ -245,7 +249,7 @@ impl Builder {
     }
 
     pub(super) fn survey(&self, look: &dyn Look) -> Vec<Need> {
-        self.cells.iter().map(|c| need(&c.target, look.block(c.pos), self.job.fill_only)).collect()
+        self.cells.iter().map(|c| need_with_text(&c.target, c.text.as_ref(), c.pos, look, self.job.fill_only)).collect()
     }
 
     /// Learns what a station lacks from what the last restock brought.
@@ -261,7 +265,7 @@ impl Builder {
     pub(super) fn publish(&self, needs: &[Need], look: &dyn Look, phase: Phase, missing: Vec<String>) {
         let Ok(mut s) = self.status.lock() else { return };
         let count = |n: Need| needs.iter().filter(|x| **x == n).count();
-        (s.done, s.to_place, s.to_break, s.unknown, s.kept) = (count(Need::Done), count(Need::Place), count(Need::Break) + count(Need::Drain), count(Need::Unknown), count(Need::Kept));
+        (s.done, s.to_place, s.to_break, s.unknown, s.kept) = (count(Need::Done), count(Need::Place) + count(Need::Adjust), count(Need::Break) + count(Need::Drain), count(Need::Unknown), count(Need::Kept));
         s.unsupported = self.cells.iter().zip(needs).filter(|(_, n)| **n == Need::Unsupported).map(|(c, _)| (c.pos, c.target.name.clone())).collect();
         s.failed = self.tries.iter().filter_map(|(p, t)| t.why().map(|w| (*p, w))).collect();
         s.scaffold = self.scaffold.iter().filter(|p| look.solid(**p) == Some(true)).count();

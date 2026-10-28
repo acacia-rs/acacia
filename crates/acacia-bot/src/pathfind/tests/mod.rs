@@ -3,6 +3,8 @@ mod alter_sim;
 mod build_sim;
 mod place_model;
 mod build_tests;
+mod build_tests_interact;
+mod interact_model;
 mod cache;
 mod cache_shared;
 mod confirm_sim;

@@ -8,6 +8,7 @@ use acacia_world::BlockAccess;
 
 use super::alter::blocks;
 use super::grid::Grid;
+use super::interact_model;
 use super::place_model::bds_state;
 use super::sim::perform;
 use crate::build::{BuildJob, Builder, Structure, StatusHandle, Transform};
@@ -57,15 +58,21 @@ pub struct World<'a> {
     pub clock: std::sync::Arc<std::sync::atomic::AtomicU64>,
     /// Background search answers held back until their tick.
     searches: Vec<(u32, tokio::sync::oneshot::Sender<crate::pathfind::Path>, crate::pathfind::Path)>,
+    /// Sign text by cell and side (front `true`).
+    pub signs: HashMap<(BlockPos, bool), String>,
 }
 
 impl<'a> World<'a> {
     pub fn new(g: &'a Grid, inv: &[(&str, u32)]) -> Self {
-        Self { g, inv: items(inv), stations: HashMap::new(), log: Vec::new(), end: [0.0; 3], others: Vec::new(), me: 0, now: 0, delay: 0, changes: Vec::new(), clock: Default::default(), searches: Vec::new() }
+        let signs = HashMap::new();
+        Self { g, inv: items(inv), stations: HashMap::new(), log: Vec::new(), end: [0.0; 3], others: Vec::new(), me: 0, now: 0, delay: 0, changes: Vec::new(), clock: Default::default(), searches: Vec::new(), signs }
     }
 
     /// Sets a block as the server, remembering what it was for the bots that don't see it yet.
-    fn set(&mut self, pos: BlockPos, name: &str, props: &str) {
+    pub(super) fn set(&mut self, pos: BlockPos, name: &str, props: &str) {
+        if !name.ends_with("sign") {
+            self.signs.retain(|(p, _), _| *p != pos);
+        }
         if self.delay > 0 {
             let old = self.g.view.block(pos[0], pos[1], pos[2]);
             let horizon = self.now.saturating_sub(self.delay);
@@ -107,6 +114,10 @@ impl Look for SimLook<'_> {
     fn free_slots(&self) -> u32 {
         20
     }
+
+    fn sign_text(&self, p: BlockPos, front: bool) -> Option<String> {
+        self.0.signs.get(&(p, front)).cloned()
+    }
 }
 
 pub fn view(g: &Grid, p: BlockPos) -> (String, String) {
@@ -128,7 +139,7 @@ fn body_at(f: Vec3, p: BlockPos) -> bool {
     o(f[0] - 0.3, f[0] + 0.3, p[0]) && o(f[1], f[1] + 1.8, p[1]) && o(f[2] - 0.3, f[2] + 0.3, p[2])
 }
 
-fn take(w: &mut World, item: &str) -> Result<(), ActionError> {
+pub(super) fn take(w: &mut World, item: &str) -> Result<(), ActionError> {
     let n = w.inv.get_mut(item).filter(|n| **n > 0).ok_or_else(|| ActionError::NotPossible(format!("no {item}")))?;
     *n -= 1;
     Ok(())
@@ -149,7 +160,7 @@ fn act(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> {
     let r = act_inner(w, m, act);
     let cell = match act {
         Act::Place { against, face, .. } => face.adjacent(*against),
-        Act::Break { pos } | Act::Fill { pos, .. } => *pos,
+        Act::Break { pos } | Act::Fill { pos, .. } | Act::Use { pos, .. } | Act::Sign { pos, .. } => *pos,
         Act::Restock { station, .. } => *station,
     };
     if watched(cell) || matches!(act, Act::Place { against, .. } if watched(*against)) {
@@ -169,11 +180,13 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
         Act::Place { item, against, face, click } => {
             let pos = face.adjacent(*against);
             let cell = solid(w, pos).expect("loaded");
-            if far(*against) || solid(w, *against).is_none_or(|b| !b.solid()) || blocked(w, pos) || (cell.solid() && !cell.name.ends_with("_slab")) {
+            let point = [against[0] as f32 + click[0], against[1] as f32 + click[1], against[2] as f32 + click[2]];
+            let modeled = interact_model::place(item, *face, e, point, &cell);
+            if far(*against) || solid(w, *against).is_none_or(|b| !b.solid()) || blocked(w, pos) || (cell.solid() && !cell.name.ends_with("_slab") && modeled.is_none()) {
                 return Err(ActionError::Rejected(format!("place {item} at {pos:?} from {e:?}")));
             }
-            let point = [against[0] as f32 + click[0], against[1] as f32 + click[1], against[2] as f32 + click[2]];
-            let (name, props) = bds_state(item, *face, *click, e, point, cell.name, pos).ok_or_else(|| ActionError::Rejected("refused".into()))?;
+            let state = modeled.unwrap_or_else(|| bds_state(item, *face, *click, e, point, cell.name, pos));
+            let (name, props) = state.ok_or_else(|| ActionError::Rejected("refused".into()))?;
             take(w, item)?;
             w.set(pos, &name, &props);
             Ok(())
@@ -201,6 +214,7 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
                 _ => Err(ActionError::NotPossible(format!("fill {pos:?} from {e:?}"))),
             }
         }
+        Act::Use { .. } | Act::Sign { .. } => interact_model::act(w, e, act),
         Act::Restock { station, items } => {
             if far(*station) {
                 return Err(ActionError::NotPossible("station out of reach".into()));
@@ -290,7 +304,7 @@ pub fn step(w: &mut World, m: &mut Movement, arb: &mut Arbiter, tick: u32) -> u3
         Decision::Act(pid, a) => {
             m.controls.stop();
             ticks = match &a {
-                Act::Place { .. } | Act::Fill { .. } => PLACE_TICKS,
+                Act::Place { .. } | Act::Fill { .. } | Act::Use { .. } | Act::Sign { .. } => PLACE_TICKS,
                 Act::Break { .. } => BREAK_TICKS,
                 Act::Restock { .. } => RESTOCK_TICKS,
             };

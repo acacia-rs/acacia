@@ -8,6 +8,7 @@ use super::Act;
 use crate::act_timing::Phase;
 use crate::interact::{block_distance, Face, BLOCK_REACH};
 use crate::items::SlotRef;
+use crate::signs::SignSide;
 use crate::{ActionError, Bot};
 
 /// Faces to click, in preference order: placing on top of the block below first.
@@ -37,6 +38,14 @@ pub(super) async fn perform(bot: &mut Bot, act: &Act, human: bool) -> Result<(),
             bot.act_timing.add(Phase::Restock, t.elapsed());
             r
         }
+        Act::Use { pos, item, face } => {
+            if let Some(item) = item {
+                let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
+                hand(bot, slot, human).await?;
+            }
+            bot.use_confirmed(*pos, *face).await
+        }
+        Act::Sign { pos, front, text } => bot.write_sign(*pos, if *front { SignSide::Front } else { SignSide::Back }, text).await,
     }
 }
 

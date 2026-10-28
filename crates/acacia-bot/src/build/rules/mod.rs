@@ -7,17 +7,21 @@ use super::structure::Block;
 use crate::interact::Face;
 use crate::pathfind::process::BlockView;
 
+mod interact;
+pub use interact::{fine_aim, front, uses};
+
 /// Recomputed from the neighbours by the server (stair corners, wall/fence/pane connections), or redstone
 /// activity: never compared.
 fn derived(key: &str) -> bool {
-    key == "corner" || key.starts_with("wall_connection_type_") || key == "wall_post_bit" || key.starts_with("connection_") || matches!(key, "powered_bit" | "triggered_bit" | "button_pressed_bit")
+    key == "corner" || key.starts_with("wall_connection_type_") || key == "wall_post_bit" || key.starts_with("connection_") || matches!(key, "powered_bit" | "triggered_bit" | "button_pressed_bit") || interact::derived(key)
 }
 
 /// Outside the common building set (B1): their states take more than one click, or they are not blocks one places.
+/// `candle_cake`: a candle clicked onto a cake, not placed.
 const DENIED: &[&str] = &[
-    "door", "bed", "sign", "redstone", "repeater", "comparator", "water", "lava", "rail", "banner", "skull", "head", "portal", "fire", "sapling", "wheat", "carrots",
-    "potatoes", "beetroot", "vine", "kelp", "seagrass", "bubble", "piston_arm", "moving_block", "bamboo", "cactus", "sugar_cane", "chest", "lever", "trapdoor",
-    "fence_gate", "pressure_plate", "lantern", "chain", "candle", "bell", "anvil", "hopper", "scaffolding",
+    "door", "bed", "redstone", "water", "lava", "rail", "banner", "skull", "head", "portal", "fire", "sapling", "wheat", "carrots",
+    "potatoes", "beetroot", "vine", "kelp", "seagrass", "bubble", "piston_arm", "moving_block", "bamboo", "cactus", "sugar_cane", "chest", "trapdoor",
+    "fence_gate", "pressure_plate", "lantern", "chain", "candle_cake", "bell", "anvil", "hopper", "scaffolding",
 ];
 
 /// Facing kinds of `facing_direction` blocks.
@@ -66,7 +70,9 @@ fn controlled(name: &str, k: &str) -> bool {
 
 /// The target's keys are all known: decided by the click, derived, or absent.
 fn keys_known(target: &Block) -> bool {
-    target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, _)| derived(key(k)) || controlled(&target.name, key(k)) || (is_double_slab(&target.name) && key(k) == "vertical_half"))
+    target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, v)| {
+        derived(key(k)) || controlled(&target.name, key(k)) || (is_double_slab(&target.name) && key(k) == "vertical_half") || interact::known(&target.name, key(k), v)
+    })
 }
 
 /// The item that places the target.
@@ -74,11 +80,16 @@ pub fn item(target: &Block) -> Option<String> {
     if !supported(&target.name) || !keys_known(target) {
         return None;
     }
-    Some(target.name.replace("_double_slab", "_slab"))
+    Some(interact::item(&target.name).unwrap_or_else(|| target.name.replace("_double_slab", "_slab")))
+}
+
+/// Placements into the cell past its first that add to it (candles); slabs keep counting as placements.
+pub fn more_placements(target: &Block) -> u32 {
+    interact::count(target).map_or(0, |c| c.saturating_sub(1))
 }
 
 pub fn items_per_cell(target: &Block) -> u32 {
-    if is_double_slab(&target.name) { 2 } else { 1 }
+    if is_double_slab(&target.name) { 2 } else { interact::count(target).unwrap_or(1) }
 }
 
 /// A block a body fits beside within its cell (panes, bars, fences, walls), so a player can end up inside the
@@ -94,18 +105,18 @@ pub fn gravity(name: &str) -> bool {
 
 /// The world shows the target: same block, same states except derived ones (and a double slab's half).
 pub fn matches(target: &Block, w: &BlockView) -> bool {
-    if target.name != w.name {
+    if target.name != w.name && !interact::same(&target.name, w.name) {
         return false;
     }
     target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, v)| {
         let k2 = key(k);
-        derived(k2) || (is_double_slab(&target.name) && k2 == "vertical_half") || w.prop(k).or_else(|| w.prop(k2)).is_none_or(|wv| wv == v)
+        derived(k2) || (is_double_slab(&target.name) && k2 == "vertical_half") || interact::ignored(target, k2) || w.prop(k).or_else(|| w.prop(k2)).is_none_or(|wv| wv == v)
     })
 }
 
-/// The cell holds the half slab that one more slab makes into the target.
+/// The cell holds the half slab that one more slab makes into the target, or fewer candles (pickles, eggs).
 pub fn completes(target: &Block, w: &BlockView) -> bool {
-    is_double_slab(&target.name) && item(target).is_some_and(|i| i == w.name)
+    (is_double_slab(&target.name) && item(target).is_some_and(|i| i == w.name)) || interact::adds(target, w)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -197,6 +208,9 @@ pub fn gives(target: &Block, face: Face, click: Vec3, eye: Vec3, pos: BlockPos, 
     };
     let name = target.name.as_str();
     target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, v)| {
+        if let Some(ok) = interact::gives(name, key(k), v, dir, look(eye, point), eye, point) {
+            return ok;
+        }
         let want = match key(k) {
             "pillar_axis" => Some(match dir {
                 Dir::Up | Dir::Down => "y",

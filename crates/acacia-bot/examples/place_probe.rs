@@ -39,6 +39,8 @@ const VERT_STANDS: &[Stand] = &[
     Stand { name: "E2-high", feet: [7.4, 2.0, 0.5], near: [0, 0, -1] },
 ];
 const VERT_ITEMS: &[&str] = &["piston", "dispenser", "observer"];
+/// `SET=interact`: the interact tier's placements (use-clicks and sign rotation: `examples/interact_probe.rs`).
+const INTERACT_ITEMS: &[&str] = &["repeater", "comparator", "lever", "daylight_detector", "oak_sign", "oak_hanging_sign", "white_candle", "sea_pickle", "turtle_egg"];
 
 fn add(a: [i32; 3], b: [i32; 3]) -> [i32; 3] {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
@@ -73,7 +75,11 @@ async fn main() -> Result<(), Error> {
     let (mut bot, pad) = support::connect(&server, &name).await?;
     pad.build(&mut bot, &[], 5).await?;
     let vert = std::env::var("VERT").is_ok();
-    let (items, stands) = if vert { (VERT_ITEMS, VERT_STANDS) } else { (ITEMS, STANDS) };
+    let (items, stands) = match () {
+        _ if vert => (VERT_ITEMS, VERT_STANDS),
+        _ if std::env::var("SET").as_deref() == Ok("interact") => (INTERACT_ITEMS, STANDS),
+        _ => (ITEMS, STANDS),
+    };
     for item in items.iter().filter(|i| only.as_deref().is_none_or(|o| o == **i)) {
         for c in ["/clear @s".to_string(), format!("/give @s {item} 64")] {
             pad.run(&bot, &c);

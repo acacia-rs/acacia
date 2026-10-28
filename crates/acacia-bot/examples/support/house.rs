@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use acacia_bot::build::journal::Journal;
-use acacia_bot::build::{check, findings, Block, BuildJob, BuildStatus, Builder, Mismatch, Phase, Structure, Transform};
+use acacia_bot::build::{check, check_text, findings, Block, BuildJob, BuildStatus, Builder, Mismatch, Phase, Structure, Transform};
 use acacia_bot::pathfind::process::{BlockView, Status};
 use acacia_bot::pathfind::Processes;
 use acacia_bot::Bot;
@@ -94,6 +94,7 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
             put(&mut s, [1, 1, 1], "furnace", "minecraft:cardinal_direction=south");
             (s, vec![(at([0, 0, 0]), at([2, 1, 2]), "dirt")])
         }
+        n if n.starts_with("interact-") => super::interact_scenes::scene(n, AT).ok_or_else(|| format!("unknown scene {name}"))?,
         _ => return Err(format!("unknown scene {name}").into()),
     };
     let (s, junk) = s;
@@ -119,6 +120,7 @@ pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error
             }
         }
     }
+    super::interact_scenes::stock(a, pad, &STATIONS).await?;
     let mut job = BuildJob::new(structure, Transform { origin: pad.block(AT), ..Transform::default() });
     job.stations = STATIONS.iter().map(|&s| pad.block(s)).collect();
     Ok(job)
@@ -220,7 +222,8 @@ pub async fn observe(server: &str, observer: &str, pad: &Pad, job: &BuildJob) ->
     let spot = pad.block([12, 9, 0]);
     pad.run(&o, &format!("/tp @s {} {} {}", spot[0] as f32 + 0.5, spot[1], spot[2] as f32 + 0.5));
     o.wait_ticks(80).await?;
-    let wrong = check(&structure, &job.at, |p| o.block_state(p).map(BlockView::of));
+    let mut wrong = check(&structure, &job.at, |p| o.block_state(p).map(BlockView::of));
+    wrong.extend(check_text(&structure, &job.at, |p, front| o.state().block_entities.sign_text(p, front).map(str::to_string)));
     o.disconnect().await;
     Ok(wrong)
 }
