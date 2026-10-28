@@ -17,6 +17,14 @@ try: a second would toggle back); the survey then counts again.
 when it shows. Tilling: `Act::Use { pos: dirt, item: Some("minecraft:wooden_hoe".into()), face: Face::Up }`; it is
 done once the server shows the cell changed (any other block id). `Act::Sign { pos, front, text }` writes one side.
 
+## Missed click at a stand (`build/arrival.rs`, user's choice 2026-10-28)
+
+Stands are judged from their centre, but a walk that starts inside its stand cell ends at once (an empty path,
+`astar` start-in-goal), anywhere in the cell: live 0.43 off, so a plank's one Up-face point was hidden by a daylight
+detector, a north comparator would have faced east, and the task rested until the timeout. Now, a stand reached and
+asked for again drives to that stand's centre (`GotoOpts::settle`, tolerance 0.1), then to the task's other stands,
+then rests. This replaces oneclick's drift rule (other stands when the body is in the cell), which it covers.
+
 ## Rules
 
 | State | Decided by |
@@ -43,11 +51,13 @@ pitch not compared.
 ## Evidence (live, fresh world, test pack off, `examples/build.rs SCENE=`)
 
 - `interact-use` (repeater delay 2 over a delay-3 junk repeater, subtract comparator, a floor lever over a closed
-  junk one, a wall lever, inverted detector): PASS 29 s, 0 broken (the junk was used, not broken), 1 of 6 runs; the
-  other five ended at the 184 s timeout with one ordinary placement open (see Open). Every use-click landed in all six.
-- `interact-count` (4 and 2 candles, 3 pickles, 3 eggs): PASS 29 s.
+  junk one, a wall lever, inverted detector): with the re-centre below 4/4 PASS, 31/31/30/31 s, 0 broken (the junk
+  was used). Before it 1 of 6 (five ended at the 184 s timeout with one ordinary placement open).
+- `interact-count` (4 and 2 candles, 3 pickles, 3 eggs): PASS 30 s.
 - `interact-sign` (two standing signs, one with back text, a wall sign, a hanging sign, text on all): PASS 56 s,
   text checked by the observer (`build::check_text`). Each side written takes ~3 s (the human typing pause).
+- house16 one bot (`swarm_build BOTS=1`, port 19314): build/block-set 284/321 s, with the re-centre 256/270/309 s,
+  all PASS, 0 mismatches; 2 re-centre walks in a run.
 - Sim: `uses_counts_and_signs_build_block_exact` (toggles used not broken, 3 clicks for delay 3 -> 2, pickles and
   eggs by use, both sign sides).
 
@@ -59,13 +69,6 @@ pitch not compared.
 
 ## Open
 
-- Live `interact-use` failed 5 of 6 runs on one placement (four times the floor plank beside the daylight detector,
-  once the north comparator with an 8-wide floor). Same pattern each time: the walk picks a stand by its centre, the
-  bot arrives ~0.4 off centre (`walk_end arrived`), the click works from the centre but not from there (the plank's
-  one Up-face point hidden by the detector; the comparator's look dominated by x, so it would face east), and the
-  cell then rests and revives until the timeout without walking closer to the centre. Fixes (arrive at the stand
-  centre after a no-click rest, or a 3×3 Up-face grid as signs use) change the core planner for every block:
-  question for the user.
 - A use-click is confirmed by any change of the cell: a daylight detector's signal update in flight could confirm a
   click before its toggle shows, and the next survey click again (not seen live).
 - Pickles and eggs added by use are not in the restock need (`restock::shortfall` counts `Place` cells); the first
