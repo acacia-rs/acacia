@@ -26,7 +26,7 @@ _Currently supported Minecraft version: `1.26.51` (protocol `2193`)._
 - Bots that look like a vanilla Android player: login data, input cadence, spawn sequence and reaction
   times match recorded vanilla sessions
 
-[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/DNFJBJBVPr) for questions, bug reports and to share bots you've built.
+**[Join us on Discord](https://discord.gg/DNFJBJBVPr)** for questions, bug reports and to share bots you've built.
 
 ## Goals
 
