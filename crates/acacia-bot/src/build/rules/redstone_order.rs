@@ -4,7 +4,7 @@
 use acacia_physics::BlockPos;
 
 use super::rails::{self, World};
-use super::redstone::{kind, liquid_of, short, source, Kind, VINE_BITS};
+use super::redstone::{covered_grass, kind, liquid_of, short, source, Kind, VINE_BITS};
 use crate::build::builder::Cell;
 use crate::build::structure::Block;
 use crate::build::survey::Need;
@@ -103,7 +103,8 @@ pub fn spilled(poured: &[&str], target: &Block, w: &BlockView) -> bool {
 
 /// Corrects the survey for this family: a rail on its way to its shape (joined only where its target leads, a
 /// rail at one of its target's ends not at its own shape yet) is not wrong yet; liquid flowing from the job's own
-/// sources into cells where air belongs is left alone (draining it would fight the sources).
+/// sources into cells where air belongs is left alone (draining it would fight the sources); covered grass that
+/// shows dirt is done ([`covered_grass`]).
 pub fn settle(cells: &[Cell], look: &dyn Look, targets: &dyn Fn(BlockPos) -> Option<Block>, needs: &mut [Need]) {
     let base = |p: BlockPos| rail_of(look, p);
     let w = World::new(&base);
@@ -112,6 +113,7 @@ pub fn settle(cells: &[Cell], look: &dyn Look, targets: &dyn Fn(BlockPos) -> Opt
         let Some(seen) = look.block(c.pos) else { continue };
         match *n {
             Need::Drain if spilled(&poured, &c.target, &seen) => *n = Need::Done,
+            Need::Break if covered_grass(&c.target, targets([c.pos[0], c.pos[1] + 1, c.pos[2]]).as_ref(), &seen) => *n = Need::Done,
             Need::Break if seen.name == c.target.name && rails::is_rail(seen.name) => {
                 let Some(t) = target_shape(targets, c.pos) else { continue };
                 let to = rails::ends(c.pos, t);

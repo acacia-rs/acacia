@@ -235,6 +235,7 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
         }
         Act::UseOn { item, against, face, .. } if !far(*against) => super::redstone_sim::use_on(w.g, &mut w.inv, item, *against, *face),
         Act::UseOn { .. } => Err(ActionError::NotPossible("use out of reach".into())),
+        Act::Use { pos, item: Some(item), face } if item.ends_with("_hoe") && !far(*pos) => super::redstone_sim::use_on(w.g, &mut w.inv, item, *pos, *face),
         Act::Use { .. } | Act::Sign { .. } => interact_model::act(w, e, act),
         Act::Restock { station, items } => {
             if far(*station) {

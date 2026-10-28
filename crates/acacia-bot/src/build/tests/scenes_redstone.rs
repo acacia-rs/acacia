@@ -62,8 +62,7 @@ pub fn garden() -> Structure {
     put(&mut s, [5, 0, 4], "seagrass", "sea_grass_type=default");
     put(&mut s, [5, 1, 5], "oak_sapling", "age_bit=0");
     put(&mut s, [3, 1, 5], "poppy", "");
-    // Grass under a placed block turns to dirt at once (live 2026-10-28).
-    put(&mut s, [0, 0, 5], "dirt", "");
+    // The grass under it turns to dirt once it is placed: `rules::redstone::covered_grass`.
     put(&mut s, [0, 1, 5], "stone", "");
     put(&mut s, [1, 1, 5], "vine", "vine_direction_bits=2");
     s
@@ -82,7 +81,6 @@ pub const STOCK: &[(&str, u32)] = &[
     ("lava_bucket", 1),
     ("grass_block", 64),
     ("dirt", 8),
-    ("wooden_hoe", 1),
     ("water_bucket", 1),
     ("water_bucket", 1),
     ("water_bucket", 1),
