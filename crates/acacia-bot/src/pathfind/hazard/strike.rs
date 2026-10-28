@@ -73,16 +73,23 @@ impl Striker {
         let mid = [0, 1, 2].map(|i| (min[i] + max[i]) * 0.5);
         let mut want = course;
         want.look_at(body.eye, mid);
+        // A chaser on the course is struck with the pitch alone: the keys and sprint stay as steered.
+        let on_course = crosshair(body.eye, &Controls { pitch: want.pitch, ..course }, min, max).is_some();
+        if on_course {
+            want.yaw = course.yaw;
+        }
         if self.profile == MovementProfile::Optimal {
             (controls.yaw, controls.pitch) = (want.yaw, want.pitch);
         } else {
             // Eased from the look sent last tick: the steering set the course's yaw since.
             let (yaw, pitch) = self.look.unwrap_or((course.yaw, course.pitch));
-            controls.yaw = self.ease(yaw, want.yaw);
+            controls.yaw = if on_course { course.yaw } else { self.ease(yaw, want.yaw) };
             controls.pitch = self.ease(pitch, want.pitch).clamp(-90.0, 90.0);
         }
         self.look = Some((controls.yaw, controls.pitch));
-        controls.keep_course(&course);
+        if !on_course {
+            controls.keep_course(&course);
+        }
         let hit = crosshair(body.eye, controls, min, max).filter(|h| (body.sees)(body.eye, *h));
         let ready = self.aimed == Some(t.runtime_id) && body.tick >= self.next_at;
         self.aimed = hit.map(|_| t.runtime_id);
