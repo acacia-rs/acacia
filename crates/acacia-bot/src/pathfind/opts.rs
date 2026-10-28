@@ -8,6 +8,7 @@ use acacia_physics::BlockPos;
 use super::costs;
 use super::favour::Favour;
 use super::goal::Speed;
+use super::hazard::Hazards;
 use super::kit::Kit;
 use super::macros::MacroStats;
 use super::profile::MovementProfile;
@@ -44,6 +45,9 @@ pub struct SearchOpts {
     /// Cells no move may end with the body in (feet or head): the builder's thin targets (panes, fences, walls),
     /// beside which a body fits but which then wall it in (live: a window cell, every walk "Stuck" after).
     pub no_body: Option<Arc<std::collections::HashSet<BlockPos>>>,
+    /// Entities to keep away from (score only) and the cells solid ones fill; attach the same to the search's
+    /// terrain ([`Terrain::with_hazards`](super::Terrain::with_hazards)).
+    pub hazards: Option<Arc<Hazards>>,
 }
 
 impl Default for SearchOpts {
@@ -63,6 +67,7 @@ impl Default for SearchOpts {
             favour: None,
             keep: None,
             no_body: None,
+            hazards: None,
         }
     }
 }

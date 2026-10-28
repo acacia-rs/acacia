@@ -84,6 +84,21 @@ pub(crate) const AIM_JITTER_DEG: f32 = 1.5;
 /// How far (blocks) a move's start may sit from where the plan put it.
 pub(crate) const START_SLOP: f32 = 0.05;
 
+// Entity awareness (pathfind `MovementProfile::Human`): placeholders from typical reaction times, faster to a
+// sound or a hit (150-250 ms) than to a sight (250-400 ms).
+/// Ticks from an entity coming into earshot or hitting the bot to the path reacting to it.
+pub(crate) const THREAT_NOTICE_HEARD: (u64, u64) = (3, 5);
+/// Ticks from an entity coming into view to the path reacting to it.
+pub(crate) const THREAT_NOTICE_SEEN: (u64, u64) = (5, 8);
+/// Half the horizontal view angle, degrees.
+pub(crate) const VIEW_HALF_DEG: f32 = 55.0;
+/// Blocks an entity is heard at, seen or not.
+pub(crate) const EARSHOT: f32 = 4.0;
+/// Blocks a lit creeper's fuse hiss is heard at (placeholder).
+pub(crate) const FUSE_EARSHOT: f32 = 10.0;
+/// Ticks an entity once noticed is kept in mind out of view.
+pub(crate) const THREAT_MEMORY: u64 = 200;
+
 pub(crate) struct Human {
     rng: u64,
 }

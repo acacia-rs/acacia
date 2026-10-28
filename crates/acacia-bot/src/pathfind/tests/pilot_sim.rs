@@ -1,6 +1,7 @@
 //! The navigator's core ([`Pilot`]) driven in the headless simulation: searches run inline, answered at once or
 //! after a delay, and the planner sees only chunks near the bot (a server's load horizon).
 
+use acacia_physics::constants::DEFAULT_PLAYER_HEIGHT_OFFSET;
 use acacia_physics::{BlockPos, Vec3};
 use acacia_world::ChunkView;
 use tokio::sync::oneshot;
@@ -8,7 +9,11 @@ use tokio::sync::oneshot;
 use super::grid::Grid;
 use super::sim::perform;
 use crate::movement::Movement;
-use crate::pathfind::{Blocks, Goal, GotoOpts, NavStatus, Path, Pilot, SearchJob, Terrain, answered};
+use crate::pathfind::hazard::{self, Threats, View};
+use crate::pathfind::{Blocks, Goal, GotoOpts, NavStatus, Path, Pilot, SearchJob, SearchOpts, Terrain, answered};
+
+/// The entities around a flight: moved once a tick for the bot at `feet`; returns them and the bot's health.
+pub type Scene<'a> = dyn FnMut(u32, Vec3) -> (Threats, f32) + 'a;
 
 /// The grid as the planner sees it: chunks more than `radius` from `centre` (chunk coordinates) are unloaded.
 #[derive(Clone, Copy)]
@@ -77,6 +82,11 @@ impl Flight {
 
 /// Drives a [`Pilot`] from `m` to `goal` until it arrives, fails or `sky.max_ticks` pass.
 pub fn fly(g: &Grid, m: &mut Movement, goal: Goal, opts: GotoOpts, sky: Sky) -> Flight {
+    fly_with(g, m, goal, opts, sky, &mut |_, _| (Threats::default(), 20.0))
+}
+
+/// [`fly`] among entities, perceived as the profile does; the solid ones collide.
+pub fn fly_with(g: &Grid, m: &mut Movement, goal: Goal, opts: GotoOpts, sky: Sky, scene: &mut Scene) -> Flight {
     let world = g.physics();
     let mut pilot = Pilot::new(goal, opts);
     let mut late: Vec<(u32, oneshot::Sender<Path>, Path)> = Vec::new();
@@ -91,10 +101,16 @@ pub fn fly(g: &Grid, m: &mut Movement, goal: Goal, opts: GotoOpts, sky: Sky) -> 
         let pos = m.position().expect("started");
         track.push(pos);
         let blocks = Horizon { view: &g.view, centre: (pos[0].floor() as i32 >> 4, pos[2].floor() as i32 >> 4), radius: sky.horizon };
-        let terrain = Terrain::new(blocks, &g.registry);
-        let opts = pilot.search_opts(None, 20.0);
+        let (threats, health) = scene(tick, pos);
+        m.set_solids(hazard::solid_boxes(&threats));
+        let sees = |a, b| hazard::clear_line(&g.terrain(), a, b);
+        let eye = [pos[0], pos[1] + DEFAULT_PLAYER_HEIGHT_OFFSET, pos[2]];
+        let yaw = m.state().map_or(0.0, |s| s.yaw);
+        let hazards = pilot.perceive(threats, &View { eye, yaw, health, sees: &sees });
+        let terrain = Terrain::new(blocks, &g.registry).with_hazards(hazards.clone());
+        let opts = SearchOpts { hazards, ..pilot.search_opts(None, 20.0) };
         let mut spawn = |job: SearchJob| {
-            let path = job.run(&Terrain::new(blocks, &g.registry));
+            let path = job.run(&Terrain::new(blocks, &g.registry).with_hazards(job.opts.hazards.clone()));
             if sky.delay == 0 {
                 return answered(path);
             }

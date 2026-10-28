@@ -1,15 +1,21 @@
 //! Async execution: plan, follow, re-plan on trouble (azalea `execute/`). The logic is [`Pilot`]'s; this adds
 //! the server side: world changes done by the bot's actions, and waiting for the next tick.
 
+use std::sync::Arc;
+
 use acacia_physics::BlockPos;
+use acacia_world::{BlockRegistry, ChunkView};
 
 use super::execute;
 use super::goal::Goal;
+use super::hazard::{self, Hazards};
 use super::work::Step;
 use super::kit::DEFAULT_SCAFFOLD;
 use super::pilot::Pilot;
 use super::terrain::Terrain;
 use super::{Follower, SearchOpts};
+use crate::movement::Movement;
+use crate::state::GameState;
 use crate::{ActionError, Bot};
 
 #[derive(Debug, Clone)]
@@ -126,6 +132,24 @@ pub(super) struct Worked {
     pub placed: Vec<BlockPos>,
 }
 
+/// The pilot's field this tick from the entities around the bot ([`Pilot::perceive`]).
+fn perceive(pilot: &mut Pilot, state: &GameState, movement: &Movement, view: &ChunkView, registry: &BlockRegistry) -> Option<Arc<Hazards>> {
+    let st = movement.state()?;
+    let threats = hazard::Threats::near(&state.entities, st.pos, hazard::FIELD_RADIUS);
+    let blocks = Terrain::new(view, registry);
+    let sees = |a, b| hazard::clear_line(&blocks, a, b);
+    let eye = [st.pos[0], st.pos[1] + acacia_physics::constants::DEFAULT_PLAYER_HEIGHT_OFFSET, st.pos[2]];
+    pilot.perceive(threats, &hazard::View { eye, yaw: st.yaw, health: state.player.health, sees: &sees })
+}
+
+/// [`perceive`] for a pilot not driven this tick (one that holds at its goal still notices a threat leave).
+pub(super) fn sense(pilot: &mut Pilot, bot: &Bot) {
+    let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_ref()) else { return };
+    if let (Some(view), Some(registry)) = (world.view(), world.registry()) {
+        perceive(pilot, &bot.state, movement, view, registry.as_ref());
+    }
+}
+
 /// Drives `pilot` for one tick (without letting it pass) and does any work due; also returns what the work changed.
 pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus, ActionError>, Worked) {
     if bot.movement.is_none() {
@@ -133,14 +157,15 @@ pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus,
     }
     let s = &pilot.opts().search;
     let kit = (s.allow_dig || s.allow_bridge).then(|| bot.path_kit(&pilot.opts().scaffold));
-    let opts = pilot.search_opts(kit, bot.state.player.hunger);
+    let mut opts = pilot.search_opts(kit, bot.state.player.hunger);
     let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_mut()) else {
         return (Ok(NavStatus::Searching), Worked::default());
     };
     let (Some(view), Some(registry)) = (world.view(), world.registry()) else {
         return (Ok(NavStatus::Searching), Worked::default());
     };
-    let terrain = Terrain::new(view, registry.as_ref());
+    opts.hazards = perceive(pilot, &bot.state, movement, view, registry.as_ref());
+    let terrain = Terrain::new(view, registry.as_ref()).with_hazards(opts.hazards.clone());
     let (snapshot, reg) = (view.world().clone(), registry.clone());
     let status = match pilot.drive(&terrain, movement, opts, &mut |job| job.spawn_blocking(snapshot.clone(), reg.clone())) {
         Ok(s) => s,

@@ -8,13 +8,15 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
+use std::sync::Arc;
 
 use acacia_physics::BlockPos;
 use acacia_physics::constants::DEFAULT_PLAYER_HEIGHT;
 use acacia_world::{Aabb, BlockAccess, BlockRegistry, BlockState, ChunkView};
 
 pub use super::cell::Cell;
-use super::cell::{AVOID, DANGER_NEAR, HURT_FLOOR, LIQUID, OPENABLE, Rect, UNLOADED, WATER, state_flags};
+use super::cell::{AVOID, DANGER_NEAR, ENTITY, HURT_FLOOR, LIQUID, OPENABLE, Rect, UNLOADED, WATER, state_flags};
+use super::hazard::Hazards;
 use super::memo::CellMemo;
 
 pub(crate) const EPS: f32 = 1e-3;
@@ -110,12 +112,19 @@ pub struct Terrain<'r, B> {
     spots: RefCell<PosMap<Option<Spot>>>,
     toggled: RefCell<HashMap<u32, Option<u32>>>,
     unloaded: std::cell::Cell<bool>,
+    hazards: Option<Arc<Hazards>>,
 }
 
 impl<'r, B: Blocks> Terrain<'r, B> {
     pub fn new(blocks: B, registry: &'r BlockRegistry) -> Self {
         let (cells, spots, toggled, unloaded) = Default::default();
-        Self { blocks, registry, cells, spots, toggled, unloaded }
+        Self { blocks, registry, cells, spots, toggled, unloaded, hazards: None }
+    }
+
+    /// The same terrain with the cells `hazards`' solid entities reach into closed ([`ENTITY`] and `AVOID`).
+    /// Set it before the first read: cells are classified once.
+    pub fn with_hazards(self, hazards: Option<Arc<Hazards>>) -> Self {
+        Self { hazards, ..self }
     }
 
     /// Some cell read so far lies in a chunk that is not loaded.
@@ -139,9 +148,10 @@ impl<'r, B: Blocks> Terrain<'r, B> {
             self.unloaded.set(true);
             return Cell { boxes: SOLID, flags: UNLOADED, block: u32::MAX, liquid: u32::MAX };
         };
-        let Some(state) = self.registry.get(block) else { return Cell { boxes: SOLID, flags: 0, block, liquid } };
+        let entity = if self.hazards.as_ref().is_some_and(|h| h.closed(p)) { ENTITY | AVOID } else { 0 };
+        let Some(state) = self.registry.get(block) else { return Cell { boxes: SOLID, flags: entity, block, liquid } };
         let liquid_flags = self.registry.get(liquid).map_or(0, |s| state_flags(s) & (WATER | LIQUID | AVOID | DANGER_NEAR));
-        Cell { boxes: state.boxes, flags: state_flags(state) | liquid_flags, block, liquid }
+        Cell { boxes: state.boxes, flags: state_flags(state) | liquid_flags | entity, block, liquid }
     }
 
     pub(crate) fn registry(&self) -> &'r BlockRegistry {

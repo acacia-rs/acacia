@@ -5,9 +5,12 @@ mod shortcuts;
 mod steer;
 mod work;
 
+use std::sync::Arc;
+
 use acacia_physics::{Vec3, WorldView};
 
 use super::follow_macro::{MacroReport, MacroRunner, MacroStep};
+use super::hazard::Hazards;
 use super::moves::MoveKind;
 use super::profile::{Aim, MovementProfile};
 use super::rollout::Spend;
@@ -71,6 +74,8 @@ pub struct Follower {
     ends_at_goal: bool,
     /// What the last tick simulated.
     spend: Spend,
+    /// The entities now: a shortcut may not pass nearer them than the nodes it skips.
+    hazards: Option<Arc<Hazards>>,
 }
 
 fn center(n: &PathNode) -> Vec3 {
@@ -89,7 +94,7 @@ impl Follower {
     /// `tolerance`: how close (horizontally, blocks) to the final node's centre counts as arrived.
     pub fn new(path: Vec<PathNode>, start: Vec3, tolerance: f32) -> Self {
         let (macros, aim, spend) = (MacroRunner::default(), Aim::new(MovementProfile::Optimal, 0), Spend::default());
-        Self { path, index: 0, worked: false, origin: start, last_pos: None, best_dist: f32::INFINITY, since_progress: 0, tolerance, macros, aim, rng: 0, shortcuts: false, tried: None, ends_at_goal: true, spend }
+        Self { path, index: 0, worked: false, origin: start, last_pos: None, best_dist: f32::INFINITY, since_progress: 0, tolerance, macros, aim, rng: 0, shortcuts: false, tried: None, ends_at_goal: true, spend, hazards: None }
     }
 
     /// Moves like `profile` (default `Optimal`), every aim jittered from `seed` for `Human`.
