@@ -157,6 +157,17 @@ floating (in a water block with none above, below its top): depth = clamp((1 −
 - The big waves cannot be predicted, so the vertical position drifts and BDS corrects (a vanilla client too: most
   ticks in the capture). A correction's vertical motion gives the wave's sine back; of the two phases with that
   sine the bot takes the one a correction up to 8 ticks before agrees with. It then replays the inputs sent since.
+- Where the big waves come from (bdsre, Windows BDS 1.26.52, 2026-10-28): the wave step (1483a9b40, run per
+  `BuoyancyComponent` entity per tick by the view 1483a9ea0) draws `random.nextFloat()` and multiplies the step
+  by the component's 10 when the draw is ≤ its 0.03. The random is the one `RandomComponent` (lookup 141c638c0),
+  emplaced only on the entity registry's context entity (143719070, called from the level setup 1407a8bf0): a
+  single MT19937 `Random` shared by every buoyant entity's wave and by the step, gallop, breath and bounce sound
+  systems of all actors. That `Random` is default-constructed (14168b430): its 32-bit seed is the next draw of a
+  thread-local MT19937 that is itself seeded from a 4-byte read of an entropy source (1411889d0), not from the
+  world seed, the time or the entity. A client sees none of the other draws and only learns of a big wave from
+  the correction that follows it, so the server's waves cannot be predicted; brute-forcing the seed would also
+  need the draw count since the server started. A vanilla driver is corrected on most boat ticks for the same
+  reason (`docs/physics-handoff-glide-vehicles.md`).
 - The correction carries position, motion, yaw and the yaw's speed (`angular_velocity`).
 - Inputs: position and delta are the boat's, `vehicle_rotation = (0, yaw)`, WASD flags, PaddlingLeft/Right with
   Left/Right. The paddling flags are only read for touch with the classic interaction model (bdsre).
