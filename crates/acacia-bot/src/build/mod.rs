@@ -19,6 +19,7 @@ mod process;
 mod reach;
 mod restock;
 mod rules;
+pub mod sight_stats;
 mod status;
 mod structure;
 mod survey;

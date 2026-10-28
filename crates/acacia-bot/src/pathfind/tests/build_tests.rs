@@ -122,6 +122,7 @@ fn house16_from(g: &Grid, start: [f32; 3]) {
     eprintln!("{ticks} ticks, {st:?}");
     explain(&w, &s, ORIGIN).iter().take(30).for_each(|l| eprintln!("OPEN {l}"));
     eprintln!("scaffold left {:?}", scaffold_left(g));
+    eprint!("{}", crate::build::sight_stats::dump());
     assert_eq!(arb.outcome(id), Some(&Ok(())), "status {st:?}");
     assert_eq!(wrong(g, &s), Vec::new());
     assert_eq!(scaffold_left(g), Vec::<BlockPos>::new());

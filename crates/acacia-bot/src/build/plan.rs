@@ -213,7 +213,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         let slack = if walking { super::en_route::SLACK } else { 0.0 };
         if free(b, cx, pos)
             && super::pairs::second(b, pos).is_none_or(|o| free(b, cx, o))
-            && let Some(c) = click_for(pos, target, eye, cx.look, slack)
+            && let Some(c) = super::sight_stats::at("from here", || click_for(pos, target, eye, cx.look, slack))
         {
             let act = rules::redstone::act(item.clone(), c.against, c.face, c.click, pos);
             // A bucket pours along the look, so a pour (or till) made on the move lands elsewhere (live 2026-10-28).

@@ -5,6 +5,7 @@ use acacia_physics::{BlockPos, Vec3};
 use acacia_world::{BlockAccess, BlockRegistry};
 
 use super::rules;
+use super::sight_stats::{self, Stage};
 use super::structure::Block;
 use crate::interact::sight::Sight;
 use crate::interact::Face;
@@ -112,18 +113,37 @@ fn points(face: Face, against: &BlockView) -> Vec<Vec3> {
 pub fn click_for(pos: BlockPos, target: &Block, eye: Vec3, look: &dyn Look, slack: f32) -> Option<Click> {
     let world = LookBlocks(look);
     let sight = Sight { world: &world, registry: BlockRegistry::vanilla() };
+    let (mut stage, mut hidden) = (Stage::NothingToClick, None);
     for face in Face::ALL {
         let o = face.offset();
         let against = [pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]];
         let Some(b) = look.block(against) else { continue };
-        if !b.solid() || b.interactive || !sees(eye, against, face) || !within(eye, against, slack) {
+        let reached = match () {
+            _ if !b.solid() || b.interactive => Stage::NothingToClick,
+            _ if !sees(eye, against, face) => Stage::FaceAway,
+            _ if !within(eye, against, slack) => Stage::OutOfReach,
+            _ => Stage::Hidden,
+        };
+        if reached != Stage::Hidden {
+            stage = stage.max(reached);
             continue;
         }
         let into = look.block(pos).is_some_and(|t| t.solid()).then_some(pos);
-        let visible = |c: &Vec3| sight.sees_face_into(eye, against, face, std::array::from_fn(|i| against[i] as f32 + c[i]), into);
-        let Some(click) = points(face, &b).into_iter().find(|c| rules::gives(target, face, *c, eye, pos, &b) && visible(c)) else { continue };
-        return Some(Click { against, face, click });
+        let at = |c: &Vec3| std::array::from_fn(|i| against[i] as f32 + c[i]);
+        let giving: Vec<Vec3> = points(face, &b).into_iter().filter(|c| rules::gives(target, face, *c, eye, pos, &b)).collect();
+        if let Some(&click) = giving.iter().find(|c| sight.sees_face_into(eye, against, face, at(c), into)) {
+            sight_stats::count(|| "ok".into());
+            return Some(Click { against, face, click });
+        }
+        stage = stage.max(if giving.is_empty() { Stage::NoPointGivesState } else { Stage::Hidden });
+        if sight_stats::enabled() && hidden.is_none() && !giving.is_empty() {
+            hidden = Some(sight_stats::blocker(&world, eye, at(&giving[0]), pos, against));
+        }
     }
+    sight_stats::count(|| match stage {
+        Stage::Hidden => hidden.unwrap_or_default(),
+        s => format!("{s:?}"),
+    });
     None
 }
 
