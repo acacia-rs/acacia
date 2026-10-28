@@ -7,10 +7,9 @@ use std::sync::{Arc, Mutex};
 use acacia_physics::BlockPos;
 
 use super::job::BuildJob;
-use super::plan;
 use super::status::{BuildStatus, Phase, StatusHandle};
 use super::structure::{Block, Structure, StructureError};
-use super::survey::{need, Need};
+use super::survey::{need_with_text, Need};
 use crate::pathfind::process::Look;
 use crate::ActionError;
 
@@ -31,12 +30,16 @@ const MAX_REVIVES: u32 = 3;
 pub(super) struct Cell {
     pub pos: BlockPos,
     pub target: Block,
+    /// A sign's text to write.
+    pub text: Option<super::structure::SignText>,
 }
 
 #[derive(Default)]
 pub(super) struct Tries {
     pub fails: u32,
     pub places: u32,
+    /// Placements counted as adding to the cell (`rules::more_placements`), not as placing it again.
+    pub adds: u32,
     /// Times nowhere was found to do it from.
     pub rests: u32,
     pub revives: u32,
@@ -85,6 +88,9 @@ pub struct Builder {
     pub(super) commit: Option<(BlockPos, crate::pathfind::Goal)>,
     /// The goal the pilot reached: asking for it again would only hold still (the arbiter keeps an arrived route).
     pub(super) arrived: Option<crate::pathfind::Goal>,
+    /// (task, stand) pairs tried since the last act (`arrival::missed`); `settling`: the stand driven to its centre.
+    pub(super) tried: Vec<(BlockPos, BlockPos)>,
+    pub(super) settling: Option<BlockPos>,
     /// Stand feet the pilot failed to reach, until the tick.
     pub(super) avoid: HashMap<BlockPos, u64>,
     /// Cells with a thin target (`rules::thin`): the pilot keeps the body out of them (`SearchOpts::no_body`).
@@ -126,7 +132,7 @@ impl Builder {
         let cells: Vec<Cell> = structure
             .cells()
             .filter(|(_, b)| b.name != "minecraft:structure_void")
-            .map(|(local, b)| Cell { pos: job.at.apply(structure.size, local), target: job.at.block(b) })
+            .map(|(local, b)| Cell { pos: job.at.apply(structure.size, local), target: job.at.block(b), text: structure.text(local).cloned() })
             .collect();
         let index = cells.iter().enumerate().map(|(i, c)| (c.pos, i)).collect();
         let thin = Arc::new(cells.iter().filter(|c| super::rules::thin(&c.target.name)).map(|c| c.pos).collect());
@@ -147,6 +153,8 @@ impl Builder {
             restock: None,
             commit: None,
             arrived: None,
+            tried: Vec::new(),
+            settling: None,
             avoid: HashMap::new(),
             thin,
             failed_walks: 0,
@@ -169,14 +177,14 @@ impl Builder {
     /// Why each open placement is not being done from `feet` (tests).
     #[cfg(test)]
     pub(crate) fn explain(&self, look: &dyn Look, feet: acacia_physics::Vec3) -> Vec<String> {
-        plan::explain(self, look, feet)
+        super::explain::explain(self, look, feet)
     }
 
     /// Diagnostics: each open placement in `bot`'s world, with the click it has from where the bot stands and the
     /// stands it could use (a builder for the same job, outside the processes).
     pub fn explain_for(&self, bot: &crate::Bot) -> Vec<String> {
         let Some(feet) = bot.movement().and_then(|m| m.position()) else { return Vec::new() };
-        plan::explain(self, &crate::pathfind::process::run::BotLook(bot), feet)
+        super::explain::explain(self, &crate::pathfind::process::run::BotLook(bot), feet)
     }
 
     pub(super) fn target(&self, pos: BlockPos) -> Option<&Block> {
@@ -245,7 +253,10 @@ impl Builder {
     }
 
     pub(super) fn survey(&self, look: &dyn Look) -> Vec<Need> {
-        self.cells.iter().map(|c| need(&c.target, look.block(c.pos), self.job.fill_only)).collect()
+        let mut needs: Vec<Need> = self.cells.iter().map(|c| need_with_text(&c.target, c.text.as_ref(), c.pos, look, self.job.fill_only)).collect();
+        super::pairs::settle(&self.cells, &self.index, look, self.job.fill_only, &mut needs);
+        super::rules::redstone_order::settle(&self.cells, look, &|p| self.target(p).cloned(), &mut needs);
+        needs
     }
 
     /// Learns what a station lacks from what the last restock brought.
@@ -261,7 +272,7 @@ impl Builder {
     pub(super) fn publish(&self, needs: &[Need], look: &dyn Look, phase: Phase, missing: Vec<String>) {
         let Ok(mut s) = self.status.lock() else { return };
         let count = |n: Need| needs.iter().filter(|x| **x == n).count();
-        (s.done, s.to_place, s.to_break, s.unknown, s.kept) = (count(Need::Done), count(Need::Place), count(Need::Break) + count(Need::Drain), count(Need::Unknown), count(Need::Kept));
+        (s.done, s.to_place, s.to_break, s.unknown, s.kept) = (count(Need::Done), count(Need::Place) + count(Need::Adjust), count(Need::Break) + count(Need::Drain), count(Need::Unknown), count(Need::Kept));
         s.unsupported = self.cells.iter().zip(needs).filter(|(_, n)| **n == Need::Unsupported).map(|(c, _)| (c.pos, c.target.name.clone())).collect();
         s.failed = self.tries.iter().filter_map(|(p, t)| t.why().map(|w| (*p, w))).collect();
         s.scaffold = self.scaffold.iter().filter(|p| look.solid(**p) == Some(true)).count();

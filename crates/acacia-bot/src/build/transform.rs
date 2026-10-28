@@ -43,7 +43,11 @@ const DIR_STATES: &[(&str, [&str; 4])] = &[
     ("weirdo_direction", ["3", "0", "2", "1"]),
     ("torch_facing_direction", ["north", "east", "south", "west"]),
     ("direction", ["2", "3", "0", "1"]),
+    ("vine_direction_bits", ["4", "8", "1", "2"]),
+    ("block_face", ["north", "east", "south", "west"]),
 ];
+/// Trapdoors name `direction` as stairs do.
+const TRAPDOOR_DIRECTION: [&str; 4] = ["3", "0", "2", "1"];
 
 impl Transform {
     /// World cell of local `p` in a structure of `size`.
@@ -73,12 +77,29 @@ impl Transform {
             .props
             .split(',')
             .filter_map(|kv| kv.split_once('='))
-            .map(|(k, v)| format!("{k}={}", self.value(k.trim_start_matches("minecraft:"), v)))
+            .map(|(k, v)| format!("{k}={}", self.value(&b.name, k.trim_start_matches("minecraft:"), v)))
             .collect();
-        Block::new(&b.name, &props.join(","))
+        let turned = Block::new(&b.name, &props.join(","));
+        if self.mirror { super::rules::twocell::mirror_door(turned) } else { turned }
     }
 
-    fn value<'a>(&self, key: &str, v: &'a str) -> &'a str {
+    fn value(&self, name: &str, key: &str, v: &str) -> String {
+        match key {
+            "rail_direction" => super::rules::redstone::turned_rail(v, self.turns, self.mirror).to_string(),
+            // Sixteenths of a turn from south, clockwise seen from above (west is 4).
+            "ground_sign_direction" => match v.parse::<u32>() {
+                Ok(r) => ((if self.mirror { 16 - r } else { r } + 4 * u32::from(self.turns % 4)) % 16).to_string(),
+                Err(_) => v.to_string(),
+            },
+            "lever_direction" => match v.split_once('_') {
+                Some((end, axis)) => format!("{end}_{}", self.value(name, "pillar_axis", if axis == "north_south" { "z" } else { "x" }).replace('z', "north_south").replace('x', "east_west")),
+                None => self.value(name, "cardinal_direction", v),
+            },
+            _ => self.plain(name, key, v).to_string(),
+        }
+    }
+
+    fn plain<'a>(&self, name: &str, key: &str, v: &'a str) -> &'a str {
         if key == "pillar_axis" && self.turns % 2 == 1 {
             return match v {
                 "x" => "z",
@@ -86,7 +107,8 @@ impl Transform {
                 v => v,
             };
         }
-        let Some((_, names)) = DIR_STATES.iter().find(|(k, _)| *k == key) else { return v };
+        let trapdoor = (key == "direction" && name.ends_with("trapdoor")).then_some(&TRAPDOOR_DIRECTION);
+        let Some(names) = trapdoor.or_else(|| DIR_STATES.iter().find(|(k, _)| *k == key).map(|(_, n)| n)) else { return v };
         match names.iter().position(|n| *n == v) {
             Some(i) => names[Dir::ALL[i].turned(self) as usize],
             None => v,

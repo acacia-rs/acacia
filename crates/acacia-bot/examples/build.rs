@@ -11,7 +11,10 @@ use std::time::Instant;
 use acacia_bot::build::{BuildJob, BuildStatus, Builder, Phase};
 use support::{house, Error};
 
-const LINGER: u32 = 200;
+/// Ticks to stay after the build: a cell BDS is still mining out (an unfinished break) only shows up later.
+fn linger(scene: &str) -> u32 {
+    env("LINGER", if scene == "house16" { 200 } else { 60 })
+}
 
 fn env<T: std::str::FromStr>(name: &str, default: T) -> T {
     std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
@@ -53,8 +56,7 @@ async fn main() -> Result<(), Error> {
         pad.go_home(&mut b).await?;
         b.disconnect().await;
     } else {
-        // Stay a while: a cell BDS is still mining out (an unfinished break) only shows up later.
-        a.wait_ticks(LINGER).await?;
+        a.wait_ticks(linger(&scene)).await?;
         pad.go_home(&mut a).await?;
         a.disconnect().await;
     }
