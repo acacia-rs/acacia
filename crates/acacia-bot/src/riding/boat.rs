@@ -71,6 +71,12 @@ impl BoatSim {
 }
 
 impl Bot {
+    /// The simulated boat the bot drives, as of its last input (corrections arriving since not yet applied).
+    pub fn boat_state(&self) -> Option<BoatState> {
+        let vehicle = self.state.riding.vehicle.as_ref()?;
+        self.ride.boat.as_ref().filter(|b| b.unique_id == vehicle.unique_id).map(|b| b.st)
+    }
+
     /// Simulates the boat the bot drives for this tick and reports it in `input`: the boat's
     /// position, motion and yaw, the rider's keys and paddles. False when not driving a boat.
     pub(super) fn drive_boat(&mut self, input: &mut PlayerAuthInput) -> bool {
