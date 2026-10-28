@@ -3,6 +3,7 @@
 use super::greedy::corner_ao;
 use super::liquid::liquid;
 use super::quad::{AXES, DIRS, Quad, Surface, quantize};
+use super::vertex_light::{box_face, cross, model_face};
 use super::{Ctx, SectionMesh, model};
 use crate::blocks::placed::Random;
 use crate::blocks::{Box16, Layer, Material, ModelFace, RenderBlock, Shape};
@@ -51,14 +52,17 @@ fn emit_box(ctx: &Ctx, p: [i32; 3], bx: &Box16, b: &RenderBlock, out: &mut Secti
             continue;
         }
         let on_edge = if positive { max[axis] == 16 } else { min[axis] == 0 };
-        if on_edge && ctx.block(neighbour(p, face)).occludes {
+        if on_edge && !ctx.shows(p, face) {
             continue;
         }
         let mut pos = [0u32; 3];
         pos[axis] = (p[axis] * 16) as u32 + u32::from(if positive { max[axis] } else { min[axis] });
         pos[ua] = (p[ua] * 16) as u32 + u32::from(min[ua]);
         pos[va] = (p[va] * 16) as u32 + u32::from(min[va]);
-        let quad = Quad::new(pos, face as u8, [u32::from(size[0]), u32::from(size[1])], ctx.surface(p, b, face), NO_AO);
+        let mut quad = Quad::new(pos, face as u8, [u32::from(size[0]), u32::from(size[1])], ctx.surface(p, b, face), NO_AO);
+        if let Some(l) = &ctx.lighter() {
+            quad = quad.lit(box_face(l, p, face as u8, min, max));
+        }
         push(out, b, quad);
     }
 }
@@ -68,17 +72,21 @@ fn emit_model(ctx: &Ctx, p: [i32; 3], faces: &[ModelFace], b: &RenderBlock, out:
     let shift = b.offset.map_or([0.0; 3], |o| o.at(wx, wz));
     let origin = [0, 1, 2].map(|i| (p[i] as f32 + shift[i]) * 16.0);
     for f in faces {
-        if f.cull.is_some_and(|side| ctx.block(neighbour(p, usize::from(side))).occludes) {
+        if f.cull.is_some_and(|side| !ctx.shows(p, usize::from(side))) {
             continue;
         }
         let corners = f.corners.map(|c| [c[0] + origin[0], c[1] + origin[1], c[2] + origin[2]]);
         let surface =
             Surface { texture: f.texture, tint_kind: f.tint.shader_kind(), material: f.material, color: quantize(ctx.tint(p, f.tint)), turn: 0 };
+        let lighter = ctx.lighter();
         let ao = match f.shade {
-            Some(side) if f.ambient_occlusion && b.layer == Layer::Solid => model_ao(ctx, p, f, side),
+            Some(side) if f.ambient_occlusion && b.layer == Layer::Solid && lighter.is_none() => model_ao(ctx, p, f, side),
             _ => NO_AO,
         };
-        let records = model::records(corners, f.uv, f.shade.unwrap_or(model::UNSHADED), surface, ao);
+        let mut records = model::records(corners, f.uv, f.shade.unwrap_or(model::UNSHADED), surface, ao);
+        if let Some(l) = &lighter {
+            records[0] = records[0].lit(model_face(l, p, f));
+        }
         if b.layer == Layer::Translucent { out.translucent.extend(records) } else { out.solid.extend(records) }
     }
 }
@@ -102,8 +110,10 @@ fn model_ao(ctx: &Ctx, p: [i32; 3], f: &ModelFace, side: u8) -> [u8; 4] {
 fn emit_cross(ctx: &Ctx, p: [i32; 3], b: &RenderBlock, out: &mut SectionMesh) {
     let pos = p.map(|c| (c * 16) as u32);
     let surface = Surface { material: Material::Cutout, ..ctx.surface(p, b, 0) };
+    let light = ctx.lighter().map(|l| cross(&l, p));
     for face in 6..10 {
-        push(out, b, Quad::new(pos, face, [16, 16], surface, NO_AO));
+        let quad = Quad::new(pos, face, [16, 16], surface, NO_AO);
+        push(out, b, light.map_or(quad, |light| quad.lit(light)));
     }
 }
 
@@ -134,7 +144,7 @@ mod tests {
         v.blocks[cell(5, 5, 5)] = 2;
         stone.iter().for_each(|&[x, y, z]| v.blocks[cell(x, y, z)] = 1);
         let mut out = SectionMesh::default();
-        others(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default() }, &mut out);
+        others(&Ctx { v: &v, table: &table, biomes: &BiomeColors::default(), cells: None }, &mut out);
         out.solid[0].0[0] >> 4 & 0xff
     }
 

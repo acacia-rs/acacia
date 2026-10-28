@@ -35,6 +35,8 @@ pub(crate) struct Reflexes {
     pub in_bed: bool,
     /// The entity the last `Interact` mouse-over reported under the crosshair.
     pub hovered: Option<u64>,
+    /// No attack before this ([`crate::human::ATTACK_GAP`] after the last).
+    pub attack_ready: Option<tokio::time::Instant>,
     legacy_id: i32,
 }
 

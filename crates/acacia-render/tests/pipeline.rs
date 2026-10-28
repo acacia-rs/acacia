@@ -225,7 +225,7 @@ fn geyser_chunks_light_on_the_light_thread() {
     let world = view.world().clone();
     let columns = world.chunk_positions();
     let start = Instant::now();
-    let lighting = Lighting::new(world.clone());
+    let lighting = Lighting::new(world.clone(), &BlockTable::from_blocks(Vec::new()));
     let (mut lit, mut touched) = (0, 0);
     // A batch's world changes come before its light changes; stop once both go quiet.
     let mut wait = Duration::from_secs(10);

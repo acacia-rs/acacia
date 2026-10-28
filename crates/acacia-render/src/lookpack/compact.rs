@@ -94,6 +94,7 @@ mod tests {
             states: Default::default(),
             distinct: Default::default(),
             atlas: Atlas { layers: (0..5).map(|i| grey(i * 10)).collect(), animations: vec![animation(1), animation(3)] },
+            light_shapes: Vec::new(),
             files: Default::default(),
         };
         pack.set_block("minecraft:stone".into(), BlockTable::cube(1));

@@ -44,11 +44,6 @@ impl Storage {
 
 const END: &[u8] = &[0];
 
-fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    let Some((&first, rest)) = needle.split_first() else { return true };
-    haystack.iter().enumerate().any(|(i, &b)| b == first && haystack[i + 1..].starts_with(rest))
-}
-
 impl<F: Flavor> Raw<F> {
     pub fn read(r: &mut &[u8]) -> Result<Self> {
         Self::read_lossy(r).map(|(raw, _)| raw)
@@ -73,10 +68,6 @@ impl<F: Flavor> Raw<F> {
 
     /// `self.decode()?.value.get(key)` when that is a string, without decoding the rest.
     pub fn root_string(&self, key: &str) -> Result<Option<std::borrow::Cow<'_, str>>> {
-        // A key whose bytes appear nowhere is absent; walking the tags would only prove it.
-        if !contains(self.as_bytes(), key.as_bytes()) {
-            return Ok(None);
-        }
         crate::skip::root_string::<F>(self.as_bytes(), key)
     }
 

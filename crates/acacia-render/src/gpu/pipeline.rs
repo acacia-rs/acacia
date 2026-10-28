@@ -36,6 +36,7 @@ impl Pipelines {
                 }),
                 entry(4, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
                 entry(5, storage),
+                entry(6, storage),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -57,8 +58,9 @@ impl Pipelines {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
                     depth_write_enabled: Some(depth_write),
-                    // Reverse-Z: nearer is larger.
-                    depth_compare: Some(wgpu::CompareFunction::Greater),
+                    // Reverse-Z: nearer is larger. Equal passes, as Java's LEQUAL: a grass side's overlay
+                    // quad lies on the side drawn before it.
+                    depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                     stencil: Default::default(),
                     bias: Default::default(),
                 }),
@@ -99,6 +101,7 @@ pub fn bind_group(
             wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(textures) },
             wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::Sampler(sampler) },
             wgpu::BindGroupEntry { binding: 5, resource: store.light.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 6, resource: store.vertex_light.as_entire_binding() },
         ],
     })
 }

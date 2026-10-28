@@ -53,8 +53,10 @@ impl Ring {
 pub(crate) struct PacketTrace(Arc<Mutex<Ring>>);
 
 impl PacketTrace {
-    pub(crate) fn record(&self, id: u32, at: Instant) {
-        self.lock().push(id, at);
+    /// One lock for a pass's packets: a lock each was 2.6% of a redstone swarm.
+    pub(crate) fn record(&self, ids: &[u32], at: Instant) {
+        let mut ring = self.lock();
+        ids.iter().for_each(|&id| ring.push(id, at));
     }
 
     pub(crate) fn summary(&self) -> PacketTraceSummary {
@@ -110,9 +112,9 @@ mod tests {
         let t0 = Instant::now();
         for i in 0..300u64 {
             let id = if i % 2 == 0 { SetTime::ID } else { Text::ID };
-            trace.record(id, t0 + Duration::from_millis(i));
+            trace.record(&[id], t0 + Duration::from_millis(i));
         }
-        trace.record(9999, t0 + Duration::from_millis(300));
+        trace.record(&[9999], t0 + Duration::from_millis(300));
         let s = trace.summary_at(t0 + Duration::from_millis(350));
         assert_eq!((s.total, s.silent_ms), (301, Some(50)));
         assert_eq!(s.counts_by_name.values().sum::<u32>(), RING as u32);

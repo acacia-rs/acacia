@@ -8,10 +8,11 @@
 
 use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
+use std::pin::Pin;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use tokio::time::Instant;
+use tokio::time::{Instant, Sleep};
 
 /// `ACACIA_TICK_SCALE`, read once; anything but a finite positive number is 1.
 pub(crate) fn tick_scale() -> f64 {
@@ -116,6 +117,9 @@ pub(crate) struct Ticker {
     /// machine's timing where the timer is exact.
     lag: Option<u64>,
     lag_rng: u64,
+    /// One timer for the bot's life: [`Self::wait`] runs in a `select!` per packet, and a fresh sleep each
+    /// time registered and cleared a timer-wheel entry.
+    sleep: Pin<Box<Sleep>>,
 }
 
 impl Ticker {
@@ -123,12 +127,17 @@ impl Ticker {
         let mut cadence = Cadence::with_scale(seed(), tick_scale());
         let next = cadence.next(Duration::ZERO);
         let lag = std::env::var("ACACIA_TICK_LAG_MS").ok().and_then(|ms| ms.parse().ok());
-        Self { start: Instant::now(), cadence, next, lag, lag_rng: seed() }
+        let start = Instant::now();
+        Self { start, cadence, next, lag, lag_rng: seed(), sleep: Box::pin(tokio::time::sleep_until(start + next.at)) }
     }
 
     /// Waits for the next firing and returns how many ticks to run. Cancel-safe.
     pub async fn wait(&mut self) -> u32 {
-        tokio::time::sleep_until(self.start + self.next.at).await;
+        let at = self.start + self.next.at;
+        if self.sleep.deadline() != at {
+            self.sleep.as_mut().reset(at);
+        }
+        self.sleep.as_mut().await;
         if let Some(lag) = self.lag {
             // One wake-up in fifty hangs for twenty times the usual lateness.
             let late = splitmix(&mut self.lag_rng) % (lag + 1) * if splitmix(&mut self.lag_rng).is_multiple_of(50) { 20 } else { 1 };
@@ -137,6 +146,11 @@ impl Ticker {
         let ticks = self.next.ticks;
         self.next = self.cadence.next(self.start.elapsed());
         ticks
+    }
+
+    /// Whether the next firing's time has come ([`Self::wait`] would not sleep).
+    pub fn due(&self) -> bool {
+        Instant::now() >= self.start + self.next.at
     }
 
     /// A frame hitch: the next firing comes `pause` later and carries two ticks, as vanilla's do.

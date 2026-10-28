@@ -15,7 +15,11 @@ pub(crate) fn skip_checking_utf8<F: Flavor>(r: &mut &[u8]) -> Result<bool> {
 
 /// The string under `key` in a root compound, as [`crate::Value::get`] on the decoded document
 /// would find it (first match, invalid UTF-8 replaced), with every other entry skipped unbuilt.
-pub(crate) fn root_string<'a, F: Flavor>(mut doc: &'a [u8], key: &str) -> Result<Option<std::borrow::Cow<'a, str>>> {
+pub fn root_string<'a, F: Flavor>(mut doc: &'a [u8], key: &str) -> Result<Option<std::borrow::Cow<'a, str>>> {
+    // A key whose bytes appear nowhere is absent; walking the tags would only prove it.
+    if !key.is_empty() && memchr::memmem::find(doc, key.as_bytes()).is_none() {
+        return Ok(None);
+    }
     let r = &mut doc;
     if read_u8(r)? != 10 {
         return Ok(None);

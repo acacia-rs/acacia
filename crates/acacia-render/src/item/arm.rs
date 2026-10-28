@@ -72,6 +72,7 @@ fn arm(wearer: &Wearer, camera: &Camera, left: bool, placed: Mat4) -> EntityInst
         pose: Pose::default(),
         frame: Some(view * placed * to_java()),
         hurt: false,
+        white: 0.0,
         glint: None,
     }
 }

@@ -2,10 +2,8 @@
 
 use glam::{IVec3, Mat4, Vec3};
 
-use crate::look::Look;
-
-/// Brightness of unlit blocks, with and without sky light (Java's nether ambient is 0.1).
-const AMBIENT: (f32, f32) = (0.02, 0.1);
+use crate::light::lightmap::{self, Table};
+use crate::look::{Lighting, Look};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -22,8 +20,10 @@ pub(super) struct Globals {
     haze: [f32; 4],
     /// [`Look::ambient_occlusion`].
     ao: [f32; 4],
-    /// x: ambient brightness, y: [`crate::sky::Sky::darken`].
+    /// x: 1 for [`Lighting::Java`], y: 1 for Java's `ENTITY_IN_UI` lights ([`Globals::in_pictures`]).
     light: [f32; 4],
+    /// [`lightmap::packed`].
+    lightmap: [[u32; 4]; 64],
 }
 
 impl Globals {
@@ -37,8 +37,7 @@ impl Globals {
         fog_end: f32,
         look: &Look,
         haze: Option<(f32, f32)>,
-        has_sky: bool,
-        darken: f32,
+        lightmap: &Table,
     ) -> Globals {
         let flag = |on: bool| f32::from(u8::from(on));
         let (haze_start, haze_end) = haze.unwrap_or_default();
@@ -51,7 +50,26 @@ impl Globals {
             fog_shape: [look.fog.start(fog_end), flag(look.fog.cylinder), flag(look.fog.linear), 0.0],
             haze: [haze_start, haze_end, 0.0, 0.0],
             ao: look.ambient_occlusion,
-            light: [if has_sky { AMBIENT.0 } else { AMBIENT.1 }, darken, 0.0, 0.0],
+            light: [flag(look.lighting == Lighting::Java), 0.0, 0.0, 0.0],
+            lightmap: lightmap::packed(lightmap),
+        }
+    }
+
+    /// These globals for pictures-in-picture drawn into a `window`-sized texture: positions in
+    /// window pixels (y down, z towards the viewer, ±1000 deep as `PictureInPictureRenderer`'s
+    /// ortho), no fog, the inventory's lights.
+    pub(super) fn in_pictures(self, [width, height]: [u32; 2]) -> Globals {
+        let (w, h) = (width as f32, height as f32);
+        let ortho = Mat4::from_cols_array(&[2.0 / w, 0.0, 0.0, 0.0, 0.0, -2.0 / h, 0.0, 0.0, 0.0, 0.0, 1.0 / 2000.0, 0.0, -1.0, 1.0, 0.5, 1.0]);
+        Globals {
+            view_proj: ortho.to_cols_array_2d(),
+            cam_block: [0; 4],
+            cam_frac: [0.0; 4],
+            fog: [0.0, 0.0, 0.0, f32::MAX],
+            fog_shape: [f32::MAX / 2.0, 0.0, 1.0, 0.0],
+            haze: [0.0; 4],
+            light: [self.light[0], 1.0, 0.0, 0.0],
+            ..self
         }
     }
 }
@@ -68,7 +86,10 @@ mod tests {
     use super::Globals;
 
     /// Every shader module, as the pipelines assemble them.
-    const MODULES: [(&str, &str); 5] = [
+    const MODULES: [(&str, &str); 8] = [
+        ("weather", concat!(include_str!("globals.wgsl"), include_str!("weather.wgsl"))),
+        ("bolts", concat!(include_str!("globals.wgsl"), include_str!("bolts.wgsl"))),
+        ("clouds", concat!(include_str!("globals.wgsl"), include_str!("clouds.wgsl"))),
         ("sign text", concat!(include_str!("globals.wgsl"), include_str!("sign_text.wgsl"))),
         ("screen effect", concat!(include_str!("globals.wgsl"), include_str!("screen_effect.wgsl"))),
         ("terrain", concat!(include_str!("globals.wgsl"), include_str!("terrain.wgsl"), include_str!("light.wgsl"), include_str!("model.wgsl"))),

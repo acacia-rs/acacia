@@ -16,6 +16,26 @@ pub struct Layer {
     /// Bit per bone of [`super::Mesh::bones`] that is not drawn.
     pub hidden: [u32; 4],
     pub blend: Blend,
+    pub fade: Fade,
+}
+
+/// How much of a layer shows over time: the alpha functions of Java's `LivingEntityEmissiveLayer`.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum Fade {
+    #[default]
+    Full,
+    /// `max(0, cos(age · 0.045 + phase)) · 0.25`: a warden's pulsating spots (`WardenRenderer`).
+    Pulse(f32),
+}
+
+impl Fade {
+    /// The alpha at `age_ticks`; Java skips a layer at or below 1e-5.
+    pub fn alpha(self, age_ticks: f32) -> f32 {
+        match self {
+            Fade::Full => 1.0,
+            Fade::Pulse(phase) => ((age_ticks * 0.045 + phase).cos() * 0.25).max(0.0),
+        }
+    }
 }
 
 /// How a layer goes onto the frame.
@@ -29,6 +49,13 @@ pub enum Blend {
     Swirl,
     /// Written to the depth only, after the opaque layers: hides the water behind it (a boat's hull).
     Mask,
+    /// Over what is behind by the texture's alpha, unlit (Java's `eyes`: a spider's eyes).
+    Eyes,
+    /// A whole body over what is behind by its texture's alpha, writing depth so it hides its
+    /// own far side (Java's `entity_translucent` models: piglins, allays, vexes, breezes).
+    Translucent,
+    /// Over what is behind by the texture's alpha, its texture sliding sideways (a breeze's wind).
+    Wind,
 }
 
 /// Materials blended by their texture's alpha: the shells of slimes and sulfur cubes.
@@ -52,7 +79,7 @@ impl Blend {
 impl Layer {
     /// `model` in one texture, opaque.
     pub fn plain(model: ModelId, texture: TextureId) -> Layer {
-        Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, dye: None, hidden: [0; 4], blend: Blend::Opaque }
+        Layer { model, textures: [texture, NO_TEXTURE, NO_TEXTURE], tint: None, dye: None, hidden: [0; 4], blend: Blend::Opaque, fade: Fade::Full }
     }
 }
 

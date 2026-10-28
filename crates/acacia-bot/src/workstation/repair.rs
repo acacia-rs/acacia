@@ -3,7 +3,7 @@
 //! has to predict it. Values are vanilla's (Java and Bedrock agree).
 
 /// Maximum durability of a repairable item, `None` for items without durability.
-pub(crate) fn max_durability(name: &str) -> Option<u16> {
+pub fn max_durability(name: &str) -> Option<u16> {
     let item = name.strip_prefix("minecraft:").unwrap_or(name);
     let fixed = match item {
         "elytra" => Some(432),

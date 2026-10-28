@@ -6,7 +6,7 @@ use std::sync::{Arc, LazyLock};
 
 use glam::{DVec3, Mat4, Quat, Vec3};
 
-use crate::entity::bake::{Joint, Mesh, Vertex};
+use crate::entity::bake::{Mesh, Vertex};
 use crate::entity::{EntityInstance, Layer, NO_MODEL, NO_TEXTURE, Pose, Skin};
 
 const LINE_SEGMENTS: usize = 16;
@@ -53,8 +53,7 @@ fn unit_box() -> Mesh {
             vertices.extend([c[0], c[1], c[2], c[0], c[2], c[3]]);
         }
     }
-    let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
-    Mesh { vertices, bones: vec!["root".into()], joints: vec![joint] }
+    Mesh::one_bone(vertices)
 }
 
 /// The points a rope hangs through, from `end` (the bobber's feet, or where the lead ties to the
@@ -87,7 +86,7 @@ pub fn instances(rope: Rope, end: DVec3, holder: DVec3, camera: DVec3) -> Vec<En
             let (middle, along) = ((ends[0] + ends[1]) / 2.0, (ends[1] - ends[0]).as_vec3());
             let turn = Quat::from_rotation_arc(Vec3::X, along.try_normalize().unwrap_or(Vec3::X));
             let frame = Mat4::from_translation((middle - camera).as_vec3()) * Mat4::from_quat(turn) * Mat4::from_scale(Vec3::new(along.length(), width, width));
-            EntityInstance { layers: LOOKS.layers.clone(), skin: Some(skin.clone()), position: middle, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, glint: None }
+            EntityInstance { layers: LOOKS.layers.clone(), skin: Some(skin.clone()), position: middle, yaw: 0.0, scale: 1.0, pose: Pose::default(), frame: Some(frame), hurt: false, white: 0.0, glint: None }
         })
         .collect()
 }

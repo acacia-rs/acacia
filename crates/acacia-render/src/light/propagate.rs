@@ -1,14 +1,13 @@
-//! Flood-fill light propagation over [`LightData`], one channel at a time. A step loses
-//! 1 + the entered block's filter; sky light at 15 going down loses only the filter.
+//! Flood-fill light propagation over [`LightData`], one channel at a time, by [`Rules`].
 //! Removal follows the usual two-queue scheme: clear what may have come from the removed light,
 //! then refill from every brighter cell found on the way.
 
 use std::collections::VecDeque;
 
 use super::data::LightData;
+use super::rules::{DOWN_STEP, Rules};
 
 const DIRS: [[i32; 3]; 6] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
-const DOWN: usize = 3;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Channel {
@@ -32,13 +31,14 @@ pub struct Propagator<'a> {
     pub channel: Channel,
     /// First y above the world: sky light enters the top layer from there.
     pub top: i32,
+    pub rules: Rules<'a>,
     increase: VecDeque<Pos>,
     decrease: VecDeque<(Pos, u8)>,
 }
 
 impl<'a> Propagator<'a> {
-    pub fn new(data: &'a mut LightData, channel: Channel, top: i32) -> Self {
-        Propagator { data, channel, top, increase: VecDeque::new(), decrease: VecDeque::new() }
+    pub fn new(data: &'a mut LightData, channel: Channel, top: i32, rules: Rules<'a>) -> Self {
+        Propagator { data, channel, top, rules, increase: VecDeque::new(), decrease: VecDeque::new() }
     }
 
     #[inline]
@@ -61,11 +61,19 @@ impl<'a> Propagator<'a> {
         self.data.props.get(x, y, z).map_or(15, |p| p & 15)
     }
 
-    /// Light the block makes by itself: emission, or sky light entering the top layer.
+    #[inline]
+    fn shape(&self, [x, y, z]: Pos) -> u8 {
+        if self.rules.is_java() { self.data.shapes.get(x, y, z).unwrap_or(0) } else { 0 }
+    }
+
+    /// Light the block makes by itself: emission, or sky light from above.
     pub fn source(&self, p: Pos) -> u8 {
         match self.channel {
             Channel::Block => self.data.props.get(p[0], p[1], p[2]).map_or(0, |v| v >> 4),
-            Channel::Sky if p[1] == self.top - 1 => step(15, self.filter(p), true),
+            Channel::Sky if self.rules.is_java() => {
+                if self.data.sky_lowest(p[0], p[2]).is_some_and(|low| p[1] >= low) { 15 } else { 0 }
+            }
+            Channel::Sky if p[1] == self.top - 1 => self.rules.step(15, self.filter(p), true),
             Channel::Sky => 0,
         }
     }
@@ -102,6 +110,8 @@ impl<'a> Propagator<'a> {
     }
 
     pub fn run(&mut self) {
+        // Bedrock's sky light keeps 15 going down; Java's comes from the sources it keeps apart.
+        let sky_down_15 = self.channel == Channel::Sky && !self.rules.is_java();
         while let Some((p, level)) = self.decrease.pop_front() {
             for (i, d) in DIRS.iter().enumerate() {
                 let n = [p[0] + d[0], p[1] + d[1], p[2] + d[2]];
@@ -109,7 +119,7 @@ impl<'a> Propagator<'a> {
                 if nl == 0 {
                     continue;
                 }
-                let from_us = nl < level || (self.channel == Channel::Sky && i == DOWN && level == 15);
+                let from_us = nl < level || (sky_down_15 && i == DOWN_STEP && level == 15);
                 if from_us {
                     self.set(n, 0);
                     self.decrease.push_back((n, nl));
@@ -128,18 +138,12 @@ impl<'a> Propagator<'a> {
             for (i, d) in DIRS.iter().enumerate() {
                 let n = [p[0] + d[0], p[1] + d[1], p[2] + d[2]];
                 let Some(nl) = self.level(n) else { continue };
-                let to = step(level, self.filter(n), self.channel == Channel::Sky && i == DOWN);
-                if to > nl {
+                let to = self.rules.step(level, self.filter(n), self.channel == Channel::Sky && i == DOWN_STEP);
+                if to > nl && !self.rules.occludes(self.shape(p), self.shape(n), i) {
                     self.set(n, to);
                     self.increase.push_back(n);
                 }
             }
         }
     }
-}
-
-/// Level after entering a block with `filter`.
-#[inline]
-pub fn step(level: u8, filter: u8, sky_down: bool) -> u8 {
-    if sky_down && level == 15 { 15u8.saturating_sub(filter) } else { level.saturating_sub(1 + filter) }
 }

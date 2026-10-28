@@ -19,14 +19,12 @@ struct Dump {
 }
 
 /// `minecraft:oak_slab[type=double,waterlogged=false]`, properties sorted by name.
-fn dump_key(java: &JavaState) -> String {
-    let mut pairs: Vec<String> = java.properties.iter().map(|(k, v)| format!("{k}={v}")).collect();
-    pairs.sort_unstable();
-    if pairs.is_empty() { format!("minecraft:{}", java.name) } else { format!("minecraft:{}[{}]", java.name, pairs.join(",")) }
+pub(super) fn dump_key(java: &JavaState) -> String {
+    java.key()
 }
 
 /// Every vanilla Bedrock state the mapping gives a Java state.
-pub(super) fn print(mapping: &Mapping, dump: &Path) -> Result<(), Error> {
+pub(super) fn print(mapping: &Mapping, dump: &Path, outcome: &mut super::Outcome) -> Result<(), Error> {
     let dump: Dump = serde_json::from_slice(&std::fs::read(dump)?)?;
     let registry = BlockRegistry::vanilla();
     let (mut same, mut differing): (usize, BTreeMap<&str, (usize, bool)>) = (0, BTreeMap::new());
@@ -37,8 +35,10 @@ pub(super) fn print(mapping: &Mapping, dump: &Path) -> Result<(), Error> {
             same += 1;
         } else {
             differing.entry(java.name.as_str()).or_insert((0, theirs)).0 += 1;
+            outcome.diverge(&state_key(state), "darkens ambient occlusion", theirs, ours);
         }
     }
+    outcome.cases += same + differing.values().map(|(count, _)| count).sum::<usize>();
     let wrong: usize = differing.values().map(|(count, _)| count).sum();
     println!("{same} of {} mapped states darken ambient occlusion as the game has them", same + wrong);
     for dark in [true, false] {

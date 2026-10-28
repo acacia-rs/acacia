@@ -2,10 +2,15 @@
 //! changes to [`LightData`], then forwards them with the sections whose light changed, so the
 //! scene meshes only lit sections. See README "Lighting".
 
-mod column;
+pub mod blocks;
+pub mod column;
 pub mod data;
+pub mod environment;
+pub mod lightmap;
 mod propagate;
+pub mod rules;
 mod sections;
+mod sky;
 #[cfg(test)]
 mod tests;
 
@@ -18,9 +23,11 @@ use crossbeam_channel::{Sender, unbounded};
 use parking_lot::RwLock;
 use rustc_hash::FxHashSet;
 
-use column::{Lighter, PropsTable};
+use blocks::PropsTable;
+use column::WorldLighter;
 pub use data::{LightData, LightVolume};
 
+use crate::blocks::BlockTable;
 use crate::workers::SectionKey;
 
 /// How often the light thread looks for columns every view has dropped.
@@ -39,24 +46,43 @@ pub struct Lighting {
 }
 
 impl Lighting {
-    /// Starts the light thread; it lights the columns already loaded first. It stops once this
-    /// handle is dropped.
-    pub fn new(world: Arc<World>) -> Lighting {
+    /// Starts the light thread, lighting by the rules of the look `table` draws; it lights the
+    /// columns already loaded first. It stops once this handle is dropped.
+    pub fn new(world: Arc<World>, table: &BlockTable) -> Lighting {
         let changes = world.subscribe();
         let data = Arc::new(RwLock::new(LightData::default()));
         let (tx, events) = unbounded();
         let shared = data.clone();
+        let props = PropsTable::of_look(world.registry(), table);
         std::thread::Builder::new()
             .name("light".into())
-            .spawn(move || run(&world, &shared, &changes, &tx))
+            .spawn(move || run(&world, &props, &shared, &changes, &tx))
             .expect("spawn light thread");
         Lighting { data, events }
     }
 }
 
-fn run(world: &World, data: &RwLock<LightData>, changes: &Receiver<ChunkChange>, tx: &Sender<LightEvent>) {
-    let table = PropsTable::new(world.registry());
-    let lighter = Lighter { world, table: &table, dim: world.dimension() };
+/// The world's dimension as `table`'s rules light it: Java's End has sky light, Bedrock's none.
+pub fn lit_dimension(world: &World, table: &PropsTable) -> acacia_world::Dimension {
+    let mut dim = world.dimension();
+    dim.sky |= table.rules().is_java() && crate::sky::Realm::of(&dim) == crate::sky::Realm::End;
+    dim
+}
+
+/// Every loaded column's light at once by the rules of the look `table` draws, without the light
+/// thread (probes and tools).
+pub fn light_now(world: &World, table: &BlockTable) -> LightData {
+    let props = PropsTable::of_look(world.registry(), table);
+    let lighter = WorldLighter::new(world, &props, lit_dimension(world, &props));
+    let mut data = LightData::default();
+    for (x, z) in world.chunk_positions() {
+        lighter.relight_column(&mut data, x, z);
+    }
+    data
+}
+
+fn run(world: &World, table: &PropsTable, data: &RwLock<LightData>, changes: &Receiver<ChunkChange>, tx: &Sender<LightEvent>) {
+    let lighter = WorldLighter::new(world, table, lit_dimension(world, table));
     let mut batch: Vec<ChunkChange> = world.chunk_positions().into_iter().map(|(x, z)| ChunkChange::Column { x, z }).collect();
     let mut last_unload_check = Instant::now();
     loop {
@@ -91,7 +117,7 @@ fn run(world: &World, data: &RwLock<LightData>, changes: &Receiver<ChunkChange>,
 /// Relights each column with a column or section change once, and updates single blocks elsewhere.
 /// The lock is taken per column: a whole batch (a join's view) takes seconds, and each frame reads the
 /// light to shade entities.
-fn apply(lighter: &Lighter, data: &RwLock<LightData>, batch: &[ChunkChange]) {
+fn apply(lighter: &WorldLighter, data: &RwLock<LightData>, batch: &[ChunkChange]) {
     let mut relight: FxHashSet<(i32, i32)> = FxHashSet::default();
     for c in batch {
         if let ChunkChange::Column { x, z } | ChunkChange::Section { x, z, .. } = *c {

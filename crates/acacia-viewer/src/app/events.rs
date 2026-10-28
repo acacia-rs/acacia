@@ -35,7 +35,7 @@ impl App {
                     if !me.alive && self.menu.is_none() && self.mode == super::Mode::Play {
                         self.open_menu(super::menu::Menu::Death);
                     }
-                    if me.alive && self.menu == Some(super::menu::Menu::Death) {
+                    if me.alive && matches!(self.menu, Some(super::menu::Menu::Death | super::menu::Menu::TitleConfirm)) {
                         self.menu = None;
                         self.grab(true);
                     }
@@ -43,6 +43,7 @@ impl App {
                     self.play.tick(me);
                 }
                 NetEvent::Players(names) => self.players = names,
+                NetEvent::Commands(tree) => self.java.commands = tree,
                 NetEvent::Inventory(inventory) => self.set_inventory(inventory),
                 NetEvent::Creative(items) => self.shown.items = items,
                 NetEvent::Title(title) => self.ui.show_title(title),
@@ -83,6 +84,10 @@ impl App {
                     tracing::warn!("session ended: {reason}");
                     if self.shot.as_ref().is_some_and(|s| !s.taken) {
                         self.failed = Some(reason.clone());
+                    }
+                    if self.java_look() {
+                        self.java.reason = reason.clone();
+                        self.open_menu(super::menu::Menu::Disconnected);
                     }
                     self.status = reason;
                 }

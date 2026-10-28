@@ -149,7 +149,7 @@ impl Recipes {
     pub const PACKETS: &'static [u32] = &[CraftingData::ID];
 
     pub fn apply(&mut self, packet: &RawPacket) {
-        self.packets.push(packet.clone());
+        self.packets.push(super::kept::keep(packet));
         self.book = OnceLock::new();
     }
 

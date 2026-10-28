@@ -1,9 +1,21 @@
 //! Human-looking delays: placeholders unless a capture sample count is given. Every caller
 //! names its delay here, so refitting one from a capture touches one constant.
 
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use crate::cadence::{seed, splitmix};
+
+/// `ACACIA_HUMAN_SCALE` (default 1), read once: every delay here is multiplied by it. Test runs that
+/// check what a server does rather than how a player looks shorten them (sapling's tools/remote-test.sh).
+fn human_scale() -> f64 {
+    static SCALE: OnceLock<f64> = OnceLock::new();
+    *SCALE.get_or_init(|| std::env::var("ACACIA_HUMAN_SCALE").ok().and_then(|v| v.parse().ok()).filter(|s: &f64| s.is_finite() && *s >= 0.0).unwrap_or(1.0))
+}
+
+fn scaled(d: Duration) -> Duration {
+    if human_scale() == 1.0 { d } else { d.mul_f64(human_scale()) }
+}
 
 /// (min, max) in ms, uniform.
 pub(crate) type Range = (u64, u64);
@@ -53,6 +65,8 @@ pub(crate) const BOOK_SIGN: Range = (1000, 2000);
 pub(crate) const STOP_USE_ON: Range = (30, 140);
 /// Crosshair reported on an entity to clicking it (n=10: 75-1277 ms, most under 450).
 pub(crate) const ENTITY_HOVER: Range = (75, 450);
+/// One attack to the next at the earliest: 8-13 CPS, under every anticheat's limit (anticheat-interaction-checks.md).
+pub(crate) const ATTACK_GAP: Range = (75, 130);
 /// Entity right-click: the transaction to the client's own swing (n=5: 124-203 ms).
 pub(crate) const ENTITY_SWING: Range = (120, 210);
 /// Held item changed by the server or a container move, to the client's MobEquipment (n=15: 43-247 ms, two near 700).
@@ -83,20 +97,29 @@ impl Default for Human {
 }
 
 impl Human {
-    pub(crate) fn between(&mut self, (lo, hi): Range) -> Duration {
+    fn draw(&mut self, (lo, hi): Range) -> Duration {
         Duration::from_millis(lo + splitmix(&mut self.rng) % (hi - lo + 1))
+    }
+
+    pub(crate) fn between(&mut self, range: Range) -> Duration {
+        scaled(self.draw(range))
     }
 
     /// Time to read `chars` characters of text, fill in `inputs` fields and decide.
     pub(crate) fn reading(&mut self, chars: usize, inputs: usize) -> Duration {
         let extra = Duration::from_millis(FORM_READ_PER_CHAR_MS * chars as u64 + FORM_READ_PER_INPUT_MS * inputs as u64);
-        (self.between(FORM_READ_BASE) + extra).min(Duration::from_millis(FORM_READ_MAX_MS))
+        scaled((self.draw(FORM_READ_BASE) + extra).min(Duration::from_millis(FORM_READ_MAX_MS)))
     }
 
     /// Time to type `chars` characters.
     pub(crate) fn typing(&mut self, chars: usize) -> Duration {
         let per_char = Duration::from_millis(TYPE_PER_CHAR_MS * chars as u64);
-        (self.between(TYPE_BASE) + per_char).min(Duration::from_millis(TYPE_MAX_MS))
+        scaled((self.draw(TYPE_BASE) + per_char).min(Duration::from_millis(TYPE_MAX_MS)))
+    }
+
+    /// One of `n` choices (`n` > 0), uniformly.
+    pub(crate) fn pick(&mut self, n: usize) -> usize {
+        (splitmix(&mut self.rng) % n.max(1) as u64) as usize
     }
 
     /// [`Self::between`] in 50 ms client ticks.

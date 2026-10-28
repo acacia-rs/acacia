@@ -1,48 +1,36 @@
 //! The HUD and chat over the world, in the theme of the chosen look (acacia-ui).
 
+mod figure;
+mod java_gui;
 mod screen;
+mod skin;
+
+pub use java_gui::screens::{Event as JavaEvent, JavaScreen, State as JavaState};
+pub use java_gui::{PictureRequest, menus as java_screens};
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
 
-use acacia_bot::proto::types::GameMode;
-use std::sync::Arc;
-
+use acacia_bot::events::{Title, TitleKind};
 use acacia_render::LookPack;
 use acacia_render::blocks::BlockTable;
-use acacia_render::item::{ItemIcons, block_icon, leather, model_icon, pattern_icon};
 use acacia_ui::chat::{self, Chat};
 use acacia_ui::effects::Active;
-use acacia_render::glint::Foil;
-use acacia_ui::hud::{self, HudState, Item, sprite};
+use acacia_ui::hud::{self, HudState, sprite};
+use acacia_ui::inventory::Layout;
 use acacia_ui::lang::Lang;
 use acacia_ui::overlay::{self, Boss, Titles};
-use acacia_bot::events::{Title, TitleKind};
 use acacia_ui::theme::{Theme, bedrock, java};
-use acacia_ui::{DrawList, Quad, Sprite};
+use acacia_ui::blur::Blur;
+use acacia_ui::{DrawList, Quad};
 
-use crate::control::{Inventory, Stack};
-use crate::me::Me;
-use acacia_ui::inventory::Layout;
-use acacia_ui::menu::Backdrop;
-
+use crate::control::Inventory;
 use crate::forms::FormScreen;
 use crate::looks::Looks;
+use crate::me::Me;
 use crate::settings::LookChoice;
-
-struct Skin {
-    theme: Theme,
-    icons: ItemIcons,
-    root: std::path::PathBuf,
-    /// Hotbar icons added to the atlas, by item name and aux; `None` for items without one.
-    added: HashMap<(String, u32), Option<Sprite>>,
-    /// The shown world's blocks in this look, for block items' icons.
-    blocks: Option<(Arc<LookPack>, Arc<BlockTable>)>,
-    /// Bumped per world: atlas names of block icons carry it, as runtime ids change meaning.
-    generation: u32,
-    foil: Foil,
-}
+use skin::Skin;
 
 /// What one frame's UI shows, over a window `size` pixels big at GUI `scale`.
 pub struct Frame<'a> {
@@ -51,8 +39,10 @@ pub struct Frame<'a> {
     /// The debug screen's two columns, when it is shown.
     pub debug: Option<(Vec<String>, Vec<String>)>,
     pub screen: Option<Screen<'a>>,
-    /// An open menu: its title, button labels and what it is drawn over.
-    pub menu: Option<(&'a str, &'a [String], Backdrop)>,
+    /// The Bedrock look's open menu: its title and button labels.
+    pub menu: Option<(&'a str, &'a [String])>,
+    /// The Java look's open screens.
+    pub java_screens: Option<java_screens::Shown<'a>>,
     /// An open server form.
     pub form: Option<&'a FormScreen>,
     pub sign: Option<acacia_ui::sign_editor::Editing<'a>>,
@@ -66,6 +56,8 @@ pub struct Frame<'a> {
     pub size: [u32; 2],
     pub scale: u32,
     pub now: Instant,
+    /// The Java look's menu blur radius (`Settings::menu_blur`).
+    pub menu_blur: u32,
 }
 
 /// An open inventory screen.
@@ -80,6 +72,7 @@ pub struct Screen<'a> {
     pub name: Option<(&'a str, &'a str)>,
     /// The creative inventory's shown items, its tab, and how far it is scrolled.
     pub creative: Option<(&'a [crate::control::Stack], usize, f32)>,
+    pub java: (JavaScreen<'a>, &'a JavaState),
 }
 
 pub struct Ui {
@@ -95,6 +88,9 @@ pub struct Ui {
     selected: Option<(u8, String)>,
     /// When each effect (as the server sent it) was first seen, to count its time down.
     effects_seen: HashMap<(i32, i32, u64), Instant>,
+    java_gui: java_gui::JavaGui,
+    /// This frame's pictures-in-picture, for the renderer.
+    pictures: Vec<PictureRequest>,
 }
 
 impl Ui {
@@ -105,7 +101,7 @@ impl Ui {
         let font_root = java_root.join("textures/font/ascii.png").is_file().then_some(java_root.as_path());
         let bedrock_theme = bedrock::load(&bedrock_root, font_root);
         let java_theme = java::load(&java_root);
-        let java_theme = if java_theme.atlas.get(sprite::HOTBAR).is_some() {
+        let java_theme = if java_root.join(format!("textures/gui/sprites/{}.png", sprite::HOTBAR)).is_file() {
             java_theme
         } else {
             Theme { style: java::STYLE, ..bedrock::load(&bedrock_root, font_root) }
@@ -117,11 +113,12 @@ impl Ui {
         let lang = Lang::load(&bedrock_root.join("texts/en_US.lang"));
         let foil = |look| looks.get(look).look.foil;
         let (bedrock, java) = (Skin::new(bedrock_theme, &bedrock_root, foil(LookChoice::Bedrock)), Skin::new(java_theme, &java_root, foil(LookChoice::Java)));
-        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None, effects_seen: HashMap::new() }
+        Ui { bedrock, java, chat: Chat::default(), titles: Titles::default(), sidebar: None, lang, quads: Vec::new(), selected: None, effects_seen: HashMap::new(), java_gui: java_gui::JavaGui::new(&java_root), pictures: Vec::new() }
     }
 
     pub fn show_title(&mut self, title: Title) {
         let (text, now) = (self.lang.translate(&title.text, &[]), Instant::now());
+        self.java_gui.show_title(title.kind, &text);
         match title.kind {
             TitleKind::Title => self.titles.title(text, now),
             TitleKind::Subtitle => self.titles.subtitle(text),
@@ -164,24 +161,32 @@ impl Ui {
         let text = rawtext.and_then(|json| self.lang.rawtext(json)).unwrap_or_else(|| self.lang.translate(message, params));
         let line = sender.map_or_else(|| text.clone(), |s| format!("<{s}> {text}"));
         tracing::info!(target: "chat", "{line}");
+        self.java_gui.add_chat(&line, self.chat.is_open());
         self.chat.push(line, Instant::now());
     }
 
-    /// This frame's quads for a window `size` pixels big at GUI `scale`, and the atlas they sample.
-    /// This frame's quads and the atlas they sample.
-    pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad]) {
-        let Frame { look, me, debug, screen, menu, form, sign, book, players, tags, mouse, size, scale, now } = frame;
+    /// This frame's quads for a window `size` pixels big at GUI `scale`, the atlas they sample,
+    /// the menu blur under some of them, and the pictures-in-picture the renderer draws for them.
+    pub fn draw(&mut self, frame: Frame) -> (&acacia_ui::Atlas, &[Quad], Option<Blur>, &[PictureRequest]) {
+        let Frame { look, me, debug, screen, menu, java_screens, form, sign, book, players, tags, mouse, size, scale, now, menu_blur } = frame;
+        self.java_gui.menu_blur = menu_blur;
+        let menu_open = menu.is_some() || java_screens.as_ref().is_some_and(|s| s.menu.is_some());
+        self.pictures.clear();
         let skin = match look {
             LookChoice::Bedrock => &mut self.bedrock,
             LookChoice::Java => &mut self.java,
         };
         let mut list = DrawList::new(scale as f32);
         let gui = [(size[0] / scale) as f32, (size[1] / scale) as f32];
+        let java = look == LookChoice::Java && self.java_gui.usable(skin);
+        let java_size = java_gui::gui_size(size, scale);
         // In the world, so under the HUD.
         acacia_ui::nametags::draw(&mut list, &skin.theme, &tags);
         if let Some(me) = me {
-            let state = HudState { crosshair: screen.is_none() && menu.is_none() && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
-            hud::draw(&mut list, &skin.theme, &state, gui);
+            let state = HudState { crosshair: screen.is_none() && !menu_open && form.is_none() && sign.is_none() && book.is_none(), ..skin.state(me) };
+            if !java {
+                hud::draw(&mut list, &skin.theme, &state, gui);
+            }
             let selected = me.items[me.hotbar as usize % 9].as_ref().map(|stack| (me.hotbar, stack.name.clone()));
             if selected != self.selected {
                 if let Some((_, name)) = &selected {
@@ -199,104 +204,54 @@ impl Ui {
                     Active { id, ticks: if ticks < 0 { ticks } else { (ticks - elapsed).max(0) }, ambient }
                 })
                 .collect();
-            acacia_ui::effects::draw(&mut list, &skin.theme, &active, gui[0]);
-            // A vanilla boss's title is its name's key (`entity.ender_dragon.name`).
-            let titles: Vec<String> = me.bosses.iter().map(|(title, ..)| self.lang.translate(title, &[])).collect();
-            let bosses: Vec<Boss> = me.bosses.iter().zip(&titles).map(|((_, progress, colour), title)| Boss { title, progress: *progress, colour: *colour }).collect();
-            overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
+            if java {
+                let open = java_gui::screen_info(screen.map(|s| s.layout), book.is_some() || sign.is_some(), menu_open || form.is_some() || self.chat.is_open(), java_size[0]);
+                let view = java_gui::HudView { me, effects: &active, screen: open, chat_open: self.chat.is_open(), debug: debug.is_some(), sidebar: self.sidebar.as_ref(), players, lang: &self.lang };
+                let calls = self.java_gui.hud(&view, java_size, now);
+                self.java_gui.paint(skin, &|key| java_gui::hotbar_stack(me, key), &calls, &mut list, &mut self.pictures);
+            } else {
+                acacia_ui::effects::draw(&mut list, &skin.theme, &active, gui[0]);
+                // A vanilla boss's title is its name's key (`entity.ender_dragon.name`).
+                let titles: Vec<String> = me.bosses.iter().map(|(title, ..)| self.lang.translate(title, &[])).collect();
+                let bosses: Vec<Boss> = me.bosses.iter().zip(&titles).map(|((_, progress, colour), title)| Boss { title, progress: *progress, colour: *colour }).collect();
+                overlay::draw_bosses(&mut list, &skin.theme, &bosses, gui);
+            }
         }
-        if let Some(sidebar) = &self.sidebar {
-            acacia_ui::sidebar::draw(&mut list, &skin.theme, sidebar, gui);
+        if !java {
+            if let Some(sidebar) = &self.sidebar {
+                acacia_ui::sidebar::draw(&mut list, &skin.theme, sidebar, gui);
+            }
+            overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
         }
-        overlay::draw_titles(&mut list, &skin.theme, &self.titles, now, gui);
-        chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
+        // The Java look's chat is its HUD's and its ChatScreen (java_screens).
+        if look == LookChoice::Bedrock {
+            chat::draw(&mut list, &skin.theme, &self.chat, now, gui);
+        }
         if let Some((left, right)) = debug {
             acacia_ui::debug::draw(&mut list, &skin.theme, &left, &right, gui[0]);
         }
         if let Some(screen) = screen {
-            screen::draw(&mut list, skin, &self.lang, &screen, mouse, gui);
+            java_gui::screens::draw(&mut self.java_gui, java, skin, &self.lang, &screen, me, (size, scale), (mouse, now), &mut list, &mut self.pictures);
         }
-        if let Some(names) = players {
+        if let Some(names) = players.filter(|_| !java) {
             acacia_ui::players::draw(&mut list, &skin.theme, names, gui[0]);
         }
         if let Some(form) = form {
             form.draw(&mut list, &skin.theme, now);
         }
-        if let Some(page) = book {
+        // The Java look draws these as its screens (java_screens), but for the book's signing prompt.
+        if let Some(page) = book.filter(|p| look == LookChoice::Bedrock || p.signing.is_some()) {
             acacia_ui::book::draw(&mut list, &skin.theme, page, mouse, gui);
         }
-        if let Some(sign) = sign {
+        if let Some(sign) = sign.filter(|_| look == LookChoice::Bedrock) {
             acacia_ui::sign_editor::draw(&mut list, &skin.theme, sign, mouse, gui);
         }
-        if let Some((title, buttons, backdrop)) = menu {
-            acacia_ui::menu::draw(&mut list, &skin.theme, title, buttons, backdrop, mouse, gui);
+        java_screens::draw(&mut self.java_gui, skin, menu, java_screens, mouse, size, scale, now, &mut list, &mut self.pictures);
+        if java && me.is_some() {
+            let calls = self.java_gui.deferred_subtitles(java_size);
+            self.java_gui.paint(skin, &|_| None, &calls, &mut list, &mut self.pictures);
         }
         self.quads = list.quads;
-        (&skin.theme.atlas, &self.quads)
-    }
-}
-
-impl Skin {
-    fn new(theme: Theme, root: &Path, foil: Foil) -> Skin {
-        Skin { theme, icons: ItemIcons::load(root), root: root.to_owned(), added: HashMap::new(), blocks: None, generation: 0, foil }
-    }
-
-    /// A stack as a slot shows it; `None` for an item without an icon.
-    fn item(&mut self, s: &Stack) -> Option<Item> {
-        Some(Item { icon: self.icon(s)?, count: s.count, glint: s.enchanted || self.foil.always(&s.name) })
-    }
-
-    fn state(&mut self, me: &Me) -> HudState {
-        let hotbar = std::array::from_fn(|slot| self.item(me.items[slot].as_ref()?));
-        HudState {
-            health: me.health,
-            max_health: me.max_health,
-            food: me.food,
-            armor: me.armor,
-            air: me.air,
-            xp_level: me.xp_level.max(0) as u32,
-            xp_progress: me.xp_progress,
-            selected: me.hotbar,
-            hotbar,
-            survival: matches!(me.game_mode, GameMode::Survival | GameMode::Adventure),
-            crosshair: true,
-        }
-    }
-
-    /// A loom pattern's button image, added on first use.
-    fn pattern(&mut self, code: &str) -> Option<Sprite> {
-        let key = (format!("pattern/{code}"), 0);
-        if let Some(sprite) = self.added.get(&key) {
-            return *sprite;
-        }
-        let image = pattern_icon(&self.root, code).or_else(|| pattern_icon(&acacia_render::assets::Pack::default_dir(), code));
-        let sprite = image.map(|i| self.theme.atlas.add(&key.0, &i));
-        self.added.insert(key, sprite);
-        sprite
-    }
-
-    /// The item's icon (its first frame) in the atlas, added on first use; a block item without one
-    /// shows its block.
-    fn icon(&mut self, s: &Stack) -> Option<Sprite> {
-        let (name, aux, block) = (s.name.as_str(), s.aux, s.block);
-        let dyed = leather::dyeable(name).then_some(s.dye);
-        let (banner, key) = (s.banner.as_deref(), (format!("{name}/{}", crate::item_look::variant(dyed.flatten(), s.banner.as_deref())), aux));
-        if let Some(sprite) = self.added.get(&key) {
-            return *sprite;
-        }
-        let model = model_icon(&self.root, name, banner).or_else(|| model_icon(&acacia_render::assets::Pack::default_dir(), name, banner));
-        let image = model.or_else(|| self.icons.path(name, aux).and_then(|p| leather::icon(&self.root, p, dyed)));
-        let sprite = match image {
-            Some(i) => {
-                let side = i.width().min(i.height());
-                let frame = image::imageops::crop_imm(&i, 0, 0, side, side).to_image();
-                Some(self.theme.atlas.add(&format!("item/{}/{aux}", key.0), &frame))
-            }
-            None => self.blocks.as_ref().filter(|_| block != 0).and_then(|(pack, table)| block_icon(table.get(block), &pack.atlas)).map(|icon| {
-                self.theme.atlas.add(&format!("block/{}/{block}", self.generation), &icon)
-            }),
-        };
-        self.added.insert(key, sprite);
-        sprite
+        (&skin.theme.atlas, &self.quads, list.blur, &self.pictures)
     }
 }

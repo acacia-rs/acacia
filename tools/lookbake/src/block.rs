@@ -45,8 +45,12 @@ pub fn model_faces(
 /// `model` is [`model_faces`] of `faces`. A full block's six faces make a cube when `cube` allows.
 pub fn render_block(base: &RenderBlock, faces: &[BakedFace], model: Vec<ModelFace>, cube: bool) -> RenderBlock {
     let translucent = model.iter().any(|f| f.material == Material::Blend);
-    let opaque = model.iter().all(|f| f.material == Material::Opaque);
-    let full = (0..6).all(|side| faces.iter().any(|f| f.cull.map(|d| d.face()) == Some(side) && covers_side(f)));
+    let covered = |opaque: bool| {
+        (0..6).all(|side| faces.iter().zip(&model).any(|(f, m)| f.cull.map(|d| d.face()) == Some(side) && covers_side(f) && (!opaque || m.material == Material::Opaque)))
+    };
+    let full = covered(false);
+    // An overlay over a side (grass) leaves it opaque.
+    let opaque = covered(true) && model.iter().all(|f| f.material != Material::Blend);
     let mut block = RenderBlock {
         shape: Shape::None,
         layer: if translucent { Layer::Translucent } else { Layer::Solid },
@@ -56,12 +60,15 @@ pub fn render_block(base: &RenderBlock, faces: &[BakedFace], model: Vec<ModelFac
         turns: [0; 6],
         random: None,
         offset: None,
-        occludes: full && opaque,
-        shades: full && opaque,
+        occludes: opaque,
+        shades: opaque,
         cull_same: base.cull_same,
         fluid: Fluid::None,
         fluid_height: 0,
+        fluid_rules: base.fluid_rules,
         model: None,
+        light: base.light,
+        cull: base.cull,
     };
     match side_turns(faces).filter(|_| cube && full && faces.len() == 6) {
         Some(turns) => {

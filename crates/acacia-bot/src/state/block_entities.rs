@@ -4,7 +4,7 @@ mod chunks;
 
 use std::collections::HashMap;
 
-use acacia_client::proto::nbt::{Nbt, Value};
+use acacia_client::proto::nbt::{self, root_string, Nbt, Network, Value};
 use acacia_client::proto::packets::{
     BlockEntityData, ChangeDimension, LevelChunk, NetworkChunkPublisherUpdate, StartGame, Subchunk, UpdateBlock, UpdateBlockSynced,
     UpdateSubchunkBlocks,
@@ -81,11 +81,8 @@ impl BlockEntities {
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
         match packet.id {
             BlockEntityData::ID => {
-                let p: BlockEntityData = packet.decode()?;
-                // A piston or hopper sends this every move: look at the id before decoding it all.
-                if self.keeps_id(p.nbt.root_string("id")?.as_deref()) {
-                    self.insert(coords(p.position), p.nbt.decode()?);
-                }
+                let (position, nbt) = super::block_entity_parts(packet)?;
+                self.block_entity(position, nbt)?;
             }
             ChangeDimension::ID => self.columns.clear(),
             StartGame::ID => self.air = Some(crate::world::air_wire_id(&packet.decode()?)),
@@ -144,6 +141,18 @@ impl BlockEntities {
 
     pub fn is_empty(&self) -> bool {
         self.columns.values().all(HashMap::is_empty)
+    }
+
+    pub(crate) fn block_entity(&mut self, position: BlockCoordinates, mut nbt: &[u8]) -> Result<(), DecodeError> {
+        // A piston or hopper sends this every move: look at the id before decoding it all, and when only signs
+        // are kept, skip a document without "Sign" anywhere (every one has an `id`, so its walk always ran).
+        if self.tracking != BlockEntityTracking::All && memchr::memmem::find(nbt, b"Sign").is_none() {
+            return Ok(());
+        }
+        if self.keeps_id(root_string::<Network>(nbt, "id")?.as_deref()) {
+            self.insert(coords(position), nbt::read::<Network>(&mut nbt)?);
+        }
+        Ok(())
     }
 
     pub(crate) fn insert(&mut self, pos: [i32; 3], nbt: Nbt) {

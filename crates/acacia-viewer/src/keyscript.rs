@@ -75,6 +75,8 @@ fn parse(step: &str) -> Option<(Duration, Step)> {
         "S" => KeyCode::KeyS,
         "D" => KeyCode::KeyD,
         "E" => KeyCode::KeyE,
+        "T" => KeyCode::KeyT,
+        "Slash" => KeyCode::Slash,
         "Tab" => KeyCode::Tab,
         "Enter" => KeyCode::Enter,
         "Up" => KeyCode::ArrowUp,
@@ -100,5 +102,6 @@ mod tests {
         assert_eq!(parse("1 +Nope"), None);
         assert_eq!(parse("4 type Hello sign"), Some((Duration::from_secs(4), Step::Type("Hello sign".into()))));
         assert_eq!(parse("2 -Use"), Some((Duration::from_secs(2), Step::Use(false))));
+        assert_eq!(parse("1 +T"), Some((Duration::from_secs(1), Step::Key(KeyCode::KeyT, true))));
     }
 }

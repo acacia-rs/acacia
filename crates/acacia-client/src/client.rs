@@ -57,6 +57,7 @@ pub struct ClientBuilder {
     /// The Login `Nonce` a friend's world handed out.
     nonce: Option<String>,
     skin: Option<acacia_auth::login::Skin>,
+    mouse_input: bool,
     /// Held by the connection; dropping it leaves the friend's Xbox session.
     friend_session: Option<oneshot::Sender<()>>,
     blob_cache: BlobCache,
@@ -73,6 +74,7 @@ pub struct ClientBuilder {
     filter: PacketFilter,
     event_capacity: usize,
     login_timeout: Duration,
+    max_batch_bytes: usize,
 }
 
 impl ClientBuilder {
@@ -82,6 +84,7 @@ impl ClientBuilder {
             via: Via::Address,
             nonce: None,
             skin: None,
+            mouse_input: false,
             friend_session: None,
             blob_cache: BlobCache::Memory,
             blob_payloads: false,
@@ -97,6 +100,7 @@ impl ClientBuilder {
             filter: PacketFilter::all(),
             event_capacity: 256,
             login_timeout: Duration::from_secs(30),
+            max_batch_bytes: acacia_session::batch::DEFAULT_MAX_DECOMPRESSED,
         }
     }
 
@@ -113,6 +117,13 @@ impl ClientBuilder {
     /// Wears `skin` instead of the account's pool skin.
     pub fn skin(mut self, skin: acacia_auth::login::Skin) -> Self {
         self.skin = Some(skin);
+        self
+    }
+
+    /// Logs in with a mouse as the current input mode (default: touch, as the Android device it claims).
+    /// Should match the input mode `PlayerAuthInput` reports.
+    pub fn mouse_input(mut self, on: bool) -> Self {
+        self.mouse_input = on;
         self
     }
 
@@ -195,6 +206,13 @@ impl ClientBuilder {
         self
     }
 
+    /// Largest decompressed server batch accepted; a bigger one ends the session as a protocol error.
+    /// Default [`acacia_session::batch::DEFAULT_MAX_DECOMPRESSED`].
+    pub fn max_batch_bytes(mut self, limit: usize) -> Self {
+        self.max_batch_bytes = limit;
+        self
+    }
+
     pub fn login_timeout(mut self, timeout: Duration) -> Self {
         self.login_timeout = timeout;
         self
@@ -265,7 +283,7 @@ impl ClientBuilder {
             Login::Online { credentials, .. } => format!("xbox:{}", credentials.xuid),
         };
         let blob_store = self.blob_cache.open(&account, self.blob_payloads);
-        let (key, login_request, identity) = build_login(self.login, offline_key, &route.server_address, self.nonce, self.skin);
+        let (key, login_request, identity) = build_login(self.login, offline_key, &route.server_address, self.nonce, self.skin, self.mouse_input);
         let cfg = SessionConfig {
             link: route.link,
             key,
@@ -276,11 +294,12 @@ impl ClientBuilder {
             blob_store: blob_store.clone(),
             pack_store: self.pack_store.unwrap_or_else(|| pack_cache::open(self.pack_cache_dir.as_deref(), &account)),
             strict: self.strict,
+            max_batch_bytes: self.max_batch_bytes,
         };
         let session = Session::new(cfg, addr, Instant::now());
 
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let (ev_tx, ev_rx) = mpsc::channel(self.event_capacity);
+        let (ev_tx, ev_rx) = crate::event_queue::channel(self.event_capacity);
         let (spawn_tx, spawn_rx) = oneshot::channel();
         let trace = PacketTrace::default();
         let driver = Driver {

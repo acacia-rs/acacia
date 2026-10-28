@@ -38,9 +38,18 @@ pub struct Mesh {
     pub bones: Vec<String>,
     /// One per bone.
     pub joints: Vec<Joint>,
+    /// A Java model's part tree: bones are its parts, posed by [`Pose::java`]
+    /// (`entity::java::mesh`).
+    pub java: Option<std::sync::Arc<super::java::Part>>,
 }
 
 impl Mesh {
+    /// Vertices that never animate, on one bone at the origin.
+    pub fn one_bone(vertices: Vec<Vertex>) -> Mesh {
+        let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
+        Mesh { vertices, bones: vec!["root".into()], joints: vec![joint], java: None }
+    }
+
     /// The rest pose moved by `matrix` (in blocks) on a single bone, for models that never animate.
     pub fn fixed(&self, matrix: Mat4) -> Mesh {
         let moved = |v: &Vertex| Vertex {
@@ -49,8 +58,7 @@ impl Mesh {
             normal: matrix.transform_vector3(Vec3::from(v.normal)).normalize_or_zero().to_array(),
             uv: v.uv,
         };
-        let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
-        Mesh { vertices: self.vertices.iter().map(moved).collect(), bones: vec!["root".into()], joints: vec![joint] }
+        Mesh::one_bone(self.vertices.iter().map(moved).collect())
     }
 }
 

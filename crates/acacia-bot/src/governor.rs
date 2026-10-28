@@ -23,8 +23,10 @@ const LAGGING: Duration = Duration::from_millis(300);
 pub struct Limits {
     /// Actions sent and not yet confirmed or given up on.
     pub max_in_flight: u32,
-    /// Ticks between two actions.
+    /// Ticks between two actions: each gap is drawn from `min..=max`, so clicks never keep a tick-locked
+    /// rhythm (anticheats flag low click-interval variance).
     pub min_gap_ticks: u64,
+    pub max_gap_ticks: u64,
 }
 
 impl Limits {
@@ -34,7 +36,7 @@ impl Limits {
 
 impl Default for Limits {
     fn default() -> Self {
-        Self { max_in_flight: Self::DEFAULT_IN_FLIGHT, min_gap_ticks: 1 }
+        Self { max_in_flight: Self::DEFAULT_IN_FLIGHT, min_gap_ticks: 1, max_gap_ticks: 3 }
     }
 }
 
@@ -48,6 +50,9 @@ pub struct Governor {
     samples: u32,
     in_flight: u32,
     last_sent: Option<u64>,
+    /// The gap drawn after the last action.
+    gap: u64,
+    rng: u64,
     sent_this_tick: u32,
     /// Ticks since the movement's last setback, as of this tick.
     setback_age: Option<u64>,
@@ -120,12 +125,14 @@ impl Governor {
     pub fn may_send(&self) -> bool {
         self.in_flight < self.limits.max_in_flight
             && !self.settling()
-            && self.last_sent.is_none_or(|t| self.tick >= t + self.limits.min_gap_ticks)
+            && self.last_sent.is_none_or(|t| self.tick >= t + self.gap.max(self.limits.min_gap_ticks))
     }
 
     /// An action went out (a retry of one counts again).
     pub fn sent(&mut self, retry: bool) {
         self.last_sent = Some(self.tick);
+        let Limits { min_gap_ticks: lo, max_gap_ticks: hi, .. } = self.limits;
+        self.gap = lo + crate::cadence::splitmix(&mut self.rng) % (hi.max(lo) - lo + 1);
         self.sent_this_tick += 1;
         self.sent += 1;
         self.retries += u64::from(retry);
@@ -179,7 +186,7 @@ mod tests {
 
     #[test]
     fn caps_actions_and_holds_after_setbacks() {
-        let mut g = Governor::new(Limits { max_in_flight: 1, min_gap_ticks: 2 });
+        let mut g = Governor::new(Limits { max_in_flight: 1, min_gap_ticks: 2, max_gap_ticks: 2 });
         assert!(g.may_send());
         g.sent(false);
         assert!(!g.may_send(), "one in flight");
@@ -192,5 +199,19 @@ mod tests {
         assert!(!g.may_send() && g.settling(), "setback this tick");
         g.tick(Some(SETTLE_TICKS));
         assert!(g.may_send());
+    }
+
+    #[test]
+    fn gaps_vary_within_the_limits() {
+        let mut g = Governor::new(Limits { max_in_flight: 9, min_gap_ticks: 1, max_gap_ticks: 3 });
+        let mut gaps = std::collections::BTreeSet::new();
+        for _ in 0..200 {
+            g.sent(false);
+            g.settled();
+            let mut waited = 0;
+            while { g.tick(None); waited += 1; !g.may_send() } {}
+            gaps.insert(waited);
+        }
+        assert_eq!(gaps.into_iter().collect::<Vec<_>>(), vec![1, 2, 3]);
     }
 }

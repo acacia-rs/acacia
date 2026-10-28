@@ -204,7 +204,7 @@ pub(crate) fn pacing(act: &super::Act, human: bool, governor: &crate::governor::
 fn a_full_in_flight_cap_holds_instead_of_waiting_inside_the_tick() {
     use crate::governor::{Governor, Limits};
     let place = super::Act::Place { item: "minecraft:dirt".into(), against: [0, 0, 0], face: crate::interact::Face::Up, click: [0.5, 1.0, 0.5] };
-    let mut g = Governor::default();
+    let mut g = Governor::new(Limits { max_gap_ticks: 1, ..Limits::default() });
     for _ in 0..Limits::DEFAULT_IN_FLIGHT {
         assert_eq!(pacing(&place, false, &g, false), Pacing::Send);
         g.sent(false);

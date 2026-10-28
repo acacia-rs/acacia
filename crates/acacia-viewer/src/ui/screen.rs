@@ -16,7 +16,7 @@ const PRICE: [f32; 2] = [5.0, 30.0];
 const GOODS: f32 = 68.0;
 
 pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &Screen, mouse: [f32; 2], gui: [f32; 2]) {
-    let Screen { inventory, layout, picked, first, name, creative } = *screen;
+    let Screen { inventory, layout, picked, first, name, creative, .. } = *screen;
     let mut icons = HashMap::new();
     // A pick list's result is the picked one.
     let shown_in = |slot: Slot| match slot {
@@ -67,7 +67,7 @@ pub(super) fn draw(list: &mut DrawList, skin: &mut Skin, lang: &Lang, screen: &S
     let over = over.or_else(|| inventory.picks.get(first + inventory::hit_pick(layout, gui, inventory.picks.len().saturating_sub(first), mouse)?).map(|p| &p.1));
     if let Some(stack) = over.filter(|_| inventory.cursor.is_none()) {
         let name = stack.title.as_ref().map_or_else(|| lang.item_name(&stack.name), |given| format!("§o{given}"));
-        let lines: Vec<String> = std::iter::once(name).chain(stack.notes.iter().cloned()).collect();
+        let lines: Vec<String> = std::iter::once(name).chain(crate::enchant_names::notes(stack)).collect();
         acacia_ui::tooltip::draw(list, &skin.theme, &lines, mouse, gui);
     }
 }

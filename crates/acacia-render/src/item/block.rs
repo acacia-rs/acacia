@@ -1,14 +1,14 @@
 //! A block item: the block's own faces, from the look pack's texture array, as an entity mesh
 //! with its own texture. Tints and materials are baked into the texels; see README "Items".
 
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 
 use crate::assets::flipbook::Atlas;
 use crate::assets::image::{TEXEL_BYTES, Texture};
 use crate::biome::PLAINS;
 use crate::blocks::{Box16, Material, RenderBlock, Shape, Tint};
 use crate::entity::Skin;
-use crate::entity::bake::{Joint, Mesh, Vertex};
+use crate::entity::bake::{Mesh, Vertex};
 
 const TILE: u32 = 16;
 
@@ -51,9 +51,7 @@ pub fn skin(block: &RenderBlock, atlas: &Atlas) -> Option<Skin> {
         vertices.extend([0, 1, 2, 0, 2, 3].map(vertex));
     }
     let rgba = tiles.iter().flat_map(|t| texels(atlas.layers.get(t.layer as usize), *t)).collect();
-    let joint = Joint { parent: None, pivot: Vec3::ZERO, rotation: [0.0; 3], unbind: Mat4::IDENTITY };
-    let mesh = Mesh { vertices, bones: vec!["root".into()], joints: vec![joint] };
-    Some(Skin { width: TILE, height: TILE * tiles.len() as u32, rgba, mesh: Some(mesh) })
+    Some(Skin { width: TILE, height: TILE * tiles.len() as u32, rgba, mesh: Some(Mesh::one_bone(vertices)) })
 }
 
 /// The block's faces, or `None` for shapes that are not boxes or model faces.

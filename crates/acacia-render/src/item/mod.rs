@@ -5,13 +5,18 @@ pub mod arm;
 mod block;
 pub mod drop;
 mod extrude;
+pub mod first_person;
 pub mod framed;
 pub mod hand;
 mod held_banner;
 mod icon;
 mod icons;
+pub mod java;
+pub mod java_icon;
+mod java_mesh;
 pub mod leather;
 pub mod map;
+pub mod potion;
 mod shield;
 
 use std::collections::HashMap;
@@ -24,6 +29,7 @@ use crate::LookPack;
 use crate::look::Dropped;
 pub use icon::{block_icon, model_icon, pattern_icon};
 pub use icons::ItemIcons;
+pub use java::JavaItems;
 pub use shield::{ITEM as SHIELD, raise_arm as raise_shield_arm};
 
 /// An item stack as the server names it.
@@ -39,6 +45,8 @@ pub struct ItemKey {
     pub dye: Option<[u8; 3]>,
     /// A banner's cloth.
     pub banner: Option<Arc<crate::banner::Banner>>,
+    /// An armour trim's material (`quartz`).
+    pub trim: Option<String>,
 }
 
 /// What a model is, for how it is held, dropped and stacked.
@@ -63,10 +71,28 @@ pub struct ItemModel {
     pub form: Form,
     /// Shimmers: the stack is enchanted, or the look's game always draws the item so.
     pub glint: bool,
+    /// A Java look's item: its own displays ([`hand::Display::held`]).
+    pub java: Option<Arc<java::Displays>>,
+    /// A Java item's `ground` and `fixed` meshes where they differ from the hand's (`skin`).
+    pub ground: Option<Arc<Skin>>,
+    pub fixed: Option<Arc<Skin>>,
+}
+
+impl ItemModel {
+    /// The skin dropped on the ground.
+    pub fn ground_skin(&self) -> Arc<Skin> {
+        self.ground.clone().unwrap_or_else(|| self.skin.clone())
+    }
+
+    /// The skin hung in an item frame.
+    pub fn fixed_skin(&self) -> Arc<Skin> {
+        self.fixed.clone().unwrap_or_else(|| self.skin.clone())
+    }
 }
 
 pub struct ItemModels {
     icons: ItemIcons,
+    java: Option<Arc<JavaItems>>,
     pack: Arc<LookPack>,
     table: Arc<BlockTable>,
     layers: Arc<[Layer]>,
@@ -77,7 +103,7 @@ impl ItemModels {
     /// `table` is the look pack's for the world's registry ([`LookPack::block_table`]).
     pub fn new(pack: Arc<LookPack>, table: Arc<BlockTable>) -> ItemModels {
         let layers = [Layer::plain(NO_MODEL, NO_TEXTURE)].into();
-        ItemModels { icons: ItemIcons::load(pack.files()), pack, table, layers, cache: HashMap::new() }
+        ItemModels { icons: ItemIcons::load(pack.files()), java: JavaItems::shared(pack.files()), pack, table, layers, cache: HashMap::new() }
     }
 
     /// How the look's dropped items move.
@@ -101,13 +127,16 @@ impl ItemModels {
 
     fn build(&self, key: &ItemKey) -> Option<ItemModel> {
         let glint = self.pack.look.foil.always(&key.name);
-        let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint });
+        let model = |skin: Skin, form| Some(ItemModel { skin: Arc::new(skin), layers: self.layers.clone(), form, glint, java: None, ground: None, fixed: None });
         let shield = |root| shield::skin(root, key.banner.as_deref());
         if let Some(skin) = Some(self.pack.files()).filter(|_| key.name == shield::ITEM).and_then(shield) {
             return model(skin, Form::Shield);
         }
         if let Some(skin) = key.banner.as_deref().and_then(|cloth| held_banner::skin(self.pack.files(), cloth)) {
             return model(skin, Form::Banner);
+        }
+        if let Some(model) = self.java.as_deref().and_then(|java| self.java_model(java, key, glint)) {
+            return Some(model);
         }
         // An item with an icon of its own shows it, even when it places a block (doors, beds).
         let dye = leather::dyeable(&key.name).then_some(key.dye);
@@ -124,6 +153,28 @@ impl ItemModels {
         }
         model(block::skin(block, &self.pack.atlas)?, Form::Block)
     }
+
+    /// The Java item's held geometry (the right hand's, as worn, dropped and framed too).
+    fn java_model(&self, java: &JavaItems, key: &ItemKey, glint: bool) -> Option<ItemModel> {
+        let name = &java.stack_name(&key.name, key.aux, key.trim.as_deref());
+        let (hand, tint) = (java::context::hand(false, false), first_tint(&key.name, key.aux, key.dye));
+        let mesh = java.mesh(name, hand, tint)?;
+        let form = if mesh.solid { Form::Block } else { Form::Flat };
+        let own = |context| (java.drawn_context(name, context) != hand).then(|| java.mesh(name, context, tint)).flatten().map(|m| Arc::new(m.skin));
+        let (ground, fixed) = (own(java::context::GROUND), own(java::context::FIXED));
+        let displays = Some(Arc::new(java.displays(name)));
+        Some(ItemModel { skin: Arc::new(mesh.skin), layers: self.layers.clone(), form, glint: glint || mesh.foil, java: displays, ground, fixed })
+    }
+}
+
+/// What a Java item's first tint becomes for a Bedrock stack ([`JavaItems::mesh`]'s `dye`): a
+/// potion's colour, dyed leather's `dye`.
+pub fn first_tint(item: &str, aux: u32, dye: Option<[u8; 3]>) -> Option<[u8; 3]> {
+    if potion::holds_potion(item) {
+        let [_, r, g, b] = potion::color(&potion::java_potion(item, aux)?).to_be_bytes();
+        return Some([r, g, b]);
+    }
+    leather::dyeable(item).then_some(dye).flatten()
 }
 
 /// The icon's first frame (strips stack frames downwards) as an extruded sprite; a leather

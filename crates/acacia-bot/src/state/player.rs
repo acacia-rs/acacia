@@ -156,11 +156,8 @@ impl PlayerState {
                     self.position = feet(p.position);
                 }
             }
-            UpdateAttributes::ID => {
-                let p: UpdateAttributes = packet.decode()?;
-                if p.runtime_entity_id == self.runtime_entity_id {
-                    p.attributes.iter().for_each(|a| self.on_attribute(a));
-                }
+            UpdateAttributes::ID if super::leading_entity(packet) == Some(self.runtime_entity_id) => {
+                packet.decode::<UpdateAttributes>()?.attributes.iter().for_each(|a| self.on_attribute(a));
             }
             MobEffect::ID => {
                 let p: MobEffect = packet.decode()?;

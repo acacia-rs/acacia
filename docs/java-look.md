@@ -44,8 +44,15 @@ Pomme (PommeMC/Client) is GPL-3.0-or-later; acacia is MIT.
 - DESIGN.md's License row ("never port from GPL/LGPL sources") gains this one exception when
   `lookbake` lands.
 
-Open: entity cube tables transcribed from Pomme's source would carry its text into the pack. Take
-them from the Java models directly, or confirm that is acceptable, before J4.
+Entity and item models come from the user's own client jar, not from Pomme: `lookbake java` (or
+`java-exported`) compiles `tools/lookbake/exporter/*.java` (MIT, ours; the entity exporter after
+Horizon's) with a JDK 25, runs it against the jar and writes every baked model layer into the look as
+`java/entity_models.json`, and every item's resolved model per display context as
+`java/item_models.json`. The output stays on the user's machine; neither it nor any cube table is
+committed or shipped. Which Java item a Bedrock item is comes from ViaBedrock's `item_mappings.json`
+(GPL-3.0), downloaded at bake time like its block-state table. The `setupAnim` ports in `acacia-render/src/entity/java/anim` are
+written against the client's decompiled models, read on the oracle host and never committed, and
+checked by the parity harness `entity_poses`.
 
 ## Crates
 
@@ -170,18 +177,18 @@ files and colormaps, with the dark forest and swamp modifiers, written under Bed
 as the pack's `biomes_client.json`; tints blend over 5×5 columns. Weighted variants
 (stone, dirt, netherrack, fire, 38 blocks) are all baked and picked per position as the game picks
 them; plants stand off the grid by Java's offsets (`lookbake/src/offset.rs`). Kept on Bedrock
-rendering: 382 states drawn as block entities, 193 with no Java geometry, and 182 whose model lays
-one face over another. The grass block is among those, drawn as Bedrock's overlay cube; its faces
-still turn as its Java variants do. Both of Java's fog bands are drawn (`Look::JAVA`). The cutout
+rendering: 382 states drawn as block entities and 193 with no Java geometry. A model that lays one
+face over another (the grass block's overlay) draws both, the second on the first: terrain's depth
+test passes equal depth, as Java's LEQUAL. Faces cull against neighbours as `Block.shouldRenderFace`:
+`BlockShapeExporter` writes every state's face occlusion shapes from the jar (`lookbake/src/occlusion.rs`). Both of Java's fog bands are drawn (`Look::JAVA`). The cutout
 threshold needs nothing (Java's terrain pipeline discards below 0.5, as ours), nor the mip cap: a
 16-pixel texture has four levels below it. What is left, in order: [java-look-next.md](java-look-next.md).
 
 ### Checking against the game
 
-The bake is checked against the game's own, not by eye. The workspace's `research/java-truth`
-(outside the repo: it holds a JDK and decompiled game code) runs the client jar's model baking
-without a window and dumps every Java block state's baked quads; `lookbake java-check
-<quads.json.gz>` bakes the same states and names each difference in corners, texture, texture
+The bake is checked against the game's own, not by eye: parity harness `bake` (docs/parity.md;
+`tools/parity/remote.sh bake`) runs the client jar's model baking without a window and dumps every
+Java block state's baked quads; `lookbake java-check <quads.json.gz>` bakes the same states and names each difference in corners, texture, texture
 coordinates, cull side, tint and shade direction, for every alternative of a state. The dump's
 `placement.json` has, for 48 positions, the alternatives the game picks and how far it shifts each
 block that stands off the grid; the check runs the renderer's own pick and shift against them. All

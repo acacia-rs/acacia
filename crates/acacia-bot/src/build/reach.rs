@@ -2,9 +2,11 @@
 //! player's facing (see `rules`), so a cell is placed from a spot whose eye makes the click give the target.
 
 use acacia_physics::{BlockPos, Vec3};
+use acacia_world::{BlockAccess, BlockRegistry};
 
 use super::rules;
 use super::structure::Block;
+use crate::interact::sight::Sight;
 use crate::interact::Face;
 use crate::movement::EYE_HEIGHT;
 use crate::pathfind::process::{BlockView, Look};
@@ -13,9 +15,10 @@ use crate::pathfind::process::{BlockView, Look};
 const MARGIN: f32 = 0.35;
 /// More margin when choosing a stand: the pilot stops up to its tolerance off the cell's centre.
 pub const STAND_SLACK: f32 = 0.45;
-/// The reach stands are planned with (BDS keeps clicks to 6.7, `interact::BLOCK_REACH`). Live house16 A/B
-/// (tools/build-ab.sh): 5.5 against Java's 4.5 took one bot ~146 s against 161 s, two bots ~94 against 105.
-const PLAN_REACH: f32 = 5.5;
+/// The reach stands are planned with, eye to the block's centre like `interact::BLOCK_REACH`. Live house16 A/B
+/// (tools/build-ab.sh, then measured to the nearest point): 5.5 against Java's 4.5 took one bot ~146 s against
+/// 161 s, two bots ~94 against 105.
+const PLAN_REACH: f32 = 5.7;
 
 /// [`PLAN_REACH`], or `BUILD_REACH` for an A/B (capped at the act limit).
 fn plan_reach() -> f32 {
@@ -58,18 +61,12 @@ fn bottom_slab(b: &BlockView) -> bool {
     b.name.ends_with("_slab") && b.prop("minecraft:vertical_half") == Some("bottom")
 }
 
-fn dist_to_block(eye: Vec3, p: BlockPos) -> f32 {
-    let d = |e: f32, lo: i32| (lo as f32 - e).max(e - (lo + 1) as f32).max(0.0);
-    let (x, y, z) = (d(eye[0], p[0]), d(eye[1], p[1]), d(eye[2], p[2]));
-    (x * x + y * y + z * z).sqrt()
-}
-
 pub fn in_reach(eye: Vec3, p: BlockPos) -> bool {
     within(eye, p, 0.0)
 }
 
 pub fn within(eye: Vec3, p: BlockPos, slack: f32) -> bool {
-    dist_to_block(eye, p) <= plan_reach() - MARGIN - slack
+    crate::interact::block_distance(eye, p) <= plan_reach() - MARGIN - slack
 }
 
 /// The eye is on the outer side of `face` of the block at `p`: the face can be seen.
@@ -102,8 +99,11 @@ fn points(face: Face, against: &BlockView) -> Vec<Vec3> {
     }
 }
 
-/// A click from `eye` that places `target` into `pos` with its state, reaching `slack` short of the limit.
+/// A click from `eye` that places `target` into `pos` with its state, reaching `slack` short of the limit, on a
+/// point the eye sees: no other block's shape is in the way (`interact::sight`).
 pub fn click_for(pos: BlockPos, target: &Block, eye: Vec3, look: &dyn Look, slack: f32) -> Option<Click> {
+    let world = LookBlocks(look);
+    let sight = Sight { world: &world, registry: BlockRegistry::vanilla() };
     for face in Face::ALL {
         let o = face.offset();
         let against = [pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]];
@@ -111,10 +111,68 @@ pub fn click_for(pos: BlockPos, target: &Block, eye: Vec3, look: &dyn Look, slac
         if !b.solid() || b.interactive || !sees(eye, against, face) || !within(eye, against, slack) {
             continue;
         }
-        let Some(click) = points(face, &b).into_iter().find(|c| rules::gives(target, face, *c, eye, pos, &b)) else { continue };
+        let into = look.block(pos).is_some_and(|t| t.solid()).then_some(pos);
+        let visible = |c: &Vec3| sight.sees_face_into(eye, against, face, std::array::from_fn(|i| against[i] as f32 + c[i]), into);
+        let Some(click) = points(face, &b).into_iter().find(|c| rules::gives(target, face, *c, eye, pos, &b) && visible(c)) else { continue };
         return Some(Click { against, face, click });
     }
     None
+}
+
+/// A [`Look`] as block ids for the shared ray. Unloaded cells, and blocks the vanilla registry lacks, read as air.
+struct LookBlocks<'a>(&'a dyn Look);
+
+impl BlockAccess for LookBlocks<'_> {
+    fn block(&self, x: i32, y: i32, z: i32) -> u32 {
+        let r = BlockRegistry::vanilla();
+        match self.0.block([x, y, z]) {
+            Some(b) if !b.air => r.find(b.name, b.props).unwrap_or_else(|| r.air_id()),
+            _ => r.air_id(),
+        }
+    }
+
+    fn liquid(&self, _: i32, _: i32, _: i32) -> u32 {
+        BlockRegistry::vanilla().air_id()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::pathfind::process::{BlockView, Target};
+
+    /// Stone where listed, air elsewhere.
+    struct Cells(HashMap<BlockPos, &'static str>);
+
+    impl Look for Cells {
+        fn solid(&self, p: BlockPos) -> Option<bool> {
+            Some(self.0.contains_key(&p))
+        }
+
+        fn find(&self, _: &Target) -> Option<Vec3> {
+            None
+        }
+
+        fn block(&self, p: BlockPos) -> Option<BlockView> {
+            let r = BlockRegistry::vanilla();
+            let name = self.0.get(&p).copied().unwrap_or("minecraft:air");
+            r.get(r.find(name, "")?).map(BlockView::of)
+        }
+    }
+
+    #[test]
+    fn a_click_behind_another_block_is_not_planned() {
+        // Stone at x 2 to place on top of, from an eye at y 1.62 west of it: the Up face is in view until a
+        // stone at x 1, y 1 hides it.
+        let (pos, eye) = ([2, 1, 0], [0.5, 1.62 + 0.4, 0.5]);
+        let target = Block::new("stone", "");
+        let open = Cells([([2, 0, 0], "minecraft:stone")].into());
+        assert!(click_for(pos, &target, eye, &open, 0.0).is_some_and(|c| c.face == Face::Up));
+        let hidden = Cells([([2, 0, 0], "minecraft:stone"), ([1, 1, 0], "minecraft:stone")].into());
+        assert_eq!(click_for(pos, &target, eye, &hidden, 0.0), None);
+    }
 }
 
 fn passable(look: &dyn Look, p: BlockPos) -> bool {

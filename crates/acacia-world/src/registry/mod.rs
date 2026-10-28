@@ -6,15 +6,17 @@
 
 mod blob;
 mod mining;
+mod offset;
 mod state;
 
 use std::ops::Range;
-use std::sync::{Arc, LazyLock, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock, Weak};
 
 use parking_lot::Mutex;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 pub use mining::{Material, Mining, Tool, ToolKind, ToolTier};
+pub use offset::SelectionOffset;
 pub use state::{Aabb, BlockFlags, BlockState};
 
 #[derive(Debug)]
@@ -44,6 +46,26 @@ impl BlockRegistry {
 
     pub fn vanilla_arc() -> Arc<BlockRegistry> {
         VANILLA.clone()
+    }
+
+    /// Vanilla with `blocks` merged in, shared while alive: a swarm's bots on one server hold one copy
+    /// (1.6 MB each), and a list that adds nothing new is vanilla itself.
+    pub fn vanilla_with_custom_blocks(blocks: &[CustomBlock]) -> Arc<BlockRegistry> {
+        static LAST: LazyLock<Mutex<Option<(Vec<CustomBlock>, Weak<BlockRegistry>)>>> = LazyLock::new(Mutex::default);
+        let new: Vec<CustomBlock> = VANILLA.new_blocks(blocks).cloned().collect();
+        if new.is_empty() {
+            return VANILLA.clone();
+        }
+        let mut last = LAST.lock();
+        if let Some((key, shared)) = &*last
+            && *key == new
+            && let Some(shared) = shared.upgrade()
+        {
+            return shared;
+        }
+        let registry = Arc::new(VANILLA.with_custom_blocks(&new));
+        *last = Some((new, Arc::downgrade(&registry)));
+        registry
     }
 
     fn from_states(states: Vec<BlockState>) -> Self {
@@ -143,6 +165,8 @@ fn custom_state(name: &'static str) -> BlockState {
         name,
         properties: "",
         boxes: &FULL,
+        selection: &FULL,
+        selection_offset: SelectionOffset::None,
         friction: 0.6,
         flags: BlockFlags::FULL_CUBE,
         liquid_depth: 0,

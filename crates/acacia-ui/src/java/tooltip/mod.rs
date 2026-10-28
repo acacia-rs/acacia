@@ -1,0 +1,138 @@
+//! Tooltips as `GuiGraphicsExtractor.tooltip` draws them: `ClientTooltipComponent` lines measured
+//! and placed by a `ClientTooltipPositioner`, `TooltipRenderUtil`'s nine-sliced background and
+//! frame, then each line's text and image. `item` builds an item's lines
+//! (`ItemStack.getTooltipLines`) from `stack`, the item data, and `game`, the registry facts;
+//! `bundle` is the one tooltip image.
+
+mod attributes;
+pub mod bundle;
+mod contents;
+mod details;
+mod effects;
+mod enchantments;
+mod fireworks;
+mod fmt;
+pub mod game;
+pub mod item;
+mod names;
+mod positioner;
+pub mod stack;
+
+pub use positioner::Positioner;
+
+#[cfg(test)]
+mod tests;
+
+use std::borrow::Cow;
+
+use super::gui::{Gui, Metrics};
+use super::mth::WHITE;
+use super::picture::Picture;
+use super::text::Text;
+
+/// A `ClientTooltipComponent`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Line {
+    /// `ClientTextTooltip`: 10 high.
+    Text(Text),
+    /// An image component by its Java class name and size; a bundle's draws itself, any other is
+    /// a `Picture::TooltipImage`.
+    Image { kind: Cow<'static, str>, w: i32, h: i32, bundle: Option<Box<bundle::Bundle>> },
+}
+
+impl Line {
+    pub fn width(&self, font: &dyn Metrics) -> i32 {
+        match self {
+            Line::Text(t) => font.visual_width(t),
+            Line::Image { w, .. } => *w,
+        }
+    }
+
+    pub fn height(&self) -> i32 {
+        match self {
+            Line::Text(_) => 10,
+            Line::Image { h, .. } => *h,
+        }
+    }
+}
+
+
+/// A tooltip to draw: what `setTooltipForNextFrame` defers.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Tooltip {
+    pub lines: Vec<Line>,
+    pub x: i32,
+    pub y: i32,
+    pub positioner: Positioner,
+    /// The `tooltip_style` id (`minecraft:fancy`), `None` for the default sprites.
+    pub style: Option<String>,
+    /// Two pixels after the first line (an item's name).
+    pub extra_space: bool,
+}
+
+/// `GuiGraphicsExtractor.deferredTooltip`: the first tooltip set in a frame wins unless a later one
+/// replaces it; drawn by `extractDeferredElements` after everything else.
+#[derive(Clone, Debug, Default)]
+pub struct Deferred(pub Option<Tooltip>);
+
+impl Deferred {
+    /// `setTooltipForNextFrameInternal`: nothing for no lines.
+    pub fn set(&mut self, tooltip: Tooltip, replace: bool) {
+        if !tooltip.lines.is_empty() && (self.0.is_none() || replace) {
+            self.0 = Some(tooltip);
+        }
+    }
+
+    /// `extractDeferredElements`' tooltip part: a new stratum, then the tooltip.
+    pub fn extract(&mut self, gui: &mut Gui, font: &dyn Metrics) {
+        if let Some(t) = self.0.take() {
+            gui.next_stratum();
+            extract(gui, font, &t);
+        }
+    }
+}
+
+/// `TooltipRenderUtil.extractTooltipBackground`: background and frame around the `w` × `h` text area.
+pub fn background(gui: &mut Gui, x: i32, y: i32, w: i32, h: i32, style: Option<&str>) {
+    let (x0, y0) = (x - 3 - 9, y - 3 - 9);
+    let (pw, ph) = (w + 3 + 3 + 18, h + 3 + 3 + 18);
+    let path = |part: &str| match style {
+        None => format!("tooltip/{part}"),
+        Some(id) => format!("tooltip/{}_{part}", id.split_once(':').map_or(id, |(_, p)| p)),
+    };
+    gui.sprite(path("background"), x0, y0, pw, ph);
+    gui.sprite(path("frame"), x0, y0, pw, ph);
+}
+
+/// `GuiGraphicsExtractor.tooltip`.
+pub fn extract(gui: &mut Gui, font: &dyn Metrics, t: &Tooltip) {
+    let mut w = 0;
+    let mut h = if t.extra_space && t.lines.len() != 1 { 0 } else { -2 };
+    for line in &t.lines {
+        w = w.max(line.width(font));
+        h += line.height();
+    }
+    let [x, y] = t.positioner.place([gui.width, gui.height], t.x, t.y, w, h);
+    gui.push(Vec::new());
+    background(gui, x, y, w, h, t.style.as_deref());
+    let gap = |i: usize| if t.extra_space && i == 0 { 2 } else { 0 };
+    let mut ly = y;
+    for (i, line) in t.lines.iter().enumerate() {
+        if let Line::Text(text) = line {
+            gui.text(text.clone(), x, ly, WHITE, true);
+        }
+        ly += line.height() + gap(i);
+    }
+    ly = y;
+    for (i, line) in t.lines.iter().enumerate() {
+        match line {
+            Line::Image { bundle: Some(b), .. } => b.extract(gui, font, x, ly, w),
+            Line::Image { kind, w: iw, h: ih, bundle: None } => {
+                gui.draws.push(super::gui::GuiDraw::Picture(Picture::TooltipImage { kind: kind.to_string(), x, y: ly, w: *iw, h: *ih }));
+            }
+            Line::Text(_) => {}
+        }
+        ly += line.height() + gap(i);
+    }
+    gui.pop();
+}

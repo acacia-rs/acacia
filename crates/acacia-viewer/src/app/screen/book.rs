@@ -54,7 +54,7 @@ impl App {
         let _ = self.net.commands.send(Command::OpenBook);
     }
 
-    fn book_page(&self) -> Option<Page<'_>> {
+    pub(in crate::app) fn book_page(&self) -> Option<Page<'_>> {
         Some(self.shown.book.as_ref()?.shown(&self.play.me.as_ref()?.book.as_ref()?.0))
     }
 

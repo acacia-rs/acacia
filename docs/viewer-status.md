@@ -21,6 +21,8 @@ unit or pack tests only.
 | Particles | Server particles; torches, fires, furnaces, campfires, drips; block chips | live, both looks |
 | Entities | Pack models and animations, skins, name tags, dropped items | live |
 | Entities | Held items in both hands, worn armour, hurt flash | live |
+| Entities | Java look: 15 mob kinds on Java's models (cows, mooshrooms, pigs, sheep, chickens, creeper, spiders, zombies, husks, drowned, skeletons, strays, wither skeletons, bogged; own-model babies) posed by a port of their `setupAnim`; armour on Java's slot models with the equipment assets' textures; wool, clothes and the creeper's aura as their own models; lit by the lightmap and Java's two lights | parity harnesses `entity_models`, `entity_poses`, `entity_layers`; not seen live this session |
+| Items | Java look: items from the 26.3 item models (every display context, tints, foil), the GUI slot icons drawn from them, first-person placement with swings and use animations | parity harnesses `item_models`, `item_transforms`; slot icons by tests; not seen live this session |
 | Entities | Leather dyed worn, held and in slots: undyed brown, or the stack's own dye | undyed: live; a stack's dye: tests (no command dyes armour) |
 | Entities | Enchantment glint on held items, worn armour and slot icons | live in the Java look (armour: faint on netherite, not told apart on diamond); Bedrock look: faint, its rules assumed; dropped items and other entities' hands: tests |
 | Entities | Death topple | tests |
@@ -49,6 +51,7 @@ unit or pack tests only.
 | Acting | Eating, drinking and the bow in first person | bow pose live, not compared with the game; eating and drinking: the pose by test (bottom centre through the use), the rise and the emptied bottle seen live |
 | HUD | Hotbar, hearts, food, armour, air, XP, item name, effects, boss bars, titles, action bar | live |
 | HUD | Chat with translations (rawtext and keys), Tab list, sidebar, F3 | live |
+| HUD | Java look: the whole HUD (hotbar, bars, effects, titles, boss bars, chat, sidebar, Tab list, subtitles) and every Java screen drawn by the ported 26.3 GUI (`acacia_ui::java`) with the game's fonts and sprite scaling; repeating menu backgrounds and the menu blur (`menuBackgroundBlurriness`) behind screens | the draw calls match the game's (parity `hud`, `font`, the `screens_*` and container harnesses, `gui_frame`). Live on testbox 2026-10-25: HUD, inventory, a container, pause, options, controls, key binds, chat, Tab list, credits (`research/gui-live/`) |
 | Screens | Inventory with the player's figure, chests, recipe book and crafting by click | live |
 | Screens | Crafting by hand: the 2×2 grid and the crafting table's 3×3; a click takes the result onto the cursor, Shift into the inventory | table live; live |
 | Screens | Anvil with its name box and level cost, smithing table, stonecutter, enchanting table | live (the cost: both looks, a rename). A cost above the player's levels is red, and 40 or more reads "Too Expensive!": the red line by its pixels in a testbox shot (a levelless rename, image not looked at), "Too Expensive!" by the bot's tests only; the result stays empty in both cases |

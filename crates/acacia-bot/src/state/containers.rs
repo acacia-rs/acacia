@@ -4,6 +4,7 @@ use acacia_client::proto::packets::{
     BlockEntityData, ContainerClose, ContainerOpen, ContainerSetData, InventoryContent, InventorySlot, ItemStackResponse,
     UpdateTrade,
 };
+use acacia_client::proto::nbt::{root_string, Network};
 use acacia_client::proto::types::{BlockCoordinates, ContainerSlotType, WindowType};
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
@@ -141,12 +142,18 @@ impl Containers {
                 }
             }
             BlockEntityData::ID => {
-                let p: BlockEntityData = packet.decode()?;
-                if let Some(name) = p.nbt.root_string("CustomName")? {
-                    self.name_block(&p.position, &name);
-                }
+                let (position, nbt) = super::block_entity_parts(packet)?;
+                self.block_entity(&position, nbt)?;
             }
             _ => {}
+        }
+        Ok(())
+    }
+
+    /// A block entity's update: remembers its `CustomName` for titling windows.
+    pub(crate) fn block_entity(&mut self, position: &BlockCoordinates, nbt: &[u8]) -> Result<(), DecodeError> {
+        if let Some(name) = root_string::<Network>(nbt, "CustomName")? {
+            self.name_block(position, &name);
         }
         Ok(())
     }

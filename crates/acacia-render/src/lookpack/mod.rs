@@ -12,7 +12,7 @@ use rustc_hash::FxHashMap;
 
 use crate::assets::Pack;
 use crate::assets::flipbook::Atlas;
-use crate::blocks::{self, BlockTable, BuildReport, RenderBlock};
+use crate::blocks::{self, BlockTable, BuildReport, FaceShapes, RenderBlock};
 use crate::look::Look;
 
 #[derive(Clone)]
@@ -26,6 +26,8 @@ pub struct LookPack {
     distinct: FxHashMap<String, u32>,
     /// The texture array the blocks' layers index.
     pub atlas: Atlas,
+    /// What the blocks' [`blocks::LightFacts::shape`] index (from 1).
+    light_shapes: Vec<FaceShapes>,
     /// See [`LookPack::files`].
     files: PathBuf,
 }
@@ -47,7 +49,15 @@ impl LookPack {
     pub fn bake_bedrock(pack: &Pack, look: Look) -> (LookPack, BuildReport) {
         let registry = BlockRegistry::vanilla();
         let (table, atlas, report) = BlockTable::build(registry, pack);
-        let mut baked = LookPack { look, blocks: Vec::new(), states: FxHashMap::default(), distinct: FxHashMap::default(), atlas, files: pack.root().to_owned() };
+        let mut baked = LookPack {
+            look,
+            blocks: Vec::new(),
+            states: FxHashMap::default(),
+            distinct: FxHashMap::default(),
+            atlas,
+            light_shapes: Vec::new(),
+            files: pack.root().to_owned(),
+        };
         for id in 0..registry.len() as u32 {
             let state = registry.get(id).expect("id below len");
             baked.set_block(state_key(state), table.get(id).clone());
@@ -71,6 +81,20 @@ impl LookPack {
         self.states.insert(state, index);
     }
 
+    /// What the blocks' [`blocks::LightFacts::shape`] index (from 1).
+    pub fn light_shapes(&self) -> &[FaceShapes] {
+        &self.light_shapes
+    }
+
+    /// The [`blocks::LightFacts::shape`] of `shapes`, adding them when new.
+    pub fn light_shape(&mut self, shapes: FaceShapes) -> u16 {
+        let index = self.light_shapes.iter().position(|s| *s == shapes).unwrap_or_else(|| {
+            self.light_shapes.push(shapes);
+            self.light_shapes.len() - 1
+        });
+        u16::try_from(index + 1).expect("light shapes fit a u16")
+    }
+
     pub fn with_look(mut self, look: Look) -> LookPack {
         self.look = look;
         self
@@ -92,10 +116,15 @@ impl LookPack {
         let block = |id| {
             let state = registry.get(id).expect("id below len");
             let Some(&index) = self.states.get(&state_key(state)) else { return BlockTable::cube(0) };
-            RenderBlock { model: blocks::model::classify(state).map(Arc::new), ..self.blocks[index as usize].clone() }
+            RenderBlock {
+                model: blocks::model::classify(state).map(Arc::new),
+                ..self.blocks[index as usize].clone()
+            }
         };
         let mut table = BlockTable::from_blocks((0..registry.len() as u32).map(block).collect());
         table.biome_blend = self.look.biome_blend;
+        table.lighting = self.look.lighting;
+        table.light_shapes = self.light_shapes.clone().into();
         table
     }
 }

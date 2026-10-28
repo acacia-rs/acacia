@@ -267,7 +267,7 @@ impl Play {
         if self.perspective != 0 {
             // The camera backs off along the look ray, stopping short of blocks (Java's `Camera.getMaxZoom`).
             let back = if self.perspective == 1 { -aim } else { aim };
-            let room = world.zip(table).and_then(|(w, t)| pick::pick(w, t, eye, back, THIRD_PERSON_DISTANCE)).map_or(f64::from(THIRD_PERSON_DISTANCE), |hit| hit.distance - 0.1);
+            let room = world.zip(table).and_then(|(w, t)| pick::pick(w, t, eye, back, THIRD_PERSON_DISTANCE)).map_or(f64::from(THIRD_PERSON_DISTANCE), |hit| (hit.distance - 0.1).max(0.0));
             camera.position = eye + back.as_dvec3() * room.max(0.0);
         }
     }

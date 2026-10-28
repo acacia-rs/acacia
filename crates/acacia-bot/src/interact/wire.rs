@@ -241,9 +241,9 @@ pub(crate) fn block_action(action: Action, [x, y, z]: BlockPos, face: Face) -> P
 /// `AbortBreak`. Without the Abort, BDS 1.26.52 stays destroying the cell and mines out whatever is placed there
 /// next (live 2026-10-18: planks gone every 3.3 s, their break time without an axe); `StopBreak` does not end it
 /// (junk scene: Stop left the cell mined out, Abort kept it).
-pub(crate) fn break_step(tick: u32, ticks: u32, pos: BlockPos, face: Face, creative: bool) -> Vec<PlayerAuthInputBlockActionItem> {
-    let mut out = vec![block_action(if tick == 0 { Action::StartBreak } else { Action::ContinueBreak }, pos, face)];
-    if tick + 1 >= ticks {
+pub(crate) fn break_step(first: bool, last: bool, pos: BlockPos, face: Face, creative: bool) -> Vec<PlayerAuthInputBlockActionItem> {
+    let mut out = vec![block_action(if first { Action::StartBreak } else { Action::ContinueBreak }, pos, face)];
+    if last {
         if !creative {
             out.push(block_action(Action::PredictBreak, pos, face));
         }

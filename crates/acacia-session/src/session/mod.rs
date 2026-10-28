@@ -48,6 +48,8 @@ pub struct SessionConfig {
     pub pack_store: Arc<dyn PackStore>,
     /// Report every server packet a strict peer would reject as an [`Event::Violation`] (strict.rs).
     pub strict: bool,
+    /// Largest decompressed server batch accepted; see [`crate::batch::DEFAULT_MAX_DECOMPRESSED`].
+    pub max_batch_bytes: usize,
 }
 
 #[derive(Debug)]
@@ -115,7 +117,8 @@ pub struct Session {
 impl Session {
     pub fn new(cfg: SessionConfig, server: SocketAddr, now: Instant) -> Self {
         let link = Link::new(cfg.link, server, now);
-        let codec = if link.is_message() { BatchCodec::without_header() } else { BatchCodec::default() };
+        let mut codec = if link.is_message() { BatchCodec::without_header() } else { BatchCodec::default() };
+        codec.set_max_decompressed(cfg.max_batch_bytes);
         let mut session = Self {
             link,
             codec,

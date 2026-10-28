@@ -95,7 +95,7 @@ impl Bot {
         }
         let server = builder.server().to_owned();
         // Physics reads terrain from blobs; a trace must hold every blob it uses, so it gets a fresh store.
-        let mut builder = builder.keep_blob_payloads(config.physics);
+        let mut builder = builder.keep_blob_payloads(config.physics).mouse_input(config.mouse_input);
         if config.physics && config.record.is_some() {
             builder = builder.blob_store(Arc::new(MemoryBlobStore::with_payloads()));
         }
@@ -112,6 +112,7 @@ impl Bot {
         let (world, movement, idle) = if config.physics {
             let mut movement = Movement::new();
             movement.mouse_input = config.mouse_input;
+            movement.rotation_noise = Some(crate::movement::RotationNoise::new(crate::cadence::seed()));
             (world, Some(movement), None)
         } else {
             (world.nearby(), None, Some((Idle::default(), SpawnSequence::default())))
@@ -233,30 +234,42 @@ impl Bot {
             self.apply(&packet);
             return Some(Step::Packet(packet));
         }
+        // A queued event with no tick due skips the select!, whose tick timer was registered and cleared per packet.
+        if self.lag.is_none()
+            && !self.ticker.due()
+            && let Some(event) = self.client.try_recv()
+        {
+            return self.on_event(event);
+        }
         let lagged = self.lag.as_ref().and_then(LagLine::next_at);
         tokio::select! {
-            event = self.client.recv() => match event? {
-                Event::Packet(packet) if self.lag.is_some() => {
-                    self.lag.as_mut()?.push(tokio::time::Instant::now(), packet);
-                    Some(Step::Idle)
-                }
-                Event::Packet(packet) => {
-                    self.apply(&packet);
-                    Some(Step::Packet(packet))
-                }
-                Event::Violation(violation) => {
-                    self.pending.push_back(BotEvent::Violation(violation));
-                    Some(Step::Idle)
-                }
-                Event::Disconnected(reason) => {
-                    self.closed = Some(reason.clone());
-                    Some(Step::Disconnected(reason))
-                }
-            },
-            _ = tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)), if lagged.is_some() => Some(Step::Idle),
+            event = self.client.recv() => self.on_event(event?),
+            // In an async block: select! builds a disabled branch's future too, and a bare sleep looks up the timer.
+            _ = async { tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)).await }, if lagged.is_some() => Some(Step::Idle),
             ticks = self.ticker.wait() => {
                 (0..ticks).for_each(|_| self.on_tick());
                 Some(Step::Tick)
+            }
+        }
+    }
+
+    fn on_event(&mut self, event: Event) -> Option<Step> {
+        match event {
+            Event::Packet(packet) if self.lag.is_some() => {
+                self.lag.as_mut()?.push(tokio::time::Instant::now(), packet);
+                Some(Step::Idle)
+            }
+            Event::Packet(packet) => {
+                self.apply(&packet);
+                Some(Step::Packet(packet))
+            }
+            Event::Violation(violation) => {
+                self.pending.push_back(BotEvent::Violation(violation));
+                Some(Step::Idle)
+            }
+            Event::Disconnected(reason) => {
+                self.closed = Some(reason.clone());
+                Some(Step::Disconnected(reason))
             }
         }
     }

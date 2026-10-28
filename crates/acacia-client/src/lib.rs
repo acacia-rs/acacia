@@ -16,6 +16,7 @@ mod actions;
 mod blob_cache;
 mod client;
 mod driver;
+mod event_queue;
 mod filter;
 mod friend;
 mod handle;

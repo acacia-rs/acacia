@@ -5,6 +5,7 @@
 #   Every rev runs this tree's examples/swarm_load.rs: the harness, not the code under test.
 #   Side by side, one binary against itself repeats to 0.5% in instructions on crowd, redstone, mobs and
 #   wander (2026-10-24); mixed does not repeat (wanderers among mobs): don't judge a change on it.
+#   LOCK=1 runs each scenario's A/B under ~/bench.lock (builds don't wait for it).
 #   DETACH=1 returns once launched; the result is the tail of <remote>/run.log when run.done appears.
 set -uo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -32,5 +33,5 @@ for rev in "$2" "$3"; do
   builds+="CARGO_TARGET_DIR=\$PWD/target/revs bash tools/swarm-load.sh build ~/$src ~/$bins/$name; s=\$?; rm -rf target/revs; [ \$s = 0 ] && "
 done
 echo "A=${names[0]} B=${names[1]}"
-ab="for s in ${scenario//,/ }; do echo \"== \$s\"; bash tools/swarm-load-ab.sh \$s ~/$bins/${names[0]} ~/$bins/${names[1]} ${4:-1} | grep -E '^B/A|spawned'; done"
+ab="for s in ${scenario//,/ }; do echo \"== \$s\"; LOCK=${LOCK:-} bash tools/swarm-load-ab.sh \$s ~/$bins/${names[0]} ~/$bins/${names[1]} ${4:-1} | grep -E '^B/A|spawned'; done"
 REMOTE_DIR=$remote TAIL=${TAIL:-40} TIMEOUT=${TIMEOUT:-5400} STALL=${STALL:-2400} "$root/tools/remote-run.sh" bash -c "${builds}${ab}"

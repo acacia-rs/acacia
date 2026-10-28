@@ -9,7 +9,7 @@ use acacia_client::proto::{encode_packet, Packet, RawPacket};
 use bytes::BytesMut;
 
 use super::breaking::enchantment_level;
-use super::geometry::{block_distance, entity_aim, ray_box};
+use super::geometry::{block_distance, entity_aims, entity_distance, ray_box};
 use super::wire::{self, Hand, SwingSource};
 use super::{facing_face, to_wire, Face};
 use crate::state::{Entity, ItemStack, PLAYER_EYE_HEIGHT, PLAYER_KIND};
@@ -136,9 +136,9 @@ fn block_actions_ride_in_auth_input() {
 #[test]
 fn a_break_ends_with_abort_break_or_bds_keeps_destroying_the_cell() {
     let (p, f) = ([1, -60, 2], Face::North);
-    let steps: Vec<Vec<Action>> = (0..3).map(|t| wire::break_step(t, 3, p, f, false).into_iter().map(|a| a.action).collect()).collect();
+    let steps: Vec<Vec<Action>> = (0..3).map(|t| wire::break_step(t == 0, t == 2, p, f, false).into_iter().map(|a| a.action).collect()).collect();
     assert_eq!(steps, vec![vec![Action::StartBreak], vec![Action::ContinueBreak], vec![Action::ContinueBreak, Action::PredictBreak, Action::AbortBreak]]);
-    let creative: Vec<Action> = wire::break_step(0, 1, p, f, true).into_iter().map(|a| a.action).collect();
+    let creative: Vec<Action> = wire::break_step(true, true, p, f, true).into_iter().map(|a| a.action).collect();
     assert_eq!(creative, vec![Action::StartBreak, Action::AbortBreak]);
 }
 
@@ -181,6 +181,7 @@ fn player_at(feet: [f32; 3]) -> Entity {
         on_ground: true,
         uuid: None,
         metadata: Default::default(),
+        properties: Default::default(),
         attributes: Default::default(),
         effects: Default::default(),
         equipment: None,
@@ -191,24 +192,22 @@ fn player_at(feet: [f32; 3]) -> Entity {
 #[test]
 fn reach() {
     let eye = [0.0, 65.62, 0.0];
-    // Hitbox face 0.3 from its centre: 3.2 - 0.3 = 2.9 along the flat ray.
-    let (aim, hit, d) = entity_aim(eye, &player_at([0.0, 64.72, 3.2]));
-    assert_eq!(aim, [0.0, 65.62, 3.2]);
-    assert!((d - 2.9).abs() < 1e-4, "{d}");
-    assert!((hit[2] - 2.9).abs() < 1e-4);
-    let (_, _, d) = entity_aim(eye, &player_at([0.0, 64.72, 3.4]));
-    assert!(d > super::ENTITY_REACH);
-    let (_, _, inside) = entity_aim(eye, &player_at([0.1, 64.0, 0.0]));
-    assert_eq!(inside, 0.0);
+    // Hitbox face 0.3 from its centre: 3.0 - 0.3 = 2.7 to the nearest point, aimed at the centre.
+    let near = player_at([0.0, 64.72, 3.0]);
+    let (aim, hit) = entity_aims(eye, &near).next().unwrap();
+    assert_eq!(aim, [0.0, 65.62, 3.0]);
+    assert!((hit[2] - 2.7).abs() < 1e-4);
+    assert!((entity_distance(eye, &near) - 2.7).abs() < 1e-4);
+    assert!(entity_distance(eye, &player_at([0.0, 64.72, 3.2])) > super::ENTITY_REACH);
+    assert_eq!(entity_distance(eye, &player_at([0.1, 64.0, 0.0])), 0.0);
 
     // A boat on the ground at y 64 (wire y 64.375) is aimed at low; the ray enters its top face.
     let boat = Entity { kind: "minecraft:boat".into(), position: Vec3f { x: 0.0, y: 64.375, z: 3.2 }, ..player_at([0.0; 3]) };
-    let (aim, hit, d) = entity_aim(eye, &boat);
+    let (aim, hit) = entity_aims(eye, &boat).next().unwrap();
     assert!((aim[1] - 64.2275).abs() < 1e-4 && (hit[1] - 64.455).abs() < 1e-4, "{aim:?} {hit:?}");
-    assert!((d - 2.92).abs() < 0.01, "{d}");
 
-    assert!((block_distance([0.5, 64.5, 0.5], [0, 64, 5]) - 4.5).abs() < 1e-4);
-    assert!((block_distance([0.5, 66.0, 0.0], [0, 62, 4]) - 5.0).abs() < 1e-4);
+    assert!((block_distance([0.5, 64.5, 0.5], [0, 64, 5]) - 5.0).abs() < 1e-4);
+    assert!((block_distance([0.5, 66.5, 0.5], [0, 62, 3]) - 5.0).abs() < 1e-4);
     assert_eq!(block_distance([0.5, 64.5, 0.5], [0, 64, 0]), 0.0);
     assert_eq!(ray_box([0.0; 3], [1.0, 0.0, 0.0], [2.0, -1.0, -1.0], [3.0, 1.0, 1.0]), Some((2.0, 0)));
     assert_eq!(ray_box([0.0; 3], [-1.0, 0.0, 0.0], [2.0, -1.0, -1.0], [3.0, 1.0, 1.0]), None);

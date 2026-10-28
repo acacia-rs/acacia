@@ -6,7 +6,7 @@ use acacia_client::proto::types::{Action, GameMode};
 use acacia_physics::BlockPos;
 use acacia_world::BlockState;
 
-use super::break_time::break_ticks;
+use super::break_time::{break_ticks, Progress};
 use super::geometry::{block_distance, BLOCK_REACH};
 use super::wire::{self, SwingSource};
 use super::Face;
@@ -20,9 +20,8 @@ const SWING_EVERY: u32 = 5;
 pub(crate) struct Mining {
     pos: BlockPos,
     face: Face,
-    /// Break time in ticks, fixed at the start.
-    ticks: u32,
-    done: u32,
+    mining: acacia_world::Mining,
+    progress: Progress,
     creative: bool,
 }
 
@@ -68,24 +67,27 @@ impl Bot {
         if creative && self.held_name().is_some_and(cannot_destroy_in_creative) {
             return Err(ActionError::NotPossible("weapons break nothing in creative".into()));
         }
-        let ticks = match self.state.player.game_mode {
-            GameMode::Creative => 1,
+        match self.state.player.game_mode {
+            GameMode::Creative => {}
             GameMode::Adventure | GameMode::Spectator => return Err(ActionError::NotPossible("game mode cannot break blocks".into())),
-            _ => break_ticks(&state.mining, &self.break_conditions())
-                .ok_or_else(|| ActionError::NotPossible(format!("{} cannot be broken", state.name)))?,
-        };
+            _ => {
+                break_ticks(&state.mining, &self.break_conditions())
+                    .ok_or_else(|| ActionError::NotPossible(format!("{} cannot be broken", state.name)))?;
+            }
+        }
+        let mining = state.mining;
         let distance = block_distance(self.eye_position(), pos);
         if distance > BLOCK_REACH {
             return Err(ActionError::NotPossible(format!("{pos:?} is {distance:.2} blocks away")));
         }
-        self.mining = Some(Mining { pos, face, ticks, done: 0, creative });
+        self.mining = Some(Mining { pos, face, mining, progress: Progress::default(), creative });
         Ok(())
     }
 
     /// Stops mining (`AbortBreak` with the next tick) if a break is in progress.
     pub fn stop_mining(&mut self) {
         if let Some(m) = self.mining.take()
-            && m.done > 0
+            && m.progress.ticks() > 0
             && let Some(movement) = self.movement.as_mut()
         {
             movement.pending_actions.push(wire::block_action(Action::AbortBreak, m.pos, m.face));
@@ -104,7 +106,7 @@ impl Bot {
 
     /// The block being mined and how far along (0 to 1), for a crack overlay.
     pub fn mining_progress(&self) -> Option<(BlockPos, f32)> {
-        self.mining.map(|m| (m.pos, m.done as f32 / m.ticks as f32))
+        self.mining.map(|m| (m.pos, m.progress.fraction()))
     }
 
     /// One tick of [`Bot::start_mining`]: the same block actions [`Bot::break_block`] sends, ending
@@ -112,21 +114,23 @@ impl Bot {
     pub(crate) fn tick_mining(&mut self) {
         let Some(mut m) = self.mining else { return };
         if self.block_at(m.pos).is_none_or(|(_, s)| s.is_air()) {
-            if m.done > 0 {
+            if m.progress.ticks() > 0 {
                 self.end_break(m.pos, m.face);
             }
             self.mining = None;
             return;
         }
-        let actions = wire::break_step(m.done, m.ticks, m.pos, m.face, m.creative);
+        let tick = m.progress.ticks();
+        let ticks_now = if m.creative { 1 } else { break_ticks(&m.mining, &self.break_conditions()).unwrap_or(u32::MAX) };
+        let last = m.progress.step(ticks_now);
+        let actions = wire::break_step(tick == 0, last, m.pos, m.face, m.creative);
         if let Some(movement) = self.movement.as_mut() {
             movement.pending_actions.extend(actions);
         }
-        if m.done % SWING_EVERY == 0 {
+        if tick % SWING_EVERY == 0 {
             self.swing_from(Some(SwingSource::Mine));
         }
-        m.done += 1;
-        self.mining = (m.done < m.ticks).then_some(m);
+        self.mining = (!last).then_some(m);
     }
 
     /// Right-clicks `face` of the block at `pos` now, with the current aim. A held block (or boat,
