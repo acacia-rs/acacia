@@ -89,7 +89,8 @@ fn the_box_fits_a_two_wide_channel() {
     let mut st = boat(-50.0, 1.0, 0.0);
     run(&mut st, [0.0, 1.0], 120, &world);
     assert!(st.pos[0] > -10.0, "{:?}", st.pos);
-    assert_eq!(st.pos[2], 1.0);
+    // The bow's f32 cosine at yaw 0 is -4e-8, which the box's faces keep (as BDS's do, z 0.49999 live).
+    assert!((st.pos[2] - 1.0).abs() < 1e-4, "{:?}", st.pos);
     let mut world = lake(60);
     world.fill(Some(TestBlock::Stone), [-60, -61, -60], [60, -60, -1]);
     world.fill(Some(TestBlock::Stone), [-60, -61, 1], [60, -60, 60]);

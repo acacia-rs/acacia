@@ -40,17 +40,26 @@ pub struct BoatState {
     strokes: [Option<u32>; 2],
     /// The wave's phase in radians.
     pub wave: f64,
+    /// The box's x and z faces ([min x, max x, min z, max z]) and the x and z they were moved to.
+    faces: Option<([f32; 4], [f32; 2])>,
 }
 
 impl BoatState {
     pub fn new(pos: Vec3, yaw: f32) -> Self {
-        BoatState { pos, vel: [0.0; 3], yaw, yaw_vel: 0.0, on_ground: false, age: 0, strokes: [None; 2], wave: 0.0 }
+        BoatState { pos, vel: [0.0; 3], yaw, yaw_vel: 0.0, on_ground: false, age: 0, strokes: [None; 2], wave: 0.0, faces: None }
     }
 
+    /// BDS moves the box and never rebuilds it, and x and z are its centre, which drifts an ulp from a box built
+    /// around them (live 2026-10-28: 103 of 118 corrections, against 50 for `pos += move`). A `pos` set elsewhere
+    /// rebuilds it.
     fn bounding_box(&self) -> Aabb {
         let [x, y, z] = self.pos;
         let bottom = y - HEIGHT_OFFSET;
-        Aabb::new(x - HALF_WIDTH, bottom, z - HALF_WIDTH, x + HALF_WIDTH, bottom + HEIGHT, z + HALF_WIDTH)
+        let [x0, x1, z0, z1] = match self.faces {
+            Some((faces, at)) if at == [x, z] => faces,
+            _ => [x - HALF_WIDTH, x + HALF_WIDTH, z - HALF_WIDTH, z + HALF_WIDTH],
+        };
+        Aabb::new(x0, bottom, z0, x1, bottom + HEIGHT, z1)
     }
 }
 
@@ -164,9 +173,8 @@ fn slide<W: WorldView + ?Sized>(st: &mut BoatState, vel: Vec3, world: &W) -> Vec
         moved[axis] = step[axis];
     }
     st.on_ground = vel[1] < 0.0 && moved[1] != vel[1];
-    for axis in 0..3 {
-        st.pos[axis] += moved[axis];
-    }
+    st.pos = [(bb.min[0] + bb.max[0]) * 0.5, st.pos[1] + moved[1], (bb.min[2] + bb.max[2]) * 0.5];
+    st.faces = Some(([bb.min[0], bb.max[0], bb.min[2], bb.max[2]], [st.pos[0], st.pos[2]]));
     for axis in [0, 2] {
         if moved[axis] != vel[axis] {
             moved[axis] = 0.0;
