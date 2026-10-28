@@ -89,7 +89,7 @@ async fn run() -> Result<(), Error> {
             let r = attempt(&mut bot, &pad, s, profile, seed).await?;
             let ok = r.arrived && r.hits <= s.hits;
             passed += u32::from(ok);
-            println!("{:8} {profile:?} seed {seed:2}: {} {} ticks, hits {}, health lost {:.0}, corrections {}, evading {} lit {} goto {}", s.name, if ok { "PASS" } else { "FAIL" }, r.ticks, r.hits, r.lost, r.corrections, r.evading, r.lit, r.goto);
+            println!("{:8} {profile:?} seed {seed:2}: {} {} ticks, hits {}, health lost {:.0}, corrections {}, evading {} {:?} goto {}", s.name, if ok { "PASS" } else { "FAIL" }, r.ticks, r.hits, r.lost, r.corrections, r.evading, r.seen, r.goto);
         }
         println!("{:8} {profile:?}: {passed}/{runs} passed", s.name);
         failed += runs as u32 - passed;
@@ -107,9 +107,9 @@ struct Run {
     hits: u32,
     lost: f32,
     corrections: u32,
-    /// Ticks `Evade` was in control, and ticks a lit creeper was tracked within 16 blocks.
+    /// Ticks `Evade` was in control.
     evading: u32,
-    lit: u32,
+    seen: Seen,
     goto: String,
 }
 
@@ -132,7 +132,7 @@ async fn attempt(bot: &mut Bot, pad: &Pad, s: &Scenario, profile: MovementProfil
     let goto = procs.add(Goto::with(Goal::Block(pad.block(GOAL)), opts.clone()), 10);
     let evade = procs.add(Evade::new(opts), 90);
     let (before, start) = (corrections(bot), bot.state().player.health);
-    let (mut ticks, mut hits, mut health, mut evading, mut lit) = (0, 0, start, 0, 0);
+    let (mut ticks, mut hits, mut health, mut evading, mut seen) = (0, 0, start, 0, Seen::default());
     while ticks < MAX_TICKS && procs.outcome(goto).is_none() {
         if procs.tick(bot).await? == Status::Idle {
             bot.wait_ticks(1).await?;
@@ -143,7 +143,9 @@ async fn attempt(bot: &mut Bot, pad: &Pad, s: &Scenario, profile: MovementProfil
         ticks += 1;
         evading += u32::from(procs.arbiter().active() == Some(evade));
         let feet = bot.movement().and_then(|m| m.position()).unwrap_or_default();
-        lit += u32::from(hazard::Threats::near(&bot.state().entities, feet, 16.0).list.iter().any(|t| t.lit));
+        seen.add(&hazard::Threats::near(&bot.state().entities, feet, 16.0), feet);
+        let near = |e: &&acacia_bot::state::Entity| !e.is_player() && (e.position.x - feet[0]).hypot(e.position.z - feet[2]) < 16.0;
+        seen.kinds.extend(bot.state().entities.iter().filter(near).map(|e| e.kind.clone()));
         if std::env::var_os("MOBS_TRACE").is_some() && ticks % 10 == 0 {
             let blasts = procs.pilot().and_then(|p| p.field()).map(|h| h.blasts.clone());
             println!("  tick {ticks} at {feet:.2?} active {:?} blasts {blasts:.1?} entities {}", procs.arbiter().active(), bot.state().entities.len());
@@ -155,5 +157,34 @@ async fn attempt(bot: &mut Bot, pad: &Pad, s: &Scenario, profile: MovementProfil
     hits += u32::from(now < health - 0.01);
     let arrived = matches!(procs.outcome(goto), Some(Ok(())));
     let goto = procs.outcome(goto).map(|r| format!("{r:?}")).unwrap_or_else(|| "running".into());
-    Ok(Run { arrived, ticks, hits, lost: start - bot.state().player.health.min(health), corrections: corrections(bot) - before, evading, lit, goto })
+    Ok(Run { arrived, ticks, hits, lost: start - bot.state().player.health.min(health), corrections: corrections(bot) - before, evading, seen, goto })
+}
+
+/// Hostiles tracked within 16 blocks over a run.
+#[derive(Debug)]
+struct Seen {
+    /// Ticks a lit creeper was among them.
+    lit: u32,
+    /// Closest one came (horizontal blocks), fastest one moved (blocks a tick), shortest one stood (a baby is ~1).
+    closest: f32,
+    fastest: f32,
+    shortest: f32,
+    kinds: std::collections::BTreeSet<String>,
+}
+
+impl Default for Seen {
+    fn default() -> Self {
+        Seen { lit: 0, closest: f32::INFINITY, fastest: 0.0, shortest: f32::INFINITY, kinds: Default::default() }
+    }
+}
+
+impl Seen {
+    fn add(&mut self, threats: &hazard::Threats, feet: [f32; 3]) {
+        self.lit += u32::from(threats.list.iter().any(|t| t.lit));
+        for t in threats.list.iter().filter(|t| t.hostile()) {
+            self.closest = self.closest.min((t.feet[0] - feet[0]).hypot(t.feet[2] - feet[2]));
+            self.fastest = self.fastest.max(t.motion[0].hypot(t.motion[2]));
+            self.shortest = self.shortest.min(t.size.1);
+        }
+    }
 }
