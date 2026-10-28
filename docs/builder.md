@@ -184,9 +184,17 @@ stands and the stands it could use: the first thing to read when a build stalls 
     grid over each face, a pair's second half obeys the never-cover rule (a bed's head buried its floor plank).
     After: 252-315 s, 3495-4577 ticks, 94-106 walks, 5.5-6.1 placements a walk, 0-1 refused breaks; Plan p95
     3.7-4.3 ms (was 1.8-2.0).
-  - Open: back to ~150 s. Next: reproduce the walk count in the sim house16; count `click_for` rejections by
-    reason (reach, face, hidden, and by what); then score stands by the cells they see, or prefer stands above
-    the wall top.
+  - Followed up (2026-10-28): the sim reproduces it (`builds_house16_as_live`: bab306e 2505 ticks, 49 walks;
+    f1ca704 4049, 106). `BUILD_SIGHT_STATS=1` (`build/sight_stats.rs`) counts why `click_for` found nothing,
+    per caller: hidden faces are all collision hits on neighbouring wall or floor blocks, never selection boxes.
+    The check that costs walks is "from here" (ignoring sight there alone, sim only: 2446 ticks, 61 walks; at
+    stand scoring: no change). The cells: the top wall row (19 walks against 4, most placing one block) and the
+    corner logs at y3-6 (12 against 2), each seen only from close by a ground-level eye.
+  - Tried, sim ticks/walks: farthest first from here 3893/106 (live 263 s against 259 off), walk weight 4
+    3379/84 (live 282 s), searches 48/96, pillar cost 3/6, en route: none better than ~3800/85-100.
+  - Verdict: the cells are hidden; ~250-265 s is line of sight's price under this planner. Next, if wanted: build
+    a top row from its far end towards one stand beside the wall (each cell's far neighbour is then there to
+    click), and stack each corner log column in one visit from a stand beside it.
 
 ## Swarm (B2: `build/board.rs`, `build/swarm.rs`)
 
