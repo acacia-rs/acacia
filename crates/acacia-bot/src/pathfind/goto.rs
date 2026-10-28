@@ -30,12 +30,14 @@ pub struct GotoOpts {
     pub seed: Option<u64>,
     /// Give up after this many ticks without coming a block closer to the goal; `None` never.
     pub give_up_ticks: Option<u32>,
+    /// A goal already met at the start is still driven to: to within `tolerance` of the feet cell's centre.
+    pub settle: bool,
 }
 
 impl Default for GotoOpts {
     fn default() -> Self {
         let scaffold = DEFAULT_SCAFFOLD.iter().map(|s| s.to_string()).collect();
-        Self { search: SearchOpts::default(), max_replans: 10, tolerance: 0.25, scaffold, shortcuts: true, seed: None, give_up_ticks: Some(600) }
+        Self { search: SearchOpts::default(), max_replans: 10, tolerance: 0.25, scaffold, shortcuts: true, seed: None, give_up_ticks: Some(600), settle: false }
     }
 }
 
