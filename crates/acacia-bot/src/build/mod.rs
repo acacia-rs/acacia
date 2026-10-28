@@ -26,9 +26,9 @@ pub(crate) mod tests;
 
 pub use board::{LocalBoard, TaskBoard};
 pub use builder::{BuildError, Builder};
-pub use check::{check, Mismatch};
+pub use check::{check, colors, Mismatch};
 pub use job::BuildJob;
 pub use rules::supported;
 pub use status::{BuildStatus, HoldWhy, Phase, StatusHandle};
-pub use structure::{Block, Structure, StructureError};
+pub use structure::{Block, Structure, StructureError, BED_COLOR};
 pub use transform::Transform;

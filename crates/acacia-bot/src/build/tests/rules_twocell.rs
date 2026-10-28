@@ -11,7 +11,7 @@ use crate::build::pairs::settle;
 use crate::build::rules::twocell::{hinge_now, partner};
 use crate::build::rules::{gives, item, matches, supported};
 use crate::build::survey::Need;
-use crate::build::{Block, Transform};
+use crate::build::{Block, Structure, Transform};
 use crate::interact::Face;
 use crate::pathfind::process::{BlockView, Look, Target};
 
@@ -85,10 +85,14 @@ fn mirrored_doors_turn_half_round_and_swap_hinges() {
     assert_eq!(t.block(&door("east", 1, 1)).prop("minecraft:cardinal_direction"), Some("south"));
 }
 
-/// Blocks by name and state where listed, air elsewhere.
-struct Cells(HashMap<BlockPos, Block>);
+/// Blocks by name and state where listed, air elsewhere; block-entity colours.
+struct Cells(HashMap<BlockPos, Block>, HashMap<BlockPos, u8>);
 
 impl Look for Cells {
+    fn color(&self, p: BlockPos) -> Option<u8> {
+        self.1.get(&p).copied()
+    }
+
     fn solid(&self, p: BlockPos) -> Option<bool> {
         self.block(p).map(|b| b.solid())
     }
@@ -108,7 +112,36 @@ impl Look for Cells {
 }
 
 fn world(cells: &[(BlockPos, Block)]) -> Cells {
-    Cells(cells.iter().cloned().collect())
+    Cells(cells.iter().cloned().collect(), HashMap::new())
+}
+
+#[test]
+fn a_bed_of_the_wrong_colour_is_cleared() {
+    let (foot, head) = (Block::new("bed", "bed_color=14,direction=3,head_piece_bit=0,occupied_bit=0"), Block::new("bed", "bed_color=14,direction=3,head_piece_bit=1,occupied_bit=0"));
+    assert_eq!(item(&foot).as_deref(), Some("minecraft:bed@14"), "the colour is the item's aux");
+    let (hp, plain) = ([6, 0, 0], |b: &Block| Block::new(&b.name, &b.props.replace("bed_color=14,", "")));
+    let cells = vec![Cell { pos: T, target: foot.clone() }, Cell { pos: hp, target: head.clone() }];
+    let index: HashMap<BlockPos, usize> = cells.iter().enumerate().map(|(i, c)| (c.pos, i)).collect();
+    let survey = |colors: &[(BlockPos, u8)]| {
+        let mut w = world(&[(T, plain(&foot)), (hp, plain(&head))]);
+        w.1 = colors.iter().copied().collect();
+        let mut needs: Vec<Need> = cells.iter().map(|c| crate::build::survey::need(&c.target, w.block(c.pos), false)).collect();
+        settle(&cells, &index, &w, false, &mut needs);
+        needs
+    };
+    assert_eq!(survey(&[(T, 14)]), [Need::Done, Need::Done]);
+    assert_eq!(survey(&[]), [Need::Done, Need::Done], "no block entity yet is no mismatch");
+    assert_eq!(survey(&[(T, 0)]), [Need::Break, Need::Paired], "a white bed where a red one belongs");
+}
+
+#[test]
+fn bed_colours_come_from_the_structure_block_entities() {
+    let mut s = Structure::new([2, 1, 1]);
+    s.set([0, 0, 0], Some(Block::new("bed", "bed_color=5,direction=3,head_piece_bit=0,occupied_bit=0")));
+    s.set([1, 0, 0], Some(Block::new("stone", "")));
+    let back = Structure::load(&s.to_bytes()).expect("loads");
+    assert_eq!(back.get([0, 0, 0]).and_then(crate::build::rules::twocell::color), Some(5));
+    assert_eq!(back.cells().collect::<Vec<_>>(), s.cells().collect::<Vec<_>>());
 }
 
 #[test]

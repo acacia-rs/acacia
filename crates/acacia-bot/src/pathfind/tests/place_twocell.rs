@@ -24,7 +24,7 @@ fn is_door(name: &str) -> bool {
 /// The cells and states BDS sets for `item` clicked on `face` at `point` from `eye`, filling `pos` first;
 /// `None`: not a two-cell item; `Some(None)`: refused. `block` reads the world.
 pub fn bds_pair<'a>(item: &str, face: Face, eye: Vec3, point: Vec3, pos: BlockPos, block: &dyn Fn(BlockPos) -> Option<&'a BlockState>) -> Option<Option<Vec<(BlockPos, String, String)>>> {
-    let n = item.trim_start_matches("minecraft:");
+    let n = crate::pathfind::process::item_key::split(item).0.trim_start_matches("minecraft:");
     let (door, bed, plant) = (is_door(n), n == "bed", PLANTS.contains(&n));
     if !(door || bed || plant) {
         return None;
