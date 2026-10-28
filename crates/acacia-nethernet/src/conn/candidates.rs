@@ -21,6 +21,12 @@ pub enum LocalCandidate {
 impl Connection {
     /// Adds a local candidate and returns its `candidate:` line for `CANDIDATEADD`.
     pub fn add_local_candidate(&mut self, candidate: LocalCandidate, now: Instant) -> Result<String, Error> {
+        let (addr, typ) = self.register_local(candidate, now)?;
+        Ok(sdp::candidate_line(addr, typ, Some(&self.ufrag)))
+    }
+
+    /// Hands str0m a local candidate; returns what its `candidate:` line names.
+    pub(super) fn register_local(&mut self, candidate: LocalCandidate, now: Instant) -> Result<(SocketAddr, CandidateType), Error> {
         fn bad(e: impl std::fmt::Display) -> Error {
             Error::Sdp(e.to_string())
         }
@@ -47,7 +53,7 @@ impl Connection {
             tracing::debug!(%addr, ?typ, "str0m ignored local candidate");
         }
         self.drive(now);
-        Ok(sdp::candidate_line(addr, typ, Some(&self.ufrag)))
+        Ok((addr, typ))
     }
 
     /// Adds a trickled remote `candidate:` line (an `a=` prefix is tolerated).

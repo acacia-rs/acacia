@@ -10,6 +10,8 @@ use super::Step;
 pub(super) const PEER_REFRESH: Duration = Duration::from_secs(4 * 60);
 const FIRST_CHANNEL: u16 = 0x4000;
 const LAST_CHANNEL: u16 = 0x4FFF;
+/// A forgotten peer's channel may go to another once its 10 min binding lapsed plus RFC 8656's 5 min.
+const CHANNEL_REUSE: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TurnEvent {
@@ -57,6 +59,8 @@ pub struct TurnClient {
     pub(super) entries: HashMap<SocketAddr, Entry>,
     pub(super) channels: HashMap<u16, SocketAddr>,
     next_channel: u16,
+    /// Channels of forgotten peers, with when each may be bound again.
+    freed: VecDeque<(u16, Instant)>,
     pub(super) transmits: VecDeque<Vec<u8>>,
     pub(super) events: VecDeque<TurnEvent>,
 }
@@ -77,6 +81,7 @@ impl TurnClient {
             entries: HashMap::new(),
             channels: HashMap::new(),
             next_channel: FIRST_CHANNEL,
+            freed: VecDeque::new(),
             transmits: VecDeque::new(),
             events: VecDeque::new(),
         };
@@ -102,6 +107,15 @@ impl TurnClient {
     /// Installs a permission for `peer` (a remote candidate) so its datagrams get relayed to us.
     pub fn create_permission(&mut self, peer: SocketAddr, now: Instant) {
         self.entry(peer, now);
+    }
+
+    /// Stops refreshing `peer`'s permission and channel; a host serving many peers on one allocation
+    /// calls it when one leaves, so channel numbers come round again.
+    pub fn forget(&mut self, peer: SocketAddr, now: Instant) {
+        if let Some(e) = self.entries.remove(&peer) {
+            self.channels.remove(&e.channel);
+            self.freed.push_back((e.channel, now + CHANNEL_REUSE));
+        }
     }
 
     /// Wraps `data` for `peer`: a Send indication until the channel is bound, ChannelData after.
@@ -215,12 +229,15 @@ impl TurnClient {
         if let Some(e) = self.entries.get(&peer) {
             return Some((e.channel, e.bind));
         }
-        if self.next_channel > LAST_CHANNEL {
+        let channel = if self.next_channel <= LAST_CHANNEL {
+            self.next_channel += 1;
+            self.next_channel - 1
+        } else if self.freed.front().is_some_and(|(_, at)| *at <= now) {
+            self.freed.pop_front().expect("front checked").0
+        } else {
             tracing::debug!(%peer, "TURN channel numbers exhausted");
             return None;
-        }
-        let channel = self.next_channel;
-        self.next_channel += 1;
+        };
         self.entries.insert(peer, Entry { channel, bind: Bind::Unbound, permission_at: None, bind_at: None });
         self.channels.insert(channel, peer);
         if self.relayed().is_some() {

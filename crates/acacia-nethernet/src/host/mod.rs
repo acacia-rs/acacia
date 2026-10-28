@@ -1,8 +1,13 @@
 //! Many answering connections behind one UDP socket: a network-free NetherNet host. Signaling
 //! (HTTP, LAN) hands it offers; it routes each datagram to its connection, by the ICE username of
 //! binding requests and by source address after that. A datagram it does not claim belongs to
-//! whatever else shares the socket (RakNet).
+//! whatever else shares the socket (RakNet). With [`IceConfig`] servers it also offers srflx and
+//! relay candidates (gather.rs), whose STUN/TURN traffic shares the socket too.
 
+mod answers;
+mod gather;
+#[cfg(test)]
+mod relay_tests;
 mod route;
 #[cfg(test)]
 mod tests;
@@ -14,10 +19,15 @@ use std::time::{Duration, Instant};
 use bytes::Bytes;
 use p384::ecdsa::SigningKey;
 
-use crate::{Connection, Error, Event, LocalCandidate};
+pub use gather::{IceConfig, TurnServer};
 
-/// Source addresses one peer may hold; ICE settles on one, a second network path adds a few.
+use crate::{Connection, Event, LocalCandidate};
+use gather::{Claim, Gather};
+
+/// Paths one peer may hold; ICE settles on one, a second network path or a relay adds a few.
 const MAX_ADDRS: usize = 8;
+/// Addresses one peer may open on our TURN allocations.
+const MAX_PERMITS: usize = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PeerId(pub u64);
@@ -28,11 +38,13 @@ pub struct HostConfig {
     pub max_peers: usize,
     /// From the answer until both data channels are open.
     pub handshake_timeout: Duration,
+    /// STUN/TURN servers; none by default, so answers carry the host candidate only.
+    pub ice: IceConfig,
 }
 
 impl Default for HostConfig {
     fn default() -> Self {
-        Self { max_peers: 1024, handshake_timeout: Duration::from_secs(15) }
+        Self { max_peers: 1024, handshake_timeout: Duration::from_secs(15), ice: IceConfig::default() }
     }
 }
 
@@ -54,9 +66,14 @@ pub struct Answer {
     pub candidates: Vec<String>,
 }
 
+/// Where a datagram reached us: the shared socket (`None`) or one of our TURN relays.
+type Path = (Option<SocketAddr>, SocketAddr);
+
 struct Peer {
     conn: Connection,
-    addrs: Vec<SocketAddr>,
+    addrs: Vec<Path>,
+    /// Remote addresses given TURN permissions for this peer.
+    permits: Vec<SocketAddr>,
     /// Until the channels open.
     open_by: Option<Instant>,
 }
@@ -67,8 +84,9 @@ pub struct Host {
     config: HostConfig,
     peers: HashMap<PeerId, Peer>,
     by_ufrag: HashMap<String, PeerId>,
-    by_addr: HashMap<SocketAddr, PeerId>,
+    by_addr: HashMap<Path, PeerId>,
     next_id: u64,
+    gather: Gather,
     transmits: VecDeque<(SocketAddr, Vec<u8>)>,
     events: VecDeque<HostEvent>,
 }
@@ -77,6 +95,7 @@ impl Host {
     pub fn new(key: SigningKey, config: HostConfig) -> Self {
         Self {
             key,
+            gather: Gather::new(config.ice.clone()),
             config,
             peers: HashMap::new(),
             by_ufrag: HashMap::new(),
@@ -87,6 +106,18 @@ impl Host {
         }
     }
 
+    /// Starts asking the configured STUN and TURN servers for candidates; answers carry them once
+    /// the servers reply. Without servers it does nothing.
+    pub fn gather(&mut self, now: Instant) {
+        self.gather.start(now);
+        self.drain_gather();
+    }
+
+    /// The srflx and relay candidates gathered so far, for a host candidate at `host`.
+    pub fn gathered(&self, host: SocketAddr) -> Vec<LocalCandidate> {
+        self.gather.candidates(host)
+    }
+
     pub fn len(&self) -> usize {
         self.peers.len()
     }
@@ -95,77 +126,35 @@ impl Host {
         self.peers.is_empty()
     }
 
-    /// Answers a direct-connect offer with `local` (the socket, as the client can reach it) embedded.
-    pub fn answer(&mut self, offer: &str, local: SocketAddr, now: Instant) -> Result<Answer, Error> {
-        let (conn, sdp) = self.unique(|key| Connection::answer(offer, local, key, now))?;
-        Ok(Answer { peer: self.insert(conn, now), sdp, candidates: Vec::new() })
-    }
-
-    /// Answers a `CONNECTREQUEST`; `local` goes out as a trickled candidate.
-    pub fn trickle_answer(&mut self, offer: &str, local: SocketAddr, now: Instant) -> Result<Answer, Error> {
-        let (mut conn, sdp) = self.unique(|key| Connection::trickle_answer(offer, key, now))?;
-        let candidate = conn.add_local_candidate(LocalCandidate::Host(local), now)?;
-        Ok(Answer { peer: self.insert(conn, now), sdp, candidates: vec![candidate] })
-    }
-
-    /// Builds a connection whose ICE ufrag no other peer has: datagrams are routed by it.
-    fn unique(&self, build: impl Fn(&SigningKey) -> Result<(Connection, String), Error>) -> Result<(Connection, String), Error> {
-        if self.peers.len() >= self.config.max_peers {
-            return Err(Error::HostFull);
-        }
-        loop {
-            let built = build(&self.key)?;
-            if !self.by_ufrag.contains_key(built.0.local_ufrag()) {
-                return Ok(built);
-            }
-        }
-    }
-
-    fn insert(&mut self, conn: Connection, now: Instant) -> PeerId {
-        let id = PeerId(self.next_id);
-        self.next_id += 1;
-        self.by_ufrag.insert(conn.local_ufrag().to_owned(), id);
-        self.peers.insert(id, Peer { conn, addrs: Vec::new(), open_by: Some(now + self.config.handshake_timeout) });
-        self.pump(id);
-        id
-    }
-
-    /// A trickled `candidate:` line from the peer.
-    pub fn add_remote_candidate(&mut self, peer: PeerId, line: &str, now: Instant) -> Result<(), Error> {
-        let Some(p) = self.peers.get_mut(&peer) else { return Ok(()) };
-        p.conn.add_remote_candidate(line, now)?;
-        self.pump(peer);
-        Ok(())
-    }
-
     /// Takes a datagram from the shared socket. False if it belongs to no connection here.
     pub fn handle_datagram(&mut self, now: Instant, source: SocketAddr, data: &[u8]) -> bool {
-        let Some(id) = self.route(now, source, data) else { return false };
+        let (id, via, from, data) = match self.gather.handle_datagram(now, source, data) {
+            Some(Claim::Consumed) => {
+                self.drain_gather();
+                return true;
+            }
+            Some(Claim::Relayed { relay, peer, data }) => {
+                self.drain_gather();
+                (self.route(now, Some(relay), peer, &data), Some(relay), peer, std::borrow::Cow::Owned(data))
+            }
+            None => (self.route(now, None, source, data), None, source, std::borrow::Cow::Borrowed(data)),
+        };
+        let Some(id) = id else { return via.is_some() };
         if let Some(peer) = self.peers.get_mut(&id) {
-            peer.conn.handle_datagram(now, source, data);
+            match via {
+                Some(relay) => peer.conn.handle_relayed(now, relay, from, &data),
+                None => peer.conn.handle_datagram(now, from, &data),
+            }
         }
-        self.pump(id);
+        self.pump(id, now);
         true
     }
 
-    fn route(&mut self, now: Instant, source: SocketAddr, data: &[u8]) -> Option<PeerId> {
-        let known = self.by_addr.get(&source).copied();
-        // A binding request names its connection, which beats a stale mapping when an address is
-        // reused; its credentials are checked first, so a spoofed one cannot take an address over.
-        let named = route::request_ufrag(data).and_then(|ufrag| self.by_ufrag.get(ufrag).copied());
-        let Some(id) = named.filter(|id| known != Some(*id)) else { return known };
-        let peer = self.peers.get_mut(&id)?;
-        if peer.addrs.len() >= MAX_ADDRS || !peer.conn.accepts(now, source, data) {
-            return known;
-        }
-        peer.addrs.push(source);
-        if let Some(old) = self.by_addr.insert(source, id).and_then(|old| self.peers.get_mut(&old)) {
-            old.addrs.retain(|a| *a != source);
-        }
-        Some(id)
-    }
-
     pub fn handle_timeout(&mut self, now: Instant) {
+        if self.gather.poll_timeout().is_some_and(|t| t <= now) {
+            self.gather.handle_timeout(now);
+            self.drain_gather();
+        }
         let due: Vec<PeerId> = self
             .peers
             .iter()
@@ -180,12 +169,13 @@ impl Host {
             } else {
                 peer.conn.handle_timeout(now);
             }
-            self.pump(id);
+            self.pump(id, now);
         }
     }
 
     pub fn poll_timeout(&self) -> Option<Instant> {
-        self.peers.values().flat_map(|p| p.conn.poll_timeout().into_iter().chain(p.open_by)).min()
+        let peers = self.peers.values().flat_map(|p| p.conn.poll_timeout().into_iter().chain(p.open_by));
+        peers.chain(self.gather.poll_timeout()).min()
     }
 
     pub fn poll_transmit(&mut self) -> Option<(SocketAddr, Vec<u8>)> {
@@ -200,7 +190,7 @@ impl Host {
     pub fn send(&mut self, peer: PeerId, msg: Bytes, now: Instant) {
         if let Some(p) = self.peers.get_mut(&peer) {
             p.conn.send(msg, now);
-            self.pump(peer);
+            self.pump(peer, now);
         }
     }
 
@@ -209,25 +199,33 @@ impl Host {
         self.peers.get(&peer).map(|p| p.conn.queued_bytes())
     }
 
-    /// The first address the peer's datagrams came from.
+    /// The first address the peer's datagrams came from, directly or through a relay.
     pub fn remote_addr(&self, peer: PeerId) -> Option<SocketAddr> {
-        self.peers.get(&peer)?.addrs.first().copied()
+        self.peers.get(&peer)?.addrs.first().map(|(_, source)| *source)
     }
 
     /// Flushes what is queued and closes; [`HostEvent::Closed`] follows.
     pub fn close(&mut self, peer: PeerId, now: Instant) {
         if let Some(p) = self.peers.get_mut(&peer) {
             p.conn.close(now);
-            self.pump(peer);
+            self.pump(peer, now);
         }
     }
 
-    /// Moves a connection's output into the host's queues, and forgets it once it has closed.
-    fn pump(&mut self, id: PeerId) {
+    fn drain_gather(&mut self) {
+        self.transmits.extend(std::iter::from_fn(|| self.gather.poll_transmit()));
+    }
+
+    /// Moves a connection's output into the host's queues (relayed sends wrapped for their TURN
+    /// server), and forgets it once it has closed.
+    fn pump(&mut self, id: PeerId, now: Instant) {
         let Some(peer) = self.peers.get_mut(&id) else { return };
         while let Some(t) = peer.conn.poll_transmit() {
-            self.transmits.push_back((t.destination, t.contents));
+            if !self.gather.send(t.source, t.destination, &t.contents, now) {
+                self.transmits.push_back((t.destination, t.contents));
+            }
         }
+        self.transmits.extend(std::iter::from_fn(|| self.gather.poll_transmit()));
         let mut closed = None;
         while let Some(event) = peer.conn.poll_event() {
             match event {
@@ -244,8 +242,12 @@ impl Host {
         if let Some(reason) = closed {
             let peer = self.peers.remove(&id).expect("just borrowed");
             self.by_ufrag.remove(peer.conn.local_ufrag());
-            for addr in peer.addrs {
-                self.by_addr.remove(&addr);
+            for path in peer.addrs {
+                self.by_addr.remove(&path);
+            }
+            // Players behind one NAT share the address their signaling came from.
+            for addr in peer.permits.into_iter().filter(|addr| !self.peers.values().any(|p| p.permits.contains(addr))) {
+                self.gather.forget(addr, now);
             }
             self.events.push_back(HostEvent::Closed(id, reason));
         }

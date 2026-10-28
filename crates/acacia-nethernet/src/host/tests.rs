@@ -161,7 +161,7 @@ fn trickled_join_opens() {
 
 #[test]
 fn silent_offers_time_out_and_a_full_host_refuses() {
-    let mut net = Net::new(HostConfig { max_peers: 1, handshake_timeout: Duration::from_secs(15) });
+    let mut net = Net::new(HostConfig { max_peers: 1, ..HostConfig::default() });
     let (_, offer) = Connection::offer("10.0.0.1:5000".parse().unwrap(), &identity(5), net.now).unwrap();
     let peer = net.host.answer(&offer, Net::host_addr(), net.now).unwrap().peer;
     assert!(matches!(net.host.answer(&offer, Net::host_addr(), net.now), Err(Error::HostFull)));

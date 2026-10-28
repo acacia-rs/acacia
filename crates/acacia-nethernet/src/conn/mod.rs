@@ -109,7 +109,7 @@ impl Connection {
         });
         let (offer, pending) = api.apply().ok_or_else(|| Error::Sdp("no changes to offer".into()))?;
         let str0m_offer = offer.to_sdp_string();
-        let offer = sdp::vanilla_sdp(&str0m_offer, &identity_line(&str0m_offer, identity), embedded);
+        let offer = sdp::vanilla_sdp(&str0m_offer, &identity_line(&str0m_offer, identity), embedded, &[]);
         let mut conn = Self::new(rtc, embedded, ufrag, sdp::str0m_mid(&str0m_offer));
         conn.pending_offer = Some(pending);
         Ok((conn, offer))

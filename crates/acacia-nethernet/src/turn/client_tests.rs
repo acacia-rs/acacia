@@ -162,6 +162,22 @@ fn rejects_forged_success_and_fails_on_second_401() {
 }
 
 #[test]
+fn forgotten_channels_come_round_after_the_binding_lapses() {
+    let t0 = Instant::now();
+    let mut c = TurnClient::new(addr("192.0.2.10:3478"), USER, PASS, t0);
+    let peer = |n: u32| SocketAddr::from(([10, 0, (n >> 8) as u8, n as u8], 5000));
+    for n in 0..4096 {
+        c.create_permission(peer(n), t0);
+    }
+    c.forget(peer(7), t0);
+    assert!(!c.entries.contains_key(&peer(7)) && !c.channels.contains_key(&0x4007));
+    c.create_permission(peer(5000), t0 + Duration::from_secs(60));
+    assert!(!c.entries.contains_key(&peer(5000)), "the freed channel is still bound server side");
+    c.create_permission(peer(5000), t0 + Duration::from_secs(15 * 60));
+    assert_eq!(c.entries[&peer(5000)].channel, 0x4007);
+}
+
+#[test]
 fn queued_peers_get_permissions_once_allocated() {
     let (f, t0) = (FakeServer::new(), Instant::now());
     let mut c = TurnClient::new(addr("192.0.2.10:3478"), USER, PASS, t0);
