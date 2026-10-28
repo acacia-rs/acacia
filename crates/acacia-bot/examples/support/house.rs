@@ -228,7 +228,11 @@ pub async fn observe(server: &str, observer: &str, pad: &Pad, job: &BuildJob) ->
     let spot = pad.block([12, 9, 0]);
     pad.run(&o, &format!("/tp @s {} {} {}", spot[0] as f32 + 0.5, spot[1], spot[2] as f32 + 0.5));
     o.wait_ticks(80).await?;
-    let wrong = check(&structure, &job.at, |p| o.block_state(p).map(BlockView::of));
+    let mut wrong = check(&structure, &job.at, |p| o.block_state(p).map(BlockView::of));
+    wrong.extend(acacia_bot::build::colors(&structure, &job.at, |p| match o.state().block_entities.get(p)?.value.get("color") {
+        Some(acacia_client::proto::nbt::Value::Byte(c)) => Some(*c as u8),
+        _ => None,
+    }));
     o.disconnect().await;
     Ok(wrong)
 }

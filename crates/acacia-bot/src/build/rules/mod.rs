@@ -79,7 +79,7 @@ pub fn item(target: &Block) -> Option<String> {
     if !supported(&target.name) || !keys_known(target) || twocell::unplaceable(target) {
         return None;
     }
-    Some(oneclick::base(&target.name).replace("_double_slab", "_slab"))
+    Some(twocell::item(target).unwrap_or_else(|| oneclick::base(&target.name).replace("_double_slab", "_slab")))
 }
 
 pub fn items_per_cell(target: &Block) -> u32 {

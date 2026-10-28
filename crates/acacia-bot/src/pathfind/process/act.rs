@@ -18,7 +18,7 @@ pub(super) async fn perform(bot: &mut Bot, act: &Act, human: bool) -> Result<(),
     match act {
         Act::Fill { pos, blocks } => fill(bot, *pos, blocks, human).await,
         Act::Place { item, against, face, click } => {
-            let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to place")))?;
+            let slot = find(bot, item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to place")))?;
             hand(bot, slot, human).await?;
             bot.place_block_at(*against, *face, *click).await
         }
@@ -44,7 +44,7 @@ pub(super) async fn perform(bot: &mut Bot, act: &Act, human: bool) -> Result<(),
 /// [`Bot::settle_placements`] gives on a later tick.
 pub(super) async fn send_place(bot: &mut Bot, act: &Act) -> Result<BlockPos, ActionError> {
     let Act::Place { item, against, face, click } = act else { unreachable!("placements only") };
-    let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to place")))?;
+    let slot = find(bot, item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to place")))?;
     hand(bot, slot, false).await?;
     bot.place_sent(*against, *face, *click).await?;
     Ok(face.adjacent(*against))
@@ -92,7 +92,7 @@ async fn restock(bot: &mut Bot, station: BlockPos, items: &[(String, u32)]) -> R
     let mut result = Ok(());
     for (slot, stack) in container.slots.iter().enumerate() {
         let Some(name) = bot.state.items.name(stack.network_id).map(str::to_string) else { continue };
-        let Some(w) = want.iter_mut().find(|(n, c)| *n == name && *c > 0) else { continue };
+        let Some(w) = want.iter_mut().find(|(n, c)| super::item_key::fits(n, Some(name.as_str()), stack.metadata) && *c > 0) else { continue };
         let Ok(slot) = u8::try_from(slot) else { continue };
         let moved = bot.move_to_inventory(slot).await;
         tracing::debug!(slot, %name, count = stack.count, ?moved, "restock take");
@@ -107,6 +107,12 @@ async fn restock(bot: &mut Bot, station: BlockPos, items: &[(String, u32)]) -> R
     }
     let closed = bot.close_container().await;
     result.and(closed)
+}
+
+/// The main-inventory slot holding item `key` ([`super::item_key`]).
+pub(super) fn find(bot: &Bot, key: &str) -> Option<SlotRef> {
+    let main = &bot.state.inventory.main;
+    (0..main.len()).find(|&i| !main[i].is_empty() && super::item_key::fits(key, bot.state.items.name(main[i].network_id), main[i].metadata)).map(|i| SlotRef::Main(i as u8))
 }
 
 /// The block whose `face` touches `pos`.

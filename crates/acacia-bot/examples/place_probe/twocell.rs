@@ -130,6 +130,12 @@ pub async fn run(bot: &mut Bot, pad: &Pad, only: Option<&str>) -> Result<(), Err
             let r = case(bot, pad, hold, support, &[([0, 0, -1], "stone".into())], STANDS[1].1, [0, -1, 0], Face::Up, [0.5, 1.0, 0.5]).await?;
             println!("{label:<34} S ahead-blocked -> {r}");
         }
+        if hold == "bed" {
+            // A bed set by command (the junk of a live scene): which colour its block entity gets.
+            let set = vec![([0, 0, 0], "bed [\"direction\"=2,\"head_piece_bit\"=false]".to_string()), ([0, 0, -1], "bed [\"direction\"=2,\"head_piece_bit\"=true]".to_string())];
+            let r = case(bot, pad, hold, support, &set, STANDS[1].1, [0, -1, 0], Face::Up, [0.5, 1.0, 0.5]).await?;
+            println!("{label:<34} S setblock-bed -> {r}");
+        }
     }
     Ok(())
 }
@@ -163,7 +169,14 @@ async fn case(bot: &mut Bot, pad: &Pad, hold: &str, support: &str, extra: &[([i3
         return Ok(format!("equip: {e}"));
     }
     let r = bot.place_block_at(pad.block(add(T, against)), face, click).await;
-    bot.wait_ticks(6).await?;
+    // Ticks after the confirmed placement until the block entity shows (beds).
+    let mut be_after = None;
+    for k in 0..12 {
+        if be_after.is_none() && bot.state().block_entities.get(pad.block(T)).is_some() {
+            be_after = Some(k);
+        }
+        bot.wait_ticks(1).await?;
+    }
     let show = |p: [i32; 3]| bot.block_state(p).map_or("unloaded".to_string(), |s| if s.is_air() { "-".into() } else { format!("{} [{}]", s.name.trim_start_matches("minecraft:"), s.properties) });
     let mut out = format!("T {} | up {}", show(t), show(add(t, [0, 1, 0])));
     for (n, off) in [("n", [0, 0, -1]), ("s", [0, 0, 1]), ("w", [-1, 0, 0]), ("e", [1, 0, 0])] {
@@ -171,9 +184,12 @@ async fn case(bot: &mut Bot, pad: &Pad, hold: &str, support: &str, extra: &[([i3
         if bot.block_state(p).is_some_and(|s| !s.is_air() && s.name != "minecraft:stone") {
             out += &format!(" | {n} {}", show(p));
         }
+        if let Some(nbt) = bot.state().block_entities.get(p) {
+            out += &format!(" | be-{n} {:?}", nbt.value.get("color"));
+        }
     }
     if let Some(nbt) = bot.state().block_entities.get(t) {
-        out += &format!(" | be {:?}", nbt.value);
+        out += &format!(" | be {:?} after {be_after:?} ticks", nbt.value);
     }
     if let Err(e) = r {
         out += &format!(" | ERR {e}");

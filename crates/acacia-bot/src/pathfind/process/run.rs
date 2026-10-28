@@ -187,7 +187,7 @@ async fn bounded<T>(act: impl std::future::Future<Output = Result<T, ActionError
 /// The placement's item is outside the hotbar: equipping it is an item stack request.
 fn needs_stack_request(bot: &Bot, act: &super::Act) -> bool {
     let super::Act::Place { item, .. } = act else { return false };
-    matches!(bot.find_item(item), Some(crate::items::SlotRef::Main(i)) if i >= crate::state::Inventory::HOTBAR_SLOTS)
+    matches!(super::act::find(bot, item), Some(crate::items::SlotRef::Main(i)) if i >= crate::state::Inventory::HOTBAR_SLOTS)
 }
 
 /// `moving`: the placement's item must be moved into the hotbar while placements are in flight.
@@ -248,10 +248,17 @@ impl Look for BotLook<'_> {
         Some(BlockView::of(s))
     }
 
+    fn color(&self, pos: BlockPos) -> Option<u8> {
+        match self.0.state.block_entities.get(pos)?.value.get("color") {
+            Some(acacia_client::proto::nbt::Value::Byte(c)) => Some(*c as u8),
+            _ => None,
+        }
+    }
+
     fn count(&self, item: &str) -> u32 {
         let inv = &self.0.state.inventory;
         let items = &self.0.state.items;
-        inv.main.iter().filter(|s| !s.is_empty() && items.name(s.network_id) == Some(item)).map(|s| u32::from(s.count)).sum()
+        inv.main.iter().filter(|s| !s.is_empty() && super::item_key::fits(item, items.name(s.network_id), s.metadata)).map(|s| u32::from(s.count)).sum()
     }
 
     fn free_slots(&self) -> u32 {

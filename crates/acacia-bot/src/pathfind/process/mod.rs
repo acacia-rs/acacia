@@ -7,6 +7,7 @@ mod arbiter;
 mod backfill;
 mod follow;
 mod goto;
+pub mod item_key;
 pub(crate) mod run;
 
 use acacia_physics::{BlockPos, Vec3};
@@ -98,7 +99,11 @@ pub trait Look {
     fn block(&self, _pos: BlockPos) -> Option<BlockView> {
         None
     }
-    /// Items of `item` (identifier) in the inventory.
+    /// The `color` of the block entity at `pos` (beds); `None`: none known.
+    fn color(&self, _pos: BlockPos) -> Option<u8> {
+        None
+    }
+    /// Items of `item` (an [`item_key`]) in the inventory.
     fn count(&self, _item: &str) -> u32 {
         0
     }

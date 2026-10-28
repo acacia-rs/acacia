@@ -155,9 +155,14 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     // Never cover an open cell: a block over it takes away the click on the face below (and the stand above).
     let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.given_up(b.cells[j].pos) && rules::hangs(&b.cells[j].target).is_none());
     let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers(b, b.cells[i].pos)).take(TRIES * 2).collect();
+    let held_back = super::pairs::held(b, cx.look, needs);
     for i in candidates {
         let (pos, target) = (b.cells[i].pos, &b.cells[i].target);
         let Some(item) = rules::item(target) else { continue };
+        if held_back.contains(&pos) {
+            b.rest(pos);
+            continue;
+        }
         let open_at = |dy: i32| cx.look.solid([pos[0], pos[1] + dy, pos[2]]) != Some(true);
         let hangs_open = rules::hangs(target).is_some_and(|only| open_at(1) && (only || open_at(-1)));
         if missing.contains(&item) || (rules::gravity(&target.name) && open_at(-1)) || hangs_open {

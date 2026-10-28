@@ -1,7 +1,8 @@
 //! Live scenes for blocks one placement fills two cells (`build/rules/twocell.rs`), with a third barrel holding
 //! their items: `doors` (a cobblestone wall with a double wooden door and an iron door, stone junk in the iron
 //! door's upper cell), `beds` (two beds, facing east and north), `plants` (tall plants on grass, small dripleaf on
-//! clay).
+//! clay), `bedcolors` (three colours, one over a red bed set by command), `hinge` (a hinge-0 door with a wall
+//! on its right, a hinge-1 door that needs its wall first).
 
 use acacia_bot::build::{Block, Structure};
 use acacia_bot::Bot;
@@ -54,6 +55,28 @@ pub fn scene(name: &str, at: impl Fn([i32; 3]) -> [i32; 3]) -> Option<(Structure
             // Beds don't stack: a slot each.
             (s, vec![], &[("bed", 1), ("bed", 1), ("bed", 1)])
         }
+        "bedcolors" => {
+            // Blue facing east, white facing north, lime facing south over a red bed set by command (wrong colour).
+            let mut s = floor([5, 2, 4], "oak_planks");
+            let bed = |s: &mut Structure, foot: [i32; 3], head: [i32; 3], dir: u8, color: u8| {
+                put(s, foot, "bed", &format!("bed_color={color},direction={dir},head_piece_bit=0,occupied_bit=0"));
+                put(s, head, "bed", &format!("bed_color={color},direction={dir},head_piece_bit=1,occupied_bit=0"));
+            };
+            bed(&mut s, [1, 1, 1], [2, 1, 1], 3, 11);
+            bed(&mut s, [4, 1, 3], [4, 1, 2], 2, 0);
+            bed(&mut s, [0, 1, 2], [0, 1, 3], 0, 5);
+            // A red bed in the barrel too: the one colour no target needs.
+            (s, vec![(at([0, 1, 2]), at([0, 1, 2]), "bed")], &[("bed@11", 1), ("bed@14", 1), ("bed@0", 1), ("bed@5", 1), ("bed@5", 1)])
+        }
+        "hinge" => {
+            // Facing east, placed looking north: door A (hinge 0) has cobblestone on its right, which built first
+            // would flip it to 1; door B (hinge 1) needs the cobblestone on its right first.
+            let mut s = floor([8, 3, 3], "oak_planks");
+            [2, 3, 6].into_iter().for_each(|x| (1..3).for_each(|y| put(&mut s, [x, y, 0], "cobblestone", "")));
+            door(&mut s, [1, 1, 0], "wooden_door", 0);
+            door(&mut s, [5, 1, 0], "wooden_door", 1);
+            (s, vec![], &[("wooden_door", 4)])
+        }
         "plants" => {
             let mut s = floor([6, 3, 3], "grass_block");
             put(&mut s, [5, 0, 1], "clay", "");
@@ -76,7 +99,8 @@ pub async fn station(a: &mut Bot, pad: &Pad, stock: &[(&str, u32)]) -> Result<[i
     pad.run(a, &format!("/setblock {x} {y} {z} barrel"));
     a.wait_ticks(2).await?;
     for (slot, (item, count)) in stock.iter().enumerate() {
-        pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} {count}"));
+        let (item, aux) = item.split_once('@').unwrap_or((item, "0"));
+        pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} {count} {aux}"));
         a.wait_ticks(2).await?;
     }
     Ok(STATION)

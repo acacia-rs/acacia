@@ -5,7 +5,7 @@ use acacia_physics::{BlockPos, Vec3};
 use acacia_world::BlockRegistry;
 
 use super::{look, Dir};
-use crate::build::structure::Block;
+use crate::build::structure::{Block, BED_COLOR};
 use crate::interact::Face;
 use crate::pathfind::process::Look;
 
@@ -111,7 +111,7 @@ pub fn mirror_door(b: Block) -> Block {
 
 /// Keys of two-cell blocks the placement (or the pair) decides.
 pub fn controlled(name: &str, k: &str) -> bool {
-    kind(name).is_some() && matches!(k, "upper_block_bit" | "door_hinge_bit" | "open_bit" | "head_piece_bit" | "occupied_bit" | "cardinal_direction" | "direction")
+    kind(name).is_some() && matches!(k, "upper_block_bit" | "door_hinge_bit" | "open_bit" | "head_piece_bit" | "occupied_bit" | "cardinal_direction" | "direction" | BED_COLOR)
 }
 
 /// A state no placement gives: an open door (the interact tier), an occupied bed.
@@ -148,15 +148,35 @@ pub fn gives(target: &Block, face: Face, eye: Vec3, point: Vec3) -> Option<bool>
 /// and right as seen from where it is placed): 1 with a door left and none right, or more opaque full blocks in
 /// the two cells right than left (glass, slabs, fences and doors don't count); `None`: not a door.
 pub fn hinge_now(upper: &Block, pos: BlockPos, look: &dyn Look) -> Option<&'static str> {
+    hinge_with(upper, pos, &|p| look.block(p).map(|v| (v.name.to_string(), v.props.to_string())))
+}
+
+/// [`hinge_now`] with the neighbours `block` gives (name, props; `None`: air or unloaded).
+pub fn hinge_with(upper: &Block, pos: BlockPos, block: &dyn Fn(BlockPos) -> Option<(String, String)>) -> Option<&'static str> {
     if kind(&upper.name) != Some(Kind::Door) {
         return None;
     }
-    let right = from_word(upper.prop("minecraft:cardinal_direction").or(upper.prop("cardinal_direction"))?)?;
-    let lower = step(pos, Dir::Down);
-    let (left, right) = (step(lower, right.opposite()), step(lower, right));
-    let door = |p: BlockPos| look.block(p).is_some_and(|v| kind(v.name) == Some(Kind::Door) && v.prop("upper_block_bit") == Some("0"));
+    let (left, right) = sides(upper, pos)?;
+    let door = |p: BlockPos| block(p).is_some_and(|(n, s)| kind(&n) == Some(Kind::Door) && s.contains("upper_block_bit=0"));
     let r = BlockRegistry::vanilla();
-    let opaque = |p: BlockPos| look.block(p).and_then(|v| r.find(v.name, v.props)).and_then(|id| r.get(id)).is_some_and(|s| s.is_full_cube() && s.light_filter >= 15);
+    let opaque = |p: BlockPos| block(p).and_then(|(n, s)| r.find(&n, &s)).and_then(|id| r.get(id)).is_some_and(|s| s.is_full_cube() && s.light_filter >= 15);
     let count = |p: BlockPos| [p, step(p, Dir::Up)].into_iter().filter(|c| opaque(*c)).count();
     Some(if (door(left) && !door(right)) || count(right) > count(left) { "1" } else { "0" })
+}
+
+/// The lower cells left and right of the door whose upper half is at `pos`, as seen from the placing side.
+pub fn sides(upper: &Block, pos: BlockPos) -> Option<(BlockPos, BlockPos)> {
+    let right = from_word(upper.prop("minecraft:cardinal_direction").or(upper.prop("cardinal_direction"))?)?;
+    let lower = step(pos, Dir::Down);
+    Some((step(lower, right.opposite()), step(lower, right)))
+}
+
+/// The bed colour the target asks for ([`BED_COLOR`]).
+pub fn color(target: &Block) -> Option<u8> {
+    target.prop(BED_COLOR)?.parse().ok()
+}
+
+/// A coloured bed's item key: `bed` with the colour as aux.
+pub fn item(target: &Block) -> Option<String> {
+    Some(crate::pathfind::process::item_key::join(&target.name, Some(u32::from(color(target)?))))
 }
