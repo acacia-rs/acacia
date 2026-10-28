@@ -13,7 +13,7 @@ pub(super) mod rails;
 pub(super) mod redstone;
 pub(super) mod redstone_order;
 pub mod twocell;
-pub use interact::{fine_aim, front, uses};
+pub use interact::{front, uses};
 
 /// Recomputed from the neighbours by the server (stair corners, wall/fence/pane connections), or redstone
 /// activity: never compared.

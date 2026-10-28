@@ -45,6 +45,11 @@ impl<W: BlockAccess> Sight<'_, W> {
         self.sees_face_into(eye, pos, face, point, None)
     }
 
+    /// The eye sees the centre of `face` of the block at `pos`: what a fill's placement against that face checks.
+    pub fn sees_face_centre(&self, eye: Vec3, pos: BlockPos, face: Face) -> bool {
+        self.sees_face_at(eye, pos, face, super::geometry::face_point(pos, face))
+    }
+
     /// [`Self::sees_face_at`] for a placement that merges into `into` (a half slab made double): what is there now
     /// does not hide the face.
     pub fn sees_face_into(&self, eye: Vec3, pos: BlockPos, face: Face, point: Vec3, into: Option<BlockPos>) -> bool {

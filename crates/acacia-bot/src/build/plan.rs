@@ -4,7 +4,7 @@
 use acacia_physics::{BlockPos, Vec3};
 
 use super::builder::Builder;
-use super::reach::{click_for, in_reach, stands, Keep, Stand};
+use super::reach::{breaks_from, click_for, fills_from, stands, Keep, Stand};
 use super::restock;
 use super::rules;
 use super::status::{HoldWhy, Phase};
@@ -68,11 +68,12 @@ pub(super) fn go(phase: Phase, task: BlockPos, found: Vec<Stand>, b: &Builder) -
 fn break_at(cx: &Ctx, pos: BlockPos, phase: Phase, b: &Builder) -> Option<Next> {
     let feet = cx.pos.map(|v| v.floor() as i32);
     let on_it = feet == [pos[0], pos[1] + 1, pos[2]];
-    if in_reach(cx.eye(), pos) && !on_it {
+    if breaks_from(cx.eye(), pos, cx.look) && !on_it {
         return Some(Next::Act(phase, Act::Break { pos }));
     }
     let above = [pos[0], pos[1] + 1, pos[2]];
-    go(phase, pos, stands(pos, cx.pos, cx.look, &Keep { feet: &|f| f == above || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &|_| true, STANDS), b)
+    let ok = |e: Vec3| breaks_from(e, pos, cx.look);
+    go(phase, pos, stands(pos, cx.pos, cx.look, &Keep { feet: &|f| f == above || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &ok, STANDS), b)
 }
 
 /// A liquid next to `pos` that breaking it would let in (from above or the sides), not held back by a target.
@@ -135,9 +136,14 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
             None if needs[i] == Need::Drain => Some(fill(b, pos)),
             None => None,
         };
+        let cell = match &act {
+            Some(Act::Fill { pos: c, .. }) => *c,
+            _ => pos,
+        };
+        let ok = |e: Vec3| fills_from(e, cell, cx.look);
         let next = match act {
-            Some(act) if in_reach(eye, pos) && free(b, cx, pos) => Some(Next::Act(Phase::Building, act)),
-            Some(_) => go(Phase::Building, pos, stands(pos, cx.pos, cx.look, &Keep { feet: &|f| no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &|_| true, STANDS), b),
+            Some(act) if ok(eye) && free(b, cx, pos) => Some(Next::Act(Phase::Building, act)),
+            Some(_) => go(Phase::Building, pos, stands(pos, cx.pos, cx.look, &Keep { feet: &|f| no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &ok, STANDS), b),
             None => break_at(cx, pos, Phase::Building, b),
         };
         match next {
@@ -159,7 +165,9 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     let mut ready: Vec<(usize, String)> = Vec::new();
     // Never cover an open cell: a block over it takes away the click on the face below (and the stand above).
     let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.given_up(b.cells[j].pos) && rules::hangs(&b.cells[j].target).is_none());
-    let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers(b, b.cells[i].pos)).take(TRIES * 2).collect();
+    // A pair's second half covers too (a bed's head), unless it stands on the first (a door's upper half).
+    let covers_pair = |b: &Builder, p: BlockPos| covers(b, p) || super::pairs::second(b, p).is_some_and(|o| [o[0], o[1] - 1, o[2]] != p && covers(b, o));
+    let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers_pair(b, b.cells[i].pos)).take(TRIES * 2).collect();
     let held_back = super::pairs::held(b, cx.look, needs);
     for i in candidates {
         let (pos, target) = (b.cells[i].pos, &b.cells[i].target);
@@ -284,8 +292,9 @@ fn support(b: &Builder, cx: &Ctx, pos: BlockPos) -> Option<Next> {
     if b.target(cell).is_some_and(|t| !t.is_air()) {
         return None;
     }
-    if in_reach(cx.eye(), cell) && free(b, cx, cell) {
+    let ok = |e: Vec3| fills_from(e, cell, cx.look);
+    if ok(cx.eye()) && free(b, cx, cell) {
         return Some(Next::Act(Phase::Building, fill(b, cell)));
     }
-    go(Phase::Building, cell, stands(cell, cx.pos, cx.look, &Keep { feet: &|f| f == cell || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &|_| true, STANDS), b)
+    go(Phase::Building, cell, stands(cell, cx.pos, cx.look, &Keep { feet: &|f| f == cell || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &ok, STANDS), b)
 }
