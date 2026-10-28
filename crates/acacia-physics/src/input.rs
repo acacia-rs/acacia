@@ -1,7 +1,7 @@
 //! Client intent and its translation into bedsim's per-tick input flags (`applyInput`).
 
 use crate::constants::*;
-use crate::math::clamp;
+use crate::math::{clamp, wrap_degrees};
 use crate::sim::{Sim, effective_air_speed};
 use crate::state::PlayerState;
 use crate::world::WorldView;
@@ -149,7 +149,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         st.prev_pitch = st.pitch;
         st.pitch = f.pitch;
-        st.yaw = f.yaw;
+        st.yaw = wrap_degrees(f.yaw);
         st.pressing_sneak = f.sneak_down;
         st.pressing_sprint = f.sprint_down;
         st.pressing_ascend = f.jumping;

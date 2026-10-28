@@ -205,7 +205,8 @@ impl FlightPilot {
         tracing::trace!(tick = self.tick, ?pos, d, known, cruise_y = self.cruise_y, spot = ?self.spot, pitch = self.pitch, rockets, ?order, "glide");
         // The landing rollouts' sink limit, flown for real (`solve::MAX_SINK`).
         let aim = if landing && st.vel[1] < -MAX_SINK { self.pitch.min(0.0) } else { self.pitch };
-        let (yaw, pitch) = steady_glide_look(yaw, self.pitch_aim.turn(st.pitch, aim).clamp(-90.0, 90.0));
+        let pitch = self.pitch_aim.turn(st.pitch, aim).clamp(-90.0, 90.0);
+        let (yaw, pitch) = steady_glide_look(yaw, pitch);
         *c = Controls { forward: 1.0, glide: true, yaw, pitch, ..Controls::default() };
         order
     }

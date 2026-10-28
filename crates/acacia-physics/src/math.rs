@@ -92,6 +92,14 @@ pub fn cos32(x: f32) -> f32 {
     if sign { -r } else { r }
 }
 
+/// BDS's wrap of a received yaw, in its f32 order: the `+ 180` rounds onto a grid two ulps coarse near ±53°, which
+/// can move the angle across a sine-table step (strict BDS: predicts every 2026-10-28 cruise correction in four
+/// traced flights; `course-human-linux` trace mismatches 8 → 6). Pitch is not wrapped (wrapping it adds corrections).
+pub fn wrap_degrees(a: f32) -> f32 {
+    let w = (a + 180.0) % 360.0;
+    (if w < 0.0 { w + 360.0 } else { w }) + -180.0
+}
+
 pub fn clamp(v: f32, min: f32, max: f32) -> f32 {
     if v < min { min } else { v.min(max) }
 }

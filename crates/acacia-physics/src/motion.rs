@@ -124,9 +124,10 @@ pub(crate) fn set_post_collision_motion(st: &mut PlayerState, old: Vec3, old_on_
 const GLIDE_INDEX_MARGIN: f32 = 0.05;
 
 /// The glide look nearest (`yaw`, `pitch`) whose sine-table indices in [`simulate_glide`] all sit
-/// `GLIDE_INDEX_MARGIN` inside a step. Strict BDS rebuilds the look rotation from the previous one and can land an
-/// ulp or two off the sent angle; at a step edge that changes the heading by a whole step (1e-4 rad) and draws a
-/// correction (Optimal 800/600 flights, 2026-10-28). Moves an angle by at most half a step, 0.0027 degrees.
+/// `GLIDE_INDEX_MARGIN` inside a step. Strict BDS can land an ulp or two off the sent angle; at a step edge that turns
+/// the heading a whole step (1e-4 rad) and draws a correction. [`crate::math::wrap_degrees`] is one such rounding;
+/// with it mirrored and no guard, 8 live 800/600 flights still drew 6 corrections, and mirroring glideTravelVelocity's
+/// look rebuild or wrapping pitch made it worse (2026-10-28). Moves an angle by at most half a step, 0.0027 degrees.
 pub fn steady_glide_look(yaw: f32, pitch: f32) -> (f32, f32) {
     let radians = PI32 / 180.0;
     let yaw_indices = |y: f32| {
