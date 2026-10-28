@@ -3,6 +3,7 @@
 //! up its scaffold. Several builders can share a job through a [`TaskBoard`]. Design: acacia-pathfind/docs/builder.md.
 
 mod adjust;
+mod arrival;
 mod board;
 mod builder;
 mod check;

@@ -89,6 +89,9 @@ pub struct Builder {
     pub(super) commit: Option<(BlockPos, crate::pathfind::Goal)>,
     /// The goal the pilot reached: asking for it again would only hold still (the arbiter keeps an arrived route).
     pub(super) arrived: Option<crate::pathfind::Goal>,
+    /// (task, stand) pairs tried since the last act (`arrival::missed`); `settling`: the stand driven to its centre.
+    pub(super) tried: Vec<(BlockPos, BlockPos)>,
+    pub(super) settling: Option<BlockPos>,
     /// Stand feet the pilot failed to reach, until the tick.
     pub(super) avoid: HashMap<BlockPos, u64>,
     /// Cells with a thin target (`rules::thin`): the pilot keeps the body out of them (`SearchOpts::no_body`).
@@ -151,6 +154,8 @@ impl Builder {
             restock: None,
             commit: None,
             arrived: None,
+            tried: Vec::new(),
+            settling: None,
             avoid: HashMap::new(),
             thin,
             failed_walks: 0,
