@@ -24,6 +24,17 @@ fn stands_of(goal: &Goal) -> Box<dyn Iterator<Item = acacia_physics::BlockPos> +
     }
 }
 
+/// `goal`'s stands other than the one the feet are in.
+fn elsewhere(goal: &Goal, feet: acacia_physics::Vec3) -> Option<Goal> {
+    let here = feet.map(|v| v.floor() as i32);
+    let mut others: Vec<Goal> = stands_of(goal).filter(|s| *s != here).map(Goal::Block).collect();
+    match others.len() {
+        0 => None,
+        1 => others.pop(),
+        _ => Some(Goal::Or(others)),
+    }
+}
+
 /// The cell an act changes.
 fn cell_of(act: &Act) -> Option<acacia_physics::BlockPos> {
     match act {
@@ -65,6 +76,13 @@ impl Process for Builder {
             }
             next = plan::next(self, cx, &needs);
             match &next {
+                // Drifted into the cell after arriving (live: a fence gate's stand, 0.16 off; the arbiter keeps the
+                // arrived route, so the same goal never moves the bot): go to one of the other stands.
+                Next::Go(phase, task, goal) if self.arrived.as_ref() == Some(goal) && plan::in_body(cx.pos, *task) && elsewhere(goal, cx.pos).is_some() => {
+                    next = Next::Go(*phase, *task, elsewhere(goal, cx.pos).expect("checked"));
+                    self.arrived = None;
+                    break;
+                }
                 Next::Go(_, task, goal) if self.arrived.as_ref() == Some(goal) => {
                     tracing::debug!(?task, ?goal, "build stand reached but no click from there");
                     self.rest(*task);

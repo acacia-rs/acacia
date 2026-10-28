@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod house;
+pub mod oneclick;
 pub mod scenes_twocell;
 
 use std::path::PathBuf;
