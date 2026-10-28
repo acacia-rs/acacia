@@ -72,9 +72,12 @@ async fn fill(bot: &mut Bot, pos: BlockPos, blocks: &[String], human: bool) -> R
     let eye = bot.eye_position();
     let face = AGAINST.into_iter().find(|f| {
         let against = against(pos, *f);
-        solid(bot, against) == Some(true) && !bot.block_at(against).is_some_and(|(_, s)| crate::interact::is_interactive(s)) && block_distance(eye, against) <= BLOCK_REACH
+        solid(bot, against) == Some(true)
+            && !bot.block_at(against).is_some_and(|(_, s)| crate::interact::is_interactive(s))
+            && block_distance(eye, against) <= BLOCK_REACH
+            && bot.sees_face(against, *f)
     });
-    let face = face.ok_or_else(|| ActionError::NotPossible(format!("nothing to place against around {pos:?} within reach")))?;
+    let face = face.ok_or_else(|| ActionError::NotPossible(format!("nothing in view to place against around {pos:?} within reach")))?;
     let slot = blocks.iter().find_map(|b| bot.find_item(b));
     let slot = slot.ok_or_else(|| ActionError::NotPossible(format!("none of {blocks:?} to fill {pos:?} with")))?;
     hand(bot, slot, human).await?;
