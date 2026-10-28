@@ -151,6 +151,11 @@ impl GameState {
         state
     }
 
+    /// The entity tracker runs (`Trackers::entities`): without it no entity is ever seen.
+    pub fn tracks_entities(&self) -> bool {
+        self.trackers.entities
+    }
+
     pub fn me(&self) -> Me {
         Me { runtime_entity_id: self.player.runtime_entity_id, unique_entity_id: self.player.unique_entity_id }
     }

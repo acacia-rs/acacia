@@ -67,6 +67,9 @@ pub(crate) const STOP_USE_ON: Range = (30, 140);
 pub(crate) const ENTITY_HOVER: Range = (75, 450);
 /// Entity right-click: the transaction to the client's own swing (n=5: 124-203 ms).
 pub(crate) const ENTITY_SWING: Range = (120, 210);
+/// Between punches breaking a boat (placeholder, no capture): its damage wears off each tick, so hits a CLICK
+/// apart never broke one live (2026-10-28).
+pub(crate) const BOAT_PUNCH: Range = (140, 260);
 /// Held item changed by the server or a container move, to the client's MobEquipment (n=15: 43-247 ms, two near 700).
 pub(crate) const EQUIP_RESYNC: Range = (60, 250);
 /// Bed click to `PlayerAction StartSleeping` (n=1: 513 ms).
@@ -83,6 +86,22 @@ pub(crate) const AIM_MAX_TURN_DEG: f32 = 30.0;
 pub(crate) const AIM_JITTER_DEG: f32 = 1.5;
 /// How far (blocks) a move's start may sit from where the plan put it.
 pub(crate) const START_SLOP: f32 = 0.05;
+
+// Boat paddling (pathfind `boat`, `MovementProfile::Human`): placeholders until a vanilla boat capture fits them.
+/// Ticks a chosen set of straight paddle keys (no side key) stays held, uniform inclusive.
+pub(crate) const BOAT_KEY_HOLD: (u32, u32) = (4, 10);
+/// Ticks a side key is tapped for, as is any key while easing onto the stop; and the route left (blocks) where
+/// that easing starts.
+pub(crate) const BOAT_TAP_HOLD: (u32, u32) = (1, 3);
+pub(crate) const BOAT_TAP_REACH: f32 = 3.0;
+/// Ticks from deciding on new keys to pressing them.
+pub(crate) const BOAT_TURN_REACTION: (u32, u32) = (2, 5);
+/// Blocks along the route ahead of the boat the rider looks at.
+pub(crate) const BOAT_LOOK_LEAD: f32 = 8.0;
+/// Extra clearance (blocks) kept from banks, beyond the boat's own box.
+pub(crate) const BOAT_BANK_PAD: f32 = 0.3;
+/// Ticks sitting in a boat that has come to rest before getting off.
+pub(crate) const BOAT_EXIT_PAUSE: (u32, u32) = (6, 16);
 
 pub(crate) struct Human {
     rng: u64,
