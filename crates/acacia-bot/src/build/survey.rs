@@ -19,6 +19,8 @@ pub enum Need {
     Kept,
     /// The target is outside the builder's block set.
     Unsupported,
+    /// A pair's second cell, or a first cell waiting for its second to be cleared (`pairs::settle`).
+    Paired,
 }
 
 pub fn need(target: &Block, world: Option<BlockView>, fill_only: bool) -> Need {

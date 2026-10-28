@@ -9,6 +9,7 @@ use acacia_world::BlockAccess;
 use super::alter::blocks;
 use super::grid::Grid;
 use super::place_model::bds_state;
+use super::place_twocell::{bds_pair, other_half};
 use super::sim::perform;
 use crate::build::{BuildJob, Builder, Structure, StatusHandle, Transform};
 use crate::interact::{block_distance, Face, BLOCK_REACH};
@@ -173,6 +174,13 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
                 return Err(ActionError::Rejected(format!("place {item} at {pos:?} from {e:?}")));
             }
             let point = [against[0] as f32 + click[0], against[1] as f32 + click[1], against[2] as f32 + click[2]];
+            let g: &Grid = w.g;
+            if let Some(pair) = bds_pair(item, *face, e, point, pos, &|p| g.registry.get(g.view.block(p[0], p[1], p[2]))) {
+                let cells = pair.filter(|cs| cs.iter().all(|(p, ..)| !blocked(w, *p))).ok_or_else(|| ActionError::Rejected(format!("{item} refused at {pos:?}")))?;
+                take(w, item)?;
+                cells.iter().for_each(|(p, n, s)| w.set(*p, n, s));
+                return Ok(());
+            }
             let (name, props) = bds_state(item, *face, *click, e, point, cell.name, pos).ok_or_else(|| ActionError::Rejected("refused".into()))?;
             take(w, item)?;
             w.set(pos, &name, &props);
@@ -181,6 +189,9 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
         Act::Break { pos } => {
             if far(*pos) {
                 return Err(ActionError::NotPossible(format!("break {pos:?} from {e:?}")));
+            }
+            if let Some(o) = w.g.registry.get(w.g.view.block(pos[0], pos[1], pos[2])).and_then(|s| other_half(s, *pos)) {
+                w.set(o, "air", "");
             }
             w.set(*pos, "air", "");
             Ok(())

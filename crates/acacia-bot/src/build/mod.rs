@@ -10,6 +10,7 @@ mod en_route;
 pub mod findings;
 mod job;
 pub mod journal;
+mod pairs;
 mod plan;
 mod process;
 mod reach;

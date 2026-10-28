@@ -75,7 +75,8 @@ impl Transform {
             .filter_map(|kv| kv.split_once('='))
             .map(|(k, v)| format!("{k}={}", self.value(k.trim_start_matches("minecraft:"), v)))
             .collect();
-        Block::new(&b.name, &props.join(","))
+        let turned = Block::new(&b.name, &props.join(","));
+        if self.mirror { super::rules::twocell::mirror_door(turned) } else { turned }
     }
 
     fn value<'a>(&self, key: &str, v: &'a str) -> &'a str {
