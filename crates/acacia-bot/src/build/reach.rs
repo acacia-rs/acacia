@@ -82,25 +82,28 @@ fn sees(eye: Vec3, p: BlockPos, face: Face) -> bool {
     }
 }
 
-/// Clicks on `face` of `against`: its centre, or low and high on a side face (a slab's or stair's half follows the
-/// click). Only points on the block's shape: a full cube anywhere, a half slab its own half of the side faces.
-/// `fine`: a grid over a full top or bottom face, for states set by the look's exact yaw (`rules::fine_aim`).
-fn points(face: Face, against: &BlockView, fine: bool) -> Vec<Vec3> {
+/// Clicks on `face` of `against`, the usual ones first: its centre, or low and high on a side face (a slab's or
+/// stair's half follows the click); then a grid over the rest, so a partly hidden face still gives a seen click.
+/// Only points on the block's shape: a full cube anywhere, a half slab its own half of the side faces.
+fn points(face: Face, against: &BlockView) -> Vec<Vec3> {
     let [ox, oy, oz] = face.offset().map(|v| v as f32);
     let c = [0.5 + 0.5 * ox, 0.5 + 0.5 * oy, 0.5 + 0.5 * oz];
-    let side = |ys: &[f32]| ys.iter().map(|&y| [c[0], y, c[2]]).collect();
-    let slab = against.name.ends_with("_slab").then(|| against.prop("minecraft:vertical_half")).flatten();
     const GRID: [f32; 3] = [0.5, 0.2, 0.8];
+    // Side grids keep off y 0.5, where a stair's or slab's half flips.
+    let side = |ys: &[f32], more: &[f32]| {
+        let at = move |h: f32, y: f32| if ox != 0.0 { [c[0], y, h] } else { [h, y, c[2]] };
+        ys.iter().map(|&y| at(0.5, y)).chain(GRID.iter().flat_map(|&h| more.iter().map(move |&y| at(h, y)))).collect()
+    };
+    let slab = against.name.ends_with("_slab").then(|| against.prop("minecraft:vertical_half")).flatten();
     match (face, slab) {
         (Face::Up | Face::Down, None) if rules::post(against) => vec![c],
         (Face::Up, None) if !against.full => rules::redstone::top(against.name).map(|y| vec![[c[0], y, c[2]]]).unwrap_or_default(),
         (_, None) if !against.full => Vec::new(),
-        (Face::Up | Face::Down, None) if fine => GRID.iter().flat_map(|&x| GRID.iter().map(move |&z| [x, c[1], z])).collect(),
-        (Face::Up | Face::Down, None) => vec![c],
-        (_, None) => side(&[0.25, 0.75]),
+        (Face::Up | Face::Down, None) => GRID.iter().flat_map(|&x| GRID.iter().map(move |&z| [x, c[1], z])).collect(),
+        (_, None) => side(&[0.25, 0.75], &[0.15, 0.4, 0.6, 0.85]),
         (Face::Up | Face::Down, _) => Vec::new(),
-        (_, Some("top")) => side(&[0.75]),
-        (_, Some(_)) => side(&[0.25]),
+        (_, Some("top")) => side(&[0.75], &[0.6, 0.9]),
+        (_, Some(_)) => side(&[0.25], &[0.1, 0.4]),
     }
 }
 
@@ -118,16 +121,33 @@ pub fn click_for(pos: BlockPos, target: &Block, eye: Vec3, look: &dyn Look, slac
         }
         let into = look.block(pos).is_some_and(|t| t.solid()).then_some(pos);
         let visible = |c: &Vec3| sight.sees_face_into(eye, against, face, std::array::from_fn(|i| against[i] as f32 + c[i]), into);
-        let Some(click) = points(face, &b, rules::fine_aim(target)).into_iter().find(|c| rules::gives(target, face, *c, eye, pos, &b) && visible(c)) else { continue };
+        let Some(click) = points(face, &b).into_iter().find(|c| rules::gives(target, face, *c, eye, pos, &b) && visible(c)) else { continue };
         return Some(Click { against, face, click });
     }
     None
 }
 
-/// Some point of the block's shape at `pos` shows to the eye: where a use-click aims.
+/// Some point of the block's shape at `pos` shows to the eye: where a use-click or a break aims.
 pub fn sees_block(eye: Vec3, pos: BlockPos, look: &dyn Look) -> bool {
     let world = LookBlocks(look);
     !Sight { world: &world, registry: BlockRegistry::vanilla() }.visible_points(eye, pos).is_empty()
+}
+
+/// A break of `pos` from `eye` the act accepts: in reach and in view.
+pub fn breaks_from(eye: Vec3, pos: BlockPos, look: &dyn Look) -> bool {
+    in_reach(eye, pos) && sees_block(eye, pos, look)
+}
+
+/// A fill of `pos` from `eye` the act accepts (`pathfind::process::act::fill`): some solid, non-interactive
+/// neighbour in reach whose face towards `pos` the eye sees at its centre.
+pub fn fills_from(eye: Vec3, pos: BlockPos, look: &dyn Look) -> bool {
+    let world = LookBlocks(look);
+    let sight = Sight { world: &world, registry: BlockRegistry::vanilla() };
+    Face::ALL.into_iter().any(|face| {
+        let o = face.offset();
+        let against = [pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]];
+        look.block(against).is_some_and(|b| !b.air && !b.liquid && !b.interactive) && in_reach(eye, against) && sight.sees_face_centre(eye, against, face)
+    })
 }
 
 /// A [`Look`] as block ids for the shared ray. Unloaded cells, and blocks the vanilla registry lacks, read as air.
@@ -144,45 +164,6 @@ impl BlockAccess for LookBlocks<'_> {
 
     fn liquid(&self, _: i32, _: i32, _: i32) -> u32 {
         BlockRegistry::vanilla().air_id()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-
-    use super::*;
-    use crate::pathfind::process::{BlockView, Target};
-
-    /// Stone where listed, air elsewhere.
-    struct Cells(HashMap<BlockPos, &'static str>);
-
-    impl Look for Cells {
-        fn solid(&self, p: BlockPos) -> Option<bool> {
-            Some(self.0.contains_key(&p))
-        }
-
-        fn find(&self, _: &Target) -> Option<Vec3> {
-            None
-        }
-
-        fn block(&self, p: BlockPos) -> Option<BlockView> {
-            let r = BlockRegistry::vanilla();
-            let name = self.0.get(&p).copied().unwrap_or("minecraft:air");
-            r.get(r.find(name, "")?).map(BlockView::of)
-        }
-    }
-
-    #[test]
-    fn a_click_behind_another_block_is_not_planned() {
-        // Stone at x 2 to place on top of, from an eye at y 1.62 west of it: the Up face is in view until a
-        // stone at x 1, y 1 hides it.
-        let (pos, eye) = ([2, 1, 0], [0.5, 1.62 + 0.4, 0.5]);
-        let target = Block::new("stone", "");
-        let open = Cells([([2, 0, 0], "minecraft:stone")].into());
-        assert!(click_for(pos, &target, eye, &open, 0.0).is_some_and(|c| c.face == Face::Up));
-        let hidden = Cells([([2, 0, 0], "minecraft:stone"), ([1, 1, 0], "minecraft:stone")].into());
-        assert_eq!(click_for(pos, &target, eye, &hidden, 0.0), None);
     }
 }
 

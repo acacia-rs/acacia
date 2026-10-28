@@ -176,6 +176,17 @@ stands and the stands it could use: the first thing to read when a build stalls 
 - Pipelined placements (Optimal; `interact::pipeline`, governor cap 4 in flight; BDS kept 6 a tick from one
   spot, `examples/place_rate.rs`): one bot 213 s, acts 62 s (p50 49 ms), echo waits overlapped; sim
   `pipeline_sim` (refused, lost and late echoes, no ghosts, never done with placements in flight).
+- Line of sight regression (2026-10-28, one bot, house16, fresh pool worlds): 06ecb4c 133-190 s, 54-58 walks;
+  master 232-316 s, 119-160 walks. Bisect: bab306e 147/155 s, 56 walks; 713f1c6 (interactions refuse what the
+  eye can't see, the planner clicks only seen points) 226/335 s, 113-127 walks, 4.6-5.1 placements a walk
+  against 10.3, 25-40 breaks refused "not visible". Its reach change is not the cause (old reach: 228/249 s).
+  - Fixed: breaks and fills plan with the acts' sight checks (`reach::breaks_from`, `fills_from`), clicks try a
+    grid over each face, a pair's second half obeys the never-cover rule (a bed's head buried its floor plank).
+    After: 252-315 s, 3495-4577 ticks, 94-106 walks, 5.5-6.1 placements a walk, 0-1 refused breaks; Plan p95
+    3.7-4.3 ms (was 1.8-2.0).
+  - Open: back to ~150 s. Next: reproduce the walk count in the sim house16; count `click_for` rejections by
+    reason (reach, face, hidden, and by what); then score stands by the cells they see, or prefer stands above
+    the wall top.
 
 ## Swarm (B2: `build/board.rs`, `build/swarm.rs`)
 

@@ -158,11 +158,6 @@ pub(super) fn gives(name: &str, k: &str, v: &str, dir: Dir, look: Option<Dir>, e
     Some(want.as_deref() == Some(v))
 }
 
-/// The state follows the look's exact yaw (16-way sign rotation): clicks are tried over the whole face.
-pub fn fine_aim(target: &Block) -> bool {
-    props(target).any(|(k, _)| k == "ground_sign_direction") && bare(&target.name).ends_with("standing_sign")
-}
-
 /// The eye is in front of the sign `w` at `pos` (`Some(false)`: behind it; `None`: too near its plane to tell).
 /// The server opens the editor of the side the player stands on.
 pub fn front(w: &BlockView, pos: [i32; 3], eye: Vec3) -> Option<bool> {

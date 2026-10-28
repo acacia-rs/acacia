@@ -78,19 +78,10 @@ impl Bot {
         Ok(pool[self.human.pick(pool.len())])
     }
 
-    /// `NotVisible` unless the ray from the eye through `point` first meets `face` of the block at `pos`.
     /// The eye sees the centre of `face` of the block at `pos` (true without a tracked world): the check a
     /// placement against that face makes, for planners choosing among faces.
     pub fn sees_face(&self, pos: BlockPos, face: Face) -> bool {
-        self.check_visible(pos, face, geometry::face_point(pos, face)).is_ok()
-    }
-
-    pub(crate) fn check_visible(&self, pos: BlockPos, face: Face, point: Vec3) -> Result<(), ActionError> {
-        let eye = self.eye_position();
-        match self.sight() {
-            Some(s) if !s.sees_face_at(eye, pos, face, point) => Err(ActionError::NotVisible(format!("{face:?} of {pos:?} is hidden from the eye"))),
-            _ => Ok(()),
-        }
+        self.sight().is_none_or(|s| s.sees_face_centre(self.eye_position(), pos, face))
     }
 
     pub fn eye_position(&self) -> Vec3 {
