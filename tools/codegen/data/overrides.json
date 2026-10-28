@@ -2,6 +2,90 @@
   "_comment": "Corrections applied over minecraft-data's protocol.json before generation; each `types` entry replaces or adds types[name], each `patches` entry replaces the container field at a JSON pointer. Rationale per entry in docs/proto.md.",
   "patches": [
     {
+      "path": "/types/packet_camera_instruction/1/2",
+      "field": {
+        "name": "fade",
+        "type": [
+          "option",
+          [
+            "container",
+            [
+              {
+                "name": "time",
+                "type": [
+                  "option",
+                  [
+                    "container",
+                    [
+                      {
+                        "name": "fade_in_duration",
+                        "type": "lf32"
+                      },
+                      {
+                        "name": "wait_duration",
+                        "type": "lf32"
+                      },
+                      {
+                        "name": "fade_out_duration",
+                        "type": "lf32"
+                      }
+                    ]
+                  ]
+                ]
+              },
+              {
+                "name": "color_rgb",
+                "type": [
+                  "option",
+                  "vec3f"
+                ]
+              }
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "path": "/types/packet_camera_instruction/1/5",
+      "field": {
+        "name": "fov",
+        "type": [
+          "option",
+          [
+            "container",
+            [
+              {
+                "name": "field_of_view",
+                "type": "lf32"
+              },
+              {
+                "name": "ease_time",
+                "type": "lf32"
+              },
+              {
+                "name": "ease_type",
+                "type": "string"
+              },
+              {
+                "name": "clear",
+                "type": "bool"
+              }
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "path": "/types/FullContainerName/1/1",
+      "field": {
+        "name": "dynamic_container_id",
+        "type": [
+          "option",
+          "lu32"
+        ]
+      }
+    },
+    {
       "path": "/types/packet_update_block_synced/1/4",
       "field": {
         "name": "entity_unique_id",
