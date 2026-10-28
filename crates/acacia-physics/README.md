@@ -3,7 +3,7 @@
 Bedrock player movement simulation: a network-free, dependency-free (by default) Rust port of
 [oomph-ac/bedsim](https://github.com/oomph-ac/bedsim) (MIT), commit
 `34d11dc576aeb56a7f7f0541dbb5a600cc443488` (2026-09-16). The f32 operation order of bedsim is
-kept, down to chewxy/math32 `Sin`/`Cos`; the sine table is BDS's own (see "Deliberate deviations"). Module names follow the
+kept except where BDS's own differs: the sine table and the walk acceleration (see "Deliberate deviations"). Module names follow the
 bedsim files (`movement.rs` = `simulateMovement`, `collide.rs` = `tryCollisions`, `liquid*.rs` = `liquid.go`).
 
 ## API
@@ -64,6 +64,9 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   table (bedsim) is a correctly rounded one and differs in two thirds of the entries by an ulp, which moved
   every off-axis sprint jump by 1–8 ulps. Windows BDS fills it with MSVC's `sinf`; old Windows traces do not
   see the difference at their 0.001 tolerance.
+- Walk acceleration (`motion::move_relative`) rotates the impulse with libm `sinf`/`cosf` (glibc's, `sinf.rs`)
+  instead of bedsim's chewxy/math32 `Sin`/`Cos`, and in BDS's order: impulse times speed factor first, then
+  `x*cos - z*sin`, `x*sin + z*cos` (docs/DESIGN.md "Off-axis ulp corrections").
 - Corrections (`correction.rs`): BDS keeps its box and never rebuilds it from the position, so after a
   correction of an ulp or so the corrected centre does not say where its faces are, and rebuilding ours from it
   starts a run of ±1-ulp corrections. `PlayerState::apply_small_correction` keeps the faces that, moved by our

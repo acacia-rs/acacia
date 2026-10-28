@@ -227,11 +227,31 @@ the proxy (`crates/acacia-mitm/src/transfer.rs`). What is left: [mitm-next.md](m
     - Boats too (2026-10-28): a boat's x and z are its kept box's centre. `pos += move` drew a 1-ulp x/z
       correction every few ticks, 641 on a 500-block leg, all under the 1e-5 bar below |x| 128; with the box, 47,
       all wave height (docs/research/riding-fishing-elytra.md "Boat"; live results docs/pathfind-plan.md "M3").
-    - Left open: ground and air ticks still drift by an ulp on about 2% of off-axis ticks (sprint walks from rest
-      near the origin: 7 of 30 per axis). Not explained by constant acceleration offsets, glibc sin/cos, Java's
-      operation order (BDS's `WaterMoveSystem` form), air speed 0.025999999, friction order, double-precision
-      centres or position-derived velocity (each scored against the broadcasts, none better). Liquids and ladders
-      with Human jitter draw most of what remains (course Human 1: ladder, pool, exit).
+    - Root cause 3, walk acceleration (2026-10-28): BDS's move-relative (Windows `144832a50`, the ground move
+      view's helper; Linux ELF 0x7315b8f, disassembled) scales the impulse by `speed / max(1, sqrt(len²))` first,
+      then adds `x*cos - z*sin` and `x*sin + z*cos` with libm `sinf`/`cosf` (Linux imports glibc's). Ours was
+      bedsim's `(sin*z)*f` with chewxy/math32 Cephes trig; diagonal keys (FRAC_1_SQRT_2) make the forward
+      component inexact, so the order mattered on every diagonal tick. Each half alone helps (replayed at
+      tolerance 0, fuzz-a 1286 → 1036 order only, 832 trig only); together course-human-linux 6 → 5,
+      fuzz-a 1286 → 422, fuzz-b 1408 → 500, sneak-edge 221 → 175, powder snow 19 → 18, none higher. Live,
+      moving ticks whose broadcast differs from our position (`observe`, each build judged on its own run):
+      the 40-segment mix drill (diagonal keys, hops, mid-walk turns, near the origin) 250 of 1551 → 27 of 1552;
+      8 forward sprint-hop segments at x 17.5 (fresh world each) 92 of 311 → 36 of 309, corrections 9 → 4.
+    - Left open: what remains is almost all z, in forward sprint-hops: x stays exact while z drifts 1–2 ulps
+      (goto legs across the pad drew corrections only on legs with a long z run). At the first miss our
+      previous faces plus a z displacement one ulp lower land on the broadcast (live `observe` hop at yaw 10.66,
+      the jump tick), but no single order of velocity + accel + sprint-jump boost explains it: jump boost before
+      the accel, or summed with it, each fit 38 of 47 jump ticks against ours 37 and raised the live mismatches
+      (35 → 41, 53). A box tracker (faces ±2 ulps, displacement ±40 of its own ulps, optionally rebuilt from the
+      server's centre on jump, landing, takeoff or every tick) finds no consistent chain on most drifting
+      segments, and `pos + move` from the server's previous position scores worse than our box. Replaying one
+      build's live run with another build's physics gives rates that are not comparable (old run, new physics:
+      391 of 1551); judge each build on its own run. course-human-linux tick 1104 (sprint jump, constant yaw)
+      moves z 6.7e-7 off (3 ulps) with no trig variant explaining it. Not explained either: constant acceleration offsets,
+      Java's operation order (BDS's `WaterMoveSystem` form), air speed 0.025999999, friction order,
+      double-precision centres, position-derived velocity, or other centre formulas (`lo + 0.3`, `hi - 0.3`,
+      `lo + span/2`: all worse than `(lo + hi) / 2`). Liquids and ladders with Human jitter draw most of what
+      remains (course Human 1: ladder, pool, exit).
     - Offline bots rejoin where they left, so repeated drills creep up the pads: at y ~180 positions are
       4x coarser and Optimal drew 48 on the parkour legs; reset the world before a course run. The test pack
       (`tools/actiontest-pack`) builds its scene, with a water pool, under the player who joins 40 ticks later.

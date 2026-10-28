@@ -74,9 +74,7 @@ pub(crate) fn sinf(y: f32) -> f32 {
     poly(x, x2, p, n)
 }
 
-/// Not used by the simulation yet: ground and air acceleration still use bedsim's math32 (see README).
-#[cfg(test)]
-fn cosf(y: f32) -> f32 {
+pub(crate) fn cosf(y: f32) -> f32 {
     if top12(y) < top12(PIO4) {
         if top12(y) < top12(TINY) {
             return 1.0;
