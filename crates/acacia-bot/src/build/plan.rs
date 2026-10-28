@@ -146,6 +146,11 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         }
     }
 
+    let adjusts: Vec<usize> = order.iter().copied().filter(|&i| open(b, i, Need::Adjust)).collect();
+    if let Some(next) = super::adjust::next(b, cx, &adjusts) {
+        return next;
+    }
+
     // Places, bottom up.
     let mut places: Vec<usize> = order.iter().copied().filter(|&i| open(b, i, Need::Place)).collect();
     places.sort_by_key(|&i| b.cells[i].pos[1]);
@@ -153,20 +158,31 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     let mut unsupported = None;
     let mut ready: Vec<(usize, String)> = Vec::new();
     // Never cover an open cell: a block over it takes away the click on the face below (and the stand above).
-    let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.given_up(b.cells[j].pos));
+    let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.given_up(b.cells[j].pos) && rules::hangs(&b.cells[j].target).is_none());
     let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers(b, b.cells[i].pos)).take(TRIES * 2).collect();
+    let held_back = super::pairs::held(b, cx.look, needs);
     for i in candidates {
         let (pos, target) = (b.cells[i].pos, &b.cells[i].target);
         let Some(item) = rules::redstone::item_now(target, cx.look.block(pos), cx.look).or_else(|| rules::item(target)) else { continue };
-        if missing.contains(&item) || (rules::gravity(&target.name) && cx.look.solid([pos[0], pos[1] - 1, pos[2]]) != Some(true)) || !rules::redstone::ready(target, pos, cx.look, &|p| b.target(p).cloned()) {
+        if held_back.contains(&pos) {
+            b.rest(pos);
+            continue;
+        }
+        let open_at = |dy: i32| cx.look.solid([pos[0], pos[1] + dy, pos[2]]) != Some(true);
+        let hangs_open = rules::hangs(target).is_some_and(|only| open_at(1) && (only || open_at(-1)));
+        if missing.contains(&item) || (rules::gravity(&target.name) && open_at(-1)) || hangs_open || !rules::redstone::ready(target, pos, cx.look, &|p| b.target(p).cloned()) {
             continue;
         }
         let supported = Face::ALL.iter().any(|f| {
             let o = f.offset();
-            cx.look.block([pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]]).is_some_and(|v| v.solid() && !v.interactive && (v.full || v.name.ends_with("_slab") || rules::redstone::top(v.name).is_some()))
+            cx.look.block([pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]]).is_some_and(|v| v.solid() && !v.interactive && (v.full || v.name.ends_with("_slab") || rules::post(&v) || rules::redstone::top(v.name).is_some()))
         });
         if !supported {
             unsupported.get_or_insert(pos);
+            continue;
+        }
+        if super::pairs::waits(b, cx.look, pos) {
+            b.rest(pos);
             continue;
         }
         if cx.look.count(&item) == 0 {
@@ -188,6 +204,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         let (pos, target) = (b.cells[*i].pos, &b.cells[*i].target);
         let slack = if walking { super::en_route::SLACK } else { 0.0 };
         if free(b, cx, pos)
+            && super::pairs::second(b, pos).is_none_or(|o| free(b, cx, o))
             && let Some(c) = click_for(pos, target, eye, cx.look, slack)
         {
             let act = rules::redstone::act(item.clone(), c.against, c.face, c.click, pos);
@@ -223,7 +240,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     if let Some(i) = order.iter().copied().find(|&i| needs[i] == Need::Unknown && b.mine(b.cells[i].pos)) {
         return Next::Go(Phase::Surveying, b.cells[i].pos, Goal::Near(b.cells[i].pos, 3.0));
     }
-    let pending = cx.look.any_in_flight() || needs.iter().enumerate().any(|(i, n)| matches!(n, Need::Place | Need::Break | Need::Drain) && !b.given_up(b.cells[i].pos) && !(*n == Need::Break && held(b, i)));
+    let pending = cx.look.any_in_flight() || needs.iter().enumerate().any(|(i, n)| matches!(n, Need::Place | Need::Break | Need::Drain | Need::Adjust) && !b.given_up(b.cells[i].pos) && !(*n == Need::Break && held(b, i)));
     if pending {
         b.revive();
         let why = match () {

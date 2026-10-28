@@ -4,6 +4,7 @@
 
 mod ahead;
 mod guard;
+mod settle;
 mod watch;
 
 use std::sync::Arc;
@@ -268,7 +269,8 @@ impl Pilot {
         self.partial = !path.complete;
         self.generation += 1;
         self.ahead.clear();
-        let mut follower = Follower::new(path.nodes, pos, self.opts.tolerance).moving(self.opts.search.profile, splitmix(&mut self.rng));
+        let nodes = settle::nodes(path.nodes, path.complete && self.opts.settle, pos);
+        let mut follower = Follower::new(nodes, pos, self.opts.tolerance).moving(self.opts.search.profile, splitmix(&mut self.rng));
         follower.set_ends_at_goal(path.complete);
         self.follower = Some(follower.shortcuts(self.opts.shortcuts));
         Ok(())

@@ -98,10 +98,14 @@ fn a_junction_waits_for_its_line() {
     assert!(!ready(&rail(0), N, &line, &t));
 }
 
+fn cell(pos: BlockPos, target: Block) -> Cell {
+    Cell { pos, target, text: None }
+}
+
 #[test]
 fn a_rail_on_its_way_is_not_broken() {
     // W placed alone shows north-south; its target runs east-west towards C, still to come.
-    let cells = vec![Cell { pos: W, target: rail(1) }, Cell { pos: C, target: rail(1) }];
+    let cells = vec![cell(W, rail(1)), cell(C, rail(1))];
     let t = |p: BlockPos| cells.iter().find(|c| c.pos == p).map(|c| c.target.clone());
     let look = Cells([(W, ("minecraft:rail", "rail_direction=0"))].into());
     let mut needs = vec![Need::Break, Need::Place];
@@ -111,7 +115,7 @@ fn a_rail_on_its_way_is_not_broken() {
 
 #[test]
 fn flows_from_the_jobs_sources_are_left_alone() {
-    let cells = vec![Cell { pos: C, target: Block::new("water", "liquid_depth=0") }, Cell { pos: E, target: Block::new("air", "") }, Cell { pos: W, target: Block::new("air", "") }];
+    let cells = vec![cell(C, Block::new("water", "liquid_depth=0")), cell(E, Block::new("air", "")), cell(W, Block::new("air", ""))];
     let t = |p: BlockPos| cells.iter().find(|c| c.pos == p).map(|c| c.target.clone());
     let look = Cells([(C, ("minecraft:water", "liquid_depth=0")), (E, ("minecraft:flowing_water", "liquid_depth=1")), (W, ("minecraft:lava", "liquid_depth=0"))].into());
     let mut needs = vec![Need::Done, Need::Drain, Need::Drain];
@@ -144,7 +148,7 @@ fn items_states_and_clicks() {
     assert_eq!(item_of("vine", "vine_direction_bits=5"), None, "one click attaches one side");
     assert_eq!(item_of("seagrass", "sea_grass_type=double_top"), None);
     assert!(!supported("minecraft:bamboo") && supported("minecraft:bamboo_sapling") && supported("minecraft:bamboo_planks"));
-    assert!(!supported("minecraft:redstone_torch") && !supported("minecraft:twisting_vines") && !supported("minecraft:waterlily"));
+    assert!(supported("minecraft:redstone_wire") && !supported("minecraft:twisting_vines") && !supported("minecraft:waterlily"));
     let view = |name: &'static str, props: &'static str| BlockView { name, props, air: false, liquid: name.contains("water"), full: false, interactive: false };
     assert!(matches(&Block::new("water", "liquid_depth=3"), &view("minecraft:air", "")), "flows are not compared");
     assert!(matches(&Block::new("water", "liquid_depth=0"), &view("minecraft:flowing_water", "liquid_depth=0")));

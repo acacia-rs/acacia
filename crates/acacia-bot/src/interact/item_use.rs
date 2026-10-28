@@ -75,6 +75,30 @@ impl Bot {
         }
     }
 
+    /// Right-clicks the block at `pos` (on `face` when it shows) and waits for the server to show the cell
+    /// changed: a use toggle (`open_bit`, a repeater's delay) or a held tool's work (tilled dirt). One click
+    /// only, as [`Self::door_confirmed`].
+    pub(crate) async fn use_confirmed(&mut self, pos: BlockPos, face: Face) -> Result<(), ActionError> {
+        let distance = block_distance(self.eye_position(), pos);
+        if distance > BLOCK_REACH {
+            return Err(ActionError::NotPossible(format!("block {pos:?} is {distance:.2} blocks away")));
+        }
+        let before = self.block_at(pos).map(|(id, _)| id).ok_or_else(|| ActionError::NotPossible(format!("{pos:?} is not loaded")))?;
+        let (face, aim) = self.visible_aim(pos, Some(face))?;
+        self.look_at(aim).await?;
+        self.admit_action().await?;
+        let mut c = self.confirmation(pos, Expect::Replaced(before), 1);
+        let verdict = match self.click_block(pos, face, relative(pos, aim), SwingSource::Interact) {
+            Ok(()) => self.await_confirm(pos, &mut c, Instant::now()).await,
+            Err(e) => Err(e),
+        };
+        self.governor.settled();
+        match verdict? {
+            Verdict::Done => Ok(()),
+            _ => Err(ActionError::Rejected(format!("using {pos:?} changed nothing"))),
+        }
+    }
+
     /// Places the held block or item (sign, bed, boat...) against `face` of the block at `against`.
     /// Waits until the server shows a block in the target cell, clicking again (up to 3 tries) while it
     /// stays empty past the governor's timeout; `Rejected` after that. Items that make entities, like
@@ -112,7 +136,7 @@ impl Bot {
             && !s.is_air()
             && !s.is_liquid()
         {
-            if !s.name.ends_with("_slab") {
+            if !s.name.ends_with("_slab") && !adds_to(s.name, self.held_name()) {
                 return Err(ActionError::NotPossible(format!("{target:?} is occupied by {}", s.name)));
             }
             half_slab = Some(id);
@@ -230,6 +254,11 @@ pub(crate) fn use_on_result(held: &ItemStack, is_sign: bool, pos: BlockPos, face
     } else {
         pos
     }
+}
+
+/// Placing `held` into a cell holding `cell` adds one to it (candles, sea pickles, turtle eggs).
+pub(crate) fn adds_to(cell: &str, held: Option<&str>) -> bool {
+    held == Some(cell) && (cell.ends_with("candle") || matches!(cell, "minecraft:sea_pickle" | "minecraft:turtle_egg"))
 }
 
 /// The stack left after placing one.

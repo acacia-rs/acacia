@@ -7,6 +7,7 @@ mod arbiter;
 mod backfill;
 mod follow;
 mod goto;
+pub mod item_key;
 pub(crate) mod run;
 
 use acacia_physics::{BlockPos, Vec3};
@@ -51,8 +52,13 @@ pub enum Act {
     Restock { station: BlockPos, items: Vec<(String, u32)> },
     /// Use `item` on `face` of `against` (a hoe tilling, a bucket pouring); done once `cell` shows a block whose
     /// name ends with `expect`.
-    // TODO: merge with the interact tier's generic use act (build/redstone's tilling and pouring seam).
+    // TODO: fold tilling into `Use` (a bucket's pour changes the cell beyond `against`, which `Use` does not watch).
     UseOn { item: String, against: BlockPos, face: Face, cell: BlockPos, expect: String },
+    /// Right-click the block at `pos` once, holding `item` (`None`: whatever is held), on `face` when it shows:
+    /// done once the server shows the cell changed (a trapdoor opened, a repeater's delay, dirt tilled).
+    Use { pos: BlockPos, item: Option<String>, face: Face },
+    /// Write `text` on one side of the sign at `pos` (the side the server opens: from where the bot stands).
+    Sign { pos: BlockPos, front: bool, text: String },
 }
 
 /// World changes every process hears about, whichever made them.
@@ -102,7 +108,11 @@ pub trait Look {
     fn block(&self, _pos: BlockPos) -> Option<BlockView> {
         None
     }
-    /// Items of `item` (identifier) in the inventory.
+    /// The `color` of the block entity at `pos` (beds); `None`: none known.
+    fn color(&self, _pos: BlockPos) -> Option<u8> {
+        None
+    }
+    /// Items of `item` (an [`item_key`]) in the inventory.
     fn count(&self, _item: &str) -> u32 {
         0
     }
@@ -121,6 +131,10 @@ pub trait Look {
     /// Any placement is sent and not yet confirmed.
     fn any_in_flight(&self) -> bool {
         false
+    }
+    /// One side's text of the sign at `pos` (lines joined by `\n`); `None`: no sign entity known there.
+    fn sign_text(&self, _pos: BlockPos, _front: bool) -> Option<String> {
+        None
     }
 }
 

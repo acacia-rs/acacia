@@ -1,34 +1,25 @@
 //! [`Builder`] as a [`Process`]: survey, pick the next step (`plan`), drive or act, learn from the outcome.
 
+use super::arrival::{self, Missed, STAND_TOLERANCE, stands_of};
 use super::builder::Builder;
 use super::journal::{self, Entry, Kind, WalkEnd};
 use super::plan::{self, Next};
 use super::status::{HoldWhy, Phase};
 use super::survey::Need;
 use crate::pathfind::process::{Act, Ctx, Event, Process, Want};
-use crate::pathfind::{Goal, GotoOpts};
+use crate::pathfind::GotoOpts;
 use crate::ActionError;
 
 /// Ticks of waiting before stations are asked again (they may have been refilled).
 const ASK_AGAIN: u64 = 600;
 /// Failed walks in a row after which path work may break and fill built cells.
 const ESCAPE_AFTER: u32 = 2;
-/// Arrival tolerance at a stand beside its cell: under 0.5 minus the builder's body margin (`plan::BODY`).
-const STAND_TOLERANCE: f32 = 0.1;
-
-fn stands_of(goal: &Goal) -> Box<dyn Iterator<Item = acacia_physics::BlockPos> + '_> {
-    match goal {
-        Goal::Block(p) => Box::new(std::iter::once(*p)),
-        Goal::Or(gs) => Box::new(gs.iter().flat_map(stands_of)),
-        _ => Box::new(std::iter::empty()),
-    }
-}
 
 /// The cell an act changes.
 fn cell_of(act: &Act) -> Option<acacia_physics::BlockPos> {
     match act {
         Act::Place { against, face, .. } => Some(face.adjacent(*against)),
-        Act::Break { pos } | Act::Fill { pos, .. } | Act::UseOn { cell: pos, .. } => Some(*pos),
+        Act::Break { pos } | Act::Fill { pos, .. } | Act::Use { pos, .. } | Act::Sign { pos, .. } | Act::UseOn { cell: pos, .. } => Some(*pos),
         _ => None,
     }
 }
@@ -58,20 +49,19 @@ impl Process for Builder {
             Some((task, goal)) if !cx.on_ground => Next::Go(Phase::Building, *task, goal.clone()),
             _ => Next::Hold(Phase::Building, Vec::new(), HoldWhy::InAir),
         };
-        // A task wanting the goal just reached could not act from there after all: let it rest and ask again.
+        // A task wanting the stands just reached could not act from there after all (see `arrival`).
         for _ in 0..8 {
             if !cx.on_ground {
                 break;
             }
             next = plan::next(self, cx, &needs);
-            match &next {
-                Next::Go(_, task, goal) if self.arrived.as_ref() == Some(goal) => {
-                    tracing::debug!(?task, ?goal, "build stand reached but no click from there");
-                    self.rest(*task);
-                    self.batch.clear();
-                    next = Next::Hold(Phase::Building, Vec::new(), HoldWhy::ArrivedNoClick);
+            match arrival::missed(self, cx, &next) {
+                Missed::No => break,
+                Missed::Go(go) => {
+                    next = go;
+                    break;
                 }
-                _ => break,
+                Missed::Rested => next = arrival::hold(),
             }
         }
         if let Some(c) = self.wedged(cx) {
@@ -100,6 +90,7 @@ impl Process for Builder {
         let (phase, missing, want) = match next {
             Next::Act(phase, act) => {
                 self.arrived = None;
+                self.tried.clear();
                 cell = cell_of(&act);
                 (phase, Vec::new(), Want::Act(act))
             }
@@ -158,6 +149,11 @@ impl Process for Builder {
         {
             opts.tolerance = STAND_TOLERANCE;
         }
+        if let Some((_, goal)) = &self.commit
+            && self.settling.is_some_and(|s| stands_of(goal).eq([s]))
+        {
+            (opts.tolerance, opts.settle) = (STAND_TOLERANCE, true);
+        }
         opts.search.allow_bridge = true;
         // Walks failing in a row may be walled in by built cells (live: on a wall top, every walk "Stuck"): then
         // path work may go through them, and the survey rebuilds what it breaks.
@@ -172,11 +168,13 @@ impl Process for Builder {
         self.failed_walks = 0;
         self.end_walk(WalkEnd::Arrived);
         self.arrived = self.commit.take().map(|(_, goal)| goal);
+        self.settling = None;
         false
     }
 
     fn failed(&mut self, e: &ActionError) -> bool {
         self.failed_walks += 1;
+        self.settling = None;
         if let Some(j) = &self.journal {
             j.walk_failed(self.tick, WalkEnd::Failed, Some(e.to_string()));
         }
@@ -196,13 +194,23 @@ impl Process for Builder {
             Act::Break { .. } => (Kind::Break, None),
             Act::Fill { .. } => (Kind::Fill, None),
             Act::Restock { .. } => (Kind::Restock, None),
+            Act::Use { item, .. } => (Kind::Use, item.clone()),
+            Act::Sign { .. } => (Kind::Sign, None),
         };
         let cell = cell_of(act);
         let target = cell.and_then(|c| self.target(c)).map(|t| t.name.clone());
         self.note(Entry::Acted { kind, cell, item, target, err: result.as_ref().err().map(|e| e.to_string()) });
         match (act, result) {
             (Act::Place { against, face, .. }, Ok(())) => {
-                self.tries.entry(face.adjacent(*against)).or_default().places += 1;
+                let cell = face.adjacent(*against);
+                let more = self.target(cell).map_or(0, super::rules::more_placements);
+                let t = self.tries.entry(cell).or_default();
+                // A candle's further placements are the build, not a wrong placement made again.
+                if t.adds < more {
+                    t.adds += 1;
+                } else {
+                    t.places += 1;
+                }
                 self.bump(|s| s.placed += 1);
             }
             (Act::Place { against, face, .. }, Err(e)) => self.fail(face.adjacent(*against), e),
@@ -219,6 +227,8 @@ impl Process for Builder {
                 self.seals.remove(pos);
                 self.fail(*pos, e);
             }
+            (Act::Use { .. } | Act::Sign { .. }, Ok(())) => self.bump(|s| s.adjusted += 1),
+            (Act::Use { pos, .. } | Act::Sign { pos, .. }, Err(e)) => self.fail(*pos, e),
             (Act::Restock { station, .. }, r) => {
                 self.close_station(*station);
                 if let Err(e) = r {
@@ -246,6 +256,7 @@ impl Process for Builder {
 
     fn lost_control(&mut self) {
         self.end_walk(WalkEnd::Lost);
+        self.settling = None;
         self.commit = None;
     }
 }

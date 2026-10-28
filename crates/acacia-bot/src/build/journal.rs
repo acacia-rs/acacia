@@ -81,6 +81,10 @@ pub enum Kind {
     Break,
     Fill,
     Restock,
+    /// A use-click (`Act::Use`).
+    Use,
+    /// Sign text written.
+    Sign,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

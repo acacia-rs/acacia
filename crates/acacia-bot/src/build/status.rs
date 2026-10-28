@@ -46,6 +46,7 @@ pub struct BuildStatus {
     /// Footprint cells with a target (structure void excluded).
     pub cells: usize,
     pub done: usize,
+    /// Cells to place, or to use or write (`Need::Adjust`).
     pub to_place: usize,
     pub to_break: usize,
     /// Not loaded yet.
@@ -65,6 +66,8 @@ pub struct BuildStatus {
     pub placed: u32,
     pub broken: u32,
     pub restocks: u32,
+    /// Use-clicks and sign sides written.
+    pub adjusted: u32,
     /// Goals the pilot was given (a goal kept across ticks counts once).
     pub walks: u32,
 }

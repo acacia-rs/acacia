@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use acacia_bot::build::journal::Journal;
-use acacia_bot::build::{check, findings, Block, BuildJob, BuildStatus, Builder, Mismatch, Phase, Structure, Transform};
+use acacia_bot::build::{check, check_text, findings, Block, BuildJob, BuildStatus, Builder, Mismatch, Phase, Structure, Transform};
 use acacia_bot::pathfind::process::{BlockView, Status};
 use acacia_bot::pathfind::Processes;
 use acacia_bot::Bot;
@@ -100,7 +100,12 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
             put(&mut s, [1, 1, 1], "furnace", "minecraft:cardinal_direction=south");
             (s, vec![(at([0, 0, 0]), at([2, 1, 2]), "dirt")])
         }
-        _ => return Err(format!("unknown scene {name}").into()),
+        n if n.starts_with("interact-") => super::interact_scenes::scene(n, AT).ok_or_else(|| format!("unknown scene {name}"))?,
+        _ => match (super::scenes_twocell::scene(name, at), super::oneclick::scene(name)) {
+            (Some((s, junk, _)), _) => (s, junk),
+            (None, Some(s)) => (s, vec![]),
+            (None, None) => return Err(format!("unknown scene {name}").into()),
+        },
     };
     let (s, junk) = s;
     let path = std::env::temp_dir().join(format!("acacia-scene-{name}.mcstructure"));
@@ -112,22 +117,30 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
 pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error> {
     let (structure, junk) = scene(name)?;
     pad.build(a, &junk, 5).await?;
-    // Slots as (item, count): house16's stock in whole stacks, the redstone scenes' one slot per entry.
-    let slots: Vec<Vec<(&str, u32)>> = match name.strip_prefix("rs-") {
-        Some(_) => vec![scenes_redstone::STOCK.to_vec(), Vec::new()],
-        None => STOCK.iter().map(|items| items.iter().flat_map(|(item, stacks)| (0..*stacks).map(move |_| (*item, 64))).collect()).collect(),
-    };
-    for (station, items) in STATIONS.iter().zip(slots) {
+    // The redstone scenes stock exact counts, one slot each (buckets do not stack); the others whole stacks.
+    let exact = name.starts_with("rs-");
+    let stock = if exact { [scenes_redstone::STOCK, &[]] } else { super::oneclick::stock(name).map_or(STOCK, |s| [s, &[]]) };
+    for (station, items) in STATIONS.iter().zip(stock) {
         let [x, y, z] = pad.block(*station);
         pad.run(a, &format!("/setblock {x} {y} {z} barrel"));
         a.wait_ticks(2).await?;
-        for (slot, (item, count)) in items.iter().enumerate() {
-            pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} {count}"));
-            a.wait_ticks(2).await?;
+        let mut slot = 0;
+        // BDS runs one player's commands in order, so the stacks need no wait between them.
+        for (item, n) in items {
+            let (slots, count) = if exact { (1, *n) } else { (*n, 64) };
+            for _ in 0..slots {
+                pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} {count}"));
+                slot += 1;
+            }
         }
     }
+    a.wait_ticks(4).await?;
+    super::interact_scenes::stock(a, pad, &STATIONS).await?;
     let mut job = BuildJob::new(structure, Transform { origin: pad.block(AT), ..Transform::default() });
     job.stations = STATIONS.iter().map(|&s| pad.block(s)).collect();
+    if let Some((_, _, stock)) = super::scenes_twocell::scene(name, |p| p) {
+        job.stations.push(pad.block(super::scenes_twocell::station(a, pad, stock).await?));
+    }
     Ok(job)
 }
 
@@ -226,8 +239,21 @@ pub async fn observe(server: &str, observer: &str, pad: &Pad, job: &BuildJob) ->
     let (mut o, _) = super::connect(server, observer).await?;
     let spot = pad.block([12, 9, 0]);
     pad.run(&o, &format!("/tp @s {} {} {}", spot[0] as f32 + 0.5, spot[1], spot[2] as f32 + 0.5));
-    o.wait_ticks(80).await?;
-    let wrong = check(&structure, &job.at, |p| o.block_state(p).map(BlockView::of));
+    // Until every cell is loaded (at most 80 ticks), then a few more for block entities.
+    let cells: Vec<_> = structure.cells().map(|(local, _)| job.at.apply(structure.size, local)).collect();
+    for _ in 0..80 {
+        if cells.iter().all(|p| o.block_state(*p).is_some()) {
+            break;
+        }
+        o.wait_ticks(1).await?;
+    }
+    o.wait_ticks(10).await?;
+    let mut wrong = check(&structure, &job.at, |p| o.block_state(p).map(BlockView::of));
+    wrong.extend(acacia_bot::build::colors(&structure, &job.at, |p| match o.state().block_entities.get(p)?.value.get("color") {
+        Some(acacia_client::proto::nbt::Value::Byte(c)) => Some(*c as u8),
+        _ => None,
+    }));
+    wrong.extend(check_text(&structure, &job.at, |p, front| o.state().block_entities.sign_text(p, front).map(str::to_string)));
     o.disconnect().await;
     Ok(wrong)
 }
