@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use acacia_physics::{BlockPos, PlayerState, Vec3};
 
+use super::boat::BoatLegs;
 use super::cache::RolloutCache;
 use super::exit::{Exits, has_exit};
 use super::frontier::{Frontier, Popped, Rec};
@@ -84,7 +85,8 @@ pub fn search_cached<B: Blocks>(t: &Terrain<B>, live: &PlayerState, goal: &Goal,
         deadline: started + opts.budget / MACRO_TIME_SHARE,
         stats: Cell::default(),
     });
-    let mut ctx = Ctx { parkour: opts.parkour, dig: opts.allow_dig, bridge: opts.allow_bridge, doors: opts.open_doors, kit: &opts.kit, blocks_left: 0, macros, keep: opts.keep.as_deref(), no_body: opts.no_body.as_deref() };
+    let boats = opts.boats.then(|| BoatLegs::new(goal, opts.profile, &opts.boat_source)).flatten();
+    let mut ctx = Ctx { parkour: opts.parkour, dig: opts.allow_dig, bridge: opts.allow_bridge, doors: opts.open_doors, kit: &opts.kit, blocks_left: 0, macros, keep: opts.keep.as_deref(), no_body: opts.no_body.as_deref(), boats: boats.as_ref() };
     let stats = |ctx: &Ctx| ctx.macros.as_ref().map_or_else(MacroStats::default, |m| m.stats.get());
     let (mut cut, mut reaches, mut exits) = (false, Reaches::default(), Exits::default());
 

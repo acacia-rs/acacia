@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use acacia_physics::BlockPos;
 
+use super::boat::{BoatSource, HEURISTIC_FLOOR};
 use super::costs;
 use super::favour::Favour;
 use super::goal::Speed;
@@ -44,6 +45,10 @@ pub struct SearchOpts {
     /// Cells no move may end with the body in (feet or head): the builder's thin targets (panes, fences, walls),
     /// beside which a body fits but which then wall it in (live: a window cell, every walk "Stuck" after).
     pub no_body: Option<Arc<std::collections::HashSet<BlockPos>>>,
+    /// Cross still water by boat, bank to bank (physics bots with the entity tracker).
+    pub boats: bool,
+    /// What a boat leg can board; [`Bot::goto`](crate::Bot::goto) fills it, and with nothing no boat leg is planned.
+    pub boat_source: BoatSource,
 }
 
 impl Default for SearchOpts {
@@ -63,18 +68,29 @@ impl Default for SearchOpts {
             favour: None,
             keep: None,
             no_body: None,
+            boats: false,
+            boat_source: BoatSource::default(),
         }
     }
 }
 
 impl SearchOpts {
-    /// The heuristic's speed: macro moves sprint-jump, and change height on the way.
+    /// The heuristic's speed: macro moves sprint-jump, and change height on the way; a boat may cross water
+    /// faster still (design decision 7).
     pub(crate) fn speed(&self) -> Speed {
-        if self.macros {
+        let mut s = if self.macros {
             Speed { per_block: costs::macro_ticks_per_block(self.profile), startup: costs::MACRO_STARTUP, overlap: true }
         } else {
             Speed::CLASSIC
+        };
+        if self.plans_boats() {
+            s.per_block = s.per_block.min(HEURISTIC_FLOOR);
         }
+        s
+    }
+
+    pub(crate) fn plans_boats(&self) -> bool {
+        self.boats && self.boat_source.any()
     }
 }
 

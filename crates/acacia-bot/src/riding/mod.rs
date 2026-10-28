@@ -9,6 +9,8 @@ mod input;
 mod keys;
 mod tick;
 
+pub(crate) use exit::{Mount, STILL_SQ};
+
 use std::time::Duration;
 
 use acacia_client::proto::packets::{ClientCameraAimAssist, ClientCameraAimAssistAction, Interact, InteractActionId};
@@ -41,6 +43,8 @@ pub(crate) struct Ride {
     boat: Option<boat::BoatSim>,
     /// Added once to the next reported vehicle position ([`Bot::offset_vehicle_report`]).
     report_offset: Option<[f32; 3]>,
+    /// Boat corrections: [height only, horizontal] ([`Bot::boat_corrections`]).
+    boat_corrections: [u32; 2],
 }
 
 impl Bot {
@@ -64,8 +68,8 @@ impl Bot {
 
     /// Leaves the vehicle like vanilla: on the next tick the client gives up its seat itself, sends
     /// `Interact` LeaveVehicle with the point it steps off at (that tick's input already stands there,
-    /// no sneak flags) and clears aim assist. A server that disagrees links the bot again, which shows
-    /// in [`Bot::vehicle`].
+    /// no sneak flags) and clears aim assist. A physics bot returns standing at the exit. A server that
+    /// disagrees links the bot again, which shows in [`Bot::vehicle`].
     pub async fn dismount(&mut self) -> Result<(), ActionError> {
         if !self.state.riding.is_riding() {
             return Err(ActionError::NotPossible("not riding".into()));
@@ -75,6 +79,10 @@ impl Bot {
             self.next_tick(|_, _| false).await?;
             if !self.ride.dismount || !self.state.riding.is_riding() {
                 self.ride.dismount = false;
+                if self.movement.is_some() {
+                    // The simulation resumes at the exit on the tick after the seat is given up.
+                    self.next_tick(|_, _| false).await?;
+                }
                 return Ok(());
             }
         }

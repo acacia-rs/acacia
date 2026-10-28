@@ -34,28 +34,41 @@ pub struct BoatState {
     /// Degrees per tick.
     pub yaw_vel: f32,
     pub on_ground: bool,
-    /// Ticks into the left and right paddle's stroke; `None` at rest.
-    strokes: [Option<u8>; 2],
+    /// Ticks simulated: the paddles' clock.
+    age: u32,
+    /// Age at the left and right paddle's last fresh stroke; `None` at rest.
+    strokes: [Option<u32>; 2],
     /// The wave's phase in radians.
     pub wave: f64,
+    /// The box's x and z faces ([min x, max x, min z, max z]) and the x and z they were moved to.
+    faces: Option<([f32; 4], [f32; 2])>,
 }
 
 impl BoatState {
     pub fn new(pos: Vec3, yaw: f32) -> Self {
-        BoatState { pos, vel: [0.0; 3], yaw, yaw_vel: 0.0, on_ground: false, strokes: [None; 2], wave: 0.0 }
+        BoatState { pos, vel: [0.0; 3], yaw, yaw_vel: 0.0, on_ground: false, age: 0, strokes: [None; 2], wave: 0.0, faces: None }
     }
 
+    /// BDS moves the box and never rebuilds it, and x and z are its centre, which drifts an ulp from a box built
+    /// around them (live 2026-10-28: 103 of 118 corrections, against 50 for `pos += move`). A `pos` set elsewhere
+    /// rebuilds it.
     fn bounding_box(&self) -> Aabb {
         let [x, y, z] = self.pos;
         let bottom = y - HEIGHT_OFFSET;
-        Aabb::new(x - HALF_WIDTH, bottom, z - HALF_WIDTH, x + HALF_WIDTH, bottom + HEIGHT, z + HALF_WIDTH)
+        let [x0, x1, z0, z1] = match self.faces {
+            Some((faces, at)) if at == [x, z] => faces,
+            _ => [x - HALF_WIDTH, x + HALF_WIDTH, z - HALF_WIDTH, z + HALF_WIDTH],
+        };
+        Aabb::new(x0, bottom, z0, x1, bottom + HEIGHT, z1)
     }
 }
 
 /// One tick of a boat whose driver holds `keys` ([strafe, forward], each -1, 0 or 1; strafe + is left).
 pub fn boat_tick<W: WorldView + ?Sized>(st: &mut BoatState, keys: [f32; 2], world: &W) {
     let [left, right] = paddles(keys);
-    let forces = [stroke(left, &mut st.strokes[0]) * THRUST, stroke(right, &mut st.strokes[1]) * THRUST];
+    let age = st.age;
+    st.age = age.wrapping_add(1);
+    let forces = [stroke(left, &mut st.strokes[0], age) * THRUST, stroke(right, &mut st.strokes[1], age) * THRUST];
     let friction = friction(st, world);
     let [mut vx, vy, mut vz] = st.vel;
     let (fr, mut forward, mut torque) = match friction {
@@ -91,18 +104,18 @@ fn paddles([strafe, forward]: [f32; 2]) -> [f32; 2] {
     [left * pull, right * pull]
 }
 
-fn stroke(pull: f32, since: &mut Option<u8>) -> f32 {
+/// A paddle's force at `age`: a stroke restarts every ten ticks and after a tick at rest. Live, not the static
+/// reading of 1483a4a10, which keeps the stroke over a rest (turn drills 2026-10-28). BDS's clock also counts
+/// no stroke fresh in its first ten ticks after boarding; `Bot::boat_to` waits those out.
+fn stroke(pull: f32, start: &mut Option<u32>, age: u32) -> f32 {
     if pull == 0.0 {
-        *since = None;
+        *start = None;
         return 0.0;
     }
-    match since {
-        Some(ticks) if *ticks + 1 < STROKE_TICKS => {
-            *ticks += 1;
-            pull.signum() * ((3.0 * pull).abs() - 0.1).max(0.0)
-        }
+    match start {
+        Some(s) if age.wrapping_sub(*s) < u32::from(STROKE_TICKS) => pull.signum() * ((3.0 * pull).abs() - 0.1).max(0.0),
         _ => {
-            *since = Some(0);
+            *start = Some(age);
             3.0 * pull
         }
     }
@@ -145,7 +158,8 @@ fn friction<W: WorldView + ?Sized>(st: &BoatState, world: &W) -> Option<f32> {
     st.on_ground.then_some(if here.air { below.friction } else { here.friction })
 }
 
-/// Moves by `vel` against the blocks, Y then X then Z, and returns the motion that was left.
+/// Moves by `vel` against the blocks, Y then X then Z, and returns the motion that was left: what was moved,
+/// with a blocked horizontal axis stopped (BDS kept no x motion after a bank, 2026-10-28).
 fn slide<W: WorldView + ?Sized>(st: &mut BoatState, vel: Vec3, world: &W) -> Vec3 {
     let mut bb = st.bounding_box();
     let mut boxes = Vec::new();
@@ -159,8 +173,12 @@ fn slide<W: WorldView + ?Sized>(st: &mut BoatState, vel: Vec3, world: &W) -> Vec
         moved[axis] = step[axis];
     }
     st.on_ground = vel[1] < 0.0 && moved[1] != vel[1];
-    for axis in 0..3 {
-        st.pos[axis] += moved[axis];
+    st.pos = [(bb.min[0] + bb.max[0]) * 0.5, st.pos[1] + moved[1], (bb.min[2] + bb.max[2]) * 0.5];
+    st.faces = Some(([bb.min[0], bb.max[0], bb.min[2], bb.max[2]], [st.pos[0], st.pos[2]]));
+    for axis in [0, 2] {
+        if moved[axis] != vel[axis] {
+            moved[axis] = 0.0;
+        }
     }
     moved
 }

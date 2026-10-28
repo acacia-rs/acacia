@@ -15,6 +15,7 @@
 
 mod alter;
 mod astar;
+pub mod boat;
 mod bot_goto;
 mod cache;
 mod cell;

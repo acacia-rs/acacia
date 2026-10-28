@@ -362,6 +362,38 @@ Paths below are under `crates/acacia-bot/src/` unless marked.
   join ≥ 0.281 b/t. Course (all legs ok, 0 diverged): corrections Optimal 3 (stair2, gap, ladder: classic legs),
   Human 2 / 4 / 5; parkour legs Optimal 0, Human 0 / 1 (diag) + 1 (sprint40) / 4 (gap4 1, diag 3).
 
+## M3: boats (2026-10-28, `pathfind/boats`)
+
+Design, decisions and the wave RNG finding: `../research/pathfind-boats-design.md`. Still water only; the done bar
+(decision 5') is 0 horizontal corrections (x, z or yaw beyond 1e-5) per route, height-only wave corrections
+counted but allowed: BDS draws its big waves from a level-wide, entropy-seeded MT19937 no client can predict
+(`docs/research/riding-fishing-elytra.md` "Boat").
+
+- `Bot::boat_to(target, BoatOpts)` (`pathfind/boat/`): boards (`launch.rs`: the hotbar boat placed 2 out, else an
+  empty boat in reach), routes over cells a boat clears (`route.rs`, `grid.rs`), steers by rolling out key sets on
+  `acacia-physics` `boat_tick` (`pilot.rs`, `solve.rs`, `stop.rs`), dismounts at the far bank, breaks the boat and
+  walks to its drop until the boat is back in the inventory (`keep_boat` skips that). Human: placeholder
+  key-hold, reaction and look-lead constants in `human.rs`.
+- In `goto` (`boat/legs.rs`): with `SearchOpts::boats` and a boat carried or seen, a dry bank cell beside a body of
+  floating water gets one `MoveKind::Boat` edge to the body's landing bank (the one nearest the goal); cost
+  80/120 ticks (Optimal/Human) + 2.7/3.2 a block of water; legs under 8 blocks are walked or swum. The follower
+  stops at the bank and `Step::Boat` runs `boat_to`. The heuristic floor drops to 2.64/1.0824 t/b then (the
+  octile distance overstates a line by up to 8.24%), so searches expand more; with boats off nothing changes.
+- Tests: `pathfind/boat/tests.rs` (routes round islands; the pilot on rivers and a 2-wide canal, both
+  profiles), `pathfind/tests/boat_legs.rs` (search, the
+  heuristic under the edge, no boat without one, walked ponds, the follower), `acacia-physics` boat shapes.
+- Live (strict testbox BDS `work/bds-boats`, flat, `examples/boat.rs`), boat corrections height / horizontal:
+  - 500-block river `boat_to`: Optimal 47, 40, 47, 47 / 0; Human 55, 51, 38 / 0. All collected the boat.
+  - `GOTO=1 CHUNK_RADIUS=8` (12 walk, a 100 x 81 lake, 12 walk): Optimal 12, 16 / 0; Human 9, 11 / 0 (one
+    earlier Human run had 1 horizontal: the boarding correction, no longer counted); every run took one boat
+    leg, collected the boat and ended within 0.18 of the target.
+  - After the received-yaw wrap (3bbab13): river Optimal 67, 43 / 0, Human 54, 50 / 0; lake Optimal 14, 13, 16,
+    14, 8, 6 / 0, Human 14, 16 / 0; player corrections in the goto 0 except one Human run's 1. One earlier
+    Optimal lake run drew 17 walking corrections; six runs since drew none (its log was not kept).
+- Limits: legs are planned only over loaded water (the far bank must be in view: the example asks for 8 chunks;
+  the default radius of 2 walked round); bodies are cells a boat centres in (3 x 3 floating water), so 2-wide
+  canals are walked; flowing water, ice and chest boats' cargo are not handled.
+
 ## Running
 - Tests: `REMOTE_DIR=work/bc-pathfind tools/remote-test.sh -p acacia-bot` (testbox; never workspace-wide locally).
 - Risks: synth fidelity (fallback: store full `PlayerState` per macro node); in-air yaw swings on strict BDS; node/rollout blowup on open maps.
