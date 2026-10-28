@@ -11,6 +11,7 @@ mod interact;
 mod oneclick;
 pub(super) mod rails;
 pub(super) mod redstone;
+pub(super) mod redstone_order;
 pub mod twocell;
 pub use interact::{fine_aim, front, uses};
 

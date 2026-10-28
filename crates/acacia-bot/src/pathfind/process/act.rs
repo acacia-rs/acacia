@@ -55,7 +55,8 @@ const USE_TICKS: u32 = 20;
 
 /// Uses `item` on `face` of `against` and waits for `cell` to show a block named `*expect`.
 async fn use_on(bot: &mut Bot, item: &str, against: BlockPos, face: Face, cell: BlockPos, expect: &str, human: bool) -> Result<(), ActionError> {
-    let shows = |bot: &Bot| bot.block_at(cell).is_some_and(|(_, s)| s.name.ends_with(expect));
+    // A flow falling into the cell shows as `water` too, with a depth: only a source is the pour.
+    let shows = |bot: &Bot| bot.block_at(cell).is_some_and(|(_, s)| s.name.trim_start_matches("minecraft:") == expect && !s.properties.split(',').any(|kv| kv.starts_with("liquid_depth=") && kv != "liquid_depth=0"));
     if shows(bot) {
         return Ok(());
     }

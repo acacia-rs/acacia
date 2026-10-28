@@ -50,8 +50,8 @@ pub enum Act {
     Break { pos: BlockPos },
     /// Open the container at `station` and take stacks of `items` (identifier, count wanted) while there is room.
     Restock { station: BlockPos, items: Vec<(String, u32)> },
-    /// Use `item` on `face` of `against` (a hoe tilling, a bucket pouring); done once `cell` shows a block whose
-    /// name ends with `expect`.
+    /// Use `item` on `face` of `against` (a hoe tilling, a bucket pouring); done once `cell` shows the block
+    /// `expect` (unprefixed).
     // TODO: fold tilling into `Use` (a bucket's pour changes the cell beyond `against`, which `Use` does not watch).
     UseOn { item: String, against: BlockPos, face: Face, cell: BlockPos, expect: String },
     /// Right-click the block at `pos` once, holding `item` (`None`: whatever is held), on `face` when it shows:

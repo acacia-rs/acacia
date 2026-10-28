@@ -170,7 +170,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         }
         let open_at = |dy: i32| cx.look.solid([pos[0], pos[1] + dy, pos[2]]) != Some(true);
         let hangs_open = rules::hangs(target).is_some_and(|only| open_at(1) && (only || open_at(-1)));
-        if missing.contains(&item) || (rules::gravity(&target.name) && open_at(-1)) || hangs_open || !rules::redstone::ready(target, pos, cx.look, &|p| b.target(p).cloned()) {
+        if missing.contains(&item) || (rules::gravity(&target.name) && open_at(-1)) || hangs_open || !rules::redstone_order::ready(target, pos, cx.look, &|p| b.target(p).cloned()) {
             continue;
         }
         let supported = Face::ALL.iter().any(|f| {
@@ -194,7 +194,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         }
         ready.push((i, item));
     }
-    rules::redstone::dry_first(&mut ready, |i| b.cells[i].target.clone());
+    rules::redstone_order::dry_first(&mut ready, |i| b.cells[i].target.clone());
     // The held item first: every switch costs an equip (live: 235 switches, a third of a build's time).
     ready.sort_by_key(|(_, item)| Some(item.as_str()) != cx.look.held());
     // Whatever can be clicked from here first (still lowest first), then walk for the lowest. Walking, a click
@@ -208,7 +208,8 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
             && let Some(c) = click_for(pos, target, eye, cx.look, slack)
         {
             let act = rules::redstone::act(item.clone(), c.against, c.face, c.click, pos);
-            if walking && super::en_route::look_free(&target.name) {
+            // A bucket pours along the look, so a pour (or till) made on the move lands elsewhere (live 2026-10-28).
+            if walking && super::en_route::look_free(&target.name) && matches!(act, Act::Place { .. }) {
                 b.en_route.get_or_insert(act);
             } else {
                 here.get_or_insert(act);

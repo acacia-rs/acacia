@@ -135,7 +135,9 @@ pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error
         }
     }
     a.wait_ticks(4).await?;
-    super::interact_scenes::stock(a, pad, &STATIONS).await?;
+    if !exact {
+        super::interact_scenes::stock(a, pad, &STATIONS).await?;
+    }
     let mut job = BuildJob::new(structure, Transform { origin: pad.block(AT), ..Transform::default() });
     job.stations = STATIONS.iter().map(|&s| pad.block(s)).collect();
     if let Some((_, _, stock)) = super::scenes_twocell::scene(name, |p| p) {

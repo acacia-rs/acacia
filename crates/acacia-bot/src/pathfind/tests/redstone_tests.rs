@@ -32,7 +32,8 @@ fn build(s: &Structure, floor: &str) {
     let wrong = check(s, &at, |p| g.registry.get(g.view.block(p[0], p[1], p[2])).map(BlockView::of));
     assert_eq!(arb.outcome(id), Some(&Ok(())), "status {st:?}");
     assert_eq!(wrong, Vec::new());
-    assert_eq!(scaffold_left(&g), Vec::<BlockPos>::new());
+    let wanted = |p: &BlockPos| s.get([p[0] - ORIGIN[0], p[1] - ORIGIN[1], p[2] - ORIGIN[2]]).is_some_and(|b| b.name.ends_with("dirt"));
+    assert_eq!(scaffold_left(&g).into_iter().filter(|p| !wanted(p)).collect::<Vec<BlockPos>>(), Vec::<BlockPos>::new());
 }
 
 #[test]

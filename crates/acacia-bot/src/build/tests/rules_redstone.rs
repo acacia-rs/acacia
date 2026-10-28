@@ -6,7 +6,8 @@ use acacia_physics::BlockPos;
 
 use crate::build::builder::Cell;
 use crate::build::rules::rails::{self, Rail, World};
-use crate::build::rules::redstone::{self, ready, settle};
+use crate::build::rules::redstone;
+use crate::build::rules::redstone_order::{ready, settle};
 use crate::build::rules::{gives, item, matches, supported};
 use crate::build::survey::Need;
 use crate::build::Block;
@@ -159,5 +160,5 @@ fn items_states_and_clicks() {
     assert!(click(&Block::new("vine", "vine_direction_bits=8"), Face::West), "a vine on a block's west face hangs east of it: 8");
     assert!(!click(&Block::new("vine", "vine_direction_bits=8"), Face::North));
     assert!(click(&Block::new("wheat", "growth=0"), Face::Up) && !click(&Block::new("wheat", "growth=0"), Face::East));
-    assert!(click(&Block::new("water", "liquid_depth=0"), Face::East));
+    assert!(click(&Block::new("water", "liquid_depth=0"), Face::Up) && !click(&Block::new("water", "liquid_depth=0"), Face::East));
 }
