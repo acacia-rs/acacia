@@ -236,7 +236,9 @@ the proxy (`crates/acacia-mitm/src/transfer.rs`). What is left: [mitm-next.md](m
       fuzz-a 1286 → 422, fuzz-b 1408 → 500, sneak-edge 221 → 175, powder snow 19 → 18, none higher. Live,
       moving ticks whose broadcast differs from our position (`observe`, each build judged on its own run):
       the 40-segment mix drill (diagonal keys, hops, mid-walk turns, near the origin) 250 of 1551 → 27 of 1552;
-      8 forward sprint-hop segments at x 17.5 (fresh world each) 92 of 311 → 36 of 309, corrections 9 → 4.
+      8 forward sprint-hop segments at x 17.5 (fresh world each) 92 of 311 → 36 of 309, corrections 9 → 4;
+      8 off-axis gotos of ~20 blocks per profile on flat ground, Optimal 19 → 13 and Human 26 → 13 corrections.
+      Elytra flights (8 per profile, 800 x 600 out and back) are unchanged: 0–3 a flight on both builds.
     - Left open: what remains is almost all z, in forward sprint-hops: x stays exact while z drifts 1–2 ulps
       (goto legs across the pad drew corrections only on legs with a long z run). At the first miss our
       previous faces plus a z displacement one ulp lower land on the broadcast (live `observe` hop at yaw 10.66,
