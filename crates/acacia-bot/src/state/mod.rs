@@ -70,6 +70,9 @@ pub(crate) fn leading_entity(packet: &RawPacket) -> Option<u64> {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Trackers {
     pub entities: bool,
+    /// Lean entity tracking when `entities` is off: kind, position, motion, box and flags only, which is all
+    /// hazard avoidance reads (no attributes, effects, equipment, properties or dropped items).
+    pub hazards: bool,
     /// Skin textures of the listed players ([`Skins`]).
     pub skins: bool,
     /// Pictures of the maps the server sends ([`Maps`]).
@@ -100,6 +103,8 @@ impl Trackers {
         ids.extend_from_slice(Hurts::PACKETS);
         if self.entities {
             ids.extend_from_slice(Entities::PACKETS);
+        } else if self.hazards {
+            ids.extend_from_slice(Entities::LEAN_PACKETS);
         }
         if self.skins {
             ids.extend_from_slice(Skins::PACKETS);
@@ -148,6 +153,7 @@ impl GameState {
     pub(crate) fn new(trackers: Trackers, runtime_entity_id: u64) -> Self {
         let mut state = Self { trackers, block_entities: BlockEntities::new(trackers.block_entities), ..Self::default() };
         state.player.runtime_entity_id = runtime_entity_id;
+        state.entities.lean = !trackers.entities;
         state
     }
 
@@ -219,7 +225,7 @@ impl GameState {
         if self.trackers.block_entities.packets().contains(&id) {
             self.block_entities.apply(packet)?;
         }
-        if self.trackers.entities && Entities::PACKETS.contains(&id) {
+        if (self.trackers.entities || self.trackers.hazards) && Entities::PACKETS.contains(&id) {
             self.entities.apply(packet, &me)?;
         }
         if self.trackers.skins && Skins::PACKETS.contains(&id) {

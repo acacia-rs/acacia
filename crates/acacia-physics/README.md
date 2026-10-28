@@ -195,6 +195,23 @@ drew 0 corrections in 3 rounds on strict BDS, recorded as `tests/traces/drills-f
 - Untested live: the survival may-fly 0.75 override and flight in liquids. Not ported:
   `FlyingPlayerStuckOnGroundWorkaroundSystem`, which turns a vertical speed of exactly 0 into the smallest f32.
 
+## Entities
+Not in bedsim; read out of BDS 1.26.52 (bdsre, labels in brackets) and drilled on strict BDS with the `acacia-bot`
+example `entity_drill` (`tools/entity-drill.sh`): 9 phases (walk into, stand on, cross off-axis and side-swipe a
+resting boat; walk into and stand on a minecart; stand inside, walk into and cross a cow held by slowness 255), 0
+corrections, 2026-10-28.
+- `WithEntities` adds the boxes of the solid entities around the player to `collisions(area)`; the caller picks them
+  (`acacia-bot` `state::entities` solids). Only boats (and chest boats) are solid to a player: walking into a
+  resting one steps up onto its top (box 1.4 x 0.455, wire y = box bottom + 0.375), as onto a block.
+  `MoveCollisionSystem` fetches entity shapes only for a mover with `CollidableMobNearFlagComponent` (collidable
+  mobs, 142fa64f0) or a minecart (stackables, 142fa6180), over the move's area grown by 0.25 (142f191b0).
+- Minecarts are not solid to a player, and mobs neither block nor push a server-authoritative one: a player
+  walking through a cow pushes the cow and keeps its own path, with no correction or motion packet.
+- A tick collides with the boxes as the client tracked them a tick earlier: with same-tick boxes the off-axis phase
+  missed the step-up on the tick a pushed boat moved (one correction, then two 2e-6 ones off the rebuilt box).
+  `CopyCollisionShapesRewindSystem` (144843610) replays a player's stored shapes while it stays within 2 blocks.
+- Untested live: shulkers, boats in water.
+
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,
   support lookup and falling-liquid barriers. Liquids have none.
