@@ -387,6 +387,9 @@ counted but allowed: BDS draws its big waves from a level-wide, entropy-seeded M
   - `GOTO=1 CHUNK_RADIUS=8` (12 walk, a 100 x 81 lake, 12 walk): Optimal 12, 16 / 0; Human 9, 11 / 0 (one
     earlier Human run had 1 horizontal: the boarding correction, no longer counted); every run took one boat
     leg, collected the boat and ended within 0.18 of the target.
+  - After the received-yaw wrap (3bbab13): river Optimal 67, 43 / 0, Human 54, 50 / 0; lake Optimal 14, 13, 16,
+    14, 8, 6 / 0, Human 14, 16 / 0; player corrections in the goto 0 except one Human run's 1. One earlier
+    Optimal lake run drew 17 walking corrections; six runs since drew none (its log was not kept).
 - Limits: legs are planned only over loaded water (the far bank must be in view: the example asks for 8 chunks;
   the default radius of 2 walked round); bodies are cells a boat centres in (3 x 3 floating water), so 2-wide
   canals are walked; flowing water, ice and chest boats' cargo are not handled.
