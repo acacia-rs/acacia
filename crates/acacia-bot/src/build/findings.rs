@@ -2,6 +2,7 @@
 //! walk statistics, named findings, and the history of given cells. Printed by the live examples at the end of a
 //! run; simulations can assert on [`findings`].
 
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
@@ -50,7 +51,7 @@ pub fn summary(lines: &[Line]) -> Vec<String> {
             }
         }
         let mut v: Vec<_> = by.into_iter().collect();
-        v.sort_by(|a, b| b.1.cmp(&a.1));
+        v.sort_by_key(|e| Reverse(e.1));
         let en_route = lines.iter().filter(|l| l.bot == bot && matches!(l.e, Entry::EnRoute { .. })).count();
         out.push(format!("{bot} time: {}; {en_route} placed en route", v.iter().map(|(k, ms)| format!("{k} {:.1}s", *ms as f32 / 1000.0)).collect::<Vec<_>>().join(", ")));
         let walks: Vec<(WalkEnd, u64, u64, f32, u32)> = lines
@@ -176,7 +177,7 @@ pub fn findings(lines: &[Line]) -> Vec<String> {
             }
         }
         let mut loops: Vec<_> = rests.into_iter().filter(|(_, n)| *n >= REST_LOOP).collect();
-        loops.sort_by(|a, b| b.1.cmp(&a.1));
+        loops.sort_by_key(|e| Reverse(e.1));
         if !loops.is_empty() {
             out.push(format!("REST_LOOP {bot} {} cells rested {REST_LOOP}+ times, most {:?}", loops.len(), &loops[..loops.len().min(5)]));
         }
@@ -186,7 +187,7 @@ pub fn findings(lines: &[Line]) -> Vec<String> {
         let thrash: usize = switched.values().sum();
         if thrash > 0 {
             let mut top: Vec<_> = switched.into_iter().collect();
-            top.sort_by(|a, b| b.1.cmp(&a.1));
+            top.sort_by_key(|e| Reverse(e.1));
             out.push(format!("GOAL_THRASH {bot} {thrash} walks replaced before arriving with nothing done, most {:?}", &top[..top.len().min(5)]));
         }
     }

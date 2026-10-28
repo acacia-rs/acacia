@@ -40,11 +40,11 @@ impl App {
                         self.grab(true);
                     }
                     self.bob.tick(&me, std::time::Instant::now());
-                    self.play.tick(me);
+                    self.play.tick(*me);
                 }
                 NetEvent::Players(names) => self.players = names,
                 NetEvent::Commands(tree) => self.java.commands = tree,
-                NetEvent::Inventory(inventory) => self.set_inventory(inventory),
+                NetEvent::Inventory(inventory) => self.set_inventory(*inventory),
                 NetEvent::Creative(items) => self.shown.items = items,
                 NetEvent::Title(title) => self.ui.show_title(title),
                 NetEvent::Broken { pos, block } => {

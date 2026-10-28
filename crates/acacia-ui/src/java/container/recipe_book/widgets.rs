@@ -60,7 +60,7 @@ pub fn search_box(gui: &mut Gui, env: &Env, s: &super::Search, x: i32, y: i32, _
     let shown = displayed.len() as i64;
     let rel_cursor = s.cursor as i64 - s.display as i64;
     let on_screen = rel_cursor >= 0 && rel_cursor <= shown;
-    let show_cursor = s.focused && (s.blink_ms / 300) % 2 == 0 && on_screen;
+    let show_cursor = s.focused && (s.blink_ms / 300).is_multiple_of(2) && on_screen;
     let part = |from: usize, to: usize| -> String { displayed[from..to].iter().collect() };
     let mut draw_x = text_x;
     let rel_highlight = (s.highlight as i64 - s.display as i64).clamp(0, shown) as usize;

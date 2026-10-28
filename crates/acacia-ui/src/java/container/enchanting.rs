@@ -86,12 +86,11 @@ impl Enchanting {
             let text_width = 86 - env.font.width(&cost_text);
             let message = names.random_name(env.font, text_width);
             let level = i + 1;
-            let color;
-            if (gold < level as i32 || self.station.xp < cost) && !self.station.creative {
+            let color = if (gold < level as i32 || self.station.xp < cost) && !self.station.creative {
                 gui.sprite("container/enchanting_table/enchantment_slot_disabled", left, y, 108, 19);
                 gui.sprite(format!("container/enchanting_table/level_{level}_disabled"), left + 1, y + 1, 16, 16);
                 wrapped(gui, env, &message, text_x, y + 2, text_width, 0xFF00_0000 | ((0x685E4A & 0xFE_FEFE) >> 1));
-                color = 0xFF40_7F10;
+                0xFF40_7F10
             } else {
                 let (xx, yy) = (mouse[0] - left, mouse[1] - y);
                 let mut col = 0xFF68_5E4A;
@@ -103,8 +102,8 @@ impl Enchanting {
                 }
                 gui.sprite(format!("container/enchanting_table/level_{level}"), left + 1, y + 1, 16, 16);
                 wrapped(gui, env, &message, text_x, y + 2, text_width, col);
-                color = 0xFF80_FF20;
-            }
+                0xFF80_FF20
+            };
             let w = env.font.width(&cost_text);
             gui.text(cost_text, text_x + 86 - w, y + 2 + 7, color, true);
         }

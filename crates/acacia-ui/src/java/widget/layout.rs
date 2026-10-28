@@ -237,11 +237,11 @@ impl Layout {
         for c in &self.cells {
             let mut d = Divisor::new(c.h(ws) - (c.rows as i32 - 1) * row_spacing, c.rows as i32);
             for h in row_h.iter_mut().skip(c.row).take(c.rows) {
-                *h = (*h).max(d.next());
+                *h = (*h).max(d.next_int());
             }
             let mut d = Divisor::new(c.w(ws) - (c.cols as i32 - 1) * col_spacing, c.cols as i32);
             for w in col_w.iter_mut().skip(c.col).take(c.cols) {
-                *w = (*w).max(d.next());
+                *w = (*w).max(d.next_int());
             }
         }
         let mut col_x = vec![0; max_col + 1];
@@ -277,7 +277,7 @@ impl Layout {
         let secondary_pos = if vertical { self.x } else { self.y };
         for (i, c) in self.cells.iter_mut().enumerate() {
             if i > 0 {
-                position += d.next();
+                position += d.next_int();
             }
             let size = primary(c, ws);
             if vertical { c.place_y(ws, position, size) } else { c.place_x(ws, position, size) }
@@ -302,7 +302,7 @@ impl Divisor {
     pub fn new(n: i32, d: i32) -> Divisor {
         if d > 0 { Divisor { d, q: n / d, m: n % d, r: 0 } } else { Divisor { d, q: 0, m: 0, r: 0 } }
     }
-    pub fn next(&mut self) -> i32 {
+    pub fn next_int(&mut self) -> i32 {
         let mut v = self.q;
         self.r += self.m;
         if self.r >= self.d {
@@ -363,6 +363,7 @@ impl RowHelper {
 }
 
 /// `FrameLayout.alignInRectangle`.
+#[allow(clippy::too_many_arguments)]
 pub fn align_in_rect(e: &mut Elem, ws: &mut Arena, x: i32, y: i32, w: i32, h: i32, ax: f32, ay: f32) {
     let ox = lerp(ax, 0.0, (w - e.w(ws)) as f32) as i32;
     e.set_x(ws, x + ox);

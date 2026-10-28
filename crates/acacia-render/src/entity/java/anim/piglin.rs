@@ -35,7 +35,7 @@ pub(super) fn piglin(p: &mut Poses, s: &RenderState) {
             p.get("head").y += sin(dance * 40.0) + 0.4;
             let arm = pi_div(180.0) * (70.0 + cos(dance * 40.0) * 10.0);
             p.z_rot("right_arm", arm);
-            p.z_rot("left_arm", arm * -1.0);
+            p.z_rot("left_arm", -arm);
             p.get("right_arm").y += sin(dance * 40.0) * 0.5 - 0.5;
             p.get("left_arm").y += sin(dance * 40.0) * 0.5 + 0.5;
             p.get("body").y += sin(dance * 40.0) * 0.35;

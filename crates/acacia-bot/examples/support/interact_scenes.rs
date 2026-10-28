@@ -54,7 +54,7 @@ pub fn scene(name: &str, at: [i32; 3]) -> Option<(Structure, Vec<Fill<'static>>)
         }
         "interact-sign" => {
             let mut s = floor([7, 2, 4]);
-            let mut sign = |s: &mut Structure, p: [i32; 3], name: &str, props: &str, front: &str, back: &str| {
+            let sign = |s: &mut Structure, p: [i32; 3], name: &str, props: &str, front: &str, back: &str| {
                 put(s, p, name, props);
                 s.set_text(p, Some(SignText { front: front.into(), back: back.into() }));
             };

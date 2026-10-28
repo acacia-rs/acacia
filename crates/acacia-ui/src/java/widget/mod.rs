@@ -117,6 +117,7 @@ impl<'a> Ctx<'a> {
 
     /// `blit(GUI_TEXTURED, texture, x, y, u, v, w, h, texW, texH)`; `texture` without `textures/`
     /// and `.png`.
+    #[allow(clippy::too_many_arguments)]
     pub fn blit(&mut self, texture: &'static str, x: i32, y: i32, uv: [f32; 2], w: i32, h: i32, tex: [i32; 2]) {
         self.gui.draws.push(GuiDraw::Blit { texture: texture.into(), blend: Blend::Textured, x, y, w, h, uv, src: [w, h], tex, color: 0xFFFF_FFFF });
     }

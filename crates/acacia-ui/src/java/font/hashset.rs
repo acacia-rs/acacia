@@ -74,7 +74,7 @@ impl IntSet {
             self.key[pos] = k;
         }
         self.size += 1;
-        if self.size - 1 >= self.max_fill {
+        if self.size > self.max_fill {
             self.rehash(power_of_two(array_size(self.size + 1)));
         }
         true

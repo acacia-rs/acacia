@@ -90,6 +90,7 @@ impl Font {
 
     /// Draws `text` with its top-left at (`x`, `y`) GUI pixels in `colour` (`0xRRGGBB`), `alpha`
     /// 0 to 1. Returns the width drawn.
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(&self, list: &mut DrawList, text: &str, x: f32, y: f32, colour: u32, alpha: f32, shadow: bool) -> f32 {
         if shadow {
             self.draw_pass(list, text, x + 1.0, y + 1.0, colour, alpha, true);
@@ -97,6 +98,7 @@ impl Font {
         self.draw_pass(list, text, x, y, colour, alpha, false)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_pass(&self, list: &mut DrawList, text: &str, x: f32, y: f32, colour: u32, alpha: f32, shadow: bool) -> f32 {
         let mut pen = x;
         let a = (alpha.clamp(0.0, 1.0) * 255.0) as u8;

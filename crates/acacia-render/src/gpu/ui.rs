@@ -218,7 +218,7 @@ impl UiPass {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("ui"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
+                view,
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
@@ -263,6 +263,15 @@ fn pictures_texture(device: &wgpu::Device, format: wgpu::TextureFormat, [width, 
         .create_view(&Default::default())
 }
 
+fn instance_buffer(device: &wgpu::Device, count: usize) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("ui quads"),
+        size: (count * size_of::<Instance>()) as u64,
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use wgpu::naga::valid::{Capabilities, ValidationFlags, Validator};
@@ -279,13 +288,4 @@ mod tests {
         });
         assert_eq!(screen, Some(super::SCREEN_BYTES as u32));
     }
-}
-
-fn instance_buffer(device: &wgpu::Device, count: usize) -> wgpu::Buffer {
-    device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("ui quads"),
-        size: (count * size_of::<Instance>()) as u64,
-        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    })
 }

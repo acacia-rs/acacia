@@ -16,7 +16,7 @@ pub(super) fn fly_jump(taps: &mut u8, c: &Controls, flight: &Flight) -> bool {
         return c.jump;
     }
     *taps -= 1;
-    *taps % 2 == 0
+    (*taps).is_multiple_of(2)
 }
 
 impl Movement {

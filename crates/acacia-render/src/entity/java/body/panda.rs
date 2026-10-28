@@ -42,7 +42,7 @@ pub(super) fn rotations(s: &RenderState, m: &mut Stack) {
     if sit > 0.0 {
         m.shift(0.0, 0.8 * sit, 0.0);
         m.turn(Vec3::X, lerp(sit, x_rot, x_rot + 90.0));
-        m.shift(0.0, -1.0 * sit, 0.0);
+        m.shift(0.0, -sit, 0.0);
         if s.flag("isScared") {
             let shake = (f64::from(s.age() * 1.25).cos() * std::f64::consts::PI * f64::from(0.05f32)) as f32;
             m.turn(Vec3::Y, shake);

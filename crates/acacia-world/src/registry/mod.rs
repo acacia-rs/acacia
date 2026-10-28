@@ -51,7 +51,8 @@ impl BlockRegistry {
     /// Vanilla with `blocks` merged in, shared while alive: a swarm's bots on one server hold one copy
     /// (1.6 MB each), and a list that adds nothing new is vanilla itself.
     pub fn vanilla_with_custom_blocks(blocks: &[CustomBlock]) -> Arc<BlockRegistry> {
-        static LAST: LazyLock<Mutex<Option<(Vec<CustomBlock>, Weak<BlockRegistry>)>>> = LazyLock::new(Mutex::default);
+        type Shared = (Vec<CustomBlock>, Weak<BlockRegistry>);
+        static LAST: LazyLock<Mutex<Option<Shared>>> = LazyLock::new(Mutex::default);
         let new: Vec<CustomBlock> = VANILLA.new_blocks(blocks).cloned().collect();
         if new.is_empty() {
             return VANILLA.clone();

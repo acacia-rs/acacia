@@ -8,6 +8,9 @@ use acacia_bot::Bot;
 
 use super::support::{Error, Pad};
 
+/// A setblock: offset from T, block.
+type Setblock = ([i32; 3], String);
+
 /// (give arguments, item to hold, support block under T).
 const ITEMS: &[(&str, &str, &str)] = &[
     ("wooden_door", "wooden_door", "stone"),
@@ -45,7 +48,7 @@ fn add(a: [i32; 3], b: [i32; 3]) -> [i32; 3] {
 }
 
 /// Door neighbours, stood south of T (looking north): (name, setblocks as (offset from T, block)).
-fn door_cases(door: &str) -> Vec<(&'static str, Vec<([i32; 3], String)>)> {
+fn door_cases(door: &str) -> Vec<(&'static str, Vec<Setblock>)> {
     // Facing as a door placed from the south gets (see the plain cases).
     let d = |hinge: u8| format!("{door} [\"minecraft:cardinal_direction\"=\"east\",\"door_hinge_bit\"={},\"upper_block_bit\"=false]", hinge == 1);
     let u = |hinge: u8| format!("{door} [\"minecraft:cardinal_direction\"=\"east\",\"door_hinge_bit\"={},\"upper_block_bit\"=true]", hinge == 1);

@@ -89,7 +89,7 @@ impl SignEdit {
         &self.lines[self.line]
     }
 
-    fn to_end(&mut self, selecting: bool) {
+    fn cursor_to_end(&mut self, selecting: bool) {
         self.cursor = self.message().len();
         if !selecting {
             self.selection = self.cursor;
@@ -135,7 +135,7 @@ impl SignEdit {
         match key {
             Key::Up | Key::Down | Key::Enter => {
                 self.line = if key == Key::Up { (self.line + 3) & 3 } else { (self.line + 1) & 3 };
-                self.to_end(false);
+                self.cursor_to_end(false);
             }
             Key::A => {
                 self.selection = 0;
@@ -172,7 +172,7 @@ impl SignEdit {
                     self.selection = 0;
                 }
             }
-            Key::End => self.to_end(shift),
+            Key::End => self.cursor_to_end(shift),
             _ => return false,
         }
         true

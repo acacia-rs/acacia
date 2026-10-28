@@ -44,7 +44,7 @@ pub(crate) fn png(path: &Path) -> Option<RgbaImage> {
 /// gives each cell.
 pub fn java_font(root: &Path, atlas: &mut Atlas) -> Option<Font> {
     let image = png(&root.join("textures/font/ascii.png"))?;
-    let rows = ascii_rows(root).unwrap_or_else(|| Font::code_page_rows());
+    let rows = ascii_rows(root).unwrap_or_else(Font::code_page_rows);
     let page = atlas.add("font/ascii", &image);
     let rows: Vec<&str> = rows.iter().map(String::as_str).collect();
     Some(Font::from_grid(&image, page, &rows))

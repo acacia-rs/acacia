@@ -43,7 +43,7 @@ pub enum NetEvent {
     /// The bot's eye position.
     Player(DVec3),
     /// The player after each tick.
-    Me(Me),
+    Me(Box<Me>),
     Sound(audio::Cue),
     /// A block broke there; `block` is its runtime id, for the chips.
     Broken { pos: glam::IVec3, block: u32 },
@@ -55,7 +55,7 @@ pub enum NetEvent {
     /// The commands the server lets the player run, for the Java chat screen's completion.
     Commands(Arc<acacia_ui::java::command::Tree>),
     /// The player's slots, when they changed.
-    Inventory(control::Inventory),
+    Inventory(Box<control::Inventory>),
     /// The creative inventory's items, once the server sent them.
     Creative(Vec<crate::creative_items::CreativeEntry>),
     /// The server form now open, when that changed (`None`: it closed).
@@ -195,7 +195,7 @@ async fn run(
                 Some(BotEvent::Tick) => {
                     setup.tick(&bot);
                     ride_log.tick(&bot);
-                    send(NetEvent::Me(me::me(&bot)))?;
+                    send(NetEvent::Me(Box::new(me::me(&bot))))?;
                     let own = own_sounds.tick(&bot);
                     for cue in own.sounds {
                         send(NetEvent::Sound(cue))?;
@@ -212,7 +212,7 @@ async fn run(
                         inventory = now.clone();
                         let table = now.workbench.is_some();
                         let (craftable, crafted) = (control::craftable(&bot, table), control::crafted(&bot, name.as_deref()));
-                        send(NetEvent::Inventory(control::Inventory { craftable, crafted, cost: bot.anvil_cost(name.as_deref()), ..now }))?;
+                        send(NetEvent::Inventory(Box::new(control::Inventory { craftable, crafted, cost: bot.anvil_cost(name.as_deref()), ..now })))?;
                     }
                     if creative != bot.state().creative.items().len() {
                         creative = bot.state().creative.items().len();

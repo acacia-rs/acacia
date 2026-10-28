@@ -20,11 +20,13 @@ pub struct Definition {
     bones: HashMap<String, Vec<Channel>>,
 }
 
+type Keyframe = (f32, f32, f32, f32, f32, f32, f32, String);
+
 #[derive(Deserialize, Debug)]
 struct Channel {
     target: String,
     /// Timestamp, pre target xyz, post target xyz, interpolation.
-    keyframes: Vec<(f32, f32, f32, f32, f32, f32, f32, String)>,
+    keyframes: Vec<Keyframe>,
 }
 
 static DEFINITIONS: OnceLock<HashMap<String, Definition>> = OnceLock::new();
