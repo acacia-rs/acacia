@@ -90,6 +90,7 @@ fn points(face: Face, against: &BlockView) -> Vec<Vec3> {
     let side = |ys: &[f32]| ys.iter().map(|&y| [c[0], y, c[2]]).collect();
     let slab = against.name.ends_with("_slab").then(|| against.prop("minecraft:vertical_half")).flatten();
     match (face, slab) {
+        (Face::Up | Face::Down, None) if rules::post(against) => vec![c],
         (_, None) if !against.full => Vec::new(),
         (Face::Up | Face::Down, None) => vec![c],
         (_, None) => side(&[0.25, 0.75]),

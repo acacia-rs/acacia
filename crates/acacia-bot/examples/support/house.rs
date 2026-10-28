@@ -94,9 +94,10 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
             put(&mut s, [1, 1, 1], "furnace", "minecraft:cardinal_direction=south");
             (s, vec![(at([0, 0, 0]), at([2, 1, 2]), "dirt")])
         }
-        _ => match super::scenes_twocell::scene(name, at) {
-            Some((s, junk, _)) => (s, junk),
-            None => return Err(format!("unknown scene {name}").into()),
+        _ => match (super::scenes_twocell::scene(name, at), super::oneclick::scene(name)) {
+            (Some((s, junk, _)), _) => (s, junk),
+            (None, Some(s)) => (s, vec![]),
+            (None, None) => return Err(format!("unknown scene {name}").into()),
         },
     };
     let (s, junk) = s;
@@ -109,7 +110,8 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
 pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error> {
     let (structure, junk) = scene(name)?;
     pad.build(a, &junk, 5).await?;
-    for (station, items) in STATIONS.iter().zip(STOCK) {
+    let stock = super::oneclick::stock(name).map_or(STOCK, |s| [s, &[]]);
+    for (station, items) in STATIONS.iter().zip(stock) {
         let [x, y, z] = pad.block(*station);
         pad.run(a, &format!("/setblock {x} {y} {z} barrel"));
         a.wait_ticks(2).await?;
