@@ -9,6 +9,7 @@ mod builder;
 mod check;
 mod cover;
 mod en_route;
+mod explain;
 pub mod findings;
 mod job;
 pub mod journal;

@@ -4,7 +4,7 @@
 use acacia_physics::{BlockPos, Vec3};
 
 use super::builder::Builder;
-use super::reach::{click_for, in_reach, stands, Keep, Stand, STAND_SLACK};
+use super::reach::{click_for, in_reach, stands, Keep, Stand};
 use super::restock;
 use super::rules;
 use super::status::{HoldWhy, Phase};
@@ -270,23 +270,6 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     }
     let failed = b.cells.iter().filter(|c| b.given_up(c.pos)).count() + b.scaffold.iter().filter(|p| b.given_up(**p) && cx.look.solid(**p) == Some(true)).count();
     Next::Done(if failed == 0 { Ok(()) } else { Err(ActionError::NotPossible(format!("{failed} cells could not be built"))) })
-}
-
-/// Why each open placement is not being done from `feet`.
-pub(crate) fn explain(b: &Builder, look: &dyn Look, feet: Vec3) -> Vec<String> {
-    let eye = [feet[0], feet[1] + crate::movement::EYE_HEIGHT, feet[2]];
-    let needs = b.survey(look);
-    b.cells
-        .iter()
-        .zip(&needs)
-        .filter(|(_, n)| **n == Need::Place)
-        .map(|(c, _)| {
-            let now = click_for(c.pos, &c.target, eye, look, 0.0);
-            let found = stands(c.pos, feet, look, &Keep { feet: &|_| false, pillar: &|_| false }, &|e| click_for(c.pos, &c.target, e, look, STAND_SLACK).is_some(), STANDS);
-            let item = rules::item(&c.target).map(|i| look.count(&i));
-            format!("{:?} {} [{}]: held {item:?} resting {} body {} now {now:?} stands {:?}", c.pos, c.target.name, c.target.props, b.resting(c.pos), in_body(feet, c.pos), found.iter().map(|s| s.feet).collect::<Vec<_>>())
-        })
-        .collect()
 }
 
 /// Fills the lowest empty cell of the column under `pos` (it stands on something), so the column grows up to it.
