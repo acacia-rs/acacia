@@ -2,8 +2,8 @@
 
 use acacia_physics::{BlockPos, Vec3, WorldView};
 
-use super::solve::{Line, glide_reach, solve};
-use super::surface::{Surface, corridor_top, known_ahead};
+use super::solve::{Line, MAX_SINK, glide_reach, skid, solve};
+use super::surface::{Surface, corridor, corridor_top, known_ahead};
 use super::FlyOpts;
 use crate::cadence::splitmix;
 use crate::movement::{Controls, Rollout};
@@ -31,10 +31,14 @@ enum Phase {
     Landed,
 }
 
-/// Horizontal blocks out from the spot where the touchdown is scored instead of the line.
+/// Horizontal blocks out from the spot where the touchdown is scored instead of the line, at `APPROACH_SPEED`; a
+/// faster glide starts it farther out, in proportion, since a capped sink takes longer to get it down.
 const LANDING_DIST: f32 = 56.0;
-/// Height lost per block coming in: a glide's own sink at cruise speed, so the approach needs no stall to get down.
-const SLOPE: f32 = 0.25;
+const APPROACH_SPEED: f32 = 1.8;
+/// Height lost per block coming in, at most. A faster approach comes in shallower: the steepest descent that
+/// builds no fall distance is `solve::MAX_SINK` / speed, and the line keeps `SINK_ROOM` of it to steer the touchdown.
+const SLOPE: f32 = 0.16;
+const SINK_ROOM: f32 = 0.65;
 /// Blocks of corridor ahead the cruise height is taken over.
 const CORRIDOR: f32 = 160.0;
 /// Below this speed (blocks/tick) a cruise wants a rocket.
@@ -147,7 +151,9 @@ impl FlightPilot {
         let st = &r.st;
         let pos = st.pos;
         // Re-picked until the landing starts: a block can change under it, and blocks around the target arrive late.
-        let near = self.spot.is_some_and(|p| (p[0] - pos[0]).hypot(p[2] - pos[2]) < LANDING_DIST);
+        let hz = st.vel[0].hypot(st.vel[2]);
+        let landing_dist = LANDING_DIST * (hz / APPROACH_SPEED).max(1.0);
+        let near = self.spot.is_some_and(|p| (p[0] - pos[0]).hypot(p[2] - pos[2]) < landing_dist);
         if !near {
             self.spot = find_spot(s, self.target, self.opts.land_radius);
         }
@@ -155,7 +161,8 @@ impl FlightPilot {
         let d = (target[0] - pos[0]).hypot(target[2] - pos[2]);
         let dir = if d > 0.0 { [(target[0] - pos[0]) / d, (target[2] - pos[2]) / d] } else { [0.0, 0.0] };
         let ahead = [pos[0] + dir[0] * d.min(CORRIDOR), pos[2] + dir[1] * d.min(CORRIDOR)];
-        let (top, _) = corridor_top(s, [pos[0], pos[2]], ahead, 3.0);
+        let samples = corridor(s, [pos[0], pos[2]], ahead, 3.0);
+        let top = samples.iter().filter_map(|&(_, top)| top).max().unwrap_or(i32::MIN);
         // Never lowered while far out: terrain behind the known edge may be as high as what was crossed.
         self.cruise_y = self.cruise_y.max((top + self.opts.cruise_margin) as f32).max(target[1] + self.opts.cruise_margin as f32);
         if rockets == 0 && !self.reach_checked {
@@ -164,13 +171,15 @@ impl FlightPilot {
                 return Order::Fail(format!("no rockets, and a glide from y {:.0} does not reach {d:.0} blocks", pos[1]));
             }
         }
-        let landing = self.spot.is_some() && d < LANDING_DIST;
-        let line = Line { target, cruise_y: self.cruise_y, slope: SLOPE, margin: self.opts.cruise_margin as f32 / 2.0, landing };
+        let landing = self.spot.is_some() && d < landing_dist;
+        let slope = SLOPE.min(SINK_ROOM * MAX_SINK / hz.max(0.1));
+        let mut line = Line { target, cruise_y: self.cruise_y, slope, margin: self.opts.cruise_margin as f32 / 2.0, landing, hold: Vec::new(), skid: skid(hz) };
+        line.hold = line.holds(samples.into_iter().filter_map(|(t, top)| Some((d - t, top?))));
         let speed = st.vel.iter().map(|v| v * v).sum::<f32>().sqrt();
         let known = known_ahead(s, [pos[0], pos[2]], dir, (speed * HORIZON_TICKS).max(48.0));
         let horizon = known >= (speed * HORIZON_TICKS).max(48.0) || known >= d;
         let low = pos[1] < line.height_at(d) - 4.0;
-        let want = !landing && st.glide_boost_ticks == 0 && horizon && (low || speed < CRUISE_SPEED) && d > LANDING_DIST;
+        let want = !landing && st.glide_boost_ticks == 0 && horizon && (low || speed < CRUISE_SPEED) && d > landing_dist;
         // Short of the spot's height near it, a reserve rocket saves the landing.
         let save = st.glide_boost_ticks == 0 && landing && pos[1] < target[1] + 1.0 && d > 8.0;
         // Just off the ground (the takeoff) a rocket must come quickly; one into the ground is not boosted by the server.
@@ -194,7 +203,9 @@ impl FlightPilot {
         };
         self.pitch = solve(from, yaw, self.pitch, &line, w, s);
         tracing::trace!(tick = self.tick, ?pos, d, known, cruise_y = self.cruise_y, spot = ?self.spot, pitch = self.pitch, rockets, ?order, "glide");
-        *c = Controls { forward: 1.0, glide: true, yaw, pitch: self.pitch_aim.turn(st.pitch, self.pitch).clamp(-90.0, 90.0), ..Controls::default() };
+        // The landing rollouts' sink limit, flown for real (`solve::MAX_SINK`).
+        let aim = if landing && st.vel[1] < -MAX_SINK { self.pitch.min(0.0) } else { self.pitch };
+        *c = Controls { forward: 1.0, glide: true, yaw, pitch: self.pitch_aim.turn(st.pitch, aim).clamp(-90.0, 90.0), ..Controls::default() };
         order
     }
 

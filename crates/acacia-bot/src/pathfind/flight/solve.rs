@@ -29,9 +29,18 @@ const REST_W: f32 = 6.0;
 const MIN_CLEAR: f32 = 2.0;
 /// Fall distance a touchdown may carry: damage starts past 3, and the live glide may sink a little faster.
 const SAFE_FALL: f32 = 2.0;
+/// Landing rollouts pull level for a tick that would sink faster than this: a glide's fall distance stays 1 only
+/// above -0.5 down, so a held dive becomes a fast descent a player would fly, not a crash.
+pub(super) const MAX_SINK: f32 = 0.45;
+/// Steepest nose-up a landing holds: past it the glide zooms and stalls over the spot. Dives are left to `MAX_SINK`.
+const LANDING_PITCH: f32 = 40.0;
+/// Below this horizontal speed (blocks/tick) a landing glide has stalled and mushes down; a player never does.
+const STALL_SPEED: f32 = 0.6;
+const STALL_W: f32 = 8.0;
 
-/// The line a glide is flown along: cruise height, then down a slope onto the landing spot.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// The line a glide is flown along: cruise height, then down a slope onto the landing spot, never under a crest
+/// still ahead.
+#[derive(Debug, Clone, PartialEq)]
 pub(super) struct Line {
     /// Feet of the landing spot (or of the target, before one is found).
     pub target: Vec3,
@@ -42,14 +51,55 @@ pub(super) struct Line {
     pub margin: f32,
     /// Score touchdowns: the rollouts run to where the slide stops.
     pub landing: bool,
+    /// (blocks from the spot, feet height): farther out than each, the line stays at least that high. Ascending
+    /// distance, running-max heights ([`holds`]).
+    pub hold: Vec<(f32, f32)>,
+    /// Blocks the touchdown skids: the descent meets the ground this far short of the spot ([`skid`]).
+    pub skid: f32,
 }
 
 /// Feet height above the landing spot where the slope starts flattening into the touchdown.
 const FLARE: f32 = 1.0;
+/// Ticks of horizontal speed a touchdown skids before it stops: ~4 blocks at 1.8 a tick, ~6 at 2.4 (flight tests).
+const SKID_TICKS: f32 = 2.4;
+
+/// The skid of a touchdown at horizontal speed `hz`.
+pub(super) fn skid(hz: f32) -> f32 {
+    SKID_TICKS * hz
+}
+/// Clearance a crest above the descent keeps the line over it.
+const CREST_CLEAR: f32 = 4.0;
+/// Terrain this close to the spot is the landing, not a crest.
+const SPOT_RADIUS: f32 = 8.0;
 
 impl Line {
+    fn descent(&self, d: f32) -> f32 {
+        self.target[1] + FLARE + (d - self.skid).max(0.0) * self.slope
+    }
+
     pub fn height_at(&self, d: f32) -> f32 {
-        self.cruise_y.min(self.target[1] + FLARE + d * self.slope)
+        let hold = match self.hold.partition_point(|&(at, _)| at < d) {
+            0 => f32::MIN,
+            i => self.hold[i - 1].1,
+        };
+        self.cruise_y.min(self.descent(d)).max(hold)
+    }
+
+    /// The hold profile from corridor samples (blocks from the spot, column top): crests the descent would pass
+    /// under, so the descent waits until they are behind.
+    pub fn holds(&self, samples: impl IntoIterator<Item = (f32, i32)>) -> Vec<(f32, f32)> {
+        let mut out: Vec<(f32, f32)> = samples
+            .into_iter()
+            .map(|(at, top)| (at, (top + 1) as f32 + CREST_CLEAR))
+            .filter(|&(at, need)| at > SPOT_RADIUS && need > self.descent(at))
+            .collect();
+        out.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut top = f32::MIN;
+        for h in &mut out {
+            top = top.max(h.1);
+            h.1 = top;
+        }
+        out
     }
 
     fn dist(&self, p: Vec3) -> f32 {
@@ -61,14 +111,15 @@ impl Line {
 pub(super) fn solve(r: &Rollout, yaw: f32, prev: f32, line: &Line, w: &(impl WorldView + ?Sized), s: &mut dyn Surface) -> f32 {
     let mut cost = |pitch: f32| score(r, yaw, pitch, line, w, s) + (pitch - prev).abs() * 0.01;
     let (mut best, mut best_cost) = (prev, f32::INFINITY);
-    for p in COARSE.into_iter().chain([prev]) {
+    let up = if line.landing { -LANDING_PITCH } else { -90.0 };
+    for p in COARSE.into_iter().chain([prev]).filter(|&p| p >= up) {
         let c = cost(p);
         if c < best_cost {
             (best, best_cost) = (p, c);
         }
     }
     let coarse = best;
-    for p in FINE.map(|d| (coarse + d).clamp(-90.0, 90.0)) {
+    for p in FINE.map(|d| (coarse + d).clamp(up, 90.0)) {
         let c = cost(p);
         if c < best_cost {
             (best, best_cost) = (p, c);
@@ -80,13 +131,17 @@ pub(super) fn solve(r: &Rollout, yaw: f32, prev: f32, line: &Line, w: &(impl Wor
 /// Cost of holding `pitch` (degrees) facing `yaw` from `r`.
 pub(super) fn score(r: &Rollout, yaw: f32, pitch: f32, line: &Line, w: &(impl WorldView + ?Sized), s: &mut dyn Surface) -> f32 {
     let c = Controls { forward: 1.0, glide: true, yaw, pitch, ..Controls::default() };
+    let level = Controls { pitch: pitch.min(0.0), ..c };
     let mut f = r.clone();
     let d0 = line.dist(f.st.pos);
     let ticks = if line.landing { LANDING_TICKS } else { CRUISE_TICKS };
     let mut cost = 0.0;
     for t in 0..ticks {
         let fall = f.st.fall_distance;
-        f.step(&c, w);
+        f.step(if line.landing && f.st.vel[1] < -MAX_SINK { &level } else { &c }, w);
+        if line.landing && !f.st.on_ground && f.st.vel[0].hypot(f.st.vel[2]) < STALL_SPEED {
+            cost += STALL_W;
+        }
         let p = f.st.pos;
         // A hit charged by how soon it comes: from low down every candidate hits, and the latest is the way out.
         let soon = (ticks - t) as f32 / ticks as f32;

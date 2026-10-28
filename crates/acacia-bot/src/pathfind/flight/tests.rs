@@ -79,9 +79,17 @@ fn fly(land: &Land, start: Vec3, target: BlockPos, profile: MovementProfile, mut
         land.at.set([live.st.pos[0], live.st.pos[2]]);
         let mut surface = land;
         let order = pilot.tick(&live, land, &mut surface, rockets, &mut c);
-        if tick % 25 == 0 && std::env::var_os("FLIGHT_TRACE").is_some() {
-            let s = &live.st;
-            println!("t{tick} {order:?} pos {:?} vel {:?} ground {} gliding {} jump {} glide {}", s.pos, s.vel, s.on_ground, s.gliding, c.jump, c.glide);
+        let s = &live.st;
+        let d = (s.pos[0] - (target[0] as f32 + 0.5)).hypot(s.pos[2] - (target[2] as f32 + 0.5));
+        match std::env::var("FLIGHT_TRACE").as_deref() {
+            Ok("land") if d < 90.0 => println!(
+                "t{tick} d {d:6.2} h {:6.2} hz {:.3} vy {:+.3} pitch {:+6.1} fall {:.2} ground {}",
+                s.pos[1] - target[1] as f32, s.vel[0].hypot(s.vel[2]), s.vel[1], c.pitch, s.fall_distance, s.on_ground
+            ),
+            Ok(v) if v != "land" && tick % 25 == 0 => println!(
+                "t{tick} {order:?} pos {:?} vel {:?} ground {} gliding {} jump {} glide {}", s.pos, s.vel, s.on_ground, s.gliding, c.jump, c.glide
+            ),
+            _ => {}
         }
         match order {
             Order::Fly => {}

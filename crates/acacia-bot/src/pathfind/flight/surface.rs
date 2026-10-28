@@ -65,22 +65,27 @@ const CORRIDOR_STEP: f32 = 4.0;
 /// Highest known top along the segment from `a` to `b` (xz), `width` blocks either side, and whether every
 /// sampled column was known.
 pub(super) fn corridor_top(s: &mut dyn Surface, a: [f32; 2], b: [f32; 2], width: f32) -> (i32, bool) {
+    corridor(s, a, b, width).into_iter().fold((i32::MIN, true), |(top, known), (_, y)| match y {
+        Some(y) => (top.max(y), known),
+        None => (top, false),
+    })
+}
+
+/// Every corridor sample from `a` to `b`: blocks from `a`, and the column's top (`None` while unknown).
+pub(super) fn corridor(s: &mut dyn Surface, a: [f32; 2], b: [f32; 2], width: f32) -> Vec<(f32, Option<i32>)> {
     let (dx, dz) = (b[0] - a[0], b[1] - a[1]);
     let len = dx.hypot(dz);
     let (ux, uz) = if len > 0.0 { (dx / len, dz / len) } else { (0.0, 0.0) };
-    let (mut top, mut known) = (i32::MIN, true);
+    let mut out = Vec::with_capacity(3 * (len / CORRIDOR_STEP) as usize + 3);
     let mut t = 0.0;
     while t <= len {
         for side in [-width, 0.0, width] {
             let (x, z) = (a[0] + ux * t - uz * side, a[1] + uz * t + ux * side);
-            match s.top(x.floor() as i32, z.floor() as i32) {
-                Some(y) => top = top.max(y),
-                None => known = false,
-            }
+            out.push((t, s.top(x.floor() as i32, z.floor() as i32)));
         }
         t += CORRIDOR_STEP;
     }
-    (top, known)
+    out
 }
 
 /// Blocks along `dir` (unit, xz) from `from` to the first column not yet known, up to `max`.
