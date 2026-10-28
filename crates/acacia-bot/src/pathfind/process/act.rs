@@ -38,6 +38,7 @@ pub(super) async fn perform(bot: &mut Bot, act: &Act, human: bool) -> Result<(),
             bot.act_timing.add(Phase::Restock, t.elapsed());
             r
         }
+        Act::UseOn { item, against, face, cell, expect } => use_on(bot, item, *against, *face, *cell, expect, human).await,
         Act::Use { pos, item, face } => {
             if let Some(item) = item {
                 let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
@@ -47,6 +48,28 @@ pub(super) async fn perform(bot: &mut Bot, act: &Act, human: bool) -> Result<(),
         }
         Act::Sign { pos, front, text } => bot.write_sign(*pos, if *front { SignSide::Front } else { SignSide::Back }, text).await,
     }
+}
+
+/// Ticks a use waits for its cell to change before it counts as refused.
+const USE_TICKS: u32 = 20;
+
+/// Uses `item` on `face` of `against` and waits for `cell` to show a block named `*expect`.
+async fn use_on(bot: &mut Bot, item: &str, against: BlockPos, face: Face, cell: BlockPos, expect: &str, human: bool) -> Result<(), ActionError> {
+    // A flow falling into the cell shows as `water` too, with a depth: only a source is the pour.
+    let shows = |bot: &Bot| bot.block_at(cell).is_some_and(|(_, s)| s.name.trim_start_matches("minecraft:") == expect && !s.properties.split(',').any(|kv| kv.starts_with("liquid_depth=") && kv != "liquid_depth=0"));
+    if shows(bot) {
+        return Ok(());
+    }
+    let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
+    hand(bot, slot, human).await?;
+    bot.use_item_on_block(against, face).await?;
+    for _ in 0..USE_TICKS {
+        bot.wait_ticks(1).await?;
+        if shows(bot) {
+            return Ok(());
+        }
+    }
+    Err(ActionError::Rejected(format!("{item} on {against:?}: {cell:?} shows no {expect}")))
 }
 
 /// Sends an [`Act::Place`] without awaiting its echo (Optimal profile); returns the target cell, whose outcome

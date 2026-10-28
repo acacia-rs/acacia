@@ -19,7 +19,7 @@ const ESCAPE_AFTER: u32 = 2;
 fn cell_of(act: &Act) -> Option<acacia_physics::BlockPos> {
     match act {
         Act::Place { against, face, .. } => Some(face.adjacent(*against)),
-        Act::Break { pos } | Act::Fill { pos, .. } | Act::Use { pos, .. } | Act::Sign { pos, .. } => Some(*pos),
+        Act::Break { pos } | Act::Fill { pos, .. } | Act::Use { pos, .. } | Act::Sign { pos, .. } | Act::UseOn { cell: pos, .. } => Some(*pos),
         _ => None,
     }
 }
@@ -190,7 +190,7 @@ impl Process for Builder {
             self.failed_walks = 0;
         }
         let (kind, item) = match act {
-            Act::Place { item, .. } => (Kind::Place, Some(item.clone())),
+            Act::Place { item, .. } | Act::UseOn { item, .. } => (Kind::Place, Some(item.clone())),
             Act::Break { .. } => (Kind::Break, None),
             Act::Fill { .. } => (Kind::Fill, None),
             Act::Restock { .. } => (Kind::Restock, None),
@@ -214,6 +214,8 @@ impl Process for Builder {
                 self.bump(|s| s.placed += 1);
             }
             (Act::Place { against, face, .. }, Err(e)) => self.fail(face.adjacent(*against), e),
+            (Act::UseOn { .. }, Ok(())) => self.bump(|s| s.placed += 1),
+            (Act::UseOn { cell, .. }, Err(e)) => self.fail(*cell, e),
             (Act::Break { .. }, Ok(())) => self.bump(|s| s.broken += 1),
             (Act::Break { pos }, Err(e)) => self.fail(*pos, e),
             (Act::Fill { pos, .. }, Ok(())) => {

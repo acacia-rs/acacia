@@ -9,20 +9,23 @@ use crate::pathfind::process::BlockView;
 
 mod interact;
 mod oneclick;
+pub(super) mod rails;
+pub(super) mod redstone;
+pub(super) mod redstone_order;
 pub mod twocell;
 pub use interact::{fine_aim, front, uses};
 
 /// Recomputed from the neighbours by the server (stair corners, wall/fence/pane connections), or redstone
 /// activity: never compared.
 fn derived(key: &str) -> bool {
-    key == "corner" || key.starts_with("wall_connection_type_") || key == "wall_post_bit" || key.starts_with("connection_") || matches!(key, "powered_bit" | "triggered_bit" | "button_pressed_bit") || oneclick::derived(key) || interact::derived(key)
+    key == "corner" || key.starts_with("wall_connection_type_") || key == "wall_post_bit" || key.starts_with("connection_") || matches!(key, "powered_bit" | "triggered_bit" | "button_pressed_bit") || oneclick::derived(key) || interact::derived(key) || redstone::derived(key)
 }
 
 /// Outside the common building set (B1): their states take more than one click, or they are not blocks one places.
 /// `candle_cake`: a candle clicked onto a cake, not placed.
 const DENIED: &[&str] = &[
-    "bedrock", "redstone", "water", "lava", "rail", "banner", "skull", "head", "portal", "fire", "sapling", "wheat", "carrots",
-    "potatoes", "beetroot", "vine", "kelp", "seagrass", "bubble", "piston_arm", "moving_block", "bamboo", "cactus", "sugar_cane", "candle_cake", "scaffolding",
+    "bedrock", "waterlily", "lava_cauldron", "banner", "skull", "head", "portal", "fire", "_vines", "cactus_flower", "bubble", "piston_arm", "moving_block",
+    "candle_cake", "scaffolding",
 ];
 
 /// Facing kinds of `facing_direction` blocks.
@@ -57,7 +60,7 @@ fn is_double_slab(name: &str) -> bool {
 /// Every state of the target is one a click decides or the server derives.
 pub fn supported(name: &str) -> bool {
     let n = name.trim_start_matches("minecraft:");
-    oneclick::claims(n) || !DENIED.iter().any(|d| n.contains(d))
+    oneclick::claims(n) || (!DENIED.iter().any(|d| n.contains(d)) && !redstone::denied(n))
 }
 
 fn controlled(name: &str, k: &str) -> bool {
@@ -68,7 +71,7 @@ fn controlled(name: &str, k: &str) -> bool {
         "pillar_axis" | "vertical_half" | "upside_down_bit" | "weirdo_direction" | "cardinal_direction" => true,
         "torch_facing_direction" => true,
         "facing_direction" => facing_kind(name).is_some(),
-        _ => twocell::controlled(name, k),
+        _ => twocell::controlled(name, k) || redstone::controlled(name, k),
     }
 }
 
@@ -82,10 +85,10 @@ fn keys_known(target: &Block) -> bool {
 
 /// The item that places the target.
 pub fn item(target: &Block) -> Option<String> {
-    if !supported(&target.name) || !keys_known(target) || twocell::unplaceable(target) {
+    if !supported(&target.name) || !keys_known(target) || twocell::unplaceable(target) || !redstone::placeable(target) {
         return None;
     }
-    Some(twocell::item(target).or_else(|| interact::item(&target.name)).unwrap_or_else(|| oneclick::base(&target.name).replace("_double_slab", "_slab")))
+    Some(redstone::item(target).or_else(|| twocell::item(target)).or_else(|| interact::item(&target.name)).unwrap_or_else(|| oneclick::base(&target.name).replace("_double_slab", "_slab")))
 }
 
 /// Placements into the cell past its first that add to it (candles); slabs keep counting as placements.
@@ -121,6 +124,9 @@ pub fn post(b: &BlockView) -> bool {
 
 /// The world shows the target: same block, same states except derived ones (and a double slab's half).
 pub fn matches(target: &Block, w: &BlockView) -> bool {
+    if let Some(m) = redstone::matches(target, w) {
+        return m;
+    }
     if oneclick::base(&target.name) != oneclick::base(w.name) && !interact::same(&target.name, w.name) {
         return false;
     }
@@ -136,7 +142,7 @@ pub fn matches(target: &Block, w: &BlockView) -> bool {
 
 /// The cell holds the half slab that one more slab makes into the target, or fewer candles (pickles, eggs).
 pub fn completes(target: &Block, w: &BlockView) -> bool {
-    (is_double_slab(&target.name) && item(target).is_some_and(|i| i == w.name)) || interact::adds(target, w)
+    (is_double_slab(&target.name) && item(target).is_some_and(|i| i == w.name)) || interact::adds(target, w) || redstone::completes(target, w)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -218,6 +224,9 @@ fn six_way(eye: Vec3, pos: BlockPos, look: Option<Dir>) -> Option<Dir> {
 pub fn gives(target: &Block, face: Face, click: Vec3, eye: Vec3, pos: BlockPos, _against: &BlockView) -> bool {
     if is_double_slab(&target.name) {
         return true;
+    }
+    if let Some(g) = redstone::gives(target, face) {
+        return g;
     }
     let dir = Dir::of(face);
     let point = [(pos[0] - face.offset()[0]) as f32 + click[0], (pos[1] - face.offset()[1]) as f32 + click[1], (pos[2] - face.offset()[2]) as f32 + click[2]];

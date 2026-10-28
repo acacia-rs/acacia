@@ -23,6 +23,9 @@ pub(super) fn shortfall(b: &Builder, cx: &Ctx, needs: &[Need]) -> Vec<(String, u
             && let Some(item) = rules::item(&c.target)
         {
             *want.entry(item).or_default() += rules::items_per_cell(&c.target);
+            if let Some(extra) = rules::redstone::extra_item(&c.target) {
+                *want.entry(extra).or_default() += 1;
+            }
         }
     }
     let share = b.sharers();

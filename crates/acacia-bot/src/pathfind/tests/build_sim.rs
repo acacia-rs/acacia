@@ -163,6 +163,7 @@ fn act(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> {
         Act::Place { against, face, .. } => face.adjacent(*against),
         Act::Break { pos } | Act::Fill { pos, .. } | Act::Use { pos, .. } | Act::Sign { pos, .. } => *pos,
         Act::Restock { station, .. } => *station,
+        Act::UseOn { cell, .. } => *cell,
     };
     if watched(cell) || matches!(act, Act::Place { against, .. } if watched(*against)) {
         eprintln!("WATCH bot {} tick {} eye {:?} {act:?} -> {r:?}; now {:?}", w.me, w.now, eye(m), view(w.g, cell));
@@ -185,6 +186,13 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
             let modeled = interact_model::place(item, *face, e, point, &cell);
             if far(*against) || solid(w, *against).is_none_or(|b| !b.solid()) || blocked(w, pos) || (cell.solid() && !cell.name.ends_with("_slab") && modeled.is_none()) {
                 return Err(ActionError::Rejected(format!("place {item} at {pos:?} from {e:?}")));
+            }
+            if let Some(state) = super::redstone_sim::place(w.g, item, *face, pos) {
+                let (name, props) = state.ok_or_else(|| ActionError::Rejected(format!("{item} refused at {pos:?}")))?;
+                take(w, item)?;
+                w.set(pos, &name, &props);
+                super::redstone_sim::join(w.g, pos);
+                return Ok(());
             }
             let g: &Grid = w.g;
             if let Some(pair) = bds_pair(item, *face, e, point, pos, &|p| g.registry.get(g.view.block(p[0], p[1], p[2]))) {
@@ -225,6 +233,8 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
                 _ => Err(ActionError::NotPossible(format!("fill {pos:?} from {e:?}"))),
             }
         }
+        Act::UseOn { item, against, face, .. } if !far(*against) => super::redstone_sim::use_on(w.g, &mut w.inv, item, *against, *face),
+        Act::UseOn { .. } => Err(ActionError::NotPossible("use out of reach".into())),
         Act::Use { .. } | Act::Sign { .. } => interact_model::act(w, e, act),
         Act::Restock { station, items } => {
             if far(*station) {
@@ -315,7 +325,7 @@ pub fn step(w: &mut World, m: &mut Movement, arb: &mut Arbiter, tick: u32) -> u3
         Decision::Act(pid, a) => {
             m.controls.stop();
             ticks = match &a {
-                Act::Place { .. } | Act::Fill { .. } | Act::Use { .. } | Act::Sign { .. } => PLACE_TICKS,
+                Act::Place { .. } | Act::Fill { .. } | Act::Use { .. } | Act::Sign { .. } | Act::UseOn { .. } => PLACE_TICKS,
                 Act::Break { .. } => BREAK_TICKS,
                 Act::Restock { .. } => RESTOCK_TICKS,
             };

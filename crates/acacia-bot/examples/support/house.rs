@@ -12,6 +12,9 @@ use acacia_bot::Bot;
 
 use super::{Error, Fill, Pad};
 
+#[path = "../../src/build/tests/scenes_redstone.rs"]
+mod scenes_redstone;
+
 const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/build/house16.mcstructure");
 const MAX_TICKS: u32 = 40_000;
 /// Footprint corner (pad offset).
@@ -34,6 +37,9 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
     let put = |s: &mut Structure, p: [i32; 3], name: &str, props: &str| s.set(p, Some(Block::new(name, props)));
     let s = match name {
         "house16" => return Ok((FIXTURE.into(), vec![([6, 0, -6], [8, 1, -4], "dirt"), ([12, 2, 2], [13, 2, 3], "stone")])),
+        // The floor laid already (see `scenes_redstone`): the garden's is plain grass, cleared where it differs.
+        "rs-rails" => (scenes_redstone::rails(), vec![(at([0, 0, 0]), at([7, 0, 5]), scenes_redstone::FLOORS[0].1)]),
+        "rs-garden" => (scenes_redstone::garden(), vec![(at([0, 0, 0]), at([6, 0, 5]), scenes_redstone::FLOORS[1].1)]),
         "wall" => {
             let mut s = Structure::new([8, 6, 1]);
             for x in 0..8 {
@@ -111,22 +117,27 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
 pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error> {
     let (structure, junk) = scene(name)?;
     pad.build(a, &junk, 5).await?;
-    let stock = super::oneclick::stock(name).map_or(STOCK, |s| [s, &[]]);
+    // The redstone scenes stock exact counts, one slot each (buckets do not stack); the others whole stacks.
+    let exact = name.starts_with("rs-");
+    let stock = if exact { [scenes_redstone::STOCK, &[]] } else { super::oneclick::stock(name).map_or(STOCK, |s| [s, &[]]) };
     for (station, items) in STATIONS.iter().zip(stock) {
         let [x, y, z] = pad.block(*station);
         pad.run(a, &format!("/setblock {x} {y} {z} barrel"));
         a.wait_ticks(2).await?;
         let mut slot = 0;
         // BDS runs one player's commands in order, so the stacks need no wait between them.
-        for (item, stacks) in items {
-            for _ in 0..*stacks {
-                pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} 64"));
+        for (item, n) in items {
+            let (slots, count) = if exact { (1, *n) } else { (*n, 64) };
+            for _ in 0..slots {
+                pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} {count}"));
                 slot += 1;
             }
         }
     }
     a.wait_ticks(4).await?;
-    super::interact_scenes::stock(a, pad, &STATIONS).await?;
+    if !exact {
+        super::interact_scenes::stock(a, pad, &STATIONS).await?;
+    }
     let mut job = BuildJob::new(structure, Transform { origin: pad.block(AT), ..Transform::default() });
     job.stations = STATIONS.iter().map(|&s| pad.block(s)).collect();
     if let Some((_, _, stock)) = super::scenes_twocell::scene(name, |p| p) {

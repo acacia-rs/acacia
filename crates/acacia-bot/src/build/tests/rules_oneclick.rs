@@ -105,7 +105,7 @@ fn denied_by_accident_no_more() {
     for n in ["redstone_block", "redstone_lamp", "redstone_torch", "sea_lantern", "lantern", "iron_chain", "stone_pressure_plate", "hopper", "dead_fire_coral_block", "campfire"] {
         assert!(supported(&format!("minecraft:{n}")), "{n}");
     }
-    for n in ["redstone_wire", "fire", "fire_coral_block", "bubble_coral_block"] {
+    for n in ["fire","fire_coral_block", "bubble_coral_block"] {
         assert!(!supported(&format!("minecraft:{n}")), "{n}");
     }
     assert_eq!(item(&Block::new("chain_command_block", "conditional_bit=0,facing_direction=2")), None);

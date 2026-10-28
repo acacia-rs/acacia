@@ -256,6 +256,7 @@ impl Builder {
     pub(super) fn survey(&self, look: &dyn Look) -> Vec<Need> {
         let mut needs: Vec<Need> = self.cells.iter().map(|c| need_with_text(&c.target, c.text.as_ref(), c.pos, look, self.job.fill_only)).collect();
         super::pairs::settle(&self.cells, &self.index, look, self.job.fill_only, &mut needs);
+        super::rules::redstone_order::settle(&self.cells, look, &|p| self.target(p).cloned(), &mut needs);
         needs
     }
 

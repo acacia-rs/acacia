@@ -93,6 +93,7 @@ fn points(face: Face, against: &BlockView, fine: bool) -> Vec<Vec3> {
     const GRID: [f32; 3] = [0.5, 0.2, 0.8];
     match (face, slab) {
         (Face::Up | Face::Down, None) if rules::post(against) => vec![c],
+        (Face::Up, None) if !against.full => rules::redstone::top(against.name).map(|y| vec![[c[0], y, c[2]]]).unwrap_or_default(),
         (_, None) if !against.full => Vec::new(),
         (Face::Up | Face::Down, None) if fine => GRID.iter().flat_map(|&x| GRID.iter().map(move |&z| [x, c[1], z])).collect(),
         (Face::Up | Face::Down, None) => vec![c],

@@ -25,6 +25,8 @@ mod perf;
 mod pilot_sim;
 mod pipeline_sim;
 mod process_sim;
+mod redstone_sim;
+mod redstone_tests;
 mod rollout;
 mod search;
 mod segments;

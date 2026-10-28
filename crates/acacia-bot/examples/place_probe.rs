@@ -2,6 +2,8 @@
 //! from each side, against each visible face, clicked low and high, and the resulting state is printed. Evidence
 //! for `build/rules.rs`. `cargo run -p acacia-bot --example place_probe -- <server> <name>`; `ONLY=<item>`.
 mod support;
+#[path = "place_probe/redstone.rs"]
+mod probe_redstone;
 #[path = "place_probe/twocell.rs"]
 mod twocell;
 
@@ -91,8 +93,13 @@ async fn main() -> Result<(), Error> {
     let only = std::env::var("ONLY").ok();
     let (mut bot, pad) = support::connect(&server, &name).await?;
     pad.build(&mut bot, &[], 5).await?;
-    if std::env::var("SET").as_deref() == Ok("twocell") {
-        twocell::run(&mut bot, &pad, only.as_deref()).await?;
+    let set = std::env::var("SET");
+    if matches!(set.as_deref(), Ok("twocell" | "redstone")) {
+        if set.as_deref() == Ok("redstone") {
+            probe_redstone::run(&mut bot, &pad).await?;
+        } else {
+            twocell::run(&mut bot, &pad, only.as_deref()).await?;
+        }
         pad.go_home(&mut bot).await?;
         bot.disconnect().await;
         return Ok(());
