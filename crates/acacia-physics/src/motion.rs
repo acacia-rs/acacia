@@ -120,6 +120,39 @@ pub(crate) fn set_post_collision_motion(st: &mut PlayerState, old: Vec3, old_on_
     st.set_vel(v);
 }
 
+/// Fraction of a sine-table step a glide's look indices keep from a step edge ([`steady_glide_look`]).
+const GLIDE_INDEX_MARGIN: f32 = 0.05;
+
+/// The glide look nearest (`yaw`, `pitch`) whose sine-table indices in [`simulate_glide`] all sit
+/// `GLIDE_INDEX_MARGIN` inside a step. Strict BDS rebuilds the look rotation from the previous one and can land an
+/// ulp or two off the sent angle; at a step edge that changes the heading by a whole step (1e-4 rad) and draws a
+/// correction (Optimal 800/600 flights, 2026-10-28). Moves an angle by at most half a step, 0.0027 degrees.
+pub fn steady_glide_look(yaw: f32, pitch: f32) -> (f32, f32) {
+    let radians = PI32 / 180.0;
+    let yaw_indices = |y: f32| {
+        let a = -(y * radians) - PI32;
+        [a * 10430.378, a * 10430.378 + 16384.0]
+    };
+    let pitch_indices = |p: f32| {
+        let b = p * radians;
+        [-b * 10430.378, -b * 10430.378 + 16384.0, b * 10430.378, b * 10430.378 + 16384.0]
+    };
+    (steady_angle(yaw, yaw_indices), steady_angle(pitch, pitch_indices))
+}
+
+fn steady_angle<const N: usize>(angle: f32, indices: impl Fn(f32) -> [f32; N]) -> f32 {
+    let step = 1.0 / (10430.378 * (PI32 / 180.0));
+    let clear = |a: f32| indices(a).iter().all(|i| {
+        let f = i - i.floor();
+        f.min(1.0 - f) >= GLIDE_INDEX_MARGIN
+    });
+    (0..=25)
+        .flat_map(|k| [k as f32 * 0.02 * step, -(k as f32) * 0.02 * step])
+        .map(|d| angle + d)
+        .find(|&a| clear(a))
+        .unwrap_or(angle)
+}
+
 /// Elytra flight acceleration as BDS computes it (docs/research/riding-fishing-elytra.md): the look vector
 /// from -pitch, its true horizontal length, gravity in BDS's form.
 pub(crate) fn simulate_glide(st: &mut PlayerState) {
@@ -175,4 +208,19 @@ pub(crate) fn sprint_movement_blocked(requested: Vec3, actual: Vec3) -> bool {
     const MIN_MOVEMENT: f32 = 0.00005;
     let (x, z) = (requested[0].abs(), requested[2].abs());
     (x > z && actual[0].abs() < MIN_MOVEMENT) || (z > x && actual[2].abs() < MIN_MOVEMENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::steady_glide_look;
+
+    #[test]
+    fn steady_glide_look_moves_only_edge_angles() {
+        // Sent on the 2026-10-28 corrected tick: yaw index 9671.998, two ulps under a step edge.
+        let (yaw, pitch) = steady_glide_look(-53.129_875, -6.0);
+        assert_ne!(yaw, -53.129_875);
+        assert!((yaw + 53.129_875).abs() < 0.003, "{yaw}");
+        assert_eq!(pitch, -6.0);
+        assert_eq!(steady_glide_look(-53.1, 12.5), (-53.1, 12.5));
+    }
 }

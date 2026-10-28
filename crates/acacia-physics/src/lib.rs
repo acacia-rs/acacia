@@ -39,7 +39,7 @@ pub use clip::clip_collide;
 pub use flight::Flight;
 pub use input::Input;
 pub use math::{BlockPos, Vec3, mc_cos, mc_sin};
-pub use motion::jump_impulse;
+pub use motion::{jump_impulse, steady_glide_look};
 pub use sim::{Outcome, TickOutput, apply_current, tick, touching_water};
 pub use state::{Effects, Equipment, PlayerState};
 pub use vehicle::{HorseJump, RiderInput, horse, horse_tick};

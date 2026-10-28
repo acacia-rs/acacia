@@ -1,6 +1,6 @@
 //! One flight, tick by tick, network-free: sets the controls and says which action the bot takes this tick.
 
-use acacia_physics::{BlockPos, Vec3, WorldView};
+use acacia_physics::{BlockPos, Vec3, WorldView, steady_glide_look};
 
 use super::solve::{Line, MAX_SINK, glide_reach, skid, solve};
 use super::surface::{Surface, corridor, corridor_top, known_ahead};
@@ -205,7 +205,8 @@ impl FlightPilot {
         tracing::trace!(tick = self.tick, ?pos, d, known, cruise_y = self.cruise_y, spot = ?self.spot, pitch = self.pitch, rockets, ?order, "glide");
         // The landing rollouts' sink limit, flown for real (`solve::MAX_SINK`).
         let aim = if landing && st.vel[1] < -MAX_SINK { self.pitch.min(0.0) } else { self.pitch };
-        *c = Controls { forward: 1.0, glide: true, yaw, pitch: self.pitch_aim.turn(st.pitch, aim).clamp(-90.0, 90.0), ..Controls::default() };
+        let (yaw, pitch) = steady_glide_look(yaw, self.pitch_aim.turn(st.pitch, aim).clamp(-90.0, 90.0));
+        *c = Controls { forward: 1.0, glide: true, yaw, pitch, ..Controls::default() };
         order
     }
 
