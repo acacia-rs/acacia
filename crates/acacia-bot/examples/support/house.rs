@@ -12,6 +12,9 @@ use acacia_bot::Bot;
 
 use super::{Error, Fill, Pad};
 
+#[path = "../../src/build/tests/scenes_redstone.rs"]
+mod scenes_redstone;
+
 const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/build/house16.mcstructure");
 const MAX_TICKS: u32 = 40_000;
 /// Footprint corner (pad offset).
@@ -34,6 +37,9 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
     let put = |s: &mut Structure, p: [i32; 3], name: &str, props: &str| s.set(p, Some(Block::new(name, props)));
     let s = match name {
         "house16" => return Ok((FIXTURE.into(), vec![([6, 0, -6], [8, 1, -4], "dirt"), ([12, 2, 2], [13, 2, 3], "stone")])),
+        // The floor laid already (see `scenes_redstone`): the garden's is plain grass, cleared where it differs.
+        "rs-rails" => (scenes_redstone::rails(), vec![(at([0, 0, 0]), at([7, 0, 5]), scenes_redstone::FLOORS[0].1)]),
+        "rs-garden" => (scenes_redstone::garden(), vec![(at([0, 0, 0]), at([6, 0, 5]), scenes_redstone::FLOORS[1].1)]),
         "wall" => {
             let mut s = Structure::new([8, 6, 1]);
             for x in 0..8 {
@@ -106,17 +112,18 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
 pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error> {
     let (structure, junk) = scene(name)?;
     pad.build(a, &junk, 5).await?;
-    for (station, items) in STATIONS.iter().zip(STOCK) {
+    // Slots as (item, count): house16's stock in whole stacks, the redstone scenes' one slot per entry.
+    let slots: Vec<Vec<(&str, u32)>> = match name.strip_prefix("rs-") {
+        Some(_) => vec![scenes_redstone::STOCK.to_vec(), Vec::new()],
+        None => STOCK.iter().map(|items| items.iter().flat_map(|(item, stacks)| (0..*stacks).map(move |_| (*item, 64))).collect()).collect(),
+    };
+    for (station, items) in STATIONS.iter().zip(slots) {
         let [x, y, z] = pad.block(*station);
         pad.run(a, &format!("/setblock {x} {y} {z} barrel"));
         a.wait_ticks(2).await?;
-        let mut slot = 0;
-        for (item, stacks) in items {
-            for _ in 0..*stacks {
-                pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} 64"));
-                a.wait_ticks(2).await?;
-                slot += 1;
-            }
+        for (slot, (item, count)) in items.iter().enumerate() {
+            pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} {count}"));
+            a.wait_ticks(2).await?;
         }
     }
     let mut job = BuildJob::new(structure, Transform { origin: pad.block(AT), ..Transform::default() });

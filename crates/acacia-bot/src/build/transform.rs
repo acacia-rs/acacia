@@ -43,6 +43,7 @@ const DIR_STATES: &[(&str, [&str; 4])] = &[
     ("weirdo_direction", ["3", "0", "2", "1"]),
     ("torch_facing_direction", ["north", "east", "south", "west"]),
     ("direction", ["2", "3", "0", "1"]),
+    ("vine_direction_bits", ["4", "8", "1", "2"]),
 ];
 
 impl Transform {
@@ -79,6 +80,9 @@ impl Transform {
     }
 
     fn value<'a>(&self, key: &str, v: &'a str) -> &'a str {
+        if key == "rail_direction" {
+            return super::rules::redstone::turned_rail(v, self.turns, self.mirror);
+        }
         if key == "pillar_axis" && self.turns % 2 == 1 {
             return match v {
                 "x" => "z",

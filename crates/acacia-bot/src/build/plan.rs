@@ -157,13 +157,13 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers(b, b.cells[i].pos)).take(TRIES * 2).collect();
     for i in candidates {
         let (pos, target) = (b.cells[i].pos, &b.cells[i].target);
-        let Some(item) = rules::item(target) else { continue };
-        if missing.contains(&item) || (rules::gravity(&target.name) && cx.look.solid([pos[0], pos[1] - 1, pos[2]]) != Some(true)) {
+        let Some(item) = rules::redstone::item_now(target, cx.look.block(pos), cx.look).or_else(|| rules::item(target)) else { continue };
+        if missing.contains(&item) || (rules::gravity(&target.name) && cx.look.solid([pos[0], pos[1] - 1, pos[2]]) != Some(true)) || !rules::redstone::ready(target, pos, cx.look, &|p| b.target(p).cloned()) {
             continue;
         }
         let supported = Face::ALL.iter().any(|f| {
             let o = f.offset();
-            cx.look.block([pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]]).is_some_and(|v| v.solid() && !v.interactive && (v.full || v.name.ends_with("_slab")))
+            cx.look.block([pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]]).is_some_and(|v| v.solid() && !v.interactive && (v.full || v.name.ends_with("_slab") || rules::redstone::top(v.name).is_some()))
         });
         if !supported {
             unsupported.get_or_insert(pos);
@@ -178,6 +178,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         }
         ready.push((i, item));
     }
+    rules::redstone::dry_first(&mut ready, |i| b.cells[i].target.clone());
     // The held item first: every switch costs an equip (live: 235 switches, a third of a build's time).
     ready.sort_by_key(|(_, item)| Some(item.as_str()) != cx.look.held());
     // Whatever can be clicked from here first (still lowest first), then walk for the lowest. Walking, a click
@@ -189,7 +190,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         if free(b, cx, pos)
             && let Some(c) = click_for(pos, target, eye, cx.look, slack)
         {
-            let act = Act::Place { item: item.clone(), against: c.against, face: c.face, click: c.click };
+            let act = rules::redstone::act(item.clone(), c.against, c.face, c.click, pos);
             if walking && super::en_route::look_free(&target.name) {
                 b.en_route.get_or_insert(act);
             } else {

@@ -74,8 +74,8 @@ fn derived_states_are_not_compared() {
 #[test]
 fn outside_the_common_set() {
     assert!(!supported("minecraft:oak_door"));
-    assert!(!supported("minecraft:redstone_wire"));
-    assert!(!supported("minecraft:water"));
+    assert!(!supported("minecraft:redstone_torch"));
+    assert!(!supported("minecraft:waterlily"));
     assert!(supported("minecraft:torch"));
     assert!(supported("minecraft:glass_pane"));
     assert_eq!(item(&Block::new("cake", "bite_counter=0")), None, "unknown state");

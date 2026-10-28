@@ -151,6 +151,7 @@ fn act(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> {
         Act::Place { against, face, .. } => face.adjacent(*against),
         Act::Break { pos } | Act::Fill { pos, .. } => *pos,
         Act::Restock { station, .. } => *station,
+        Act::UseOn { cell, .. } => *cell,
     };
     if watched(cell) || matches!(act, Act::Place { against, .. } if watched(*against)) {
         eprintln!("WATCH bot {} tick {} eye {:?} {act:?} -> {r:?}; now {:?}", w.me, w.now, eye(m), view(w.g, cell));
@@ -171,6 +172,13 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
             let cell = solid(w, pos).expect("loaded");
             if far(*against) || solid(w, *against).is_none_or(|b| !b.solid()) || blocked(w, pos) || (cell.solid() && !cell.name.ends_with("_slab")) {
                 return Err(ActionError::Rejected(format!("place {item} at {pos:?} from {e:?}")));
+            }
+            if let Some(state) = super::redstone_sim::place(w.g, item, *face, pos) {
+                let (name, props) = state.ok_or_else(|| ActionError::Rejected(format!("{item} refused at {pos:?}")))?;
+                take(w, item)?;
+                w.set(pos, &name, &props);
+                super::redstone_sim::join(w.g, pos);
+                return Ok(());
             }
             let point = [against[0] as f32 + click[0], against[1] as f32 + click[1], against[2] as f32 + click[2]];
             let (name, props) = bds_state(item, *face, *click, e, point, cell.name, pos).ok_or_else(|| ActionError::Rejected("refused".into()))?;
@@ -201,6 +209,8 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
                 _ => Err(ActionError::NotPossible(format!("fill {pos:?} from {e:?}"))),
             }
         }
+        Act::UseOn { item, against, face, .. } if !far(*against) => super::redstone_sim::use_on(w.g, &mut w.inv, item, *against, *face),
+        Act::UseOn { .. } => Err(ActionError::NotPossible("use out of reach".into())),
         Act::Restock { station, items } => {
             if far(*station) {
                 return Err(ActionError::NotPossible("station out of reach".into()));
@@ -290,7 +300,7 @@ pub fn step(w: &mut World, m: &mut Movement, arb: &mut Arbiter, tick: u32) -> u3
         Decision::Act(pid, a) => {
             m.controls.stop();
             ticks = match &a {
-                Act::Place { .. } | Act::Fill { .. } => PLACE_TICKS,
+                Act::Place { .. } | Act::Fill { .. } | Act::UseOn { .. } => PLACE_TICKS,
                 Act::Break { .. } => BREAK_TICKS,
                 Act::Restock { .. } => RESTOCK_TICKS,
             };

@@ -7,16 +7,19 @@ use super::structure::Block;
 use crate::interact::Face;
 use crate::pathfind::process::BlockView;
 
+pub(super) mod rails;
+pub(super) mod redstone;
+
 /// Recomputed from the neighbours by the server (stair corners, wall/fence/pane connections), or redstone
 /// activity: never compared.
 fn derived(key: &str) -> bool {
-    key == "corner" || key.starts_with("wall_connection_type_") || key == "wall_post_bit" || key.starts_with("connection_") || matches!(key, "powered_bit" | "triggered_bit" | "button_pressed_bit")
+    key == "corner" || key.starts_with("wall_connection_type_") || key == "wall_post_bit" || key.starts_with("connection_") || matches!(key, "powered_bit" | "triggered_bit" | "button_pressed_bit") || redstone::derived(key)
 }
 
 /// Outside the common building set (B1): their states take more than one click, or they are not blocks one places.
 const DENIED: &[&str] = &[
-    "door", "bed", "sign", "redstone", "repeater", "comparator", "water", "lava", "rail", "banner", "skull", "head", "portal", "fire", "sapling", "wheat", "carrots",
-    "potatoes", "beetroot", "vine", "kelp", "seagrass", "bubble", "piston_arm", "moving_block", "bamboo", "cactus", "sugar_cane", "chest", "lever", "trapdoor",
+    "door", "bed", "sign", "redstone_torch", "redstone_lamp", "redstone_ore", "repeater", "comparator", "waterlily", "lava_cauldron", "banner", "skull", "head", "portal",
+    "fire", "_vines", "cactus_flower", "bubble", "piston_arm", "moving_block", "chest", "lever", "trapdoor",
     "fence_gate", "pressure_plate", "lantern", "chain", "candle", "bell", "anvil", "hopper", "scaffolding",
 ];
 
@@ -52,7 +55,7 @@ fn is_double_slab(name: &str) -> bool {
 /// Every state of the target is one a click decides or the server derives.
 pub fn supported(name: &str) -> bool {
     let n = name.trim_start_matches("minecraft:");
-    !DENIED.iter().any(|d| n.contains(d))
+    !DENIED.iter().any(|d| n.contains(d)) && !redstone::denied(n)
 }
 
 fn controlled(name: &str, k: &str) -> bool {
@@ -60,7 +63,7 @@ fn controlled(name: &str, k: &str) -> bool {
         "pillar_axis" | "vertical_half" | "upside_down_bit" | "weirdo_direction" | "cardinal_direction" => true,
         "torch_facing_direction" => true,
         "facing_direction" => facing_kind(name).is_some(),
-        _ => false,
+        _ => redstone::controlled(name, k),
     }
 }
 
@@ -71,10 +74,10 @@ fn keys_known(target: &Block) -> bool {
 
 /// The item that places the target.
 pub fn item(target: &Block) -> Option<String> {
-    if !supported(&target.name) || !keys_known(target) {
+    if !supported(&target.name) || !keys_known(target) || !redstone::placeable(target) {
         return None;
     }
-    Some(target.name.replace("_double_slab", "_slab"))
+    redstone::item(target).or_else(|| Some(target.name.replace("_double_slab", "_slab")))
 }
 
 pub fn items_per_cell(target: &Block) -> u32 {
@@ -94,6 +97,9 @@ pub fn gravity(name: &str) -> bool {
 
 /// The world shows the target: same block, same states except derived ones (and a double slab's half).
 pub fn matches(target: &Block, w: &BlockView) -> bool {
+    if let Some(m) = redstone::matches(target, w) {
+        return m;
+    }
     if target.name != w.name {
         return false;
     }
@@ -105,7 +111,7 @@ pub fn matches(target: &Block, w: &BlockView) -> bool {
 
 /// The cell holds the half slab that one more slab makes into the target.
 pub fn completes(target: &Block, w: &BlockView) -> bool {
-    is_double_slab(&target.name) && item(target).is_some_and(|i| i == w.name)
+    (is_double_slab(&target.name) && item(target).is_some_and(|i| i == w.name)) || redstone::completes(target, w)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -187,6 +193,9 @@ fn six_way(eye: Vec3, pos: BlockPos, look: Option<Dir>) -> Option<Dir> {
 pub fn gives(target: &Block, face: Face, click: Vec3, eye: Vec3, pos: BlockPos, _against: &BlockView) -> bool {
     if is_double_slab(&target.name) {
         return true;
+    }
+    if let Some(g) = redstone::gives(target, face) {
+        return g;
     }
     let dir = Dir::of(face);
     let point = [(pos[0] - face.offset()[0]) as f32 + click[0], (pos[1] - face.offset()[1]) as f32 + click[1], (pos[2] - face.offset()[2]) as f32 + click[2]];

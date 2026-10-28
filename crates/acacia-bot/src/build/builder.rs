@@ -245,7 +245,9 @@ impl Builder {
     }
 
     pub(super) fn survey(&self, look: &dyn Look) -> Vec<Need> {
-        self.cells.iter().map(|c| need(&c.target, look.block(c.pos), self.job.fill_only)).collect()
+        let mut needs: Vec<Need> = self.cells.iter().map(|c| need(&c.target, look.block(c.pos), self.job.fill_only)).collect();
+        super::rules::redstone::settle(&self.cells, look, &|p| self.target(p).cloned(), &mut needs);
+        needs
     }
 
     /// Learns what a station lacks from what the last restock brought.

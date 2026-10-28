@@ -49,6 +49,10 @@ pub enum Act {
     Break { pos: BlockPos },
     /// Open the container at `station` and take stacks of `items` (identifier, count wanted) while there is room.
     Restock { station: BlockPos, items: Vec<(String, u32)> },
+    /// Use `item` on `face` of `against` (a hoe tilling, a bucket pouring); done once `cell` shows a block whose
+    /// name ends with `expect`.
+    // TODO: merge with the interact tier's generic use act (build/redstone's tilling and pouring seam).
+    UseOn { item: String, against: BlockPos, face: Face, cell: BlockPos, expect: String },
 }
 
 /// World changes every process hears about, whichever made them.
