@@ -94,7 +94,10 @@ fn scene(name: &str) -> Result<(PathBuf, Vec<Fill<'static>>), Error> {
             put(&mut s, [1, 1, 1], "furnace", "minecraft:cardinal_direction=south");
             (s, vec![(at([0, 0, 0]), at([2, 1, 2]), "dirt")])
         }
-        _ => return Err(format!("unknown scene {name}").into()),
+        _ => match super::scenes_twocell::scene(name, at) {
+            Some((s, junk, _)) => (s, junk),
+            None => return Err(format!("unknown scene {name}").into()),
+        },
     };
     let (s, junk) = s;
     let path = std::env::temp_dir().join(format!("acacia-scene-{name}.mcstructure"));
@@ -121,6 +124,9 @@ pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error
     }
     let mut job = BuildJob::new(structure, Transform { origin: pad.block(AT), ..Transform::default() });
     job.stations = STATIONS.iter().map(|&s| pad.block(s)).collect();
+    if let Some((_, _, stock)) = super::scenes_twocell::scene(name, |p| p) {
+        job.stations.push(pad.block(super::scenes_twocell::station(a, pad, stock).await?));
+    }
     Ok(job)
 }
 

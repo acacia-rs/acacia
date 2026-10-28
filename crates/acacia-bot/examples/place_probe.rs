@@ -2,6 +2,8 @@
 //! from each side, against each visible face, clicked low and high, and the resulting state is printed. Evidence
 //! for `build/rules.rs`. `cargo run -p acacia-bot --example place_probe -- <server> <name>`; `ONLY=<item>`.
 mod support;
+#[path = "place_probe/twocell.rs"]
+mod twocell;
 
 use acacia_bot::interact::Face;
 use acacia_bot::survival::Destination;
@@ -72,6 +74,12 @@ async fn main() -> Result<(), Error> {
     let only = std::env::var("ONLY").ok();
     let (mut bot, pad) = support::connect(&server, &name).await?;
     pad.build(&mut bot, &[], 5).await?;
+    if std::env::var("SET").as_deref() == Ok("twocell") {
+        twocell::run(&mut bot, &pad, only.as_deref()).await?;
+        pad.go_home(&mut bot).await?;
+        bot.disconnect().await;
+        return Ok(());
+    }
     let vert = std::env::var("VERT").is_ok();
     let (items, stands) = if vert { (VERT_ITEMS, VERT_STANDS) } else { (ITEMS, STANDS) };
     for item in items.iter().filter(|i| only.as_deref().is_none_or(|o| o == **i)) {

@@ -7,6 +7,8 @@ use super::structure::Block;
 use crate::interact::Face;
 use crate::pathfind::process::BlockView;
 
+pub mod twocell;
+
 /// Recomputed from the neighbours by the server (stair corners, wall/fence/pane connections), or redstone
 /// activity: never compared.
 fn derived(key: &str) -> bool {
@@ -15,7 +17,7 @@ fn derived(key: &str) -> bool {
 
 /// Outside the common building set (B1): their states take more than one click, or they are not blocks one places.
 const DENIED: &[&str] = &[
-    "door", "bed", "sign", "redstone", "repeater", "comparator", "water", "lava", "rail", "banner", "skull", "head", "portal", "fire", "sapling", "wheat", "carrots",
+    "bedrock", "sign", "redstone", "repeater", "comparator", "water", "lava", "rail", "banner", "skull", "head", "portal", "fire", "sapling", "wheat", "carrots",
     "potatoes", "beetroot", "vine", "kelp", "seagrass", "bubble", "piston_arm", "moving_block", "bamboo", "cactus", "sugar_cane", "chest", "lever", "trapdoor",
     "fence_gate", "pressure_plate", "lantern", "chain", "candle", "bell", "anvil", "hopper", "scaffolding",
 ];
@@ -60,7 +62,7 @@ fn controlled(name: &str, k: &str) -> bool {
         "pillar_axis" | "vertical_half" | "upside_down_bit" | "weirdo_direction" | "cardinal_direction" => true,
         "torch_facing_direction" => true,
         "facing_direction" => facing_kind(name).is_some(),
-        _ => false,
+        _ => twocell::controlled(name, k),
     }
 }
 
@@ -71,7 +73,7 @@ fn keys_known(target: &Block) -> bool {
 
 /// The item that places the target.
 pub fn item(target: &Block) -> Option<String> {
-    if !supported(&target.name) || !keys_known(target) {
+    if !supported(&target.name) || !keys_known(target) || twocell::unplaceable(target) {
         return None;
     }
     Some(target.name.replace("_double_slab", "_slab"))
@@ -99,7 +101,7 @@ pub fn matches(target: &Block, w: &BlockView) -> bool {
     }
     target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, v)| {
         let k2 = key(k);
-        derived(k2) || (is_double_slab(&target.name) && k2 == "vertical_half") || w.prop(k).or_else(|| w.prop(k2)).is_none_or(|wv| wv == v)
+        derived(k2) || twocell::ignored(target, k2) || (is_double_slab(&target.name) && k2 == "vertical_half") || w.prop(k).or_else(|| w.prop(k2)).is_none_or(|wv| wv == v)
     })
 }
 
@@ -190,6 +192,9 @@ pub fn gives(target: &Block, face: Face, click: Vec3, eye: Vec3, pos: BlockPos, 
     }
     let dir = Dir::of(face);
     let point = [(pos[0] - face.offset()[0]) as f32 + click[0], (pos[1] - face.offset()[1]) as f32 + click[1], (pos[2] - face.offset()[2]) as f32 + click[2]];
+    if let Some(g) = twocell::gives(target, face, eye, point) {
+        return g;
+    }
     let top = match dir {
         Dir::Down => true,
         Dir::Up => false,

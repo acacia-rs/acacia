@@ -73,7 +73,7 @@ fn derived_states_are_not_compared() {
 
 #[test]
 fn outside_the_common_set() {
-    assert!(!supported("minecraft:oak_door"));
+    assert!(!supported("minecraft:spruce_trapdoor"));
     assert!(!supported("minecraft:redstone_wire"));
     assert!(!supported("minecraft:water"));
     assert!(supported("minecraft:torch"));

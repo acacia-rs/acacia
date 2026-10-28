@@ -169,6 +169,10 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
             unsupported.get_or_insert(pos);
             continue;
         }
+        if super::pairs::waits(b, cx.look, pos) {
+            b.rest(pos);
+            continue;
+        }
         if cx.look.count(&item) == 0 {
             match restock::fetch(b, cx, needs) {
                 Some(next) => return next,
@@ -187,6 +191,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         let (pos, target) = (b.cells[*i].pos, &b.cells[*i].target);
         let slack = if walking { super::en_route::SLACK } else { 0.0 };
         if free(b, cx, pos)
+            && super::pairs::second(b, pos).is_none_or(|o| free(b, cx, o))
             && let Some(c) = click_for(pos, target, eye, cx.look, slack)
         {
             let act = Act::Place { item: item.clone(), against: c.against, face: c.face, click: c.click };
