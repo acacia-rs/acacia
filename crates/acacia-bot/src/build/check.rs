@@ -44,3 +44,16 @@ pub fn colors(structure: &Structure, at: &Transform, color: impl Fn(BlockPos) ->
         })
         .collect()
 }
+
+/// Signs whose text differs from the structure's: `text` gives a world cell's side (front `true`; `None`, as
+/// blank: no sign entity known there).
+pub fn check_text(structure: &Structure, at: &Transform, text: impl Fn(BlockPos, bool) -> Option<String>) -> Vec<Mismatch> {
+    structure
+        .cells()
+        .filter_map(|(local, _)| {
+            let (pos, want) = (at.apply(structure.size, local), structure.text(local)?);
+            let found = (text(pos, true).unwrap_or_default(), text(pos, false).unwrap_or_default());
+            (found.0 != want.front || found.1 != want.back).then(|| Mismatch { pos, want: format!("text {:?} / {:?}", want.front, want.back), found: format!("text {:?} / {:?}", found.0, found.1) })
+        })
+        .collect()
+}

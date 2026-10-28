@@ -276,4 +276,8 @@ impl Look for BotLook<'_> {
     fn any_in_flight(&self) -> bool {
         !self.0.in_flight.is_empty()
     }
+
+    fn sign_text(&self, pos: BlockPos, front: bool) -> Option<String> {
+        self.0.state.block_entities.sign_text(pos, front).map(str::to_string)
+    }
 }

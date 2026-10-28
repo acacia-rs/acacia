@@ -116,7 +116,7 @@ pub fn controlled(name: &str, k: &str) -> bool {
 
 /// A state no placement gives: an open door (the interact tier), an occupied bed.
 pub fn unplaceable(target: &Block) -> bool {
-    kind(&target.name).is_some() && (bit(target, "open_bit") || bit(target, "occupied_bit"))
+    kind(&target.name).is_some() && bit(target, "occupied_bit")
 }
 
 /// Not compared: BDS keeps a door's hinge in its upper half and writes 0 in the lower.

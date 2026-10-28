@@ -82,7 +82,22 @@ impl Transform {
         if self.mirror { super::rules::twocell::mirror_door(turned) } else { turned }
     }
 
-    fn value<'a>(&self, name: &str, key: &str, v: &'a str) -> &'a str {
+    fn value(&self, name: &str, key: &str, v: &str) -> String {
+        match key {
+            // Sixteenths of a turn from south, clockwise seen from above (west is 4).
+            "ground_sign_direction" => match v.parse::<u32>() {
+                Ok(r) => ((if self.mirror { 16 - r } else { r } + 4 * u32::from(self.turns % 4)) % 16).to_string(),
+                Err(_) => v.to_string(),
+            },
+            "lever_direction" => match v.split_once('_') {
+                Some((end, axis)) => format!("{end}_{}", self.value(name, "pillar_axis", if axis == "north_south" { "z" } else { "x" }).replace('z', "north_south").replace('x', "east_west")),
+                None => self.value(name, "cardinal_direction", v),
+            },
+            _ => self.plain(name, key, v).to_string(),
+        }
+    }
+
+    fn plain<'a>(&self, name: &str, key: &str, v: &'a str) -> &'a str {
         if key == "pillar_axis" && self.turns % 2 == 1 {
             return match v {
                 "x" => "z",

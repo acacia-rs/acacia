@@ -32,7 +32,7 @@ fn trapdoors_face_the_player_and_flip_on_high_clicks() {
     assert!(at("spruce_trapdoor", &closed("1", 0), Face::South, 0.25, W));
     assert!(at("trapdoor", &closed("0", 0), Face::North, 0.25, E));
     assert!(!at("trapdoor", &closed("0", 0), Face::North, 0.75, E));
-    assert_eq!(item(&Block::new("trapdoor", "direction=0,open_bit=1,upside_down_bit=0")), None, "open: the interact tier's");
+    assert_eq!(item(&Block::new("trapdoor", "direction=0,open_bit=1,upside_down_bit=0")).as_deref(), Some("minecraft:trapdoor"), "opened afterwards by a use");
     let t = Transform { turns: 1, ..Transform::default() };
     assert_eq!(t.block(&Block::new("trapdoor", "direction=3")).prop("direction"), Some("0"), "north turns east");
 }
@@ -102,7 +102,7 @@ fn denied_by_accident_no_more() {
     for n in ["redstone_block", "redstone_lamp", "redstone_torch", "sea_lantern", "lantern", "iron_chain", "stone_pressure_plate", "hopper", "dead_fire_coral_block", "campfire"] {
         assert!(supported(&format!("minecraft:{n}")), "{n}");
     }
-    for n in ["redstone_wire", "repeater", "unpowered_comparator", "fire", "fire_coral_block", "bubble_coral_block"] {
+    for n in ["redstone_wire", "fire", "fire_coral_block", "bubble_coral_block"] {
         assert!(!supported(&format!("minecraft:{n}")), "{n}");
     }
     assert_eq!(item(&Block::new("chain_command_block", "conditional_bit=0,facing_direction=2")), None);

@@ -146,6 +146,11 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         }
     }
 
+    let adjusts: Vec<usize> = order.iter().copied().filter(|&i| open(b, i, Need::Adjust)).collect();
+    if let Some(next) = super::adjust::next(b, cx, &adjusts) {
+        return next;
+    }
+
     // Places, bottom up.
     let mut places: Vec<usize> = order.iter().copied().filter(|&i| open(b, i, Need::Place)).collect();
     places.sort_by_key(|&i| b.cells[i].pos[1]);
@@ -234,7 +239,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     if let Some(i) = order.iter().copied().find(|&i| needs[i] == Need::Unknown && b.mine(b.cells[i].pos)) {
         return Next::Go(Phase::Surveying, b.cells[i].pos, Goal::Near(b.cells[i].pos, 3.0));
     }
-    let pending = cx.look.any_in_flight() || needs.iter().enumerate().any(|(i, n)| matches!(n, Need::Place | Need::Break | Need::Drain) && !b.given_up(b.cells[i].pos) && !(*n == Need::Break && held(b, i)));
+    let pending = cx.look.any_in_flight() || needs.iter().enumerate().any(|(i, n)| matches!(n, Need::Place | Need::Break | Need::Drain | Need::Adjust) && !b.given_up(b.cells[i].pos) && !(*n == Need::Break && held(b, i)));
     if pending {
         b.revive();
         let why = match () {

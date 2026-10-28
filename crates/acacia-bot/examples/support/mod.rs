@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod house;
+pub mod interact_scenes;
 pub mod oneclick;
 pub mod scenes_twocell;
 

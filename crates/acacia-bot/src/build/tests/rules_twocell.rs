@@ -120,7 +120,7 @@ fn a_bed_of_the_wrong_colour_is_cleared() {
     let (foot, head) = (Block::new("bed", "bed_color=14,direction=3,head_piece_bit=0,occupied_bit=0"), Block::new("bed", "bed_color=14,direction=3,head_piece_bit=1,occupied_bit=0"));
     assert_eq!(item(&foot).as_deref(), Some("minecraft:bed@14"), "the colour is the item's aux");
     let (hp, plain) = ([6, 0, 0], |b: &Block| Block::new(&b.name, &b.props.replace("bed_color=14,", "")));
-    let cells = vec![Cell { pos: T, target: foot.clone() }, Cell { pos: hp, target: head.clone() }];
+    let cells = vec![Cell { pos: T, target: foot.clone(), text: None }, Cell { pos: hp, target: head.clone(), text: None }];
     let index: HashMap<BlockPos, usize> = cells.iter().enumerate().map(|(i, c)| (c.pos, i)).collect();
     let survey = |colors: &[(BlockPos, u8)]| {
         let mut w = world(&[(T, plain(&foot)), (hp, plain(&head))]);
@@ -171,7 +171,7 @@ fn hinges_follow_the_neighbours_seen_from_the_placing_side() {
 #[test]
 fn the_survey_places_a_pair_once_and_clears_it_whole() {
     let (lo, hi) = (door("east", 0, 0), door("east", 0, 1));
-    let cells = vec![Cell { pos: T, target: lo.clone() }, Cell { pos: [5, 1, 0], target: hi.clone() }];
+    let cells = vec![Cell { pos: T, target: lo.clone(), text: None }, Cell { pos: [5, 1, 0], target: hi.clone(), text: None }];
     let index: HashMap<BlockPos, usize> = cells.iter().enumerate().map(|(i, c)| (c.pos, i)).collect();
     let survey = |w: &Cells| {
         let mut needs: Vec<Need> = cells.iter().map(|c| crate::build::survey::need(&c.target, w.block(c.pos), false)).collect();
@@ -185,7 +185,7 @@ fn the_survey_places_a_pair_once_and_clears_it_whole() {
     let stone = Block::new("stone", "");
     assert_eq!(survey(&world(&[([5, 1, 0], stone.clone())])), [Need::Paired, Need::Break], "junk in the upper cell goes first");
     assert_eq!(survey(&world(&[(T, stone)])), [Need::Break, Need::Paired]);
-    let half = vec![Cell { pos: T, target: lo }];
+    let half = vec![Cell { pos: T, target: lo, text: None }];
     let mut needs = vec![Need::Place];
     settle(&half, &[(T, 0)].into(), &world(&[]), false, &mut needs);
     assert_eq!(needs, [Need::Unsupported], "the upper half outside the footprint");

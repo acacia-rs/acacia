@@ -89,7 +89,12 @@ fn double_places(lines: &[Line]) -> Vec<(BlockPos, String)> {
         if let Entry::Acted { kind, cell: Some(c), err: None, item, target } = &l.e {
             match kind {
                 Kind::Place => {
-                    let takes = if target.as_deref().is_some_and(|t| t.ends_with("double_slab")) { 2 } else { 1 };
+                    // Counted blocks take up to four (the journal names the block, not its count).
+                    let takes = match target.as_deref() {
+                        Some(t) if t.ends_with("double_slab") => 2,
+                        Some(t) if t.ends_with("candle") || t.ends_with("sea_pickle") || t.ends_with("turtle_egg") => 4,
+                        _ => 1,
+                    };
                     let before = placed.entry(*c).or_default();
                     before.push((l.bot.as_str(), l.t));
                     if before.len() > takes {

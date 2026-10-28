@@ -39,7 +39,7 @@ fn elsewhere(goal: &Goal, feet: acacia_physics::Vec3) -> Option<Goal> {
 fn cell_of(act: &Act) -> Option<acacia_physics::BlockPos> {
     match act {
         Act::Place { against, face, .. } => Some(face.adjacent(*against)),
-        Act::Break { pos } | Act::Fill { pos, .. } => Some(*pos),
+        Act::Break { pos } | Act::Fill { pos, .. } | Act::Use { pos, .. } | Act::Sign { pos, .. } => Some(*pos),
         _ => None,
     }
 }
@@ -214,13 +214,23 @@ impl Process for Builder {
             Act::Break { .. } => (Kind::Break, None),
             Act::Fill { .. } => (Kind::Fill, None),
             Act::Restock { .. } => (Kind::Restock, None),
+            Act::Use { item, .. } => (Kind::Use, item.clone()),
+            Act::Sign { .. } => (Kind::Sign, None),
         };
         let cell = cell_of(act);
         let target = cell.and_then(|c| self.target(c)).map(|t| t.name.clone());
         self.note(Entry::Acted { kind, cell, item, target, err: result.as_ref().err().map(|e| e.to_string()) });
         match (act, result) {
             (Act::Place { against, face, .. }, Ok(())) => {
-                self.tries.entry(face.adjacent(*against)).or_default().places += 1;
+                let cell = face.adjacent(*against);
+                let more = self.target(cell).map_or(0, super::rules::more_placements);
+                let t = self.tries.entry(cell).or_default();
+                // A candle's further placements are the build, not a wrong placement made again.
+                if t.adds < more {
+                    t.adds += 1;
+                } else {
+                    t.places += 1;
+                }
                 self.bump(|s| s.placed += 1);
             }
             (Act::Place { against, face, .. }, Err(e)) => self.fail(face.adjacent(*against), e),
@@ -235,6 +245,8 @@ impl Process for Builder {
                 self.seals.remove(pos);
                 self.fail(*pos, e);
             }
+            (Act::Use { .. } | Act::Sign { .. }, Ok(())) => self.bump(|s| s.adjusted += 1),
+            (Act::Use { pos, .. } | Act::Sign { pos, .. }, Err(e)) => self.fail(*pos, e),
             (Act::Restock { station, .. }, r) => {
                 self.close_station(*station);
                 if let Err(e) = r {

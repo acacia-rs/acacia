@@ -56,6 +56,8 @@ const VERT_STANDS: &[Stand] = &[
     Stand { name: "E2-high", feet: [7.4, 2.0, 0.5], near: [0, 0, -1] },
 ];
 const VERT_ITEMS: &[&str] = &["piston", "dispenser", "observer"];
+/// `SET=interact`: the interact tier's placements (use-clicks and sign rotation: `examples/interact_probe.rs`).
+const INTERACT_ITEMS: &[&str] = &["repeater", "comparator", "lever", "daylight_detector", "oak_sign", "oak_hanging_sign", "white_candle", "sea_pickle", "turtle_egg"];
 
 fn add(a: [i32; 3], b: [i32; 3]) -> [i32; 3] {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
@@ -163,6 +165,7 @@ async fn main() -> Result<(), Error> {
     let (items, stands) = match () {
         _ if vert => (VERT_ITEMS, VERT_STANDS),
         _ if oneclick => ([ONECLICK, ONECLICK_PLAIN].concat().leak() as &[&str], STANDS),
+        _ if std::env::var("SET").as_deref() == Ok("interact") => (INTERACT_ITEMS, STANDS),
         _ => (ITEMS, STANDS),
     };
     for item in items.iter().filter(|i| only.as_deref().is_none_or(|o| o == **i)) {
