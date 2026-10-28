@@ -31,18 +31,21 @@ pub(crate) struct BoatSim {
     history: VecDeque<(u64, [f32; 2], BoatState)>,
     /// Tick and wave sine of the last correction.
     fixed: Option<(u64, f64)>,
+    /// The ride's first input tick.
+    first: Option<u64>,
 }
 
 impl BoatSim {
-    /// Takes the server's boat after input `c.tick` and replays the inputs sent since. True when x, z or the yaw
-    /// was off (more than `HORIZONTAL`), not just the height the waves move.
-    fn correct(&mut self, c: &VehicleCorrection, world: &impl WorldView) -> bool {
+    /// Takes the server's boat after input `c.tick` and replays the inputs sent since. `Some(true)` when x, z or
+    /// the yaw was off (more than `HORIZONTAL`), not just the height the waves move; `None` for one from before the
+    /// ride's first input, the boat as boarded (the spawn packet's yaw is a 1.4° byte step).
+    fn correct(&mut self, c: &VehicleCorrection, world: &impl WorldView) -> Option<bool> {
         let at = self.history.iter().position(|(tick, ..)| *tick == c.tick);
         let mut st = at.map_or(self.st, |i| self.history[i].2);
         let off = |a: f32, b: f32| (a - b).abs() > HORIZONTAL;
         let yaw_off = ((st.yaw - c.pitch_yaw[1] + 180.0).rem_euclid(360.0) - 180.0).abs() > HORIZONTAL;
-        // A correction older than the history (the boarding one) is judged against the boat as it is now.
-        let horizontal = off(st.pos[0], c.feet[0]) || off(st.pos[2], c.feet[2]) || yaw_off;
+        let boarding = self.first.is_none_or(|first| c.tick < first);
+        let horizontal = !boarding && (off(st.pos[0], c.feet[0]) || off(st.pos[2], c.feet[2]) || yaw_off);
         if horizontal {
             tracing::debug!(tick = c.tick, ours = ?st.pos, vel = ?st.vel, yaw = st.yaw, server = ?c.feet, delta = ?c.delta, server_yaw = c.pitch_yaw[1], traced = at.is_some(), "horizontal boat correction");
         }
@@ -57,7 +60,7 @@ impl BoatSim {
             }
         }
         self.st = st;
-        horizontal
+        (!boarding).then_some(horizontal)
     }
 
     /// Sets the wave to the phase the server's vertical motion shows. Two phases share a sine: the
@@ -108,14 +111,16 @@ impl Bot {
         if self.ride.boat.as_ref().is_none_or(|b| b.unique_id != unique_id) {
             let Some(e) = runtime_id.and_then(|id| self.state.entities.get(id)) else { return false };
             let st = BoatState::new([e.position.x, e.position.y, e.position.z], e.yaw);
-            self.ride.boat = Some(BoatSim { unique_id, st, history: VecDeque::with_capacity(HISTORY), fixed: None });
+            self.ride.boat = Some(BoatSim { unique_id, st, history: VecDeque::with_capacity(HISTORY), fixed: None, first: None });
         }
         let Some(boat) = self.ride.boat.as_mut() else { return false };
-        if let Some(c) = movement.vehicle_correction.take() {
-            let horizontal = boat.correct(&c, &world);
+        if let Some(c) = movement.vehicle_correction.take()
+            && let Some(horizontal) = boat.correct(&c, &world)
+        {
             self.ride.boat_corrections[usize::from(horizontal)] += 1;
         }
         let held = keys(&movement.controls);
+        boat.first.get_or_insert(input.tick);
         physics::boat_tick(&mut boat.st, held, &world);
         if boat.history.len() == HISTORY {
             boat.history.pop_front();
