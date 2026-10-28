@@ -117,14 +117,15 @@ pub async fn setup(a: &mut Bot, pad: &Pad, name: &str) -> Result<BuildJob, Error
         pad.run(a, &format!("/setblock {x} {y} {z} barrel"));
         a.wait_ticks(2).await?;
         let mut slot = 0;
+        // BDS runs one player's commands in order, so the stacks need no wait between them.
         for (item, stacks) in items {
             for _ in 0..*stacks {
                 pad.run(a, &format!("/replaceitem block {x} {y} {z} slot.container {slot} {item} 64"));
-                a.wait_ticks(2).await?;
                 slot += 1;
             }
         }
     }
+    a.wait_ticks(4).await?;
     super::interact_scenes::stock(a, pad, &STATIONS).await?;
     let mut job = BuildJob::new(structure, Transform { origin: pad.block(AT), ..Transform::default() });
     job.stations = STATIONS.iter().map(|&s| pad.block(s)).collect();
@@ -229,7 +230,15 @@ pub async fn observe(server: &str, observer: &str, pad: &Pad, job: &BuildJob) ->
     let (mut o, _) = super::connect(server, observer).await?;
     let spot = pad.block([12, 9, 0]);
     pad.run(&o, &format!("/tp @s {} {} {}", spot[0] as f32 + 0.5, spot[1], spot[2] as f32 + 0.5));
-    o.wait_ticks(80).await?;
+    // Until every cell is loaded (at most 80 ticks), then a few more for block entities.
+    let cells: Vec<_> = structure.cells().map(|(local, _)| job.at.apply(structure.size, local)).collect();
+    for _ in 0..80 {
+        if cells.iter().all(|p| o.block_state(*p).is_some()) {
+            break;
+        }
+        o.wait_ticks(1).await?;
+    }
+    o.wait_ticks(10).await?;
     let mut wrong = check(&structure, &job.at, |p| o.block_state(p).map(BlockView::of));
     wrong.extend(acacia_bot::build::colors(&structure, &job.at, |p| match o.state().block_entities.get(p)?.value.get("color") {
         Some(acacia_client::proto::nbt::Value::Byte(c)) => Some(*c as u8),
