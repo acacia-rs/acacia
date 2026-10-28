@@ -17,7 +17,7 @@ pub fn goto_opts(profile: MovementProfile, seed: u64) -> GotoOpts {
 pub fn among(g: &Grid, mobs: Vec<Mob>, goal: Goal, profile: MovementProfile, seed: u64, max_ticks: u32) -> (Flight, Harm) {
     let mut crowd = Crowd::new(g, mobs);
     let sky = Sky { horizon: None, delay: 0, max_ticks };
-    let f = fly_with(g, &mut standing([0.5, 1.0, 0.5]), goal, goto_opts(profile, seed), sky, &mut |t, feet| crowd.step(t, feet));
+    let f = fly_with(g, &mut standing([0.5, 1.0, 0.5]), goal, goto_opts(profile, seed), sky, &mut |t, feet, struck| crowd.step(t, feet, struck));
     (f, crowd.harm)
 }
 
@@ -125,11 +125,11 @@ fn boat_in_corridor(profile: MovementProfile, leaves: Option<u32>) -> Flight {
     g.fill([-1, 1, -1], [20, 3, 1], "stone").fill([0, 1, 0], [20, 2, 0], "air").fill([4, 3, 0], [12, 3, 0], "stone");
     let mut crowd = Crowd::new(&g, vec![Mob::new("boat", [8.7, 1.0, 0.5], Brain::Still)]);
     let sky = Sky { horizon: None, delay: 0, max_ticks: 1200 };
-    let mut scene = |t: u32, feet| {
+    let mut scene = |t: u32, feet, struck| {
         if leaves == Some(t) {
             crowd.mobs.clear();
         }
-        crowd.step(t, feet)
+        crowd.step(t, feet, struck)
     };
     fly_with(&g, &mut standing([0.5, 1.0, 0.5]), Goal::Block([16, 1, 0]), goto_opts(profile, 4), sky, &mut scene)
 }

@@ -5,12 +5,14 @@
 mod field;
 mod kinds;
 mod perceive;
+mod strike;
 #[cfg(test)]
 mod tests;
 
 pub use field::{Hazards, Sphere};
 pub use kinds::{Class, Kind, of as kind};
 pub use perceive::{Senses, View, clear_line};
+pub use strike::{Body, Striker, INVULNERABLE_TICKS};
 
 use std::sync::Arc;
 
@@ -39,6 +41,8 @@ pub struct Threat {
     pub lit: bool,
     /// A neutral mob turned hostile.
     pub angry: bool,
+    /// Unique id of the entity it targets (`TargetEid`).
+    pub target: Option<i64>,
 }
 
 impl Threat {
@@ -60,6 +64,7 @@ impl Threat {
             age: now.saturating_sub(e.moved_at),
             lit: flags.contains(MetadataFlags1::IGNITED),
             angry: flags.contains(MetadataFlags1::ANGRY),
+            target: e.metadata.entity(acacia_client::proto::types::MetadataDictionaryItemKey::TargetEid),
         })
     }
 
@@ -73,6 +78,11 @@ impl Threat {
     /// Hostile now: melee, creepers, ranged, and neutrals while angry.
     pub fn hostile(&self) -> bool {
         matches!(self.class, Class::Melee | Class::Creeper | Class::Ranged) || self.class == Class::Neutral && self.angry
+    }
+
+    /// Hits in melee now: melee mobs and neutrals while angry.
+    pub fn melee(&self) -> bool {
+        self.class == Class::Melee || self.class == Class::Neutral && self.angry
     }
 }
 

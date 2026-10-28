@@ -8,7 +8,7 @@ use acacia_world::{BlockRegistry, ChunkView};
 
 use super::execute;
 use super::goal::Goal;
-use super::hazard::{self, Hazards};
+use super::hazard::{self, Body, Hazards};
 use super::work::Step;
 use super::kit::DEFAULT_SCAFFOLD;
 use super::pilot::Pilot;
@@ -150,6 +150,27 @@ pub(super) fn sense(pilot: &mut Pilot, bot: &Bot) {
     }
 }
 
+/// After the steering: aims at a chaser closing in and attacks it when due ([`Pilot::strike`]).
+fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
+    let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_ref()) else { return };
+    let (Some(view), Some(registry), Some(st)) = (world.view(), world.registry(), movement.state()) else { return };
+    let mut controls = movement.controls;
+    let id = {
+        let blocks = Terrain::new(view, registry.as_ref());
+        let sees = |a, b| hazard::clear_line(&blocks, a, b);
+        let body = Body { eye: bot.eye_position(), feet: st.pos, vel: st.vel, me: bot.state.player.unique_entity_id, tick: bot.state.entities.now(), sees: &sees };
+        pilot.strike(&body, &mut controls)
+    };
+    if let Some(m) = bot.movement.as_mut() {
+        m.controls = controls;
+    }
+    if let Some(id) = id {
+        if let Err(e) = bot.click_entity_aimed(id, true) {
+            tracing::debug!(%e, id, "strike refused");
+        }
+    }
+}
+
 /// Drives `pilot` for one tick (without letting it pass) and does any work due; also returns what the work changed.
 pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus, ActionError>, Worked) {
     if bot.movement.is_none() {
@@ -171,6 +192,7 @@ pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus,
         Ok(s) => s,
         Err(e) => return (Err(e), Worked::default()),
     };
+    strike_back(pilot, bot);
     let Some(node) = pilot.pending_work().filter(|_| status == NavStatus::Working) else { return (Ok(status), Worked::default()) };
     let solid = |bot: &Bot, p: BlockPos| bot.block_at(p).is_some_and(|(_, s)| !s.is_air() && !s.is_liquid());
     let name = |bot: &Bot, p: BlockPos| bot.block_at(p).filter(|(_, s)| !s.is_air() && !s.is_liquid()).map(|(_, s)| s.name.to_string());

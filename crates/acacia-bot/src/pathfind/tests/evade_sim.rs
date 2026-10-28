@@ -30,7 +30,7 @@ pub fn run(g: &Grid, mobs: Vec<Mob>, goal: Goal, profile: MovementProfile, seed:
     let trace = std::env::var_os("EVADE_TRACE").is_some();
     for tick in 0..max_ticks {
         let pos = m.position().expect("started");
-        let (threats, health) = crowd.step(tick, pos);
+        let (threats, health) = crowd.step(tick, pos, None);
         m.set_solids(hazard::solid_boxes(&threats));
         let sees = |a, b| hazard::clear_line(&g.terrain(), a, b);
         let eye = [pos[0], pos[1] + DEFAULT_PLAYER_HEIGHT_OFFSET, pos[2]];

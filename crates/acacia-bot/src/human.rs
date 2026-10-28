@@ -98,6 +98,10 @@ pub(crate) const EARSHOT: f32 = 4.0;
 pub(crate) const FUSE_EARSHOT: f32 = 10.0;
 /// Ticks an entity once noticed is kept in mind out of view.
 pub(crate) const THREAT_MEMORY: u64 = 200;
+/// Ticks from deciding to strike a chaser to the first click (placeholder: a reaction, 100-250 ms).
+pub(crate) const STRIKE_REACT: (u64, u64) = (2, 5);
+/// Ticks between clicks while striking (placeholder: 3-5 clicks a second).
+pub(crate) const STRIKE_GAP: (u64, u64) = (4, 7);
 
 pub(crate) struct Human {
     rng: u64,

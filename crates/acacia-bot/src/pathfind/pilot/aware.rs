@@ -3,7 +3,8 @@
 use std::sync::Arc;
 
 use super::Pilot;
-use crate::pathfind::hazard::{self, Hazards, Threats, View};
+use crate::movement::Controls;
+use crate::pathfind::hazard::{self, Body, Hazards, Threats, View};
 
 impl Pilot {
     /// This tick's field from the `threats` around the bot, as `view` perceives them. Once a tick, before
@@ -23,8 +24,18 @@ impl Pilot {
         self.field.as_deref()
     }
 
+    /// After [`Pilot::drive`]: aims `controls` at a chaser in that field and returns the runtime id to attack now
+    /// ([`Striker::tick`]).
+    pub fn strike(&mut self, body: &Body, controls: &mut Controls) -> Option<u64> {
+        self.striker.tick(self.field.as_deref(), body, controls)
+    }
+
+    pub fn strikes(&self) -> u32 {
+        self.striker.strikes()
+    }
+
     /// Takes over what `old` (a pilot for an earlier goal) knew of the entities.
     pub(crate) fn inherit(&mut self, old: Pilot) {
-        (self.senses, self.field, self.perceived_at) = (old.senses, old.field, old.perceived_at);
+        (self.senses, self.striker, self.field, self.perceived_at) = (old.senses, old.striker, old.field, old.perceived_at);
     }
 }

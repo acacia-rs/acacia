@@ -9,11 +9,15 @@ use tokio::sync::oneshot;
 use super::grid::Grid;
 use super::sim::perform;
 use crate::movement::Movement;
-use crate::pathfind::hazard::{self, Threats, View};
+use crate::pathfind::hazard::{self, Body, Threats, View};
 use crate::pathfind::{Blocks, Goal, GotoOpts, NavStatus, Path, Pilot, SearchJob, SearchOpts, Terrain, answered};
 
-/// The entities around a flight: moved once a tick for the bot at `feet`; returns them and the bot's health.
-pub type Scene<'a> = dyn FnMut(u32, Vec3) -> (Threats, f32) + 'a;
+/// The entities around a flight: moved once a tick for the bot at `feet`, after the bot attacked the runtime id
+/// given, if any; returns them and the bot's health.
+pub type Scene<'a> = dyn FnMut(u32, Vec3, Option<u64>) -> (Threats, f32) + 'a;
+
+/// The bot's unique id in the simulation (what a chaser's `target` names).
+pub const SIM_ME: i64 = 1;
 
 /// The grid as the planner sees it: chunks more than `radius` from `centre` (chunk coordinates) are unloaded.
 #[derive(Clone, Copy)]
@@ -82,7 +86,7 @@ impl Flight {
 
 /// Drives a [`Pilot`] from `m` to `goal` until it arrives, fails or `sky.max_ticks` pass.
 pub fn fly(g: &Grid, m: &mut Movement, goal: Goal, opts: GotoOpts, sky: Sky) -> Flight {
-    fly_with(g, m, goal, opts, sky, &mut |_, _| (Threats::default(), 20.0))
+    fly_with(g, m, goal, opts, sky, &mut |_, _, _| (Threats::default(), 20.0))
 }
 
 /// [`fly`] among entities, perceived as the profile does; the solid ones collide.
@@ -91,7 +95,7 @@ pub fn fly_with(g: &Grid, m: &mut Movement, goal: Goal, opts: GotoOpts, sky: Sky
     let mut pilot = Pilot::new(goal, opts);
     let mut late: Vec<(u32, oneshot::Sender<Path>, Path)> = Vec::new();
     let (mut track, mut result) = (Vec::new(), Err(format!("not arrived after {} ticks", sky.max_ticks)));
-    let mut searching = Vec::new();
+    let (mut searching, mut struck) = (Vec::new(), None);
     // PILOT_TRACE=from..to: per-tick state over those ticks.
     let trace = std::env::var("PILOT_TRACE").ok().and_then(|r| r.split_once("..").and_then(|(a, b)| Some(a.parse::<u32>().ok()?..b.parse::<u32>().ok()?))).unwrap_or(0..0);
     for tick in 0..sky.max_ticks {
@@ -101,7 +105,7 @@ pub fn fly_with(g: &Grid, m: &mut Movement, goal: Goal, opts: GotoOpts, sky: Sky
         let pos = m.position().expect("started");
         track.push(pos);
         let blocks = Horizon { view: &g.view, centre: (pos[0].floor() as i32 >> 4, pos[2].floor() as i32 >> 4), radius: sky.horizon };
-        let (threats, health) = scene(tick, pos);
+        let (threats, health) = scene(tick, pos, struck.take());
         m.set_solids(hazard::solid_boxes(&threats));
         let sees = |a, b| hazard::clear_line(&g.terrain(), a, b);
         let eye = [pos[0], pos[1] + DEFAULT_PLAYER_HEIGHT_OFFSET, pos[2]];
@@ -120,6 +124,9 @@ pub fn fly_with(g: &Grid, m: &mut Movement, goal: Goal, opts: GotoOpts, sky: Sky
         };
         let diverged = pilot.divergences();
         let status = pilot.drive(&terrain, m, opts, &mut spawn);
+        let vel = m.state().map_or([0.0; 3], |s| s.vel);
+        let body = Body { eye, feet: pos, vel, me: SIM_ME, tick: u64::from(tick), sees: &sees };
+        struck = pilot.strike(&body, &mut m.controls);
         if pilot.divergences() > diverged {
             eprintln!("tick {tick}: diverged at {pos:?}");
         }

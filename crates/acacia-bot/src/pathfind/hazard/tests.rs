@@ -5,6 +5,7 @@ use acacia_client::proto::types::{
 };
 
 use super::*;
+use crate::pathfind::MovementProfile;
 use crate::state::queries::test_support::{fixtures, raw};
 use crate::state::Me;
 
@@ -56,6 +57,50 @@ fn lit_creeper_and_angry_neutral_are_flagged() {
     assert!(threat(&es, 2).lit);
     assert!(threat(&es, 3).angry && threat(&es, 3).hostile());
     assert!(!threat(&es, 4).hostile());
+}
+
+#[test]
+fn a_target_names_the_bot() {
+    let mut es = Entities::default();
+    let target = MetadataDictionaryItem { key: Key::TargetEid, r#type: Type::Long, legacy_type: 7, value: Value::Default(Plain::Long(-1_000)) };
+    spawn(&mut es, 2, "minecraft:zombie", [0.5, 64.0, 0.5], vec![target]);
+    assert_eq!(threat(&es, 2).target, Some(-1_000));
+}
+
+fn zombie(x: f32, motion_x: f32, target: Option<i64>) -> Threat {
+    Threat { runtime_id: 7, class: Class::Melee, feet: [x, 0.0, 0.5], size: (0.6, 1.95), motion: [motion_x, 0.0, 0.0], speed: 0.12, age: 0, lit: false, angry: false, target }
+}
+
+/// Strikes over `ticks` at a zombie standing still at `x` (motion only reported), the bot at the origin facing +x.
+fn strikes(profile: MovementProfile, z: Threat, ticks: u64, sees: bool) -> Vec<u64> {
+    let mut s = Striker::new(profile, 3);
+    let h = Hazards { melee: vec![z], ..Hazards::default() };
+    let line = move |_: Vec3, _: Vec3| sees;
+    let mut out = Vec::new();
+    for tick in 0..ticks {
+        let body = Body { eye: [0.5, 1.62, 0.5], feet: [0.5, 0.0, 0.5], vel: [0.0; 3], me: 9, tick, sees: &line };
+        let mut c = crate::movement::Controls { yaw: -90.0, forward: 1.0, ..Default::default() };
+        if s.tick(Some(&h), &body, &mut c).is_some() {
+            out.push(tick);
+        }
+    }
+    out
+}
+
+#[test]
+fn strikes_a_chaser_in_reach_once_per_invulnerability() {
+    let chaser = zombie(3.0, -0.26, Some(9));
+    assert_eq!(strikes(MovementProfile::Optimal, chaser, 25, true), [1, 11, 21], "aim a tick, then every 10");
+    let human = strikes(MovementProfile::Human, chaser, 40, true);
+    assert!(human.first().is_some_and(|&t| t >= 2) && human.windows(2).all(|w| w[1] - w[0] >= 4), "{human:?}");
+}
+
+#[test]
+fn leaves_strollers_far_ones_and_ones_behind_walls() {
+    assert!(strikes(MovementProfile::Optimal, zombie(3.0, -0.11, None), 20, true).is_empty(), "a stroll is no chase");
+    assert!(strikes(MovementProfile::Optimal, zombie(6.0, -0.26, Some(9)), 20, true).is_empty(), "out of reach");
+    assert!(strikes(MovementProfile::Optimal, zombie(3.0, -0.26, Some(9)), 20, false).is_empty(), "no clear line");
+    assert!(strikes(MovementProfile::Optimal, zombie(4.0, 0.2, Some(9)), 20, true).is_empty(), "falling back, not in danger");
 }
 
 #[test]

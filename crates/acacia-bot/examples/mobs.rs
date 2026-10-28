@@ -1,10 +1,10 @@
 //! Live entity avoidance (pathfind M4) on a BDS where the bot is operator, at night on normal difficulty: a goto
 //! across the pad with `Evade` above it, per scenario and run, reporting the health the bot lost.
-//! `zombie`: one zombie placed by the run's seed beside the way (pass: no hit); `creeper`: one lit beside the way
-//! (pass: no blast); `skeleton`: one at the pad's edge (pass: at most 2 arrows); `cow`: a slowed cow in a 1-wide
-//! corridor (pass: arrives, never `Stuck`).
+//! `zombie`: one zombie placed by the run's seed beside the way, made to chase the bot (pass: no hit before
+//! arrival); `creeper`: one lit beside the way (pass: no blast); `skeleton`: one at the pad's edge (pass: at most
+//! 2 arrows); `cow`: a slowed cow in a 1-wide corridor (pass: arrives, never `Stuck`).
 //! `cargo run -p acacia-bot --example mobs -- <server> <name> <optimal|human> [scenario,..] [runs]`;
-//! `MOBS_TRACE=1` prints the bot, the process in control and the field's blasts every 10 ticks.
+//! `MOBS_TRACE=1` prints the bot, the process in control and the field's blasts and melee hostiles every tick.
 mod support;
 
 use acacia_bot::pathfind::process::Status;
@@ -41,7 +41,9 @@ const SCENARIOS: &[Scenario] = &[
         hits: 0,
         summon: |pad, seed| {
             let side = if seed % 2 == 0 { 1.0 } else { -1.0 };
-            vec![format!("/summon zombie {}", at(pad, [8.5 + spread(seed, 8), 0.0, side * (3.5 + spread(seed >> 3, 6))]))]
+            // A summoned zombie mostly strolls; a damage from the bot makes it chase (hurt-by-target).
+            let place = at(pad, [8.5 + spread(seed, 8), 0.0, side * (3.5 + spread(seed >> 3, 6))]);
+            vec![format!("/summon zombie {place}"), "/damage @e[type=zombie] 1 entity_attack entity @s".into()]
         },
     },
     Scenario {
@@ -89,7 +91,7 @@ async fn run() -> Result<(), Error> {
             let r = attempt(&mut bot, &pad, s, profile, seed).await?;
             let ok = r.arrived && r.hits <= s.hits;
             passed += u32::from(ok);
-            println!("{:8} {profile:?} seed {seed:2}: {} {} ticks, hits {}, health lost {:.0}, corrections {}, evading {} {:?} goto {}", s.name, if ok { "PASS" } else { "FAIL" }, r.ticks, r.hits, r.lost, r.corrections, r.evading, r.seen, r.goto);
+            println!("{:8} {profile:?} seed {seed:2}: {} {} ticks, hits {}, health lost {:.0}, corrections {}, evading {}, strikes {} {:?} goto {}", s.name, if ok { "PASS" } else { "FAIL" }, r.ticks, r.hits, r.lost, r.corrections, r.evading, r.strikes, r.seen, r.goto);
         }
         println!("{:8} {profile:?}: {passed}/{runs} passed", s.name);
         failed += runs as u32 - passed;
@@ -109,6 +111,8 @@ struct Run {
     corrections: u32,
     /// Ticks `Evade` was in control.
     evading: u32,
+    /// Attacks the bot sent.
+    strikes: u32,
     seen: Seen,
     goto: String,
 }
@@ -132,7 +136,7 @@ async fn attempt(bot: &mut Bot, pad: &Pad, s: &Scenario, profile: MovementProfil
     let goto = procs.add(Goto::with(Goal::Block(pad.block(GOAL)), opts.clone()), 10);
     let evade = procs.add(Evade::new(opts), 90);
     let (before, start) = (corrections(bot), bot.state().player.health);
-    let (mut ticks, mut hits, mut health, mut evading, mut seen) = (0, 0, start, 0, Seen::default());
+    let (mut ticks, mut hits, mut health, mut evading, mut seen, mut strikes) = (0, 0, start, 0, Seen::default(), 0);
     while ticks < MAX_TICKS && procs.outcome(goto).is_none() {
         if procs.tick(bot).await? == Status::Idle {
             bot.wait_ticks(1).await?;
@@ -141,23 +145,26 @@ async fn attempt(bot: &mut Bot, pad: &Pad, s: &Scenario, profile: MovementProfil
         hits += u32::from(now < health - 0.01);
         health = now;
         ticks += 1;
+        strikes = procs.pilot().map_or(strikes, |p| p.strikes());
         evading += u32::from(procs.arbiter().active() == Some(evade));
         let feet = bot.movement().and_then(|m| m.position()).unwrap_or_default();
-        seen.add(&hazard::Threats::near(&bot.state().entities, feet, 16.0), feet);
+        seen.add(&hazard::Threats::near(&bot.state().entities, feet, 16.0), feet, bot.state().player.unique_entity_id);
         let near = |e: &&acacia_bot::state::Entity| !e.is_player() && (e.position.x - feet[0]).hypot(e.position.z - feet[2]) < 16.0;
         seen.kinds.extend(bot.state().entities.iter().filter(near).map(|e| e.kind.clone()));
-        if std::env::var_os("MOBS_TRACE").is_some() && ticks % 10 == 0 {
+        if std::env::var_os("MOBS_TRACE").is_some() {
             let blasts = procs.pilot().and_then(|p| p.field()).map(|h| h.blasts.clone());
-            println!("  tick {ticks} at {feet:.2?} active {:?} blasts {blasts:.1?} entities {}", procs.arbiter().active(), bot.state().entities.len());
+            let melee: Vec<_> = procs.pilot().and_then(|p| p.field()).map(|h| h.melee.iter().map(|t| (t.feet, t.motion)).collect()).unwrap_or_default();
+            println!("  tick {ticks} at {feet:.3?} active {:?} blasts {blasts:.1?} melee {melee:.3?}", procs.arbiter().active());
         }
     }
-    // Late blasts and arrows still count.
+    // Late blasts and arrows still count; a zombie still chasing an arrived bot is the next task's (no goto drives).
+    pad.run(bot, "/kill @e[type=zombie]");
     bot.wait_ticks(40).await?;
     let now = bot.state().player.health;
     hits += u32::from(now < health - 0.01);
     let arrived = matches!(procs.outcome(goto), Some(Ok(())));
     let goto = procs.outcome(goto).map(|r| format!("{r:?}")).unwrap_or_else(|| "running".into());
-    Ok(Run { arrived, ticks, hits, lost: start - bot.state().player.health.min(health), corrections: corrections(bot) - before, evading, seen, goto })
+    Ok(Run { arrived, ticks, hits, lost: start - bot.state().player.health.min(health), corrections: corrections(bot) - before, evading, strikes, seen, goto })
 }
 
 /// Hostiles tracked within 16 blocks over a run.
@@ -165,6 +172,8 @@ async fn attempt(bot: &mut Bot, pad: &Pad, s: &Scenario, profile: MovementProfil
 struct Seen {
     /// Ticks a lit creeper was among them.
     lit: u32,
+    /// Ticks one targeted the bot (`TargetEid`).
+    targeting: u32,
     /// Closest one came (horizontal blocks), fastest one moved (blocks a tick), shortest one stood (a baby is ~1).
     closest: f32,
     fastest: f32,
@@ -174,13 +183,14 @@ struct Seen {
 
 impl Default for Seen {
     fn default() -> Self {
-        Seen { lit: 0, closest: f32::INFINITY, fastest: 0.0, shortest: f32::INFINITY, kinds: Default::default() }
+        Seen { lit: 0, targeting: 0, closest: f32::INFINITY, fastest: 0.0, shortest: f32::INFINITY, kinds: Default::default() }
     }
 }
 
 impl Seen {
-    fn add(&mut self, threats: &hazard::Threats, feet: [f32; 3]) {
+    fn add(&mut self, threats: &hazard::Threats, feet: [f32; 3], me: i64) {
         self.lit += u32::from(threats.list.iter().any(|t| t.lit));
+        self.targeting += u32::from(threats.list.iter().any(|t| t.target == Some(me)));
         for t in threats.list.iter().filter(|t| t.hostile()) {
             self.closest = self.closest.min((t.feet[0] - feet[0]).hypot(t.feet[2] - feet[2]));
             self.fastest = self.fastest.max(t.motion[0].hypot(t.motion[2]));

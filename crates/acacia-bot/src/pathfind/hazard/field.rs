@@ -54,6 +54,8 @@ pub struct Hazards {
     pub solids: Vec<(Vec3, Vec3)>,
     /// Lit creepers (box bottom centre): to get away from now (the `Evade` process).
     pub blasts: Vec<Vec3>,
+    /// The melee hostiles: struck back when one chases the bot into reach (`strike`).
+    pub melee: Vec<Threat>,
 }
 
 impl Hazards {
@@ -66,6 +68,9 @@ impl Hazards {
             }
             if t.class == Class::Creeper && t.lit {
                 h.blasts.push(t.feet);
+            }
+            if t.melee() {
+                h.melee.push(*t);
             }
             let Some((radius, weight)) = shape(t, profile) else { continue };
             let speed = t.speed.max((t.motion[0].powi(2) + t.motion[2].powi(2)).sqrt());

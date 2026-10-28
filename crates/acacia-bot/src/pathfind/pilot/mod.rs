@@ -21,7 +21,7 @@ use super::favour::Favour;
 use super::follow::{FollowStatus, Follower, Sense};
 use super::goal::Goal;
 use super::goto::{GotoOpts, NavStatus};
-use super::hazard::{Hazards, Senses};
+use super::hazard::{Hazards, Senses, Striker};
 use super::job::{Answer, SearchJob, Spawn};
 use super::kit::Kit;
 use super::profile::MovementProfile;
@@ -78,6 +78,7 @@ pub struct Pilot {
     watch: Watch,
     alarm: Alarm,
     senses: Senses,
+    striker: Striker,
     field: Option<Arc<Hazards>>,
     perceived_at: Option<u64>,
     /// Searches in a row a solid entity may have closed off, waited out.
@@ -92,8 +93,9 @@ impl Pilot {
     /// A pilot reusing another's macro-move results (the cache keys them by profile and player).
     pub fn with_cache(goal: Goal, opts: GotoOpts, cache: Arc<RolloutCache>) -> Self {
         let (rng, guard) = (opts.seed.unwrap_or_else(seed), Guard::new(opts.give_up_ticks));
+        let striker = Striker::new(opts.search.profile, rng.rotate_left(29));
         let (follower, pending, ahead, favour) = (None, None, Ahead::default(), None);
-        Self { goal, opts, follower, partial: false, pending, ahead, generation: 0, replans: 0, teleports: None, diverged: 0, diverged_in_air: false, divergences: 0, favour, guard, cache, rng, watch: Watch::default(), alarm: Alarm::default(), senses: Senses::new(rng.rotate_left(17)), field: None, perceived_at: None, blocked_waits: 0 }
+        Self { goal, opts, follower, partial: false, pending, ahead, generation: 0, replans: 0, teleports: None, diverged: 0, diverged_in_air: false, divergences: 0, favour, guard, cache, rng, watch: Watch::default(), alarm: Alarm::default(), senses: Senses::new(rng.rotate_left(17)), striker, field: None, perceived_at: None, blocked_waits: 0 }
     }
 
     /// Something else had the controls for a while: drop the path (re-planned from here, favoured) and any

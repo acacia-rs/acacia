@@ -9,7 +9,7 @@ use crate::pathfind::{Goal, MovementProfile, Path, SearchOpts, search};
 
 pub fn threat(class: Class, feet: Vec3) -> Threat {
     let size = if class == Class::Solid { (1.4, 0.455) } else { (0.6, 1.95) };
-    Threat { runtime_id: 1, class, feet, size, motion: [0.0; 3], speed: 0.0, age: 0, lit: false, angry: false }
+    Threat { runtime_id: 1, class, feet, size, motion: [0.0; 3], speed: 0.0, age: 0, lit: false, angry: false, target: None }
 }
 
 pub fn field(list: Vec<Threat>, profile: MovementProfile) -> Arc<Hazards> {
