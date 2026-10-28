@@ -8,6 +8,7 @@ use acacia_physics::{Aabb, BlockPos, WorldView};
 use super::PathNode;
 use super::control::{Controller, LAND_EPS, Phase, centre, standing_on, yaw_to};
 use super::costs::{COST_HEURISTIC, MACRO_STARTUP};
+use super::hazard::Hazards;
 use super::leap_moves::RUNNING;
 use super::moves::MoveKind;
 use super::profile::Aim;
@@ -111,7 +112,7 @@ fn flat(n: &PathNode, level: f32) -> bool {
 /// The shortcut from the live state to a node after `path[index]`: its controller, predicted bodies and the
 /// index it lands on. Only taken when faster than following the nodes between; looked for within `spend`.
 /// `ends_at_goal`: the path's last node is the goal, where a shortcut stops.
-pub(super) fn find(path: &[PathNode], index: usize, live: &Rollout, w: &dyn WorldView, aim: Aim, ends_at_goal: bool, spend: &mut Spend) -> Option<(ShortcutCtl, Vec<Body>, usize)> {
+pub(super) fn find(path: &[PathNode], index: usize, live: &Rollout, w: &dyn WorldView, aim: Aim, ends_at_goal: bool, hazards: Option<&Hazards>, spend: &mut Spend) -> Option<(ShortcutCtl, Vec<Body>, usize)> {
     let level = live.st.pos[1];
     if !live.st.on_ground || !path.get(index).is_some_and(|n| flat(n, level)) {
         return None;
@@ -145,10 +146,23 @@ pub(super) fn find(path: &[PathNode], index: usize, live: &Rollout, w: &dyn Worl
                 (clean && centred).then_some((ctl, bodies))
             })
             .min_by_key(|(_, b)| b.len());
-        best.filter(|(_, b)| ((b.len() - 1) as f32) < planned).map(|(ctl, bodies)| (ctl, bodies, j))
+        let wary = |b: &[Body]| hazards.is_none_or(|h| no_nearer(h, b, &path[index..=j]));
+        best.filter(|(_, b)| ((b.len() - 1) as f32) < planned && wary(b)).map(|(ctl, bodies)| (ctl, bodies, j))
     });
     spend.charge(&solver);
     found
+}
+
+/// Score (ticks) a shortcut may pay over the nodes it skips.
+const HAZARD_SLACK: f32 = 1.0;
+
+/// The bodies pass no nearer the entities than the planned `nodes`: no cell a solid one fills, no more hazard score.
+fn no_nearer(h: &Hazards, bodies: &[Body], nodes: &[PathNode]) -> bool {
+    let mut cells: Vec<BlockPos> = bodies.iter().map(|b| b.pos.map(|v| v.floor() as i32)).collect();
+    cells.dedup();
+    let closed = cells.iter().any(|&[x, y, z]| h.closed([x, y, z]) || h.closed([x, y + 1, z]));
+    let planned: f32 = nodes.iter().map(|n| h.cost(n.pos)).sum();
+    !closed && cells.iter().map(|&c| h.cost(c)).sum::<f32>() <= planned + HAZARD_SLACK
 }
 
 /// A collision box right under the feet centre.

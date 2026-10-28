@@ -68,6 +68,9 @@ pub struct Movement {
     /// The flying flag of the server's last `UpdateAbilities` (see `set_abilities`).
     server_flying: Option<bool>,
     history: History,
+    /// Solid entity boxes for the next tick and the ones seen last ([`Movement::set_solids`]).
+    solids: Vec<physics::Aabb>,
+    seen_solids: Vec<physics::Aabb>,
     /// Replay only: the recorded `WantDown` (bot traces before 2026-10-02 never sent it), else it follows sneak.
     pub(crate) recorded_want_down: Option<bool>,
     last_setback: Option<u64>,
@@ -106,6 +109,8 @@ impl Movement {
             equipment: Equipment::default(),
             server_flying: None,
             history: History::default(),
+            solids: Vec::new(),
+            seen_solids: Vec::new(),
             last_setback: None,
             rotation_noise: None,
             still_ticks: 0,
@@ -161,6 +166,12 @@ impl Movement {
         self.physics.as_ref().is_some_and(|p| p.sneaking)
     }
 
+    /// Collision boxes of the solid entities as tracked now (world space; see [`physics::WithEntities`]). They
+    /// take effect a tick late: strict BDS collides a tick with the shapes it fetched on the tick before.
+    pub fn set_solids(&mut self, boxes: Vec<physics::Aabb>) {
+        self.solids = std::mem::replace(&mut self.seen_solids, boxes);
+    }
+
     /// Simulates one tick and returns the `PlayerAuthInput` describing it.
     pub fn tick(&mut self, world: &impl WorldView) -> Option<PlayerAuthInput> {
         let st = self.physics.as_mut()?;
@@ -176,6 +187,8 @@ impl Movement {
         if replayed > 0 {
             tracing::debug!(tick = self.tick, replayed, "rewound");
         }
+        let solids = std::mem::take(&mut self.solids);
+        let world = &physics::WithEntities { world, boxes: &solids };
         st.equipment = self.equipment;
         self.keys.mouse_input = self.mouse_input;
         let input = self.keys.advance(&c, st, world, self.using_item, self.recorded_want_down.unwrap_or(c.sneak));
@@ -212,7 +225,7 @@ impl Movement {
         };
         self.prev_jump = jump;
         self.tick += 1;
-        self.history.record(self.tick, input, knockback, st);
+        self.history.record(self.tick, input, knockback, st, solids);
         // Movement starts only after the bot has left the loading screen (bot.rs).
         let mut packet = auth_input::build(&input, &out, &edges, self.tick, true);
         if self.mouse_input {

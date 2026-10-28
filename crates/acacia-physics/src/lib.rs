@@ -15,6 +15,7 @@ pub mod constants;
 #[cfg(feature = "acacia-world")]
 pub mod registry_world;
 mod correction;
+mod entities;
 mod flight;
 mod input;
 mod liquid;
@@ -36,6 +37,7 @@ pub use aabb::{Aabb, INTERSECT_EPSILON};
 pub use boat::{BoatState, boat_tick, wave_phases, wave_step};
 pub use body::collide_box;
 pub use clip::clip_collide;
+pub use entities::WithEntities;
 pub use flight::Flight;
 pub use input::Input;
 pub use math::{BlockPos, Vec3, mc_cos, mc_sin};

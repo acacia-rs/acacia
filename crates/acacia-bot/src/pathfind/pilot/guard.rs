@@ -52,6 +52,12 @@ impl Guard {
         }
     }
 
+    /// [`Self::back_off`] in the air too, `extra` ticks longer: the way is closed by an entity, not a bad start.
+    pub fn wait_out(&mut self, extra: u32) {
+        self.wait_until = self.tick + self.backoff + extra;
+        self.backoff = (self.backoff * 2).min(MAX_BACKOFF_TICKS);
+    }
+
     pub fn found(&mut self) {
         self.backoff = BACKOFF_TICKS;
     }

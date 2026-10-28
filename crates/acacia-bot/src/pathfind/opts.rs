@@ -9,6 +9,7 @@ use super::boat::{BoatSource, HEURISTIC_FLOOR};
 use super::costs;
 use super::favour::Favour;
 use super::goal::Speed;
+use super::hazard::Hazards;
 use super::kit::Kit;
 use super::macros::MacroStats;
 use super::profile::MovementProfile;
@@ -49,6 +50,9 @@ pub struct SearchOpts {
     pub boats: bool,
     /// What a boat leg can board; [`Bot::goto`](crate::Bot::goto) fills it, and with nothing no boat leg is planned.
     pub boat_source: BoatSource,
+    /// Entities to keep away from (score only) and the cells solid ones fill; attach the same to the search's
+    /// terrain ([`Terrain::with_hazards`](super::Terrain::with_hazards)).
+    pub hazards: Option<Arc<Hazards>>,
 }
 
 impl Default for SearchOpts {
@@ -70,6 +74,7 @@ impl Default for SearchOpts {
             no_body: None,
             boats: false,
             boat_source: BoatSource::default(),
+            hazards: None,
         }
     }
 }

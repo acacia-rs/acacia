@@ -394,6 +394,66 @@ counted but allowed: BDS draws its big waves from a level-wide, entropy-seeded M
   the default radius of 2 walked round); bodies are cells a boat centres in (3 x 3 floating water), so 2-wide
   canals are walked; flowing water, ice and chest boats' cargo are not handled.
 
+## M4: entity avoidance (2026-10-28, `pathfind/entities`)
+
+Design and the user's decisions: `../research/pathfind-entities-design.md`. Physics findings: acacia-physics README
+"Entities".
+- Tracking: `Trackers::hazards` (lean: kind, position, motion, box, flags). `hazard::Threats::near` snapshots
+  the entities within `FIELD_RADIUS` (32) each tick; `hazard/kinds.rs` classes them (Melee, Neutral, Creeper,
+  Ranged, Passive, Player, Solid, Projectile; lit creepers and angry neutrals flagged).
+- Field (`hazard/field.rs`): a sphere per threat, cost `w·(1 − d/r)²` at the cell centre (y + 0.9), radius grown by
+  speed × 10 ticks; per class and profile in `shape()`. Added to `g` only (`Frontier::relax`, every cell a leap
+  crosses); `raw` ticks and the rollout cache stay true. Solid entities (boats) close the cells their box reaches
+  into (`Cell::ENTITY | AVOID`, cell id bit 63 so cached rollouts don't match).
+- Shortcuts may not pass nearer the threats than the nodes they skip (`shortcut::no_nearer`): without it Optimal cut
+  straight through a field of zombies.
+- Alarm (`pilot/alarm.rs`): re-plans when the field's score of the 8 nodes ahead of the bot rises 6 over its lowest
+  since the path was accepted, at most every 10 ticks. "Ahead of the bot": from the node nearest it, since a running
+  shortcut holds the follower's index at its start (Human hopped into a zombie dead ahead otherwise).
+- Perception (`hazard/perceive.rs`, decision 4): Optimal knows all at once. Human knows a threat once heard (within
+  `EARSHOT` 4, a lit fuse within `FUSE_EARSHOT` 10, or within 3 when hurt; 3–5 ticks later) or seen (55° half
+  cone, 48 blocks, clear line; 5–8 ticks later), and keeps it in mind 200 ticks. Constants in `human.rs`.
+- Blocked (decision 5): a search that finds the goal unreachable while a solid entity is in the field waits the
+  back-off (20, 40, 80 ticks; Human up to 15 more) up to 3 times, then fails. Mobs never block (they don't collide).
+- `Evade` (`process/evade.rs`, priority above the goto): while a lit creeper is within 8, drives `Goal::Away` from
+  where it was (re-targets when it moves 2). The field is perceived every tick before `Arbiter::decide`
+  (`goto::sense`), not only while driving: a held route never refreshed it, and Evade held control forever live.
+- Entity data freshness (BDS, from `sapling-end-dragon/research/bds-actor-move-sync.md`, read with bdsre
+  2026-10-26): a viewer at distance d gets a mob's MoveActorDelta at most every `trunc(10·min(d/80, 1))` ticks
+  (arrows 7, boats and minecarts 20 at rest and every tick moving); SetActorMotion only when the motion changed by
+  more than 0.2 b/t or stopped. Within the 32-block field a mob's position is at most 4 ticks old (1 within 8).
+- Not done: projectile sidestep in Evade (arrows only cost through the skeleton's sphere), the ranged line-of-sight
+  penalty (step 8: the skeleton bar passed without it).
+- Sim (`tests/entity_sim.rs` crowd model, `entity_scenarios.rs`, `evade_sim.rs`, `hazards.rs`), both profiles: 20
+  chasing-zombie runs 0 hits (`zombie_runs_20`, release, ignored); lit creeper behind, beside, where it stands: 0
+  blast; skeleton ≤ 2 arrows; cow corridor arrives; boat corridor waits then goes on, or fails after the waits. Guards:
+  a crowd off the way visits the bare walk's nodes; 50 mobs across the way 501 nodes (bare 34); 8 bots among 50
+  mobs 0 hits at 0.36 ms a tick (release, `eight_bots_among_fifty_mobs`).
+- Live (testbox strict BDS :19188, `examples/mobs.rs`, normal difficulty, midnight, 20 runs a scenario and profile):
+  creeper (lit by `start_exploding_forced` 6–9 blocks beside the way) 20/20 both, 0 blast; skeleton 20/20 both
+  (at most 2 arrows); cow corridor 20/20 both. Zombie: Optimal 17/20 then 20/20, Human 17/20 then 19/20 (two
+  batches). Every hit came from a zombie that targeted the bot: it closes at 0.264 b/t (box 1.96 tall), against
+  0.114 for the strolling ones that never do, and hits from 2.3–2.5 blocks as tracked. Each such run took one hit.
+- Striking back (decision 5', `hazard/strike.rs`, `Pilot::strike` after each steering tick): a perceived melee
+  hostile that targets the bot (`TargetEid` = the bot's unique id; BDS sends it while a mob chases) or approaches
+  at over 0.18 b/t, and closes in or keeps pace within 3 blocks, is aimed at from 5 blocks and clicked
+  (`Bot::click_entity_aimed`) a tick after the crosshair is on its box, within `ENTITY_REACH` (3, eye to box) and a
+  clear line. On the course only the pitch turns; otherwise the keys keep the course (`keep_course`). Optimal clicks
+  once per 10-tick invulnerability; Human eases its aim, reacts 2–5 ticks, clicks every 4–7 (`human.rs`
+  placeholders). Strollers are never struck. BDS's `ItemUseOnActorInventoryTransaction::handle` checks the sent
+  player position within 6 of the server's (bdsre); reach and line of sight are ours to keep.
+- Sim zombie calibrated to live: chases at 0.264 b/t, hits from 2.3 (centre), cooldown 20, Java knockback from
+  the bot's strikes (0.4 push and lift, 10-tick invulnerability). Before striking, it hit in 3–4 of most runs.
+- Live zombie (made to chase by `/damage ... entity @s`, so every run's zombie targets the bot; hits counted until
+  arrival, the zombie killed before the late-hit wait), 7385dfd, 20 runs each: Human 20/20 (0 hits, 0–8 strikes a
+  run), Optimal 19/20 (seed 14: one hit with 2 strikes sent, cause not traced). The batch before the on-course
+  pitch-only aim (01ea98e): Optimal 0 hits in 18 runs seen. Sim (calibrated): 20/20 both profiles.
+- Corrections in zombie and creeper runs are the open off-axis ulp drift (DESIGN.md "Off-axis ulp corrections"),
+  not entities: every one logged is 1–2 ulps on an air or ground tick of an off-axis walk or hop, none follows a
+  knockback (hits taken drew 0), creeper runs drew no explosion knockback at all. Yaw changes mid-walk (Human
+  easing, strike aims, Evade's off-axis hops) raise them. `prev + wrap(sent − prev)` as the walk yaw was tried on
+  `course-human-linux` at tolerance 0: 6 → 28 mismatches, rejected.
+
 ## Running
 - Tests: `REMOTE_DIR=work/bc-pathfind tools/remote-test.sh -p acacia-bot` (testbox; never workspace-wide locally).
 - Risks: synth fidelity (fallback: store full `PlayerState` per macro node); in-air yaw swings on strict BDS; node/rollout blowup on open maps.

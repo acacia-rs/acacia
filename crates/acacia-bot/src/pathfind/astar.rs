@@ -72,7 +72,7 @@ pub fn search_cached<B: Blocks>(t: &Terrain<B>, live: &PlayerState, goal: &Goal,
     };
     let start = NodeKey { entry, ..NodeKey::rest(start) };
     let speed = opts.speed();
-    let mut front = Frontier::new(Rec::start(start, spot, Momentum::snap(live, start.pos)), goal, speed, opts.favour.as_deref());
+    let mut front = Frontier::new(Rec::start(start, spot, Momentum::snap(live, start.pos)), goal, speed, opts.favour.as_deref(), opts.hazards.as_deref());
     let mut edges: Vec<Edge> = Vec::with_capacity(32);
     let (mut visited, mut leaps) = (0, 0usize);
     let macros = opts.macros.then(|| Macros {

@@ -2,7 +2,10 @@
 //! re-plans on trouble. Driven once per tick with the movement and the terrain: by
 //! [`Navigator`](super::Navigator) on a server, by the simulation in tests. Design: docs/pathfind-plan.md "C1".
 
+mod access;
 mod ahead;
+mod alarm;
+mod aware;
 mod guard;
 mod settle;
 mod watch;
@@ -19,14 +22,17 @@ use super::favour::Favour;
 use super::follow::{FollowStatus, Follower, Sense};
 use super::goal::Goal;
 use super::goto::{GotoOpts, NavStatus};
+use super::hazard::{Hazards, Senses, Striker};
 use super::job::{Answer, SearchJob, Spawn};
 use super::kit::Kit;
+use super::profile::MovementProfile;
 use super::terrain::{Blocks, Terrain};
 use super::PathNode;
 use crate::cadence::{seed, splitmix};
 use crate::movement::Movement;
 use crate::ActionError;
 use ahead::Ahead;
+use alarm::Alarm;
 use guard::Guard;
 use watch::Watch;
 
@@ -40,6 +46,10 @@ const QUICK_ROLLOUT_TICKS: u64 = 1_000;
 /// Divergences in a row that re-plan for free; each one past it counts against `max_replans`.
 const MAX_DIVERGED: u32 = 5;
 const HOP_MIN_FOOD: f32 = 6.0;
+/// Back-offs (20, 40, 80 ticks) waited for a solid entity to clear the way before an unreachable goal fails.
+const MAX_BLOCKED_WAITS: u32 = 3;
+/// `Human` waits up to this many ticks longer each time, so blocked bots don't all move off together.
+const HUMAN_BLOCKED_JITTER: u64 = 15;
 /// Horizontal speed (blocks/tick) above which a re-plan takes a quick partial path rather than stop.
 const MOVING: f32 = 0.1;
 
@@ -67,6 +77,13 @@ pub struct Pilot {
     /// Seeds each follower's aim jitter.
     rng: u64,
     watch: Watch,
+    alarm: Alarm,
+    senses: Senses,
+    striker: Striker,
+    field: Option<Arc<Hazards>>,
+    perceived_at: Option<u64>,
+    /// Searches in a row a solid entity may have closed off, waited out.
+    blocked_waits: u32,
 }
 
 impl Pilot {
@@ -77,12 +94,9 @@ impl Pilot {
     /// A pilot reusing another's macro-move results (the cache keys them by profile and player).
     pub fn with_cache(goal: Goal, opts: GotoOpts, cache: Arc<RolloutCache>) -> Self {
         let (rng, guard) = (opts.seed.unwrap_or_else(seed), Guard::new(opts.give_up_ticks));
+        let striker = Striker::new(opts.search.profile, rng.rotate_left(29));
         let (follower, pending, ahead, favour) = (None, None, Ahead::default(), None);
-        Self { goal, opts, follower, partial: false, pending, ahead, generation: 0, replans: 0, teleports: None, diverged: 0, diverged_in_air: false, divergences: 0, favour, guard, cache, rng, watch: Watch::default() }
-    }
-
-    pub fn cache(&self) -> &Arc<RolloutCache> {
-        &self.cache
+        Self { goal, opts, follower, partial: false, pending, ahead, generation: 0, replans: 0, teleports: None, diverged: 0, diverged_in_air: false, divergences: 0, favour, guard, cache, rng, watch: Watch::default(), alarm: Alarm::default(), senses: Senses::new(rng.rotate_left(17)), striker, field: None, perceived_at: None, blocked_waits: 0 }
     }
 
     /// Something else had the controls for a while: drop the path (re-planned from here, favoured) and any
@@ -90,40 +104,6 @@ impl Pilot {
     pub fn interrupt(&mut self) {
         self.drop_follower(true);
         (self.pending, self.diverged_in_air) = (None, false);
-    }
-
-    pub fn goal(&self) -> &Goal {
-        &self.goal
-    }
-
-    pub fn opts(&self) -> &GotoOpts {
-        &self.opts
-    }
-
-    pub fn replans(&self) -> u32 {
-        self.replans
-    }
-
-    pub fn divergences(&self) -> u32 {
-        self.divergences
-    }
-
-    pub fn is_partial(&self) -> bool {
-        self.partial
-    }
-
-    pub fn follower(&self) -> Option<&Follower> {
-        self.follower.as_ref()
-    }
-
-    /// Searches started (inline ones included).
-    pub fn searches(&self) -> u32 {
-        self.guard.searches
-    }
-
-    /// The last node of each segment a planned-ahead segment was spliced onto, in order.
-    pub fn joins(&self) -> &[acacia_physics::BlockPos] {
-        &self.ahead.joins
     }
 
     /// The search settings for now: the inventory's kit, and no flat hops at food 6 or less (sprinting
@@ -175,6 +155,10 @@ impl Pilot {
             tracing::debug!("path blocked by a world change; re-planning");
             self.drop_follower(true);
         }
+        if self.follower.as_ref().is_some_and(|f| self.alarm.tick(opts.hazards.as_deref(), f, live.pos)) {
+            tracing::debug!(?live.pos, "an entity moved onto the path ahead; re-planning");
+            self.drop_follower(false);
+        }
         self.poll_ahead();
         if self.follower.is_none() {
             // After a divergence the controls carry the bot on through the air while it re-plans.
@@ -188,6 +172,7 @@ impl Pilot {
         // A quick search that found its path drives in the same tick (live builder: a standing tick per walk and
         // per act mid-walk was a quarter of its moving time).
         let Some(follower) = &mut self.follower else { return Ok(NavStatus::Searching) };
+        follower.set_hazards(opts.hazards.clone());
         let pos = live.pos;
         let feet = pos.map(|v| v.floor() as i32);
         let sense = Sense { pos, on_ground: movement.on_ground(), in_water: terrain.cell(feet).is_water() };
@@ -255,6 +240,13 @@ impl Pilot {
 
     fn accept(&mut self, path: Path, pos: Vec3) -> Result<(), ActionError> {
         tracing::debug!(nodes = path.nodes.len(), complete = path.complete, unreachable = path.unreachable, cost = path.cost, visited = path.visited, "path found");
+        // A solid entity may be what closes the way: wait for it to move before giving up (design decision 5).
+        if path.unreachable && self.field.as_ref().is_some_and(|h| !h.solids.is_empty()) && self.blocked_waits < MAX_BLOCKED_WAITS {
+            self.blocked_waits += 1;
+            let extra = if self.opts.search.profile == MovementProfile::Human { (splitmix(&mut self.rng) % HUMAN_BLOCKED_JITTER) as u32 } else { 0 };
+            self.guard.wait_out(extra);
+            return Ok(());
+        }
         if path.unreachable {
             return Err(ActionError::NotPossible(format!("cannot reach {:?} from {pos:?}: every reachable cell searched", self.goal)));
         }
@@ -266,6 +258,8 @@ impl Pilot {
             return Ok(());
         }
         self.guard.found();
+        self.alarm.accepted();
+        self.blocked_waits = 0;
         self.partial = !path.complete;
         self.generation += 1;
         self.ahead.clear();

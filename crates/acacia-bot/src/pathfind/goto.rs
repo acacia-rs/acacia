@@ -1,15 +1,21 @@
 //! Async execution: plan, follow, re-plan on trouble (azalea `execute/`). The logic is [`Pilot`]'s; this adds
 //! the server side: world changes done by the bot's actions, and waiting for the next tick.
 
+use std::sync::Arc;
+
 use acacia_physics::BlockPos;
+use acacia_world::{BlockRegistry, ChunkView};
 
 use super::execute;
 use super::goal::Goal;
+use super::hazard::{self, Body, Hazards};
 use super::work::Step;
 use super::kit::DEFAULT_SCAFFOLD;
 use super::pilot::Pilot;
 use super::terrain::Terrain;
 use super::{Follower, SearchOpts};
+use crate::movement::Movement;
+use crate::state::GameState;
 use crate::{ActionError, Bot};
 
 #[derive(Debug, Clone)]
@@ -128,6 +134,45 @@ pub(super) struct Worked {
     pub placed: Vec<BlockPos>,
 }
 
+/// The pilot's field this tick from the entities around the bot ([`Pilot::perceive`]).
+fn perceive(pilot: &mut Pilot, state: &GameState, movement: &Movement, view: &ChunkView, registry: &BlockRegistry) -> Option<Arc<Hazards>> {
+    let st = movement.state()?;
+    let threats = hazard::Threats::near(&state.entities, st.pos, hazard::FIELD_RADIUS);
+    let blocks = Terrain::new(view, registry);
+    let sees = |a, b| hazard::clear_line(&blocks, a, b);
+    let eye = [st.pos[0], st.pos[1] + acacia_physics::constants::DEFAULT_PLAYER_HEIGHT_OFFSET, st.pos[2]];
+    pilot.perceive(threats, &hazard::View { eye, yaw: st.yaw, health: state.player.health, sees: &sees })
+}
+
+/// [`perceive`] for a pilot not driven this tick (one that holds at its goal still notices a threat leave).
+pub(super) fn sense(pilot: &mut Pilot, bot: &Bot) {
+    let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_ref()) else { return };
+    if let (Some(view), Some(registry)) = (world.view(), world.registry()) {
+        perceive(pilot, &bot.state, movement, view, registry.as_ref());
+    }
+}
+
+/// After the steering: aims at a chaser closing in and attacks it when due ([`Pilot::strike`]).
+fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
+    let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_ref()) else { return };
+    let (Some(view), Some(registry), Some(st)) = (world.view(), world.registry(), movement.state()) else { return };
+    let mut controls = movement.controls;
+    let id = {
+        let blocks = Terrain::new(view, registry.as_ref());
+        let sees = |a, b| hazard::clear_line(&blocks, a, b);
+        let body = Body { eye: bot.eye_position(), feet: st.pos, vel: st.vel, me: bot.state.player.unique_entity_id, tick: bot.state.entities.now(), sees: &sees };
+        pilot.strike(&body, &mut controls)
+    };
+    if let Some(m) = bot.movement.as_mut() {
+        m.controls = controls;
+    }
+    if let Some(id) = id {
+        if let Err(e) = bot.click_entity_aimed(id, true) {
+            tracing::debug!(%e, id, "strike refused");
+        }
+    }
+}
+
 /// Drives `pilot` for one tick (without letting it pass) and does any work due; also returns what the work changed.
 pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus, ActionError>, Worked) {
     if bot.movement.is_none() {
@@ -145,12 +190,14 @@ pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus,
     let (Some(view), Some(registry)) = (world.view(), world.registry()) else {
         return (Ok(NavStatus::Searching), Worked::default());
     };
-    let terrain = Terrain::new(view, registry.as_ref());
+    opts.hazards = perceive(pilot, &bot.state, movement, view, registry.as_ref());
+    let terrain = Terrain::new(view, registry.as_ref()).with_hazards(opts.hazards.clone());
     let (snapshot, reg) = (view.world().clone(), registry.clone());
     let status = match pilot.drive(&terrain, movement, opts, &mut |job| job.spawn_blocking(snapshot.clone(), reg.clone())) {
         Ok(s) => s,
         Err(e) => return (Err(e), Worked::default()),
     };
+    strike_back(pilot, bot);
     let Some(node) = pilot.pending_work().filter(|_| status == NavStatus::Working) else { return (Ok(status), Worked::default()) };
     let solid = |bot: &Bot, p: BlockPos| bot.block_at(p).is_some_and(|(_, s)| !s.is_air() && !s.is_liquid());
     let name = |bot: &Bot, p: BlockPos| bot.block_at(p).filter(|(_, s)| !s.is_air() && !s.is_liquid()).map(|(_, s)| s.name.to_string());
