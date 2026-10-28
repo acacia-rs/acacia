@@ -27,6 +27,7 @@ fn scene() -> Structure {
     put([1, 3, 1], "lantern", "hanging=1");
     put([3, 3, 1], "iron_chain", "pillar_axis=y");
     put([3, 2, 1], "soul_lantern", "hanging=1");
+    put([2, 3, 1], "stone_button", "button_pressed_bit=0,facing_direction=0");
     put([0, 2, 2], "trapdoor", "direction=2,open_bit=0,upside_down_bit=1");
     put([1, 1, 2], "trapdoor", "direction=3,open_bit=0,upside_down_bit=0");
     put([2, 1, 2], "fence_gate", "in_wall_bit=0,minecraft:cardinal_direction=south,open_bit=0");
@@ -39,7 +40,7 @@ fn scene() -> Structure {
 
 const ITEMS: &[(&str, u32)] = &[
     ("oak_planks", 64), ("cobblestone", 64), ("lantern", 4), ("soul_lantern", 4), ("iron_chain", 4), ("trapdoor", 4), ("fence_gate", 2), ("chest", 4),
-    ("hopper", 2), ("end_rod", 2), ("dirt", 64),
+    ("hopper", 2), ("end_rod", 2), ("stone_button", 2), ("dirt", 64),
 ];
 
 #[test]

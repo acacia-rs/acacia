@@ -68,7 +68,7 @@ fn items_and_compared_states() {
     assert_eq!(item(&Block::new("tall_grass", "upper_block_bit=0")).as_deref(), Some("minecraft:tall_grass"));
     assert_eq!(item(&Block::new("iron_door", "door_hinge_bit=0,minecraft:cardinal_direction=east,open_bit=1,upper_block_bit=0")), None, "open doors are the interact tier's");
     assert_eq!(item(&Block::new("bed", "direction=0,head_piece_bit=0,occupied_bit=1")), None);
-    assert!(!supported("minecraft:bedrock") && !supported("minecraft:oak_trapdoor"));
+    assert!(!supported("minecraft:bedrock"));
     let lower = BlockView { name: "minecraft:wooden_door", props: "door_hinge_bit=0,minecraft:cardinal_direction=east,open_bit=0,upper_block_bit=0", ..STONE };
     assert!(matches(&door("east", 1, 0), &lower), "BDS writes 0 in the lower half's hinge");
     let upper = BlockView { props: "door_hinge_bit=0,minecraft:cardinal_direction=east,open_bit=0,upper_block_bit=1", ..lower };

@@ -78,6 +78,9 @@ pub(super) fn base(name: &str) -> &str {
         "lit_redstone_lamp" => "minecraft:redstone_lamp",
         "lit_redstone_ore" => "minecraft:redstone_ore",
         "lit_deepslate_redstone_ore" => "minecraft:deepslate_redstone_ore",
+        "lit_furnace" => "minecraft:furnace",
+        "lit_smoker" => "minecraft:smoker",
+        "lit_blast_furnace" => "minecraft:blast_furnace",
         _ => name,
     }
 }
@@ -90,10 +93,11 @@ pub(super) fn gravity(n: &str) -> bool {
 /// Hangs from the block above (a click on its Down face); see `rules::hangs`.
 pub(super) fn hangs(name: &str, props: &str) -> Option<bool> {
     let has = |kv: &str| props.split(',').any(|p| p.trim_start_matches("minecraft:") == kv);
-    let rod = name.ends_with("end_rod") || name.ends_with("lightning_rod");
+    let down = name.ends_with("end_rod") || name.ends_with("lightning_rod") || name.ends_with("_button");
     let only = (name.ends_with("lantern") && has("hanging=1"))
         || ((name.ends_with("bell") || name.ends_with("grindstone")) && has("attachment=hanging"))
-        || (rod && has("facing_direction=0"));
+        || (down && has("facing_direction=0"))
+        || ((name.ends_with("amethyst_cluster") || name.ends_with("amethyst_bud")) && has("block_face=down"));
     match () {
         _ if only => Some(true),
         _ if name.ends_with("_chain") && has("pillar_axis=y") => Some(false),
