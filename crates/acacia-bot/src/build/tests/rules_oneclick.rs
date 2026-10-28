@@ -59,6 +59,9 @@ fn lanterns_hang_from_a_down_click_only() {
     assert_eq!(hangs(&Block::new("lantern", "hanging=0")), None);
     assert_eq!(hangs(&Block::new("iron_chain", "pillar_axis=y")), Some(false), "a chain also stands on the block under it");
     assert!(post(&seen("minecraft:iron_chain", "pillar_axis=y")), "a chandelier's chain takes clicks at its ends");
+    assert_eq!(hangs(&Block::new("stone_button", "button_pressed_bit=0,facing_direction=0")), Some(true), "a ceiling button");
+    assert_eq!(hangs(&Block::new("stone_button", "button_pressed_bit=0,facing_direction=1")), None);
+    assert_eq!(hangs(&Block::new("amethyst_cluster", "minecraft:block_face=down")), Some(true));
 }
 
 #[test]
@@ -108,4 +111,9 @@ fn denied_by_accident_no_more() {
     assert_eq!(item(&Block::new("chain_command_block", "conditional_bit=0,facing_direction=2")), None);
     assert_eq!(item(&Block::new("unlit_redstone_torch", "torch_facing_direction=north")).as_deref(), Some("minecraft:redstone_torch"));
     assert!(matches(&Block::new("lit_redstone_lamp", ""), &seen("minecraft:redstone_lamp", "")), "lit follows power");
+    for (lit, unlit) in [("lit_furnace", "minecraft:furnace"), ("lit_smoker", "minecraft:smoker"), ("lit_blast_furnace", "minecraft:blast_furnace")] {
+        let b = Block::new(lit, "minecraft:cardinal_direction=south");
+        assert_eq!(item(&b).as_deref(), Some(unlit), "{lit}");
+        assert!(matches(&b, &seen(unlit, "minecraft:cardinal_direction=south")), "{lit}");
+    }
 }
