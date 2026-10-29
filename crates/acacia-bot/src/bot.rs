@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -6,7 +5,7 @@ use acacia_client::proto::types::InputData;
 use acacia_client::proto::RawPacket;
 use acacia_client::{Client, ClientBuilder, ConnectError, DisconnectReason, Event, MemoryBlobStore, PacketFilter, PacketTraceSummary};
 use crate::cadence::Ticker;
-use crate::events::{BotEvent, EventSource, Events};
+use crate::events::{BotEvent, EventOut, EventSource, Events};
 use crate::governor::Governor;
 use crate::human::Human;
 use crate::interact::closing::PendingClose;
@@ -57,8 +56,8 @@ pub struct Bot {
     events: EventSource,
     pub(crate) human: Human,
     pub(crate) survival: Survival,
-    /// Events not yet returned by [`Bot::next`] (queued while stepping or while an action waited).
-    pub(crate) pending: VecDeque<BotEvent>,
+    /// Events not yet returned by [`Bot::next`], or the sink they go to (see [`crate::events`]).
+    pub(crate) out: EventOut,
     /// Flags for the next `PlayerAuthInput` (item use, gliding, dismount sneak).
     pub(crate) queued_flags: Vec<InputData>,
     pub(crate) ride: Ride,
@@ -134,7 +133,7 @@ impl Bot {
             events,
             human: Human::default(),
             survival: Survival::new(config.auto_eat),
-            pending: VecDeque::new(),
+            out: EventOut::new(config.event_sink),
             queued_flags: Vec::new(),
             ride: Ride::default(),
             bed: Bed::default(),
@@ -207,19 +206,20 @@ impl Bot {
     }
 
     /// Processes incoming packets and ticks until an event (typed or a subscribed packet) is ready or
-    /// the connection ends. Must be polled continuously for state, input and movement to run.
+    /// the connection ends. Must be polled continuously for state, input and movement to run. With an
+    /// event sink it returns only `None`, once the connection is gone (see [`crate::events`]).
     pub async fn next(&mut self) -> Option<BotEvent> {
         self.idle_again();
         loop {
-            if let Some(event) = self.pending.pop_front() {
+            if let Some(event) = self.out.pop() {
                 return Some(event);
             }
             self.survival.idle = true;
             match self.step().await? {
                 Step::Packet(packet) => self.keep_for_caller(packet),
-                Step::Tick if self.events.wants(Events::TICKS) => return Some(BotEvent::Tick),
+                Step::Tick if !self.out.is_sink() && self.events.wants(Events::TICKS) => return Some(BotEvent::Tick),
                 Step::Tick | Step::Idle => {}
-                Step::Disconnected(reason) => return Some(BotEvent::Disconnected(reason)),
+                Step::Disconnected(reason) => return self.out.hand_over(BotEvent::Disconnected(reason)),
             }
         }
     }
@@ -231,7 +231,7 @@ impl Bot {
                 self.client.send(&request);
             }
             let rejected = world.rejected.drain(..).filter(|_| self.strict);
-            self.pending.extend(rejected.map(BotEvent::Violation));
+            self.out.extend(rejected.map(BotEvent::Violation));
         }
         if let Some(packet) = self.lag.as_mut().and_then(|l| l.pop_due(tokio::time::Instant::now())) {
             self.apply(&packet);
@@ -250,7 +250,7 @@ impl Bot {
             // In an async block: select! builds a disabled branch's future too, and a bare sleep looks up the timer.
             _ = async { tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)).await }, if lagged.is_some() => Some(Step::Idle),
             ticks = self.ticker.wait() => {
-                (0..ticks).for_each(|_| self.on_tick());
+                self.run_ticks(ticks);
                 Some(Step::Tick)
             }
         }
@@ -267,7 +267,7 @@ impl Bot {
                 Some(Step::Packet(packet))
             }
             Event::Violation(violation) => {
-                self.pending.push_back(BotEvent::Violation(violation));
+                self.out.push(BotEvent::Violation(violation));
                 Some(Step::Idle)
             }
             Event::Disconnected(reason) => {
@@ -307,6 +307,6 @@ impl Bot {
         self.auto_respawn(packet, was_alive);
         self.reflex_packet(packet);
         self.on_fetch_packet(packet);
-        self.events.on_packet(packet, &mut self.state, &mut self.pending);
+        self.events.on_packet(packet, &mut self.state, &mut self.out);
     }
 }

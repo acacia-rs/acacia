@@ -23,6 +23,7 @@ async-trait = "0.1"
 bytes = "1.12.1"
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
 memchr = "2"
+parking_lot = "0.12"
 regex = "1"
 rustc-hash = "2"
 serde ={ version = "1", features = ["derive"] }
@@ -38,4 +39,3 @@ acacia-world = { path = "../acacia-world" }
 acacia-testserver = { path = "../acacia-testserver" }
 # snapshot_cost example: the publish-slot comparison.
 arc-swap = "1"
-parking_lot = "0.12"

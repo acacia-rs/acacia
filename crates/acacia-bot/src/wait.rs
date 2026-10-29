@@ -41,7 +41,7 @@ impl Bot {
             let progress = match self.step().await {
                 None => return Err(ActionError::Disconnected),
                 Some(Step::Disconnected(reason)) => {
-                    self.pending.push_back(BotEvent::Disconnected(reason));
+                    self.out.push(BotEvent::Disconnected(reason));
                     return Err(ActionError::Disconnected);
                 }
                 Some(Step::Tick) => Progress::Tick,
@@ -63,7 +63,7 @@ impl Bot {
 
     pub(crate) fn keep_for_caller(&mut self, packet: RawPacket) {
         if self.subscribe.allows(packet.id) {
-            self.pending.push_back(BotEvent::Packet(packet));
+            self.out.push(BotEvent::Packet(packet));
         }
     }
 

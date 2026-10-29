@@ -9,9 +9,9 @@ use crate::state::queries::test_support::{content, empty_item, item, raw, slot_p
 
 fn run(source: &mut EventSource, state: &mut GameState, packet: RawPacket) -> Vec<BotEvent> {
     state.apply(&packet).unwrap();
-    let mut out = VecDeque::new();
+    let mut out = EventOut::new(None);
     source.on_packet(&packet, state, &mut out);
-    out.into()
+    std::iter::from_fn(|| out.pop()).collect()
 }
 
 fn chat_line(message: &str) -> RawPacket {
@@ -131,4 +131,16 @@ fn sleeping_and_sign_editor() {
     let open = OpenSign { position: BlockCoordinates { x: 4, y: 5, z: 6 }, is_front: true };
     let events = run(&mut source, &mut state, raw(&open));
     assert!(matches!(events.as_slice(), [BotEvent::SignEditor { position: [4, 5, 6], front: true }]));
+}
+
+#[tokio::test]
+async fn a_full_channel_drops_only_lossy_events_and_counts_them() {
+    let (sink, mut rx) = channel(2);
+    [BotEvent::Tick, BotEvent::Tick, BotEvent::Tick, BotEvent::Tick, BotEvent::Died, BotEvent::Tick].into_iter().for_each(|e| sink(e));
+    let got: Vec<String> = std::iter::from_fn(|| rx.try_recv()).map(|e| format!("{e:?}")).collect();
+    assert_eq!(got, ["Tick", "Tick", "Lagged { dropped: 2 }", "Died", "Lagged { dropped: 1 }"]);
+    sink(BotEvent::Respawned);
+    drop(sink);
+    assert!(matches!(rx.recv().await, Some(BotEvent::Respawned)), "queued events outlive the sink");
+    assert!(rx.recv().await.is_none(), "then the receiver ends");
 }

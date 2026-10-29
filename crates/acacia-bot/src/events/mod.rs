@@ -1,17 +1,31 @@
 //! Typed events derived from packets after the state has been updated. Each group is opt-in
 //! ([`Events`]) so bots don't decode packets nobody reads (chat on a busy server, titles).
+//!
+//! Delivery, the one place it is written down:
+//! - By default events queue on the bot and [`crate::Bot::next`] returns them, so what an action raises comes out
+//!   after the action returns, and [`BotEvent::Tick`] comes only from `next` (ticks during an action are not kept).
+//! - With [`crate::BotConfig::event_sink`] set, every event goes to the sink as it is produced, during actions too,
+//!   ticks included: one call per event, in production order, on the bot's task. `next` then only drives the bot
+//!   and returns `None` once the connection is gone; [`crate::Bot::wait_form`] cannot take its form back.
+//! - The sink runs inside packet handling and must not block. [`channel`] is a bounded one: when full it drops the
+//!   lossy events ([`BotEvent::is_lossy`]) and reports them as [`BotEvent::Lagged`], and keeps every other one.
+//! - Either way, keep polling `next` between actions: auto-eat only runs while it does.
 
+mod channel;
 mod chat;
+mod out;
 
-use std::collections::VecDeque;
 use std::ops::{BitOr, BitOrAssign};
 
 use acacia_client::proto::packets::{ModalFormRequest, OpenSign, SetTitle, SetTitleType, Text};
 use acacia_client::proto::{Packet, RawPacket};
 use acacia_client::{DisconnectReason, Violation};
 
+pub use channel::{channel, EventReceiver};
 pub use chat::{ChatKind, ChatMatch, ChatMessage, ChatPattern};
 pub(crate) use chat::flatten as rawtext_value;
+pub use out::EventSink;
+pub(crate) use out::EventOut;
 
 use crate::forms::Form;
 use crate::state::{Container, GameState, PlayerChange, PlayerListEntry};
@@ -90,8 +104,17 @@ pub enum BotEvent {
     Tick,
     /// Strict mode only ([`crate::BotConfig::strict`]).
     Violation(Violation),
+    /// Only from [`channel`]: this many lossy events were dropped here because the consumer fell behind.
+    Lagged { dropped: u64 },
     /// Always the last event.
     Disconnected(DisconnectReason),
+}
+
+impl BotEvent {
+    /// A newer event or the state supersedes it (ticks, raw packets, violations, titles), so a full queue may drop it.
+    pub fn is_lossy(&self) -> bool {
+        matches!(self, Self::Packet(_) | Self::Tick | Self::Violation(_) | Self::Title(_))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -161,7 +184,7 @@ impl EventSource {
     }
 
     /// Queues the events `packet` caused; `state` already reflects it.
-    pub(crate) fn on_packet(&mut self, packet: &RawPacket, state: &mut GameState, out: &mut VecDeque<BotEvent>) {
+    pub(crate) fn on_packet(&mut self, packet: &RawPacket, state: &mut GameState, out: &mut EventOut) {
         let changes = std::mem::take(&mut state.player_list.changes);
         if self.wants(Events::PLAYERS) {
             out.extend(changes.into_iter().map(|c| match c {
@@ -174,18 +197,18 @@ impl EventSource {
             Text::ID if self.wants(Events::CHAT) || !self.patterns.is_empty() => self.on_text(packet, out),
             OpenSign::ID if self.wants(Events::WINDOWS) => {
                 if let Some(e) = state.signs.editor {
-                    out.push_back(BotEvent::SignEditor { position: e.position, front: e.front });
+                    out.push(BotEvent::SignEditor { position: e.position, front: e.front });
                 }
             }
             ModalFormRequest::ID if self.wants(Events::FORMS) => {
                 let id = packet.decode::<ModalFormRequest>().map(|p| p.form_id);
                 if let Some(form) = id.ok().and_then(|id| state.forms.get(id)) {
-                    out.push_back(BotEvent::Form(form.clone()));
+                    out.push(BotEvent::Form(form.clone()));
                 }
             }
             SetTitle::ID if self.wants(Events::TITLES) => {
                 if let Some(title) = packet.decode().ok().and_then(Title::from_packet) {
-                    out.push_back(BotEvent::Title(title));
+                    out.push(BotEvent::Title(title));
                 }
             }
             _ => {}
@@ -198,54 +221,54 @@ impl EventSource {
         }
         if self.wants(Events::SLEEP) && state.player.is_sleeping() != self.sleeping {
             self.sleeping = !self.sleeping;
-            out.push_back(if self.sleeping { BotEvent::Slept } else { BotEvent::Woke });
+            out.push(if self.sleeping { BotEvent::Slept } else { BotEvent::Woke });
         }
     }
 
-    fn on_text(&self, packet: &RawPacket, out: &mut VecDeque<BotEvent>) {
+    fn on_text(&self, packet: &RawPacket, out: &mut EventOut) {
         let Some(message) = packet.decode::<Text>().ok().and_then(ChatMessage::from_packet) else { return };
         if !self.patterns.is_empty() {
             let plain = message.plain();
             for pattern in &self.patterns {
                 if let Some(groups) = pattern.captures(&plain) {
-                    out.push_back(BotEvent::ChatMatch(ChatMatch { pattern: pattern.name.clone(), groups, message: message.clone() }));
+                    out.push(BotEvent::ChatMatch(ChatMatch { pattern: pattern.name.clone(), groups, message: message.clone() }));
                 }
             }
         }
         if self.wants(Events::CHAT) {
-            out.push_back(BotEvent::Chat(message));
+            out.push(BotEvent::Chat(message));
         }
     }
 
-    fn on_vitals(&mut self, state: &GameState, out: &mut VecDeque<BotEvent>) {
+    fn on_vitals(&mut self, state: &GameState, out: &mut EventOut) {
         let p = &state.player;
         let vitals = (p.health, p.hunger, p.saturation);
         if vitals != self.vitals {
             self.vitals = vitals;
-            out.push_back(BotEvent::Health { health: p.health, food: p.hunger, saturation: p.saturation });
+            out.push(BotEvent::Health { health: p.health, food: p.hunger, saturation: p.saturation });
         }
         if p.alive != self.alive {
             self.alive = p.alive;
-            out.push_back(if p.alive { BotEvent::Respawned } else { BotEvent::Died });
+            out.push(if p.alive { BotEvent::Respawned } else { BotEvent::Died });
         }
     }
 
-    fn on_window(&mut self, state: &GameState, out: &mut VecDeque<BotEvent>) {
+    fn on_window(&mut self, state: &GameState, out: &mut EventOut) {
         let open = state.containers.open.as_ref();
         let id = open.map(|c| c.window_id);
         if id != self.window {
             if let Some(window_id) = self.window {
-                out.push_back(BotEvent::WindowClosed { window_id });
+                out.push(BotEvent::WindowClosed { window_id });
             }
             if let Some(container) = open {
-                out.push_back(BotEvent::WindowOpened(container.clone()));
+                out.push(BotEvent::WindowOpened(container.clone()));
             }
             self.window = id;
         }
         if state.containers.contents != self.contents {
             self.contents = state.containers.contents;
             if let Some(container) = open {
-                out.push_back(BotEvent::WindowContents(container.clone()));
+                out.push(BotEvent::WindowContents(container.clone()));
             }
         }
     }
