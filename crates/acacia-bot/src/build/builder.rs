@@ -251,6 +251,14 @@ impl Builder {
         self.tries.get(&pos).is_some_and(Tries::given_up)
     }
 
+    /// Gives the cell up for want of a stand, with no revive (`cover::pit`).
+    pub(super) fn give_up(&mut self, pos: BlockPos) {
+        tracing::debug!(?pos, "build cell given up: walled in");
+        let t = self.tries.entry(pos).or_default();
+        (t.rests, t.revives) = (MAX_RESTS + 1, MAX_REVIVES);
+        self.note(super::journal::Entry::Rest { cell: pos });
+    }
+
     /// Set aside at least once for want of a stand.
     pub(super) fn rested(&self, pos: BlockPos) -> bool {
         self.tries.get(&pos).is_some_and(|t| t.rests > 0)

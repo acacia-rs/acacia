@@ -25,6 +25,13 @@ fn searches() -> usize {
     *N.get_or_init(|| std::env::var("BUILD_SEARCHES").ok().and_then(|v| v.parse().ok()).unwrap_or(SEARCHES))
 }
 
+/// Walled in on all four sides with no stand: only a stand in the unbuilt cell above, or above that looking
+/// straight down, could click it, and both wait on it (live snowy house: a dirt mound's pit rested 83 times, the
+/// cells over it held back, the build stalled). Given up for good, so the layers above go on.
+fn pit(cx: &Ctx, pos: BlockPos) -> bool {
+    [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]].iter().all(|d| cx.look.solid([pos[0] + d[0], pos[1], pos[2] + d[2]]) == Some(true))
+}
+
 /// `ready`: placements that can be done once in reach, best rank first; `committed`: the task the pilot drives
 /// to, kept while it is still ready (a new goal restarts the pilot).
 pub(super) fn walk(b: &mut Builder, cx: &Ctx, ready: &[(usize, String)], committed: Option<BlockPos>) -> Option<Next> {
@@ -34,7 +41,11 @@ pub(super) fn walk(b: &mut Builder, cx: &Ctx, ready: &[(usize, String)], committ
         let keep = Keep { feet: &|f| no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) };
         let found = stands(pos, cx.pos, cx.look, &keep, &|e| sight_stats::at("stand search", || click_for(pos, &target, e, cx.look, STAND_SLACK).is_some()), STANDS);
         if found.is_empty() {
-            b.rest(pos);
+            if pit(cx, pos) {
+                b.give_up(pos);
+            } else {
+                b.rest(pos);
+            }
             continue;
         }
         if k == 0 && Some(pos) == committed {

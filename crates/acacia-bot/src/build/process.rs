@@ -156,13 +156,11 @@ impl Process for Builder {
             (opts.tolerance, opts.settle) = (STAND_TOLERANCE, true);
         }
         opts.search.allow_bridge = true;
-        // Walks failing in a row may be walled in by built cells (live: on a wall top, every walk "Stuck"; on an
-        // outpost roof, "every reachable cell searched"): then path work may dig through them, and the survey
-        // rebuilds what it breaks.
+        // Walks failing in a row may be walled in by built cells (live: on a wall top, every walk "Stuck"): then
+        // path work may go through them, and the survey rebuilds what it breaks. Digging as well was worse (live
+        // outpost 2026-10-29: 1038 corrections against 65, 105 path blocks left in air cells).
         if self.failed_walks < ESCAPE_AFTER {
             opts.search.keep = Some(self.keep.clone());
-        } else {
-            opts.search.allow_dig = true;
         }
         opts.search.no_body = Some(self.thin.clone());
         opts
