@@ -9,18 +9,20 @@ use tokio::task::{JoinSet, LocalSet};
 use super::spec::BotId;
 
 /// Built on the caller's thread, run on the shard's: the future it returns need not be `Send`.
-pub(crate) type Job = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + Send>;
+pub type Job = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + Send>;
 
-/// Told which bot's supervisor panicked (user task code included), with the panic message.
-pub(crate) type OnPanic = Arc<dyn Fn(&BotId, String) + Send + Sync>;
+/// Told which bot's task panicked (user task code included), with the panic message.
+pub type OnPanic = Arc<dyn Fn(&BotId, String) + Send + Sync>;
 
-/// One OS thread with a single-threaded runtime: its bots never migrate between threads.
-pub(crate) struct Shard {
+/// One OS thread with a single-threaded runtime: its bots never migrate between threads. The swarm runs its
+/// supervisors on these; a host with its own per-bot loop can use one directly.
+pub struct Shard {
     jobs: mpsc::UnboundedSender<(BotId, Job)>,
     exited: oneshot::Receiver<()>,
 }
 
 impl Shard {
+    /// Starts thread `swarm-shard-{index}`; `on_panic` hears of each job that panics.
     pub fn start(index: usize, on_panic: OnPanic) -> std::io::Result<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
         let (jobs, queue) = mpsc::unbounded_channel();

@@ -37,6 +37,8 @@ pub struct Inventory {
     /// offsets (crafting grid 28-40, created output 50, anvil 1-2, ...; see `crate::items::ui`).
     pub ui: Vec<ItemStack>,
     pub selected_hotbar_slot: u8,
+    /// See [`Inventory::version`].
+    pub(crate) version: u64,
 }
 
 impl Default for Inventory {
@@ -47,6 +49,7 @@ impl Default for Inventory {
             offhand: ItemStack::default(),
             ui: vec![ItemStack::default(); Self::UI_SLOTS],
             selected_hotbar_slot: 0,
+            version: 0,
         }
     }
 }
@@ -68,7 +71,18 @@ impl Inventory {
         matches!(window, Self::WINDOW_INVENTORY | Self::WINDOW_OFFHAND | Self::WINDOW_ARMOR | Self::WINDOW_UI)
     }
 
+    /// Moves on every change, and on some inventory packets that change nothing (see [`crate::snapshot`]).
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
+    /// Notes a change made through the public fields.
+    pub(crate) fn touch(&mut self) {
+        self.version += 1;
+    }
+
     pub fn apply(&mut self, packet: &RawPacket, me: &Me) -> Result<(), DecodeError> {
+        self.touch();
         match packet.id {
             InventoryContent::ID => {
                 let p: InventoryContent = packet.decode()?;
@@ -165,6 +179,7 @@ impl Inventory {
 
     /// Also used by `Bot::select_hotbar`: servers don't echo the client's own selection back.
     pub(crate) fn select(&mut self, slot: u8) {
+        self.touch();
         if slot < Self::HOTBAR_SLOTS {
             self.selected_hotbar_slot = slot;
         }
@@ -182,6 +197,7 @@ impl Inventory {
 
     /// The slot an `ItemStackResponse` entry of container `kind` refers to, if it is the player's.
     pub(crate) fn response_target(&mut self, kind: ContainerSlotType, slot: u8) -> Option<&mut ItemStack> {
+        self.touch();
         match kind {
             ContainerSlotType::Hotbar | ContainerSlotType::Inventory | ContainerSlotType::HotbarAndInventory => {
                 self.main.get_mut(usize::from(slot))

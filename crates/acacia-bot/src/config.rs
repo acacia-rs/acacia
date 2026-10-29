@@ -19,6 +19,8 @@ pub struct BotConfig {
     /// Hand every event here as it is produced, during actions too, instead of queueing it for
     /// [`crate::Bot::next`] (default: none; see [`crate::events`]).
     pub event_sink: Option<EventSink>,
+    /// Publish a state snapshot every tick for other threads (default off; see [`crate::snapshot`]).
+    pub snapshots: bool,
     /// Emit [`crate::BotEvent::ChatMatch`] when one of these matches a chat line.
     pub chat_patterns: Vec<ChatPattern>,
     /// Packets delivered to the caller as [`crate::BotEvent::Packet`] (default: none).
@@ -51,6 +53,7 @@ impl Default for BotConfig {
             trackers: Trackers::default(),
             events: Events::NONE,
             event_sink: None,
+            snapshots: false,
             chat_patterns: Vec::new(),
             subscribe: PacketFilter::none(),
             physics: false,

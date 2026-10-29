@@ -5,8 +5,9 @@
 
 use acacia_client::ClientSender;
 use bytes::Bytes;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
+use crate::snapshot::BotSnapshot;
 use crate::{Bot, Events};
 
 /// One request for [`Inbox::send`].
@@ -22,6 +23,8 @@ pub enum Immediate {
     SetEvents(Events),
     /// [`crate::CancelHandle::cancel`].
     Cancel,
+    /// [`Bot::snapshot`], built when the request is handled.
+    Snapshot(oneshot::Sender<BotSnapshot>),
 }
 
 /// Sends a bot [`Immediate`] requests from any thread (see [`crate::inbox`]). Cheap to clone.
@@ -84,6 +87,7 @@ impl Bot {
             Immediate::Send(packet) => _ = self.client.send_raw(packet),
             Immediate::SetEvents(events) => self.set_events(events),
             Immediate::Cancel => self.cancel_handle().cancel(),
+            Immediate::Snapshot(reply) => _ = reply.send(self.snapshot()),
         }
     }
 }

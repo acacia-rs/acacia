@@ -152,7 +152,7 @@ pub fn stack_of(bot: &Bot, s: &ItemStack) -> Option<Stack> {
 
 /// The player list's names, sorted.
 pub fn player_names(bot: &Bot) -> Vec<String> {
-    let mut names: Vec<String> = bot.state().player_list.iter().map(|p| p.username.clone()).collect();
+    let mut names: Vec<String> = bot.state().player_list.iter().map(|p| p.username.to_string()).collect();
     names.sort_unstable_by_key(|n| n.to_lowercase());
     names
 }

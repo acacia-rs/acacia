@@ -152,6 +152,11 @@ impl Movement {
         self.physics.as_ref().is_some_and(|p| p.on_ground)
     }
 
+    /// Simulated velocity, blocks per tick.
+    pub fn velocity(&self) -> Option<Vec3> {
+        self.physics.as_ref().map(|p| p.vel)
+    }
+
     pub fn eye_position(&self) -> Option<Vec3> {
         self.physics.as_ref().map(PlayerState::eye_position)
     }

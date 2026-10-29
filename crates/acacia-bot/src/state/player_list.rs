@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use acacia_client::proto::manual::Uuid;
 use acacia_client::proto::packets::PlayerList as PlayerListPacket;
@@ -9,8 +10,9 @@ use acacia_client::proto::{DecodeError, Packet, RawPacket};
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PlayerListEntry {
     pub uuid: Uuid,
-    pub username: String,
-    pub xuid: String,
+    /// Shared, so snapshots copy no strings ([`crate::snapshot`]); likewise `xuid`.
+    pub username: Arc<str>,
+    pub xuid: Arc<str>,
     pub entity_unique_id: i64,
     pub platform_chat_id: String,
     pub build_platform: i32,
@@ -20,8 +22,8 @@ impl From<PlayerRecordContentAdd> for PlayerListEntry {
     fn from(r: PlayerRecordContentAdd) -> Self {
         Self {
             uuid: r.uuid,
-            username: r.username,
-            xuid: r.xbox_user_id,
+            username: r.username.into(),
+            xuid: r.xbox_user_id.into(),
             entity_unique_id: r.entity_unique_id,
             platform_chat_id: r.platform_chat_id,
             build_platform: r.build_platform,
@@ -41,10 +43,16 @@ pub struct PlayerList {
     players: HashMap<Uuid, PlayerListEntry>,
     /// Joins and leaves since the bot last drained them (an Add for a known UUID is an update).
     pub(crate) changes: Vec<PlayerChange>,
+    version: u64,
 }
 
 impl PlayerList {
     pub const PACKETS: &'static [u32] = &[PlayerListPacket::ID];
+
+    /// Moves on every change (see [`crate::snapshot`]).
+    pub fn version(&self) -> u64 {
+        self.version
+    }
 
     pub fn get(&self, uuid: &Uuid) -> Option<&PlayerListEntry> {
         self.players.get(uuid)
@@ -69,6 +77,7 @@ impl PlayerList {
 
     pub fn apply(&mut self, packet: &RawPacket) -> Result<(), DecodeError> {
         let p: PlayerListPacket = packet.decode()?;
+        self.version += 1;
         for record in p.records {
             match record.content {
                 PlayerRecordContent::Add(add) => {

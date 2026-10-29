@@ -12,9 +12,11 @@ const SPAWN_WAIT_TICKS: u32 = 100;
 const SOLID_REACH: f32 = 4.0;
 
 impl Bot {
-    /// The client ticks that came due, then a [`crate::BotEvent::Tick`] for a sink (see [`crate::events`]).
+    /// The client ticks that came due, then the snapshot and a [`crate::BotEvent::Tick`] for a sink (see
+    /// [`crate::snapshot`], [`crate::events`]).
     pub(super) fn run_ticks(&mut self, ticks: u32) {
         (0..ticks).for_each(|_| self.on_tick());
+        self.publish_snapshot(ticks);
         if self.out.is_sink() && self.events.wants(crate::Events::TICKS) {
             self.out.push(crate::BotEvent::Tick);
         }

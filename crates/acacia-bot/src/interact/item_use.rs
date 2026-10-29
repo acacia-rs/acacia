@@ -198,6 +198,7 @@ impl Bot {
                 if let Some(back) = unpredict(main, &predicted, &before) {
                     tracing::debug!(?target, "placement refused; undoing the predicted stack change");
                     *main = back;
+                    self.state.inventory.touch();
                 }
             }
             match verdict {
@@ -236,6 +237,7 @@ impl Bot {
             let legacy_id = (!left.is_empty()).then(|| self.reflexes.next_legacy_id());
             self.client.send(&legacy::with_slot_change(packet, legacy_id, &SlotChange { slot, old: &held, new: &left }));
             self.state.inventory.main[usize::from(slot)] = left;
+            self.state.inventory.touch();
             if is_sign {
                 self.client.send(&wire::click_air(self.hand()));
             }

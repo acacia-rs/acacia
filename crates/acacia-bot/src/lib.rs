@@ -27,6 +27,7 @@ mod prediction_sync;
 mod reflex;
 mod respawn;
 pub mod signs;
+pub mod snapshot;
 mod sleep;
 mod riding;
 mod spawn;

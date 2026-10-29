@@ -1,11 +1,14 @@
 //! Driving a bot from outside its task against the fake server: events during actions (`acacia_bot::events`) and
-//! the immediate lane (`acacia_bot::inbox`).
+//! the immediate lane (`acacia_bot::inbox`), snapshots (`acacia_bot::snapshot`).
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acacia_bot::client::{Client, TransportKind};
-use acacia_bot::events::{channel, EventReceiver};
-use acacia_bot::proto::packets::{Text, TextCategory, TextContent, TextContentRaw, TextType};
+use acacia_bot::events::{channel, EventReceiver, EventSink};
+use acacia_bot::proto::packets::{InventorySlot, Text, TextCategory, TextContent, TextContentRaw, TextType};
+use acacia_bot::proto::types::{ItemV4, ItemV4Extra, WindowIDVarint};
+use acacia_bot::snapshot::SnapshotReader;
 use acacia_bot::{Bot, BotConfig, BotEvent, Events, Immediate};
 use acacia_testserver::{FakeServer, Script};
 use tokio::time::{sleep, timeout};
@@ -128,4 +131,64 @@ async fn the_events_mask_changes_after_connect() {
     bot.set_events(Events::NONE);
     server.send(&chat_line("unsubscribed again"));
     assert_eq!(next_chat(&mut bot, Duration::from_millis(500)).await, None, "unsubscribing stops them");
+}
+
+fn send_sync<T: Send + Sync>(_: &T) {}
+
+#[allow(dead_code)]
+fn host_handles_are_send_and_sync(bot: &Bot, reader: &SnapshotReader, sink: &EventSink) {
+    send_sync(&bot.inbox());
+    send_sync(&bot.sender());
+    send_sync(&bot.cancel_handle());
+    send_sync(reader);
+    send_sync(sink);
+}
+
+fn stone_in_slot(slot: u32, count: u16) -> InventorySlot {
+    let item = ItemV4 {
+        network_id: 1,
+        count,
+        metadata: 0,
+        has_stack_id: true,
+        stack_id: Some(77),
+        block_runtime_id: 0,
+        extra: ItemV4Extra::Default(None),
+    };
+    InventorySlot { window_id: WindowIDVarint::Inventory, slot, container: None, storage_item: None, item }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn snapshots_publish_each_tick_and_rebuild_cold_on_change() {
+    let (server, bot) = join("SnapshotTester", BotConfig::default()).await;
+    assert!(bot.snapshot_reader().is_none(), "off by default");
+    drop((server, bot));
+
+    let (server, mut bot) = join("SnapshotTester", BotConfig { snapshots: true, ..BotConfig::default() }).await;
+    let reader = bot.snapshot_reader().expect("snapshots on");
+    let elsewhere = reader.clone();
+    let watcher = std::thread::spawn(move || {
+        let start = Instant::now();
+        let first = elsewhere.hot().tick;
+        while elsewhere.hot().tick < first + 5 {
+            assert!(start.elapsed() < Duration::from_secs(5), "ticks stopped at {}", elsewhere.hot().tick);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        elsewhere.world().is_some()
+    });
+    let _ = timeout(Duration::from_millis(600), bot.next()).await;
+    assert!(watcher.join().unwrap(), "another thread sees ticks and the world");
+
+    let before = reader.cold();
+    let _ = timeout(Duration::from_millis(200), bot.next()).await;
+    assert_eq!(reader.cold().version, before.version, "no change, no rebuild");
+    assert!(Arc::ptr_eq(&reader.cold(), &before), "the same Arc while nothing changes");
+
+    server.send(&stone_in_slot(3, 5));
+    let _ = timeout(Duration::from_millis(500), bot.next()).await;
+    let after = reader.cold();
+    assert!(after.version > before.version, "an inventory change rebuilds the cold part");
+    let stack = after.inventory.iter().find(|s| s.window == 0 && s.slot == 3).expect("slot 3 in the snapshot");
+    assert_eq!((stack.network_id, stack.count), (1, 5));
+    assert_eq!(bot.snapshot().cold.inventory, after.inventory, "an on-demand snapshot agrees");
+    assert_eq!(reader.hot().position, bot.snapshot().hot.position);
 }

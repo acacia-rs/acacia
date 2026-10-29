@@ -79,6 +79,7 @@ pub struct Bot {
     lag: Option<LagLine>,
     pub(crate) cancel: crate::cancel::CancelState,
     pub(crate) inbox: crate::inbox::InboxState,
+    pub(crate) snapshots: Option<crate::snapshot::Publisher>,
 }
 
 impl Bot {
@@ -152,6 +153,7 @@ impl Bot {
             lag: config.lag.map(LagLine::new),
             cancel: Default::default(),
             inbox: Default::default(),
+            snapshots: config.snapshots.then(Default::default),
         })
     }
 
