@@ -162,6 +162,41 @@ fn swims_across() {
 }
 
 #[test]
+fn leaves_a_ladder_top_for_the_floor() {
+    let g = Grid::floor(-20, 20);
+    g.fill([10, 1, 3], [13, 4, 3], "cobblestone");
+    for x in 10..=13 {
+        g.set_state([x, 5, 3], "oak_slab", "minecraft:vertical_half=bottom");
+    }
+    for y in 1..=4 {
+        g.set_state([11, y, 4], "ladder", "facing_direction=3");
+    }
+    // Swarm sim drops_after: a bot stood here on the ladder's top 5000 ticks, every walk "Stuck".
+    for start in [[11.59, 5.0, 4.38], [11.5, 5.5, 3.5]] {
+        let r = run_with(&g, start, Goal::Block([11, 1, 8]), 200, &opts(false));
+        assert!((r.end[0] - 11.5).hypot(r.end[2] - 8.5) < 0.3 && r.end[1] == 1.0, "from {start:?} ended at {:?}", r.end);
+    }
+}
+
+#[test]
+fn keeps_off_placed_pane_tops_along_a_wall() {
+    // Live house16, two bots: a walk north along the west wall's top slid off the window's panes into its cell.
+    let g = Grid::floor(-20, 20);
+    g.fill([0, 1, -6], [0, 2, 6], "cobblestone").fill([1, 1, 4], [1, 1, 4], "cobblestone");
+    let panes: std::collections::HashSet<_> = (-1..=1).map(|z| [0, 2, z]).collect();
+    for &p in &panes {
+        g.set_state(p, "glass_pane", "");
+    }
+    let (start, goal) = ([0.5, 3.0, -5.5], Goal::Block([0, 3, 5]));
+    let on_pane = |p: &crate::pathfind::Path| p.nodes.iter().any(|n| panes.contains(&[n.pos[0], n.pos[1] - 1, n.pos[2]]));
+    assert!(on_pane(&search(&g.terrain(), start, &goal, &opts(false))), "the scene's shortest way runs over the panes");
+    let o = SearchOpts { no_body: Some(std::sync::Arc::new(panes.clone())), ..opts(false) };
+    let p = search(&g.terrain(), start, &goal, &o);
+    assert!(p.complete && !on_pane(&p), "{:?}", p.nodes.iter().map(|n| n.pos).collect::<Vec<_>>());
+    assert_at(&run_with(&g, start, goal, 600, &o), [0.5, 3.0, 5.5], 0.3);
+}
+
+#[test]
 fn climbs_a_ladder() {
     let g = Grid::floor(-20, 20);
     ladder_course(&g);

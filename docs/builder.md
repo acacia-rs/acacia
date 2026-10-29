@@ -215,13 +215,16 @@ stands and the stands it could use: the first thing to read when a build stalls 
     stand matched by the feet's cell was never marked tried, so it was rewalked every tick; `arrival` now takes
     the nearest stand. Edges over an open `no_body` cell a miss would fall into are dropped (`moves.rs`; the
     repro once wedged a bot in a ladder cell). Open: why the follower can't step out to the open side.
-  - Window wedge after the 2026-10-29 master merge (pathfind M4): two bots wedged 5 runs in 10, against 0 in 11
-    before it and 0 in 4 with players dropped from `hazard::kinds`. Each wedge starts with the same walk, from the
-    south end (feet about [6.6, -18, -5.5]) north to the stands at [5, -17, 0..2], over the placed pane tops of the
-    west wall; the other bot is 8-12 blocks off then. The player cost sphere only reorders which side a bot works,
-    so it makes that walk; the cause is a route over pane tops. Banning moves that end on a `no_body` cell (sim
-    `swarm_wedge` 16 of 16 seeds clean, 15 before; the sim never takes that walk) stranded a bot on the ladder top in
-    `drops_after`, so it is not landed.
+  - Done (2026-10-29): window wedge fixed. Each wedge started with one walk, from the south end (feet about [6.6,
+    -18, -5.5]) north to the stands at [5, -17, 0..2], over the west wall's placed pane tops; off their 1/8 strip the
+    bot slid into a window cell. The master merge (pathfind M4) made it 5 runs in 10, against 0 in 11 before and 0 in
+    4 with players dropped from `hazard::kinds`: the other bot's cost sphere (8-12 blocks off at entry) only changes
+    which side a bot works, which leaves it that walk. No move now ends standing on a `no_body` cell (`moves.rs`;
+    sim `keeps_off_placed_pane_tops_along_a_wall`). That route then went down a ladder from its top, where a
+    ClimbDown let go of the keys within 0.15 of the centre and left the body on the ladder's 3/16 top strip for good
+    (`drops_after`); on the ground it now walks to 0.01 (`follow/steer.rs`, sim `leaves_a_ladder_top_for_the_floor`).
+    Live house16: one bot 163 s (3 runs), two bots 110 s (6 runs), 0 wedged, 0 mismatches. `two_bots`' sim bound is
+    0.71 for the ban's ~30 ticks. run.log prints a WALK_FAIL line per stretch of failed walks.
   - Done (2026-10-29): upright logs before the wall cells beside them (user's choice; `ahead::waits_for_upright`,
     derived from the rules by probing faces). Sim: plain 2289 ticks, 73 walks against 4381, 94; as live 2473, 69
     against 4464, 98; `swarm_wedge` 16 seeds 1548 against 2083 ticks, 0 wedged. Live house16 against d78846d, 3 a

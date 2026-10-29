@@ -96,7 +96,8 @@ pub(crate) fn successors<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, at:
     let first = out.len();
     expand(t, p, from, at, ctx, out);
     if let Some(k) = ctx.no_body {
-        let kept: Vec<Edge> = out.drain(first..).filter(|e| !k.contains(&e.pos) && !k.contains(&offset(e.pos, 0, 1, 0)) && !over_kept_out(t, p, e.pos, k)).collect();
+        let body_or_floor = |e: &Edge| [-1, 0, 1].iter().any(|&dy| k.contains(&offset(e.pos, 0, dy, 0)));
+        let kept: Vec<Edge> = out.drain(first..).filter(|e| !body_or_floor(e) && !over_kept_out(t, p, e.pos, k)).collect();
         out.extend(kept);
     }
 }

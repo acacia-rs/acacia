@@ -151,7 +151,8 @@ fn two_bots_build_house16_in_well_under_one_bots_time() {
     assert!(bugs.is_empty(), "{bugs:?}");
     // A regression bound, not the B2 bar: sim ticks are not live seconds (sim 0.41 against live 0.62 once, and
     // a pilot fix that sped one bot up moved it the other way). The bar is judged live: tools/build-ab.sh.
-    assert!(two as f32 <= 0.7 * one as f32, "one {one} two {two}");
+    // 0.71: the pane-top ban (`moves.rs`) costs about 30 sim ticks; live two bots are at 0.67 of one (2026-10-29).
+    assert!(two as f32 <= 0.71 * one as f32, "one {one} two {two}");
 }
 
 #[test]
@@ -165,13 +166,18 @@ fn house16_finishes_when_a_bot_drops_after_restocking() {
     let mut w = World::new(&g, &[]);
     w.stations.insert(station, house16_items().into_iter().map(|(i, n)| (format!("minecraft:{i}"), n * 2)).collect());
     let board = Arc::new(LocalBoard::manual(LEASE));
+    let dir = std::env::temp_dir().join(format!("acacia-swarm-drops-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let clock = w.clock.clone();
     let mut bots: Vec<SimBot> = [("a", [0.5, 1.0, 0.5]), ("b", [2.5, 1.0, 0.5])]
         .into_iter()
         .map(|(who, start)| {
             let (b, st) = builder(&s, ORIGIN, &[station]);
-            bot(b, st, &board, who, start, &[("dirt", 64)])
+            let journal = Journal::new(who, Box::new(std::fs::File::create(journal_file(&dir, who)).unwrap()), false).clocked(clock.clone());
+            bot(b.with_journal(Arc::new(journal)), st, &board, who, start, &[("dirt", 64)])
         })
         .collect();
+    eprintln!("journals in {}", dir.display());
     bots[1].stop_at = Some(600);
     let ticks = run_many(&mut w, &mut bots, &board, 8000);
     let (a, b) = (bots[0].status.lock().unwrap().clone(), bots[1].status.lock().unwrap().clone());

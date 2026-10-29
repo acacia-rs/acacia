@@ -43,8 +43,9 @@ pub struct SearchOpts {
     /// every cell its structure fills; live sim: a pillar through a torch's cell replaced the torch, again and
     /// again).
     pub keep: Option<Arc<std::collections::HashSet<BlockPos>>>,
-    /// Cells no move may end with the body in (feet or head): the builder's thin targets (panes, fences, walls),
-    /// beside which a body fits but which then wall it in (live: a window cell, every walk "Stuck" after).
+    /// Cells no move may end with the body in (feet or head) or stand on: the builder's thin targets (panes, fences,
+    /// walls), beside which a body fits but which then wall it in (live: a window cell, every walk "Stuck" after; a
+    /// walk along placed pane tops slid off into one).
     pub no_body: Option<Arc<std::collections::HashSet<BlockPos>>>,
     /// Cross still water by boat, bank to bank (physics bots with the entity tracker).
     pub boats: bool,

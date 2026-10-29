@@ -18,6 +18,8 @@ const SPRINT_RUN: usize = 3;
 /// Facing farther than this (degrees) off the node, stop walking until turned: an eased aim lagging the bearing
 /// walks an arc (it circled the goal, and walked off the course's stones pit turning round).
 const TURN_FIRST_DEG: f32 = 30.0;
+/// How near the centre a ClimbDown started on the ground walks before it lets the body drop onto the ladder.
+const ON_LADDER_TOP: f32 = 0.01;
 
 impl Follower {
     #[allow(clippy::too_many_arguments)]
@@ -41,6 +43,9 @@ impl Follower {
                 None => dist < speed * GROUND_DRAG / (1.0 - GROUND_DRAG) + 0.05,
             };
             if stops { 0.0 } else { 1.0 }
+        } else if node.kind == MoveKind::ClimbDown && s.on_ground {
+            // On a ladder's top: its 3/16 strip holds the body until the feet are within 1/80 of the centre.
+            if dist < ON_LADDER_TOP { 0.0 } else { 1.0 }
         } else if matches!(node.kind, MoveKind::ClimbUp | MoveKind::ClimbDown | MoveKind::Pillar | MoveKind::Down) && dist < 0.15 {
             0.0
         } else {
