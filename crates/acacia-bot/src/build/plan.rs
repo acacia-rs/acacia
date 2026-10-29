@@ -15,7 +15,7 @@ use crate::pathfind::Goal;
 use crate::ActionError;
 
 /// Candidates tried per tick, in rank order, before settling for a later rank.
-const TRIES: usize = 24;
+pub(super) const TRIES: usize = 24;
 /// Stands handed to the pilot at once (it takes the cheapest it can reach).
 pub(super) const STANDS: usize = 3;
 /// Placements whose stands are searched per tick (the search tries every face from every spot). Live house16
@@ -32,7 +32,7 @@ pub(super) enum Next {
     Done(Result<(), ActionError>),
 }
 
-fn dist(from: Vec3, p: BlockPos) -> f32 {
+pub(super) fn dist(from: Vec3, p: BlockPos) -> f32 {
     let d = [p[0] as f32 + 0.5 - from[0], p[1] as f32 + 0.5 - from[1], p[2] as f32 + 0.5 - from[2]];
     (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()
 }
@@ -65,7 +65,7 @@ pub(super) fn go(phase: Phase, task: BlockPos, found: Vec<Stand>, b: &Builder) -
 }
 
 /// Breaks the block at `pos`, or goes where it can.
-fn break_at(cx: &Ctx, pos: BlockPos, phase: Phase, b: &Builder) -> Option<Next> {
+pub(super) fn break_at(cx: &Ctx, pos: BlockPos, phase: Phase, b: &Builder) -> Option<Next> {
     let feet = cx.pos.map(|v| v.floor() as i32);
     let on_it = feet == [pos[0], pos[1] + 1, pos[2]];
     if breaks_from(cx.eye(), pos, cx.look) && !on_it {
@@ -208,7 +208,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     // Whatever can be clicked from here first (still lowest first), then walk for the lowest. Walking, a click
     // whose state needs no particular look is placed on the way instead of stopping for it (`en_route`).
     let (mut here, walking) = (None, b.commit.is_some() && super::en_route::enabled() && super::en_route::plain_step(cx));
-    for (i, item) in &ready {
+    for (i, item) in super::ahead::far_first(&ready, eye, |i| b.cells[i].pos, cx.look.held()) {
         let (pos, target) = (b.cells[*i].pos, &b.cells[*i].target);
         let slack = if walking { super::en_route::SLACK } else { 0.0 };
         if free(b, cx, pos)
@@ -260,18 +260,8 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         return Next::Hold(if missing.is_empty() { Phase::Building } else { Phase::Waiting }, missing, why);
     }
 
-    // Scaffold, top down; seals outside the footprint stay.
-    let standing: Vec<BlockPos> = b.scaffold.iter().copied().filter(|p| !b.seals.contains(p) && !b.given_up(*p) && cx.look.solid(*p) == Some(true)).filter(|p| b.target(*p).is_none_or(|t| t.is_air())).collect();
-    let mut left: Vec<BlockPos> = standing.iter().copied().filter(|p| !b.resting(*p) && b.mine(*p)).collect();
-    left.sort_by(|p, q| (Some(*q) == committed).cmp(&(Some(*p) == committed)).then(q[1].cmp(&p[1])).then(dist(eye, *p).total_cmp(&dist(eye, *q))));
-    for &pos in left.iter().take(TRIES) {
-        match break_at(cx, pos, Phase::Cleaning, b) {
-            Some(next) => return next,
-            None => b.rest(pos),
-        }
-    }
-    if !standing.is_empty() {
-        return Next::Hold(Phase::Cleaning, Vec::new(), HoldWhy::Cleaning);
+    if let Some(next) = super::cleanup::next(b, cx, committed) {
+        return next;
     }
     if b.revive() {
         return Next::Hold(Phase::Building, Vec::new(), HoldWhy::Revive);

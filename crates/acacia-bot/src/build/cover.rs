@@ -42,10 +42,8 @@ pub(super) fn walk(b: &mut Builder, cx: &Ctx, ready: &[(usize, String)], committ
         }
         candidates.extend(found.into_iter().map(|s| (pos, s)));
     }
-    let reached = |s: &Stand| -> Vec<BlockPos> {
-        let eye = s.eye();
-        ready.iter().map(|(j, _)| &b.cells[*j]).filter(|c| sight_stats::at("stand reach", || click_for(c.pos, &c.target, eye, cx.look, STAND_SLACK).is_some())).map(|c| c.pos).collect()
-    };
+    let cells = super::ahead::cells(b, cx.look, ready);
+    let reached = |s: &Stand| -> Vec<BlockPos> { sight_stats::at("stand reach", || super::ahead::reaches(&cells, s.eye(), cx.look, STAND_SLACK)) };
     let travel = |s: &Stand| {
         let d = [s.feet[0] as f32 + 0.5 - cx.pos[0], s.feet[1] as f32 - cx.pos[1], s.feet[2] as f32 + 0.5 - cx.pos[2]];
         d[0].hypot(d[2]) + d[1].abs() * 2.0 + s.pillar as f32 * PILLAR + b.away_cost(s.feet)
@@ -63,6 +61,7 @@ pub(super) fn walk(b: &mut Builder, cx: &Ctx, ready: &[(usize, String)], committ
     // not reach cost 601 ticks a try, again after each avoid ran out).
     let task = scored.first()?.2;
     b.batch = scored[0].4.clone();
+    sight_stats::at("walk", || sight_stats::count(|| format!("{} y{} batch {}", ready.iter().find(|(i, _)| b.cells[*i].pos == task).map_or("?", |(_, n)| n.as_str()), task[1], b.batch.len().min(6))));
     let goals: Vec<Goal> = scored.iter().take(STANDS).map(|x| Goal::Block(x.3)).collect();
     Some(Next::Go(Phase::Building, task, if goals.len() == 1 { goals[0].clone() } else { Goal::Or(goals) }))
 }

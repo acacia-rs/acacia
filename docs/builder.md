@@ -84,10 +84,14 @@ half of the side faces; panes, fences, walls, torches and other partial blocks a
    ladder column and reached nothing from there). Stands are driven to with a 0.1 arrival tolerance: at the
    default 0.25 the body overlaps the cell next to the stand and the click is never allowed.
    Gravity blocks wait for their support; a cell with nothing clickable around it gets a scaffold column up to it.
+   From here, the first rank (held item, lowest layer) goes farthest first, and stands are scored by placing their
+   cells bottom up and far to near, each against those before it (`build/ahead.rs`): a row above the eye or a floor
+   around the bot is then clicked on each cell's far neighbour, already there.
 4. Restock when the next placement's item is missing (`build/restock.rs`): everything the open placements still
    need minus the inventory, from the nearest station not yet found without it. A station that brought no more of
    an item is marked lacking it (cleared after 30 s of waiting).
-5. Unknown cells: walk near. Then cleanup: scaffold where air belongs or outside the footprint, top down.
+5. Unknown cells: walk near. Then cleanup (`build/cleanup.rs`): scaffold where air belongs or outside the
+   footprint, the nearest block with no scaffold on it, so a pillar comes down whole before the next.
 6. Done once every cell is right and no scaffold stands; the outcome is an error if cells were given up.
 
 Failures: an act failing 4 times, a cell placed wrong more than 3 times, or 45 rests with nowhere to do it from
@@ -195,6 +199,22 @@ stands and the stands it could use: the first thing to read when a build stalls 
   - Verdict: the cells are hidden; ~250-265 s is line of sight's price under this planner. Next, if wanted: build
     a top row from its far end towards one stand beside the wall (each cell's far neighbour is then there to
     click), and stack each corner log column in one visit from a stand beside it.
+  - Done (2026-10-29): far to near (`build/ahead.rs`) and pillar-wise cleanup (`build/cleanup.rs`). Live house16
+    against 47a4214, pool, interleaved: one bot 249 s, 3577 ticks, 96 walks against 268 s, 3851, 98 (3 a side;
+    an earlier round with column stands, 3 a side: 219 against 276 s); two bots 138 s, 1906 ticks against 198 s,
+    3131 (5 a side; base 178 s without its FAIL). Cleanup, first Cleaning tick to the end: 492 against 870 ticks
+    one bot, 365 against 685 two. 0 mismatches but base's FAIL. The sim ranks one bot the other way (plain 4381
+    ticks, as live 4464, against 3925 / 4049; two bots 1723 against 1978): it swings up to 1600 ticks a change.
+  - Dropped: stand search for a column's top (`swarm_wedge` wedged a bot 1 seed in 8 with it, 0 in 16 without).
+  - Window wedge (`pathfind/tests/swarm_wedge.rs`, `--ignored never_wedge`, `WEDGE_SEEDS`): on scaffold at feet
+    rel 3 beside the west wall the pilot drifts a block onto the placed panes and slides into a window cell's
+    outer half, panes in its feet and head cells. No move ends there (`no_body`); every walk after is "Stuck 10
+    times", and `wedged()` frees the feet cell only. 47a4214 does it live too (1 FAIL in 5 two-bot runs): the
+    stand matched by the feet's cell was never marked tried, so it was rewalked every tick; `arrival` now takes
+    the nearest stand. Edges over an open `no_body` cell a miss would fall into are dropped (`moves.rs`; the
+    repro once wedged a bot in a ladder cell). Open: why the follower can't step out to the open side.
+  - Next: upright corner logs (~700 sim ticks, walked to one by one at the end): place them before the wall
+    cells beside them (user, 2026-10-29).
 
 ## Swarm (B2: `build/board.rs`, `build/swarm.rs`)
 

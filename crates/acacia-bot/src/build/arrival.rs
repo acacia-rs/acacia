@@ -51,7 +51,10 @@ pub(super) fn missed(b: &mut Builder, cx: &Ctx, next: &Next) -> Missed {
         return Missed::No;
     }
     let before = b.arrived.take();
-    let feet = cx.pos.map(|v| v.floor() as i32);
+    // The reached stand is the nearest, not the feet's cell: the pilot may count an edge or a block up as on it, and
+    // a stand never marked tried was rewalked every tick (sim 6000 ticks; live two bots, feet a block up, 3800 walks).
+    let away = |s: BlockPos| off_centre(cx.pos, s).hypot(cx.pos[1] - s[1] as f32);
+    let feet = stands_of(goal).min_by(|a, b| away(*a).total_cmp(&away(*b))).unwrap_or(cx.pos.map(|v| v.floor() as i32));
     if let Some(s) = stands_of(goal).find(|s| *s == feet) {
         let first = !b.tried.contains(&(*task, s));
         if first {

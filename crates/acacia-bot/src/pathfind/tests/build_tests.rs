@@ -114,7 +114,12 @@ fn house16_from(g: &Grid, start: [f32; 3]) {
         .map(|i| (*i, 400))
         .collect();
     let mut w = World::new(g, &items);
-    let (proc, status) = builder(&s, ORIGIN, &[]);
+    let (mut proc, status) = builder(&s, ORIGIN, &[]);
+    // `BUILD_JOURNAL=<path>`: the run's journal, for tools that read live ones.
+    if let Ok(path) = std::env::var("BUILD_JOURNAL") {
+        let out = std::fs::File::create(path).expect("journal file");
+        proc = proc.with_journal(std::sync::Arc::new(crate::build::journal::Journal::new("sim", Box::new(out), false)));
+    }
     let mut arb = Arbiter::new();
     let id = arb.add(proc, 10);
     let ticks = run(&mut w, start, &mut arb, id, 8000);

@@ -91,9 +91,23 @@ pub(crate) fn successors<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, at:
     let first = out.len();
     expand(t, p, from, at, ctx, out);
     if let Some(k) = ctx.no_body {
-        let kept: Vec<Edge> = out.drain(first..).filter(|e| !k.contains(&e.pos) && !k.contains(&offset(e.pos, 0, 1, 0))).collect();
+        let kept: Vec<Edge> = out.drain(first..).filter(|e| !k.contains(&e.pos) && !k.contains(&offset(e.pos, 0, 1, 0)) && !over_kept_out(t, p, e.pos, k)).collect();
         out.extend(kept);
     }
+}
+
+/// A kept-out cell under the edge's line that a miss would fall into: open from the feet down to it, at most 3 deep
+/// (two-bot sim `swarm_wedge`: without it a bot ended in an open ladder cell, wedged for 5000 ticks).
+fn over_kept_out<B: Blocks>(t: &Terrain<B>, from: BlockPos, to: BlockPos, k: &std::collections::HashSet<BlockPos>) -> bool {
+    let (dx, dz) = ((to[0] - from[0]) as f32, (to[2] - from[2]) as f32);
+    let n = (dx.abs().max(dz.abs()) * 4.0).ceil().max(1.0) as i32;
+    let top = from[1].max(to[1]);
+    (0..=n).any(|i| {
+        let f = i as f32 / n as f32;
+        let (x, z) = ((from[0] as f32 + 0.5 + dx * f).floor() as i32, (from[2] as f32 + 0.5 + dz * f).floor() as i32);
+        let column = |d: i32| [x, top - d, z];
+        [x, z] != [from[0], from[2]] && (0..=3).find(|d| k.contains(&column(*d))).is_some_and(|d| (0..=d).all(|e| t.passable(column(e))))
+    })
 }
 
 fn expand<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, at: (Entry, &Momentum), ctx: &Ctx, out: &mut Vec<Edge>) {
