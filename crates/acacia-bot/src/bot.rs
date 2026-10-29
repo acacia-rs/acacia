@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use acacia_client::proto::types::InputData;
 use acacia_client::proto::RawPacket;
-use acacia_client::{Client, ClientBuilder, ConnectError, DisconnectReason, Event, MemoryBlobStore, PacketFilter, PacketTraceSummary};
+use acacia_client::{Client, ClientBuilder, ConnectError, DisconnectReason, Event, MemoryBlobStore, PacketFilter};
 use crate::cadence::Ticker;
 use crate::events::{BotEvent, EventOut, EventSource, Events};
 use crate::governor::Governor;
@@ -11,7 +11,7 @@ use crate::human::Human;
 use crate::interact::closing::PendingClose;
 use crate::lag::LagLine;
 use crate::items::RequestIds;
-use crate::movement::{Controls, Idle, Movement};
+use crate::movement::{Idle, Movement};
 use crate::prediction_sync::PredictionSync;
 use crate::reflex::Reflexes;
 use crate::riding::Ride;
@@ -24,6 +24,7 @@ use crate::trace::{self, Recorder};
 use crate::world::WorldTracker;
 use crate::BotConfig;
 
+mod access;
 mod dimension;
 mod tick;
 
@@ -155,44 +156,6 @@ impl Bot {
             inbox: Default::default(),
             snapshots: config.snapshots.then(Default::default),
         })
-    }
-
-    /// Why the connection ended, once it has.
-    pub fn disconnect_reason(&self) -> Option<&DisconnectReason> {
-        self.closed.as_ref()
-    }
-
-    /// Labels the recorded trace from here on (no-op when not recording).
-    pub fn trace_mark(&mut self, label: &str) {
-        if let Some(r) = &mut self.recorder {
-            r.write(&trace::Event::Mark(label.to_owned()));
-        }
-    }
-
-    pub fn client(&self) -> &Client {
-        &self.client
-    }
-
-    /// Recent inbound packets (filtered ones too) and the server's silence, for stall diagnostics.
-    pub fn packet_trace(&self) -> PacketTraceSummary {
-        self.client.packet_trace()
-    }
-
-    pub fn state(&self) -> &GameState {
-        &self.state
-    }
-
-    pub fn world(&self) -> Option<&WorldTracker> {
-        self.world.as_ref()
-    }
-
-    /// Movement intent (physics bots only); applied from the next tick on.
-    pub fn controls(&mut self) -> Option<&mut Controls> {
-        self.movement.as_mut().map(|m| &mut m.controls)
-    }
-
-    pub fn movement(&self) -> Option<&Movement> {
-        self.movement.as_ref()
     }
 
     /// Closes the connection and waits (up to 2 s) for the disconnect to be sent, so the server
