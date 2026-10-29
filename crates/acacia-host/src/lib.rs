@@ -25,7 +25,10 @@
 //!   threadsafe function from a thread blocked in [`Outbound::blocking_recv`]; a socket server sends each as a
 //!   frame. The same bytes either way.
 //!
-//! Not yet: reconnects through the swarm supervisor, online sign-in, published snapshots and world access.
+//! - **Reads.** With [`HostConfig::snapshots`] each bot publishes its state per tick (acacia_bot::snapshot), and
+//!   [`Host::hot`] / [`Host::block_at`] read it and the bot's terrain from any thread without a call or a `done`.
+//!
+//! Not yet: reconnects through the swarm supervisor, online sign-in, entity and player positions.
 
 mod bot;
 mod calls;

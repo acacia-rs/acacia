@@ -6,7 +6,7 @@ pub(crate) fn snapshot(s: &BotSnapshot) -> Snapshot {
     Snapshot { hot: hot(&s.hot), cold: cold(&s.cold) }
 }
 
-fn hot(h: &bot::Hot) -> HotSnapshot {
+pub(crate) fn hot(h: &bot::Hot) -> HotSnapshot {
     HotSnapshot {
         tick: h.tick,
         position: h.position.into(),

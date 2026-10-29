@@ -152,6 +152,7 @@ dependencies = [
  "acacia-bot",
  "acacia-client",
  "acacia-testserver",
+ "acacia-world",
  "parking_lot",
  "serde_json",
  "tokio",

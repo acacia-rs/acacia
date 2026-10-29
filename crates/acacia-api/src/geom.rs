@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -16,6 +18,18 @@ pub struct BlockPos {
     pub x: i32,
     pub y: i32,
     pub z: i32,
+}
+
+/// One block of a bot's world, read without a call (`blockAt`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Block {
+    /// Namespaced, e.g. `minecraft:stone`.
+    pub name: String,
+    /// The state's properties as Bedrock names them; booleans are `"0"` / `"1"`.
+    pub states: BTreeMap<String, String>,
+    /// The runtime id in this connection's block palette (custom blocks shift it, so never compare across servers).
+    pub state_id: u32,
 }
 
 impl From<[f32; 3]> for Vec3 {

@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use acacia_api::ErrorCode;
+use acacia_api::{BlockPos, BotId, ErrorCode};
 use acacia_bot::proto::packets::{Text, TextCategory, TextContent, TextContentRaw, TextType};
 use acacia_host::{Host, HostConfig, Outbound};
 use acacia_testserver::{FakeServer, Script};
@@ -110,6 +110,19 @@ async fn a_bot_runs_on_json_alone() {
     d.call(4, "bot.snapshot", json!({ "bot": bot }));
     let (snapshot_at, snapshot) = d.done(4).await;
     assert_eq!(snapshot["ok"]["hot"]["alive"], true, "{snapshot}");
+    let hot = d.host.hot(&BotId(bot.clone())).expect("a spawned bot publishes its state");
+    assert!(hot.alive && hot.tick > 0, "{hot:?}");
+    assert!(d.host.hot(&BotId("bot-9".into())).is_none());
+    let feet = BlockPos { x: hot.position.x.floor() as i32, y: hot.position.y.floor() as i32 - 1, z: hot.position.z.floor() as i32 };
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let block = loop {
+        match d.host.block_at(&BotId(bot.clone()), feet) {
+            Some(block) => break block,
+            None => assert!(Instant::now() < deadline, "the chunk at {feet:?} never loaded"),
+        }
+        sleep(Duration::from_millis(50)).await;
+    };
+    assert!(block.name.starts_with("minecraft:"), "{block:?}");
     let (done_at, waited) = d.done(3).await;
     assert_eq!(waited, json!({ "ok": null }));
     assert!(snapshot_at < done_at, "an immediate call answers while a queued one runs");

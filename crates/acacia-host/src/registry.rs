@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use acacia_api::{ApiError, BotId, CallId, CallResult, EndReason, ErrorCode, Event, Method, Out, Reply};
+use acacia_bot::snapshot::SnapshotReader;
 use parking_lot::Mutex;
 use tokio::sync::{mpsc, Notify};
 
@@ -65,6 +66,8 @@ struct Entry {
     tx: mpsc::UnboundedSender<Msg>,
     out: Arc<BotOut>,
     shard: usize,
+    /// Set once the bot has spawned, if the host publishes snapshots.
+    reader: Option<SnapshotReader>,
 }
 
 pub(crate) struct Registry {
@@ -94,7 +97,7 @@ impl Registry {
         out.open.lock().insert(call);
         let (tx, rx) = mpsc::unbounded_channel();
         self.loads[shard] += 1;
-        self.bots.insert(id, Entry { tx, out: out.clone(), shard });
+        self.bots.insert(id, Entry { tx, out: out.clone(), shard, reader: None });
         Ok((shard, out, rx))
     }
 
@@ -113,6 +116,16 @@ impl Registry {
             return Err(ApiError::new(ErrorCode::UnknownBot, format!("{bot} has ended")));
         }
         Ok(())
+    }
+
+    pub(crate) fn set_reader(&mut self, bot: &BotId, reader: Option<SnapshotReader>) {
+        if let Some(entry) = self.bots.get_mut(bot) {
+            entry.reader = reader;
+        }
+    }
+
+    pub(crate) fn reader(&self, bot: &BotId) -> Option<SnapshotReader> {
+        self.bots.get(bot)?.reader.clone()
     }
 
     /// Stops taking calls and tells every bot to close; returns what fires once the last one is gone.

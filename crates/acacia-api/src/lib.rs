@@ -34,7 +34,7 @@ pub mod table;
 pub use error::{ApiError, ErrorCode};
 pub use event::{ChatKind, ChatLine, EndReason, Event, TitleKind, Window};
 pub use form::{Form, FormAnswer, FormBody, FormButton, FormElement, FormValue};
-pub use geom::{BlockPos, Vec3};
+pub use geom::{Block, BlockPos, Vec3};
 pub use ids::{BotId, CallId, EntityId, UniqueId};
 pub use methods::*;
 pub use out::{batch_json, CallResult, Command, Out};

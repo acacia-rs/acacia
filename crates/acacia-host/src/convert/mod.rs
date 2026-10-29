@@ -2,9 +2,11 @@
 
 mod event;
 mod snapshot;
+mod world;
 
 pub(crate) use event::event;
-pub(crate) use snapshot::snapshot;
+pub(crate) use snapshot::{hot, snapshot};
+pub(crate) use world::block;
 
 use acacia_api::{ApiError, ErrorCode, EventGroup, FormAnswer, FormValue, Goal};
 use acacia_bot::forms::{FormReply, FormValue as BotFormValue};

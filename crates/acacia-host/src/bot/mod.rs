@@ -29,10 +29,11 @@ pub(crate) struct Spawn {
     pub params: CreateBotParams,
     pub shared_worlds: SharedWorlds,
     pub event_capacity: usize,
+    pub snapshots: bool,
 }
 
 pub(crate) async fn run(spawn: Spawn) {
-    let Spawn { out, mut rx, registry, call, params, shared_worlds, event_capacity } = spawn;
+    let Spawn { out, mut rx, registry, call, params, shared_worlds, event_capacity, snapshots } = spawn;
     let (sink, events) = channel(event_capacity);
     let transport = match params.transport.unwrap_or(Transport::Auto) {
         Transport::Auto => TransportKind::Auto,
@@ -45,6 +46,7 @@ pub(crate) async fn run(spawn: Spawn) {
         physics: params.physics.unwrap_or(false),
         events: convert::events(params.events.as_deref().unwrap_or_default()),
         event_sink: Some(sink),
+        snapshots,
         shared_worlds,
         ..BotConfig::default()
     };
@@ -79,6 +81,7 @@ pub(crate) async fn run(spawn: Spawn) {
             return;
         }
     };
+    registry.lock().set_reader(&out.id, bot.snapshot_reader());
     out.event(Event::Spawn);
     out.done(call, Ok(Reply::CreateBot(CreateBotResult { bot: out.id.clone() })));
     let lanes = Lanes {
