@@ -53,7 +53,7 @@ pub struct Bot {
     /// Ticks until the scheduled respawn (respawn.rs).
     pub(crate) respawn_in: Option<u32>,
     recorder: Option<Recorder>,
-    events: EventSource,
+    pub(crate) events: EventSource,
     pub(crate) human: Human,
     pub(crate) survival: Survival,
     /// Events not yet returned by [`Bot::next`], or the sink they go to (see [`crate::events`]).
@@ -78,14 +78,14 @@ pub struct Bot {
     pub(crate) in_flight: crate::interact::pipeline::Pipeline<crate::interact::pipeline::StackUndo>,
     lag: Option<LagLine>,
     pub(crate) cancel: crate::cancel::CancelState,
+    pub(crate) inbox: crate::inbox::InboxState,
 }
 
 impl Bot {
     /// Connects and spawns. Tracked packets are added to `builder`'s subscription automatically.
     pub async fn connect(builder: ClientBuilder, mut config: BotConfig) -> Result<Bot, ConnectError> {
         config.trackers.block_entities = config.trackers.block_entities.resolve(config.physics);
-        let events = EventSource::new(config.events, config.chat_patterns);
-        let mut tracked: PacketFilter = config.trackers.packet_ids().into_iter().chain(events.packet_ids()).collect();
+        let mut tracked: PacketFilter = config.trackers.packet_ids().into_iter().collect();
         tracked = PredictionSync::PACKETS.iter().chain(crate::sleep::PACKETS).chain(dimension::PACKETS).fold(tracked, |f, &id| f.with(id));
         tracked = WorldTracker::PACKETS.iter().fold(tracked, |f, &id| f.with(id));
         let mode = if config.physics { Movement::PACKETS } else { SubChunkRequester::PACKETS };
@@ -100,7 +100,8 @@ impl Bot {
             builder = builder.blob_store(Arc::new(MemoryBlobStore::with_payloads()));
         }
         // The bot sends SetLocalPlayerAsInitialized itself, when it leaves the loading screen (spawn.rs).
-        let client = builder.filter(tracked.union(&config.subscribe)).initialize_on_spawn(false).strict(config.strict).connect().await?;
+        let events = EventSource::new(config.events, config.chat_patterns).with_base(tracked.union(&config.subscribe));
+        let client = builder.filter(events.filter()).initialize_on_spawn(false).strict(config.strict).connect().await?;
         let state = GameState::new(config.trackers, client.runtime_entity_id());
         let recorder = config.record.as_deref().filter(|_| config.physics).and_then(|path| {
             Recorder::create(path).inspect_err(|e| tracing::warn!(error = %e, "cannot record trace")).ok()
@@ -150,6 +151,7 @@ impl Bot {
             in_flight: Default::default(),
             lag: config.lag.map(LagLine::new),
             cancel: Default::default(),
+            inbox: Default::default(),
         })
     }
 
@@ -226,6 +228,7 @@ impl Bot {
 
     /// Handles one incoming packet or movement tick, updating state. `None` once the connection is gone.
     pub(crate) async fn step(&mut self) -> Option<Step> {
+        self.drain_inbox();
         if let Some(world) = &mut self.world {
             for request in world.outgoing.drain(..) {
                 self.client.send(&request);
@@ -249,6 +252,10 @@ impl Bot {
             event = self.client.recv() => self.on_event(event?),
             // In an async block: select! builds a disabled branch's future too, and a bare sleep looks up the timer.
             _ = async { tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)).await }, if lagged.is_some() => Some(Step::Idle),
+            Some(request) = self.inbox.rx.recv() => {
+                self.on_immediate(request);
+                Some(Step::Idle)
+            }
             ticks = self.ticker.wait() => {
                 self.run_ticks(ticks);
                 Some(Step::Tick)

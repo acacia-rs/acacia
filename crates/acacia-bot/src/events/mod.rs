@@ -19,7 +19,7 @@ use std::ops::{BitOr, BitOrAssign};
 
 use acacia_client::proto::packets::{ModalFormRequest, OpenSign, SetTitle, SetTitleType, Text};
 use acacia_client::proto::{Packet, RawPacket};
-use acacia_client::{DisconnectReason, Violation};
+use acacia_client::{DisconnectReason, PacketFilter, Violation};
 
 pub use channel::{channel, EventReceiver};
 pub use chat::{ChatKind, ChatMatch, ChatMessage, ChatPattern};
@@ -155,6 +155,8 @@ impl Title {
 pub(crate) struct EventSource {
     events: Events,
     patterns: Vec<ChatPattern>,
+    /// The connection's packet filter without the packets only events need.
+    base: PacketFilter,
     vitals: (f32, f32, f32),
     alive: bool,
     window: Option<i32>,
@@ -164,7 +166,26 @@ pub(crate) struct EventSource {
 
 impl EventSource {
     pub(crate) fn new(events: Events, patterns: Vec<ChatPattern>) -> Self {
-        Self { events, patterns, vitals: (20.0, 20.0, 5.0), alive: true, window: None, contents: 0, sleeping: false }
+        let base = PacketFilter::none();
+        Self { events, patterns, base, vitals: (20.0, 20.0, 5.0), alive: true, window: None, contents: 0, sleeping: false }
+    }
+
+    /// `base`: the packets the connection takes whatever the events.
+    pub(crate) fn with_base(self, base: PacketFilter) -> Self {
+        Self { base, ..self }
+    }
+
+    pub(crate) fn events(&self) -> Events {
+        self.events
+    }
+
+    pub(crate) fn set(&mut self, events: Events) {
+        self.events = events;
+    }
+
+    /// The connection's packet filter for the enabled events.
+    pub(crate) fn filter(&self) -> PacketFilter {
+        self.packet_ids().into_iter().fold(self.base.clone(), PacketFilter::with)
     }
 
     /// Packets the enabled events need beyond the always-on trackers.
