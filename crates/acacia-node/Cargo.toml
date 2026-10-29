@@ -1,0 +1,29 @@
+[package]
+name = "acacia-node"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Node-API addon behind @acacia/bot: moves acacia-host's command JSON and record batches across the napi boundary"
+repository.workspace = true
+publish = false
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+acacia-api = { version = "0.1.0", path = "../acacia-api" }
+acacia-host = { version = "0.1.0", path = "../acacia-host" }
+napi = { version = "3.15", features = ["napi6"] }
+napi-derive = "3"
+serde_json = "1"
+acacia-testserver = { path = "../acacia-testserver", optional = true }
+acacia-proto = { workspace = true, optional = true }
+tokio = { version = "1.53.1", features = ["rt-multi-thread"], optional = true }
+
+[features]
+# `TestServer` (acacia-testserver's FakeServer) for the package's end-to-end tests; never in release builds.
+test-server = ["dep:acacia-testserver", "dep:acacia-proto", "dep:tokio"]
+
+[build-dependencies]
+napi-build = "2"
