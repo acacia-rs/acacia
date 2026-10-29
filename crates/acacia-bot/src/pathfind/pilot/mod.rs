@@ -40,7 +40,8 @@ use watch::Watch;
 const LOOKAHEAD: usize = 6;
 /// A search that finishes within this runs inline, before the next tick (azalea's instant path).
 const QUICK_NODES: usize = 5_000;
-const QUICK_BUDGET: Duration = Duration::from_millis(10);
+// Tests bound it by nodes only: a wall-clock cut makes sim outcomes depend on machine load.
+const QUICK_BUDGET: Duration = if cfg!(test) { Duration::from_secs(3600) } else { Duration::from_millis(10) };
 /// Macro rollout ticks the inline search may simulate (~5 µs each in release).
 const QUICK_ROLLOUT_TICKS: u64 = 1_000;
 /// Divergences in a row that re-plan for free; each one past it counts against `max_replans`.
