@@ -10,6 +10,7 @@ use super::quick::quick_move_ops;
 use super::request::{check_status, response_for};
 use super::slot::{open_container, BlockKind, Screen};
 use super::{Op, SlotRef};
+use crate::cancel::{Claim, Held};
 use crate::state::GameState;
 use crate::{ActionError, Bot};
 
@@ -113,10 +114,10 @@ impl Bot {
 
     async fn run_plan(&mut self, build: impl Fn(&GameState, Screen) -> Result<Plan, ActionError>) -> Result<(), ActionError> {
         build(&self.state, self.screen())?;
-        let opened = self.open_own_inventory_screen().await?;
+        let screen = self.open_own_inventory_screen().await?;
         let result = self.send_plan(&build).await;
-        if opened {
-            self.close_own_inventory_screen();
+        if let Some(screen) = screen {
+            self.release(screen);
         }
         result
     }
@@ -172,15 +173,16 @@ impl Bot {
         registry.get(view.block(pos.x, pos.y, pos.z)).map_or(BlockKind::Other, |b| BlockKind::from_name(b.name))
     }
 
-    /// Opens the own inventory screen unless some container is open; true if it did.
-    pub(crate) async fn open_own_inventory_screen(&mut self) -> Result<bool, ActionError> {
+    /// Opens the own inventory screen unless some container is open; the claim that closes it if it did.
+    pub(crate) async fn open_own_inventory_screen(&mut self) -> Result<Option<Claim>, ActionError> {
         if self.state.containers.open.is_some() {
-            return Ok(false);
+            return Ok(None);
         }
         self.container_settled().await?;
+        let screen = self.claim(Held::InventoryScreen);
         self.send_open_inventory();
         match self.wait_until(OPEN_TIMEOUT, |bot, _| bot.state.containers.open.is_some().then_some(())).await {
-            Ok(()) | Err(ActionError::Timeout) => Ok(true),
+            Ok(()) | Err(ActionError::Timeout) => Ok(Some(screen)),
             Err(e) => Err(e),
         }
     }

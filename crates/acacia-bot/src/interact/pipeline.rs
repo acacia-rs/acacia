@@ -68,6 +68,11 @@ impl<T> Pipeline<T> {
         self.items.is_empty()
     }
 
+    /// Drops every placement; returns how many there were.
+    pub fn clear(&mut self) -> usize {
+        std::mem::take(&mut self.items).len()
+    }
+
     /// A block update for `pos` arrived.
     pub fn echo(&mut self, pos: BlockPos) {
         self.items.iter_mut().filter(|i| i.target == pos).for_each(|i| i.echoed = true);
@@ -115,7 +120,7 @@ impl Bot {
         if self.in_flight.targets().any(|t| t == target) {
             return Err(ActionError::NotPossible(format!("a placement at {target:?} is already in flight")));
         }
-        self.admit_action().await?;
+        let admitted = self.admit_action().await?;
         let (slot, before) = (self.state.inventory.selected_hotbar_slot, self.state.inventory.held().clone());
         let expect = half_slab.map_or(Expect::Solid, Expect::Replaced);
         let mut confirm = self.confirmation(target, expect, 1);
@@ -129,7 +134,17 @@ impl Bot {
         let replaced = (before.block_runtime_id != 0 && half_slab.is_none()).then(|| self.predict_block(target, before.block_runtime_id)).flatten();
         let predicted = self.state.inventory.held().clone();
         self.in_flight.push(target, confirm, Undo { replaced, extra: StackUndo { slot, before, predicted } });
+        self.unclaim(admitted);
         Ok(())
+    }
+
+    /// Gives up on placements nobody will settle (their processes run was abandoned): decides those that can be
+    /// decided now and frees the governor slots of the rest, whose echoes then correct the world on their own.
+    pub(crate) fn forget_placements(&mut self) {
+        self.settle_placements();
+        for _ in 0..self.in_flight.clear() {
+            self.governor.settled();
+        }
     }
 
     /// Placements sent and not decided yet.

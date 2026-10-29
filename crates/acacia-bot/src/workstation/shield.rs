@@ -18,7 +18,7 @@ impl Bot {
     /// inventory with the banner's dye and patterns.
     pub async fn decorate_shield(&mut self, shield: SlotRef, banner: SlotRef) -> Result<(), ActionError> {
         let cells = [SlotRef::Ui(ui::CRAFTING_2X2), SlotRef::Ui(ui::CRAFTING_2X2 + 1)];
-        let opened = self.hold_own_inventory_screen().await?;
+        let screen = self.hold_own_inventory_screen().await?;
         self.move_item(shield, cells[0], 1).await?;
         self.move_item(banner, cells[1], 1).await?;
         let crafted = match plan(&self.state, cells) {
@@ -26,8 +26,8 @@ impl Bot {
             Err(e) => Err(e),
         };
         let back = self.take_back(&cells).await;
-        if opened {
-            self.close_own_inventory_screen();
+        if let Some(screen) = screen {
+            self.release(screen);
         }
         crafted.and(back)
     }

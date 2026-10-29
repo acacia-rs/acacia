@@ -224,7 +224,9 @@ fn a_full_in_flight_cap_holds_instead_of_waiting_inside_the_tick() {
 impl Bot {
     /// Runs `procs` until every process has finished; their outcomes stay in `procs`.
     pub async fn run(&mut self, procs: &mut Processes) -> Result<(), ActionError> {
+        let running = self.claim(crate::cancel::Held::Processes);
         while procs.tick(self).await? != Status::Empty {}
+        self.unclaim(running);
         Ok(())
     }
 }

@@ -4,9 +4,11 @@
 use std::time::{Duration, Instant};
 
 use acacia_bot::client::{Client, TransportKind};
+use acacia_bot::governor::Limits;
+use acacia_bot::movement::Controls;
 use acacia_bot::pathfind::Goal;
-use acacia_bot::proto::packets::UpdateSubchunkBlocks;
-use acacia_bot::proto::types::{BlockCoordinates, BlockUpdate, BlockUpdateTransitionType};
+use acacia_bot::proto::packets::{PlayerAuthInput, UpdateSubchunkBlocks};
+use acacia_bot::proto::types::{Action, BlockCoordinates, BlockUpdate, BlockUpdateTransitionType};
 use acacia_bot::{ActionError, Bot, BotConfig};
 use acacia_physics::BlockPos;
 use acacia_testserver::{FakeServer, Script};
@@ -88,6 +90,7 @@ async fn cancelled_after<T>(bot: &mut Bot, after: Duration, action: impl AsyncFn
         handle.cancel();
     });
     let at = cancelled.into_inner().unwrap().expect("the action outlived the cancel");
+    eprintln!("ended {:?} after the cancel", at.elapsed());
     (result, at.elapsed())
 }
 
@@ -111,7 +114,7 @@ async fn a_cancel_ends_only_the_action_in_flight() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_cancelled_goto_ends_within_a_tick() {
+async fn a_cancelled_or_dropped_goto_lets_go_of_the_keys() {
     let (server, mut bot) = join("GotoCancelTester", true).await;
     let feet = stand_on_floor(&server, &mut bot).await;
     let start = position(&bot);
@@ -121,8 +124,84 @@ async fn a_cancelled_goto_ends_within_a_tick() {
     assert!(late < PROMPT, "ended {late:?} after the cancel");
     let moved = position(&bot);
     assert!(moved[0] > start[0] + 0.5, "the bot was walking when cancelled: {moved:?} from {start:?}");
+    assert_eq!(keys_held(&bot), None, "keys after the cancel");
+    bot.abandon_action();
+
+    let c = bot.controls().expect("physics bot");
+    (c.forward, c.sneak) = (1.0, true);
+    let (result, _) = cancelled_after(&mut bot, Duration::from_millis(200), async |bot: &mut Bot| bot.wait_ticks(100).await).await;
+    assert_eq!(result, Err(ActionError::Cancelled));
+    assert_eq!(keys_held(&bot), None, "a cancel lets go of held keys, sneak too");
+    bot.abandon_action();
+
+    let dropped = timeout(Duration::from_millis(600), bot.goto(Goal::Block(feet))).await;
+    assert!(dropped.is_err(), "the goto ended before it was dropped: {dropped:?}");
+    assert!(keys_held(&bot).is_some(), "dropped mid-walk");
+    bot.wait_ticks(1).await.expect("a tick");
+    assert_eq!(keys_held(&bot), None, "the dropped goto's keys are let go at the next wait");
 }
 
 fn position(bot: &Bot) -> [f32; 3] {
     bot.movement().and_then(|m| m.position()).expect("movement started")
+}
+
+/// A stone block beside the feet, in reach and in view.
+async fn wall(server: &FakeServer, bot: &mut Bot, feet: BlockPos) -> BlockPos {
+    let wall = [feet[0] + 1, feet[1], feet[2]];
+    let stone = wire(bot, "minecraft:stone");
+    set_blocks(server, &[wall], stone);
+    until(bot, 5, "the wall block", |bot| block_wire(bot, wall) == Some(stone)).await;
+    wall
+}
+
+fn block_wire(bot: &Bot, [x, y, z]: BlockPos) -> Option<u32> {
+    use acacia_world::BlockAccess;
+    let view = bot.world()?.view()?;
+    Some(view.world().wire_id(view.block(x, y, z)))
+}
+
+/// The block actions the bot sent for `cell`, in order.
+fn block_actions(server: &FakeServer, [x, y, z]: BlockPos) -> Vec<Action> {
+    let inputs = server.received().into_iter().filter_map(|r| r.packet.decode::<PlayerAuthInput>().ok());
+    inputs.flat_map(|i| i.block_action.unwrap_or_default()).filter(|a| (a.position.x, a.position.y, a.position.z) == (x, y, z)).map(|a| a.action).collect()
+}
+
+fn keys_held(bot: &Bot) -> Option<Controls> {
+    let c = bot.movement().expect("physics").controls;
+    (c.forward != 0.0 || c.strafe != 0.0 || c.jump || c.sneak || c.sprint).then_some(c)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn dropped_breaks_free_their_governor_slots() {
+    let (server, mut bot) = join("DropTester", true).await;
+    let feet = stand_on_floor(&server, &mut bot).await;
+    let wall = wall(&server, &mut bot, feet).await;
+    let air = wire(&bot, "minecraft:air");
+    // Stone by hand takes 7.5 s: each future is dropped mid-mine, after its admission.
+    for i in 0..Limits::DEFAULT_IN_FLIGHT {
+        let dropped = timeout(Duration::from_secs(2), bot.break_block(wall)).await;
+        assert!(dropped.is_err(), "break {i} ended on its own: {dropped:?}");
+        assert!(bot.governor().in_flight() >= 1, "break {i} was dropped before its admission");
+    }
+    let server = &server;
+    let (fifth, ()) = tokio::join!(timeout(Duration::from_secs(10), bot.break_block(wall)), async {
+        sleep(Duration::from_secs(2)).await;
+        set_blocks(server, &[wall], air);
+    });
+    assert!(matches!(fifth, Ok(Ok(()))), "fifth break: {fifth:?}, governor in flight {}", bot.governor().in_flight());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_cancelled_break_is_aborted() {
+    let (server, mut bot) = join("AbortTester", true).await;
+    let feet = stand_on_floor(&server, &mut bot).await;
+    let wall = wall(&server, &mut bot, feet).await;
+    let (result, late) = cancelled_after(&mut bot, Duration::from_millis(1500), async |bot: &mut Bot| bot.break_block(wall).await).await;
+    assert_eq!(result, Err(ActionError::Cancelled));
+    assert!(late < PROMPT, "ended {late:?} after the cancel");
+    assert_eq!(bot.governor().in_flight(), 0, "the admission is settled");
+    assert!(block_actions(&server, wall).contains(&Action::StartBreak), "the break was under way");
+    bot.abandon_action();
+    let server_ref = &server;
+    until(&mut bot, 3, "AbortBreak", |_| block_actions(server_ref, wall).last() == Some(&Action::AbortBreak)).await;
 }

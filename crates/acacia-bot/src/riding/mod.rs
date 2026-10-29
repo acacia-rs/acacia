@@ -34,7 +34,7 @@ pub(crate) struct Ride {
     /// Seated inputs sent for the current vehicle; 0 means the next one is the first.
     seated: u32,
     /// Leave the seat on the next tick.
-    dismount: bool,
+    pub(crate) dismount: bool,
     /// Feet position for a physics bot leaving the current seat (the server's exit spot when known).
     leaving_feet: Option<[f32; 3]>,
     /// Physics bots: the horse being driven.
@@ -75,10 +75,11 @@ impl Bot {
             return Err(ActionError::NotPossible("not riding".into()));
         }
         self.ride.dismount = true;
+        let leaving = self.claim(crate::cancel::Held::Dismount);
         for _ in 0..DISMOUNT_TICKS {
             self.next_tick(|_, _| false).await?;
             if !self.ride.dismount || !self.state.riding.is_riding() {
-                self.ride.dismount = false;
+                self.release(leaving);
                 if self.movement.is_some() {
                     // The simulation resumes at the exit on the tick after the seat is given up.
                     self.next_tick(|_, _| false).await?;
@@ -86,7 +87,7 @@ impl Bot {
                 return Ok(());
             }
         }
-        self.ride.dismount = false;
+        self.release(leaving);
         Err(ActionError::Timeout)
     }
 

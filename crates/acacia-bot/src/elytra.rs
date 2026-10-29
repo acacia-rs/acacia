@@ -115,12 +115,10 @@ impl Bot {
     /// Holds jump for one tick, then releases it.
     async fn press_jump(&mut self) -> Result<(), ActionError> {
         let Some(movement) = self.movement.as_mut() else { return Ok(()) };
-        let held = movement.controls.jump;
-        movement.controls.jump = true;
+        let held = std::mem::replace(&mut movement.controls.jump, true);
+        let press = self.claim(crate::cancel::Held::Jump(held));
         let ticked = self.next_tick(|_, _| false).await;
-        if let Some(movement) = self.movement.as_mut() {
-            movement.controls.jump = held;
-        }
+        self.release(press);
         ticked.map(drop)
     }
 }
