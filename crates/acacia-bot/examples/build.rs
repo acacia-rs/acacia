@@ -2,7 +2,8 @@
 //! acceptance build; small scenes in `support/house.rs`) on the pad from two barrel stations, with junk to clear.
 //! The bot is disconnected after `KILL_AT` placements (default 150 for house16, else 0; 0: never) and a fresh one
 //! resumes from the saved job. Afterwards an observer bot compares every cell with the structure. Needs the test
-//! pack off.
+//! pack off. `SCHEMATIC=<file.mcstructure>` builds that file instead, on the bare pad from barrels stocked with its
+//! bill (`support/schematic.rs`; `tools/schematic-trial.sh`).
 //! `cargo run --release -p acacia-bot --example build -- <server> <name> <observer>`
 mod support;
 
@@ -27,11 +28,18 @@ async fn main() -> Result<(), Error> {
     let server = args.next().unwrap_or_else(|| "127.0.0.1:19170".into());
     let name = args.next().unwrap_or_else(|| "Builder".into());
     let observer = args.next().unwrap_or_else(|| "BuildObs".into());
-    let scene: String = env("SCENE", "house16".to_string());
-    support::watchdog(if scene == "house16" { 900 } else { 240 });
-    let kill_at: u32 = env("KILL_AT", if scene == "house16" { 150 } else { 0 });
+    // SCHEMATIC=<file>: build that file on the bare pad (support/schematic.rs) instead of a scene.
+    let file = std::env::var("SCHEMATIC").ok();
+    let stem = file.as_deref().and_then(|f| std::path::Path::new(f).file_stem()).map(|s| s.to_string_lossy().into_owned());
+    let scene: String = stem.unwrap_or_else(|| env("SCENE", "house16".to_string()));
+    let acceptance = scene == "house16" && file.is_none();
+    support::watchdog(file.as_deref().map_or(if acceptance { 900 } else { 240 }, support::schematic::budget));
+    let kill_at: u32 = env("KILL_AT", if acceptance { 150 } else { 0 });
     let (mut a, pad) = support::connect(&server, &name).await?;
-    let job = house::setup(&mut a, &pad, &scene).await?;
+    let job = match &file {
+        Some(f) => support::schematic::setup(&mut a, &pad, f).await?,
+        None => house::setup(&mut a, &pad, &scene).await?,
+    };
     house::kit(&mut a, &pad).await?;
     pad.teleport(&mut a, [0.5, 0.0, 0.5], 180.0).await?;
     let saved = job.to_json();
@@ -63,11 +71,11 @@ async fn main() -> Result<(), Error> {
     let wrong = house::observe(&server, &observer, &pad, &BuildJob::from_json(&saved)?).await?;
     let (ticks, s) = total;
     println!(
-        "{scene} {} after {ticks} ticks ({:.0} s): {} placed, {} broken, {} restocks, {fixes} corrections, {} mismatches, unsupported {:?}, failed {:?}, scaffold {}",
+        "{scene} {} after {ticks} ticks ({:.0} s): {} placed, {} broken, {} restocks, {} adjusted, {} walks, {fixes} corrections, {} mismatches, unsupported {:?}, failed {:?}, scaffold {}, missing {:?}",
         if wrong.is_empty() && s.phase == Phase::Done { "PASS" } else { "FAIL" },
-        started.elapsed().as_secs_f32(), s.placed, s.broken, s.restocks, wrong.len(), s.unsupported, s.failed, s.scaffold
+        started.elapsed().as_secs_f32(), s.placed, s.broken, s.restocks, s.adjusted, s.walks, wrong.len(), s.unsupported, s.failed, s.scaffold, s.missing
     );
-    wrong.iter().take(20).for_each(|m| println!("  {:?}: want {} found {}", m.pos, m.want, m.found));
+    wrong.iter().take(env("SHOW_WRONG", 20)).for_each(|m| println!("  {:?}: want {} found {}", m.pos, m.want, m.found));
     house::report(&wrong);
     Ok(())
 }

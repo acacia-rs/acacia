@@ -5,10 +5,10 @@
 
 use std::collections::BTreeMap;
 
+use super::bill::items;
 use super::builder::{Builder, Restock};
 use super::plan::Next;
 use super::reach::in_reach;
-use super::rules;
 use super::status::{HoldWhy, Phase};
 use super::survey::Need;
 use crate::pathfind::process::{Act, Ctx};
@@ -18,13 +18,9 @@ use crate::pathfind::Goal;
 pub(super) fn shortfall(b: &Builder, cx: &Ctx, needs: &[Need]) -> Vec<(String, u32)> {
     let mut want: BTreeMap<String, u32> = BTreeMap::new();
     for (c, n) in b.cells.iter().zip(needs) {
-        if *n == Need::Place
-            && !b.given_up(c.pos)
-            && let Some(item) = rules::item(&c.target)
-        {
-            *want.entry(item).or_default() += rules::items_per_cell(&c.target);
-            if let Some(extra) = rules::redstone::extra_item(&c.target) {
-                *want.entry(extra).or_default() += 1;
+        if *n == Need::Place && !b.given_up(c.pos) {
+            for (item, k) in items(&c.target) {
+                *want.entry(item).or_default() += k;
             }
         }
     }

@@ -23,7 +23,7 @@ fn derived(key: &str) -> bool {
 
 /// Outside the common building set (B1): their states take more than one click, or they are not blocks one places.
 /// `candle_cake`: a candle clicked onto a cake, not placed.
-const DENIED: &[&str] = &[
+pub(super) const DENIED: &[&str] = &[
     "bedrock", "waterlily", "lava_cauldron", "banner", "skull", "head", "portal", "fire", "_vines", "cactus_flower", "bubble", "piston_arm", "moving_block",
     "candle_cake", "scaffolding",
 ];
@@ -76,7 +76,7 @@ fn controlled(name: &str, k: &str) -> bool {
 }
 
 /// The target's keys are all known: decided by the click, derived, or absent.
-fn keys_known(target: &Block) -> bool {
+pub(super) fn keys_known(target: &Block) -> bool {
     target.props.split(',').filter_map(|kv| kv.split_once('=')).all(|(k, v)| {
         interact::known(&target.name, key(k), v)
             || ((derived(key(k)) || controlled(&target.name, key(k)) || (is_double_slab(&target.name) && key(k) == "vertical_half")) && oneclick::fixed_ok(key(k), v))

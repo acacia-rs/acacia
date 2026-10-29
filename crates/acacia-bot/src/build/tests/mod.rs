@@ -8,6 +8,7 @@ mod rules_oneclick;
 mod rules_redstone;
 mod rules_twocell;
 mod structure;
+mod vanilla_survey;
 pub(crate) mod scenes_redstone;
 
 use crate::build::{Block, Structure};

@@ -16,6 +16,7 @@ use super::{Error, Fill, Pad};
 mod scenes_redstone;
 
 const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/build/house16.mcstructure");
+/// Default tick cap (`MAX_TICKS` overrides).
 const MAX_TICKS: u32 = 40_000;
 /// Footprint corner (pad offset).
 const AT: [i32; 3] = [4, 0, -8];
@@ -166,6 +167,7 @@ pub async fn drive(bot: &mut Bot, builder: Builder, kill_at: u32, label: &str) -
     let mut procs = Processes::new();
     let id = procs.add(builder, 10);
     let mut ticks = 0;
+    let max_ticks = std::env::var("MAX_TICKS").ok().and_then(|v| v.parse().ok()).unwrap_or(MAX_TICKS);
     // Wall time by what the tick did (status / build phase): where a build's time goes.
     let mut split: std::collections::BTreeMap<String, std::time::Duration> = Default::default();
     let profile = |split: &std::collections::BTreeMap<String, std::time::Duration>| {
@@ -204,7 +206,7 @@ pub async fn drive(bot: &mut Bot, builder: Builder, kill_at: u32, label: &str) -
             }
             return Ok((ticks, s, super::corrections(bot) - before));
         }
-        if (kill_at > 0 && s.placed >= kill_at) || ticks >= MAX_TICKS || still > 3000 {
+        if (kill_at > 0 && s.placed >= kill_at) || ticks >= max_ticks || still > 3000 {
             profile(&split);
             println!("{label} act timing:\n{}", bot.act_timing().table());
             return Ok((ticks, s, super::corrections(bot) - before));
@@ -239,7 +241,7 @@ pub fn report(wrong: &[Mismatch]) {
 pub async fn observe(server: &str, observer: &str, pad: &Pad, job: &BuildJob) -> Result<Vec<Mismatch>, Error> {
     let structure = Structure::load(&std::fs::read(&job.structure)?)?;
     let (mut o, _) = super::connect(server, observer).await?;
-    let spot = pad.block([12, 9, 0]);
+    let spot = pad.block([12, 9.max(structure.size[1] + 2), 0]);
     pad.run(&o, &format!("/tp @s {} {} {}", spot[0] as f32 + 0.5, spot[1], spot[2] as f32 + 0.5));
     // Until every cell is loaded (at most 80 ticks), then a few more for block entities.
     let cells: Vec<_> = structure.cells().map(|(local, _)| job.at.apply(structure.size, local)).collect();

@@ -4,6 +4,7 @@
 
 mod adjust;
 mod arrival;
+mod bill;
 mod board;
 mod builder;
 mod check;
@@ -28,6 +29,7 @@ mod transform;
 #[cfg(test)]
 pub(crate) mod tests;
 
+pub use bill::bill;
 pub use board::{LocalBoard, TaskBoard};
 pub use builder::{BuildError, Builder};
 pub use check::{check, check_text, colors, Mismatch};

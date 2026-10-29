@@ -6,6 +6,7 @@ pub mod house;
 pub mod interact_scenes;
 pub mod oneclick;
 pub mod scenes_twocell;
+pub mod schematic;
 
 use std::path::PathBuf;
 use std::sync::Arc;
