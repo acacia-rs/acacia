@@ -9,7 +9,7 @@ use super::structure::{Block, Structure};
 pub fn items(target: &Block) -> Vec<(String, u32)> {
     let Some(item) = rules::item(target) else { return Vec::new() };
     let mut out = vec![(item, rules::items_per_cell(target))];
-    out.extend(rules::redstone::extra_item(target).map(|extra| (extra, 1)));
+    out.extend(rules::extra_item(target).map(|extra| (extra, 1)));
     out
 }
 

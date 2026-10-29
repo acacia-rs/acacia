@@ -93,6 +93,21 @@ fn sign(name: &str) -> bool {
     bare(name).ends_with("_sign")
 }
 
+/// A cauldron full of water: placed empty, then one use-click with a water bucket (`fill_level` 6).
+fn full_of_water(target: &Block) -> bool {
+    bare(&target.name) == "cauldron" && props(target).any(|(k, v)| k == "fill_level" && v == "6") && !props(target).any(|(k, v)| k == "cauldron_liquid" && v != "water")
+}
+
+/// An item used up besides the block itself.
+pub(super) fn extra_item(target: &Block) -> Option<String> {
+    full_of_water(target).then(|| "minecraft:water_bucket".into())
+}
+
+/// A single snow layer, as any placement gives it (more layers would take more placements: not measured).
+fn single_snow(name: &str, k: &str, v: &str) -> bool {
+    bare(name) == "snow_layer" && matches!(k, "height" | "covered_bit") && v == "0"
+}
+
 /// The key, with this value, is one the builder gets right: by the click, by use-clicks, or by placements.
 pub(super) fn known(name: &str, k: &str, v: &str) -> bool {
     let n = bare(name);
@@ -105,7 +120,8 @@ pub(super) fn known(name: &str, k: &str, v: &str) -> bool {
         "attached_bit" => n.ends_with("hanging_sign") && v == "0",
         // Lighting needs flint and steel: lit candles stay unsupported.
         "lit" => n.ends_with("candle") && v == "0",
-        _ => count_of(name, k, v).is_some(),
+        "fill_level" if n == "cauldron" => matches!(v, "0" | "6"),
+        _ => single_snow(name, k, v) || count_of(name, k, v).is_some(),
     }
 }
 
@@ -152,7 +168,8 @@ pub(super) fn gives(name: &str, k: &str, v: &str, dir: Dir, look: Option<Dir>, e
         "open_bit" if opens(n) => return Some(true),
         "lit" if n.ends_with("candle") => return Some(true),
         "repeater_delay" | "output_subtract_bit" | "attached_bit" | "ground_sign_direction" => return Some(true),
-        _ if count_of(name, k, v).is_some() => return Some(true),
+        "fill_level" if n == "cauldron" => return Some(true),
+        _ if single_snow(name, k, v) || count_of(name, k, v).is_some() => return Some(true),
         _ => return None,
     };
     Some(want.as_deref() == Some(v))
@@ -192,7 +209,7 @@ pub fn uses(target: &Block, w: &BlockView) -> Option<(u32, Option<String>)> {
     if renamed && !bare(&target.name).starts_with("daylight_detector") {
         return None;
     }
-    let mut clicks = u32::from(renamed);
+    let (mut clicks, mut held) = (u32::from(renamed), None);
     for (k, v) in props(target) {
         let Some(have) = w.prop(k).or_else(|| w.prop(&format!("minecraft:{k}"))) else { continue };
         if have == v || super::derived(k) || ignored(target, k) {
@@ -202,8 +219,12 @@ pub fn uses(target: &Block, w: &BlockView) -> Option<(u32, Option<String>)> {
             "open_bit" if opens(&target.name) => 1,
             "output_subtract_bit" => 1,
             "repeater_delay" => (v.parse::<u32>().ok()? + 4 - have.parse::<u32>().ok()?) % 4,
+            "fill_level" if full_of_water(target) && have == "0" => {
+                held = extra_item(target);
+                1
+            }
             _ => return None,
         };
     }
-    (clicks > 0).then_some((clicks, None))
+    (clicks > 0).then_some((clicks, held))
 }

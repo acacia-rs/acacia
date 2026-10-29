@@ -107,6 +107,25 @@ fn a_door_upper_half_open_bit_is_not_compared() {
 }
 
 #[test]
+fn a_water_cauldron_is_placed_empty_and_filled_with_a_bucket() {
+    let full = Block::new("cauldron", "cauldron_liquid=water,fill_level=6");
+    assert_eq!(item(&full).as_deref(), Some("minecraft:cauldron"));
+    assert_eq!(crate::build::rules::extra_item(&full).as_deref(), Some("minecraft:water_bucket"));
+    let empty = view("minecraft:cauldron", "cauldron_liquid=water,fill_level=0");
+    assert_eq!(uses(&full, &empty), Some((1, Some("minecraft:water_bucket".into()))));
+    assert_eq!(item(&Block::new("cauldron", "cauldron_liquid=water,fill_level=3")), None, "part-filled: bottles, not measured");
+    assert_eq!(item(&Block::new("cauldron", "cauldron_liquid=lava,fill_level=6")), None);
+}
+
+#[test]
+fn a_single_snow_layer_is_one_placement() {
+    let snow = Block::new("snow_layer", "covered_bit=0,height=0");
+    assert_eq!(item(&snow).as_deref(), Some("minecraft:snow_layer"));
+    assert!(gives_at("snow_layer", "covered_bit=0,height=0", Face::Up, 1.0, NORTH_EYE));
+    assert_eq!(item(&Block::new("snow_layer", "covered_bit=0,height=3")), None);
+}
+
+#[test]
 fn sign_rotation_and_lever_axes_turn_with_the_structure() {
     let quarter = Transform { turns: 1, ..Transform::default() };
     assert_eq!(quarter.block(&Block::new("standing_sign", "ground_sign_direction=1")).prop("ground_sign_direction"), Some("5"));

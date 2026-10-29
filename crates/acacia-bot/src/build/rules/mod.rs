@@ -93,6 +93,11 @@ pub fn item(target: &Block) -> Option<String> {
     Some(redstone::item(target).or_else(|| twocell::item(target)).or_else(|| interact::item(&target.name)).unwrap_or_else(|| oneclick::base(&target.name).replace("_double_slab", "_slab")))
 }
 
+/// An item used up besides the one that places the target (a water bucket for kelp or a filled cauldron).
+pub fn extra_item(target: &Block) -> Option<String> {
+    redstone::extra_item(target).or_else(|| interact::extra_item(target))
+}
+
 /// Placements into the cell past its first that add to it (candles); slabs keep counting as placements.
 pub fn more_placements(target: &Block) -> u32 {
     interact::count(target).map_or(0, |c| c.saturating_sub(1))
@@ -102,10 +107,10 @@ pub fn items_per_cell(target: &Block) -> u32 {
     if is_double_slab(&target.name) { 2 } else { interact::count(target).unwrap_or(1) }
 }
 
-/// A block a body fits beside within its cell (panes, bars, fences, walls, doors), so a player can end up inside the
-/// cell it fills; see `SearchOpts::no_body`.
+/// A block a body fits beside within its cell (panes, bars, fences, walls), so a player can end up inside the
+/// cell it fills; see `SearchOpts::no_body`. Doors are not: walks go through them (`plan::no_stand`).
 pub fn thin(name: &str) -> bool {
-    (["pane", "iron_bars", "fence", "_wall"].iter().any(|k| name.contains(k)) && !name.contains("gate")) || twocell::kind(name) == Some(twocell::Kind::Door)
+    ["pane", "iron_bars", "fence", "_wall"].iter().any(|k| name.contains(k)) && !name.contains("gate")
 }
 
 pub fn gravity(name: &str) -> bool {
