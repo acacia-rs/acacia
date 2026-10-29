@@ -179,6 +179,10 @@ impl Movement {
         if let Some(noise) = self.rotation_noise.as_mut() {
             (c.yaw, c.pitch) = noise.apply(c.yaw, c.pitch);
         }
+        // After the noise, which is wider than the guard's nudge and would put angles back on step edges.
+        if st.gliding {
+            (c.yaw, c.pitch) = physics::steady_glide_look(c.yaw, c.pitch);
+        }
         if self.still_ticks > 0 {
             self.still_ticks -= 1;
             (c.forward, c.strafe) = (0.0, 0.0);
