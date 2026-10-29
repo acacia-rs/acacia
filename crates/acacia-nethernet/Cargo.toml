@@ -28,5 +28,5 @@ sha1 = "0.10"
 md-5 = "0.10"
 crc = "3"
 # LAN discovery (lan/): AES-256-ECB + HMAC-SHA256.
-aes = "0.8"
+aes = "0.9"
 sha2 = "0.10"
