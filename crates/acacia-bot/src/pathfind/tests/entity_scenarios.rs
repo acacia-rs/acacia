@@ -4,12 +4,14 @@ use super::drive::standing;
 use super::entity_sim::{Brain, Crowd, Harm, Mob};
 use super::grid::Grid;
 use super::pilot_sim::{Flight, Sky, fly_with};
+use std::time::Duration;
+
 use crate::pathfind::{Goal, GotoOpts, MovementProfile, SearchOpts};
 
 const PROFILES: [MovementProfile; 2] = [MovementProfile::Optimal, MovementProfile::Human];
 
 pub fn goto_opts(profile: MovementProfile, seed: u64) -> GotoOpts {
-    let search = SearchOpts { profile, max_nodes: 20_000, ..SearchOpts::default() };
+    let search = SearchOpts { profile, max_nodes: 20_000, budget: Duration::from_secs(3600), ..SearchOpts::default() };
     GotoOpts { search, seed: Some(seed), give_up_ticks: Some(400), ..GotoOpts::default() }
 }
 

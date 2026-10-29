@@ -20,8 +20,9 @@ const TRACES: &[(&str, usize, f32)] = &[
     ("drills-dimensions.btrc.gz", 0, CORRECTION_TOLERANCE),
     // Human seed 1 on the course (`examples/course.rs`), Linux BDS 1.26.52.3, before BDS's sine table and the
     // correction box fit: 34 of its 35 corrections mismatched then (docs/DESIGN.md "Off-axis ulp corrections");
-    // 8 until the received-yaw wrap (acacia-physics `math.rs` `wrap_degrees`).
-    ("course-human-linux.btrc.gz", 6, 0.0),
+    // 8 until the received-yaw wrap (acacia-physics `math.rs` `wrap_degrees`), 6 until BDS's walk acceleration
+    // (`motion.rs` `move_relative`).
+    ("course-human-linux.btrc.gz", 5, 0.0),
 ];
 
 #[test]

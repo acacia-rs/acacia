@@ -2,7 +2,8 @@
 
 use crate::aabb::Aabb;
 use crate::constants::*;
-use crate::math::{PI32, Vec3, cos32, mc_cos, mc_sin, sin32};
+use crate::math::{PI32, Vec3, mc_cos, mc_sin};
+use crate::sinf::{cosf, sinf};
 use crate::state::PlayerState;
 use crate::world::{BlockPhysics, Bounce};
 
@@ -14,12 +15,12 @@ pub(crate) fn move_relative(st: &mut PlayerState, speed: f32) {
         force = speed / force.sqrt().max(1.0);
         let mf = i[1] * force;
         let ms = i[0] * force;
-        // DefaultMoveSystems::horizontalMovement uses sincosf, not the lookup table.
+        // libm sinf/cosf (Linux BDS: glibc), not the lookup table; op order as BDS, see DESIGN.md "Off-axis ulp corrections".
         let yaw = st.yaw * (PI32 / 180.0);
-        let (v2, v3) = (sin32(yaw), cos32(yaw));
+        let (sin, cos) = (sinf(yaw), cosf(yaw));
         let mut v = st.vel;
-        v[0] += ms * v3 - v2 * i[1] * force;
-        v[2] += ms * v2 + mf * v3;
+        v[0] += ms * cos - mf * sin;
+        v[2] += ms * sin + mf * cos;
         st.set_vel(v);
     }
 }

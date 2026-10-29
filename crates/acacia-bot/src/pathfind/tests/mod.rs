@@ -33,6 +33,7 @@ mod process_sim;
 mod redstone_sim;
 mod redstone_tests;
 mod rollout;
+mod swarm_wedge;
 mod search;
 mod segments;
 mod shortcuts;

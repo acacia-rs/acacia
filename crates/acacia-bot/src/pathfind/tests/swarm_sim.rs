@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use acacia_physics::{BlockPos, Vec3};
 
-use super::build_sim::{builder, items, run, step, World, LIVE_DELAY};
+use super::build_sim::{builder, items, run, step, view, World, LIVE_DELAY};
 use super::build_tests::{scaffold_left, wrong, ORIGIN};
 use super::grid::Grid;
 use crate::build::findings;
@@ -15,32 +15,47 @@ use crate::movement::Movement;
 use crate::pathfind::process::{Arbiter, ProcId};
 
 /// Board lease, in ticks.
-const LEASE: u64 = 200;
+pub(super) const LEASE: u64 = 200;
 
-struct SimBot {
+pub(super) struct SimBot {
     m: Movement,
-    arb: Arbiter,
-    id: ProcId,
+    pub(super) arb: Arbiter,
+    pub(super) id: ProcId,
     inv: HashMap<String, u32>,
-    status: StatusHandle,
+    pub(super) status: StatusHandle,
     /// The bot stops ticking (killed) from this tick on.
     stop_at: Option<u32>,
     /// Most of one item ever held.
     most: u32,
     /// The tick its last act stops holding it.
     busy: u32,
+    /// Ticks in a row its feet have been in (or just over) an open `World::targets` cell; the longest such run
+    /// and its cell.
+    open: u32,
+    pub(super) worst_open: (u32, BlockPos),
 }
 
-fn bot(b: Builder, status: StatusHandle, board: &Arc<LocalBoard>, who: &str, start: Vec3, inv: &[(&str, u32)]) -> SimBot {
+pub(super) fn bot(b: Builder, status: StatusHandle, board: &Arc<LocalBoard>, who: &str, start: Vec3, inv: &[(&str, u32)]) -> SimBot {
     let mut arb = Arbiter::new();
     let id = arb.add(b.with_board(board.clone(), who), 10);
     let mut m = Movement::new();
     m.start(start, 0.0, 0.0);
-    SimBot { m, arb, id, inv: items(inv), status, stop_at: None, most: 0, busy: 0 }
+    SimBot { m, arb, id, inv: items(inv), status, stop_at: None, most: 0, busy: 0, open: 0, worst_open: (0, [0; 3]) }
+}
+
+fn time_open(w: &World, b: &mut SimBot) {
+    let Some(p) = b.m.position() else { return };
+    let feet = p.map(|v| v.floor() as i32);
+    let open = |c: BlockPos| w.targets.contains(&c) && view(w.g, c).0 == "minecraft:air";
+    let at = [feet, [feet[0], feet[1] - 1, feet[2]]].into_iter().find(|c| open(*c));
+    b.open = if at.is_some() { b.open + 1 } else { 0 };
+    if let Some(c) = at.filter(|_| b.open > b.worst_open.0) {
+        b.worst_open = (b.open, c);
+    }
 }
 
 /// `dir/<who>.jsonl`, for a journal `findings::report` reads back.
-fn journal_file(dir: &std::path::Path, who: &str) -> std::path::PathBuf {
+pub(super) fn journal_file(dir: &std::path::Path, who: &str) -> std::path::PathBuf {
     std::fs::create_dir_all(dir).expect("journal dir");
     dir.join(format!("{who}.jsonl"))
 }
@@ -50,7 +65,7 @@ fn live(b: &SimBot, tick: u32) -> bool {
 }
 
 /// Ticks the bots in turn (each with its own inventory) until every live one finishes; returns the ticks taken.
-fn run_many(w: &mut World, bots: &mut [SimBot], board: &LocalBoard, max_ticks: u32) -> u32 {
+pub(super) fn run_many(w: &mut World, bots: &mut [SimBot], board: &LocalBoard, max_ticks: u32) -> u32 {
     for tick in 0..max_ticks {
         board.set_now(tick as u64);
         for k in 0..bots.len() {
@@ -68,6 +83,7 @@ fn run_many(w: &mut World, bots: &mut [SimBot], board: &LocalBoard, max_ticks: u
             }
             b.most = b.most.max(b.inv.values().copied().max().unwrap_or(0));
             b.m.tick(&w.g.physics());
+            time_open(w, b);
         }
         if bots.iter().all(|b| !live(b, tick) || b.arb.outcome(b.id).is_some()) {
             return tick;
@@ -82,7 +98,7 @@ fn plank_floor(side: i32) -> Structure {
     s
 }
 
-fn house16_items() -> Vec<(&'static str, u32)> {
+pub(super) fn house16_items() -> Vec<(&'static str, u32)> {
     ["cobblestone", "oak_planks", "oak_log", "glass_pane", "oak_slab", "oak_stairs", "torch", "ladder", "oak_fence", "cobblestone_wall", "stone_button", "furnace", "dispenser", "observer", "piston", "dirt"].iter().map(|i| (*i, 400)).collect()
 }
 
@@ -135,7 +151,8 @@ fn two_bots_build_house16_in_well_under_one_bots_time() {
     assert!(bugs.is_empty(), "{bugs:?}");
     // A regression bound, not the B2 bar: sim ticks are not live seconds (sim 0.41 against live 0.62 once, and
     // a pilot fix that sped one bot up moved it the other way). The bar is judged live: tools/build-ab.sh.
-    assert!(two as f32 <= 0.7 * one as f32, "one {one} two {two}");
+    // 0.71: the pane-top ban (`moves.rs`) costs about 30 sim ticks; live two bots are at 0.67 of one (2026-10-29).
+    assert!(two as f32 <= 0.71 * one as f32, "one {one} two {two}");
 }
 
 #[test]
@@ -149,13 +166,18 @@ fn house16_finishes_when_a_bot_drops_after_restocking() {
     let mut w = World::new(&g, &[]);
     w.stations.insert(station, house16_items().into_iter().map(|(i, n)| (format!("minecraft:{i}"), n * 2)).collect());
     let board = Arc::new(LocalBoard::manual(LEASE));
+    let dir = std::env::temp_dir().join(format!("acacia-swarm-drops-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let clock = w.clock.clone();
     let mut bots: Vec<SimBot> = [("a", [0.5, 1.0, 0.5]), ("b", [2.5, 1.0, 0.5])]
         .into_iter()
         .map(|(who, start)| {
             let (b, st) = builder(&s, ORIGIN, &[station]);
-            bot(b, st, &board, who, start, &[("dirt", 64)])
+            let journal = Journal::new(who, Box::new(std::fs::File::create(journal_file(&dir, who)).unwrap()), false).clocked(clock.clone());
+            bot(b.with_journal(Arc::new(journal)), st, &board, who, start, &[("dirt", 64)])
         })
         .collect();
+    eprintln!("journals in {}", dir.display());
     bots[1].stop_at = Some(600);
     let ticks = run_many(&mut w, &mut bots, &board, 8000);
     let (a, b) = (bots[0].status.lock().unwrap().clone(), bots[1].status.lock().unwrap().clone());

@@ -79,3 +79,14 @@ fn outside_the_common_set() {
     assert!(supported("minecraft:glass_pane"));
     assert_eq!(item(&Block::new("cake", "bite_counter=0")), None, "unknown state");
 }
+
+#[test]
+fn only_a_top_face_gives_an_upright_log() {
+    use crate::build::rules::only_from_above;
+    assert!(only_from_above(&Block::new("oak_log", "pillar_axis=y")));
+    assert!(only_from_above(&Block::new("torch", "torch_facing_direction=top")));
+    assert!(!only_from_above(&Block::new("oak_log", "pillar_axis=x")));
+    assert!(!only_from_above(&Block::new("cobblestone", "")));
+    assert!(!only_from_above(&Block::new("glass_pane", "")));
+    assert!(!only_from_above(&Block::new("oak_slab", "minecraft:vertical_half=bottom")));
+}

@@ -60,12 +60,14 @@ pub struct World<'a> {
     searches: Vec<(u32, tokio::sync::oneshot::Sender<crate::pathfind::Path>, crate::pathfind::Path)>,
     /// Sign text by cell and side (front `true`).
     pub signs: HashMap<(BlockPos, bool), String>,
+    /// Cells a structure fills: `swarm_sim::run_many` times bots standing in them while still open.
+    pub targets: std::collections::HashSet<BlockPos>,
 }
 
 impl<'a> World<'a> {
     pub fn new(g: &'a Grid, inv: &[(&str, u32)]) -> Self {
         let signs = HashMap::new();
-        Self { g, inv: items(inv), stations: HashMap::new(), log: Vec::new(), end: [0.0; 3], others: Vec::new(), me: 0, now: 0, delay: 0, changes: Vec::new(), clock: Default::default(), searches: Vec::new(), signs }
+        Self { g, inv: items(inv), stations: HashMap::new(), log: Vec::new(), end: [0.0; 3], others: Vec::new(), me: 0, now: 0, delay: 0, changes: Vec::new(), clock: Default::default(), searches: Vec::new(), signs, targets: Default::default() }
     }
 
     /// Sets a block as the server, remembering what it was for the bots that don't see it yet.
