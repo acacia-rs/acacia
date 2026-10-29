@@ -18,7 +18,7 @@ socks = ["online", "reqwest/socks"]
 [dependencies]
 base64 = "0.22"
 hex = "0.4"
-md-5 = "0.10"
+md-5 = "0.11"
 p384 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 rsa = { version = "0.9", default-features = false, features = ["std", "u64_digit", "sha2"] }
