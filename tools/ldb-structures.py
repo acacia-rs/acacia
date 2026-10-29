@@ -2,7 +2,7 @@
 """Exports the structures a BDS world holds (`/structure save <name> ... disk` writes them into the world's
 LevelDB as `structuretemplate_<namespace>:<name>`, not into files) as `<name>.mcstructure`.
 Reads the write-ahead logs and the tables (Mojang's LevelDB: zlib blocks, compression id 2 or 4); the
-latest sequence number wins, deletions included. Index layers are rewritten as lists (`list_layers`). Stdlib only.
+latest sequence number wins, deletions included. Stdlib only.
 usage: tools/ldb-structures.py <world db dir> <out dir> [name...]"""
 import os
 import struct
@@ -120,25 +120,6 @@ def structures(db):
     return {k[len(PREFIX):].decode(): v for k, (_, v) in latest.items() if v is not None}
 
 
-INDICES = b"\x09\x0d\x00block_indices\x0b"
-
-
-def list_layers(val):
-    """The LevelDB form stores each `block_indices` layer as an IntArray; structure-block exports (and
-    `Structure::load`) use a list of int lists. Rewrites the first form into the second."""
-    at = val.find(INDICES)
-    if at < 0:
-        return val
-    i = at + len(INDICES)
-    count = struct.unpack_from("<i", val, i)[0]
-    out, i = bytearray(val[:at] + INDICES[:-1] + b"\x09" + val[i:i + 4]), i + 4
-    for _ in range(count):
-        n = struct.unpack_from("<i", val, i)[0]
-        out += b"\x03" + val[i:i + 4 + 4 * n]
-        i += 4 + 4 * n
-    return bytes(out + val[i:])
-
-
 def main():
     if len(sys.argv) < 3:
         sys.exit(__doc__)
@@ -149,7 +130,7 @@ def main():
         if wanted and name not in wanted:
             continue
         with open(os.path.join(out, name + ".mcstructure"), "wb") as fh:
-            fh.write(list_layers(val))
+            fh.write(val)
         print(f"{name}.mcstructure {len(val)} bytes")
 
 

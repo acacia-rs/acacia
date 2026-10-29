@@ -161,6 +161,8 @@ impl Process for Builder {
             opts.search.keep = Some(self.keep.clone());
         }
         opts.search.no_body = Some(self.thin.clone());
+        // Doors are targets: opening one to walk through changes the build (live: doors found open, bot inside).
+        opts.search.open_doors = false;
         opts
     }
 
@@ -265,8 +267,20 @@ impl Builder {
     /// After failed walks, a thin block (pane, fence, wall, bars) in the feet or head cell: the body fits beside
     /// it but the pathfinder sees the cell as solid, so no walk starts (live and sim: the outer half of a window
     /// cell, every walk "Stuck 10 times" until the run ended).
+    /// A door in any cell the body overlaps is broken at once: no move ends there, and once inside, every tick was a
+    /// movement correction and every walk failed (live 2026-10-28, five vanilla houses).
     fn wedged(&self, cx: &Ctx) -> Option<acacia_physics::BlockPos> {
-        if self.failed_walks < ESCAPE_AFTER || !cx.on_ground {
+        if !cx.on_ground {
+            return None;
+        }
+        let door = |c: &acacia_physics::BlockPos| cx.look.block(*c).is_some_and(|v| super::rules::twocell::kind(v.name) == Some(super::rules::twocell::Kind::Door));
+        let y = cx.pos[1].floor() as i32;
+        // ±0.2, not the body's 0.3: a stand reached 0.25 off-centre puts the body 0.05 into a neighbouring door's cell.
+        let body = [-0.2, 0.2].into_iter().flat_map(|dx| [-0.2, 0.2].map(|dz| [(cx.pos[0] + dx).floor() as i32, (cx.pos[2] + dz).floor() as i32]));
+        if let Some(c) = body.flat_map(|[x, z]| [[x, y, z], [x, y + 1, z]]).find(door) {
+            return Some(c);
+        }
+        if self.failed_walks < ESCAPE_AFTER {
             return None;
         }
         let feet = cx.pos.map(|v| v.floor() as i32);

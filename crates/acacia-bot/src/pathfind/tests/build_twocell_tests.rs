@@ -108,6 +108,61 @@ fn a_door_goes_in_before_the_wall_that_would_flip_its_hinge() {
     assert_eq!(w.log.iter().filter(|a| matches!(a, Act::Break { .. })).count(), 0, "nothing broken and redone");
 }
 
+/// 5×3×3: a plank floor and a cobblestone wall along z 1 with a door at x 2 as vanilla saves it (the upper half
+/// `south`, whatever the lower half faces).
+fn vanilla_door_wall() -> Structure {
+    let mut s = Structure::new([5, 3, 3]);
+    for x in 0..5 {
+        for z in 0..3 {
+            s.set([x, 0, z], Some(Block::new("oak_planks", "")));
+            (1..3).for_each(|y| s.set([x, y, z], Some(Block::new(if z == 1 { "cobblestone" } else { "air" }, ""))));
+        }
+    }
+    s.set([2, 1, 1], door("east", 0, 0));
+    s.set([2, 2, 1], door("south", 0, 1));
+    s
+}
+
+/// Builds [`vanilla_door_wall`] with the bot's feet at `start` (offset from the origin); returns the world log.
+fn build_door_wall(g: &Grid, start: [f32; 3]) -> Vec<Act> {
+    let s = vanilla_door_wall();
+    let mut w = World::new(g, &[("oak_planks", 64), ("cobblestone", 64), ("wooden_door", 4), ("dirt", 64)]);
+    let (proc, status) = builder(&s, ORIGIN, &[]);
+    let mut arb = Arbiter::new();
+    let id = arb.add(proc, 10);
+    let feet = [ORIGIN[0] as f32 + start[0], ORIGIN[1] as f32 + start[1], ORIGIN[2] as f32 + start[2]];
+    let ticks = run(&mut w, feet, &mut arb, id, 8000);
+    let st = status.lock().unwrap().clone();
+    eprintln!("{ticks} ticks, {st:?}");
+    explain(&w, &s, ORIGIN).iter().for_each(|l| eprintln!("OPEN {l}"));
+    assert_eq!(arb.outcome(id), Some(&Ok(())), "status {st:?}");
+    // Judged against what the server builds: the upper half takes the lower half's facing.
+    let mut built = s.clone();
+    built.set([2, 2, 1], door("east", 0, 1));
+    assert_eq!(wrong(g, &built), Vec::new());
+    w.log
+}
+
+#[test]
+fn a_vanilla_door_goes_in_once() {
+    let g = Grid::floor(-20, 30);
+    let log = build_door_wall(&g, [0.5, 1.0, 3.5]);
+    let doors = log.iter().filter(|a| matches!(a, Act::Place { item, .. } if item.ends_with("wooden_door"))).count();
+    assert_eq!((doors, log.iter().filter(|a| matches!(a, Act::Break { .. })).count()), (1, 0), "no place and break loop on the upper half");
+}
+
+#[test]
+fn a_bot_standing_in_a_door_cell_breaks_out() {
+    let g = Grid::floor(-20, 30);
+    let at = |p: BlockPos| [ORIGIN[0] + p[0], ORIGIN[1] + p[1], ORIGIN[2] + p[2]];
+    // Live (2026-10-28, five vanilla houses): the pilot walked into a door's cell and every walk failed from there.
+    for (y, upper) in [(1, 0), (2, 1)] {
+        g.set_state(at([2, y, 1]), "wooden_door", &format!("door_hinge_bit=0,minecraft:cardinal_direction=east,open_bit=0,upper_block_bit={upper}"));
+    }
+    let log = build_door_wall(&g, [2.5, 1.0, 1.5]);
+    assert!(log.iter().any(|a| matches!(a, Act::Break { pos } if *pos == at([2, 1, 1]))), "the door round the body is broken and rebuilt");
+}
+
 #[test]
 fn a_bed_takes_the_item_of_its_colour() {
     let g = Grid::floor(-20, 30);

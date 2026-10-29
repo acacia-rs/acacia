@@ -24,7 +24,7 @@ tar czf - -C "$root" --exclude=target --exclude=./assets/looks --exclude=.testse
 printf 'export PATH=$HOME/.cargo/bin:$PATH RUSTC_WRAPPER=$(command -v sccache)\n%s\n' "$(printf '%q ' "$@")" \
   | retry ssh $opts $host "cat > $remote/run.sh" || exit 1
 # TIMEOUT (default 1200 s) and STALL (default 300 s without output) kill a hung run: see testbox-guard.sh.
-retry ssh $opts $host "cd $remote || exit; rm -f run.log run.done; { nohup flock target/.busy sh tools/testbox-guard.sh run.sh run.log run.done ${TIMEOUT:-1200} ${STALL:-300} </dev/null >/dev/null 2>&1 & }" || exit 1
+retry ssh $opts $host "cd $remote || exit; rm -f run.log run.done; { nohup flock -o target/.busy sh tools/testbox-guard.sh run.sh run.log run.done ${TIMEOUT:-1200} ${STALL:-300} </dev/null >/dev/null 2>&1 & }" || exit 1
 # DETACH=1: leave it running; check $remote/run.done later (local polls get reaped on low-memory machines).
 [ -n "${DETACH:-}" ] && { echo "launched in $remote"; exit 0; }
 # Poll with short calls; a single long ssh would die with the link.

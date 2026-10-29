@@ -196,9 +196,14 @@ impl Structure {
     }
 }
 
+/// A list of ints, or an IntArray: structures BDS keeps in its LevelDB (`/structure save ... disk`) store each
+/// index layer as an IntArray, structure-block exports as a list.
 fn ints(v: Option<&Value>) -> Option<Vec<i32>> {
-    let Some(Value::List(l)) = v else { return None };
-    l.items.iter().map(|v| if let Value::Int(i) = v { Some(*i) } else { None }).collect()
+    match v? {
+        Value::IntArray(a) => Some(a.clone()),
+        Value::List(l) => l.items.iter().map(|v| if let Value::Int(i) = v { Some(*i) } else { None }).collect(),
+        _ => None,
+    }
 }
 
 fn block(v: &Value) -> Option<Block> {

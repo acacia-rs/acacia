@@ -73,6 +73,10 @@ fn items_and_compared_states() {
     assert!(matches(&door("east", 1, 0), &lower), "BDS writes 0 in the lower half's hinge");
     let upper = BlockView { props: "door_hinge_bit=0,minecraft:cardinal_direction=east,open_bit=0,upper_block_bit=1", ..lower };
     assert!(!matches(&door("east", 1, 1), &upper));
+    assert!(matches(&door("south", 0, 1), &upper), "vanilla saves every upper half south");
+    let open_upper = BlockView { props: "door_hinge_bit=0,minecraft:cardinal_direction=east,open_bit=1,upper_block_bit=1", ..lower };
+    assert!(matches(&door("south", 0, 1), &open_upper), "nor its open bit");
+    assert!(!matches(&door("south", 0, 0), &lower), "the lower half's facing is still compared");
 }
 
 #[test]

@@ -21,8 +21,9 @@ tar czf - -C "$root" --exclude=target --exclude=./assets/looks --exclude=.testse
 args=$(printf '%q ' "$@")
 # REMOTE_ENV="A=1 B=2" sets env vars for the remote cargo (local ones aren't forwarded).
 printf '%s\n' "env RUSTC_WRAPPER=\$(PATH=\$HOME/.cargo/bin:\$PATH command -v sccache) ${REMOTE_ENV:-} ~/.cargo/bin/cargo +stable test $args" | retry ssh $opts $host "cat > $remote/test.sh" || exit 1
+# flock -o: a sccache server started by the build inherits an open lock fd and holds the lock for good.
 # TIMEOUT (default 1800 s) and STALL (default 600 s without output) kill a hung run: see testbox-guard.sh.
-retry ssh $opts $host "cd $remote || exit; rm -f test.log test.done; { nohup flock target/.busy sh tools/testbox-guard.sh test.sh test.log test.done ${TIMEOUT:-1800} ${STALL:-600} </dev/null >/dev/null 2>&1 & }" || exit 1
+retry ssh $opts $host "cd $remote || exit; rm -f test.log test.done; { nohup flock -o target/.busy sh tools/testbox-guard.sh test.sh test.log test.done ${TIMEOUT:-1800} ${STALL:-600} </dev/null >/dev/null 2>&1 & }" || exit 1
 # DETACH=1: leave it running; check $remote/test.done later (local polls get reaped on low-memory machines).
 [ -n "${DETACH:-}" ] && { echo "launched in $remote"; exit 0; }
 # Poll with short calls; a single long ssh would die with the link.

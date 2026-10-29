@@ -39,6 +39,8 @@ pub fn stacks(structure: &Structure) -> Vec<(String, String, u32)> {
 /// Bare pad, barrels with the file's stacks, and the job.
 pub async fn setup(a: &mut Bot, pad: &Pad, path: &str) -> Result<BuildJob, Error> {
     let structure = Structure::load(&std::fs::read(path)?)?;
+    // Random ticks spread grass onto dirt targets and grow vines into air ones during long builds (outpost, 2026-10-28).
+    pad.run(a, "/gamerule randomtickspeed 0");
     pad.build(a, &[], 5).await?;
     let stacks = stacks(&structure);
     let mut stations = Vec::new();

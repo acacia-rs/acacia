@@ -119,9 +119,13 @@ pub fn unplaceable(target: &Block) -> bool {
     kind(&target.name).is_some() && bit(target, "occupied_bit")
 }
 
-/// Not compared: BDS keeps a door's hinge in its upper half and writes 0 in the lower.
+/// Not compared: BDS keeps a door's hinge in its upper half and writes 0 in the lower; the facing and open bit
+/// live in the lower half (vanilla structures save every upper half `south`, closed: 11 of 11 doors, 2026-10-28).
 pub fn ignored(target: &Block, k: &str) -> bool {
-    k == "door_hinge_bit" && kind(&target.name) == Some(Kind::Door) && !bit(target, "upper_block_bit")
+    if kind(&target.name) != Some(Kind::Door) {
+        return false;
+    }
+    if bit(target, "upper_block_bit") { matches!(k, "cardinal_direction" | "open_bit") } else { k == "door_hinge_bit" }
 }
 
 /// Placing the first cell of a two-cell target by this click gives its states: doors and beds only from the Up

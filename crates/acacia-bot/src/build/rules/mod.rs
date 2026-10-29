@@ -102,10 +102,10 @@ pub fn items_per_cell(target: &Block) -> u32 {
     if is_double_slab(&target.name) { 2 } else { interact::count(target).unwrap_or(1) }
 }
 
-/// A block a body fits beside within its cell (panes, bars, fences, walls), so a player can end up inside the
+/// A block a body fits beside within its cell (panes, bars, fences, walls, doors), so a player can end up inside the
 /// cell it fills; see `SearchOpts::no_body`.
 pub fn thin(name: &str) -> bool {
-    ["pane", "iron_bars", "fence", "_wall"].iter().any(|k| name.contains(k)) && !name.contains("gate")
+    (["pane", "iron_bars", "fence", "_wall"].iter().any(|k| name.contains(k)) && !name.contains("gate")) || twocell::kind(name) == Some(twocell::Kind::Door)
 }
 
 pub fn gravity(name: &str) -> bool {
