@@ -63,7 +63,7 @@ fn main() {
                     case.diverge("pixels", &r["hash"], &hash);
                 }
             }
-            Err(e) => case.diverge("pixels", &r["hash"], &format!("{got}: {e}")),
+            Err(e) => case.diverge("pixels", &r["hash"], format!("{got}: {e}")),
         }
     }
     out.print();

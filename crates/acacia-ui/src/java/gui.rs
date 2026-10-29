@@ -129,6 +129,7 @@ impl Gui {
     }
 
     /// `blitSprite(sprite, spriteW, spriteH, u, v, x, y, w, h)`: part of a `size` sprite from `uv`.
+    #[allow(clippy::too_many_arguments)]
     pub fn region(&mut self, sprite: impl Into<Cow<'static, str>>, size: [i32; 2], uv: [i32; 2], x: i32, y: i32, w: i32, h: i32) {
         self.draws.push(GuiDraw::Sprite { sprite: sprite.into(), x, y, w, h, region: Some([size[0], size[1], uv[0], uv[1]]), color: WHITE, blend: Blend::Textured });
     }
@@ -177,6 +178,7 @@ impl Gui {
         self.draws.push(GuiDraw::Unscissor);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn scrolling(&mut self, text: Text, center_x: i32, x0: i32, x1: i32, y0: i32, y1: i32, color: u32) {
         self.draws.push(GuiDraw::Scrolling { text, center_x, x0, x1, y0, y1, color });
     }

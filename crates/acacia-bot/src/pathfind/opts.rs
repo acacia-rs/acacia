@@ -5,9 +5,11 @@ use std::time::Duration;
 
 use acacia_physics::BlockPos;
 
+use super::boat::{BoatSource, HEURISTIC_FLOOR};
 use super::costs;
 use super::favour::Favour;
 use super::goal::Speed;
+use super::hazard::Hazards;
 use super::kit::Kit;
 use super::macros::MacroStats;
 use super::profile::MovementProfile;
@@ -44,6 +46,13 @@ pub struct SearchOpts {
     /// Cells no move may end with the body in (feet or head): the builder's thin targets (panes, fences, walls),
     /// beside which a body fits but which then wall it in (live: a window cell, every walk "Stuck" after).
     pub no_body: Option<Arc<std::collections::HashSet<BlockPos>>>,
+    /// Cross still water by boat, bank to bank (physics bots with the entity tracker).
+    pub boats: bool,
+    /// What a boat leg can board; [`Bot::goto`](crate::Bot::goto) fills it, and with nothing no boat leg is planned.
+    pub boat_source: BoatSource,
+    /// Entities to keep away from (score only) and the cells solid ones fill; attach the same to the search's
+    /// terrain ([`Terrain::with_hazards`](super::Terrain::with_hazards)).
+    pub hazards: Option<Arc<Hazards>>,
 }
 
 impl Default for SearchOpts {
@@ -63,18 +72,30 @@ impl Default for SearchOpts {
             favour: None,
             keep: None,
             no_body: None,
+            boats: false,
+            boat_source: BoatSource::default(),
+            hazards: None,
         }
     }
 }
 
 impl SearchOpts {
-    /// The heuristic's speed: macro moves sprint-jump, and change height on the way.
+    /// The heuristic's speed: macro moves sprint-jump, and change height on the way; a boat may cross water
+    /// faster still (design decision 7).
     pub(crate) fn speed(&self) -> Speed {
-        if self.macros {
+        let mut s = if self.macros {
             Speed { per_block: costs::macro_ticks_per_block(self.profile), startup: costs::MACRO_STARTUP, overlap: true }
         } else {
             Speed::CLASSIC
+        };
+        if self.plans_boats() {
+            s.per_block = s.per_block.min(HEURISTIC_FLOOR);
         }
+        s
+    }
+
+    pub(crate) fn plans_boats(&self) -> bool {
+        self.boats && self.boat_source.any()
     }
 }
 

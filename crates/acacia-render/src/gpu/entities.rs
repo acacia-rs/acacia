@@ -102,6 +102,7 @@ impl EntityPass {
 
     /// Uploads this frame's instances. `light` gives the (block, sky) levels at a world position;
     /// `over` are drawn by [`EntityPass::draw_over`] (over the UI), fully lit.
+    #[allow(clippy::too_many_arguments)]
     pub fn prepare<'a>(
         &mut self,
         device: &wgpu::Device,

@@ -284,5 +284,4 @@ the rate and cost ~65 s of walking (stands farther away); the drops follow the p
 
 - Portable shulker restock (place, take, break, pick up); stations must be placed containers.
 - Crafting missing items; dumping junk when the inventory is full (drops from clearing are picked up).
-- Line of sight: clicks only need the face to point towards the eye.
 - Other bots as pilot obstacles; a networked board.

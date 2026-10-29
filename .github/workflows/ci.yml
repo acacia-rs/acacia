@@ -18,6 +18,8 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+      # acacia-sound's alsa-sys links the system ALSA library.
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - run: cargo clippy --workspace --all-targets
 
   test:
@@ -26,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       # Live tests (real accounts, servers) are #[ignore]d; everything else is offline.
       - run: cargo test --workspace
 

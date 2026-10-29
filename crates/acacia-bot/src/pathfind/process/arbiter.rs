@@ -126,9 +126,10 @@ impl Arbiter {
         self.tick += 1;
         let tick = self.tick;
         let path = self.route.as_ref().and_then(|r| r.pilot.follower()).map_or(&[][..], |f| f.ahead());
+        let hazards = self.route.as_ref().and_then(|r| r.pilot.field());
         let (mut winner, mut finished) = (None, Vec::new());
         for e in self.entries.iter_mut().filter(|e| !e.paused) {
-            let cx = Ctx { tick, pos, on_ground, path, quiet: tick - e.other_at, look };
+            let cx = Ctx { tick, pos, on_ground, path, quiet: tick - e.other_at, look, hazards };
             match e.proc.want(&cx) {
                 Want::Yield => {}
                 Want::Done(result) => finished.push((e.id, result)),
@@ -182,7 +183,10 @@ impl Arbiter {
             }
             _ => {
                 let opts = self.get(id).map(|p| p.opts()).unwrap_or_default();
-                let pilot = Pilot::with_cache(goal.clone(), opts, self.cache.clone());
+                let mut pilot = Pilot::with_cache(goal.clone(), opts, self.cache.clone());
+                if let Some(old) = self.route.take() {
+                    pilot.inherit(old.pilot);
+                }
                 self.route = Some(Route { owner: id, goal, pilot, arrived: false, driven_at: tick });
             }
         }

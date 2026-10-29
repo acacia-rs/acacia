@@ -224,6 +224,9 @@ the proxy (`crates/acacia-mitm/src/transfer.rs`). What is left: [mitm-next.md](m
       Replayed at tolerance 0 with both fixes, older Human runs' mismatching corrections drop to a third
       (`h-base-Hum1` 34 → 8, now `tests/traces/course-human-linux.btrc.gz`; `course-Hum2` 61 → 20) and old
       regression traces improve too (fuzz-a 1589 → 1286, fuzz-b 1701 → 1439, powder snow 29 → 19).
+    - Boats too (2026-10-28): a boat's x and z are its kept box's centre. `pos += move` drew a 1-ulp x/z
+      correction every few ticks, 641 on a 500-block leg, all under the 1e-5 bar below |x| 128; with the box, 47,
+      all wave height (docs/research/riding-fishing-elytra.md "Boat"; live results docs/pathfind-plan.md "M3").
     - Left open: ground and air ticks still drift by an ulp on about 2% of off-axis ticks (sprint walks from rest
       near the origin: 7 of 30 per axis). Not explained by constant acceleration offsets, glibc sin/cos, Java's
       operation order (BDS's `WaterMoveSystem` form), air speed 0.025999999, friction order, double-precision

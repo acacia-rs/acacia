@@ -173,7 +173,7 @@ impl JavaItems {
         let mut corners = self.layers(item, context)?.iter().flat_map(|layer| {
             let display = Display::java(layer.transform, context::left_hand(context)).frame();
             self.quads(layer).iter().flat_map(move |quad| {
-                quad.pos.chunks_exact(3).map(move |p| display.transform_point3(glam::Vec3::from_slice(p) - glam::Vec3::splat(0.5)))
+                quad.pos.as_chunks::<3>().0.iter().map(move |p| display.transform_point3(glam::Vec3::from_slice(p) - glam::Vec3::splat(0.5)))
             })
         });
         let first = corners.next()?;

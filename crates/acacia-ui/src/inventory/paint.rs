@@ -54,15 +54,15 @@ pub fn draw(list: &mut DrawList, theme: &Theme, layout: Layout, title: &str, con
             }
         };
     }
-    if let (Layout::Bench(bench), Some((before, after))) = (layout, contents.name) {
-        if let Some([x, y]) = bench.name_box() {
-            art.name_box(list, [ox + x, oy + y], !(before.is_empty() && after.is_empty()));
-            if let Some(font) = &theme.font {
-                let (start, caret) = (ox + x + 3.0, ox + x + 3.0 + font.width(before));
-                font.draw(list, before, start, oy + y + 4.0, 0xFFFFFF, 1.0, true);
-                font.draw(list, "_", caret, oy + y + 5.0, 0xFFFFFF, 1.0, true);
-                font.draw(list, after, caret, oy + y + 4.0, 0xFFFFFF, 1.0, true);
-            }
+    if let (Layout::Bench(bench), Some((before, after))) = (layout, contents.name)
+        && let Some([x, y]) = bench.name_box()
+    {
+        art.name_box(list, [ox + x, oy + y], !(before.is_empty() && after.is_empty()));
+        if let Some(font) = &theme.font {
+            let (start, caret) = (ox + x + 3.0, ox + x + 3.0 + font.width(before));
+            font.draw(list, before, start, oy + y + 4.0, 0xFFFFFF, 1.0, true);
+            font.draw(list, "_", caret, oy + y + 5.0, 0xFFFFFF, 1.0, true);
+            font.draw(list, after, caret, oy + y + 4.0, 0xFFFFFF, 1.0, true);
         }
     }
     if let (Layout::Trade, Some(share)) = (layout, contents.experience) {

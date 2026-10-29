@@ -69,6 +69,9 @@ pub(crate) const ENTITY_HOVER: Range = (75, 450);
 pub(crate) const ATTACK_GAP: Range = (75, 130);
 /// Entity right-click: the transaction to the client's own swing (n=5: 124-203 ms).
 pub(crate) const ENTITY_SWING: Range = (120, 210);
+/// Between punches breaking a boat (placeholder, no capture): its damage wears off each tick, so hits a CLICK
+/// apart never broke one live (2026-10-28).
+pub(crate) const BOAT_PUNCH: Range = (140, 260);
 /// Held item changed by the server or a container move, to the client's MobEquipment (n=15: 43-247 ms, two near 700).
 pub(crate) const EQUIP_RESYNC: Range = (60, 250);
 /// Bed click to `PlayerAction StartSleeping` (n=1: 513 ms).
@@ -85,6 +88,41 @@ pub(crate) const AIM_MAX_TURN_DEG: f32 = 30.0;
 pub(crate) const AIM_JITTER_DEG: f32 = 1.5;
 /// How far (blocks) a move's start may sit from where the plan put it.
 pub(crate) const START_SLOP: f32 = 0.05;
+
+// Boat paddling (pathfind `boat`, `MovementProfile::Human`): placeholders until a vanilla boat capture fits them.
+/// Ticks a chosen set of straight paddle keys (no side key) stays held, uniform inclusive.
+pub(crate) const BOAT_KEY_HOLD: (u32, u32) = (4, 10);
+/// Ticks a side key is tapped for, as is any key while easing onto the stop; and the route left (blocks) where
+/// that easing starts.
+pub(crate) const BOAT_TAP_HOLD: (u32, u32) = (1, 3);
+pub(crate) const BOAT_TAP_REACH: f32 = 3.0;
+/// Ticks from deciding on new keys to pressing them.
+pub(crate) const BOAT_TURN_REACTION: (u32, u32) = (2, 5);
+/// Blocks along the route ahead of the boat the rider looks at.
+pub(crate) const BOAT_LOOK_LEAD: f32 = 8.0;
+/// Extra clearance (blocks) kept from banks, beyond the boat's own box.
+pub(crate) const BOAT_BANK_PAD: f32 = 0.3;
+/// Ticks sitting in a boat that has come to rest before getting off.
+pub(crate) const BOAT_EXIT_PAUSE: (u32, u32) = (6, 16);
+
+// Entity awareness (pathfind `MovementProfile::Human`): placeholders from typical reaction times, faster to a
+// sound or a hit (150-250 ms) than to a sight (250-400 ms).
+/// Ticks from an entity coming into earshot or hitting the bot to the path reacting to it.
+pub(crate) const THREAT_NOTICE_HEARD: (u64, u64) = (3, 5);
+/// Ticks from an entity coming into view to the path reacting to it.
+pub(crate) const THREAT_NOTICE_SEEN: (u64, u64) = (5, 8);
+/// Half the horizontal view angle, degrees.
+pub(crate) const VIEW_HALF_DEG: f32 = 55.0;
+/// Blocks an entity is heard at, seen or not.
+pub(crate) const EARSHOT: f32 = 4.0;
+/// Blocks a lit creeper's fuse hiss is heard at (placeholder).
+pub(crate) const FUSE_EARSHOT: f32 = 10.0;
+/// Ticks an entity once noticed is kept in mind out of view.
+pub(crate) const THREAT_MEMORY: u64 = 200;
+/// Ticks from deciding to strike a chaser to the first click (placeholder: a reaction, 100-250 ms).
+pub(crate) const STRIKE_REACT: (u64, u64) = (2, 5);
+/// Ticks between clicks while striking (placeholder: 3-5 clicks a second).
+pub(crate) const STRIKE_GAP: (u64, u64) = (4, 7);
 
 pub(crate) struct Human {
     rng: u64,

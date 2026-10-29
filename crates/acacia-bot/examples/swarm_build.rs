@@ -34,6 +34,17 @@ async fn main() -> Result<(), Error> {
     let job = house::setup(&mut a, &pad, &env("SCENE", "house16".to_string())).await?;
     house::kit(&mut a, &pad).await?;
     pad.teleport(&mut a, [0.5, 0.0, 0.5], 180.0).await?;
+    // `WATCH=<player>`: a player already on the server (a viewer) watches from a glass stand above the house.
+    // Not as a spectator: the viewer does not simulate spectator flight, so the server snapped it back ~4 times a
+    // second.
+    if let Ok(watcher) = std::env::var("WATCH") {
+        let ([x, y, z], [fx, fy, fz]) = (pad.block([12, 14, -16]), pad.block([12, 0, 0]));
+        let stand = format!("/fill {} {} {} {} {} {} glass", x - 1, y - 1, z - 1, x + 1, y - 1, z + 1);
+        for c in [format!("/gamemode survival {watcher}"), stand, format!("/tp {watcher} {x} {y} {z} facing {fx} {fy} {fz}")] {
+            pad.run(&a, &c);
+            a.wait_ticks(4).await?;
+        }
+    }
     house::fresh_journals();
     let started = Instant::now();
     let (ra, rb) = if bots < 2 {

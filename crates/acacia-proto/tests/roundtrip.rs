@@ -98,12 +98,47 @@ fn switches_and_options() {
 /// The body BDS 1.26.52.3 sends for a wither's bar; see docs/proto.md on `boss_event`.
 const BDS_SHOW_BAR: &str = "8bffffffdf010012656e746974792e7769746865722e6e616d65008c25bf3c0600";
 
+fn unhex(text: &str) -> Vec<u8> {
+    (0..text.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap())
+        .collect()
+}
+
+/// Reads a whole BDS body and checks it writes back the same.
+fn bds_body<T: Packet + std::fmt::Debug>(text: &str) -> T {
+    let body = unhex(text);
+    let mut rest = &body[..];
+    let packet = T::decode(&mut rest).unwrap();
+    assert!(rest.is_empty(), "{} bytes left over", rest.len());
+    let mut out = BytesMut::new();
+    packet.encode(&mut out);
+    assert_eq!(&out[..], &body[..]);
+    packet
+}
+
+/// See docs/proto.md on `FullContainerName` and `camera_instruction`.
+#[test]
+fn bds_container_and_camera_bodies() {
+    let cleanup: ContainerRegistryCleanup = bds_body("013f0101000000");
+    assert_eq!(cleanup.removed_containers[0].dynamic_container_id, Some(1));
+
+    let fade: CameraInstruction = bds_body("000001010000803f000000400000404000000000000000");
+    let time = fade.fade.unwrap().time.unwrap();
+    assert_eq!([time.fade_in_duration, time.wait_duration, time.fade_out_duration], [1.0, 2.0, 3.0]);
+    let colour: CameraInstruction = bds_body("0000010001000000000000803f00000000000000000000");
+    assert_eq!(colour.fade.unwrap().color_rgb, Some(Vec3f { x: 0.0, y: 1.0, z: 0.0 }));
+
+    let fov: CameraInstruction = bds_body("0000000000010000704200000040066c696e65617200000000");
+    let fov = fov.fov.unwrap();
+    assert_eq!((fov.field_of_view, fov.ease_time, fov.ease_type.as_str(), fov.clear), (60.0, 2.0, "linear", false));
+    let cleared: CameraInstruction = bds_body("0000000000010000000000000000066c696e65617201000000");
+    assert!(cleared.fov.unwrap().clear);
+}
+
 #[test]
 fn boss_event_is_bds_show_bar_for_every_type() {
-    let body: Vec<u8> = (0..BDS_SHOW_BAR.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&BDS_SHOW_BAR[i..i + 2], 16).unwrap())
-        .collect();
+    let body = unhex(BDS_SHOW_BAR);
     let mut rest = &body[..];
     let shown = BossEvent::read(&mut rest).unwrap();
     assert!(rest.is_empty(), "{} bytes left over", rest.len());

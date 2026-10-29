@@ -1,5 +1,6 @@
 mod alter;
 mod alter_sim;
+mod boat_legs;
 mod build_sim;
 mod place_model;
 mod place_oneclick;
@@ -15,6 +16,10 @@ mod confirm_sim;
 mod course;
 mod dead_ends;
 mod grid;
+mod entity_scenarios;
+mod entity_sim;
+mod evade_sim;
+mod hazards;
 mod hops;
 mod drive;
 mod leap;

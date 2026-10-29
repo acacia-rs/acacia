@@ -241,10 +241,10 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         return Next::Act(Phase::Building, act);
     }
     // Nothing to click against: a scaffold column up to the lowest such cell.
-    if let Some(pos) = unsupported {
-        if let Some(next) = support(b, cx, pos) {
-            return next;
-        }
+    if let Some(pos) = unsupported
+        && let Some(next) = support(b, cx, pos)
+    {
+        return next;
     }
 
     if let Some(i) = order.iter().copied().find(|&i| needs[i] == Need::Unknown && b.mine(b.cells[i].pos)) {

@@ -9,6 +9,9 @@ use acacia_bot::Bot;
 
 use super::{Error, Fill, Pad};
 
+/// The third barrel's stock: (item, count).
+type Stock = &'static [(&'static str, u32)];
+
 /// The third barrel (pad offset), beside the two `house` stations.
 const STATION: [i32; 3] = [2, 0, -10];
 
@@ -34,7 +37,7 @@ fn floor(size: [i32; 3], block: &str) -> Structure {
 }
 
 /// The scene's structure, junk (absolute pad offsets from `at`) and the third barrel's stock; `None`: not ours.
-pub fn scene(name: &str, at: impl Fn([i32; 3]) -> [i32; 3]) -> Option<(Structure, Vec<Fill<'static>>, &'static [(&'static str, u32)])> {
+pub fn scene(name: &str, at: impl Fn([i32; 3]) -> [i32; 3]) -> Option<(Structure, Vec<Fill<'static>>, Stock)> {
     Some(match name {
         "doors" => {
             // Facing east: placed from the south looking north, west on the left. The right door of the pair has

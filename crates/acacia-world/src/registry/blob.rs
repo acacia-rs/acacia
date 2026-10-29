@@ -75,9 +75,12 @@ fn parse_tables() -> Blob {
     Blob { frictions, strings, shapes, mining, states_at: r.pos }
 }
 
+/// Distinct box lists, then each state's (list index, offset byte).
+type Selections = (Vec<Box<[Aabb]>>, Vec<(u16, u8)>);
+
 /// Every vanilla state's selection boxes and offset, in runtime-id order (layout: `tools/gen-selection.py`).
 fn selections() -> Vec<(&'static [Aabb], SelectionOffset)> {
-    static SHAPES: LazyLock<(Vec<Box<[Aabb]>>, Vec<(u16, u8)>)> = LazyLock::new(|| {
+    static SHAPES: LazyLock<Selections> = LazyLock::new(|| {
         let mut r = Reader { blob: SELECTION, pos: 0 };
         assert_eq!(r.bytes(4), b"BSL2", "selection.bin: bad magic");
         let shapes = (0..r.u32()).map(|_| r.boxes()).collect();

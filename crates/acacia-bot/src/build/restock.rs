@@ -3,6 +3,7 @@
 //! without it. A share, not the need of the cells at hand: with 4×4 tiles (before cell claims) each bot walked
 //! back after nearly every tile.
 
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
 use super::builder::{Builder, Restock};
@@ -30,7 +31,7 @@ pub(super) fn shortfall(b: &Builder, cx: &Ctx, needs: &[Need]) -> Vec<(String, u
     }
     let share = b.sharers();
     let mut out: Vec<(String, u32)> = want.into_iter().filter_map(|(item, n)| n.div_ceil(share).checked_sub(cx.look.count(&item)).filter(|d| *d > 0).map(|d| (item, d))).collect();
-    out.sort_by(|a, b| b.1.cmp(&a.1));
+    out.sort_by_key(|e| Reverse(e.1));
     out
 }
 

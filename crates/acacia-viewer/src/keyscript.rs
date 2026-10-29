@@ -30,7 +30,7 @@ impl KeyScript {
     pub fn from_env() -> Option<Self> {
         let spec = std::env::var("ACACIA_KEYS").ok()?;
         let mut steps: Vec<_> = spec.split(';').filter_map(|s| parse(s.trim())).collect();
-        steps.sort_by(|a, b| b.0.cmp(&a.0));
+        steps.sort_by_key(|s| std::cmp::Reverse(s.0));
         Some(KeyScript { steps, start: None })
     }
 

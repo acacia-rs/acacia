@@ -181,8 +181,8 @@ fn face_uvs(direction: Direction, from: [f32; 3], to: [f32; 3], explicit: Option
 fn rewind(positions: &mut [[f32; 3]; 4], uvs: &mut [[f32; 2]; 4], facing: Direction) {
     let bound = |pick: fn(f32, f32) -> f32, from: f32| [0, 1, 2].map(|a| positions.iter().map(|p| p[a]).fold(from, pick));
     let target = face_positions(facing, bound(f32::min, f32::MAX), bound(f32::max, f32::MIN));
-    for vertex in 0..4 {
-        let same = |p: &[f32; 3]| p.iter().zip(target[vertex]).all(|(a, b)| (a - b).abs() < 1e-3);
+    for (vertex, corner) in target.into_iter().enumerate() {
+        let same = |p: &[f32; 3]| p.iter().zip(corner).all(|(a, b)| (a - b).abs() < 1e-3);
         let Some(found) = (vertex..4).find(|&i| same(&positions[i])) else { return };
         positions.swap(vertex, found);
         uvs.swap(vertex, found);
