@@ -144,11 +144,13 @@ x, y = keys, normalised when two are held; a held forward key makes y = 1 all th
 pull = sqrt(x² + y²); y < 0: x = −x, pull ·= −0.15
 left = (x > 0 ? 1 − x : 1)·pull; right = (x <= 0 ? x + 1 : 1)·pull         (x + is the left key)
 force = 3·paddle on a stroke's first tick, sign·(|3·paddle| − 0.1) on the next nine; f = force·0.01375
+    a paddle at rest for a tick starts a fresh stroke next (live; the static reading of 1483a4a10 keeps it)
 fr = 0.9 in or on water, the block's friction on the ground, 1 in the air (no thrust there)
 vx, vz, yawVel ·= fr
 forward = fL + fR; torque = 3·fL − 3·fR;  vx² + vz² < 0.01 and torque ≠ 0: forward ·= fr, torque ·= 1.6
 yawVel = (torque·10 + yawVel)·fr; yaw += yawVel
-vx = (forward·sin a + vx)·fr; vz = (forward·cos a + vz)·fr;  move (Y, X, Z), motion = what was moved
+vx = (forward·sin a + vx)·fr; vz = (forward·cos a + vz)·fr;  move the box (Y, X, Z)
+x, z = the box's centre (the box is kept, never rebuilt), y += moved; motion = what was moved, 0 on a blocked x or z
 wave += (sqrt(vx² + vz²)·30 + 1)·0.05, ten times that with probability 0.03 (the server's own random)
 vy = (vy − 0.04)·0.98
 floating (in a water block with none above, below its top): depth = clamp((1 − frac(y))·0.9 + 0.1, 0, 1)
@@ -157,6 +159,17 @@ floating (in a water block with none above, below its top): depth = clamp((1 −
 - The big waves cannot be predicted, so the vertical position drifts and BDS corrects (a vanilla client too: most
   ticks in the capture). A correction's vertical motion gives the wave's sine back; of the two phases with that
   sine the bot takes the one a correction up to 8 ticks before agrees with. It then replays the inputs sent since.
+- Where the big waves come from (bdsre, Windows BDS 1.26.52, 2026-10-28): the wave step (1483a9b40, run per
+  `BuoyancyComponent` entity per tick by the view 1483a9ea0) draws `random.nextFloat()` and multiplies the step
+  by the component's 10 when the draw is ≤ its 0.03. The random is the one `RandomComponent` (lookup 141c638c0),
+  emplaced only on the entity registry's context entity (143719070, called from the level setup 1407a8bf0): a
+  single MT19937 `Random` shared by every buoyant entity's wave and by the step, gallop, breath and bounce sound
+  systems of all actors. That `Random` is default-constructed (14168b430): its 32-bit seed is the next draw of a
+  thread-local MT19937 that is itself seeded from a 4-byte read of an entropy source (1411889d0), not from the
+  world seed, the time or the entity. A client sees none of the other draws and only learns of a big wave from
+  the correction that follows it, so the server's waves cannot be predicted; brute-forcing the seed would also
+  need the draw count since the server started. A vanilla driver is corrected on most boat ticks for the same
+  reason (`docs/physics-handoff-glide-vehicles.md`).
 - The correction carries position, motion, yaw and the yaw's speed (`angular_velocity`).
 - Inputs: position and delta are the boat's, `vehicle_rotation = (0, yaw)`, WASD flags, PaddlingLeft/Right with
   Left/Right. The paddling flags are only read for touch with the classic interaction model (bdsre).
@@ -165,7 +178,25 @@ Live on strict BDS (viewer), two runs:
 - W, a coast, A, D, S, W+A over 262 ticks: 29 corrections. In all 28 with a traced input x, z and yaw were equal
   and only the height was off (the waves: two or three corrections per big wave, more while the speed changes).
 - S+D, W+A, W, W+D and a coast over 371 ticks: 14 corrections; 10 height only, one 5e-6 in y, two 1–2e-5 in x or z.
-**Not checked:** ice and land friction, collisions with banks, flowing water, the 25-tick underwater ejection.
+
+Found driving `Bot::boat_to` on strict Linux BDS (2026-10-28, docs/pathfind-plan.md "M3"):
+- Strokes: a stroke restarts after any tick a paddle rests (turn drills: corrections of ±0.037 yaw until
+  modelled), and BDS's paddle clock counts no stroke fresh in about the first 10 ticks after boarding (the first
+  pull was 2.9, not 3.0): the bot sits 12 ticks before paddling.
+- Banks: after a collision the blocked axis keeps no motion (the server's x motion was 0 at the bank).
+- Position: x and z are the centre of the box BDS moves and never rebuilds, as for players (DESIGN.md "Off-axis
+  ulp corrections"). `pos += move` drew a 1-ulp x or z correction every 3–4 ticks; fitted on a trace, the box
+  centre gave 103 of 118 corrected positions, `pos += move` 50. Since, 500-block legs draw 38–55 corrections,
+  every one height only (x and z bit-equal).
+- Placing (`BoatItem::_useOn` 142a853c0, vtable 0x14a90a450 slot 130): clicked face up, air above the clicked
+  block, the boat at the click point with yaw = the player's + 90; refused if its box overlaps any entity, the
+  placer included. Live, every placement 3.5 blocks out was refused and one 2.6 out taken (water or ground).
+- Breaking: a boat's damage wears off every tick, so hits about a second apart never break it; 140–260 ms apart
+  do. Its drop often lands in the water and drifts: the bot walks to it until the boat is back in the inventory.
+- Getting off: movement resyncs to the exit only on the tick after the seat is given up.
+- The correction for the tick boarded on carries the server's yaw; the spawn packet's is a 1.4° byte step.
+
+**Not checked:** ice and land friction, flowing water, the 25-tick underwater ejection.
 
 ### Other vehicles
 Pigs and minecarts are server-driven (no `ClientPredictedVehicle`): the seated input reports the seat and the

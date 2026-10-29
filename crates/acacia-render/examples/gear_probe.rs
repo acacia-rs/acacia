@@ -45,14 +45,14 @@ fn main() {
         let got_text: Vec<String> = got.iter().map(|d| format!("{} {} {:?} {:?}", d.layer.unwrap_or(&body_layer), d.texture, d.color, d.blend)).collect();
         if expected.len() != got.len() {
             let want: Vec<String> = expected.iter().map(|d| format!("{} {} {}", d["layers"], d["texture"], d["renderType"])).collect();
-            case.diverge("draws", &want.join(" | "), &got_text.join(" | "));
+            case.diverge("draws", want.join(" | "), got_text.join(" | "));
             continue;
         }
         for (i, (want, got)) in expected.iter().zip(&got).enumerate() {
             let layers: Vec<&str> = want["layers"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
             let layer = got.layer.unwrap_or(&body_layer);
             if !layers.contains(&layer) {
-                case.diverge(&format!("draw {i} layer"), &format!("{layers:?}"), layer);
+                case.diverge(&format!("draw {i} layer"), format!("{layers:?}"), layer);
             }
             let texture = want["texture"].as_str().unwrap_or_default().replace("minecraft:", "java/");
             if texture != got.texture {
@@ -61,11 +61,11 @@ fn main() {
             let color = want["color"].as_i64().unwrap_or(-1) as u32;
             let color = (color != u32::MAX).then(|| rgb(color));
             if color != got.color {
-                case.diverge(&format!("draw {i} color"), &format!("{color:?}"), &format!("{:?}", got.color));
+                case.diverge(&format!("draw {i} color"), format!("{color:?}"), format!("{:?}", got.color));
             }
             let blend = blend(want["renderType"].as_str().unwrap_or_default());
             if blend != Some(got.blend) {
-                case.diverge(&format!("draw {i} blend"), &want["renderType"], &format!("{:?}", got.blend));
+                case.diverge(&format!("draw {i} blend"), &want["renderType"], format!("{:?}", got.blend));
             }
         }
     }

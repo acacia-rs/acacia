@@ -9,6 +9,7 @@ use acacia_client::proto::types::WindowType;
 use acacia_physics::BlockPos;
 
 use super::named;
+use crate::cancel::Claim;
 use crate::human;
 use crate::items::craft::{Craft, CraftAction};
 use crate::items::{is_own_screen, to_inventory_ops_after, ui, Op, SlotRef};
@@ -52,14 +53,14 @@ impl Bot {
         let own_screen = match table {
             Some(pos) => {
                 self.open_station_and_look(pos, &[WindowType::Workbench]).await?;
-                false
+                None
             }
             None => {
-                let opened = self.hold_own_inventory_screen().await?;
-                if opened {
+                let screen = self.hold_own_inventory_screen().await?;
+                if screen.is_some() {
                     self.human_pause(human::SCREEN_OPEN_LOOK).await?;
                 }
-                opened
+                screen
             }
         };
         let result = match mode {
@@ -69,9 +70,9 @@ impl Bot {
         let back = self.take_back(&grid_cells(table.is_some())).await;
         if table.is_some() {
             self.close_station().await?;
-        } else if own_screen {
+        } else if let Some(screen) = own_screen {
             self.human_pause(human::SCREEN_LINGER).await?;
-            self.close_own_inventory_screen();
+            self.release(screen);
         }
         let made = result?;
         back.map(|()| made)
@@ -94,11 +95,11 @@ impl Bot {
         Ok(made)
     }
 
-    /// Opens the own inventory screen for several requests; true if it was opened here. BDS may
-    /// not confirm the open, so the screen is then recorded as open locally.
-    pub(super) async fn hold_own_inventory_screen(&mut self) -> Result<bool, ActionError> {
+    /// Opens the own inventory screen for several requests; the claim that closes it if it was opened here. BDS
+    /// may not confirm the open, so the screen is then recorded as open locally.
+    pub(super) async fn hold_own_inventory_screen(&mut self) -> Result<Option<Claim>, ActionError> {
         let opened = self.open_own_inventory_screen().await?;
-        if opened && self.state.containers.open.is_none() {
+        if opened.is_some() && self.state.containers.open.is_none() {
             self.state.containers.open = Some(Container {
                 window_id: Inventory::WINDOW_INVENTORY,
                 window_type: WindowType::Inventory,

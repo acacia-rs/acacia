@@ -16,6 +16,7 @@ use super::confirm::{Confirm, Expect, Verdict};
 use super::geometry::{block_distance, facing_face, BLOCK_REACH};
 use super::wire::{self, SwingSource};
 use super::Face;
+use crate::cancel::Held;
 use crate::state::{effect, ItemStack};
 use crate::{ActionError, Bot};
 
@@ -31,8 +32,7 @@ impl Bot {
     /// Breaks the block at `pos` with the held item, taking the vanilla break time (see
     /// [`break_ticks`]), and waits until the server shows air there, mining again (up to 3 tries)
     /// while it shows the block unchanged past the governor's timeout. Physics bots only; the bot
-    /// should stand still while mining. Dropping the future mid-break leaves the server mining:
-    /// call [`Bot::abort_break`] then.
+    /// should stand still while mining. A cancelled or dropped break is aborted (see [`crate::cancel`]).
     pub async fn break_block(&mut self, pos: BlockPos) -> Result<(), ActionError> {
         if !self.has_physics() {
             return Err(ActionError::NotPossible("block breaking needs a physics bot".into()));
@@ -49,9 +49,11 @@ impl Bot {
             return Err(ActionError::NotPossible(format!("{name} at {pos:?} is {distance:.2} blocks away")));
         }
         let (face, aim) = self.visible_aim(pos, None)?;
-        self.admit_action().await?;
+        let slot = self.admit_action().await?;
+        let breaking = self.claim(Held::Break(pos));
         let result = self.break_confirmed(pos, face, aim, mining).await;
-        self.governor.settled();
+        self.unclaim(breaking);
+        self.release(slot);
         result.map_err(|e| match e {
             ActionError::Rejected(why) => ActionError::Rejected(format!("breaking {name} at {pos:?}: {why}")),
             e => e,

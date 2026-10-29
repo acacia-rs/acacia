@@ -113,6 +113,12 @@ impl Metadata {
     pub(crate) fn merge(&mut self, items: Vec<MetadataDictionaryItem>) {
         self.0.extend(items.into_iter().map(|i| (i.key, i.value)));
     }
+
+    /// [`Metadata::merge`] keeping only what hazard avoidance reads: flags, box, scale and target.
+    pub(crate) fn merge_lean(&mut self, items: Vec<MetadataDictionaryItem>) {
+        const KEPT: [Key; 6] = [Key::Flags, Key::FlagsExtended, Key::BoundingboxWidth, Key::BoundingboxHeight, Key::Scale, Key::TargetEid];
+        self.0.extend(items.into_iter().filter(|i| KEPT.contains(&i.key)).map(|i| (i.key, i.value)));
+    }
 }
 
 impl From<Vec<MetadataDictionaryItem>> for Metadata {

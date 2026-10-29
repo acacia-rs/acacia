@@ -27,7 +27,9 @@ impl Capture {
             Fate::Arrives(_) => "sent",
         };
         let mut line = format!("{} {} {fate} ", self.epoch.elapsed().as_micros(), if up { "up" } else { "down" });
-        data.iter().for_each(|byte| drop(write!(line, "{byte:02x}")));
+        data.iter().for_each(|byte| {
+            let _ = write!(line, "{byte:02x}");
+        });
         let _ = writeln!(self.out.lock().expect("capture lock"), "{line}");
     }
 

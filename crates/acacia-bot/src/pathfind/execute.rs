@@ -3,7 +3,9 @@
 
 use acacia_physics::BlockPos;
 
+use super::boat::BoatOpts;
 use super::follow::Sense;
+use super::profile::MovementProfile;
 use super::maneuver;
 use super::moves::MoveKind;
 use super::work::Step;
@@ -18,10 +20,12 @@ const EDGE_TICKS: u32 = 30;
 /// Ticks for a pillar jump to clear the cell.
 const RISE_TICKS: u32 = 12;
 
-pub(super) async fn perform(bot: &mut Bot, node: &PathNode, scaffold: &[String]) -> Result<(), ActionError> {
+pub(super) async fn perform(bot: &mut Bot, node: &PathNode, scaffold: &[String], profile: MovementProfile) -> Result<(), ActionError> {
     bot.stop_pathing();
     for step in node.work.steps() {
         match step {
+            // Boxed: `boat_to` walks with a nested goto, which comes back here.
+            Step::Boat => Box::pin(bot.boat_to(node.pos, BoatOpts { profile, ..BoatOpts::default() })).await?,
             Step::Break(pos) => dig(bot, pos).await?,
             Step::Door { pos, open } => door(bot, pos, open).await?,
             Step::Place { against, face } => {

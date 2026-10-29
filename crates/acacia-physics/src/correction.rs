@@ -85,6 +85,19 @@ pub(crate) fn server_box(st: &PlayerState, feet: Vec3, earlier: &[&PlayerState])
     Some(bb)
 }
 
+impl PlayerState {
+    /// [`PlayerState::apply_correction`] that keeps the server's box when the correction is an ulp-level one:
+    /// `earlier` are our states on the ticks before the corrected one, oldest first (see `server_box`).
+    pub fn apply_small_correction(&mut self, feet: Vec3, delta: Vec3, on_ground: bool, earlier: &[&PlayerState]) {
+        let bb = server_box(self, feet, earlier);
+        let dims = self.collision_dims();
+        self.apply_correction(feet, delta, on_ground);
+        if let Some(bb) = bb {
+            self.shape = Some(CollisionShape { bb, pos: feet, dims });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,18 +139,5 @@ mod tests {
         let mut against_wall = last.clone();
         against_wall.collide_x = true;
         assert!(server_box(&against_wall, last.pos, &earlier).is_none());
-    }
-}
-
-impl PlayerState {
-    /// [`PlayerState::apply_correction`] that keeps the server's box when the correction is an ulp-level one:
-    /// `earlier` are our states on the ticks before the corrected one, oldest first (see `server_box`).
-    pub fn apply_small_correction(&mut self, feet: Vec3, delta: Vec3, on_ground: bool, earlier: &[&PlayerState]) {
-        let bb = server_box(self, feet, earlier);
-        let dims = self.collision_dims();
-        self.apply_correction(feet, delta, on_ground);
-        if let Some(bb) = bb {
-            self.shape = Some(CollisionShape { bb, pos: feet, dims });
-        }
     }
 }

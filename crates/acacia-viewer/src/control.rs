@@ -71,6 +71,9 @@ pub enum Command {
 }
 
 /// The player's own slots as a screen shows them.
+/// An enchanting table option: the level it needs, the enchantment it hints at and its words.
+pub type EnchantOption = (u8, Option<(u8, u8)>, String);
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Inventory {
     /// 0-8 the hotbar.
@@ -100,7 +103,7 @@ pub struct Inventory {
     /// The patterns an open loom offers, each with the banner it makes.
     pub patterns: Vec<(&'static str, Option<Stack>)>,
     /// The level each option of an enchanting table needs, the enchantment it hints at and its words.
-    pub enchants: Vec<(u8, Option<(u8, u8)>, String)>,
+    pub enchants: Vec<EnchantOption>,
     /// Layers of the pyramid under an open beacon.
     pub beacon: u8,
     /// An open trading screen.

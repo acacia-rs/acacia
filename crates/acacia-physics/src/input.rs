@@ -1,7 +1,7 @@
 //! Client intent and its translation into bedsim's per-tick input flags (`applyInput`).
 
 use crate::constants::*;
-use crate::math::clamp;
+use crate::math::{clamp, wrap_degrees};
 use crate::sim::{Sim, effective_air_speed};
 use crate::state::PlayerState;
 use crate::world::WorldView;
@@ -149,7 +149,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
 
         st.prev_pitch = st.pitch;
         st.pitch = f.pitch;
-        st.yaw = f.yaw;
+        st.yaw = wrap_degrees(f.yaw);
         st.pressing_sneak = f.sneak_down;
         st.pressing_sprint = f.sprint_down;
         st.pressing_ascend = f.jumping;
@@ -225,11 +225,13 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         // it in water, where sneak means sink.
         let in_water = !self.touching_liquid_blocks(st, crate::world::LiquidKind::Water).is_empty();
         let sneak_held = was_sneaking || st.sneaking;
+        // A glide on the ground ends in `travel` and walks at full impulse this tick (strict BDS touchdown, 0.08 a tick).
+        let gliding = st.gliding && !st.on_ground;
         // A crawl slows from the tick after it starts (vanilla capture). Sneak ticks in water still count
         // towards Swift Sneak (strict BDS fuzz).
-        if sneak_held || was_crawling || st.gliding {
+        if sneak_held || was_crawling || gliding {
             st.ticks_since_can_slowdown += 1;
-            if !in_water || was_crawling || st.gliding {
+            if !in_water || was_crawling || gliding {
                 max_impulse *= sneak_impulse(st, st.ticks_since_can_slowdown);
             }
         } else {

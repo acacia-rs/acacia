@@ -38,7 +38,7 @@ use acacia_ui::java::gui::Gui;
 use acacia_ui::widget::TextEdit;
 
 pub use build::View;
-pub use input::{Event, Outcome};
+pub use input::Event;
 
 use super::{JavaGui, PictureRequest};
 use crate::control::Stack;

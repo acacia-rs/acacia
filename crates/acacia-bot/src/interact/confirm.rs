@@ -12,6 +12,7 @@ use acacia_physics::BlockPos;
 use acacia_world::BlockState;
 
 use super::wire::block_coordinates;
+use crate::cancel::{Claim, Held};
 use crate::state::ItemStack;
 use crate::{ActionError, Bot};
 
@@ -185,15 +186,15 @@ impl Bot {
         }
     }
 
-    /// Lets ticks pass until the governor allows another action, then counts it as sent.
-    pub(crate) async fn admit_action(&mut self) -> Result<(), ActionError> {
+    /// Lets ticks pass until the governor allows another action, then counts it as sent; [`Bot::release`] settles it.
+    pub(crate) async fn admit_action(&mut self) -> Result<Claim, ActionError> {
         let t = Instant::now();
         while !self.governor.may_send() {
             self.next_tick(|_, _| false).await?;
         }
         self.act_timing.add(crate::act_timing::Phase::Admit, t.elapsed());
         self.governor.sent(false);
-        Ok(())
+        Ok(self.claim(Held::Slot))
     }
 
     /// The governor every world action asks before going out.

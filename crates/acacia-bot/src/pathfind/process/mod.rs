@@ -5,6 +5,7 @@
 mod act;
 mod arbiter;
 mod backfill;
+mod evade;
 mod follow;
 mod goto;
 pub mod item_key;
@@ -12,12 +13,14 @@ pub(crate) mod run;
 
 use acacia_physics::{BlockPos, Vec3};
 
+use super::hazard::Hazards;
 use super::{GotoOpts, Goal, PathNode};
 use crate::interact::Face;
 use crate::ActionError;
 
 pub use arbiter::{Arbiter, Decision};
 pub use backfill::{Backfill, substitutes};
+pub use evade::Evade;
 pub use follow::{Follow, Target};
 pub use goto::Goto;
 pub use run::{Processes, Status};
@@ -148,6 +151,8 @@ pub struct Ctx<'a> {
     /// Ticks since a process other than the asking one last had control.
     pub quiet: u64,
     pub look: &'a dyn Look,
+    /// The entities as the pilot last perceived them.
+    pub hazards: Option<&'a Hazards>,
 }
 
 impl Ctx<'_> {

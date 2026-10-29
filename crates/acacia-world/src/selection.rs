@@ -30,9 +30,9 @@ pub fn boxes_at(world: &impl BlockAccess, registry: &BlockRegistry, pos: [i32; 3
         vec![door(state, at(0, 1, 0), at(0, -1, 0))]
     } else if name == "vine" && state.property("vine_direction_bits") == Some("0") {
         vine_without_faces(at(0, 1, 0), at(0, -1, 0))
-    } else if name == "twisting_vines" && at(0, 1, 0).is_some_and(|s| s.name == state.name) {
-        vec![VINE_COLUMN]
-    } else if name == "weeping_vines" && at(0, -1, 0).is_some_and(|s| s.name == state.name) {
+    } else if (name == "twisting_vines" && at(0, 1, 0).is_some_and(|s| s.name == state.name))
+        || (name == "weeping_vines" && at(0, -1, 0).is_some_and(|s| s.name == state.name))
+    {
         vec![VINE_COLUMN]
     } else if name == "chorus_plant" {
         vec![chorus(|d: [i32; 3]| at(d[0], d[1], d[2]))]

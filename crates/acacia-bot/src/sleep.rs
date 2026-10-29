@@ -55,6 +55,7 @@ impl Bot {
         }
         self.bed.clicked_from = Some(self.state.player.position.clone());
         let face = facing_face(self.eye_position(), pos);
+        let bed = self.claim(crate::cancel::Held::Bed);
         self.use_item_on_block(pos, face).await?;
         let clicked = Instant::now();
         let outcome = self
@@ -75,6 +76,7 @@ impl Bot {
         self.pause(settle).await?;
         self.client.send(&player_action(self.runtime_id(), Action::StartSleeping));
         self.reflexes.in_bed = true;
+        self.unclaim(bed);
         Ok(())
     }
 
@@ -83,10 +85,15 @@ impl Bot {
         if !self.is_sleeping() {
             return Err(ActionError::NotPossible("not sleeping".into()));
         }
+        self.leave_bed();
+        self.wait_until(WAKE_TIMEOUT, |bot, _| (!bot.is_sleeping()).then_some(())).await
+    }
+
+    /// Presses "leave bed" without waiting.
+    pub(crate) fn leave_bed(&mut self) {
         self.reflexes.in_bed = false;
         self.client.send(&player_action(self.runtime_id(), Action::StopSleeping));
         self.reflexes.schedule(0, Reflex::ClearAimAssist);
-        self.wait_until(WAKE_TIMEOUT, |bot, _| (!bot.is_sleeping()).then_some(())).await
     }
 }
 

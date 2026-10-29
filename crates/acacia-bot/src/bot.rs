@@ -78,6 +78,7 @@ pub struct Bot {
     pub(crate) act_timing: crate::act_timing::ActTiming,
     pub(crate) in_flight: crate::interact::pipeline::Pipeline<crate::interact::pipeline::StackUndo>,
     lag: Option<LagLine>,
+    pub(crate) cancel: crate::cancel::CancelState,
 }
 
 impl Bot {
@@ -149,6 +150,7 @@ impl Bot {
             act_timing: Default::default(),
             in_flight: Default::default(),
             lag: config.lag.map(LagLine::new),
+            cancel: Default::default(),
         })
     }
 
@@ -207,6 +209,7 @@ impl Bot {
     /// Processes incoming packets and ticks until an event (typed or a subscribed packet) is ready or
     /// the connection ends. Must be polled continuously for state, input and movement to run.
     pub async fn next(&mut self) -> Option<BotEvent> {
+        self.idle_again();
         loop {
             if let Some(event) = self.pending.pop_front() {
                 return Some(event);

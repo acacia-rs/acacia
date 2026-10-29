@@ -73,10 +73,10 @@ fn framed_item(bot: &Bot, block: [i32; 3], nbt: &Nbt) -> Option<Framed> {
         _ => None,
     };
     let map = map_id.and_then(|id| bot.state().maps.get(id).cloned());
-    if let Some(id) = map_id.filter(|_| map.is_none()) {
-        if ASKED.with_borrow_mut(|asked| asked.insert(id)) {
-            bot.client().send(&MapInfoRequest { map_id: id, client_pixels: Vec::new() });
-        }
+    if let Some(id) = map_id.filter(|_| map.is_none())
+        && ASKED.with_borrow_mut(|asked| asked.insert(id))
+    {
+        bot.client().send(&MapInfoRequest { map_id: id, client_pixels: Vec::new() });
     }
     let block_id = view.world().registry().states_of(name).next().map_or(0, |(id, _)| id);
     let key = ItemKey { name: name.to_string(), aux, block: block_id, dye: None, banner: None, trim: None };

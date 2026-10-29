@@ -70,7 +70,7 @@ impl Transform {
 
     /// `b` with its direction and axis states turned like the cells.
     pub fn block(&self, b: &Block) -> Block {
-        if self.turns % 4 == 0 && !self.mirror {
+        if self.turns.is_multiple_of(4) && !self.mirror {
             return b.clone();
         }
         let props: Vec<String> = b

@@ -13,9 +13,9 @@ use crate::pathfind::process::{Act, Arbiter, Decision, Look, ProcId};
 use crate::pathfind::{Backfill, Follow, Goal, Goto, GotoOpts, NavStatus, SearchJob, Step, Target, answered};
 use crate::ActionError;
 
-struct SimLook<'a> {
-    g: &'a Grid,
-    target: Option<Vec3>,
+pub(super) struct SimLook<'a> {
+    pub g: &'a Grid,
+    pub target: Option<Vec3>,
 }
 
 impl Look for SimLook<'_> {

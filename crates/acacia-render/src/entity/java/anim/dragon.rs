@@ -16,7 +16,7 @@ struct History {
 impl History {
     fn of(s: &RenderState) -> History {
         let mut out = History { samples: [(0.0, 0.0); 64], head: -1, partial: s.num("partialTicks") };
-        for pair in s.nums("flightHistory").chunks_exact(2) {
+        for pair in s.nums("flightHistory").as_chunks::<2>().0 {
             let sample = (pair[0], pair[1] as f32);
             if out.head < 0 {
                 out.samples = [sample; 64];

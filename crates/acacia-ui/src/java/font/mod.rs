@@ -101,7 +101,7 @@ impl Fonts {
                 Some(Provider::Unihex(_, glyphs, _)) => glyphs.get(c).map(|g| (g.width().max(0) as u32, 16, g.rgba())),
                 _ => None,
             },
-            GlyphTexture::Missing => Some((5, 8, (0..40).flat_map(|i| if matches!(i % 5, 0 | 4) || i < 5 || i >= 35 { [255; 4] } else { [0; 4] }).collect())),
+            GlyphTexture::Missing => Some((5, 8, (0..40).flat_map(|i| if matches!(i % 5, 0 | 4) || !(5..35).contains(&i) { [255; 4] } else { [0; 4] }).collect())),
             GlyphTexture::White => Some((5, 8, vec![255; 160])),
         }
     }

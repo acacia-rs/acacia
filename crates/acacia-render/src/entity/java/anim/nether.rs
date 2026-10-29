@@ -72,7 +72,7 @@ pub(super) fn ravager(p: &mut Poses, s: &RenderState) {
         p.x_rot("mouth", mouth);
     } else {
         let neck = p.get("neck");
-        (neck.x, neck.y, neck.z) = (0.0, -7.0 - -1.0 * sin(neck_x), 5.5);
+        (neck.x, neck.y, neck.z) = (0.0, -7.0 - -sin(neck_x), 5.5);
         let is_stunned = stunned > 0.0;
         neck.x_rot = if is_stunned { 0.219_911_49 } else { 0.0 };
         p.x_rot("mouth", PI * if is_stunned { 0.05 } else { 0.01 });

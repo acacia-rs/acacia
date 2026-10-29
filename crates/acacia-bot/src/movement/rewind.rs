@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use acacia_physics::{self as physics, Effects, Input, PlayerState, Vec3, WorldView};
+use acacia_physics::{self as physics, Aabb, Effects, Input, PlayerState, Vec3, WithEntities, WorldView};
 
 /// Ticks kept for replay (5 s): older events apply as of now.
 const HISTORY: usize = 100;
@@ -22,6 +22,8 @@ struct Entry {
     tick: u64,
     input: Input,
     knockback: Option<Vec3>,
+    /// The solid entity boxes the tick collided with: a replay meets the entities where they were.
+    solids: Vec<Aabb>,
     /// The state at the end of the tick.
     after: PlayerState,
 }
@@ -75,11 +77,11 @@ impl<T: Copy> Timeline<T> {
 }
 
 impl History {
-    pub(super) fn record(&mut self, tick: u64, input: Input, knockback: Option<Vec3>, after: &PlayerState) {
+    pub(super) fn record(&mut self, tick: u64, input: Input, knockback: Option<Vec3>, after: &PlayerState, solids: Vec<Aabb>) {
         if self.entries.len() == HISTORY {
             self.entries.pop_front();
         }
-        self.entries.push_back(Entry { tick, input, knockback, after: after.clone() });
+        self.entries.push_back(Entry { tick, input, knockback, solids, after: after.clone() });
     }
 
     /// Resets the state as of the end of `tick` before the next simulated tick. The newest tick wins:
@@ -197,7 +199,7 @@ impl History {
             }
             st.server_freeze = Some(self.freezes.known(e.tick).unwrap_or(e.after.freeze));
             st.knockback = e.knockback;
-            physics::tick(st, &e.input, world);
+            physics::tick(st, &e.input, &WithEntities { world, boxes: &e.solids });
             e.after = st.clone();
             replayed += 1;
         }

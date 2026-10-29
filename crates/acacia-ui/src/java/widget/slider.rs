@@ -26,7 +26,7 @@ impl Slider {
     }
 
     /// `setValueFromMouse`.
-    fn from_mouse(&mut self, x: f64) -> Action {
+    fn set_value_from_mouse(&mut self, x: f64) -> Action {
         self.set_value((x - f64::from(self.base.x + 4)) / f64::from(self.base.w - 8))
     }
 }
@@ -39,10 +39,10 @@ impl Widget for Slider {
         &mut self.base
     }
     fn on_click(&mut self, x: f64, _: bool) -> Option<Action> {
-        Some(self.from_mouse(x))
+        Some(self.set_value_from_mouse(x))
     }
     fn on_drag(&mut self, x: f64) -> Option<Action> {
-        Some(self.from_mouse(x))
+        Some(self.set_value_from_mouse(x))
     }
     /// Enter or Space toggles `canChangeValue`; then Left and Right step one pixel of the track.
     fn key_pressed(&mut self, key: Key, _: bool) -> KeyOutcome {

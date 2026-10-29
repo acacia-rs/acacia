@@ -42,7 +42,7 @@ pub use break_time::{break_ticks, BreakConditions};
 pub use direct::is_interactive;
 pub(crate) use direct::Mining;
 pub use geometry::{facing_face, Face, BLOCK_REACH, ENTITY_REACH};
-pub(crate) use geometry::block_distance;
+pub(crate) use geometry::{block_distance, ray_box};
 pub use wire::{to_wire, SwingSource};
 
 use acacia_physics::{BlockPos, Vec3};

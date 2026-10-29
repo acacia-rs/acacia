@@ -1,19 +1,16 @@
 use std::collections::HashMap;
 
-use acacia_client::proto::packets::{
-    AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MobArmorEquipment, MobEffect, MobEquipment, MoveEntity,
-    MoveEntityDelta, MovePlayer, RemoveEntity, SetEntityData, SetEntityMotion, SyncEntityProperty, UpdateAttributes,
-};
 use acacia_client::proto::manual::Uuid;
 use acacia_client::proto::types::Vec3f;
-use acacia_client::proto::{DecodeError, Packet, RawPacket};
 use rustc_hash::FxHashMap;
 
-use super::{Effects, ItemStack, Me, Metadata};
+use super::{Effects, ItemStack, Metadata};
 
+mod apply;
 mod equipment;
 mod moves;
 mod properties;
+mod solids;
 
 pub use equipment::Equipment;
 pub use properties::{Property, Values as PropertyValues};
@@ -40,6 +37,10 @@ pub struct Entity {
     pub head_yaw: f32,
     /// Last velocity from spawn or SetEntityMotion; not derived from movement.
     pub velocity: Vec3f,
+    /// Blocks per tick between the last two position updates; a SetEntityMotion replaces it until the next one.
+    pub motion: Vec3f,
+    /// [`Entities::now`] when the position last changed (spawn included).
+    pub moved_at: u64,
     pub on_ground: bool,
     /// Players only; the key into [`super::PlayerList`] and [`super::Skins`].
     pub uuid: Option<Uuid>,
@@ -66,7 +67,9 @@ impl Entity {
             yaw: 0.0,
             pitch: 0.0,
             head_yaw: 0.0,
+            motion: velocity.clone(),
             velocity,
+            moved_at: 0,
             on_ground: false,
             uuid: None,
             metadata: Metadata::default(),
@@ -107,29 +110,24 @@ pub struct Entities {
     by_runtime: FxHashMap<u64, Box<Entity>>,
     runtime_by_unique: FxHashMap<i64, u64>,
     property_defs: properties::Definitions,
+    /// Client ticks since tracking began.
+    now: u64,
+    /// Lean tracking ([`super::Trackers::hazards`]): only what hazard avoidance reads is kept.
+    pub(crate) lean: bool,
 }
 
 impl Entities {
-    pub const PACKETS: &'static [u32] = &[
-        AddPlayer::ID,
-        AddEntity::ID,
-        AddItemEntity::ID,
-        UpdateAttributes::ID,
-        RemoveEntity::ID,
-        MoveEntity::ID,
-        MoveEntityDelta::ID,
-        MovePlayer::ID,
-        SetEntityMotion::ID,
-        SetEntityData::ID,
-        MobEffect::ID,
-        MobEquipment::ID,
-        MobArmorEquipment::ID,
-        ChangeDimension::ID,
-        SyncEntityProperty::ID,
-    ];
-
     pub fn get(&self, runtime_id: u64) -> Option<&Entity> {
         self.by_runtime.get(&runtime_id).map(|e| &**e)
+    }
+
+    /// Client ticks counted so far: the clock of [`Entity::moved_at`].
+    pub fn now(&self) -> u64 {
+        self.now
+    }
+
+    pub(crate) fn advance(&mut self) {
+        self.now += 1;
     }
 
     /// Moves a tracked entity the bot itself simulates (a vehicle it drives, which the server does not
@@ -167,102 +165,6 @@ impl Entities {
         self.iter().filter(|e| filter(e)).min_by(|a, b| a.distance_sq(pos).total_cmp(&b.distance_sq(pos)))
     }
 
-    pub fn apply(&mut self, packet: &RawPacket, me: &Me) -> Result<(), DecodeError> {
-        match packet.id {
-            MoveEntityDelta::ID => self.move_delta(&packet.decode()?),
-            MoveEntity::ID => self.move_absolute(&packet.decode()?),
-            MovePlayer::ID => self.move_player(&packet.decode()?),
-            SetEntityMotion::ID => {
-                let p: SetEntityMotion = packet.decode()?;
-                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
-                    e.velocity = p.velocity;
-                }
-            }
-            SetEntityData::ID => {
-                // Peek the leading runtime id: most metadata is for entities out of view.
-                if let Some(e) = super::leading_entity(packet).and_then(|id| self.by_runtime.get_mut(&id)) {
-                    let p = packet.decode::<SetEntityData>()?;
-                    e.metadata.merge(p.metadata);
-                    e.properties.merge(p.properties);
-                }
-            }
-            SyncEntityProperty::ID => self.property_defs.apply(&packet.decode()?)?,
-            UpdateAttributes::ID => {
-                if let Some(e) = super::leading_entity(packet).and_then(|id| self.by_runtime.get_mut(&id)) {
-                    e.attributes.extend(packet.decode::<UpdateAttributes>()?.attributes.into_iter().map(|a| (a.name, a.current)));
-                }
-            }
-            MobEffect::ID => {
-                let p: MobEffect = packet.decode()?;
-                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
-                    e.effects.apply(&p);
-                }
-            }
-            MobEquipment::ID => {
-                let p: MobEquipment = packet.decode()?;
-                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
-                    e.equipment.get_or_insert_default().apply_hand(p);
-                }
-            }
-            MobArmorEquipment::ID => {
-                let p: MobArmorEquipment = packet.decode()?;
-                if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
-                    e.equipment.get_or_insert_default().apply_armor(p);
-                }
-            }
-            AddPlayer::ID => {
-                let p: AddPlayer = packet.decode()?;
-                let mut e = Entity::spawned(p.runtime_id, p.unique_id, PLAYER_KIND.to_owned(), p.position, p.velocity);
-                (e.yaw, e.pitch, e.head_yaw) = (p.yaw, p.pitch, p.head_yaw);
-                e.username = Some(p.username);
-                e.uuid = Some(p.uuid);
-                e.metadata = p.metadata.into();
-                e.equipment = Equipment::holding(p.held_item);
-                self.insert(me, e);
-            }
-            AddEntity::ID => {
-                let p: AddEntity = packet.decode()?;
-                let mut e = Entity::spawned(p.runtime_id, p.unique_id, p.entity_type, p.position, p.velocity);
-                (e.yaw, e.pitch, e.head_yaw) = (p.yaw, p.pitch, p.head_yaw);
-                e.metadata = p.metadata.into();
-                e.properties.merge(p.properties);
-                e.attributes = p.attributes.into_iter().map(|a| (a.name, a.value)).collect();
-                self.insert(me, e);
-            }
-            AddItemEntity::ID => {
-                let p: AddItemEntity = packet.decode()?;
-                let mut e = Entity::spawned(p.runtime_entity_id, p.entity_id_self, ITEM_KIND.to_owned(), p.position, p.velocity);
-                e.metadata = p.metadata.into();
-                e.item = Some(p.item.into());
-                self.insert(me, e);
-            }
-            RemoveEntity::ID => {
-                let unique = packet.decode::<RemoveEntity>()?.entity_id_self;
-                if let Some(runtime) = self.runtime_by_unique.remove(&unique) {
-                    self.by_runtime.remove(&runtime);
-                }
-            }
-            // The client drops every entity on a dimension change; the server re-adds what is in view.
-            ChangeDimension::ID => {
-                self.by_runtime.clear();
-                self.runtime_by_unique.clear();
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn insert(&mut self, me: &Me, entity: Entity) {
-        if entity.runtime_id == me.runtime_entity_id {
-            return;
-        }
-        if let Some(old) = self.by_runtime.get(&entity.runtime_id) {
-            self.runtime_by_unique.remove(&old.unique_id);
-        }
-        self.runtime_by_unique.insert(entity.unique_id, entity.runtime_id);
-        self.by_runtime.insert(entity.runtime_id, Box::new(entity));
-    }
-
     /// The value of synced property `name` (`minecraft:climate_variant`) on `e`, as its kind's
     /// definition reads it; `None` when the kind has no such property or the server sent none.
     pub fn property(&self, e: &Entity, name: &str) -> Option<Property<'_>> {
@@ -277,3 +179,5 @@ impl Entities {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tracking_tests;

@@ -55,12 +55,12 @@ impl Foil {
     /// Whether `item` (`minecraft:nether_star`) always shimmers.
     pub fn always(self, item: &str) -> bool {
         let name = item.strip_prefix("minecraft:").unwrap_or(item);
-        match (name, self) {
-            ("enchanted_golden_apple" | "nether_star" | "enchanted_book" | "experience_bottle", _) => true,
-            ("potion" | "splash_potion" | "lingering_potion", Foil::Bedrock) => true,
-            ("written_book" | "end_crystal" | "debug_stick", Foil::Java) => true,
-            _ => false,
-        }
+        matches!(
+            (name, self),
+            ("enchanted_golden_apple" | "nether_star" | "enchanted_book" | "experience_bottle", _)
+                | ("potion" | "splash_potion" | "lingering_potion", Foil::Bedrock)
+                | ("written_book" | "end_crystal" | "debug_stick", Foil::Java)
+        )
     }
 }
 

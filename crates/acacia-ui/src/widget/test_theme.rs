@@ -23,9 +23,9 @@ pub fn theme(java_look: bool) -> Theme {
     let font = Some(Font::from_grid(&image, page, &rows));
     let none = Path::new("");
     let (widgets, style) = if java_look {
-        (Widgets::Java(super::java::Kit::load(none, &mut atlas)), java::STYLE)
+        (Widgets::Java(Box::new(super::java::Kit::load(none, &mut atlas))), java::STYLE)
     } else {
-        (Widgets::Bedrock(super::bedrock::Kit::load(none, &mut atlas)), bedrock::STYLE)
+        (Widgets::Bedrock(Box::new(super::bedrock::Kit::load(none, &mut atlas))), bedrock::STYLE)
     };
     Theme { atlas, font, galactic: None, style, widgets }
 }

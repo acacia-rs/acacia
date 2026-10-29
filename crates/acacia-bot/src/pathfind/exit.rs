@@ -23,7 +23,7 @@ pub(crate) fn has_exit<B: Blocks>(t: &Terrain<B>, pos: BlockPos, spot: Spot, opt
 /// reached (the whole basin, none of which leads out either: whatever they reach, `pos` reaches).
 fn flood<B: Blocks>(t: &Terrain<B>, pos: BlockPos, spot: Spot, opts: &SearchOpts, placed: u32, goal: Option<&Goal>) -> Result<(), Vec<BlockPos>> {
     let blocks_left = opts.kit.blocks.saturating_sub(placed);
-    let ctx = Ctx { parkour: opts.parkour, dig: opts.allow_dig, bridge: opts.allow_bridge, doors: opts.open_doors, kit: &opts.kit, blocks_left, macros: None, keep: opts.keep.as_deref(), no_body: opts.no_body.as_deref() };
+    let ctx = Ctx { parkour: opts.parkour, dig: opts.allow_dig, bridge: opts.allow_bridge, doors: opts.open_doors, kit: &opts.kit, blocks_left, macros: None, keep: opts.keep.as_deref(), no_body: opts.no_body.as_deref(), boats: None };
     let mut seen = PosMap::default();
     seen.insert(pos, ());
     let (mut queue, mut edges, rest) = (VecDeque::from([(pos, spot)]), Vec::new(), Momentum::default());

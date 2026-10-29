@@ -49,7 +49,7 @@ impl EventSender {
         self.tx.send((events, 0)).map_err(|_| Closed)
     }
 
-    fn batch_len(&self, pending: &Vec<Event>) -> usize {
+    fn batch_len(&self, pending: &[Event]) -> usize {
         pending.len().min(self.capacity)
     }
 
@@ -136,7 +136,7 @@ mod tests {
         let sent = tokio::time::timeout(std::time::Duration::from_secs(5), tx.send(&mut pending)).await;
         sent.expect("room came back").ok().expect("open");
         assert_eq!(pending.len(), 1);
-        tx.send_final(pending.drain(..).collect()).ok().expect("open");
+        tx.send_final(std::mem::take(&mut pending)).ok().expect("open");
         assert_eq!(std::iter::from_fn(|| rx.try_recv()).count(), 3);
     }
 

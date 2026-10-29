@@ -2,6 +2,7 @@
 //! walk statistics, named findings, and the history of given cells. Printed by the live examples at the end of a
 //! run; simulations can assert on [`findings`].
 
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
@@ -50,7 +51,7 @@ pub fn summary(lines: &[Line]) -> Vec<String> {
             }
         }
         let mut v: Vec<_> = by.into_iter().collect();
-        v.sort_by(|a, b| b.1.cmp(&a.1));
+        v.sort_by_key(|e| Reverse(e.1));
         let en_route = lines.iter().filter(|l| l.bot == bot && matches!(l.e, Entry::EnRoute { .. })).count();
         out.push(format!("{bot} time: {}; {en_route} placed en route", v.iter().map(|(k, ms)| format!("{k} {:.1}s", *ms as f32 / 1000.0)).collect::<Vec<_>>().join(", ")));
         let walks: Vec<(WalkEnd, u64, u64, f32, u32)> = lines
@@ -167,6 +168,7 @@ pub fn findings(lines: &[Line]) -> Vec<String> {
         if worst >= 3 {
             out.push(format!("WALK_STUCK {bot} {worst} failed walks in a row without moving, last {why:?}"));
         }
+        out.extend(walk_failures(lines, bot));
         for l in lines.iter().filter(|l| l.bot == bot) {
             match &l.e {
                 Entry::Rest { cell } => *rests.entry(*cell).or_default() += 1,
@@ -176,7 +178,7 @@ pub fn findings(lines: &[Line]) -> Vec<String> {
             }
         }
         let mut loops: Vec<_> = rests.into_iter().filter(|(_, n)| *n >= REST_LOOP).collect();
-        loops.sort_by(|a, b| b.1.cmp(&a.1));
+        loops.sort_by_key(|e| Reverse(e.1));
         if !loops.is_empty() {
             out.push(format!("REST_LOOP {bot} {} cells rested {REST_LOOP}+ times, most {:?}", loops.len(), &loops[..loops.len().min(5)]));
         }
@@ -186,10 +188,35 @@ pub fn findings(lines: &[Line]) -> Vec<String> {
         let thrash: usize = switched.values().sum();
         if thrash > 0 {
             let mut top: Vec<_> = switched.into_iter().collect();
-            top.sort_by(|a, b| b.1.cmp(&a.1));
+            top.sort_by_key(|e| Reverse(e.1));
             out.push(format!("GOAL_THRASH {bot} {thrash} walks replaced before arriving with nothing done, most {:?}", &top[..top.len().min(5)]));
         }
     }
+    out
+}
+
+/// WALK_FAIL: one line per stretch of failed walks, a stretch ending at a walk that arrives or acts.
+fn walk_failures(lines: &[Line], bot: &str) -> Vec<String> {
+    let (mut out, mut feet) = (Vec::new(), [0.0; 3]);
+    let mut stretch: Option<(u64, u64, usize, [f32; 3], Option<String>)> = None;
+    let close = |s: &mut Option<(u64, u64, usize, [f32; 3], Option<String>)>, out: &mut Vec<String>| {
+        if let Some((t0, t1, n, at, err)) = s.take() {
+            let at = at.map(|v| (v * 10.0).round() / 10.0);
+            out.push(format!("WALK_FAIL {bot} {n} failed walks {t0}-{t1} ms from feet {at:?}, last {err:?}"));
+        }
+    };
+    for l in lines.iter().filter(|l| l.bot == bot) {
+        match &l.e {
+            Entry::Tick { feet: f, .. } => feet = *f,
+            Entry::WalkEnd { end: WalkEnd::Failed, err, .. } => {
+                let s = stretch.get_or_insert((l.t, l.t, 0, feet, None));
+                (s.1, s.2, s.4) = (l.t, s.2 + 1, err.clone());
+            }
+            Entry::WalkEnd { end, acts, .. } if *end == WalkEnd::Arrived || *acts > 0 => close(&mut stretch, &mut out),
+            _ => {}
+        }
+    }
+    close(&mut stretch, &mut out);
     out
 }
 

@@ -63,8 +63,8 @@ mod tests {
     #[test]
     fn paddles_rest_at_java_s_idle_angles_with_their_blades_outboard() {
         let mesh = boat();
-        for side in 0..2 {
-            let bone = mesh.bones.iter().position(|b| b == PADDLES[side]).unwrap();
+        for (side, &paddle) in PADDLES.iter().enumerate() {
+            let bone = mesh.bones.iter().position(|b| b == paddle).unwrap();
             let [x, y] = turn(0.0, side);
             let rest = mesh.joints[bone].rotation;
             assert!((rest[0] - x).abs() < 1e-3 && (rest[1] - y).abs() < 1e-3 && rest[2] == 11.25, "{rest:?} against {x} {y}");

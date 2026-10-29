@@ -6,7 +6,7 @@ use super::arbiter::{Arbiter, Decision};
 use super::act;
 use super::{BlockView, Look, ProcId, Process, Target};
 use crate::act_timing::Phase;
-use crate::pathfind::goto::step;
+use crate::pathfind::goto::{sense, step};
 use crate::pathfind::{MovementProfile, NavStatus, Pilot};
 use crate::{ActionError, Bot};
 
@@ -90,6 +90,9 @@ impl Processes {
             }
         }
         let t = std::time::Instant::now();
+        if let Some(pilot) = self.arbiter.pilot_mut() {
+            sense(pilot, bot);
+        }
         let decision = self.arbiter.decide(pos, on_ground, &BotLook(bot));
         bot.act_timing.add(Phase::Plan, t.elapsed());
         let acting = matches!(decision, Decision::Act(..));
@@ -221,7 +224,9 @@ fn a_full_in_flight_cap_holds_instead_of_waiting_inside_the_tick() {
 impl Bot {
     /// Runs `procs` until every process has finished; their outcomes stay in `procs`.
     pub async fn run(&mut self, procs: &mut Processes) -> Result<(), ActionError> {
+        let running = self.claim(crate::cancel::Held::Processes);
         while procs.tick(self).await? != Status::Empty {}
+        self.unclaim(running);
         Ok(())
     }
 }

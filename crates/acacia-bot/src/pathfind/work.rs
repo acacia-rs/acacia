@@ -12,6 +12,8 @@ pub enum Step {
     Place { against: BlockPos, face: Face },
     /// Open (or close) a door, fence gate or trapdoor so it no longer blocks the move.
     Door { pos: BlockPos, open: bool },
+    /// Cross the water by boat to the move's end ([`Bot::boat_to`](crate::Bot::boat_to)).
+    Boat,
 }
 
 const MAX_STEPS: usize = 6;

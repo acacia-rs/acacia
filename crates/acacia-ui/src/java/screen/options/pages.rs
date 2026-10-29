@@ -246,7 +246,7 @@ impl Page<'_, '_> {
         grid.defaults = Settings::default().padding(4, 0, 4, 4).align_x(0.5);
         let mut helper = RowHelper::new(2);
         for key in MAIN_BUTTONS {
-            let mut button = Button::named(ctx, 150, *key);
+            let mut button = Button::named(ctx, 150, key);
             button.base.active = *key != "options.telemetry" || self.client.telemetry;
             let e = b.add(button);
             let d = grid.defaults;

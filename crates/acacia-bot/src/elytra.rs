@@ -83,6 +83,17 @@ impl Bot {
     /// Uses a firework rocket from the hotbar like vanilla: `Animate` "useitem" + `UseItem` ClickAir,
     /// no `StartUsingItem`. Selecting the rocket first takes a human pause.
     pub async fn boost_with_firework(&mut self) -> Result<(), ActionError> {
+        self.hold_fireworks().await?;
+        self.use_item_like_vanilla();
+        if let Some(movement) = self.movement.as_mut() {
+            movement.predict_glide_boost();
+        }
+        Ok(())
+    }
+
+    /// Selects a hotbar slot with firework rockets, after a human pause if it was not selected. A flight does it
+    /// before taking off: switched mid-glide, the pause costs the boost's timing (live: a takeoff rocket came too late).
+    pub async fn hold_fireworks(&mut self) -> Result<(), ActionError> {
         let id = self.state.items.id(FIREWORK);
         let hotbar = self.state.inventory.main.iter().take(usize::from(Inventory::HOTBAR_SLOTS));
         let slot = id.and_then(|id| hotbar.clone().position(|s| s.network_id == id && !s.is_empty()));
@@ -91,10 +102,6 @@ impl Bot {
             self.select_hotbar(slot as u8)?;
             let delay = self.human.between(HOTBAR_SWITCH);
             self.pause(delay).await?;
-        }
-        self.use_item_like_vanilla();
-        if let Some(movement) = self.movement.as_mut() {
-            movement.predict_glide_boost();
         }
         Ok(())
     }
@@ -108,12 +115,10 @@ impl Bot {
     /// Holds jump for one tick, then releases it.
     async fn press_jump(&mut self) -> Result<(), ActionError> {
         let Some(movement) = self.movement.as_mut() else { return Ok(()) };
-        let held = movement.controls.jump;
-        movement.controls.jump = true;
+        let held = std::mem::replace(&mut movement.controls.jump, true);
+        let press = self.claim(crate::cancel::Held::Jump(held));
         let ticked = self.next_tick(|_, _| false).await;
-        if let Some(movement) = self.movement.as_mut() {
-            movement.controls.jump = held;
-        }
+        self.release(press);
         ticked.map(drop)
     }
 }

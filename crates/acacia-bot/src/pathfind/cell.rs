@@ -22,6 +22,8 @@ pub(crate) const FULL: u16 = 1 << 7;
 pub(crate) const FALLS: u16 = 1 << 8;
 /// A door, fence gate or trapdoor a hand opens (not iron).
 pub(crate) const OPENABLE: u16 = 1 << 9;
+/// A solid entity (a boat) reaches into the cell; set with [`AVOID`], and part of [`Cell::id`].
+pub(crate) const ENTITY: u16 = 1 << 10;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Cell {
@@ -38,9 +40,10 @@ impl Cell {
         self.flags & flags != 0
     }
 
-    /// The block and liquid ids together: cells with equal ids are equal.
+    /// The block and liquid ids and the entity mark together: cells with equal ids are equal.
     pub(crate) fn id(&self) -> u64 {
-        u64::from(self.block) << 32 | u64::from(self.liquid)
+        let entity = if self.has(ENTITY) { 1 << 63 } else { 0 };
+        (u64::from(self.block) << 32 | u64::from(self.liquid)) ^ entity
     }
 
     pub fn is_water(&self) -> bool {

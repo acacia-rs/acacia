@@ -119,6 +119,14 @@ fn read(roots: &[PathBuf], path: &str) -> Option<Pcm> {
     pcm
 }
 
+/// xorshift64: 0 to 1.
+fn roll(seed: &mut u64) -> f32 {
+    *seed ^= *seed << 13;
+    *seed ^= *seed >> 7;
+    *seed ^= *seed << 17;
+    (*seed >> 40) as f32 / (1u64 << 24) as f32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,12 +148,4 @@ mod tests {
         println!("music track {}: {seconds:.0} s, {} Hz, {} channels", def.files[0].path, pcm.sample_rate, pcm.channels);
         assert!(seconds > 30.0 && pcm.samples.iter().any(|&s| s != 0), "{seconds} s");
     }
-}
-
-/// xorshift64: 0 to 1.
-fn roll(seed: &mut u64) -> f32 {
-    *seed ^= *seed << 13;
-    *seed ^= *seed >> 7;
-    *seed ^= *seed << 17;
-    (*seed >> 40) as f32 / (1u64 << 24) as f32
 }

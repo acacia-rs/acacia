@@ -67,6 +67,7 @@ pub(super) fn happy_ghast(p: &mut Poses, s: &RenderState) {
 }
 
 /// `HappyGhastHarnessModel`: goggles up on the forehead, down over the eyes while ridden.
+#[allow(clippy::approx_constant)] // Java's literal -0.7854F, not pi/4.
 pub(super) fn happy_ghast_harness(p: &mut Poses, s: &RenderState) {
     let goggles = p.get("goggles");
     (goggles.x_rot, goggles.y) = if s.flag("isRidden") { (0.0, 14.0) } else { (-0.7854, 9.0) };

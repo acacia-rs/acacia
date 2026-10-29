@@ -9,6 +9,7 @@ pub mod act_timing;
 pub mod build;
 mod bot;
 mod cadence;
+pub mod cancel;
 mod config;
 mod elytra;
 pub mod events;
@@ -42,6 +43,7 @@ pub mod trace;
 
 pub use acacia_client::{self as client, proto, ConnectError, DisconnectReason, Reason, Violation};
 pub use bot::Bot;
+pub use cancel::CancelHandle;
 pub use config::BotConfig;
 pub use lag::Lag;
 pub use events::{BotEvent, Events};

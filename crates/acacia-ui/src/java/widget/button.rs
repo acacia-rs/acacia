@@ -198,6 +198,7 @@ pub struct CycleButton {
 impl CycleButton {
     /// `CycleButton.Builder.create`: the message is `name: value` (`options.generic_value`) or the
     /// value alone.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(ctx_lang: crate::java::text::Lang, x: i32, y: i32, w: i32, h: i32, name: Text, value: Text, display: Display) -> CycleButton {
         let message = match display {
             Display::Value => value,

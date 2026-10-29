@@ -205,10 +205,10 @@ impl App {
             self.shown.pick[0] = Some(i + first);
             return;
         }
-        if layout == Layout::Bench(Bench::Beacon) {
-            if let Some(i) = inventory::hit_pick(layout, size, crate::stations::BEACON.len(), at) {
-                return self.beacon_click(i);
-            }
+        if layout == Layout::Bench(Bench::Beacon)
+            && let Some(i) = inventory::hit_pick(layout, size, crate::stations::BEACON.len(), at)
+        {
+            return self.beacon_click(i);
         }
         let picked = self.shown.pick[0].and_then(|i| self.inventory.picks.get(i));
         let command = match inventory::hit(layout, size, at) {

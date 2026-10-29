@@ -64,7 +64,7 @@ pub(crate) fn control_vertical(st: &mut PlayerState) -> Option<f32> {
         if down {
             accel += FLY_DOWN_ACCELERATION;
         }
-        v[1] = accel * st.flight.vertical_fly_speed + v[1];
+        v[1] += accel * st.flight.vertical_fly_speed;
     }
     st.set_vel(v);
     idle_friction

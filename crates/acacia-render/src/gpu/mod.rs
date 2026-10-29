@@ -262,7 +262,7 @@ impl Renderer {
         }
         self.sign_text.prepare(&self.device, &self.queue, self.ui_pass.texture.as_ref(), self.block_models.sign_text(), camera.position, light_at);
         let weather_light = |p: [i32; 3]| light.at(glam::IVec3::from(p).as_dvec3()).map(|l| l as u8);
-        let level = world.as_deref().map(|world| crate::weather::level::WorldWeather { world, biomes: &*self.biomes, light: &weather_light });
+        let level = world.as_deref().map(|world| crate::weather::level::WorldWeather { world, biomes: &self.biomes, light: &weather_light });
         self.weather_pass.prepare(&self.queue, level.as_ref(), camera.position, rain, ticks);
         drop(light);
         clock.mark("entities+ui");

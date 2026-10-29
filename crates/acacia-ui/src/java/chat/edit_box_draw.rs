@@ -19,7 +19,7 @@ impl EditBox {
         let displayed: Vec<u16> = plain_head_by_width(m, &tail, self.inner_width(), &Style::default()).encode_utf16().collect();
         let piece = |a: usize, b: usize| String::from_utf16_lossy(&displayed[a..b]);
         let on_screen = rel_cursor >= 0 && rel_cursor as usize <= displayed.len();
-        let show_cursor = self.focused && blink_ms / 300 % 2 == 0 && on_screen;
+        let show_cursor = self.focused && (blink_ms / 300).is_multiple_of(2) && on_screen;
         let mut draw_x = text_x;
         let rel_highlight = (self.highlight as isize - self.display as isize).clamp(0, displayed.len() as isize) as usize;
         if !displayed.is_empty() {

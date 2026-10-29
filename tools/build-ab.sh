@@ -11,7 +11,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 export REMOTE_DIR=${REMOTE_DIR:-work/bc-ab}
 [ $# -ge 2 ] || { echo "usage: tools/build-ab.sh <runs> <variant>..." >&2; exit 2; }
 # Two rounds of runs per port at ~4 min each, plus a cold build: the guard's defaults are too short.
-TIMEOUT=${TIMEOUT:-7200} STALL=${STALL:-1500} DETACH=1 "$root/tools/remote-run.sh" env PORTS="${PORTS:-}" bash tools/build-ab-run.sh "$@" || exit 1
+TIMEOUT=${TIMEOUT:-7200} STALL=${STALL:-1500} DETACH=1 bash "$root/tools/remote-run.sh" env PORTS="${PORTS:-}" bash tools/build-ab-run.sh "$@" || exit 1
 [ "${WAIT:-1}" = 0 ] && exit 0
 until ssh -o ConnectTimeout=20 testbox "test -f $REMOTE_DIR/run.done" 2>/dev/null; do sleep 30; done
 ssh -o ConnectTimeout=20 testbox "sed -n '/^== results/,\$p' $REMOTE_DIR/run.log; echo exit: \$(cat $REMOTE_DIR/run.done)"

@@ -76,35 +76,36 @@ pub fn extract_slot(b: &mut Base, gui: &mut Gui, _env: &Env, i: usize) {
     let mut key = slot.index as i32;
     let mut quick_stack = false;
     let mut count = None;
-    if let (Some(quick), Some(carried)) = (b.quick.as_ref(), b.carried()) {
-        if quick.slots.contains(&i) {
-            if quick.slots.len() == 1 {
-                return;
+    if let (Some(quick), Some(carried)) = (b.quick.as_ref(), b.carried())
+        && quick.slots.contains(&i)
+    {
+        if quick.slots.len() == 1 {
+            return;
+        }
+        if can_quick_replace(slot, carried) && slot.drag_target {
+            quick_stack = true;
+            let max = carried.max_stack_size().min(slot.max_stack);
+            let carry = stack.as_ref().map_or(0, |s| s.count);
+            let mut n = quick_craft_count(quick.slots.len(), quick.kind, carried) + carry;
+            if n > max {
+                n = max;
+                count = Some(format!("§e{max}"));
             }
-            if can_quick_replace(slot, carried) && slot.drag_target {
-                quick_stack = true;
-                let max = carried.max_stack_size().min(slot.max_stack);
-                let carry = stack.as_ref().map_or(0, |s| s.count);
-                let mut n = quick_craft_count(quick.slots.len(), quick.kind, carried) + carry;
-                if n > max {
-                    n = max;
-                    count = Some(format!("§e{max}"));
-                }
-                stack = Some(carried.with_count(n)).filter(|s| !s.is_empty());
-                key = if b.distinct_keys { super::QUICK + i as i32 } else { -1 };
-            } else {
-                let q = b.quick.as_mut().expect("checked");
-                q.slots.retain(|&s| s != i);
-                b.recalculate_quick_craft();
-            }
+            stack = Some(carried.with_count(n)).filter(|s| !s.is_empty());
+            key = if b.distinct_keys { super::QUICK + i as i32 } else { -1 };
+        } else {
+            let q = b.quick.as_mut().expect("checked");
+            q.slots.retain(|&s| s != i);
+            b.recalculate_quick_craft();
         }
     }
     let slot = &b.slots[i];
-    if stack.is_none() && slot.active {
-        if let Some(icon) = slot.icon {
-            gui.sprite(icon, x, y, 16, 16);
-            return;
-        }
+    if stack.is_none()
+        && slot.active
+        && let Some(icon) = slot.icon
+    {
+        gui.sprite(icon, x, y, 16, 16);
+        return;
     }
     if quick_stack {
         gui.fill(x, y, x + 16, y + 16, 0x80FF_FFFF);

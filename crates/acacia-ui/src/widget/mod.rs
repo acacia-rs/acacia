@@ -109,6 +109,7 @@ pub trait Skin {
     /// `CycleButton`) rather than a list and a slider (Bedrock).
     fn choices_cycle(&self) -> bool;
     fn dropdown_list(&self, font: Option<&Font>, rect: [f32; 4], options: usize) -> ListGeometry;
+    #[allow(clippy::too_many_arguments)]
     fn draw_dropdown_list(&self, list: &mut DrawList, font: Option<&Font>, geometry: ListGeometry, options: &[String], selected: usize, hover: Option<usize>, scroll: f32);
     /// The scrollbar's track beside `viewport`.
     fn scroll_track(&self, viewport: [f32; 4]) -> [f32; 4];
@@ -120,15 +121,15 @@ pub trait Skin {
 
 /// A theme's widgets: which game's, so screens can lay out as that game does.
 pub enum Widgets {
-    Bedrock(bedrock::Kit),
-    Java(java::Kit),
+    Bedrock(Box<bedrock::Kit>),
+    Java(Box<java::Kit>),
 }
 
 impl Widgets {
     pub fn skin(&self) -> &dyn Skin {
         match self {
-            Widgets::Bedrock(kit) => kit,
-            Widgets::Java(kit) => kit,
+            Widgets::Bedrock(kit) => &**kit,
+            Widgets::Java(kit) => &**kit,
         }
     }
 }

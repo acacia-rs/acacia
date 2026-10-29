@@ -61,14 +61,14 @@ impl Bot {
         }
         let (face, aim) = self.visible_aim(pos, None)?;
         self.look_at(aim).await?;
-        self.admit_action().await?;
+        let slot = self.admit_action().await?;
         let mut c = self.confirmation(pos, Expect::Prop("open_bit", if open { "1" } else { "0" }), 1);
         let clicked = self.click_block(pos, face, relative(pos, aim), SwingSource::Interact);
         let verdict = match clicked {
             Ok(()) => self.await_confirm(pos, &mut c, Instant::now()).await,
             Err(e) => Err(e),
         };
-        self.governor.settled();
+        self.release(slot);
         match verdict? {
             Verdict::Done => Ok(()),
             _ => Err(ActionError::Rejected(format!("the door at {pos:?} did not move"))),
@@ -86,13 +86,13 @@ impl Bot {
         let before = self.block_at(pos).map(|(id, _)| id).ok_or_else(|| ActionError::NotPossible(format!("{pos:?} is not loaded")))?;
         let (face, aim) = self.visible_aim(pos, Some(face))?;
         self.look_at(aim).await?;
-        self.admit_action().await?;
+        let slot = self.admit_action().await?;
         let mut c = self.confirmation(pos, Expect::Replaced(before), 1);
         let verdict = match self.click_block(pos, face, relative(pos, aim), SwingSource::Interact) {
             Ok(()) => self.await_confirm(pos, &mut c, Instant::now()).await,
             Err(e) => Err(e),
         };
-        self.governor.settled();
+        self.release(slot);
         match verdict? {
             Verdict::Done => Ok(()),
             _ => Err(ActionError::Rejected(format!("using {pos:?} changed nothing"))),
@@ -115,9 +115,9 @@ impl Bot {
         if makes_entity || self.block_at(target).is_none() {
             return self.click_block(against, face, click, SwingSource::Build);
         }
-        self.admit_action().await?;
+        let slot = self.admit_action().await?;
         let result = self.place_confirmed(against, face, click, half_slab).await;
-        self.governor.settled();
+        self.release(slot);
         result.map_err(|e| match e {
             ActionError::Rejected(why) => ActionError::Rejected(format!("placing at {target:?}: {why}")),
             e => e,

@@ -40,7 +40,7 @@ pub(super) fn lay_out(kit: &Kit, font: Option<&Font>, content: Vec<Widget>, butt
     let content_height = y;
     let room = (h - HEADER - footer).max(0.0);
     let visible = content_height.min(room);
-    let top = (h - footer - visible).min(HEADER + 30.0).max(HEADER).floor();
+    let top = (h - footer - visible).clamp(HEADER, HEADER + 30.0).floor();
     let viewport = [left - SCROLL_ROOM, top, left + COLUMN + SCROLL_ROOM, top + visible];
     let mut items: Vec<Placed> = rows.into_iter().map(|(widget, y, height)| Placed { widget, rect: [left, top + y, left + COLUMN, top + y + height], scrolls: true }).collect();
     let n = buttons.len() as f32;

@@ -7,6 +7,7 @@ use std::collections::{BinaryHeap, HashMap};
 
 use super::PathNode;
 use super::favour::Favour;
+use super::hazard::Hazards;
 use super::goal::{Goal, Speed};
 use super::leap_moves::{LeapCand, Line};
 use super::mac::Macro;
@@ -100,16 +101,17 @@ pub(super) struct Frontier<'s> {
     goal: &'s Goal,
     speed: Speed,
     favour: Option<&'s Favour>,
+    hazards: Option<&'s Hazards>,
 }
 
 impl<'s> Frontier<'s> {
-    pub fn new(start: Rec, goal: &'s Goal, speed: Speed, favour: Option<&'s Favour>) -> Self {
+    pub fn new(start: Rec, goal: &'s Goal, speed: Speed, favour: Option<&'s Favour>, hazards: Option<&'s Hazards>) -> Self {
         let mut index = KeyMap::default();
         index.insert(start.key, 0);
         let h = goal.estimate(start.key.pos, speed, start.key.entry == Entry::Rest);
         let (open, recs) = (BinaryHeap::from([Open { f: 0.0, g: 0.0, index: 0, lazy: NONE }]), vec![start]);
         let (works, macs, lazies, shorts) = Default::default();
-        Self { recs, index, open, works, macs, lazies, shorts, best: [0; 7], best_score: [h; 7], goal, speed, favour }
+        Self { recs, index, open, works, macs, lazies, shorts, best: [0; 7], best_score: [h; 7], goal, speed, favour, hazards }
     }
 
     /// The next node to expand or leap to solve, skipping those a cheaper path made stale.
@@ -150,7 +152,8 @@ impl<'s> Frontier<'s> {
     /// Takes edge `e` from node `i` if it reaches its node cheaper than known.
     pub fn relax(&mut self, i: u32, e: &Edge) {
         let rec = self.recs[i as usize];
-        let g = rec.g + self.favour.map_or(e.cost, |f| f.cost(rec.key.pos, e.pos, e.cost, self.speed));
+        let threat = self.hazards.map_or(0.0, |h| h.edge(rec.key.pos, e.pos));
+        let g = rec.g + self.favour.map_or(e.cost, |f| f.cost(rec.key.pos, e.pos, e.cost, self.speed)) + threat;
         let key = NodeKey { pos: e.pos, entry: e.entry, ..rec.key };
         let (placed, raw) = (rec.placed + e.work.places(), rec.raw + e.cost);
         let mut next = Rec { key, spot: e.spot, kind: e.kind, parent: i, g, raw, placed, work: NONE, mac: NONE, mom: e.mom };

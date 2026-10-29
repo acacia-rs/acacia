@@ -3,7 +3,7 @@
 Bedrock player movement simulation: a network-free, dependency-free (by default) Rust port of
 [oomph-ac/bedsim](https://github.com/oomph-ac/bedsim) (MIT), commit
 `34d11dc576aeb56a7f7f0541dbb5a600cc443488` (2026-09-16). The f32 operation order of bedsim is
-kept, down to chewxy/math32 `Sin`/`Cos`; the sine table is BDS's own (see "Deliberate deviations"). Module names follow the
+kept except where BDS's own differs: the sine table and the walk acceleration (see "Deliberate deviations"). Module names follow the
 bedsim files (`movement.rs` = `simulateMovement`, `collide.rs` = `tryCollisions`, `liquid*.rs` = `liquid.go`).
 
 ## API
@@ -64,6 +64,9 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   table (bedsim) is a correctly rounded one and differs in two thirds of the entries by an ulp, which moved
   every off-axis sprint jump by 1–8 ulps. Windows BDS fills it with MSVC's `sinf`; old Windows traces do not
   see the difference at their 0.001 tolerance.
+- Walk acceleration (`motion::move_relative`) rotates the impulse with libm `sinf`/`cosf` (glibc's, `sinf.rs`)
+  instead of bedsim's chewxy/math32 `Sin`/`Cos`, and in BDS's order: impulse times speed factor first, then
+  `x*cos - z*sin`, `x*sin + z*cos` (docs/DESIGN.md "Off-axis ulp corrections").
 - Corrections (`correction.rs`): BDS keeps its box and never rebuilds it from the position, so after a
   correction of an ulp or so the corrected centre does not say where its faces are, and rebuilding ours from it
   starts a run of ±1-ulp corrections. `PlayerState::apply_small_correction` keeps the faces that, moved by our
@@ -194,6 +197,23 @@ drew 0 corrections in 3 rounds on strict BDS, recorded as `tests/traces/drills-f
   landed and rise phases match with the flight continuing).
 - Untested live: the survival may-fly 0.75 override and flight in liquids. Not ported:
   `FlyingPlayerStuckOnGroundWorkaroundSystem`, which turns a vertical speed of exactly 0 into the smallest f32.
+
+## Entities
+Not in bedsim; read out of BDS 1.26.52 (bdsre, labels in brackets) and drilled on strict BDS with the `acacia-bot`
+example `entity_drill` (`tools/entity-drill.sh`): 9 phases (walk into, stand on, cross off-axis and side-swipe a
+resting boat; walk into and stand on a minecart; stand inside, walk into and cross a cow held by slowness 255), 0
+corrections, 2026-10-28.
+- `WithEntities` adds the boxes of the solid entities around the player to `collisions(area)`; the caller picks them
+  (`acacia-bot` `state::entities` solids). Only boats (and chest boats) are solid to a player: walking into a
+  resting one steps up onto its top (box 1.4 x 0.455, wire y = box bottom + 0.375), as onto a block.
+  `MoveCollisionSystem` fetches entity shapes only for a mover with `CollidableMobNearFlagComponent` (collidable
+  mobs, 142fa64f0) or a minecart (stackables, 142fa6180), over the move's area grown by 0.25 (142f191b0).
+- Minecarts are not solid to a player, and mobs neither block nor push a server-authoritative one: a player
+  walking through a cow pushes the cow and keeps its own path, with no correction or motion packet.
+- A tick collides with the boxes as the client tracked them a tick earlier: with same-tick boxes the off-axis phase
+  missed the step-up on the tick a pushed boat moved (one correction, then two 2e-6 ones off the rebuilt box).
+  `CopyCollisionShapesRewindSystem` (144843610) replays a player's stored shapes while it stays within 2 blocks.
+- Untested live: shulkers, boats in water.
 
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,

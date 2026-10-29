@@ -61,7 +61,8 @@ for every tick our position is off by more than 0.0001, so each correction is a 
 - `cargo run --release -p acacia-bot --example yaw_sweep -- <server> <name> [count] [variants] [ticks]` walks or
   bunny-hops from rest at random yaws and counts corrections per variant (run it on a reset world).
 - `cargo run --release -p acacia-bot --example observe -- <server> <nameA> <nameB> [count] [ticks]`: bot A sprint-hops
-  (`OBS_MODE=walk`: walks) from `OBS_START=x,z` on the pad while bot B logs the `MovePlayer` broadcasts of A to
+  (`OBS_MODE=walk`: walks; `mix`: diagonal keys, sprint, hops and a mid-walk turn drawn per segment) from
+  `OBS_START=x,z` on the pad (pick x ≥ 16 for ulp drift to draw corrections) while bot B logs the `MovePlayer` broadcasts of A to
   `OBSERVE_LOG`: the server's own position every tick, which a correction only shows once it is 1e-6 off. Compare
   with A's trace replayed under `RUST_LOG=acacia_bot::movement=trace` (DESIGN.md "Off-axis ulp corrections").
 - Movement and pathfind runs on testbox (`examples/course.rs`, `examples/goto.rs`, `examples/processes.rs`, `examples/confirmed.rs`, `examples/build.rs`, `examples/swarm_build.rs`, `place_probe`, `observe`, `yaw_sweep`) use a

@@ -9,7 +9,7 @@ use crate::state::GameState;
 const PLAYER_WIDTH: f32 = 0.6;
 const PLAYER_HEIGHT: f32 = 1.8;
 /// Squared horizontal speed (blocks/tick) up to which the vehicle counts as standing still.
-const STILL_SQ: f32 = 9.801e-5;
+pub(crate) const STILL_SQ: f32 = 9.801e-5;
 /// Added to the exit's feet height.
 const LIFT: f32 = 0.001;
 
@@ -45,7 +45,7 @@ impl Mount {
 
     /// Feet of the passenger after leaving: the first free spot of 24 around the vehicle's block, at
     /// the seat's x/z. `None` when every spot is blocked (BDS then leaves the passenger where it is).
-    pub(crate) fn exit_feet(&self, world: &impl WorldView) -> Option<Vec3> {
+    pub(crate) fn exit_feet(&self, world: &(impl WorldView + ?Sized)) -> Option<Vec3> {
         let v = self.vehicle;
         let centre = [v[0].floor() + 0.5, v[1].floor(), v[2].floor() + 0.5];
         let seat = self.seat();
@@ -77,7 +77,7 @@ fn horizontal_offsets([dx, dz]: [f32; 2]) -> [[f32; 2]; 8] {
 }
 
 /// The floor height inside the spot's block if a player fits there, standing on it.
-fn free_spot(world: &impl WorldView, p: Vec3) -> Option<f32> {
+fn free_spot(world: &(impl WorldView + ?Sized), p: Vec3) -> Option<f32> {
     let cell = [p[0].floor() as i32, p[1].floor() as i32, p[2].floor() as i32];
     let floor = match top(world, cell) {
         Some(t) if t > 0.0 && t < 1.0 => t,
@@ -98,7 +98,7 @@ fn free_spot(world: &impl WorldView, p: Vec3) -> Option<f32> {
 }
 
 /// Height of the block's highest collision box above its base, `None` without boxes.
-fn top(world: &impl WorldView, cell: [i32; 3]) -> Option<f32> {
+fn top(world: &(impl WorldView + ?Sized), cell: [i32; 3]) -> Option<f32> {
     let mut boxes = Vec::new();
     world.block_collisions(cell, &mut boxes);
     boxes.iter().map(|b| b.max[1]).reduce(f32::max)

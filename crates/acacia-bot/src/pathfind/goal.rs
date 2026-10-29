@@ -14,6 +14,8 @@ pub enum Goal {
     Y(i32),
     /// Any of the goals.
     Or(Vec<Goal>),
+    /// At least `radius` blocks (Euclidean) from the position: fleeing it.
+    Away(BlockPos, f32),
 }
 
 /// How a goal turns distance into ticks.
@@ -51,6 +53,7 @@ impl Goal {
             Goal::XZ(x, z) => p[0] == *x && p[2] == *z,
             Goal::Y(y) => p[1] == *y,
             Goal::Or(goals) => goals.iter().any(|g| g.success(p)),
+            Goal::Away(from, r) => dist_sq(p, *from) >= r * r,
         }
     }
 
@@ -71,6 +74,7 @@ impl Goal {
             Goal::XZ(x, z) => s.run(xz((x - p[0]) as f32, (z - p[2]) as f32), rest),
             Goal::Y(gy) => y((gy - p[1]) as f32),
             Goal::Or(goals) => goals.iter().map(|g| g.estimate(p, s, rest)).fold(f32::INFINITY, f32::min),
+            Goal::Away(from, r) => s.run((r - dist_sq(p, *from).sqrt()).max(0.0), rest),
         }
     }
 }

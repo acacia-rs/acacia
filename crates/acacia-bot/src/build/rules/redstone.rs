@@ -185,7 +185,7 @@ pub fn act(item: String, against: BlockPos, face: Face, click: [f32; 3], pos: Bl
 }
 
 /// A `rail_direction` value turned with the structure (`transform`).
-pub fn turned_rail<'a>(v: &'a str, turns: u8, mirror: bool) -> &'a str {
+pub fn turned_rail(v: &str, turns: u8, mirror: bool) -> &str {
     const SHAPES: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
     v.parse::<u8>().ok().filter(|s| *s <= 9).map_or(v, |s| SHAPES[usize::from(rails::turned(s, turns % 4, mirror))])
 }

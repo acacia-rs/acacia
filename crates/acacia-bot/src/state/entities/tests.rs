@@ -1,7 +1,15 @@
 use acacia_client::proto::packets::MovePlayerMode;
 use acacia_client::proto::types::{ItemV4, Rotation, WindowID};
 
+use acacia_client::proto::packets::{
+    AddEntity, AddItemEntity, AddPlayer, ChangeDimension, MobArmorEquipment, MobEffect, MobEquipment, MoveEntity,
+    MoveEntityDelta, MovePlayer, RemoveEntity, SetEntityData, SetEntityMotion, SyncEntityProperty, UpdateAttributes,
+};
+use acacia_client::proto::types::Vec3f;
+use acacia_client::proto::{Packet, RawPacket};
+
 use super::*;
+use crate::state::Me;
 use crate::state::queries::test_support::{fixtures, raw};
 
 const ME: Me = Me { runtime_entity_id: 1, unique_entity_id: -1 };
