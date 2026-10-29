@@ -50,6 +50,8 @@ acacia-anvil              Bedrock chunks (acacia-world) → Java 26.3 Anvil worl
 acacia-molang             Molang compiler and evaluator, no dependencies; expected values come from BDS
                           (tools/molang-oracle). Used by acacia-render (entity looks and animations)
                           and acacia-bot (MoLang recipe ingredients)
+acacia-api                the schema acacia's transports speak (napi addon, later a socket server and MCP): commands,
+                          events, snapshots, errors; generates TS types and JSON Schemas. serde only, no bot stack
 tools/codegen             minecraft-data bedrock/<ver>/protocol.json → acacia-proto sources
 tools/lookbake            bakes a look pack for acacia-render from a resource pack (docs/java-look.md)
 tools/capdiff             compares what two clients sent in captures (vanilla vs bot): order, delays, cadence, fields

@@ -1,0 +1,1130 @@
+{
+  "methods": [
+    {
+      "description": "Connects a bot and resolves once it has spawned. The `done` record names the new bot.",
+      "flags": [],
+      "lane": "host",
+      "name": "createBot",
+      "params": {
+        "$defs": {
+          "Auth": {
+            "enum": [
+              "offline"
+            ],
+            "type": "string"
+          },
+          "EventGroup": {
+            "description": "A group of events a bot can report (acacia-bot's `Events`); `ticks` is `physicsTick`, 20 a second.",
+            "enum": [
+              "chat",
+              "forms",
+              "health",
+              "players",
+              "windows",
+              "titles",
+              "sleep",
+              "ticks"
+            ],
+            "type": "string"
+          },
+          "Transport": {
+            "enum": [
+              "auto",
+              "raknet",
+              "nethernet"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "auth": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Auth"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default `offline`, the only one so far."
+          },
+          "events": {
+            "description": "Event groups reported from the start (default none; `bot.setEvents` changes them).",
+            "items": {
+              "$ref": "#/$defs/EventGroup"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "host": {
+            "description": "Server host name or address.",
+            "type": "string"
+          },
+          "physics": {
+            "description": "Simulate movement and track terrain, needed to walk (default false).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "port": {
+            "description": "Default 19132.",
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "transport": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Transport"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default `auto`: RakNet if the server answers a ping, else NetherNet."
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "username"
+        ],
+        "title": "CreateBotParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "CreateBotResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Disconnects the bot (waiting up to 2 s for the server to free the session). The running call is\ncancelled and queued ones fail with `DISCONNECTED`; an `end` event comes before this resolves.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.close",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Cancels call `call`: removed if still queued, ended within a tick if running. Fails with `CANCELLED`.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "cancel",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "CallId": {
+            "description": "The caller's id for one call, echoed in its `done` record. A plain number: the caller picks it (below 2^53).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "call": {
+            "$ref": "#/$defs/CallId",
+            "description": "The call to cancel."
+          }
+        },
+        "required": [
+          "bot",
+          "call"
+        ],
+        "title": "CancelParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "The bot's state now, built on demand.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "immediate",
+      "name": "bot.snapshot",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "ColdSnapshot": {
+            "description": "Changes on inventory, effect and player-list updates.",
+            "properties": {
+              "cursor": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Stack"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effects": {
+                "items": {
+                  "$ref": "#/$defs/Effect"
+                },
+                "type": "array"
+              },
+              "inventory": {
+                "items": {
+                  "$ref": "#/$defs/Stack"
+                },
+                "type": "array"
+              },
+              "players": {
+                "items": {
+                  "$ref": "#/$defs/PlayerInfo"
+                },
+                "type": "array"
+              },
+              "version": {
+                "description": "Moves exactly when the cold part is rebuilt (0 in an on-demand snapshot), so readers can cache on it.",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "inventory",
+              "effects",
+              "players"
+            ],
+            "type": "object"
+          },
+          "Effect": {
+            "properties": {
+              "amplifier": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "duration": {
+                "description": "Ticks left.",
+                "format": "int32",
+                "type": "integer"
+              },
+              "id": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "amplifier",
+              "duration"
+            ],
+            "type": "object"
+          },
+          "HotSnapshot": {
+            "description": "Changes nearly every tick.",
+            "properties": {
+              "air": {
+                "format": "int16",
+                "maximum": 32767,
+                "minimum": -32768,
+                "type": "integer"
+              },
+              "alive": {
+                "type": "boolean"
+              },
+              "dimension": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "flying": {
+                "type": "boolean"
+              },
+              "food": {
+                "format": "float",
+                "type": "number"
+              },
+              "gameMode": {
+                "description": "The protocol's game mode number (0 survival, 1 creative, 2 adventure, 6 spectator).",
+                "format": "int32",
+                "type": "integer"
+              },
+              "gliding": {
+                "type": "boolean"
+              },
+              "health": {
+                "format": "float",
+                "type": "number"
+              },
+              "heldSlot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxHealth": {
+                "format": "float",
+                "type": "number"
+              },
+              "onGround": {
+                "type": "boolean"
+              },
+              "openWindow": {
+                "format": "int32",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "pitch": {
+                "format": "float",
+                "type": "number"
+              },
+              "position": {
+                "$ref": "#/$defs/Vec3"
+              },
+              "riding": {
+                "type": "boolean"
+              },
+              "saturation": {
+                "format": "float",
+                "type": "number"
+              },
+              "sleeping": {
+                "type": "boolean"
+              },
+              "tick": {
+                "description": "Client ticks since the bot connected (0 when the bot does not publish snapshots).",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "velocity": {
+                "$ref": "#/$defs/Vec3",
+                "description": "Physics bots only (zero otherwise), like `onGround` and `gliding`."
+              },
+              "xpLevel": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "xpProgress": {
+                "format": "float",
+                "type": "number"
+              },
+              "yaw": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "tick",
+              "position",
+              "velocity",
+              "yaw",
+              "pitch",
+              "onGround",
+              "health",
+              "maxHealth",
+              "food",
+              "saturation",
+              "xpLevel",
+              "xpProgress",
+              "air",
+              "alive",
+              "gameMode",
+              "dimension",
+              "heldSlot",
+              "flying",
+              "sleeping",
+              "riding",
+              "gliding"
+            ],
+            "type": "object"
+          },
+          "PlayerInfo": {
+            "description": "A player-list entry.",
+            "properties": {
+              "uniqueId": {
+                "$ref": "#/$defs/UniqueId"
+              },
+              "username": {
+                "type": "string"
+              },
+              "uuid": {
+                "type": "string"
+              },
+              "xuid": {
+                "description": "Empty for offline players.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "username",
+              "xuid",
+              "uniqueId"
+            ],
+            "type": "object"
+          },
+          "Stack": {
+            "description": "A non-empty stack, summarised. `networkId` is the server's item id; names come from its item table.",
+            "properties": {
+              "count": {
+                "format": "uint16",
+                "maximum": 65535,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "customName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metadata": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "networkId": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "stackId": {
+                "format": "int32",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot",
+              "networkId",
+              "count",
+              "metadata"
+            ],
+            "type": "object"
+          },
+          "UniqueId": {
+            "description": "An entity's unique id (the one player lists and containers name), as a decimal string.",
+            "type": "string"
+          },
+          "Vec3": {
+            "description": "A point (feet position, velocity).",
+            "properties": {
+              "x": {
+                "format": "float",
+                "type": "number"
+              },
+              "y": {
+                "format": "float",
+                "type": "number"
+              },
+              "z": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot's state at one moment.",
+        "properties": {
+          "cold": {
+            "$ref": "#/$defs/ColdSnapshot"
+          },
+          "hot": {
+            "$ref": "#/$defs/HotSnapshot"
+          }
+        },
+        "required": [
+          "hot",
+          "cold"
+        ],
+        "title": "Snapshot",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Changes the event groups the bot reports.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.setEvents",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EventGroup": {
+            "description": "A group of events a bot can report (acacia-bot's `Events`); `ticks` is `physicsTick`, 20 a second.",
+            "enum": [
+              "chat",
+              "forms",
+              "health",
+              "players",
+              "windows",
+              "titles",
+              "sleep",
+              "ticks"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/$defs/EventGroup"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "bot",
+          "events"
+        ],
+        "title": "SetEventsParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Sends a chat line.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "immediate",
+      "name": "bot.chat",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "message"
+        ],
+        "title": "ChatParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Runs a slash command (the leading `/` is optional).",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "immediate",
+      "name": "bot.command",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "command": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "command"
+        ],
+        "title": "CommandParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Walks to a goal (physics bots only). Fails with `NOT_POSSIBLE` when there is no path.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.goto",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Goal": {
+            "description": "Where `bot.goto` walks to; `range` is Euclidean, in blocks.",
+            "oneOf": [
+              {
+                "description": "Feet in this cell.",
+                "properties": {
+                  "type": {
+                    "const": "block",
+                    "type": "string"
+                  },
+                  "x": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "y": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "z": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Within `range` of the cell.",
+                "properties": {
+                  "range": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "type": {
+                    "const": "near",
+                    "type": "string"
+                  },
+                  "x": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "y": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "z": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "x",
+                  "y",
+                  "z",
+                  "range"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Any height in this column.",
+                "properties": {
+                  "type": {
+                    "const": "xz",
+                    "type": "string"
+                  },
+                  "x": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "z": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "x",
+                  "z"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Feet at this height.",
+                "properties": {
+                  "type": {
+                    "const": "y",
+                    "type": "string"
+                  },
+                  "y": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "y"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "At least `range` from the cell: fleeing it.",
+                "properties": {
+                  "range": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "type": {
+                    "const": "away",
+                    "type": "string"
+                  },
+                  "x": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "y": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "z": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "x",
+                  "y",
+                  "z",
+                  "range"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Whichever goal is reached first.",
+                "properties": {
+                  "goals": {
+                    "items": {
+                      "$ref": "#/$defs/Goal"
+                    },
+                    "type": "array"
+                  },
+                  "type": {
+                    "const": "any",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "goals"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "goal": {
+            "$ref": "#/$defs/Goal"
+          }
+        },
+        "required": [
+          "bot",
+          "goal"
+        ],
+        "title": "GotoParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Breaks the block at a cell, as a player would (reach, tool, mining time).",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.dig",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "DigParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Answers an open form after a human reading delay.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.answerForm",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "FormAnswer": {
+            "description": "An answer to an open form; one that does not fit the form is refused before anything is sent.",
+            "oneOf": [
+              {
+                "description": "Simple form: the button index (buttons only, not labels or headers).",
+                "properties": {
+                  "index": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "type": {
+                    "const": "button",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "index"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Modal form.",
+                "properties": {
+                  "type": {
+                    "const": "modal",
+                    "type": "string"
+                  },
+                  "yes": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type",
+                  "yes"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Custom form: one value per input element, in order.",
+                "properties": {
+                  "type": {
+                    "const": "custom",
+                    "type": "string"
+                  },
+                  "values": {
+                    "items": {
+                      "$ref": "#/$defs/FormValue"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "type",
+                  "values"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "The X button.",
+                "properties": {
+                  "type": {
+                    "const": "close",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "FormValue": {
+            "oneOf": [
+              {
+                "properties": {
+                  "type": {
+                    "const": "text",
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "toggle",
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "slider",
+                    "type": "string"
+                  },
+                  "value": {
+                    "format": "double",
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "A dropdown option or step-slider step.",
+                "properties": {
+                  "type": {
+                    "const": "choice",
+                    "type": "string"
+                  },
+                  "value": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "answer": {
+            "$ref": "#/$defs/FormAnswer"
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "form": {
+            "description": "The form's id, from its `form` event.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "form",
+          "answer"
+        ],
+        "title": "AnswerFormParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Lets ticks pass (50 ms each) while the bot keeps playing.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.waitForTicks",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "ticks": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "ticks"
+        ],
+        "title": "WaitForTicksParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    }
+  ],
+  "protocolVersion": 1
+}
