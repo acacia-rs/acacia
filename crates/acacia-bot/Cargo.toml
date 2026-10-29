@@ -36,3 +36,6 @@ tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "test-uti
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 acacia-world = { path = "../acacia-world" }
 acacia-testserver = { path = "../acacia-testserver" }
+# snapshot_cost example: the publish-slot comparison.
+arc-swap = "1"
+parking_lot = "0.12"
