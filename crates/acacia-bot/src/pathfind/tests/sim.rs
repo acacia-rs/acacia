@@ -29,7 +29,7 @@ pub fn perform(g: &Grid, world: &PhysicsWorld, m: &mut Movement, node: &PathNode
             Step::Break(pos) => {
                 g.set_state(pos, "air", "");
             }
-            Step::Door { pos, .. } => g.toggle(pos),
+            Step::Door { pos, open } => g.set_open(pos, open),
             // The leg itself is `boat::tests`'s: here the bot gets off at the far bank.
             Step::Boat => m.start([node.pos[0] as f32 + 0.5, node.feet, node.pos[2] as f32 + 0.5], 0.0, 0.0),
             Step::Place { against, face } => {

@@ -59,6 +59,11 @@ impl Tries {
             _ => None,
         }
     }
+
+    /// Given up only for want of a stand, with a retry left (`Builder::revive`).
+    fn revivable(&self) -> bool {
+        self.rests > MAX_RESTS && self.fails < MAX_FAILS && self.places <= MAX_PLACES && self.revives < MAX_REVIVES
+    }
 }
 
 pub(super) struct Station {
@@ -101,6 +106,8 @@ pub struct Builder {
     /// (`SearchOpts::keep`). Built cells only: keeping every block target cost one bot 267 s against 200 s
     /// (live house16), its paths walking round unbuilt floor instead of over scaffold there.
     pub(super) keep: Arc<HashSet<BlockPos>>,
+    /// Block targets this bot broke a wrong block out of (`keep` while unbuilt).
+    pub(super) cleared: HashSet<BlockPos>,
     pub(super) tick: u64,
     pub(super) waiting_since: Option<u64>,
     /// Cells to claim on the board for the step just planned (`swarm`).
@@ -159,6 +166,7 @@ impl Builder {
             thin,
             failed_walks: 0,
             keep: Arc::default(),
+            cleared: HashSet::new(),
             tick: 0,
             waiting_since: None,
             status,
@@ -232,7 +240,7 @@ impl Builder {
     /// Clears the rests of cells given up only for want of a stand; false: none left to try again.
     pub(super) fn revive(&mut self) -> bool {
         let mut any = false;
-        for (pos, t) in self.tries.iter_mut().filter(|(_, t)| t.rests > MAX_RESTS && t.fails < MAX_FAILS && t.places <= MAX_PLACES && t.revives < MAX_REVIVES) {
+        for (pos, t) in self.tries.iter_mut().filter(|(_, t)| t.revivable()) {
             tracing::debug!(?pos, revives = t.revives, "build cell tried again");
             (t.rests, t.revives, any) = (0, t.revives + 1, true);
         }
@@ -241,6 +249,16 @@ impl Builder {
 
     pub(super) fn given_up(&self, pos: BlockPos) -> bool {
         self.tries.get(&pos).is_some_and(Tries::given_up)
+    }
+
+    /// Set aside at least once for want of a stand.
+    pub(super) fn rested(&self, pos: BlockPos) -> bool {
+        self.tries.get(&pos).is_some_and(|t| t.rests > 0)
+    }
+
+    /// Given up for good: a cell that may still be revived is not (nothing may cover it meanwhile).
+    pub(super) fn lost(&self, pos: BlockPos) -> bool {
+        self.tries.get(&pos).is_some_and(|t| t.given_up() && !t.revivable())
     }
 
     pub(super) fn fail(&mut self, pos: BlockPos, e: &ActionError) {
@@ -257,16 +275,6 @@ impl Builder {
         super::pairs::settle(&self.cells, &self.index, look, self.job.fill_only, &mut needs);
         super::rules::redstone_order::settle(&self.cells, look, &|p| self.target(p).cloned(), &mut needs);
         needs
-    }
-
-    /// Learns what a station lacks from what the last restock brought.
-    pub(super) fn check_restock(&mut self, look: &dyn Look) {
-        let Some(r) = self.restock.take() else { return };
-        for (item, before) in r.before {
-            if look.count(&item) <= before {
-                self.stations[r.station].lacks.insert(item);
-            }
-        }
     }
 
     pub(super) fn publish(&self, needs: &[Need], look: &dyn Look, phase: Phase, missing: Vec<String>) {

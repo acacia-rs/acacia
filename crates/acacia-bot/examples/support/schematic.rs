@@ -41,7 +41,9 @@ pub async fn setup(a: &mut Bot, pad: &Pad, path: &str) -> Result<BuildJob, Error
     let structure = Structure::load(&std::fs::read(path)?)?;
     // Random ticks spread grass onto dirt targets and grow vines into air ones during long builds (outpost, 2026-10-28).
     pad.run(a, "/gamerule randomtickspeed 0");
-    pad.build(a, &[], 5).await?;
+    // Grass under the footprint: plants in a structure's bottom layer stood on terrain, and refuse stone.
+    let [sx, _, sz] = structure.size;
+    pad.build(a, &[([AT[0], -1, AT[2]], [AT[0] + sx - 1, -1, AT[2] + sz - 1], "grass_block")], 5).await?;
     let stacks = stacks(&structure);
     let mut stations = Vec::new();
     for (i, chunk) in stacks.chunks(SLOTS).enumerate() {

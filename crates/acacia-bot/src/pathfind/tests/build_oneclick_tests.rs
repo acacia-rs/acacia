@@ -59,3 +59,28 @@ fn builds_the_oneclick_blocks_block_exact() {
     assert_eq!(wrong(&g, &s), Vec::new());
     assert!(scaffold_left(&g).is_empty(), "scaffold removed");
 }
+
+/// A taiga house's eave: logs along z on top of nothing, beside a cobblestone wall (whose west face gives x).
+#[test]
+fn props_logs_whose_only_neighbour_faces_across_their_axis() {
+    let g = Grid::floor(-20, 30);
+    let mut s = Structure::new([3, 3, 4]);
+    for z in 0..4 {
+        for y in 0..3 {
+            s.set([0, y, z], Some(Block::new(if y == 2 { "spruce_log" } else { "air" }, if y == 2 { "pillar_axis=z" } else { "" })));
+            s.set([1, y, z], Some(Block::new("cobblestone", "")));
+            s.set([2, y, z], Some(Block::new("air", "")));
+        }
+    }
+    let mut w = World::new(&g, &[("spruce_log", 8), ("cobblestone", 16), ("dirt", 64)]);
+    let (proc, status) = builder(&s, ORIGIN, &[]);
+    let mut arb = Arbiter::new();
+    let id = arb.add(proc, 10);
+    let ticks = run(&mut w, [-1.5, 1.0, -1.5], &mut arb, id, 12_000);
+    let st = status.lock().unwrap().clone();
+    eprintln!("{ticks} ticks, {st:?}");
+    explain(&w, &s, ORIGIN).iter().for_each(|l| eprintln!("OPEN {l}"));
+    assert_eq!(arb.outcome(id), Some(&Ok(())), "status {st:?}");
+    assert_eq!(wrong(&g, &s), Vec::new());
+    assert!(scaffold_left(&g).is_empty(), "scaffold removed");
+}

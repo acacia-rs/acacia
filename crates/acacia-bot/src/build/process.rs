@@ -12,8 +12,7 @@ use crate::ActionError;
 
 /// Ticks of waiting before stations are asked again (they may have been refilled).
 const ASK_AGAIN: u64 = 600;
-/// Failed walks in a row after which path work may break and fill built cells.
-const ESCAPE_AFTER: u32 = 2;
+use super::wedged::ESCAPE_AFTER;
 
 /// The cell an act changes.
 fn cell_of(act: &Act) -> Option<acacia_physics::BlockPos> {
@@ -39,7 +38,9 @@ impl Process for Builder {
         self.check_restock(cx.look);
         let needs = self.survey(cx.look);
         self.sync(cx);
-        let built = || self.cells.iter().zip(&needs).filter(|(c, n)| **n == Need::Done && !c.target.is_air()).map(|(c, _)| c.pos);
+        // And cells it cleared of a wrong block, until built: path work bridged one back with dirt after every break
+        // (live desert house, 154 breaks of one cell).
+        let built = || self.cells.iter().zip(&needs).filter(|(c, n)| !c.target.is_air() && (**n == Need::Done || (**n == Need::Place && self.cleared.contains(&c.pos)))).map(|(c, _)| c.pos);
         if built().count() != self.keep.len() {
             self.keep = std::sync::Arc::new(built().collect());
         }
@@ -155,14 +156,15 @@ impl Process for Builder {
             (opts.tolerance, opts.settle) = (STAND_TOLERANCE, true);
         }
         opts.search.allow_bridge = true;
-        // Walks failing in a row may be walled in by built cells (live: on a wall top, every walk "Stuck"): then
-        // path work may go through them, and the survey rebuilds what it breaks.
+        // Walks failing in a row may be walled in by built cells (live: on a wall top, every walk "Stuck"; on an
+        // outpost roof, "every reachable cell searched"): then path work may dig through them, and the survey
+        // rebuilds what it breaks.
         if self.failed_walks < ESCAPE_AFTER {
             opts.search.keep = Some(self.keep.clone());
+        } else {
+            opts.search.allow_dig = true;
         }
         opts.search.no_body = Some(self.thin.clone());
-        // Doors are targets: opening one to walk through changes the build (live: doors found open, bot inside).
-        opts.search.open_doors = false;
         opts
     }
 
@@ -190,6 +192,11 @@ impl Process for Builder {
     fn acted(&mut self, act: &Act, result: &Result<(), ActionError>) {
         if result.is_ok() {
             self.failed_walks = 0;
+            if let Act::Break { pos } = act
+                && self.target(*pos).is_some_and(|t| !t.is_air())
+            {
+                self.cleared.insert(*pos);
+            }
         }
         let (kind, item) = match act {
             Act::Place { item, .. } | Act::UseOn { item, .. } => (Kind::Place, Some(item.clone())),
@@ -264,29 +271,6 @@ impl Process for Builder {
 }
 
 impl Builder {
-    /// After failed walks, a thin block (pane, fence, wall, bars) in the feet or head cell: the body fits beside
-    /// it but the pathfinder sees the cell as solid, so no walk starts (live and sim: the outer half of a window
-    /// cell, every walk "Stuck 10 times" until the run ended).
-    /// A door in any cell the body overlaps is broken at once: no move ends there, and once inside, every tick was a
-    /// movement correction and every walk failed (live 2026-10-28, five vanilla houses).
-    fn wedged(&self, cx: &Ctx) -> Option<acacia_physics::BlockPos> {
-        if !cx.on_ground {
-            return None;
-        }
-        let door = |c: &acacia_physics::BlockPos| cx.look.block(*c).is_some_and(|v| super::rules::twocell::kind(v.name) == Some(super::rules::twocell::Kind::Door));
-        let y = cx.pos[1].floor() as i32;
-        // ±0.2, not the body's 0.3: a stand reached 0.25 off-centre puts the body 0.05 into a neighbouring door's cell.
-        let body = [-0.2, 0.2].into_iter().flat_map(|dx| [-0.2, 0.2].map(|dz| [(cx.pos[0] + dx).floor() as i32, (cx.pos[2] + dz).floor() as i32]));
-        if let Some(c) = body.flat_map(|[x, z]| [[x, y, z], [x, y + 1, z]]).find(door) {
-            return Some(c);
-        }
-        if self.failed_walks < ESCAPE_AFTER {
-            return None;
-        }
-        let feet = cx.pos.map(|v| v.floor() as i32);
-        [feet, [feet[0], feet[1] + 1, feet[2]]].into_iter().find(|c| cx.look.block(*c).is_some_and(|v| v.solid() && !v.full && super::rules::thin(v.name)))
-    }
-
     fn end_walk(&self, end: WalkEnd) {
         if let Some(j) = &self.journal {
             j.walk_end(self.tick, end);

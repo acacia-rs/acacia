@@ -63,6 +63,8 @@ pub enum Entry {
     Rest { cell: BlockPos },
     /// A placement handed over to be made while walking on (its outcome comes as an `Acted` later).
     EnRoute { cell: BlockPos },
+    /// What a restock brought of each item asked for, and the free inventory slots after it.
+    Restocked { station: BlockPos, got: Vec<(String, u32)>, free_slots: u32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

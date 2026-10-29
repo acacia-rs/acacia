@@ -21,6 +21,8 @@ mod plan;
 mod process;
 mod reach;
 mod restock;
+mod support;
+mod wedged;
 mod rules;
 pub mod sight_stats;
 mod status;

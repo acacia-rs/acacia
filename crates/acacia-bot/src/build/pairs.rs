@@ -39,6 +39,8 @@ pub(super) fn settle(cells: &[Cell], index: &HashMap<BlockPos, usize>, look: &dy
             (Need::Done, Need::Done) if colored() => (Need::Done, Need::Done),
             (Need::Place, _) if occupied(other) => (if fill_only { Need::Kept } else { Need::Paired }, wrong),
             (Need::Place, _) => (Need::Place, Need::Paired),
+            // A door a walk opened is closed by a use-click, not broken (sim: broken on every pass).
+            (Need::Adjust, Need::Done) => (Need::Adjust, Need::Done),
             // Either half wrong with the first cell filled: break the first; what is left in the second goes next.
             _ => (wrong, Need::Paired),
         };

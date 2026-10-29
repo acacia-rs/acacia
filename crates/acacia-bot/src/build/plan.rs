@@ -44,7 +44,7 @@ pub(super) fn in_body(pos: Vec3, p: BlockPos) -> bool {
 }
 
 /// No bot's body is in the cell: a block can go there.
-fn free(b: &Builder, cx: &Ctx, p: BlockPos) -> bool {
+pub(super) fn free(b: &Builder, cx: &Ctx, p: BlockPos) -> bool {
     !in_body(cx.pos, p) && !b.occupied(p)
 }
 
@@ -96,12 +96,14 @@ pub(super) fn unbuilt(b: &Builder, look: &dyn Look, c: BlockPos) -> bool {
 }
 
 /// Feet in `f` are no stand: body in a cell the structure still fills (live: the bot stood in the unbuilt top
-/// of a ladder column on a narrow wall and could reach nothing from there), or shunned.
+/// of a ladder column on a narrow wall and could reach nothing from there), in a door's cell (walked through,
+/// never stood in: live, five vanilla houses wedged there), or shunned.
 pub(super) fn no_stand(b: &Builder, look: &dyn Look, f: BlockPos) -> bool {
-    b.shunned(f) || fills_later(b, look, f) || fills_later(b, look, [f[0], f[1] + 1, f[2]])
+    let door = |c: BlockPos| b.target(c).is_some_and(|t| rules::twocell::kind(&t.name) == Some(rules::twocell::Kind::Door));
+    b.shunned(f) || door(f) || fills_later(b, look, f) || fills_later(b, look, [f[0], f[1] + 1, f[2]])
 }
 
-fn fill(b: &Builder, pos: BlockPos) -> Act {
+pub(super) fn fill(b: &Builder, pos: BlockPos) -> Act {
     Act::Fill { pos, blocks: b.job.scaffold.clone() }
 }
 
@@ -152,7 +154,10 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         }
     }
 
-    let adjusts: Vec<usize> = order.iter().copied().filter(|&i| open(b, i, Need::Adjust)).collect();
+    // Doors the walks opened are closed last: closed early, the next walk through opened them again.
+    let placing = needs.iter().enumerate().any(|(i, n)| *n == Need::Place && !b.given_up(b.cells[i].pos));
+    let door = |i: usize| rules::twocell::kind(&b.cells[i].target.name) == Some(rules::twocell::Kind::Door);
+    let adjusts: Vec<usize> = order.iter().copied().filter(|&i| open(b, i, Need::Adjust) && !(placing && door(i))).collect();
     if let Some(next) = super::adjust::next(b, cx, &adjusts) {
         return next;
     }
@@ -161,10 +166,11 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     let mut places: Vec<usize> = order.iter().copied().filter(|&i| open(b, i, Need::Place)).collect();
     places.sort_by_key(|&i| b.cells[i].pos[1]);
     let mut missing: Vec<String> = Vec::new();
-    let mut unsupported = None;
+    let (mut unsupported, mut unpropped) = (None, None);
     let mut ready: Vec<(usize, String)> = Vec::new();
-    // Never cover an open cell: a block over it takes away the click on the face below (and the stand above).
-    let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.given_up(b.cells[j].pos) && rules::hangs(&b.cells[j].target).is_none());
+    // Never cover an open cell: a block over it takes away the click on the face below (and the stand above). A
+    // cell given up for want of a stand counts while it may be revived (live: a snowy house's pit, buried).
+    let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.lost(b.cells[j].pos) && rules::hangs(&b.cells[j].target).is_none());
     // A pair's second half covers too (a bed's head), unless it stands on the first (a door's upper half).
     let covers_pair = |b: &Builder, p: BlockPos| covers(b, p) || super::pairs::second(b, p).is_some_and(|o| [o[0], o[1] - 1, o[2]] != p && covers(b, o));
     let upright_open = |j: usize| open(b, j, Need::Place) && !b.given_up(b.cells[j].pos);
@@ -189,6 +195,9 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         if !supported {
             unsupported.get_or_insert(pos);
             continue;
+        }
+        if unpropped.is_none() {
+            unpropped = super::support::prop_for(b, cx.look, pos, target);
         }
         if super::pairs::waits(b, cx.look, pos) {
             b.rest(pos);
@@ -240,10 +249,8 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     if let Some(act) = b.en_route.take() {
         return Next::Act(Phase::Building, act);
     }
-    // Nothing to click against: a scaffold column up to the lowest such cell.
-    if let Some(pos) = unsupported
-        && let Some(next) = support(b, cx, pos)
-    {
+    // Nothing to click against: a scaffold column up to the lowest such cell, or a prop on a log's axis.
+    if let Some(next) = unsupported.and_then(|pos| super::support::column(b, cx, pos)).or_else(|| unpropped.and_then(|p| super::support::prop(b, cx, p))) {
         return next;
     }
 
@@ -269,23 +276,4 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     }
     let failed = b.cells.iter().filter(|c| b.given_up(c.pos)).count() + b.scaffold.iter().filter(|p| b.given_up(**p) && cx.look.solid(**p) == Some(true)).count();
     Next::Done(if failed == 0 { Ok(()) } else { Err(ActionError::NotPossible(format!("{failed} cells could not be built"))) })
-}
-
-/// Fills the lowest empty cell of the column under `pos` (it stands on something), so the column grows up to it.
-fn support(b: &Builder, cx: &Ctx, pos: BlockPos) -> Option<Next> {
-    let mut cell = [pos[0], pos[1] - 1, pos[2]];
-    while cx.look.solid([cell[0], cell[1] - 1, cell[2]]) == Some(false) {
-        cell[1] -= 1;
-        if pos[1] - cell[1] > 16 {
-            return None;
-        }
-    }
-    if b.target(cell).is_some_and(|t| !t.is_air()) {
-        return None;
-    }
-    let ok = |e: Vec3| fills_from(e, cell, cx.look);
-    if ok(cx.eye()) && free(b, cx, cell) {
-        return Some(Next::Act(Phase::Building, fill(b, cell)));
-    }
-    go(Phase::Building, cell, stands(cell, cx.pos, cx.look, &Keep { feet: &|f| f == cell || no_stand(b, cx.look, f), pillar: &|c| unbuilt(b, cx.look, c) }, &ok, STANDS), b)
 }
