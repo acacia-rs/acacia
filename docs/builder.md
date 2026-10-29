@@ -215,6 +215,13 @@ stands and the stands it could use: the first thing to read when a build stalls 
     stand matched by the feet's cell was never marked tried, so it was rewalked every tick; `arrival` now takes
     the nearest stand. Edges over an open `no_body` cell a miss would fall into are dropped (`moves.rs`; the
     repro once wedged a bot in a ladder cell). Open: why the follower can't step out to the open side.
+  - Window wedge after the 2026-10-29 master merge (pathfind M4): two bots wedged 5 runs in 10, against 0 in 11
+    before it and 0 in 4 with players dropped from `hazard::kinds`. Each wedge starts with the same walk, from the
+    south end (feet about [6.6, -18, -5.5]) north to the stands at [5, -17, 0..2], over the placed pane tops of the
+    west wall; the other bot is 8-12 blocks off then. The player cost sphere only reorders which side a bot works,
+    so it makes that walk; the cause is a route over pane tops. Banning moves that end on a `no_body` cell (sim
+    `swarm_wedge` 16 of 16 seeds clean, 15 before; the sim never takes that walk) stranded a bot on the ladder top in
+    `drops_after`, so it is not landed.
   - Done (2026-10-29): upright logs before the wall cells beside them (user's choice; `ahead::waits_for_upright`,
     derived from the rules by probing faces). Sim: plain 2289 ticks, 73 walks against 4381, 94; as live 2473, 69
     against 4464, 98; `swarm_wedge` 16 seeds 1548 against 2083 ticks, 0 wedged. Live house16 against d78846d, 3 a
