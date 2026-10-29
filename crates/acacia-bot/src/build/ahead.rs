@@ -83,6 +83,15 @@ pub(super) fn reaches(cells: &[Cell], eye: Vec3, look: &dyn Look, slack: f32) ->
     out
 }
 
+/// `pos` waits for an open cell beside it at its height that only a top-face click gives
+/// ([`super::rules::only_from_above`]), unless it is one too: placed first, it hides the face below that cell from
+/// the stands that build it (house16: walls round a corner left its upright logs for walks at the end).
+pub(super) fn waits_for_upright(b: &Builder, open: impl Fn(usize) -> bool, pos: BlockPos) -> bool {
+    let upright = |j: usize| super::rules::only_from_above(&b.cells[j].target);
+    let beside = |[dx, dz]: [i32; 2]| b.index.get(&[pos[0] + dx, pos[1], pos[2] + dz]).copied();
+    !b.index.get(&pos).is_some_and(|&i| upright(i)) && [[1, 0], [-1, 0], [0, 1], [0, -1]].into_iter().filter_map(beside).any(|j| open(j) && upright(j))
+}
+
 /// `ready` with its first rank (held item, lowest layer) farthest first, the rest as it was.
 pub(super) fn far_first<'a>(ready: &'a [(usize, String)], eye: Vec3, pos: impl Fn(usize) -> BlockPos, held: Option<&str>) -> Vec<&'a (usize, String)> {
     let rank = |(i, item): &(usize, String)| (Some(item.as_str()) != held, pos(*i)[1]);

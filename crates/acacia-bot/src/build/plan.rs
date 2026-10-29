@@ -167,7 +167,8 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
     let covers = |b: &Builder, p: BlockPos| b.index.get(&[p[0], p[1] - 1, p[2]]).is_some_and(|&j| needs[j] == Need::Place && !b.given_up(b.cells[j].pos) && rules::hangs(&b.cells[j].target).is_none());
     // A pair's second half covers too (a bed's head), unless it stands on the first (a door's upper half).
     let covers_pair = |b: &Builder, p: BlockPos| covers(b, p) || super::pairs::second(b, p).is_some_and(|o| [o[0], o[1] - 1, o[2]] != p && covers(b, o));
-    let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers_pair(b, b.cells[i].pos)).take(TRIES * 2).collect();
+    let upright_open = |j: usize| open(b, j, Need::Place) && !b.given_up(b.cells[j].pos);
+    let candidates: Vec<usize> = places.iter().copied().filter(|&i| !covers_pair(b, b.cells[i].pos) && !super::ahead::waits_for_upright(b, upright_open, b.cells[i].pos)).take(TRIES * 2).collect();
     let held_back = super::pairs::held(b, cx.look, needs);
     for i in candidates {
         let (pos, target) = (b.cells[i].pos, &b.cells[i].target);

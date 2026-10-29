@@ -86,7 +86,9 @@ half of the side faces; panes, fences, walls, torches and other partial blocks a
    Gravity blocks wait for their support; a cell with nothing clickable around it gets a scaffold column up to it.
    From here, the first rank (held item, lowest layer) goes farthest first, and stands are scored by placing their
    cells bottom up and far to near, each against those before it (`build/ahead.rs`): a row above the eye or a floor
-   around the bot is then clicked on each cell's far neighbour, already there.
+   around the bot is then clicked on each cell's far neighbour, already there. A cell waits for an open cell beside
+   it at its height that only a top-face click gives (`rules::only_from_above`: an upright log), so the wall can't
+   hide that cell's face below from the stands that build it.
 4. Restock when the next placement's item is missing (`build/restock.rs`): everything the open placements still
    need minus the inventory, from the nearest station not yet found without it. A station that brought no more of
    an item is marked lacking it (cleared after 30 s of waiting).
@@ -213,8 +215,11 @@ stands and the stands it could use: the first thing to read when a build stalls 
     stand matched by the feet's cell was never marked tried, so it was rewalked every tick; `arrival` now takes
     the nearest stand. Edges over an open `no_body` cell a miss would fall into are dropped (`moves.rs`; the
     repro once wedged a bot in a ladder cell). Open: why the follower can't step out to the open side.
-  - Next: upright corner logs (~700 sim ticks, walked to one by one at the end): place them before the wall
-    cells beside them (user, 2026-10-29).
+  - Done (2026-10-29): upright logs before the wall cells beside them (user's choice; `ahead::waits_for_upright`,
+    derived from the rules by probing faces). Sim: plain 2289 ticks, 73 walks against 4381, 94; as live 2473, 69
+    against 4464, 98; `swarm_wedge` 16 seeds 1548 against 2083 ticks, 0 wedged. Live house16 against d78846d, 3 a
+    side, interleaved: one bot 186 s, 2733 ticks, 73 walks against 255 s, 3579, 94; two bots 102 s, 1395 ticks
+    against 128 s, 1759. 0 mismatches, no FAIL; scaffold broken 31 against 53, cleanup 53 against 327 ticks.
 
 ## Swarm (B2: `build/board.rs`, `build/swarm.rs`)
 
