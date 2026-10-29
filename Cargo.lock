@@ -145,6 +145,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "acacia-host"
+version = "0.1.0"
+dependencies = [
+ "acacia-api",
+ "acacia-bot",
+ "acacia-client",
+ "acacia-testserver",
+ "parking_lot",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "acacia-mitm"
 version = "0.1.0"
 dependencies = [

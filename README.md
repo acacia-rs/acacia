@@ -88,6 +88,7 @@ More in each crate's `examples/` directory.
 | Crate | Role |
 |---|---|
 | [`acacia-bot`](crates/acacia-bot) | High-level `Bot`: game state, events, physics, pathfinding and gameplay actions |
+| [`acacia-host`](crates/acacia-host) | Runs bots on shard threads for other languages: command JSON in, one ordered stream of event and result batches out |
 | [`acacia-api`](crates/acacia-api) | The schema other languages drive bots through: commands, events, snapshots, errors; generated TS types and JSON Schemas |
 | [`acacia-client`](crates/acacia-client) | tokio driver, SOCKS5 proxying, the `Client` connection API, `ping` |
 | [`acacia-session`](crates/acacia-session) | Network-free session: batching, compression, encryption, the login sequence |
