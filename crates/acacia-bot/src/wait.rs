@@ -8,6 +8,7 @@ use crate::bot::Step;
 use crate::{Bot, BotEvent};
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum ActionError {
     #[error("timed out waiting for the server")]
     Timeout,
@@ -20,6 +21,9 @@ pub enum ActionError {
     /// Nothing was sent: the target is in reach but hidden behind blocks.
     #[error("not visible: {0}")]
     NotVisible(String),
+    /// [`crate::CancelHandle::cancel`] ended the action (see [`crate::cancel`]).
+    #[error("cancelled")]
+    Cancelled,
 }
 
 enum Progress {
@@ -28,23 +32,32 @@ enum Progress {
 }
 
 impl Bot {
-    /// One step for an action: a disconnect ends the action (and is kept for [`Bot::next`]).
+    /// One step for an action: a disconnect ends the action (and is kept for [`Bot::next`]), and so does a cancel
+    /// (see [`crate::cancel`]).
     async fn progress(&mut self) -> Result<Progress, ActionError> {
         self.survival.idle = false;
         loop {
-            return match self.step().await {
-                None => Err(ActionError::Disconnected),
+            self.cancel_point()?;
+            let progress = match self.step().await {
+                None => return Err(ActionError::Disconnected),
                 Some(Step::Disconnected(reason)) => {
                     self.pending.push_back(BotEvent::Disconnected(reason));
-                    Err(ActionError::Disconnected)
+                    return Err(ActionError::Disconnected);
                 }
-                Some(Step::Tick) => Ok(Progress::Tick),
+                Some(Step::Tick) => Progress::Tick,
                 Some(Step::Idle) => continue,
                 Some(Step::Packet(packet)) => {
                     self.note_echo(&packet);
-                    Ok(Progress::Packet(packet))
+                    Progress::Packet(packet)
                 }
             };
+            if let Err(e) = self.cancel_point() {
+                if let Progress::Packet(packet) = progress {
+                    self.keep_for_caller(packet);
+                }
+                return Err(e);
+            }
+            return Ok(progress);
         }
     }
 
