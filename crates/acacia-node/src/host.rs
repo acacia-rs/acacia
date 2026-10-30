@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use acacia_api::{BlockPos, BotId};
+use acacia_api::{ApiError, BlockPos, BotId, ErrorCode, FindBlocksParams};
 use acacia_host::{Host, HostConfig};
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::UnknownReturnValue;
@@ -128,6 +128,21 @@ impl NativeHost {
     #[napi(catch_unwind)]
     pub fn snapshot_entities(&self, bot: String) -> Option<String> {
         serde_json::to_string(&self.host.entities(&BotId(bot))?).ok()
+    }
+
+    /// The server's `ItemTable` (JSON), or null for an unknown bot; empty until the table arrives at login.
+    #[napi(catch_unwind)]
+    pub fn item_table(&self, bot: String) -> Option<String> {
+        serde_json::to_string(&self.host.item_table(&BotId(bot))?).ok()
+    }
+
+    /// `bot.findBlocks` now: `FindBlocksParams` JSON in, `FindBlocksResult` JSON out; throws with the error's `code`.
+    #[napi]
+    pub fn find_blocks(&self, bot: String, params: String) -> Result<String, Code> {
+        let params: FindBlocksParams =
+            serde_json::from_str(&params).map_err(|e| refusal(ApiError::new(ErrorCode::BadParams, e.to_string())))?;
+        let found = self.host.find_blocks(&BotId(bot), &params).map_err(refusal)?;
+        serde_json::to_string(&found).map_err(|e| refusal(ApiError::new(ErrorCode::Internal, e.to_string())))
     }
 
     /// The `Block` at a cell of the bot's dimension (JSON), or null when unknown (see acacia-host's `block_at`).

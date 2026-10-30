@@ -1,12 +1,16 @@
 import { BotCore } from './core.js'
+import { AcaciaError } from './errors.js'
 import type { Block } from './generated/types/Block.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
 import type { Entity } from './generated/types/Entity.js'
 import type { EntityList } from './generated/types/EntityList.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
+import type { ItemTable } from './generated/types/ItemTable.js'
 import type { PlayerInfo } from './generated/types/PlayerInfo.js'
+import type { Stack } from './generated/types/Stack.js'
 import type { Vec3 } from './generated/types/Vec3.js'
+import type { FindBlocksQuery } from './transport.js'
 
 /** The bot's body as of its last tick. */
 export interface EntityView {
@@ -15,6 +19,11 @@ export interface EntityView {
   yaw: number
   pitch: number
   onGround: boolean
+}
+
+/** A stack with its item name (null until the server's item table arrived, or for an unknown id). */
+export interface Item extends Stack {
+  name: string | null
 }
 
 /** Another player: its player-list entry (if any) and its entity while in view. */
@@ -45,6 +54,7 @@ const EMPTY_ENTITIES: EntityList = { version: 0, entities: [] }
 export class BotReads extends BotCore {
   readonly #byId = new Derived((list: EntityList) => Object.freeze(Object.fromEntries(list.entities.map((e) => [e.id, e]))))
   readonly #players = new Derived(players)
+  readonly #inventory = new Derived(inventory)
 
   /** The per-tick state; null before the first tick. */
   get hot(): HotSnapshot | null {
@@ -97,9 +107,33 @@ export class BotReads extends BotCore {
     return this.session.reads?.blockAt(this.id, Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z)) ?? null
   }
 
+  /** Non-empty stacks of the bot's own windows, named through the server's item table; one frozen array per change. */
+  get inventory(): readonly Item[] {
+    return this.#inventory.get(this.cold, this.session.reads?.itemTable(this.id) ?? null)
+  }
+
+  /** The stack in the selected hotbar slot; null for an empty hand. */
+  get heldItem(): Item | null {
+    const slot = this.hot?.heldSlot
+    return this.inventory.find((i) => i.window === 0 && i.slot === slot) ?? null
+  }
+
+  /** The nearest loaded blocks with any of `matching`'s names, nearest first (contract: bot.findBlocks). */
+  findBlocks(query: FindBlocksQuery): BlockPos[] {
+    const reads = this.session.reads
+    if (!reads) throw new AcaciaError('NOT_POSSIBLE', 'this transport has no sync reads')
+    return reads.findBlocks(this.id, query)
+  }
+
   #entityList(): EntityList {
     return this.session.reads?.entities(this.id) ?? EMPTY_ENTITIES
   }
+}
+
+function inventory(cold: ColdSnapshot | null, table: ItemTable | null): readonly Item[] {
+  const names = new Map(table?.items.map((i) => [i.id, i.name]))
+  const items = (cold?.inventory ?? []).map((s) => Object.freeze({ ...s, name: names.get(s.networkId) ?? null }))
+  return Object.freeze(items)
 }
 
 function players(cold: ColdSnapshot | null, list: EntityList): Readonly<Record<string, Player>> {

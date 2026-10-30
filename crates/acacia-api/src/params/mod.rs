@@ -3,8 +3,10 @@
 
 mod actions;
 mod host;
+mod items;
 mod moves;
 
 pub use actions::*;
 pub use host::*;
+pub use items::*;
 pub use moves::*;

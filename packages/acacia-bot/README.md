@@ -42,9 +42,9 @@ acacia-host's; the addon: acacia-node's).
   process-wide `NativeTransport`; `closeAll()` shuts it down.
 - **Calls** resolve or reject from their `done` record, which comes after every event the bot raised before the call
   ended: listeners see what happened during `goto` before `await bot.goto()` returns. A refusal (`BUSY`,
-  `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `dig`, `answerForm` and
-  `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`, `setControlState`,
-  `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
+  `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `equip`, `placeBlock`, `dig`,
+  `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
+  `setControlState`, `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
 - **Movement.** `goto(goal)` takes a plain `Goal`: the classes `GoalBlock`, `GoalNear`, `GoalXZ`, `GoalY`,
   `GoalAway` and `GoalCompositeAny` (mineflayer-pathfinder's names) or the shorthands `goals.near(...)` etc. build
   one. `follow(entity, { range, signal })` keeps within `range` (default 2) of an entity until aborted; it never
@@ -68,13 +68,23 @@ acacia-host's; the addon: acacia-node's).
 - **Sync reads.** `bot.hot`, `bot.entity`, `bot.health`, `bot.food`, `bot.cold`, `bot.entities`, `bot.players`,
   `bot.nearestEntity(filter?)` and `bot.blockAt(pos)` read the bot's published state and terrain without a call,
   where the transport offers `reads` (null or empty otherwise, and before the first tick). `bot.hot` is one frozen
-  object per tick; `cold`, `entities` and `players` are one frozen object per change, rebuilt at most once a tick.
+  object per tick; `cold`, `entities` and `players` are one frozen object per change, rebuilt at most once a tick
+  except that a spawn or removal is published before its `entitySpawn` / `entityGone` event, so a listener finds
+  `bot.entities` agreeing with the event.
   Entities need `createBot({ entities })` (default on); their `id` is the decimal-string runtime id actions take,
   and `position` is the feet, players included. `bot.players` is keyed by name: the player list joined with player
   entities in view (`entity`, null when out of view), plus players seen only in view (`info` null). Non-physics bots
   see only the chunks around them.
+- **Inventory and blocks.** `bot.inventory` is the non-empty stacks of the bot's own windows (`window` 0 is the main
+  inventory, slots 0-8 the hotbar; 119 off hand, 120 armour), each with `networkId`, `count` and `name` from the
+  server's item table (sent once, at login; `name` is null before it). `bot.heldItem` is the stack in the selected
+  hotbar slot. `bot.findBlocks({ matching, maxDistance = 16, count = 1 })` returns the nearest loaded cells whose
+  block has any of the names (any state), nearest first, synchronously; `maxDistance` is capped at 64 and `count`
+  at 1024 (the `bot.findBlocks` method is the same read for transports without sync reads). `equip(item,
+  destination = 'hand')` takes a name or an `inventory` entry; `placeBlock(referenceBlock, face = 'up')` resolves
+  once the server shows a block in the target cell (`REJECTED` after three tries).
 - **Process lifetime.** The addon never holds Node open by itself. The session holds it while a bot is live or a
   call is unanswered, and a closing `NativeTransport` holds it until its stream ends, so `node script.js` runs while
   it has bots and exits once they are closed.
 
-Not yet: `signIn`, `findBlocks`, reconnects, worker_threads (one host per env, untested).
+Not yet: `signIn`, reconnects, worker_threads (one host per env, untested).

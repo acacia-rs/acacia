@@ -1423,6 +1423,239 @@
         "title": "null",
         "type": "null"
       }
+    },
+    {
+      "description": "Moves an item from the main inventory to the hand (selected in the hotbar), an armour slot or the off hand.\n`NOT_POSSIBLE` when the inventory has none.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.equip",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EquipDestination": {
+            "description": "Where `bot.equip` puts an item (mineflayer's names).",
+            "oneOf": [
+              {
+                "enum": [
+                  "head",
+                  "torso",
+                  "legs",
+                  "feet",
+                  "offHand"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "hand",
+                "description": "Into the hotbar, selected.",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/EquipDestination"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`hand` when absent."
+          },
+          "item": {
+            "description": "An item name (`minecraft:stone`, or just `stone`) in the main inventory.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "item"
+        ],
+        "title": "EquipParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Places the held block against a face of a block, waiting until the server shows it (`REJECTED` if it never\ndoes).",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.placeBlock",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Face": {
+            "enum": [
+              "down",
+              "up",
+              "north",
+              "south",
+              "west",
+              "east"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Places the held block against `face` of the block at `x, y, z`.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "face": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Face"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`up` when absent: on top of the block."
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "PlaceBlockParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "The nearest loaded blocks with any of the names, read from the bot's terrain without waiting for an action.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "immediate",
+      "name": "bot.findBlocks",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many to return, nearest first; 1 when absent, at most 1024.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "matching": {
+            "description": "Block names (`minecraft:oak_log` or `oak_log`), any state.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxDistance": {
+            "description": "Blocks from the bot's feet (Euclidean); 16 when absent, at most 64.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot",
+          "matching"
+        ],
+        "title": "FindBlocksParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "BlockPos": {
+            "description": "A block cell.",
+            "properties": {
+              "x": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "y": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "z": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "blocks": {
+            "description": "Nearest first.",
+            "items": {
+              "$ref": "#/$defs/BlockPos"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "blocks"
+        ],
+        "title": "FindBlocksResult",
+        "type": "object"
+      }
     }
   ],
   "protocolVersion": 1

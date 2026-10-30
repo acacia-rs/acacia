@@ -6,7 +6,7 @@ use std::sync::Arc;
 use acacia_api::{CallId, ErrorCode, Event, Lane, Method, Reply};
 use acacia_bot::client::ClientSender;
 use acacia_bot::events::EventReceiver;
-use acacia_bot::snapshot::BotSnapshot;
+use acacia_bot::snapshot::{BotSnapshot, SnapshotReader};
 use acacia_bot::{BotEvent, Immediate, Inbox};
 use tokio::sync::{mpsc, oneshot};
 
@@ -19,6 +19,8 @@ pub(super) struct Lanes {
     pub events: EventReceiver,
     pub sender: ClientSender,
     pub inbox: Inbox,
+    /// The bot's published state, for reads that need no bot (`None` with snapshots off).
+    pub reader: Option<SnapshotReader>,
     /// Queued calls not started yet, in order.
     pub queue: VecDeque<(CallId, Method)>,
     /// Snapshot calls the bot has yet to build, in the order the inbox hands them over.
@@ -94,6 +96,10 @@ impl Lanes {
                 let sent = self.inbox.send(Immediate::ReleaseKeys);
                 self.sent(call, sent, Reply::ClearControlStates(()));
             }
+            Method::FindBlocks(p) => match &self.reader {
+                Some(reader) => self.out.done(call, convert::find_blocks(reader, &p).map(Reply::FindBlocks)),
+                None => self.out.fail(call, ErrorCode::NotPossible, "the host publishes no snapshots (HostConfig::snapshots)"),
+            },
             Method::Snapshot(_) => {
                 let (tx, rx) = oneshot::channel();
                 if self.inbox.send(Immediate::Snapshot(tx)) {

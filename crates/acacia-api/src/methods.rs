@@ -41,4 +41,12 @@ api! {
     "bot.setControlState" => SetControlState(SetControlStateParams) -> (), Immediate [];
     /// Releases every movement key.
     "bot.clearControlStates" => ClearControlStates(BotParams) -> (), Immediate [];
+    /// Moves an item from the main inventory to the hand (selected in the hotbar), an armour slot or the off hand.
+    /// `NOT_POSSIBLE` when the inventory has none.
+    "bot.equip" => Equip(EquipParams) -> (), Queued [mcp];
+    /// Places the held block against a face of a block, waiting until the server shows it (`REJECTED` if it never
+    /// does).
+    "bot.placeBlock" => PlaceBlock(PlaceBlockParams) -> (), Queued [mcp];
+    /// The nearest loaded blocks with any of the names, read from the bot's terrain without waiting for an action.
+    "bot.findBlocks" => FindBlocks(FindBlocksParams) -> FindBlocksResult, Immediate [mcp];
 }

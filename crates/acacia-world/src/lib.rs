@@ -4,6 +4,7 @@
 mod access;
 mod change;
 mod chunk;
+mod find;
 pub mod ray;
 mod registry;
 pub mod selection;
@@ -12,6 +13,7 @@ mod world;
 
 pub use access::BlockAccess;
 pub use change::ChunkChange;
+pub use find::{block_ids, find_blocks};
 pub use chunk::{
     Chunk, ColumnHeights, Dimension, Heightmap, LevelChunkData, SECTION_VOLUME, SubChunkData, level_chunk_block_entities,
     sub_chunk_block_entities,

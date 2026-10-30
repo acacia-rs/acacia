@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use acacia_api::{ApiError, ErrorCode, FollowParams, Method, Reply};
+use acacia_api::{ApiError, EquipDestination, EquipParams, ErrorCode, Face, FollowParams, Method, Reply};
 use acacia_bot::pathfind::{Follow, Processes, Target};
 use acacia_bot::{ActionError, Bot, CancelHandle};
 
@@ -28,6 +28,11 @@ pub(crate) fn action(bot: &mut Bot, method: Method) -> Action<'_> {
         Method::Follow(p) => Box::pin(async move { done(Reply::Follow(()))(follow(bot, p).await) }),
         Method::LookAt(p) => Box::pin(async move { done(Reply::LookAt(()))(bot.look_at([p.x, p.y, p.z]).await) }),
         Method::Attack(p) => Box::pin(async move { done(Reply::Attack(()))(bot.attack(p.entity.0).await) }),
+        Method::Equip(p) => Box::pin(async move { done(Reply::Equip(()))(equip(bot, p).await) }),
+        Method::PlaceBlock(p) => {
+            let face = convert::face(p.face.unwrap_or(Face::Up));
+            Box::pin(async move { done(Reply::PlaceBlock(()))(bot.place_block([p.x, p.y, p.z], face).await) })
+        }
         other => {
             let name = other.name();
             Box::pin(async move { Err(ApiError::new(ErrorCode::Internal, format!("{name} is not a queued method"))) })
@@ -43,6 +48,12 @@ async fn follow(bot: &mut Bot, p: FollowParams) -> Result<(), ActionError> {
     let mut procs = Processes::new();
     procs.add(Follow::new(Target::Entity(p.entity.0), p.range.unwrap_or(FOLLOW_RANGE)), 0);
     bot.run(&mut procs).await
+}
+
+async fn equip(bot: &mut Bot, p: EquipParams) -> Result<(), ActionError> {
+    let name = if p.item.contains(':') { p.item } else { format!("minecraft:{}", p.item) };
+    let slot = bot.find_item(&name).ok_or_else(|| ActionError::NotPossible(format!("no {name} in the inventory")))?;
+    bot.equip(slot, convert::destination(p.destination.unwrap_or(EquipDestination::Hand))).await
 }
 
 /// Re-fires a cancel on every poll once armed: a cancel only counts while the action waits (acacia_bot::cancel),

@@ -14,7 +14,13 @@ export class FakeTransport {
     cold: (bot) => this.state[bot]?.cold ?? null,
     entities: (bot) => this.state[bot]?.entities ?? null,
     blockAt: (bot, x, y, z) => this.state[bot]?.blocks?.[`${x},${y},${z}`] ?? null,
+    itemTable: (bot) => this.state[bot]?.items ?? null,
+    findBlocks: (bot, query) => {
+      this.queries.push(query)
+      return this.state[bot]?.found ?? []
+    },
   }
+  queries = []
   open(listener) {
     this.listener = listener
   }

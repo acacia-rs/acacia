@@ -211,6 +211,15 @@ impl Chunk {
         }
     }
 
+    /// The layer-0 ids section `index` can hold: just air for an empty section, nothing past the top.
+    pub fn section_palette(&self, index: usize) -> &[u32] {
+        match self.sections.get(index) {
+            None => &[],
+            Some(None) => std::slice::from_ref(&self.dim.air),
+            Some(Some(s)) => s.blocks.palette(),
+        }
+    }
+
     /// Every runtime id referenced by a palette in this chunk (for validation).
     pub fn palette_ids(&self) -> impl Iterator<Item = u32> + '_ {
         self.sections

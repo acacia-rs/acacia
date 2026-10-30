@@ -5,9 +5,10 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 
 use acacia_proto::packets::{
-    AddEntity, AddPlayer, MovePlayer, RemoveEntity, Respawn, StartGame, SubchunkRequest, UpdateSubchunkBlocks,
+    AddEntity, AddPlayer, InventorySlot, ItemRegistry, MovePlayer, RemoveEntity, Respawn, StartGame, SubchunkRequest,
+    UpdateSubchunkBlocks,
 };
-use acacia_proto::types::{BlockCoordinates, BlockUpdate, BlockUpdateTransitionType, Vec3f};
+use acacia_proto::types::{BlockCoordinates, BlockUpdate, BlockUpdateTransitionType, Vec3f, WindowIDVarint};
 use acacia_proto::{Packet, RawPacket};
 use acacia_world::BlockRegistry;
 use bytes::Bytes;
@@ -82,6 +83,24 @@ impl FakeServer {
         let cells: Vec<_> = (-half..=half).flat_map(|dx| (-half..=half).map(move |dz| [feet[0] + dx, feet[1] - 1, feet[2] + dz])).collect();
         self.set_blocks(&cells, wire_id);
         cells
+    }
+
+    /// The script's network id for item `name` (`minecraft:stone`), from the `ItemRegistry` it sent.
+    pub fn item_id(&self, name: &str) -> Option<i16> {
+        let sent = self.sent();
+        let registry: ItemRegistry = sent.iter().find(|r| r.packet.id == ItemRegistry::ID)?.packet.decode().ok()?;
+        registry.itemstates.into_iter().find(|i| i.name == name).map(|i| i.runtime_id)
+    }
+
+    /// Puts `count` of item `name` in main-inventory slot `slot` (0-8: the hotbar), with stack id `stack_id`.
+    pub fn give(&self, slot: u32, name: &str, count: u16, stack_id: i32) {
+        let mut p: InventorySlot = fixture(include_str!("../../acacia-proto/tests/fixtures/packets/inventory_slot.hex"));
+        let id = self.item_id(name).unwrap_or_else(|| panic!("{name} is not in the script's item registry"));
+        (p.window_id, p.slot, p.container, p.storage_item) = (WindowIDVarint::Inventory, slot, None, None);
+        let block = BlockRegistry::vanilla().find(name, "").map_or(0, |b| BlockRegistry::vanilla().network_hash(b));
+        (p.item.network_id, p.item.count, p.item.metadata) = (id, count, 0);
+        (p.item.has_stack_id, p.item.stack_id, p.item.block_runtime_id) = (true, Some(stack_id), block);
+        self.send(&p);
     }
 
     /// The feet position the script put the player at: its last ready `Respawn` or `MovePlayer`, else `StartGame`'s

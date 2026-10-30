@@ -92,6 +92,7 @@ pub(crate) async fn run(spawn: Spawn) {
         events,
         sender: bot.sender(),
         inbox: bot.inbox(),
+        reader: bot.snapshot_reader(),
         queue: VecDeque::new(),
         snapshots: VecDeque::new(),
         closing: false,

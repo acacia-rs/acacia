@@ -4,11 +4,12 @@
 //! - [`Cold`] (inventory, effects, player list) is rebuilt only when the version counters of
 //!   [`crate::state::Inventory`], [`crate::state::Effects`] or [`crate::state::PlayerList`] move, and shared as an
 //!   `Arc`; [`Cold::version`] changes exactly when it is rebuilt, so readers can cache on it.
-//! - [`EntityList`] (tracked entities, feet positions) is rebuilt at most once per tick batch, when the entity
-//!   tracker's version moved; [`EntityList::version`] changes exactly when it is rebuilt. Empty unless
-//!   `Trackers::entities` (or `hazards`) is on.
-//! - Stacks carry network ids, not names (resolve them once through the bot's item table); player strings are
-//!   shared, not copied.
+//! - [`EntityList`] (tracked entities, feet positions) is rebuilt once per tick batch when the entity tracker's
+//!   version moved, and at once on a spawn or removal, before its event goes out (a listener finds the entity
+//!   listed); [`EntityList::version`] changes exactly when it is rebuilt. Empty unless `Trackers::entities` (or
+//!   `hazards`) is on.
+//! - Stacks carry network ids, not names: resolve them through [`SnapshotReader::items`], the item table the server
+//!   sends once (shared, not copied). Player strings are shared too.
 //! - Blocks need no copy: [`SnapshotReader::world`] is the bot's current dimension, readable from any thread;
 //!   it changes on a dimension change.
 //! - [`crate::Bot::snapshot`] builds one on demand, published or not; so does [`crate::inbox::Immediate::Snapshot`].
@@ -23,6 +24,8 @@ use std::sync::Arc;
 use acacia_client::proto::manual::Uuid;
 use acacia_world::World;
 use parking_lot::Mutex;
+
+use crate::state::ItemRegistry;
 
 pub use entity::{EntityInfo, EntityList};
 pub(crate) use publish::Publisher;
@@ -111,6 +114,7 @@ struct Slot {
     cold: Mutex<Arc<Cold>>,
     entities: Mutex<Arc<EntityList>>,
     world: Mutex<Option<Arc<World>>>,
+    items: Mutex<ItemRegistry>,
 }
 
 impl SnapshotReader {
@@ -133,5 +137,10 @@ impl SnapshotReader {
     /// The bot's terrain (`None` before StartGame); blocks via `World::get(cx, cz)` and the chunk's read lock.
     pub fn world(&self) -> Option<Arc<World>> {
         self.0.world.lock().clone()
+    }
+
+    /// The server's item table (network id to name), empty before it arrives; it comes once, at login.
+    pub fn items(&self) -> ItemRegistry {
+        self.0.items.lock().clone()
     }
 }

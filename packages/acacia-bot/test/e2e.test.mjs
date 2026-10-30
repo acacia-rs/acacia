@@ -57,6 +57,33 @@ test('hello world: spawn, answer a chat, come to a player, quit, and the process
   }
 })
 
+test('in process: inventory, findBlocks, equip and a placement the server confirms', { skip, timeout: 60_000 }, async () => {
+  const server = native.TestServer.start()
+  const via = new NativeTransport({ shards: 1 })
+  try {
+    const bot = await createBot({ host: '127.0.0.1', port: server.port, username: 'Builder', transport: 'raknet', via })
+    server.layFloor(4)
+    const [fx, fy, fz] = server.spawnFeet().map(Math.floor)
+    await until('the floor', () => bot.blockAt({ x: fx, y: fy - 1, z: fz })?.name === 'minecraft:stone')
+    assert.deepEqual(bot.findBlocks({ matching: ['stone'], maxDistance: 2, count: 1 }), [{ x: fx, y: fy - 1, z: fz }])
+    assert.throws(() => bot.findBlocks({ matching: ['no_such_block'] }), { code: 'BAD_PARAMS' })
+
+    server.give(4, 'minecraft:stone', 10)
+    await until('the stone in bot.inventory', () => bot.inventory.some((i) => i.name === 'minecraft:stone'))
+    await bot.equip('stone')
+    await until('the stone in hand', () => bot.heldItem?.name === 'minecraft:stone')
+
+    const placing = bot.placeBlock({ x: fx + 1, y: fy - 1, z: fz }, 'up', { signal: AbortSignal.timeout(20_000) })
+    await until('the placement packet', () => server.inventoryTransactions() > 0)
+    server.setBlock(fx + 1, fy, fz, 'minecraft:stone')
+    await placing
+    await bot.close()
+  } finally {
+    await via.close()
+    server.stop()
+  }
+})
+
 test('in process: events, sync reads, cancel and close', { skip, timeout: 60_000 }, async () => {
   const server = native.TestServer.start()
   const via = new NativeTransport({ shards: 1 })

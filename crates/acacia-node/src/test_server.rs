@@ -1,4 +1,5 @@
-use acacia_proto::packets::{Text, TextCategory, TextContent, TextContentChat, TextType};
+use acacia_proto::packets::{InventoryTransaction, Text, TextCategory, TextContent, TextContentChat, TextType};
+use acacia_proto::Packet;
 use acacia_testserver::{FakeServer, Script};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
@@ -86,6 +87,26 @@ impl TestServer {
     pub fn remove_entity(&self, id: u32) -> Result<()> {
         self.server()?.remove_entity(id.into());
         Ok(())
+    }
+
+    /// Puts `count` of item `name` in main-inventory slot `slot` (0-8: the hotbar).
+    #[napi]
+    pub fn give(&self, slot: u32, name: String, count: u32) -> Result<()> {
+        self.server()?.give(slot, &name, count as u16, 1000 + slot as i32);
+        Ok(())
+    }
+
+    /// Sets one cell to block `name`'s default state, as BDS's block update would.
+    #[napi]
+    pub fn set_block(&self, x: i32, y: i32, z: i32, name: String) -> Result<()> {
+        self.server()?.set_blocks(&[[x, y, z]], acacia_testserver::bds_block_id(&name));
+        Ok(())
+    }
+
+    /// How many `InventoryTransaction` packets (item use on blocks and entities) the client has sent.
+    #[napi]
+    pub fn inventory_transactions(&self) -> Result<u32> {
+        Ok(self.server()?.received().iter().filter(|r| r.packet.id == InventoryTransaction::ID).count() as u32)
     }
 
     #[napi]

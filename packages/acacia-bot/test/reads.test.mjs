@@ -37,6 +37,31 @@ test('entities and players come from the published state, recomputed only when i
   assert.equal(bot.players.Steve.entity, null, 'Steve left view')
 })
 
+test('inventory names stacks from the item table, heldItem follows the selected slot', async () => {
+  const { via, bot } = await connected()
+  assert.deepEqual(bot.inventory, [])
+  assert.equal(bot.heldItem, null)
+  const stack = (slot, networkId, count) => ({ window: 0, slot, networkId, count, metadata: 0 })
+  const cold = { version: 1, inventory: [stack(0, 1, 64), stack(3, 2, 5)], effects: [], players: [] }
+  via.state['bot-1'] = { hot: { ...hot(vec(0, 64, 0)), heldSlot: 3 }, cold }
+  assert.deepEqual(bot.inventory.map((i) => i.name), [null, null], 'no item table yet')
+  via.state['bot-1'].items = { items: [{ id: 1, name: 'minecraft:stone' }, { id: 2, name: 'minecraft:torch' }] }
+  assert.deepEqual(bot.inventory.map((i) => [i.slot, i.name, i.count]), [[0, 'minecraft:stone', 64], [3, 'minecraft:torch', 5]])
+  assert.equal(bot.inventory, bot.inventory, 'one array per change')
+  assert.equal(bot.heldItem?.name, 'minecraft:torch')
+
+  via.state['bot-1'].found = [vec(1, 63, 0)]
+  assert.deepEqual(bot.findBlocks({ matching: ['stone'], maxDistance: 8 }), [vec(1, 63, 0)])
+  assert.deepEqual(via.queries, [{ matching: ['stone'], maxDistance: 8 }])
+
+  const equipping = bot.equip(bot.inventory[0], 'offHand')
+  assert.deepEqual(via.answer('bot.equip').params, { bot: 'bot-1', item: 'minecraft:stone', destination: 'offHand' })
+  await equipping
+  const placing = bot.placeBlock(vec(1, 63, 0))
+  assert.deepEqual(via.answer('bot.placeBlock').params, { bot: 'bot-1', x: 1, y: 63, z: 0 })
+  await placing
+})
+
 test('entity listeners turn their groups on', async () => {
   const { via, bot } = await connected()
   bot.on('entitySpawn', () => {})

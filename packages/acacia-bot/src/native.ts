@@ -5,8 +5,20 @@ import type { Block } from './generated/types/Block.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
 import type { EntityList } from './generated/types/EntityList.js'
 import type { ErrorCode } from './generated/types/ErrorCode.js'
+import type { FindBlocksResult } from './generated/types/FindBlocksResult.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
+import type { ItemTable } from './generated/types/ItemTable.js'
 import type { SyncReads, Transport, TransportListener } from './transport.js'
+
+/** Runs an addon call, turning what it throws (a `code` and a message) into an `AcaciaError`. */
+function rethrown<T>(call: () => T): T {
+  try {
+    return call()
+  } catch (e) {
+    const { code, message } = e as { code?: string; message?: string }
+    throw new AcaciaError((code ?? 'INTERNAL') as ErrorCode, message ?? String(e), { cause: e })
+  }
+}
 
 /** Per bot, the parse of a versioned read, refetched only when its version moves. */
 class Versioned<T> {
@@ -50,6 +62,8 @@ export class NativeTransport implements Transport {
   readonly #hot = new Map<string, { json: string; value: HotSnapshot }>()
   readonly #cold = new Versioned<ColdSnapshot>()
   readonly #entities = new Versioned<EntityList>()
+  /** Per bot, the item table once it arrived (it comes once). */
+  readonly #items = new Map<string, ItemTable>()
 
   constructor(options: NativeTransportOptions = {}) {
     this.#closed = new Promise((resolve) => (this.#resolveClosed = resolve))
@@ -61,12 +75,7 @@ export class NativeTransport implements Transport {
   }
 
   send(command: Command): void {
-    try {
-      this.#host.call(JSON.stringify(command))
-    } catch (e) {
-      const { code, message } = e as { code?: string; message?: string }
-      throw new AcaciaError((code ?? 'INTERNAL') as ErrorCode, message ?? String(e), { cause: e })
-    }
+    rethrown(() => this.#host.call(JSON.stringify(command)))
   }
 
   setKeepAlive(on: boolean): void {
@@ -105,6 +114,19 @@ export class NativeTransport implements Transport {
       const json = this.#host.blockAt(bot, x, y, z)
       return json === null ? null : (JSON.parse(json) as Block)
     },
+    itemTable: (bot) => {
+      const cached = this.#items.get(bot)
+      if (cached) return cached
+      const json = this.#host.itemTable(bot)
+      if (json === null) return null
+      const table = Object.freeze(JSON.parse(json) as ItemTable)
+      if (table.items.length > 0) this.#items.set(bot, table)
+      return table
+    },
+    findBlocks: (bot, query) => {
+      const json = rethrown(() => this.#host.findBlocks(bot, JSON.stringify({ ...query, bot })))
+      return (JSON.parse(json) as FindBlocksResult).blocks
+    },
   }
 
   #receive(batch: string | null): void {
@@ -114,6 +136,7 @@ export class NativeTransport implements Transport {
       this.#hot.clear()
       this.#cold.clear()
       this.#entities.clear()
+      this.#items.clear()
       this.#listener?.closed()
       this.#resolveClosed()
       return

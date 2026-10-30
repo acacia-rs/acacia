@@ -86,6 +86,18 @@ pub struct Effect {
     pub duration: i32,
 }
 
+/// The server's item names by network id, sent once at login: resolves `Stack.networkId`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct ItemTable {
+    pub items: Vec<ItemName>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct ItemName {
+    pub id: i32,
+    pub name: String,
+}
+
 /// A player-list entry.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]

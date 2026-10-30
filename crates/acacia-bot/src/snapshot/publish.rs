@@ -4,6 +4,7 @@ use acacia_world::World;
 
 use super::entity::{build_list, Interner};
 use super::{build, SnapshotReader};
+use crate::state::Entities;
 use crate::Bot;
 
 /// The bot's side of [`SnapshotReader`]: what it last published.
@@ -39,17 +40,37 @@ impl Bot {
             p.cold_version += 1;
             *p.reader.0.cold.lock() = Arc::new(build::build_cold(s, p.cold_version));
         }
-        let entities = Some(s.entities.version());
-        if entities != p.entities_source {
-            p.entities_source = entities;
-            p.entities_version += 1;
-            *p.reader.0.entities.lock() = Arc::new(build_list(&s.entities, p.entities_version, &mut p.interner));
+        p.publish_entities(&s.entities);
+        let mut items = p.reader.0.items.lock();
+        if !s.items.same(&items) {
+            *items = s.items.clone();
         }
+        drop(items);
         let world = self.world.as_ref().and_then(|w| w.view()).map(|v| v.world());
         if world.map(Arc::as_ptr) != p.world.as_ref().map(Arc::as_ptr) {
             p.world = world.cloned();
             *p.reader.0.world.lock() = p.world.clone();
         }
         self.snapshots = Some(p);
+    }
+
+    /// Before entity events go out, so a reader sees the entity an event names (see [`crate::snapshot`]).
+    pub(crate) fn publish_entity_changes(&mut self) {
+        if let Some(p) = &mut self.snapshots
+            && !self.state.entities.changes.is_empty()
+        {
+            p.publish_entities(&self.state.entities);
+        }
+    }
+}
+
+impl Publisher {
+    fn publish_entities(&mut self, entities: &Entities) {
+        let source = Some(entities.version());
+        if source != self.entities_source {
+            self.entities_source = source;
+            self.entities_version += 1;
+            *self.reader.0.entities.lock() = Arc::new(build_list(entities, self.entities_version, &mut self.interner));
+        }
     }
 }

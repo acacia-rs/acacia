@@ -17,6 +17,8 @@
 //!   `HotSnapshot` / `ColdSnapshot` / `EntityList` / `Block` JSON, or `null` (unknown bot, no tick yet, chunk not
 //!   loaded), without a call. `snapshotHot` serializes at most once per bot tick, so callers can compare strings
 //!   to skip a parse; the versioned parts have `coldVersion` / `entitiesVersion` to check before fetching.
+//!   `itemTable` is the server's item names (fetch once it is non-empty); `findBlocks` runs `bot.findBlocks`
+//!   synchronously (bounded by its caps) and throws with the error's `code`.
 //! - **Panics** in the sync functions become JS errors (`catch_unwind`); a bot task's panic is the host's
 //!   (`error` event, its calls fail `INTERNAL`).
 //! - **`TestServer`** (feature `test-server`, test builds only) runs acacia-testserver's `FakeServer` for the

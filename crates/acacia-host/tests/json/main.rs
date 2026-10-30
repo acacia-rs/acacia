@@ -2,6 +2,7 @@
 
 mod common;
 mod entities;
+mod items;
 mod moves;
 
 use std::time::{Duration, Instant};

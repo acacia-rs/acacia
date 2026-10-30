@@ -8,9 +8,13 @@ import type { CommandParams } from "./types/CommandParams";
 import type { CreateBotParams } from "./types/CreateBotParams";
 import type { CreateBotResult } from "./types/CreateBotResult";
 import type { DigParams } from "./types/DigParams";
+import type { EquipParams } from "./types/EquipParams";
+import type { FindBlocksParams } from "./types/FindBlocksParams";
+import type { FindBlocksResult } from "./types/FindBlocksResult";
 import type { FollowParams } from "./types/FollowParams";
 import type { GotoParams } from "./types/GotoParams";
 import type { LookAtParams } from "./types/LookAtParams";
+import type { PlaceBlockParams } from "./types/PlaceBlockParams";
 import type { SetControlStateParams } from "./types/SetControlStateParams";
 import type { SetEventsParams } from "./types/SetEventsParams";
 import type { Snapshot } from "./types/Snapshot";
@@ -98,6 +102,23 @@ export interface Methods {
    * Releases every movement key.
    */
   "bot.clearControlStates": { params: BotParams; result: null; lane: "immediate" };
+  /**
+   * Moves an item from the main inventory to the hand (selected in the hotbar), an armour slot or the off hand.
+   * `NOT_POSSIBLE` when the inventory has none.
+   * @mcp
+   */
+  "bot.equip": { params: EquipParams; result: null; lane: "queued" };
+  /**
+   * Places the held block against a face of a block, waiting until the server shows it (`REJECTED` if it never
+   * does).
+   * @mcp
+   */
+  "bot.placeBlock": { params: PlaceBlockParams; result: null; lane: "queued" };
+  /**
+   * The nearest loaded blocks with any of the names, read from the bot's terrain without waiting for an action.
+   * @mcp
+   */
+  "bot.findBlocks": { params: FindBlocksParams; result: FindBlocksResult; lane: "immediate" };
 }
 
 export type MethodName = keyof Methods;

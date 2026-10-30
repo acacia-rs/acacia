@@ -6,13 +6,37 @@ mod world;
 
 pub(crate) use event::event;
 pub(crate) use snapshot::{cold, entities, hot, snapshot};
-pub(crate) use world::block;
+pub(crate) use world::{block, find_blocks, item_table};
 
-use acacia_api::{ApiError, Control, ErrorCode, EventGroup, FormAnswer, FormValue, Goal};
+use acacia_api::{ApiError, Control, EquipDestination, ErrorCode, EventGroup, Face, FormAnswer, FormValue, Goal};
 use acacia_bot::forms::{FormReply, FormValue as BotFormValue};
+use acacia_bot::interact::Face as BotFace;
 use acacia_bot::movement::Key;
+use acacia_bot::survival::Destination;
 use acacia_bot::pathfind::Goal as BotGoal;
 use acacia_bot::{ActionError, ConnectError, Events};
+
+pub(crate) fn face(face: Face) -> BotFace {
+    match face {
+        Face::Down => BotFace::Down,
+        Face::Up => BotFace::Up,
+        Face::North => BotFace::North,
+        Face::South => BotFace::South,
+        Face::West => BotFace::West,
+        Face::East => BotFace::East,
+    }
+}
+
+pub(crate) fn destination(to: EquipDestination) -> Destination {
+    match to {
+        EquipDestination::Hand => Destination::Hand,
+        EquipDestination::Head => Destination::Head,
+        EquipDestination::Torso => Destination::Chest,
+        EquipDestination::Legs => Destination::Legs,
+        EquipDestination::Feet => Destination::Feet,
+        EquipDestination::OffHand => Destination::OffHand,
+    }
+}
 
 pub(crate) fn key(control: Control) -> Key {
     match control {

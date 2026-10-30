@@ -279,6 +279,7 @@ impl Bot {
         self.auto_respawn(packet, was_alive);
         self.reflex_packet(packet);
         self.on_fetch_packet(packet);
+        self.publish_entity_changes();
         self.events.on_packet(packet, &mut self.state, &mut self.out);
     }
 }

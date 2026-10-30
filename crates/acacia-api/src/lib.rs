@@ -45,7 +45,7 @@ pub use ids::{BotId, CallId, EntityId, UniqueId};
 pub use methods::*;
 pub use out::{batch_json, CallResult, Command, Out};
 pub use params::*;
-pub use snapshot::{ColdSnapshot, Effect, HotSnapshot, PlayerInfo, Snapshot, Stack};
+pub use snapshot::{ColdSnapshot, Effect, HotSnapshot, ItemName, ItemTable, PlayerInfo, Snapshot, Stack};
 pub use table::{Lane, MethodInfo};
 
 /// Bumped only by a breaking change to the schema.
