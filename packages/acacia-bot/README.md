@@ -9,7 +9,11 @@ import { createBot, goals } from '@acacia/bot'
 const bot = await createBot({ host: '127.0.0.1', port: 19132, username: 'Sprout' })
 bot.on('chat', async ({ sender, plain }) => {
   if (plain === '!ping') await bot.chat('pong')
-  if (plain === '!come') await bot.goto(goals.near(0, 64, 0, 2), { signal: AbortSignal.timeout(30_000) })
+  const target = bot.players[sender]?.entity
+  if (plain === '!come' && target) {
+    const { x, y, z } = target.position
+    await bot.goto(goals.near(Math.floor(x), Math.floor(y), Math.floor(z), 2), { signal: AbortSignal.timeout(30_000) })
+  }
 })
 ```
 
@@ -21,7 +25,7 @@ bot.on('chat', async ({ sender, plain }) => {
 npm install
 npm run build        # release addon (napi build, cargo -j 2, this crate only) + tsc
 npm run build:test   # debug addon with the `test-server` feature (TestServer for the end-to-end tests) + tsc
-npm test             # node:test: test/session.test.mjs (fake transport) and test/e2e.test.mjs (FakeServer)
+npm test             # node:test: test/*.test.mjs over a fake transport (test/fake.mjs), e2e.test.mjs over FakeServer
 ```
 
 The end-to-end tests skip when the addon was built without `TestServer`. `src/generated/` is copied from
@@ -48,16 +52,23 @@ acacia-host's; the addon: acacia-node's).
   for host codes (`BUSY`, `UNKNOWN_BOT`, `BAD_PARAMS`, `CLOSED`, `INTERNAL`, ...). `message` is free text.
 - **Events.** `Bot` is a typed `EventEmitter`; each event's payload is the record's event object (`type` included),
   except `error`, which carries an `AcaciaError` (a warning when nobody listens). A group (`chat`, `forms`, `health`,
-  `players`, `windows`, `titles`, `sleep`, `ticks`) is reported while it has a listener or was forced with
-  `createBot({ events })`; changes go out once per microtask. `spawn`, `end`, `lagged` and `error` always come.
+  `players`, `windows`, `titles`, `sleep`, `ticks`, `entities`, `entityMoves`) is reported while it has a listener or
+  was forced with `createBot({ events })`; changes go out once per microtask. `spawn`, `end`, `lagged` and `error`
+  always come. `entitySpawn` / `entityGone` carry an `Entity`; `entityMoved` is high-rate, one event per tick batch
+  listing every entity that moved (`entities`), and is lossy like `physicsTick`.
   Events a bot raises before `createBot` resolves are not delivered; records after it wait one macrotask so the
   caller can attach listeners. `bot.events(name, { signal })` iterates one event and ends with the bot. A listener
   that throws does not stop the batch; its error is rethrown as an uncaught exception afterwards.
-- **Sync reads.** `bot.hot`, `bot.entity`, `bot.health`, `bot.food` and `bot.blockAt(pos)` read the bot's
-  per-tick state and terrain without a call, where the transport offers `reads` (null otherwise, and before the
-  first tick). `bot.hot` is one frozen object per tick. Non-physics bots see only the chunks around them.
+- **Sync reads.** `bot.hot`, `bot.entity`, `bot.health`, `bot.food`, `bot.cold`, `bot.entities`, `bot.players`,
+  `bot.nearestEntity(filter?)` and `bot.blockAt(pos)` read the bot's published state and terrain without a call,
+  where the transport offers `reads` (null or empty otherwise, and before the first tick). `bot.hot` is one frozen
+  object per tick; `cold`, `entities` and `players` are one frozen object per change, rebuilt at most once a tick.
+  Entities need `createBot({ entities })` (default on); their `id` is the decimal-string runtime id actions take,
+  and `position` is the feet, players included. `bot.players` is keyed by name: the player list joined with player
+  entities in view (`entity`, null when out of view), plus players seen only in view (`info` null). Non-physics bots
+  see only the chunks around them.
 - **Process lifetime.** The addon never holds Node open by itself. The session holds it while a bot is live or a
   call is unanswered, and a closing `NativeTransport` holds it until its stream ends, so `node script.js` runs while
   it has bots and exits once they are closed.
 
-Not yet: entity and player positions, `signIn`, `findBlocks`, reconnects, worker_threads (one host per env, untested).
+Not yet: `signIn`, `findBlocks`, reconnects, worker_threads (one host per env, untested).

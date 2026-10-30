@@ -2,13 +2,13 @@ use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 
-use acacia_api::{ApiError, Block, BlockPos, BotId, Command, ErrorCode, HotSnapshot, Method};
+use acacia_api::{ApiError, BotId, Command, ErrorCode, Method};
+use acacia_bot::snapshot::SnapshotReader;
 use acacia_bot::swarm::{BotId as ShardJobId, Job, OnPanic, Shard};
 use acacia_bot::world::SharedWorlds;
 use parking_lot::Mutex;
 
 use crate::bot::{self, Spawn};
-use crate::convert;
 use crate::outbound::{self, Flusher, Outbound, ShardBuf};
 use crate::registry::Registry;
 
@@ -115,18 +115,10 @@ impl Host {
         Ok(())
     }
 
-    /// The bot's state as of its last tick, read without a call; `None` for an unknown bot, one not spawned yet,
-    /// or with [`HostConfig::snapshots`] off.
-    pub fn hot(&self, bot: &BotId) -> Option<HotSnapshot> {
-        let reader = self.registry.lock().reader(bot)?;
-        Some(convert::hot(&reader.hot()))
-    }
-
-    /// The block at a cell of the bot's current dimension, read without a call; `None` as for [`Host::hot`], and
-    /// for a bot that tracks no terrain (no physics) or a chunk it has not loaded.
-    pub fn block_at(&self, bot: &BotId, pos: BlockPos) -> Option<Block> {
-        let world = self.registry.lock().reader(bot)?.world()?;
-        convert::block(&world, pos)
+    /// The bot's published state (see crate::reads); `None` for an unknown bot, one not spawned yet, or with
+    /// [`HostConfig::snapshots`] off.
+    pub(crate) fn reader(&self, bot: &BotId) -> Option<SnapshotReader> {
+        self.registry.lock().reader(bot)
     }
 
     /// Closes every bot (as `bot.close`, waiting at most 10 s for them), sends what is buffered and joins the shard

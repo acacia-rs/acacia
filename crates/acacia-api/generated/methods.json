@@ -14,7 +14,7 @@
             "type": "string"
           },
           "EventGroup": {
-            "description": "A group of events a bot can report (acacia-bot's `Events`); `ticks` is `physicsTick`, 20 a second.",
+            "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (`entityMoved`, once per tick batch); `entities` and `entityMoves` need `entities`.",
             "enum": [
               "chat",
               "forms",
@@ -23,7 +23,9 @@
               "windows",
               "titles",
               "sleep",
-              "ticks"
+              "ticks",
+              "entities",
+              "entityMoves"
             ],
             "type": "string"
           },
@@ -48,6 +50,13 @@
               }
             ],
             "description": "Default `offline`, the only one so far."
+          },
+          "entities": {
+            "description": "Track entities and other players, needed for their positions, entity events, `follow` and `attack`\n(default false: on busy servers it is most of the decode work).",
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "events": {
             "description": "Event groups reported from the start (default none; `bot.setEvents` changes them).",
@@ -290,6 +299,68 @@
             ],
             "type": "object"
           },
+          "Entity": {
+            "description": "A tracked entity or other player (acacia-bot's `EntityInfo`). `kind`, not `type`: events are tagged by `type`.",
+            "properties": {
+              "health": {
+                "description": "When the server sent it (mobs; players' health is not broadcast).",
+                "format": "float",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "id": {
+                "$ref": "#/$defs/EntityId",
+                "description": "The runtime id actions take."
+              },
+              "kind": {
+                "description": "`minecraft:zombie`; `minecraft:player` for players, `minecraft:item` for dropped items.",
+                "type": "string"
+              },
+              "pitch": {
+                "format": "float",
+                "type": "number"
+              },
+              "position": {
+                "$ref": "#/$defs/Vec3",
+                "description": "Feet, players included."
+              },
+              "uniqueId": {
+                "$ref": "#/$defs/UniqueId",
+                "description": "The id player lists and containers name."
+              },
+              "username": {
+                "description": "Players only.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "velocity": {
+                "$ref": "#/$defs/Vec3",
+                "description": "The last velocity the server sent."
+              },
+              "yaw": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "uniqueId",
+              "kind",
+              "position",
+              "velocity",
+              "yaw",
+              "pitch"
+            ],
+            "type": "object"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          },
           "HotSnapshot": {
             "description": "Changes nearly every tick.",
             "properties": {
@@ -520,13 +591,21 @@
           "cold": {
             "$ref": "#/$defs/ColdSnapshot"
           },
+          "entities": {
+            "description": "Empty unless the bot tracks entities.",
+            "items": {
+              "$ref": "#/$defs/Entity"
+            },
+            "type": "array"
+          },
           "hot": {
             "$ref": "#/$defs/HotSnapshot"
           }
         },
         "required": [
           "hot",
-          "cold"
+          "cold",
+          "entities"
         ],
         "title": "Snapshot",
         "type": "object"
@@ -544,7 +623,7 @@
             "type": "string"
           },
           "EventGroup": {
-            "description": "A group of events a bot can report (acacia-bot's `Events`); `ticks` is `physicsTick`, 20 a second.",
+            "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (`entityMoved`, once per tick batch); `entities` and `entityMoves` need `entities`.",
             "enum": [
               "chat",
               "forms",
@@ -553,7 +632,9 @@
               "windows",
               "titles",
               "sleep",
-              "ticks"
+              "ticks",
+              "entities",
+              "entityMoves"
             ],
             "type": "string"
           }

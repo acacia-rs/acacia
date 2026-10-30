@@ -1,6 +1,8 @@
 import type { Command } from './generated/methods.js'
 import type { BotId } from './generated/types/BotId.js'
 import type { Block } from './generated/types/Block.js'
+import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
+import type { EntityList } from './generated/types/EntityList.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
 import type { Out } from './generated/types/Out.js'
 
@@ -12,9 +14,14 @@ export interface TransportListener {
   closed(): void
 }
 
-/** Reads served without a call, where the transport can (the native one can; a socket one would need a mirror). */
+/**
+ * Reads served without a call, where the transport can (the native one can; a socket one would need a mirror).
+ * `hot`, `cold` and `entities` return the same frozen object until the value changes, so callers can cache on it.
+ */
 export interface SyncReads {
   hot(bot: BotId): HotSnapshot | null
+  cold(bot: BotId): ColdSnapshot | null
+  entities(bot: BotId): EntityList | null
   blockAt(bot: BotId, x: number, y: number, z: number): Block | null
 }
 

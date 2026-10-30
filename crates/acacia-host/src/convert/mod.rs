@@ -5,7 +5,7 @@ mod snapshot;
 mod world;
 
 pub(crate) use event::event;
-pub(crate) use snapshot::{hot, snapshot};
+pub(crate) use snapshot::{cold, entities, hot, snapshot};
 pub(crate) use world::block;
 
 use acacia_api::{ApiError, ErrorCode, EventGroup, FormAnswer, FormValue, Goal};
@@ -51,6 +51,8 @@ pub(crate) fn events(groups: &[EventGroup]) -> Events {
             EventGroup::Titles => Events::TITLES,
             EventGroup::Sleep => Events::SLEEP,
             EventGroup::Ticks => Events::TICKS,
+            EventGroup::Entities => Events::ENTITIES,
+            EventGroup::EntityMoves => Events::ENTITY_MOVES,
         }
     })
 }

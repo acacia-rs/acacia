@@ -14,21 +14,24 @@
 mod channel;
 mod chat;
 mod out;
+mod source;
 
 use std::ops::{BitOr, BitOrAssign};
 
-use acacia_client::proto::packets::{ModalFormRequest, OpenSign, SetTitle, SetTitleType, Text};
-use acacia_client::proto::{Packet, RawPacket};
-use acacia_client::{DisconnectReason, PacketFilter, Violation};
+use acacia_client::proto::packets::{SetTitle, SetTitleType};
+use acacia_client::proto::RawPacket;
+use acacia_client::{DisconnectReason, Violation};
 
 pub use channel::{channel, EventReceiver};
 pub use chat::{ChatKind, ChatMatch, ChatMessage, ChatPattern};
 pub(crate) use chat::flatten as rawtext_value;
 pub use out::EventSink;
 pub(crate) use out::EventOut;
+pub(crate) use source::EventSource;
 
 use crate::forms::Form;
-use crate::state::{Container, GameState, PlayerChange, PlayerListEntry};
+use crate::snapshot::EntityInfo;
+use crate::state::{Container, PlayerListEntry};
 
 /// Which groups of [`BotEvent`]s the bot emits (`Events::CHAT | Events::HEALTH`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -50,10 +53,14 @@ impl Events {
     pub const TITLES: Self = Self(1 << 5);
     /// [`BotEvent::Slept`], [`BotEvent::Woke`].
     pub const SLEEP: Self = Self(1 << 6);
-    /// Every group above. Not [`Events::TICKS`], which wakes the caller 20 times a second.
+    /// Every group above. Not the opt-in ones below.
     pub const ALL: Self = Self((1 << 7) - 1);
-    /// [`BotEvent::Tick`].
+    /// [`BotEvent::Tick`]: wakes the caller 20 times a second.
     pub const TICKS: Self = Self(1 << 7);
+    /// [`BotEvent::EntitySpawned`], [`BotEvent::EntityGone`]; needs `Trackers::entities`.
+    pub const ENTITIES: Self = Self(1 << 8);
+    /// [`BotEvent::EntitiesMoved`], once per tick batch; needs `Trackers::entities` and is high-rate on busy servers.
+    pub const ENTITY_MOVES: Self = Self(1 << 9);
 
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0 && other.0 != 0
@@ -88,6 +95,12 @@ pub enum BotEvent {
     Respawned,
     PlayerJoined(PlayerListEntry),
     PlayerLeft(PlayerListEntry),
+    /// An entity or other player came into view.
+    EntitySpawned(EntityInfo),
+    /// An entity left view or was removed (last known state); every one on a dimension change.
+    EntityGone(EntityInfo),
+    /// Entities that moved since the last such event (spawns count).
+    EntitiesMoved(Vec<EntityInfo>),
     /// A window opened (the own inventory too); its contents usually follow in later packets.
     WindowOpened(Container),
     /// The open window's contents arrived (`InventoryContent`): first after its [`BotEvent::WindowOpened`],
@@ -111,9 +124,10 @@ pub enum BotEvent {
 }
 
 impl BotEvent {
-    /// A newer event or the state supersedes it (ticks, raw packets, violations, titles), so a full queue may drop it.
+    /// A newer event or the state supersedes it (ticks, raw packets, violations, titles, moves), so a full queue
+    /// may drop it.
     pub fn is_lossy(&self) -> bool {
-        matches!(self, Self::Packet(_) | Self::Tick | Self::Violation(_) | Self::Title(_))
+        matches!(self, Self::Packet(_) | Self::Tick | Self::Violation(_) | Self::Title(_) | Self::EntitiesMoved(_))
     }
 }
 
@@ -148,150 +162,6 @@ impl Title {
         };
         let text = if json { chat::rawtext(&p.text) } else { p.text };
         Some(Self { kind, text })
-    }
-}
-
-/// Turns applied packets into [`BotEvent`]s, remembering what it last reported.
-pub(crate) struct EventSource {
-    events: Events,
-    patterns: Vec<ChatPattern>,
-    /// The connection's packet filter without the packets only events need.
-    base: PacketFilter,
-    vitals: (f32, f32, f32),
-    alive: bool,
-    window: Option<i32>,
-    contents: u64,
-    sleeping: bool,
-}
-
-impl EventSource {
-    pub(crate) fn new(events: Events, patterns: Vec<ChatPattern>) -> Self {
-        let base = PacketFilter::none();
-        Self { events, patterns, base, vitals: (20.0, 20.0, 5.0), alive: true, window: None, contents: 0, sleeping: false }
-    }
-
-    /// `base`: the packets the connection takes whatever the events.
-    pub(crate) fn with_base(self, base: PacketFilter) -> Self {
-        Self { base, ..self }
-    }
-
-    pub(crate) fn events(&self) -> Events {
-        self.events
-    }
-
-    pub(crate) fn set(&mut self, events: Events) {
-        self.events = events;
-    }
-
-    /// The connection's packet filter for the enabled events.
-    pub(crate) fn filter(&self) -> PacketFilter {
-        self.packet_ids().into_iter().fold(self.base.clone(), PacketFilter::with)
-    }
-
-    /// Packets the enabled events need beyond the always-on trackers.
-    pub(crate) fn packet_ids(&self) -> Vec<u32> {
-        let mut ids = Vec::new();
-        if self.events.contains(Events::CHAT) || !self.patterns.is_empty() {
-            ids.push(Text::ID);
-        }
-        if self.events.contains(Events::TITLES) {
-            ids.push(SetTitle::ID);
-        }
-        ids
-    }
-
-    pub(crate) fn wants(&self, group: Events) -> bool {
-        self.events.contains(group)
-    }
-
-    /// Queues the events `packet` caused; `state` already reflects it.
-    pub(crate) fn on_packet(&mut self, packet: &RawPacket, state: &mut GameState, out: &mut EventOut) {
-        let changes = std::mem::take(&mut state.player_list.changes);
-        if self.wants(Events::PLAYERS) {
-            out.extend(changes.into_iter().map(|c| match c {
-                PlayerChange::Joined(p) => BotEvent::PlayerJoined(p),
-                PlayerChange::Left(p) => BotEvent::PlayerLeft(p),
-            }));
-        }
-        match packet.id {
-            // Text also arrives for bed refusals (sleep.rs) when chat is off.
-            Text::ID if self.wants(Events::CHAT) || !self.patterns.is_empty() => self.on_text(packet, out),
-            OpenSign::ID if self.wants(Events::WINDOWS) => {
-                if let Some(e) = state.signs.editor {
-                    out.push(BotEvent::SignEditor { position: e.position, front: e.front });
-                }
-            }
-            ModalFormRequest::ID if self.wants(Events::FORMS) => {
-                let id = packet.decode::<ModalFormRequest>().map(|p| p.form_id);
-                if let Some(form) = id.ok().and_then(|id| state.forms.get(id)) {
-                    out.push(BotEvent::Form(form.clone()));
-                }
-            }
-            SetTitle::ID if self.wants(Events::TITLES) => {
-                if let Some(title) = packet.decode().ok().and_then(Title::from_packet) {
-                    out.push(BotEvent::Title(title));
-                }
-            }
-            _ => {}
-        }
-        if self.wants(Events::HEALTH) {
-            self.on_vitals(state, out);
-        }
-        if self.wants(Events::WINDOWS) {
-            self.on_window(state, out);
-        }
-        if self.wants(Events::SLEEP) && state.player.is_sleeping() != self.sleeping {
-            self.sleeping = !self.sleeping;
-            out.push(if self.sleeping { BotEvent::Slept } else { BotEvent::Woke });
-        }
-    }
-
-    fn on_text(&self, packet: &RawPacket, out: &mut EventOut) {
-        let Some(message) = packet.decode::<Text>().ok().and_then(ChatMessage::from_packet) else { return };
-        if !self.patterns.is_empty() {
-            let plain = message.plain();
-            for pattern in &self.patterns {
-                if let Some(groups) = pattern.captures(&plain) {
-                    out.push(BotEvent::ChatMatch(ChatMatch { pattern: pattern.name.clone(), groups, message: message.clone() }));
-                }
-            }
-        }
-        if self.wants(Events::CHAT) {
-            out.push(BotEvent::Chat(message));
-        }
-    }
-
-    fn on_vitals(&mut self, state: &GameState, out: &mut EventOut) {
-        let p = &state.player;
-        let vitals = (p.health, p.hunger, p.saturation);
-        if vitals != self.vitals {
-            self.vitals = vitals;
-            out.push(BotEvent::Health { health: p.health, food: p.hunger, saturation: p.saturation });
-        }
-        if p.alive != self.alive {
-            self.alive = p.alive;
-            out.push(if p.alive { BotEvent::Respawned } else { BotEvent::Died });
-        }
-    }
-
-    fn on_window(&mut self, state: &GameState, out: &mut EventOut) {
-        let open = state.containers.open.as_ref();
-        let id = open.map(|c| c.window_id);
-        if id != self.window {
-            if let Some(window_id) = self.window {
-                out.push(BotEvent::WindowClosed { window_id });
-            }
-            if let Some(container) = open {
-                out.push(BotEvent::WindowOpened(container.clone()));
-            }
-            self.window = id;
-        }
-        if state.containers.contents != self.contents {
-            self.contents = state.containers.contents;
-            if let Some(container) = open {
-                out.push(BotEvent::WindowContents(container.clone()));
-            }
-        }
     }
 }
 

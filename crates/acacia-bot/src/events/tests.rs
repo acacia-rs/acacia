@@ -2,10 +2,13 @@ use acacia_client::proto::packets::{
     ContainerClose, ContainerOpen, SetHealth, SetTitle, SetTitleType, Text, TextCategory, TextContent, TextContentRaw,
     TextType,
 };
+use acacia_client::proto::packets::OpenSign;
 use acacia_client::proto::types::{BlockCoordinates, WindowID, WindowIDVarint, WindowType};
+use acacia_client::proto::Packet;
 
 use super::*;
 use crate::state::queries::test_support::{content, empty_item, item, raw, slot_packet};
+use crate::state::GameState;
 
 fn run(source: &mut EventSource, state: &mut GameState, packet: RawPacket) -> Vec<BotEvent> {
     state.apply(&packet).unwrap();
@@ -131,6 +134,42 @@ fn sleeping_and_sign_editor() {
     let open = OpenSign { position: BlockCoordinates { x: 4, y: 5, z: 6 }, is_front: true };
     let events = run(&mut source, &mut state, raw(&open));
     assert!(matches!(events.as_slice(), [BotEvent::SignEditor { position: [4, 5, 6], front: true }]));
+}
+
+#[test]
+fn entity_spawns_removals_and_moves_are_reported_when_wanted() {
+    use acacia_client::proto::packets::{AddEntity, MoveEntityDelta, RemoveEntity};
+    use crate::state::queries::test_support::fixtures;
+    let mut add: AddEntity = fixtures::<AddEntity>()[0].decode().unwrap();
+    (add.runtime_id, add.unique_id, add.entity_type) = (7, 70, "minecraft:zombie".into());
+    let trackers = crate::state::Trackers { entities: true, ..Default::default() };
+    let mut state = GameState::new(trackers, 1);
+    let mut quiet = EventSource::new(Events::NONE, Vec::new());
+    assert!(run(&mut quiet, &mut state, raw(&add)).is_empty());
+    assert!(state.entities.changes.is_empty(), "changes are taken even when nobody wants them");
+
+    let mut source = EventSource::new(Events::ENTITIES | Events::ENTITY_MOVES, Vec::new());
+    (add.runtime_id, add.unique_id) = (8, 80);
+    let events = run(&mut source, &mut state, raw(&add));
+    assert!(matches!(events.as_slice(), [BotEvent::EntitySpawned(e)] if e.runtime_id == 8 && &*e.kind == "minecraft:zombie"));
+
+    // As in Bot::run_ticks: the clock advances, then the moves are reported.
+    let mut out = EventOut::new(None);
+    state.entities.advance();
+    source.on_ticks(&state, &mut out);
+    assert!(matches!(out.pop(), Some(BotEvent::EntitiesMoved(m)) if m.len() == 2), "spawns count as moves");
+    state.entities.advance();
+    source.on_ticks(&state, &mut out);
+    assert!(out.pop().is_none(), "nothing moved since");
+    let mut delta: MoveEntityDelta = fixtures::<MoveEntityDelta>()[0].decode().unwrap();
+    (delta.runtime_entity_id, delta.x) = (7, Some(3.0));
+    run(&mut source, &mut state, raw(&delta));
+    state.entities.advance();
+    source.on_ticks(&state, &mut out);
+    assert!(matches!(out.pop(), Some(BotEvent::EntitiesMoved(m)) if m.len() == 1 && m[0].runtime_id == 7));
+
+    let events = run(&mut source, &mut state, raw(&RemoveEntity { entity_id_self: 70 }));
+    assert!(matches!(events.as_slice(), [BotEvent::EntityGone(e)] if e.runtime_id == 7 && e.unique_id == 70));
 }
 
 #[tokio::test]

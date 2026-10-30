@@ -21,9 +21,9 @@ pub const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const LOCK: &str = "fake server lock";
 
 #[derive(Default)]
-struct Shared {
-    received: Vec<Received>,
-    sent: Vec<Received>,
+pub(crate) struct Shared {
+    pub(crate) received: Vec<Received>,
+    pub(crate) sent: Vec<Received>,
     /// When the server sent PlayStatus(PlayerSpawn), after Login.
     spawned: Option<Duration>,
 }
@@ -101,7 +101,12 @@ impl FakeServer {
         raw.decode().map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
     }
 
-    async fn wait_for<R>(&self, mut check: impl FnMut(&Shared) -> Option<R>) -> io::Result<R> {
+    /// What the server sent so far (script and test packets), in order.
+    pub fn sent(&self) -> Vec<Received> {
+        self.shared.lock().expect(LOCK).sent.clone()
+    }
+
+    pub(crate) async fn wait_for<R>(&self, mut check: impl FnMut(&Shared) -> Option<R>) -> io::Result<R> {
         let mut changes = self.changes.clone();
         let wait = async {
             loop {

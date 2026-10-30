@@ -48,6 +48,46 @@ impl TestServer {
         Ok(texts.filter_map(|t| if let TextContent::Chat(c) = t.content { Some(c.message) } else { None }).collect())
     }
 
+    /// The feet position the script spawns the player at, `[x, y, z]`.
+    #[napi]
+    pub fn spawn_feet(&self) -> Result<Vec<f64>> {
+        let feet = self.server()?.spawn_feet().ok_or_else(|| Error::from_reason("no StartGame sent yet"))?;
+        Ok(feet.map(f64::from).to_vec())
+    }
+
+    /// Lays a stone floor `half` cells around the spawn, one below the feet, once the client has its chunks
+    /// (blocks until then, at most 10 s).
+    #[napi]
+    pub fn lay_floor(&self, half: i32) -> Result<()> {
+        let server = self.server()?;
+        let [x, y, z] = server.spawn_feet().ok_or_else(|| Error::from_reason("no StartGame sent yet"))?;
+        let feet = [x.floor() as i32, y.floor() as i32, z.floor() as i32];
+        let columns: Vec<_> = [-half, half].iter().flat_map(|dx| [-half, half].map(|dz| ((feet[0] + dx) >> 4, (feet[2] + dz) >> 4))).collect();
+        self.runtime()?.block_on(server.columns_sent(&columns))?;
+        server.lay_floor(feet, half, acacia_testserver::bds_block_id("minecraft:stone"));
+        Ok(())
+    }
+
+    /// Shows another player with its feet at `(x, y, z)`; `id` is both its runtime and unique id.
+    #[napi]
+    pub fn add_player(&self, name: String, id: u32, x: f64, y: f64, z: f64) -> Result<()> {
+        self.server()?.add_player(&name, id.into(), id.into(), [x as f32, y as f32, z as f32]);
+        Ok(())
+    }
+
+    /// Shows an entity of `kind` with its feet at `(x, y, z)`; `id` is both its runtime and unique id.
+    #[napi]
+    pub fn add_entity(&self, kind: String, id: u32, x: f64, y: f64, z: f64) -> Result<()> {
+        self.server()?.add_entity(&kind, id.into(), id.into(), [x as f32, y as f32, z as f32]);
+        Ok(())
+    }
+
+    #[napi]
+    pub fn remove_entity(&self, id: u32) -> Result<()> {
+        self.server()?.remove_entity(id.into());
+        Ok(())
+    }
+
     #[napi]
     pub fn kick(&self, message: String) -> Result<()> {
         self.server()?.kick(message);
@@ -66,5 +106,9 @@ impl TestServer {
 
     fn server(&self) -> Result<&FakeServer> {
         self.server.as_ref().ok_or_else(|| Error::from_reason("the test server has stopped"))
+    }
+
+    fn runtime(&self) -> Result<&Runtime> {
+        self.runtime.as_ref().ok_or_else(|| Error::from_reason("the test server has stopped"))
     }
 }

@@ -8,18 +8,22 @@ impl Bot {
     /// A full snapshot built now, whether or not snapshots are published (see [`crate::snapshot`]).
     pub fn snapshot(&self) -> BotSnapshot {
         let tick = self.snapshots.as_ref().map_or(0, |p| p.tick);
-        BotSnapshot { hot: self.hot_snapshot(tick), cold: Arc::new(build_cold(&self.state, 0)) }
+        let entities = Arc::new(super::entity::build_list(&self.state.entities, 0, &mut Default::default()));
+        BotSnapshot { hot: self.hot_snapshot(tick), cold: Arc::new(build_cold(&self.state, 0)), entities }
     }
 
     pub(super) fn hot_snapshot(&self, tick: u64) -> Hot {
         let (s, p) = (&self.state, &self.state.player);
         let m = self.movement.as_ref();
+        // A physics bot's body is its simulation's (the server's position only moves on corrections).
+        let simulated = m.and_then(|m| Some((m.position()?, m.controls.yaw, m.controls.pitch)));
+        let (position, yaw, pitch) = simulated.unwrap_or(([p.position.x, p.position.y, p.position.z], p.yaw, p.pitch));
         Hot {
             tick,
-            position: [p.position.x, p.position.y, p.position.z],
+            position,
             velocity: m.and_then(|m| m.velocity()).unwrap_or_default(),
-            yaw: p.yaw,
-            pitch: p.pitch,
+            yaw,
+            pitch,
             on_ground: m.is_some_and(|m| m.on_ground()),
             health: p.health,
             max_health: p.max_health,

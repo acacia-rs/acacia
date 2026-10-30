@@ -114,9 +114,25 @@ pub struct Entities {
     now: u64,
     /// Lean tracking ([`super::Trackers::hazards`]): only what hazard avoidance reads is kept.
     pub(crate) lean: bool,
+    /// Moves on every entity packet applied (a cheap over-approximation of "something changed").
+    version: u64,
+    /// Spawns and removals since the event source last took them (full tracking only).
+    pub(crate) changes: Vec<EntityChange>,
+}
+
+/// One spawn or removal, for the entity events.
+#[derive(Debug)]
+pub(crate) enum EntityChange {
+    Spawned(u64),
+    Gone(Box<Entity>),
 }
 
 impl Entities {
+    /// Moves whenever an entity packet was applied; snapshots rebuild their list on it.
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
     pub fn get(&self, runtime_id: u64) -> Option<&Entity> {
         self.by_runtime.get(&runtime_id).map(|e| &**e)
     }
@@ -134,6 +150,7 @@ impl Entities {
     /// send moves for).
     pub(crate) fn set_pose(&mut self, runtime_id: u64, feet: [f32; 3], yaw: f32, pitch: f32) {
         if let Some(e) = self.by_runtime.get_mut(&runtime_id) {
+            self.version += 1;
             let [x, y, z] = feet;
             e.position = Vec3f { x, y, z };
             (e.yaw, e.pitch) = (yaw, pitch);

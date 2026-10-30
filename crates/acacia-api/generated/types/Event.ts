@@ -2,6 +2,7 @@
 import type { BlockPos } from "./BlockPos";
 import type { ChatLine } from "./ChatLine";
 import type { EndReason } from "./EndReason";
+import type { Entity } from "./Entity";
 import type { Form } from "./Form";
 import type { PlayerInfo } from "./PlayerInfo";
 import type { TitleKind } from "./TitleKind";
@@ -10,4 +11,4 @@ import type { Window } from "./Window";
 /**
  * One bot event. New variants are added within a protocol version: keep a catch-all arm.
  */
-export type Event = { "type": "spawn" } | { "type": "health", health: number, food: number, saturation: number, } | { "type": "death" } | { "type": "respawn" } | { "type": "chat" } & ChatLine | { "type": "chatMatch", pattern: string, groups: Array<string>, line: ChatLine, } | { "type": "form" } & Form | { "type": "playerJoined" } & PlayerInfo | { "type": "playerLeft" } & PlayerInfo | { "type": "windowOpen" } & Window | { "type": "windowUpdate" } & Window | { "type": "windowClose", windowId: number, } | { "type": "signEditor", position: BlockPos, front: boolean, } | { "type": "title", kind: TitleKind, text: string, } | { "type": "sleep" } | { "type": "wake" } | { "type": "physicsTick" } | { "type": "violation", message: string, } | { "type": "lagged", dropped: number, } | { "type": "error", message: string, } | { "type": "end", reason: EndReason, message: string, };
+export type Event = { "type": "spawn" } | { "type": "health", health: number, food: number, saturation: number, } | { "type": "death" } | { "type": "respawn" } | { "type": "chat" } & ChatLine | { "type": "chatMatch", pattern: string, groups: Array<string>, line: ChatLine, } | { "type": "form" } & Form | { "type": "playerJoined" } & PlayerInfo | { "type": "playerLeft" } & PlayerInfo | { "type": "entitySpawn" } & Entity | { "type": "entityGone" } & Entity | { "type": "entityMoved", entities: Array<Entity>, } | { "type": "windowOpen" } & Window | { "type": "windowUpdate" } & Window | { "type": "windowClose", windowId: number, } | { "type": "signEditor", position: BlockPos, front: boolean, } | { "type": "title", kind: TitleKind, text: string, } | { "type": "sleep" } | { "type": "wake" } | { "type": "physicsTick" } | { "type": "violation", message: string, } | { "type": "lagged", dropped: number, } | { "type": "error", message: string, } | { "type": "end", reason: EndReason, message: string, };

@@ -1,9 +1,27 @@
-use acacia_api::{ColdSnapshot, Effect, HotSnapshot, PlayerInfo, Snapshot, Stack, UniqueId};
-use acacia_bot::snapshot::{self as bot, BotSnapshot};
+use acacia_api::{ColdSnapshot, Effect, Entity, EntityId, EntityList, HotSnapshot, PlayerInfo, Snapshot, Stack, UniqueId};
+use acacia_bot::snapshot::{self as bot, BotSnapshot, EntityInfo};
 use acacia_bot::state::{ItemStack, PlayerListEntry};
 
 pub(crate) fn snapshot(s: &BotSnapshot) -> Snapshot {
-    Snapshot { hot: hot(&s.hot), cold: cold(&s.cold) }
+    Snapshot { hot: hot(&s.hot), cold: cold(&s.cold), entities: s.entities.entities.iter().map(entity).collect() }
+}
+
+pub(crate) fn entity(e: &EntityInfo) -> Entity {
+    Entity {
+        id: EntityId(e.runtime_id),
+        unique_id: UniqueId(e.unique_id),
+        kind: e.kind.to_string(),
+        username: e.username.as_deref().map(str::to_owned),
+        position: e.position.into(),
+        velocity: e.velocity.into(),
+        yaw: e.yaw,
+        pitch: e.pitch,
+        health: e.health,
+    }
+}
+
+pub(crate) fn entities(list: &bot::EntityList) -> EntityList {
+    EntityList { version: list.version, entities: list.entities.iter().map(entity).collect() }
 }
 
 pub(crate) fn hot(h: &bot::Hot) -> HotSnapshot {
@@ -33,7 +51,7 @@ pub(crate) fn hot(h: &bot::Hot) -> HotSnapshot {
     }
 }
 
-fn cold(c: &bot::Cold) -> ColdSnapshot {
+pub(crate) fn cold(c: &bot::Cold) -> ColdSnapshot {
     let player = |p: &bot::Player| PlayerInfo {
         uuid: p.uuid.to_string(),
         username: p.username.to_string(),

@@ -12,9 +12,11 @@
 pub mod capture;
 pub mod load;
 mod peer;
+mod scene;
 mod script;
 mod server;
 
 pub use peer::Received;
+pub use scene::bds_block_id;
 pub use script::{Script, Step};
 pub use server::{FakeServer, WAIT_TIMEOUT};

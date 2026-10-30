@@ -4,13 +4,15 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{UniqueId, Vec3};
+use crate::{Entity, UniqueId, Vec3};
 
 /// The bot's state at one moment.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct Snapshot {
     pub hot: HotSnapshot,
     pub cold: ColdSnapshot,
+    /// Empty unless the bot tracks entities.
+    pub entities: Vec<Entity>,
 }
 
 /// Changes nearly every tick.

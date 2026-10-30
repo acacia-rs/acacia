@@ -9,7 +9,7 @@ use schemars::generate::SchemaSettings;
 use serde_json::json;
 use ts_rs::TS;
 
-use crate::{Block, MethodInfo, Out, METHODS, PROTOCOL_VERSION};
+use crate::{Block, ColdSnapshot, EntityList, HotSnapshot, MethodInfo, Out, METHODS, PROTOCOL_VERSION};
 
 /// 64-bit counters (`seq`, `tick`, `version`) stay JSON numbers; ids opt out with `#[ts(type = "string")]`.
 pub fn ts_config(out_dir: &Path) -> ts_rs::Config {
@@ -23,6 +23,9 @@ pub fn generate(dir: &Path) -> io::Result<()> {
     ts(Out::export_all(&cfg))?;
     // Read through transports' sync getters, not by any method.
     ts(Block::export_all(&cfg))?;
+    ts(HotSnapshot::export_all(&cfg))?;
+    ts(ColdSnapshot::export_all(&cfg))?;
+    ts(EntityList::export_all(&cfg))?;
     for m in METHODS {
         ts((m.params.ts_export)(&cfg))?;
         ts((m.result.ts_export)(&cfg))?;

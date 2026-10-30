@@ -6,7 +6,7 @@ use acacia_bot::forms::{self, Element, FormKind};
 use acacia_bot::state::Container;
 use acacia_bot::{BotEvent, DisconnectReason};
 
-use super::snapshot::{player, slots};
+use super::snapshot::{entity, player, slots};
 
 /// `None` for what the schema does not carry yet (raw packets).
 pub(crate) fn event(e: BotEvent) -> Option<Event> {
@@ -19,6 +19,9 @@ pub(crate) fn event(e: BotEvent) -> Option<Event> {
         BotEvent::Respawned => Event::Respawn,
         BotEvent::PlayerJoined(p) => Event::PlayerJoined(player(&p)),
         BotEvent::PlayerLeft(p) => Event::PlayerLeft(player(&p)),
+        BotEvent::EntitySpawned(e) => Event::EntitySpawn(entity(&e)),
+        BotEvent::EntityGone(e) => Event::EntityGone(entity(&e)),
+        BotEvent::EntitiesMoved(moved) => Event::EntityMoved { entities: moved.iter().map(entity).collect() },
         BotEvent::WindowOpened(c) => Event::WindowOpen(window(&c)),
         BotEvent::WindowContents(c) => Event::WindowUpdate(window(&c)),
         BotEvent::WindowClosed { window_id } => Event::WindowClose { window_id },

@@ -26,15 +26,17 @@
 //!   frame. The same bytes either way.
 //!
 //! - **Reads.** With [`HostConfig::snapshots`] each bot publishes its state per tick (acacia_bot::snapshot), and
-//!   [`Host::hot`] / [`Host::block_at`] read it and the bot's terrain from any thread without a call or a `done`.
+//!   [`Host::hot`], [`Host::cold`], [`Host::entities`] and [`Host::block_at`] read it and the bot's terrain from
+//!   any thread without a call or a `done`.
 //!
-//! Not yet: reconnects through the swarm supervisor, online sign-in, entity and player positions.
+//! Not yet: reconnects through the swarm supervisor, online sign-in.
 
 mod bot;
 mod calls;
 mod convert;
 mod host;
 mod outbound;
+mod reads;
 mod registry;
 
 pub use host::{Host, HostConfig};

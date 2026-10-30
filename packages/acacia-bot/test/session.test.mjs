@@ -4,47 +4,7 @@ import { test } from 'node:test'
 import { setImmediate as tick } from 'node:timers/promises'
 
 import { AcaciaError, ActionError, ConnectError, createBot } from '@acacia/bot'
-
-class FakeTransport {
-  sent = []
-  keepAlive = []
-  refuse = null
-  open(listener) {
-    this.listener = listener
-  }
-  send(command) {
-    if (this.refuse) throw new AcaciaError(this.refuse, 'refused')
-    this.sent.push(command)
-  }
-  setKeepAlive(on) {
-    this.keepAlive.push(on)
-  }
-  close() {
-    this.listener.closed()
-    return Promise.resolve()
-  }
-  push(...records) {
-    this.listener.records(records)
-  }
-  last(method) {
-    return this.sent.findLast((c) => c.method === method)
-  }
-  done(call, result = { ok: null }, bot = 'bot-1') {
-    return { type: 'done', bot, call, result }
-  }
-  event(event, seq = 1, bot = 'bot-1') {
-    return { type: 'event', bot, seq, event }
-  }
-}
-
-async function connected(options = {}) {
-  const via = new FakeTransport()
-  const creating = createBot({ host: 'h', username: 'U', via, ...options })
-  via.push(via.event({ type: 'spawn' }), via.done(via.last('createBot').call, { ok: { bot: 'bot-1' } }))
-  const bot = await creating
-  await tick()
-  return { via, bot }
-}
+import { connected, FakeTransport } from './fake.mjs'
 
 const chat = (plain) => ({ type: 'chat', kind: 'chat', sender: 'S', message: plain, plain, params: [], xuid: '' })
 

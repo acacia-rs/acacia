@@ -5,9 +5,11 @@ import { NativeTransport } from './native.js'
 import { Session } from './session.js'
 import type { Transport } from './transport.js'
 
-export interface BotOptions extends Omit<CreateBotParams, 'physics' | 'events'> {
+export interface BotOptions extends Omit<CreateBotParams, 'physics' | 'entities' | 'events'> {
   /** Simulate movement and track terrain, needed to walk (default true). */
   physics?: boolean
+  /** Track entities and other players: `entities`, `players`, entity events, `follow`, `attack` (default true). */
+  entities?: boolean
   /** Event groups reported whatever the listeners (default none: listeners turn their groups on). */
   events?: EventGroup[]
   /** The host to run on (default: one in-process `NativeTransport` shared by every bot). */
@@ -25,9 +27,9 @@ function sessionFor(transport: Transport): Session {
 
 /** Connects a bot; resolves once it has spawned. Rejects with a `ConnectError` when it cannot connect. */
 export async function createBot(options: BotOptions): Promise<Bot> {
-  const { via, physics = true, events = [], ...params } = options
+  const { via, physics = true, entities = true, events = [], ...params } = options
   const session = sessionFor(via ?? (shared ??= new NativeTransport()))
-  const { bot } = await session.call('createBot', { ...params, physics, events })
+  const { bot } = await session.call('createBot', { ...params, physics, entities, events })
   return new Bot(session, bot, params.username, events)
 }
 

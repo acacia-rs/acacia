@@ -13,8 +13,10 @@
 //! - **Keep-alive.** The threadsafe function is weak, so the addon never holds Node's event loop by itself.
 //!   `setKeepAlive(true)` refs it and `false` unrefs it; the caller holds it while it owes the script something
 //!   (live bots, unanswered calls, a close in progress) and must release it once the stream has ended.
-//! - **Sync reads** (`snapshotHot`, `blockAt`) return acacia-api `HotSnapshot` / `Block` JSON, or `null` (unknown
-//!   bot, no tick yet, chunk not loaded), without a call. `snapshotHot` serializes at most once per bot tick, so callers can compare strings to skip a parse.
+//! - **Sync reads** (`snapshotHot`, `snapshotCold`, `snapshotEntities`, `blockAt`) return acacia-api
+//!   `HotSnapshot` / `ColdSnapshot` / `EntityList` / `Block` JSON, or `null` (unknown bot, no tick yet, chunk not
+//!   loaded), without a call. `snapshotHot` serializes at most once per bot tick, so callers can compare strings
+//!   to skip a parse; the versioned parts have `coldVersion` / `entitiesVersion` to check before fetching.
 //! - **Panics** in the sync functions become JS errors (`catch_unwind`); a bot task's panic is the host's
 //!   (`error` event, its calls fail `INTERNAL`).
 //! - **`TestServer`** (feature `test-server`, test builds only) runs acacia-testserver's `FakeServer` for the

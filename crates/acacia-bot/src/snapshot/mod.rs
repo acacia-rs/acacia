@@ -4,6 +4,9 @@
 //! - [`Cold`] (inventory, effects, player list) is rebuilt only when the version counters of
 //!   [`crate::state::Inventory`], [`crate::state::Effects`] or [`crate::state::PlayerList`] move, and shared as an
 //!   `Arc`; [`Cold::version`] changes exactly when it is rebuilt, so readers can cache on it.
+//! - [`EntityList`] (tracked entities, feet positions) is rebuilt at most once per tick batch, when the entity
+//!   tracker's version moved; [`EntityList::version`] changes exactly when it is rebuilt. Empty unless
+//!   `Trackers::entities` (or `hazards`) is on.
 //! - Stacks carry network ids, not names (resolve them once through the bot's item table); player strings are
 //!   shared, not copied.
 //! - Blocks need no copy: [`SnapshotReader::world`] is the bot's current dimension, readable from any thread;
@@ -12,6 +15,7 @@
 //!   Measurements: `research/js-measure/snapshot-results.md` and `examples/snapshot_cost.rs`.
 
 mod build;
+mod entity;
 mod publish;
 
 use std::sync::Arc;
@@ -20,6 +24,7 @@ use acacia_client::proto::manual::Uuid;
 use acacia_world::World;
 use parking_lot::Mutex;
 
+pub use entity::{EntityInfo, EntityList};
 pub(crate) use publish::Publisher;
 
 /// Changes nearly every tick.
@@ -93,6 +98,7 @@ pub struct Cold {
 pub struct BotSnapshot {
     pub hot: Hot,
     pub cold: Arc<Cold>,
+    pub entities: Arc<EntityList>,
 }
 
 /// Reads a bot's published snapshot from any thread (see [`crate::snapshot`]). Cheap to clone.
@@ -103,6 +109,7 @@ pub struct SnapshotReader(Arc<Slot>);
 struct Slot {
     hot: Mutex<Hot>,
     cold: Mutex<Arc<Cold>>,
+    entities: Mutex<Arc<EntityList>>,
     world: Mutex<Option<Arc<World>>>,
 }
 
@@ -115,8 +122,12 @@ impl SnapshotReader {
         self.0.cold.lock().clone()
     }
 
+    pub fn entities(&self) -> Arc<EntityList> {
+        self.0.entities.lock().clone()
+    }
+
     pub fn get(&self) -> BotSnapshot {
-        BotSnapshot { hot: self.hot(), cold: self.cold() }
+        BotSnapshot { hot: self.hot(), cold: self.cold(), entities: self.entities() }
     }
 
     /// The bot's terrain (`None` before StartGame); blocks via `World::get(cx, cz)` and the chunk's read lock.

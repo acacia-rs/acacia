@@ -26,6 +26,9 @@ const GROUP_OF: Partial<Record<string, EventGroup>> = {
   sleep: 'sleep',
   wake: 'sleep',
   physicsTick: 'ticks',
+  entitySpawn: 'entities',
+  entityGone: 'entities',
+  entityMoved: 'entityMoves',
 }
 
 /**

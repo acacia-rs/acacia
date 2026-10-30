@@ -25,6 +25,11 @@ transport?: Transport,
  */
 physics?: boolean, 
 /**
+ * Track entities and other players, needed for their positions, entity events, `follow` and `attack`
+ * (default false: on busy servers it is most of the decode work).
+ */
+entities?: boolean, 
+/**
  * Event groups reported from the start (default none; `bot.setEvents` changes them).
  */
 events?: Array<EventGroup>, };

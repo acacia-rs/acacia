@@ -106,6 +106,30 @@ impl NativeHost {
         Some(json)
     }
 
+    /// The version of the bot's `ColdSnapshot`, or null for an unknown bot.
+    #[napi(catch_unwind)]
+    pub fn cold_version(&self, bot: String) -> Option<i64> {
+        self.host.cold_version(&BotId(bot)).map(|v| v as i64)
+    }
+
+    /// The bot's `ColdSnapshot` (JSON), or null for an unknown bot.
+    #[napi(catch_unwind)]
+    pub fn snapshot_cold(&self, bot: String) -> Option<String> {
+        serde_json::to_string(&self.host.cold(&BotId(bot))?).ok()
+    }
+
+    /// The version of the bot's `EntityList`, or null for an unknown bot.
+    #[napi(catch_unwind)]
+    pub fn entities_version(&self, bot: String) -> Option<i64> {
+        self.host.entities_version(&BotId(bot)).map(|v| v as i64)
+    }
+
+    /// The bot's `EntityList` (JSON), or null for an unknown bot.
+    #[napi(catch_unwind)]
+    pub fn snapshot_entities(&self, bot: String) -> Option<String> {
+        serde_json::to_string(&self.host.entities(&BotId(bot))?).ok()
+    }
+
     /// The `Block` at a cell of the bot's dimension (JSON), or null when unknown (see acacia-host's `block_at`).
     #[napi(catch_unwind)]
     pub fn block_at(&self, bot: String, x: i32, y: i32, z: i32) -> Option<String> {

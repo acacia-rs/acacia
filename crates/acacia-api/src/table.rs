@@ -12,8 +12,6 @@ use schemars::{generate::SchemaSettings, JsonSchema, Schema};
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::BotId;
-
 /// How the host runs a method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,9 +61,15 @@ fn export<T: TS + 'static>(cfg: &ts_rs::Config) -> Result<(), ts_rs::ExportError
     if T::output_path().is_none() { Ok(()) } else { T::export_all(cfg) }
 }
 
-/// The bot a method's params address (`None` for host methods).
-pub trait Target {
-    fn bot(&self) -> Option<&BotId>;
+/// The bot a method's params address: every params type but a host method's has a `bot` field.
+macro_rules! target {
+    (Host, $p:ident) => {{
+        let _ = $p;
+        None
+    }};
+    ($lane:ident, $p:ident) => {
+        Some(&$p.bot)
+    };
 }
 
 macro_rules! api {
@@ -104,7 +108,7 @@ macro_rules! api {
             }
 
             pub fn bot(&self) -> Option<&$crate::BotId> {
-                match self { $( Self::$variant(p) => $crate::table::Target::bot(p), )* }
+                match self { $( Self::$variant(p) => $crate::table::target!($lane, p), )* }
             }
         }
 
@@ -122,4 +126,4 @@ macro_rules! api {
     };
 }
 
-pub(crate) use api;
+pub(crate) use {api, target};

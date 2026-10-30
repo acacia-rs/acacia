@@ -21,7 +21,7 @@ async function until(what, check, ms = 10_000) {
   }
 }
 
-test('hello world: spawn, answer a chat, quit, and the process exits on its own', { skip, timeout: 60_000 }, async () => {
+test('hello world: spawn, answer a chat, come to a player, quit, and the process exits on its own', { skip, timeout: 60_000 }, async () => {
   const server = native.TestServer.start()
   const child = spawn(process.execPath, ['examples/hello.mjs', `127.0.0.1:${server.port}`, 'Hello'], { cwd: pkg })
   let out = ''
@@ -32,6 +32,18 @@ test('hello world: spawn, answer a chat, quit, and the process exits on its own'
     await until('spawn', () => out.includes('spawned as Hello'), 20_000)
     server.chat('Steve', '!ping')
     await until('pong', () => server.receivedChat().includes('pong'))
+
+    server.layFloor(8)
+    const [x, y, z] = server.spawnFeet()
+    server.addPlayer('Steve', 77, Math.floor(x) + 5.5, Math.floor(y), Math.floor(z) + 0.5)
+    await until('Steve in view', () => out.includes('sees Steve'))
+    server.chat('Steve', '!come')
+    await until('the walk to Steve', () => /here|no path|gave up/.test(server.receivedChat().join(' ')), 35_000).catch((e) => {
+      throw new Error(`${e.message}\n${out}`)
+    })
+    assert.match(out, new RegExp(`coming to Steve at ${(Math.floor(x) + 5.5).toFixed(1)} `))
+    assert.ok(server.receivedChat().includes('here'), `${out}\n${server.receivedChat()}`)
+
     server.chat('Steve', '!quit')
     const quit = Date.now()
     const [code] = await Promise.race([exited, sleep(15_000, ['still running'], { ref: false })])
@@ -63,6 +75,18 @@ test('in process: events, sync reads, cancel and close', { skip, timeout: 60_000
     const { x, y, z } = hot.position
     await until('the chunk under the bot', () => bot.blockAt({ x, y: y - 1, z }) !== null, 5_000)
     assert.match(bot.blockAt({ x, y: y - 1, z }).name, /^minecraft:/)
+
+    const seen = []
+    bot.on('entitySpawn', (e) => seen.push(['spawn', e.id, e.kind]))
+    bot.on('entityGone', (e) => seen.push(['gone', e.id]))
+    server.addEntity('minecraft:zombie', 90, x + 2, y, z)
+    await until('the zombie spawn', () => seen.some(([what, id]) => what === 'spawn' && id === '90'))
+    assert.deepEqual(seen.find(([, id]) => id === '90'), ['spawn', '90', 'minecraft:zombie'])
+    await until('the zombie in bot.entities', () => bot.entities['90'] !== undefined)
+    assert.equal(bot.nearestEntity((e) => e.kind === 'minecraft:zombie')?.id, '90')
+    server.removeEntity(90)
+    await until('the zombie gone', () => seen.some(([what, id]) => what === 'gone' && id === '90'))
+    await until('the zombie out of bot.entities', () => bot.entities['90'] === undefined)
 
     const aborted = new AbortController()
     const long = bot.waitForTicks(400, { signal: aborted.signal })

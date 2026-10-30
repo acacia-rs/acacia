@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{BlockPos, Form, PlayerInfo, Stack, UniqueId};
+use crate::{BlockPos, Entity, Form, PlayerInfo, Stack, UniqueId};
 
 /// One bot event. New variants are added within a protocol version: keep a catch-all arm.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
@@ -29,6 +29,12 @@ pub enum Event {
     PlayerJoined(PlayerInfo),
     /// Group `players`.
     PlayerLeft(PlayerInfo),
+    /// Group `entities`: an entity or other player came into view.
+    EntitySpawn(Entity),
+    /// Group `entities`: an entity left view or was removed (its last known state); all of them on a dimension change.
+    EntityGone(Entity),
+    /// Group `entityMoves`: every entity that moved since the last one (spawns count), once per tick batch.
+    EntityMoved { entities: Vec<Entity> },
     /// Group `windows`: a window opened (the own inventory too); contents usually follow as `windowUpdate`.
     WindowOpen(Window),
     /// Group `windows`: the open window's contents arrived or were refreshed.
@@ -59,7 +65,7 @@ pub enum Event {
 impl Event {
     /// A newer event or the state supersedes it, so a backed-up stream may drop it (and say so with `lagged`).
     pub fn is_lossy(&self) -> bool {
-        matches!(self, Self::PhysicsTick | Self::Violation { .. } | Self::Title { .. })
+        matches!(self, Self::PhysicsTick | Self::Violation { .. } | Self::Title { .. } | Self::EntityMoved { .. })
     }
 }
 

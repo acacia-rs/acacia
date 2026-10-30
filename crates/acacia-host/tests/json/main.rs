@@ -1,94 +1,16 @@
 //! Driving bots purely through command JSON and reading the record stream back (contract: the crate docs).
 
+mod common;
+mod entities;
+
 use std::time::{Duration, Instant};
 
 use acacia_api::{BlockPos, BotId, ErrorCode};
-use acacia_bot::proto::packets::{Text, TextCategory, TextContent, TextContentRaw, TextType};
-use acacia_host::{Host, HostConfig, Outbound};
+use acacia_host::{Host, HostConfig};
 use acacia_testserver::{FakeServer, Script};
-use serde_json::{json, Value};
-use tokio::time::{sleep, timeout};
-
-struct Driver {
-    host: Host,
-    out: Outbound,
-    /// Every record read so far, in stream order.
-    seen: Vec<Value>,
-}
-
-impl Driver {
-    fn start() -> Self {
-        let (host, out) = Host::start(HostConfig { shards: 2, ..HostConfig::default() }).unwrap();
-        Self { host, out, seen: Vec::new() }
-    }
-
-    fn call(&self, call: u64, method: &str, params: Value) {
-        let command = json!({ "call": call, "method": method, "params": params }).to_string();
-        self.host.call(&command).unwrap_or_else(|e| panic!("{method} refused: {e}"));
-    }
-
-    /// Reads the stream until a record matches `want`; returns its index in `seen`.
-    async fn until(&mut self, what: &str, want: impl Fn(&Value) -> bool) -> usize {
-        if let Some(i) = self.seen.iter().position(&want) {
-            return i;
-        }
-        let deadline = Instant::now() + Duration::from_secs(20);
-        loop {
-            let left = deadline.saturating_duration_since(Instant::now());
-            let batch = timeout(left, self.out.recv()).await.unwrap_or_else(|_| panic!("no {what}; seen {:#?}", self.seen));
-            let batch: Vec<Value> = serde_json::from_str(&batch.expect("stream open")).unwrap();
-            let from = self.seen.len();
-            self.seen.extend(batch);
-            if let Some(i) = self.seen[from..].iter().position(&want) {
-                return from + i;
-            }
-        }
-    }
-
-    async fn done(&mut self, call: u64) -> (usize, Value) {
-        let i = self.until(&format!("done {call}"), |r| r["type"] == "done" && r["call"] == call).await;
-        (i, self.seen[i]["result"].clone())
-    }
-
-    /// Creates a bot on `server`; returns its id.
-    async fn create(&mut self, server: &FakeServer, call: u64, name: &str) -> String {
-        let addr = server.addr();
-        let params = json!({ "host": addr.ip().to_string(), "port": addr.port(), "username": name, "transport": "raknet", "events": ["chat"] });
-        self.call(call, "createBot", params);
-        let (i, result) = self.done(call).await;
-        let bot = result["ok"]["bot"].as_str().unwrap_or_else(|| panic!("createBot failed: {result}")).to_owned();
-        let spawn = self.until("spawn", |r| r["type"] == "event" && r["event"]["type"] == "spawn" && r["bot"] == bot).await;
-        assert!(spawn < i, "spawn comes before createBot resolves");
-        server.spawned().await.expect("script reaches PlayerSpawn");
-        bot
-    }
-
-    fn event_index(&self, bot: &str, event: impl Fn(&Value) -> bool) -> Option<usize> {
-        self.seen.iter().position(|r| r["type"] == "event" && r["bot"] == bot && event(&r["event"]))
-    }
-}
-
-fn chat_line(message: &str) -> Text {
-    Text {
-        needs_translation: false,
-        category: TextCategory::MessageOnly,
-        r#type: TextType::Raw,
-        content: TextContent::Raw(TextContentRaw { message: message.into() }),
-        xuid: String::new(),
-        platform_chat_id: String::new(),
-        has_filtered_message: false,
-        filtered_message: None,
-    }
-}
-
-fn code(result: &Value) -> &str {
-    result["err"]["code"].as_str().unwrap_or_else(|| panic!("not an error: {result}"))
-}
-
-fn sent_chat(server: &FakeServer, text: &str) -> bool {
-    let lines = server.received().into_iter().filter_map(|r| r.packet.decode::<Text>().ok());
-    lines.into_iter().any(|t| matches!(&t.content, TextContent::Chat(c) if c.message == text))
-}
+use common::{chat_line, code, sent_chat, Driver};
+use serde_json::json;
+use tokio::time::sleep;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_bot_runs_on_json_alone() {

@@ -336,6 +336,7 @@ dependencies = [
  "acacia-proto",
  "acacia-raknet",
  "acacia-session",
+ "acacia-world",
  "bytes",
  "flate2",
  "hex",

@@ -9,6 +9,7 @@ use std::sync::Arc;
 use acacia_api::{ApiError, CallId, CreateBotParams, CreateBotResult, EndReason, ErrorCode, Event, Method, Reply, Transport};
 use acacia_bot::client::{Client, TransportKind};
 use acacia_bot::events::channel;
+use acacia_bot::state::Trackers;
 use acacia_bot::world::SharedWorlds;
 use acacia_bot::{Bot, BotConfig};
 use parking_lot::Mutex;
@@ -43,6 +44,7 @@ pub(crate) async fn run(spawn: Spawn) {
     let address = format!("{}:{}", params.host, params.port.unwrap_or(19132));
     let builder = Client::builder(address).offline(params.username).transport(transport);
     let config = BotConfig {
+        trackers: Trackers { entities: params.entities.unwrap_or(false), ..Trackers::default() },
         physics: params.physics.unwrap_or(false),
         events: convert::events(params.events.as_deref().unwrap_or_default()),
         event_sink: Some(sink),

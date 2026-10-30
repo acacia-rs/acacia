@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use acacia_world::World;
 
+use super::entity::{build_list, Interner};
 use super::{build, SnapshotReader};
 use crate::Bot;
 
@@ -13,6 +14,10 @@ pub(crate) struct Publisher {
     /// Inventory, effects and player-list versions the published cold part was built from.
     sources: Option<(u64, u64, u64)>,
     cold_version: u64,
+    /// The entity tracker's version the published list was built from.
+    entities_source: Option<u64>,
+    entities_version: u64,
+    interner: Interner,
     world: Option<Arc<World>>,
 }
 
@@ -33,6 +38,12 @@ impl Bot {
             p.sources = sources;
             p.cold_version += 1;
             *p.reader.0.cold.lock() = Arc::new(build::build_cold(s, p.cold_version));
+        }
+        let entities = Some(s.entities.version());
+        if entities != p.entities_source {
+            p.entities_source = entities;
+            p.entities_version += 1;
+            *p.reader.0.entities.lock() = Arc::new(build_list(&s.entities, p.entities_version, &mut p.interner));
         }
         let world = self.world.as_ref().and_then(|w| w.view()).map(|v| v.world());
         if world.map(Arc::as_ptr) != p.world.as_ref().map(Arc::as_ptr) {
