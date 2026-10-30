@@ -8,10 +8,23 @@ pub(crate) use event::event;
 pub(crate) use snapshot::{cold, entities, hot, snapshot};
 pub(crate) use world::block;
 
-use acacia_api::{ApiError, ErrorCode, EventGroup, FormAnswer, FormValue, Goal};
+use acacia_api::{ApiError, Control, ErrorCode, EventGroup, FormAnswer, FormValue, Goal};
 use acacia_bot::forms::{FormReply, FormValue as BotFormValue};
+use acacia_bot::movement::Key;
 use acacia_bot::pathfind::Goal as BotGoal;
 use acacia_bot::{ActionError, ConnectError, Events};
+
+pub(crate) fn key(control: Control) -> Key {
+    match control {
+        Control::Forward => Key::Forward,
+        Control::Back => Key::Back,
+        Control::Left => Key::Left,
+        Control::Right => Key::Right,
+        Control::Jump => Key::Jump,
+        Control::Sneak => Key::Sneak,
+        Control::Sprint => Key::Sprint,
+    }
+}
 
 pub(crate) fn action_error(e: ActionError) -> ApiError {
     let code = match &e {

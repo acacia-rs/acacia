@@ -7,6 +7,7 @@ use acacia_client::ClientSender;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot};
 
+use crate::movement::Key;
 use crate::snapshot::BotSnapshot;
 use crate::{Bot, Events};
 
@@ -25,6 +26,11 @@ pub enum Immediate {
     Cancel,
     /// [`Bot::snapshot`], built when the request is handled.
     Snapshot(oneshot::Sender<BotSnapshot>),
+    /// [`crate::movement::Controls::set_key`] on a physics bot. An action that drives the bot overrides the keys
+    /// while it runs, and [`Bot::abandon_action`] releases them.
+    Key(Key, bool),
+    /// Releases every movement key.
+    ReleaseKeys,
 }
 
 /// Sends a bot [`Immediate`] requests from any thread (see [`crate::inbox`]). Cheap to clone.
@@ -88,6 +94,12 @@ impl Bot {
             Immediate::SetEvents(events) => self.set_events(events),
             Immediate::Cancel => self.cancel_handle().cancel(),
             Immediate::Snapshot(reply) => _ = reply.send(self.snapshot()),
+            Immediate::Key(key, down) => {
+                if let Some(c) = self.controls() {
+                    c.set_key(key, down);
+                }
+            }
+            Immediate::ReleaseKeys => self.release_keys(),
         }
     }
 }

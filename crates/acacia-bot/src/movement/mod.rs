@@ -16,7 +16,7 @@ mod rotation_noise;
 #[cfg(test)]
 mod tests;
 
-pub use controls::Controls;
+pub use controls::{Controls, Key};
 pub(crate) use controls::{attach_actions, VehicleCorrection};
 pub use fork::Rollout;
 pub use idle::Idle;

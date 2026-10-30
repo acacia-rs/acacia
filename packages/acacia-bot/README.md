@@ -42,8 +42,14 @@ acacia-host's; the addon: acacia-node's).
   process-wide `NativeTransport`; `closeAll()` shuts it down.
 - **Calls** resolve or reject from their `done` record, which comes after every event the bot raised before the call
   ended: listeners see what happened during `goto` before `await bot.goto()` returns. A refusal (`BUSY`,
-  `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `dig`, `answerForm` and `waitForTicks` queue per bot and run
-  in call order; `chat`, `command`, `setEvents`, `snapshot` and `close` run at once, mid-action too.
+  `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `dig`, `answerForm` and
+  `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`, `setControlState`,
+  `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
+- **Movement.** `goto(goal)` takes a plain `Goal`: the classes `GoalBlock`, `GoalNear`, `GoalXZ`, `GoalY`,
+  `GoalAway` and `GoalCompositeAny` (mineflayer-pathfinder's names) or the shorthands `goals.near(...)` etc. build
+  one. `follow(entity, { range, signal })` keeps within `range` (default 2) of an entity until aborted; it never
+  resolves on its own. Entity arguments take an `Entity` or its `id`. Control states are held keys of a physics bot:
+  a running movement action (`goto`, `follow`) overrides them, and every queued call releases them when it ends.
 - **Cancellation.** An aborted `signal` sends `cancel` for the call; the promise rejects with `signal.reason`
   (`AbortError`, or `TimeoutError` from `AbortSignal.timeout`) once the bot has stopped. A signal that is already
   aborted rejects without sending anything. `createBot` cannot be cancelled yet.

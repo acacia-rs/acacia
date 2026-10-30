@@ -1205,6 +1205,224 @@
         "title": "null",
         "type": "null"
       }
+    },
+    {
+      "description": "Keeps within `range` of a tracked entity, walking after it, until cancelled (physics and entity tracking).\nNever resolves on its own: it ends with `CANCELLED`, or `DISCONNECTED`.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.follow",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "entity": {
+            "$ref": "#/$defs/EntityId",
+            "description": "A tracked entity's id (players included)."
+          },
+          "range": {
+            "description": "Blocks (Euclidean) to keep within; 2 when absent.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot",
+          "entity"
+        ],
+        "title": "FollowParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Turns the bot's eyes to a point.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.lookAt",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A world point the bot turns its eyes to.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "x": {
+            "format": "float",
+            "type": "number"
+          },
+          "y": {
+            "format": "float",
+            "type": "number"
+          },
+          "z": {
+            "format": "float",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "LookAtParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Swings at a tracked entity in reach. `NOT_POSSIBLE` out of reach or unknown, `NOT_VISIBLE` behind blocks.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.attack",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "entity": {
+            "$ref": "#/$defs/EntityId"
+          }
+        },
+        "required": [
+          "bot",
+          "entity"
+        ],
+        "title": "AttackParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Holds or releases a movement key (physics bots). An action that moves the bot overrides the keys while it\nruns, and every queued call releases them when it ends.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.setControlState",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Control": {
+            "description": "A movement key (mineflayer's control names).",
+            "enum": [
+              "forward",
+              "back",
+              "left",
+              "right",
+              "jump",
+              "sneak",
+              "sprint"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "control": {
+            "$ref": "#/$defs/Control"
+          },
+          "state": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bot",
+          "control",
+          "state"
+        ],
+        "title": "SetControlStateParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Releases every movement key.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.clearControlStates",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
     }
   ],
   "protocolVersion": 1

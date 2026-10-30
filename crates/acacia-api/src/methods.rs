@@ -29,4 +29,16 @@ api! {
     "bot.answerForm" => AnswerForm(AnswerFormParams) -> (), Queued [mcp];
     /// Lets ticks pass (50 ms each) while the bot keeps playing.
     "bot.waitForTicks" => WaitForTicks(WaitForTicksParams) -> (), Queued [mcp];
+    /// Keeps within `range` of a tracked entity, walking after it, until cancelled (physics and entity tracking).
+    /// Never resolves on its own: it ends with `CANCELLED`, or `DISCONNECTED`.
+    "bot.follow" => Follow(FollowParams) -> (), Queued [mcp];
+    /// Turns the bot's eyes to a point.
+    "bot.lookAt" => LookAt(LookAtParams) -> (), Queued [mcp];
+    /// Swings at a tracked entity in reach. `NOT_POSSIBLE` out of reach or unknown, `NOT_VISIBLE` behind blocks.
+    "bot.attack" => Attack(AttackParams) -> (), Queued [mcp];
+    /// Holds or releases a movement key (physics bots). An action that moves the bot overrides the keys while it
+    /// runs, and every queued call releases them when it ends.
+    "bot.setControlState" => SetControlState(SetControlStateParams) -> (), Immediate [];
+    /// Releases every movement key.
+    "bot.clearControlStates" => ClearControlStates(BotParams) -> (), Immediate [];
 }

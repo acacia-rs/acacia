@@ -129,6 +129,17 @@ impl Driver {
         BlockPos { x: hot.position.x.floor() as i32, y: (hot.position.y + 0.01).floor() as i32, z: hot.position.z.floor() as i32 }
     }
 
+    pub async fn hot_until(&self, bot: &str, what: &str, want: impl Fn(&HotSnapshot) -> bool) -> HotSnapshot {
+        let id = BotId(bot.to_owned());
+        self.read(what, |h| h.hot(&id).filter(&want)).await
+    }
+
+    /// Waits until the bot's published entity list holds runtime id `id`.
+    pub async fn tracked(&self, bot: &str, id: u64) {
+        let bot = BotId(bot.to_owned());
+        self.read(&format!("entity {id} tracked"), |h| h.entities(&bot).filter(|l| l.entities.iter().any(|e| e.id.0 == id))).await;
+    }
+
     pub fn hot(&self, bot: &str) -> HotSnapshot {
         self.host.hot(&BotId(bot.to_owned())).expect("a spawned bot publishes its state")
     }
@@ -149,6 +160,15 @@ pub fn chat_line(message: &str) -> Text {
 
 pub fn code(result: &Value) -> &str {
     result["err"]["code"].as_str().unwrap_or_else(|| panic!("not an error: {result}"))
+}
+
+/// Waits until the server has received a packet with id `id`.
+pub async fn received(server: &FakeServer, id: u32) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !server.received().iter().any(|r| r.packet.id == id) {
+        assert!(Instant::now() < deadline, "the server never got packet {id}");
+        sleep(Duration::from_millis(20)).await;
+    }
 }
 
 pub fn sent_chat(server: &FakeServer, text: &str) -> bool {

@@ -86,6 +86,14 @@ impl Lanes {
                 let sent = self.inbox.send(Immediate::SetEvents(convert::events(&p.events)));
                 self.sent(call, sent, Reply::SetEvents(()));
             }
+            Method::SetControlState(p) => {
+                let sent = self.inbox.send(Immediate::Key(convert::key(p.control), p.state));
+                self.sent(call, sent, Reply::SetControlState(()));
+            }
+            Method::ClearControlStates(_) => {
+                let sent = self.inbox.send(Immediate::ReleaseKeys);
+                self.sent(call, sent, Reply::ClearControlStates(()));
+            }
             Method::Snapshot(_) => {
                 let (tx, rx) = oneshot::channel();
                 if self.inbox.send(Immediate::Snapshot(tx)) {
