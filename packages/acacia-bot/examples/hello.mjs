@@ -7,7 +7,6 @@ const [address = '127.0.0.1:19132', username = 'Sprout'] = process.argv.slice(2)
 const [host, port = '19132'] = address.split(':')
 
 const bot = await createBot({ host, port: Number(port), username, transport: 'raknet' })
-console.log(`spawned as ${username}`)
 
 async function walk(goal) {
   try {
@@ -47,3 +46,6 @@ bot.on('chat', async ({ sender, plain }) => {
 })
 
 bot.on('end', ({ reason, message }) => console.log(`ended: ${reason} (${message})`))
+// The listeners' event groups reach the bot before this tick ends, so chat sent after the log line is heard.
+await bot.waitForTicks(1)
+console.log(`spawned as ${username}`)
