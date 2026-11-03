@@ -1,5 +1,5 @@
 import { BotCore } from './core.js'
-import { AcaciaError } from './errors.js'
+import { AcaciaError, ActionError } from './errors.js'
 import type { Block } from './generated/types/Block.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
@@ -58,6 +58,34 @@ export class BotReads extends BotCore {
   /** The per-tick state; null before the first tick. */
   get hot(): HotSnapshot | null {
     return this.session.reads?.hot(this.id) ?? null
+  }
+
+  /**
+   * Resolves once the bot has ticked (`bot.hot` set where the transport has reads) and reports the event groups of
+   * the listeners attached so far (contract: the package README, Sync reads). Rejects `DISCONNECTED` if it ends first.
+   */
+  async ready(options: { signal?: AbortSignal } = {}): Promise<void> {
+    const ticked = this.hot ? undefined : this.#firstTick(options.signal)
+    await Promise.all([ticked, this.listenersApplied()])
+  }
+
+  #firstTick(signal?: AbortSignal): Promise<void> {
+    if (this.ended) return Promise.reject(new ActionError('DISCONNECTED', 'the bot has ended'))
+    if (signal?.aborted) return Promise.reject(signal.reason)
+    return new Promise((resolve, reject) => {
+      const settle = (then: () => void) => {
+        this.off('physicsTick', tick)
+        this.off('end', end)
+        signal?.removeEventListener('abort', abort)
+        then()
+      }
+      const tick = () => settle(resolve)
+      const end = () => settle(() => reject(new ActionError('DISCONNECTED', 'the bot ended before its first tick')))
+      const abort = () => settle(() => reject(signal!.reason))
+      this.on('physicsTick', tick)
+      this.on('end', end)
+      signal?.addEventListener('abort', abort, { once: true })
+    })
   }
 
   get entity(): EntityView | null {

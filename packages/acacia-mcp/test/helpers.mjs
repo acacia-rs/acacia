@@ -28,13 +28,13 @@ export async function fakeBots(username = 'U') {
   return { via, bots, handle }
 }
 
-/** Answers the last `createBot` with bot `id` spawned, then publishes the first snapshot `connect` waits for. */
+/** Answers the last `createBot` with bot `id` spawned, then the first tick `connect` waits for (`bot.ready()`). */
 export async function spawn(via, id = 'bot-1') {
   const before = via.sent.length
   via.push(via.event({ type: 'spawn' }, 1, id), via.done(via.last('createBot').call, { ok: { bot: id } }, id))
-  const wait = await sent(via, 'bot.waitForTicks', before)
+  const groups = await sent(via, 'bot.setEvents', before)
   via.state[id] = { ...via.state[id], hot: via.state[id]?.hot ?? { tick: 1 } }
-  via.push(via.done(wait.call, { ok: null }, id))
+  via.push(via.done(groups.call, { ok: null }, id), via.event({ type: 'physicsTick' }, 2, id))
 }
 
 /** Calls tool `name` and returns `{ text, structured, isError }`. */

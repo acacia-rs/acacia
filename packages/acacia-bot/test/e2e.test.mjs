@@ -47,7 +47,8 @@ test('in process: events, sync reads, cancel and close', { skip, timeout: 60_000
     const bot = await createBot({ host: '127.0.0.1', port: server.port, username: 'Inproc', transport: 'raknet', physics: false, via })
     const lines = []
     bot.on('chat', (line) => lines.push(line.plain))
-    await bot.waitForTicks(10)
+    await bot.ready()
+    assert.ok(bot.hot?.tick > 0, 'ready: the first tick is readable')
     server.chat('Steve', 'mid-action')
     await bot.waitForTicks(10)
     assert.deepEqual(lines, ['mid-action'], 'a listener turned the chat group on')
@@ -63,7 +64,7 @@ test('in process: events, sync reads, cancel and close', { skip, timeout: 60_000
     bot.on('entitySpawn', (e) => seen.push(['spawn', e.id, e.kind]))
     bot.on('entityGone', (e) => seen.push(['gone', e.id]))
     // The listeners' setEvents must reach the bot before the AddEntity does, or the spawn is filtered out.
-    await bot.waitForTicks(2)
+    await bot.ready()
     server.addEntity('minecraft:zombie', 90, x + 2, y, z)
     await until('the zombie spawn', () => seen.some(([what, id]) => what === 'spawn' && id === '90'))
     assert.deepEqual(seen.find(([, id]) => id === '90'), ['spawn', '90', 'minecraft:zombie'])

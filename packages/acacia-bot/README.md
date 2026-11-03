@@ -81,7 +81,10 @@ acacia-host's; the addon: acacia-node's).
 - **Sync reads.** `bot.hot`, `bot.entity`, `bot.health`, `bot.food`, `bot.cold`, `bot.entities`, `bot.players`,
   `bot.nearestEntity(filter?)` and `bot.blockAt(pos)` read the bot's published state and terrain without a call,
   where the transport offers `reads` (null or empty otherwise, and before the first tick: `createBot` resolves at
-  spawn, and `waitForTicks(n)` is a timed pause that can end before that tick, so loop on it until `bot.hot` is set). `bot.hot` is one frozen
+  spawn). `await bot.ready({ signal })` waits for that tick: it resolves once the bot has ticked (on its first
+  `physicsTick`, at once if `bot.hot` is already set) and the event groups of the listeners attached so far are on,
+  so attach listeners, then await it; it rejects `DISCONNECTED` if the bot ends first. `waitForTicks(n)` is a timed
+  pause and can end before a tick. `bot.hot` is one frozen
   object per tick; `cold` and `players` are one frozen object per change (`players`: an entity or player-list
   entry coming or going), rebuilt at most once a tick except that a spawn or removal is published before its
   `entitySpawn` / `entityGone` event, so a listener finds `bot.entities` agreeing with the event.

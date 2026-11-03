@@ -11,8 +11,6 @@ export interface ConnectOptions {
 
 /** Unread chat lines kept per bot; older ones are dropped first. */
 const CHAT_KEEP = 200
-/** One-tick waits `connect` spends at most on the first snapshot (a transport without reads never has one). */
-const FIRST_SNAPSHOT_WAITS = 40
 
 /** One connected bot and what the tools keep for it: unread chat, open forms, running actions. */
 export class BotHandle {
@@ -96,8 +94,7 @@ export class BotRegistry {
     const connecting = createBot({ host, port, username, transport, via: this.via })
       .then(async (bot) => {
         const handle = new BotHandle(bot)
-        // createBot resolves before the first snapshot, and waitForTicks is a timed pause that may end before a tick.
-        for (let i = 0; i < FIRST_SNAPSHOT_WAITS && !bot.hot; i++) await bot.waitForTicks(1)
+        await bot.ready()
         this.#bots.set(key, handle)
         bot.once('end', () => this.#bots.delete(key))
         return handle

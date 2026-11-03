@@ -19,6 +19,8 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
   readonly username: string
   protected readonly session: Session
   #ended = false
+  readonly #subscriptions: Subscriptions
+  #groupsSent: Promise<void> = Promise.resolve()
 
   /** @internal Use `createBot`. */
   constructor(session: Session, id: BotId, username: string, forcedEvents: readonly EventGroup[]) {
@@ -26,13 +28,19 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
     this.id = id
     this.username = username
     this.session = session
-    const subscriptions = new Subscriptions(forcedEvents, (events) => {
-      if (!this.#ended) this.call('bot.setEvents', { events }).catch(() => {})
+    this.#subscriptions = new Subscriptions(forcedEvents, (events) => {
+      if (!this.#ended) this.#groupsSent = this.call('bot.setEvents', { events }).catch(() => {})
     })
     const emitter = this as EventEmitter
-    emitter.on('newListener', (name: string | symbol) => subscriptions.added(name))
-    emitter.on('removeListener', (name: string | symbol) => subscriptions.removed(name))
+    emitter.on('newListener', (name: string | symbol) => this.#subscriptions.added(name))
+    emitter.on('removeListener', (name: string | symbol) => this.#subscriptions.removed(name))
     session.attach(id, this)
+  }
+
+  /** Resolves once the bot reports the event groups of the listeners attached so far. */
+  protected listenersApplied(): Promise<void> {
+    this.#subscriptions.flush()
+    return this.#groupsSent
   }
 
   /** @internal Called by the session for each of this bot's events. */

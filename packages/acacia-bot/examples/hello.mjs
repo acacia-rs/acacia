@@ -47,6 +47,5 @@ bot.on('chat', async ({ sender, plain }) => {
 })
 
 bot.on('end', ({ reason, message }) => console.log(`ended: ${reason} (${message})`))
-// The listeners' event groups reach the bot before this tick ends, so chat sent after the log line is heard.
-await bot.waitForTicks(1)
+await bot.ready()
 console.log(`spawned as ${username}`)

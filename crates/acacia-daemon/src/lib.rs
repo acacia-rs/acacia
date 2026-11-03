@@ -29,7 +29,8 @@
 //!   attached are dropped. `bots` lists every bot: `{bots: [{bot, username, persist, attached, mine}]}`.
 //! - **Reads.** Sync reads cannot cross a socket (`reads: false`). With `hello {mirror: true}` the daemon pushes
 //!   each attached bot's published state instead: a `mirror` record `{bot, hot?, cold?, entities?, items?}` carries
-//!   the parts that changed (`HotSnapshot`, `ColdSnapshot`, an entity delta, `ItemTable`, the last once), sent at
+//!   the parts that changed (`HotSnapshot` from the bot's first tick, `ColdSnapshot`, an entity delta, `ItemTable`,
+//!   the last once), sent at
 //!   most every [`DaemonConfig::mirror_every`] and before any event or response of that bot, so a client's copy is
 //!   at least as new as the record it is handling. Terrain (`blockAt`, `findBlocks`) is not mirrored; call
 //!   `bot.findBlocks`.

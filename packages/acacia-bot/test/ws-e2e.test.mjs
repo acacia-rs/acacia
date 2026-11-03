@@ -46,8 +46,8 @@ test('a persisted bot outlives its connection and a new script attaches to it', 
   })
   const first = new WsTransport(daemon.url)
   const bot = await createBot({ host: '127.0.0.1', port: server.port, username: 'Keeper', transport: 'raknet', physics: false, persist: true, via: first })
-  await bot.waitForTicks(2)
-  assert.ok(bot.hot?.alive, 'the mirror serves bot.hot')
+  await bot.ready()
+  assert.ok(bot.hot?.alive && bot.hot.tick > 0, 'ready: the mirror serves the first tick')
   assert.throws(() => bot.blockAt({ x: 0, y: 0, z: 0 }), { code: 'NOT_POSSIBLE' })
   const { x, y, z } = bot.hot.position
   server.addEntity('minecraft:zombie', 90, x + 2, y, z)
@@ -66,7 +66,7 @@ test('a persisted bot outlives its connection and a new script attaches to it', 
   assert.ok(Math.abs(again.entities['90'].position.x - (x + 4)) < 1e-3, 'a full delta on attach')
   const lines = []
   again.on('chat', (line) => lines.push(line.plain))
-  await again.waitForTicks(2)
+  await again.ready()
   server.chat('Steve', 'welcome back')
   await again.waitForTicks(10)
   assert.deepEqual(lines, ['welcome back'])

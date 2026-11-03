@@ -56,20 +56,24 @@ export class Subscriptions {
     this.#change(name, -1)
   }
 
+  /** Sends a change still waiting for its microtask now. */
+  flush(): void {
+    if (!this.#scheduled) return
+    this.#scheduled = false
+    const groups = [...new Set([...this.#forced, ...[...this.#listeners].filter(([, n]) => n > 0).map(([g]) => g)])]
+    const next = key(groups)
+    if (next === this.#sent) return
+    this.#sent = next
+    this.#send(groups.sort())
+  }
+
   #change(name: string | symbol, by: number): void {
     const group = typeof name === 'string' ? GROUP_OF[name] : undefined
     if (!group) return
     this.#listeners.set(group, Math.max(0, (this.#listeners.get(group) ?? 0) + by))
     if (this.#scheduled) return
     this.#scheduled = true
-    queueMicrotask(() => {
-      this.#scheduled = false
-      const groups = [...new Set([...this.#forced, ...[...this.#listeners].filter(([, n]) => n > 0).map(([g]) => g)])]
-      const next = key(groups)
-      if (next === this.#sent) return
-      this.#sent = next
-      this.#send(groups.sort())
-    })
+    queueMicrotask(() => this.flush())
   }
 }
 

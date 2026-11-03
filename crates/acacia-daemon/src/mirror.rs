@@ -19,7 +19,8 @@ impl Mirror {
     /// A `mirror` record with the parts that changed since the last one; `None` when nothing did.
     pub(crate) fn update(&mut self, host: &Host, bot: &BotId) -> Option<String> {
         let mut parts = Vec::new();
-        if let Some(hot) = host.hot(bot).map(|h| to_json(&h)).filter(|h| *h != self.hot) {
+        // Tick 0 is the placeholder before the first tick: `bot.hot` stays null until then, as in-process.
+        if let Some(hot) = host.hot(bot).filter(|h| h.tick != 0).map(|h| to_json(&h)).filter(|h| *h != self.hot) {
             self.hot = hot.clone();
             parts.push(("hot", hot));
         }

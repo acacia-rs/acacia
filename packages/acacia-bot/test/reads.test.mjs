@@ -83,3 +83,34 @@ test('entity listeners turn their groups on', async () => {
   via.push(via.event({ type: 'entityGone', ...entity('7', 'minecraft:zombie', vec(0, 0, 0)) }, 2))
   assert.deepEqual(seen, ['7'])
 })
+
+test('ready waits for the first tick and for the listeners\' groups, then turns ticks off again', async () => {
+  const { via, bot } = await connected()
+  bot.on('chat', () => {})
+  let ready = false
+  const readying = bot.ready().then(() => (ready = true))
+  const groups = via.last('bot.setEvents')
+  assert.deepEqual(groups.params.events, ['chat', 'ticks'], 'sent at once, with the listener attached before')
+  via.state['bot-1'] = { hot: hot(vec(0, 64, 0)) }
+  via.push(via.event({ type: 'physicsTick' }, 2))
+  await tick()
+  assert.equal(ready, false, 'the groups are not on yet')
+  via.push(via.done(groups.call))
+  await readying
+  assert.ok(bot.hot)
+  await tick()
+  assert.deepEqual(via.last('bot.setEvents').params.events, ['chat'])
+  via.answer('bot.setEvents')
+
+  const sent = via.sent.length
+  await bot.ready()
+  assert.equal(via.sent.length, sent, 'ready with nothing to change sends nothing')
+})
+
+test('ready rejects when the bot ends first', async () => {
+  const { via, bot } = await connected()
+  const readying = bot.ready()
+  via.push(via.event({ type: 'end', reason: 'lost', message: 'gone' }, 2))
+  await assert.rejects(readying, { code: 'DISCONNECTED' })
+  await assert.rejects(bot.ready(), { code: 'DISCONNECTED' })
+})
