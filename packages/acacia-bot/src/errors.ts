@@ -22,7 +22,7 @@ export class ActionError extends AcaciaError {}
 export class ConnectError extends AcaciaError {}
 
 const ACTION_CODES = new Set<string>(['TIMEOUT', 'DISCONNECTED', 'REJECTED', 'NOT_POSSIBLE', 'NOT_VISIBLE', 'CANCELLED'])
-const HOST_CODES = new Set<string>(['BUSY', 'UNKNOWN_BOT', 'UNKNOWN_METHOD', 'BAD_PARAMS', 'CLOSED', 'INTERNAL'])
+const HOST_CODES = new Set<string>(['BUSY', 'UNKNOWN_BOT', 'UNKNOWN_METHOD', 'BAD_PARAMS', 'CLOSED', 'INTERNAL', 'VERSION_MISMATCH', 'UNAUTHORIZED'])
 
 /** The error class for a failed call of `method`. */
 export function errorFrom(error: ApiError, method?: MethodName): AcaciaError {

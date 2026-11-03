@@ -1,61 +1,17 @@
 // Against acacia-testserver's FakeServer (a recorded BDS spawn); needs `npm run build:test` (TestServer).
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { dirname, join } from 'node:path'
 import { test } from 'node:test'
-import { setTimeout as sleep } from 'node:timers/promises'
-import { fileURLToPath } from 'node:url'
 
 import * as native from '../native/index.js'
 import { createBot, NativeTransport } from '@acacia/bot'
+import { runHello, until } from './hello-run.mjs'
 
-const pkg = join(dirname(fileURLToPath(import.meta.url)), '..')
 const skip = native.TestServer ? false : 'the addon was built without TestServer (npm run build:test)'
 
-async function until(what, check, ms = 10_000) {
-  const deadline = Date.now() + ms
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
-    await sleep(20)
-  }
-}
-
-test('hello world: spawn, answer a chat, come to a player, quit, and the process exits on its own', { skip, timeout: 60_000 }, async () => {
-  const server = native.TestServer.start()
-  const child = spawn(process.execPath, ['examples/hello.mjs', `127.0.0.1:${server.port}`, 'Hello'], { cwd: pkg })
-  let out = ''
-  child.stdout.on('data', (d) => (out += d))
-  child.stderr.on('data', (d) => (out += d))
-  const exited = once(child, 'exit')
-  try {
-    await until('spawn', () => out.includes('spawned as Hello'), 20_000)
-    server.chat('Steve', '!ping')
-    await until('pong', () => server.receivedChat().includes('pong'))
-
-    server.layFloor(8)
-    const [x, y, z] = server.spawnFeet()
-    server.addPlayer('Steve', 77, Math.floor(x) + 5.5, Math.floor(y), Math.floor(z) + 0.5)
-    await until('Steve in view', () => out.includes('sees Steve'))
-    server.chat('Steve', '!come')
-    await until('the walk to Steve', () => /here|no path|gave up/.test(server.receivedChat().join(' ')), 35_000).catch((e) => {
-      throw new Error(`${e.message}\n${out}`)
-    })
-    assert.match(out, new RegExp(`coming to Steve at ${(Math.floor(x) + 5.5).toFixed(1)} `))
-    assert.ok(server.receivedChat().includes('here'), `${out}\n${server.receivedChat()}`)
-
-    server.chat('Steve', '!quit')
-    const quit = Date.now()
-    const [code] = await Promise.race([exited, sleep(15_000, ['still running'], { ref: false })])
-    assert.equal(code, 0, out)
-    assert.match(out, /<Steve> !ping/)
-    assert.match(out, /ended: closed/)
-    console.log(`${out.trimEnd()}\n[exit ${code} ${Date.now() - quit} ms after !quit; server got ${JSON.stringify(server.receivedChat())}]`)
-  } finally {
-    child.kill()
-    server.stop()
-  }
-})
+test('hello world: spawn, answer a chat, come to a player, quit, and the process exits on its own', { skip, timeout: 60_000 }, () =>
+  runHello(native),
+)
 
 test('in process: inventory, findBlocks, equip and a placement the server confirms', { skip, timeout: 60_000 }, async () => {
   const server = native.TestServer.start()

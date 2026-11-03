@@ -1,12 +1,13 @@
 // Hello world (a port of crates/acacia-bot/examples/events.rs and goto.rs): logs chat, answers `!ping` with
 // `pong`, walks to the sender on `!come` (or to `!come <x> <y> <z>`, `!walk <dx> <dz>`), leaves on `!quit`.
-// `node examples/hello.mjs [host:port] [name]` (build first: `npm run build`).
+// `node examples/hello.mjs [host:port] [name]` (build first: `npm run build`); `ACACIA_VIA=ws://127.0.0.1:19180`
+// runs the same script on an acacia-daemon instead of in-process.
 import { ActionError, createBot, goals } from '@acacia/bot'
 
 const [address = '127.0.0.1:19132', username = 'Sprout'] = process.argv.slice(2)
 const [host, port = '19132'] = address.split(':')
 
-const bot = await createBot({ host, port: Number(port), username, transport: 'raknet' })
+const bot = await createBot({ host, port: Number(port), username, transport: 'raknet', via: process.env.ACACIA_VIA || undefined })
 
 async function walk(goal) {
   try {
