@@ -1,0 +1,3 @@
+# matrix.sh's per-run stderr and exit markers; the rows (*.jsonl) are the record.
+results/**/*.log
+results/**/*.done

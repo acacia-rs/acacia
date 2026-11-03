@@ -42,7 +42,10 @@
     "build:native": "CARGO_BUILD_JOBS=2 napi build --platform --esm --manifest-path ../../crates/acacia-node/Cargo.toml --output-dir native",
     "build:ts": "node scripts/sync-types.mjs && tsc -p tsconfig.json",
     "test": "node --test --test-reporter=spec 'test/*.test.mjs'",
-    "bench:memory": "echo 'not ported yet (item 9): the Rust-side bench is research/js-measure/memory-bench' && exit 1"
+    "build:bench": "npm run build:native -- --release --features test-server && npm run build:ts",
+    "bench:events": "node bench/events.mjs",
+    "bench:reads": "node bench/reads.mjs",
+    "bench:memory": "node --expose-gc bench/memory.mjs"
   },
   "devDependencies": {
     "@napi-rs/cli": "3.10.9",
