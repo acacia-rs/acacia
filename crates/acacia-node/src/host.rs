@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use acacia_api::{ApiError, BlockPos, BotId, ErrorCode, FindBlocksParams};
 use acacia_host::{Host, HostConfig, ENTITY_NUMBERS};
@@ -16,6 +17,12 @@ pub struct NativeHostOptions {
     pub shards: Option<u32>,
     /// Bots publish their state for the sync reads (default true; off, every read is null).
     pub snapshots: Option<bool>,
+    /// Gap between joins to one address, ms (default 500; acacia-host's `HostConfig::join_spacing`).
+    pub join_spacing_ms: Option<u32>,
+    /// Up to this much either way on each gap, ms (default 250; `HostConfig::join_jitter`).
+    pub join_jitter_ms: Option<u32>,
+    /// Largest decompressed batch a bot accepts (default 128 MiB; `HostConfig::max_batch_bytes`).
+    pub max_batch_bytes: Option<u32>,
     #[napi(ts_type = "(batch: string | null) => void")]
     pub on_records: Function<'static, Option<String>, UnknownReturnValue>,
 }
@@ -61,6 +68,10 @@ impl NativeHost {
             config.shards = shards as usize;
         }
         config.snapshots = options.snapshots.unwrap_or(config.snapshots);
+        let ms = |v: u32| Duration::from_millis(v.into());
+        config.join_spacing = options.join_spacing_ms.map_or(config.join_spacing, ms);
+        config.join_jitter = options.join_jitter_ms.map_or(config.join_jitter, ms);
+        config.max_batch_bytes = options.max_batch_bytes.map_or(config.max_batch_bytes, |b| b as usize);
         let (host, outbound) = Host::start(config).map_err(|e| Error::from_reason(format!("host threads: {e}")))?;
         let host = Arc::new(host);
         forward::spawn(outbound, sink.clone()).map_err(|e| Error::from_reason(format!("forwarder thread: {e}")))?;

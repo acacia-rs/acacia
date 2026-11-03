@@ -40,6 +40,18 @@ test('in process: inventory, findBlocks, equip and a placement the server confir
   }
 })
 
+test('in process: host options reach the host (a batch limit the spawn overflows)', { skip, timeout: 60_000 }, async () => {
+  const server = native.TestServer.start()
+  const via = new NativeTransport({ shards: 1, joinSpacingMs: 0, joinJitterMs: 0, maxBatchBytes: 1024 })
+  try {
+    const joined = createBot({ host: '127.0.0.1', port: server.port, username: 'Tiny', transport: 'raknet', physics: false, via })
+    await assert.rejects(joined, { message: /exceeds limit/ })
+  } finally {
+    await via.close()
+    server.stop()
+  }
+})
+
 test('in process: events, sync reads, cancel and close', { skip, timeout: 60_000 }, async () => {
   const server = native.TestServer.start()
   const via = new NativeTransport({ shards: 1 })

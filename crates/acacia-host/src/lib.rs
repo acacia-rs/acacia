@@ -17,7 +17,8 @@
 //!   [`HostConfig::flush_every`], or at once when a `done` is buffered. When the outbound channel is full the shard keeps them and merges them into
 //!   its next batch, dropping lossy events (counted in `lagged`) past [`HostConfig::max_held`].
 //! - **Joins.** BDS refuses a join from an IP that joined moments ago (RakNet `RecentlyConnected`), so the host
-//!   spaces joins to one address `500 ± 250 ms` apart (acacia_bot::swarm::JoinQueue) and retries that refusal 4
+//!   spaces joins to one address [`HostConfig::join_spacing`] ± [`HostConfig::join_jitter`] apart (default
+//!   `500 ± 250 ms`, acacia_bot::swarm::JoinQueue) and retries that refusal 4
 //!   times, 1-8 s apart; past that `createBot` fails `DISCONNECTED`. Many `createBot` calls at once just queue.
 //! - **Lifecycle.** `createBot` answers once the bot has spawned, after a `spawn` event. `bot.close` cancels the
 //!   running call, disconnects (at most 2 s), emits `end`, fails queued calls `DISCONNECTED` and then answers.

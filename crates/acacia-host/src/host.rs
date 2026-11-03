@@ -32,6 +32,11 @@ pub struct HostConfig {
     /// Largest decompressed batch a bot accepts before it drops the connection (default 128 MiB). A newcomer on
     /// a crowded server gets every player's skin in one batch: about 200 players overflowed the client's 32 MiB.
     pub max_batch_bytes: usize,
+    /// Joins to one address start this far apart, across every bot of the host (default 500 ms): BDS refuses a
+    /// join from an IP that joined moments ago (RakNet `RecentlyConnected`; 400 ms was enough for 10 bots).
+    pub join_spacing: Duration,
+    /// Each gap varies by up to this much either way, capped at `join_spacing` (default 250 ms).
+    pub join_jitter: Duration,
 }
 
 impl Default for HostConfig {
@@ -45,6 +50,8 @@ impl Default for HostConfig {
             event_capacity: 4096,
             snapshots: true,
             max_batch_bytes: 128 << 20,
+            join_spacing: JoinQueue::DELAY,
+            join_jitter: JoinQueue::JITTER,
         }
     }
 }
@@ -84,7 +91,7 @@ impl Host {
             shards: Mutex::new(threads),
             bufs,
             shared_worlds: SharedWorlds::new(),
-            joins: Arc::new(JoinQueue::default()),
+            joins: Arc::new(JoinQueue::new(config.join_spacing, config.join_jitter)),
             event_capacity: config.event_capacity,
             snapshots: config.snapshots,
             max_batch_bytes: config.max_batch_bytes,

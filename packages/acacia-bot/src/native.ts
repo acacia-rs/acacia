@@ -48,6 +48,11 @@ export interface NativeTransportOptions {
   shards?: number
   /** Bots publish their state for the sync reads (default true; off, `bot.hot` and the other reads are null). */
   snapshots?: boolean
+  /** Join spacing per address and its jitter, ms (default 500 and 250; why: the package README, Joins). */
+  joinSpacingMs?: number
+  joinJitterMs?: number
+  /** Largest decompressed batch a bot accepts, bytes (default 128 MiB; README, Joins). */
+  maxBatchBytes?: number
 }
 
 /** The acacia host in this process, through the native addon (crates/acacia-node). */
@@ -69,7 +74,7 @@ export class NativeTransport implements Transport {
 
   constructor(options: NativeTransportOptions = {}) {
     this.#closed = new Promise((resolve) => (this.#resolveClosed = resolve))
-    this.#host = new NativeHost({ shards: options.shards, snapshots: options.snapshots, onRecords: (batch) => this.#receive(batch) })
+    this.#host = new NativeHost({ ...options, onRecords: (batch) => this.#receive(batch) })
     this.#entities = new NativeEntities(this.#host)
   }
 

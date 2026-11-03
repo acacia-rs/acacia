@@ -64,8 +64,11 @@ acacia-host's; the addon: acacia-node's).
   `createBot` cannot be cancelled yet.
 - **Pacing.** Screen actions move at a player's pace: a `craft` takes 3-6 s, container verbs a few seconds
   (acacia-bot's `human.rs`). `ACACIA_HUMAN_SCALE=0.1` in the environment scales every such delay (0 removes them).
-- **Joins.** Joins to one address are spaced about 0.5 s apart and BDS's `RecentlyConnected` refusal is retried
-  (acacia-host's crate docs), so many `createBot` calls at once just take longer.
+- **Joins.** Joins to one address are spaced 500 ± 250 ms apart and BDS's `RecentlyConnected` refusal is retried
+  (why: acacia-host's crate docs and `HostConfig`), so many `createBot` calls at once just take longer. Host
+  options set the spacing and the largest decompressed batch a bot accepts (default 128 MiB; a crowded server's
+  skins outgrow less): `new NativeTransport({ joinSpacingMs, joinJitterMs, maxBatchBytes })` in-process,
+  `acacia-daemon --join-spacing-ms N --join-jitter-ms N --max-batch-bytes N` over WebSocket.
 - **Errors** are `AcaciaError` with a `code` from acacia-api's `ErrorCode`: `ConnectError` for a failed `createBot`,
   `ActionError` for `TIMEOUT`, `DISCONNECTED`, `REJECTED`, `NOT_POSSIBLE`, `NOT_VISIBLE`, `CANCELLED`, the base class
   for host codes (`BUSY`, `UNKNOWN_BOT`, `BAD_PARAMS`, `CLOSED`, `INTERNAL`, ...). `message` is free text.
