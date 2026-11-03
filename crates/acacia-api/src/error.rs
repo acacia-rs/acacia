@@ -41,6 +41,10 @@ pub enum ErrorCode {
     NetherNet,
     /// The host is shutting down.
     Closed,
+    /// A socket client's `hello` named a protocol version the server does not speak.
+    VersionMismatch,
+    /// A socket client sent a wrong token, or a call before `hello`.
+    Unauthorized,
     /// A bug: a bot task panicked, or a value did not serialize.
     Internal,
 }
