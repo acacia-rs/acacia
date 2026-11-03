@@ -95,7 +95,8 @@ acacia-host's; the addon: acacia-node's).
   sends the same deltas (format: acacia-daemon's crate docs) and `EntityTable`, exported for custom transports,
   applies both. A reader that fell behind the bot's change log gets a full resync, which keeps the objects of
   entities still there.
-  Each `position` read is a fresh object, and in-process the numbers are the wire's f32s widened
+  Each `position` read is a fresh object (caching them measured slower: `bench/RESULTS.md`), and in-process the
+  numbers are the wire's f32s widened
   (10.100000381469727, where events and `WsTransport` show 10.1).
   Entities need `createBot({ entities })` (default on); their `id` is the decimal-string runtime id actions take,
   and `position` is the feet, players included. `bot.players` is keyed by name: the player list joined with player

@@ -117,6 +117,20 @@ bots, in parentheses):
 - A cached hit is the napi crossing. Single-read misses overstate: much of each is this box's first-read-after-
   idle cost (~80 µs for `bot.hot` at load ~80, 2–3 µs right after). Take the `READ=` event runs as the real cost.
 
+## Tried and dropped: caching entity vectors
+
+Caching `entity.position` / `velocity` per entity (2026-11-03, not committed) made reads slower, not faster. V8
+allocates a short-lived `{x, y, z}` for about what a cache hit costs (~10 ns), and keeping young vectors on
+long-lived entity state adds write barriers and promotions on every miss.
+
+- `bench:events` 100 bots `READ=positions` (frozen vectors, kept while the numbers matched; 3 reps a side,
+  interleaved, load 62–75; rows tagged `cache-before` / `cache-after`): JS thread 15.6 / 18.1 / 17.6% without, 21.6 / 22.2 / 23.8% with.
+- `bench:reads` `every entity .position` (27 entities): ~3,010 ns without, ~3,100 with (2 runs a side).
+- Microbench, 600 entities a tick (`node`, `EntityTable` alone), ns per entity per tick, without → with:
+  10% moving, one read 23 → 36, three reads 44 → 56; 90% moving, one read 57 → 77. That is the cheapest variant
+  (unfrozen, one count per apply); value-checked frozen vectors were worse (37–141). `Object.freeze` alone costs
+  ~47 ns per vector.
+
 ## Open
 
 - No heaptrack attribution of the extra ~0.8 MB/bot; arenas are the lead.

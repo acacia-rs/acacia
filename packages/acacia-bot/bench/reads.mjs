@@ -94,6 +94,11 @@ const loops = {
   'bot.health': () => bot.health,
   'bot.entities': () => bot.entities,
   'bot.nearestEntity()': () => bot.nearestEntity(),
+  'every entity .position': () => {
+    let x = 0
+    for (const e of Object.values(bot.entities)) x += e.position.x
+    return x
+  },
   'bot.players': () => bot.players,
   'bot.inventory': () => bot.inventory,
   'bot.heldItem': () => bot.heldItem,
