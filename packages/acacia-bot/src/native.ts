@@ -46,6 +46,8 @@ class Versioned<T> {
 export interface NativeTransportOptions {
   /** Shard threads running the bots (default: the CPU count, at most 4). */
   shards?: number
+  /** Bots publish their state for the sync reads (default true; off, `bot.hot` and the other reads are null). */
+  snapshots?: boolean
 }
 
 /** The acacia host in this process, through the native addon (crates/acacia-node). */
@@ -67,7 +69,7 @@ export class NativeTransport implements Transport {
 
   constructor(options: NativeTransportOptions = {}) {
     this.#closed = new Promise((resolve) => (this.#resolveClosed = resolve))
-    this.#host = new NativeHost({ shards: options.shards, onRecords: (batch) => this.#receive(batch) })
+    this.#host = new NativeHost({ shards: options.shards, snapshots: options.snapshots, onRecords: (batch) => this.#receive(batch) })
     this.#entities = new EntityFrames(this.#host)
   }
 

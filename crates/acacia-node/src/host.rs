@@ -14,6 +14,8 @@ use crate::forward::{self, Sink, MAX_QUEUE};
 pub struct NativeHostOptions {
     /// Shard threads (default: the CPU count, at most 4).
     pub shards: Option<u32>,
+    /// Bots publish their state for the sync reads (default true; off, every read is null).
+    pub snapshots: Option<bool>,
     #[napi(ts_type = "(batch: string | null) => void")]
     pub on_records: Function<'static, Option<String>, UnknownReturnValue>,
 }
@@ -55,6 +57,7 @@ impl NativeHost {
         if let Some(shards) = options.shards {
             config.shards = shards as usize;
         }
+        config.snapshots = options.snapshots.unwrap_or(config.snapshots);
         let (host, outbound) = Host::start(config).map_err(|e| Error::from_reason(format!("host threads: {e}")))?;
         let host = Arc::new(host);
         forward::spawn(outbound, sink.clone()).map_err(|e| Error::from_reason(format!("forwarder thread: {e}")))?;
