@@ -1,6 +1,7 @@
 //! One bot's task on its shard: connect, then run queued calls one at a time while immediate calls, events and
 //! snapshots keep flowing (contract: the crate docs).
 
+mod join;
 mod lanes;
 
 use std::collections::VecDeque;
@@ -10,6 +11,7 @@ use acacia_api::{ApiError, CallId, CreateBotParams, CreateBotResult, EndReason, 
 use acacia_bot::client::{Client, TransportKind};
 use acacia_bot::events::channel;
 use acacia_bot::state::Trackers;
+use acacia_bot::swarm::JoinQueue;
 use acacia_bot::world::SharedWorlds;
 use acacia_bot::{Bot, BotConfig};
 use parking_lot::Mutex;
@@ -29,13 +31,15 @@ pub(crate) struct Spawn {
     pub call: CallId,
     pub params: CreateBotParams,
     pub shared_worlds: SharedWorlds,
+    /// Shared by every bot of the host.
+    pub joins: Arc<JoinQueue>,
     pub event_capacity: usize,
     pub snapshots: bool,
     pub max_batch_bytes: usize,
 }
 
 pub(crate) async fn run(spawn: Spawn) {
-    let Spawn { out, mut rx, registry, call, params, shared_worlds, event_capacity, snapshots, max_batch_bytes } = spawn;
+    let Spawn { out, mut rx, registry, call, params, shared_worlds, joins, event_capacity, snapshots, max_batch_bytes } = spawn;
     let (sink, events) = channel(event_capacity);
     let transport = match params.transport.unwrap_or(Transport::Auto) {
         Transport::Auto => TransportKind::Auto,
@@ -43,7 +47,7 @@ pub(crate) async fn run(spawn: Spawn) {
         Transport::Nethernet => TransportKind::NetherNet,
     };
     let address = format!("{}:{}", params.host, params.port.unwrap_or(19132));
-    let builder = Client::builder(address).offline(params.username).transport(transport).max_batch_bytes(max_batch_bytes);
+    let builder = || Client::builder(&address).offline(&params.username).transport(transport).max_batch_bytes(max_batch_bytes);
     let config = BotConfig {
         trackers: Trackers { entities: params.entities.unwrap_or(false), ..Trackers::default() },
         physics: params.physics.unwrap_or(false),
@@ -55,7 +59,7 @@ pub(crate) async fn run(spawn: Spawn) {
     };
     let mut early = VecDeque::new();
     let connected = {
-        let connect = Bot::connect(builder, config);
+        let connect = join::connect(&joins, &address, builder, &config);
         tokio::pin!(connect);
         loop {
             tokio::select! {

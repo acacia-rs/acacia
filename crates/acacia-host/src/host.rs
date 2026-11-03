@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use acacia_api::{ApiError, BotId, Command, ErrorCode, Method};
 use acacia_bot::snapshot::SnapshotReader;
-use acacia_bot::swarm::{BotId as ShardJobId, Job, OnPanic, Shard};
+use acacia_bot::swarm::{BotId as ShardJobId, Job, JoinQueue, OnPanic, Shard};
 use acacia_bot::world::SharedWorlds;
 use parking_lot::Mutex;
 
@@ -55,6 +55,7 @@ pub struct Host {
     shards: Mutex<Vec<Shard>>,
     bufs: Vec<Arc<ShardBuf>>,
     shared_worlds: SharedWorlds,
+    joins: Arc<JoinQueue>,
     event_capacity: usize,
     snapshots: bool,
     max_batch_bytes: usize,
@@ -83,6 +84,7 @@ impl Host {
             shards: Mutex::new(threads),
             bufs,
             shared_worlds: SharedWorlds::new(),
+            joins: Arc::new(JoinQueue::default()),
             event_capacity: config.event_capacity,
             snapshots: config.snapshots,
             max_batch_bytes: config.max_batch_bytes,
@@ -110,6 +112,7 @@ impl Host {
             call,
             params,
             shared_worlds: self.shared_worlds.clone(),
+            joins: self.joins.clone(),
             event_capacity: self.event_capacity,
             snapshots: self.snapshots,
             max_batch_bytes: self.max_batch_bytes,

@@ -12,6 +12,7 @@ rust-version.workspace = true
 acacia-api = { version = "0.1.0", path = "../acacia-api" }
 acacia-bot = { version = "0.1.0", path = "../acacia-bot" }
 acacia-client.workspace = true
+acacia-raknet.workspace = true
 acacia-world.workspace = true
 parking_lot = "0.12"
 serde_json = "1"

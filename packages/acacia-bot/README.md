@@ -57,6 +57,8 @@ acacia-host's; the addon: acacia-node's).
 - **Cancellation.** An aborted `signal` sends `cancel` for the call; the promise rejects with `signal.reason`
   (`AbortError`, or `TimeoutError` from `AbortSignal.timeout`) once the bot has stopped. A signal that is already
   aborted rejects without sending anything. `createBot` cannot be cancelled yet.
+- **Joins.** Joins to one address are spaced about 0.5 s apart and BDS's `RecentlyConnected` refusal is retried
+  (acacia-host's crate docs), so many `createBot` calls at once just take longer.
 - **Errors** are `AcaciaError` with a `code` from acacia-api's `ErrorCode`: `ConnectError` for a failed `createBot`,
   `ActionError` for `TIMEOUT`, `DISCONNECTED`, `REJECTED`, `NOT_POSSIBLE`, `NOT_VISIBLE`, `CANCELLED`, the base class
   for host codes (`BUSY`, `UNKNOWN_BOT`, `BAD_PARAMS`, `CLOSED`, `INTERNAL`, ...). `message` is free text.

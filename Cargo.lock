@@ -151,6 +151,7 @@ dependencies = [
  "acacia-api",
  "acacia-bot",
  "acacia-client",
+ "acacia-raknet",
  "acacia-testserver",
  "acacia-world",
  "parking_lot",
