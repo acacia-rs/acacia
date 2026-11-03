@@ -137,6 +137,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "acacia-daemon"
+version = "0.1.0"
+dependencies = [
+ "acacia-api",
+ "acacia-host",
+ "acacia-proto",
+ "acacia-testserver",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "acacia-gui-probe"
 version = "0.1.0"
 dependencies = [
