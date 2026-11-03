@@ -2,7 +2,7 @@
 
 use std::collections::{BinaryHeap, HashSet};
 
-use crate::{BlockRegistry, SECTION_VOLUME, World};
+use crate::{BlockRegistry, World};
 
 /// Every runtime id (all states) of the blocks named; a name without a namespace is `minecraft:`'s.
 pub fn block_ids<S: AsRef<str>>(registry: &BlockRegistry, names: &[S]) -> HashSet<u32> {
@@ -22,24 +22,31 @@ pub fn find_blocks(world: &World, center: [i32; 3], ids: &HashSet<u32>, max_dist
     let dist2 = |p: [i32; 3]| p.iter().zip(center).map(|(a, c)| i64::from(a - c).pow(2)).sum::<i64>();
     // The `count` nearest so far, farthest on top.
     let mut found = BinaryHeap::new();
+    // The part of a 16-cell span starting at `base` inside the search box on `axis`.
+    let clip = |axis: usize, base: i32| (base.max(center[axis] - r), (base + 15).min(center[axis] + r));
     for cx in (center[0] - r) >> 4..=(center[0] + r) >> 4 {
         for cz in (center[2] - r) >> 4..=(center[2] + r) >> 4 {
             let Some(shared) = world.get(cx, cz) else { continue };
             let chunk = shared.read();
             let min_y = chunk.dimension().min_y;
+            let ((x0, x1), (z0, z1)) = (clip(0, cx * 16), clip(2, cz * 16));
             for index in 0..chunk.section_count() {
-                let base = min_y + 16 * index as i32;
-                if base + 15 < center[1] - r || base > center[1] + r || !chunk.section_palette(index).iter().any(|id| ids.contains(id)) {
+                let (y0, y1) = clip(1, min_y + 16 * index as i32);
+                if y0 > y1 || !chunk.section_palette(index).iter().any(|id| ids.contains(id)) {
                     continue;
                 }
-                for i in 0..SECTION_VOLUME as i32 {
-                    let p = [cx * 16 + (i >> 8), base + (i & 15), cz * 16 + ((i >> 4) & 15)];
-                    let key = (dist2(p), p);
-                    let better = found.len() < count || found.peek().is_some_and(|worst| key < *worst);
-                    if key.0 <= r2 && better && ids.contains(&chunk.block(p[0], p[1], p[2])) {
-                        found.push(key);
-                        if found.len() > count {
-                            found.pop();
+                for x in x0..=x1 {
+                    for y in y0..=y1 {
+                        for z in z0..=z1 {
+                            let p = [x, y, z];
+                            let key = (dist2(p), p);
+                            let better = found.len() < count || found.peek().is_some_and(|worst| key < *worst);
+                            if key.0 <= r2 && better && ids.contains(&chunk.block(x, y, z)) {
+                                found.push(key);
+                                if found.len() > count {
+                                    found.pop();
+                                }
+                            }
                         }
                     }
                 }
@@ -74,5 +81,44 @@ mod tests {
         assert_eq!(find_blocks(&world, [0, 64, 0], &diamond, 16, 10), [[2, 64, 2]]);
         assert!(diamond.len() == 2 && stone.len() == 1, "every state of each name");
         assert!(find_blocks(&world, [0, 64, 0], &block_ids(&registry, &["no_such_block"]), 16, 10).is_empty());
+    }
+
+    #[test]
+    fn matches_a_brute_force_scan_on_a_random_world() {
+        let registry = BlockRegistry::vanilla_arc();
+        let world = World::new(registry.clone(), 0, BlockIds::Runtime);
+        let chunks: Vec<(i32, i32)> = (-1..=1).flat_map(|x| (-1..=1).map(move |z| (x, z))).collect();
+        let _held: Vec<_> = chunks.iter().flat_map(|&(x, z)| [4, 5].map(|s| world.insert_sub_chunk_air(x, s, z))).collect();
+        let (stone, dirt) = (block_ids(&registry, &["stone"]), block_ids(&registry, &["dirt"]));
+        let mut seed = 0x2545_f491_4f6c_dd1d_u64;
+        let mut next = move |n: u64| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed % n) as i32
+        };
+        let cells = |x: i32, z: i32| (-16..32).flat_map(move |dx| (64..96).flat_map(move |y| (-16..32).map(move |dz| [x + dx, y, z + dz])));
+        for p in cells(0, 0) {
+            let ids = match next(40) {
+                0 => &stone,
+                1 if p[1] < 80 => &dirt,
+                _ => continue,
+            };
+            world.set_block(p[0], p[1], p[2], 0, *ids.iter().next().unwrap());
+        }
+        let blocks: Vec<_> = cells(0, 0).map(|p| (p, world.get(p[0] >> 4, p[2] >> 4).unwrap().read().block(p[0], p[1], p[2]))).collect();
+        let brute = |center: [i32; 3], ids: &HashSet<u32>, r: u32, count: usize| {
+            let d = |p: [i32; 3]| p.iter().zip(center).map(|(a, c)| i64::from(a - c).pow(2)).sum::<i64>();
+            let mut hits: Vec<_> =
+                blocks.iter().filter(|(p, id)| d(*p) <= i64::from(r).pow(2) && ids.contains(id)).map(|&(p, _)| (d(p), p)).collect();
+            hits.sort();
+            hits.into_iter().take(count).map(|(_, p)| p).collect::<Vec<_>>()
+        };
+        for _ in 0..200 {
+            let center = [next(64) - 24, next(48) + 56, next(64) - 24];
+            let (r, count) = (next(20) as u32, next(30) as usize + 1);
+            let ids = if next(2) == 0 { &stone } else { &dirt };
+            assert_eq!(find_blocks(&world, center, ids, r, count), brute(center, ids, r, count), "{center:?} r {r} count {count}");
+        }
     }
 }
