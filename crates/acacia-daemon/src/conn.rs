@@ -19,6 +19,7 @@ pub(crate) async fn accept(listener: TcpListener, router: mpsc::UnboundedSender<
 }
 
 /// Without a token, a page in a browser could drive the daemon's bots; browsers always send `Origin`, Node does not.
+#[allow(clippy::result_large_err)] // tungstenite's callback signature
 fn check_origin(token: bool) -> impl FnOnce(&Request, Response) -> Result<Response, ErrorResponse> {
     move |request, response| {
         if token || !request.headers().contains_key("origin") {
