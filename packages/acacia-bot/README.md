@@ -45,6 +45,8 @@ acacia-host's; the addon: acacia-node's).
   `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `equip`, `placeBlock`, `dig`,
   `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
   `setControlState`, `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
+  `bot.request(method, params, options)` calls any table method by name with the bot's id filled in, for generic
+  callers such as `@acacia/mcp`.
 - **Movement.** `goto(goal)` takes a plain `Goal`: the classes `GoalBlock`, `GoalNear`, `GoalXZ`, `GoalY`,
   `GoalAway` and `GoalCompositeAny` (mineflayer-pathfinder's names) or the shorthands `goals.near(...)` etc. build
   one. `follow(entity, { range, signal })` keeps within `range` (default 2) of an entity until aborted; it never

@@ -44,3 +44,10 @@ test('control states go out on the immediate lane', async () => {
   assert.deepEqual(via.answer('bot.clearControlStates').params, { bot: 'bot-1' })
   await clearing
 })
+
+test('request calls a method by name with the bot filled in', async () => {
+  const { via, bot } = await connected()
+  const finding = bot.request('bot.findBlocks', { matching: ['stone'] })
+  assert.deepEqual(via.answer('bot.findBlocks', { ok: { blocks: [] } }).params, { bot: 'bot-1', matching: ['stone'] })
+  assert.deepEqual(await finding, { blocks: [] })
+})
