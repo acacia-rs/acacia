@@ -136,10 +136,15 @@ Harness notes:
 tools/save-vanilla-structures.sh                      # ~2 min: own BDS ~/work/bds-trial-gen :19520, stops it after
 REMOTE_DIR=work/acacia-build-trial \
   bash tools/remote-test.sh -j 6 -p acacia-bot --lib vanilla_survey -- --ignored --nocapture   # offline survey
-REMOTE_DIR=work/acacia-build-trial TIMEOUT=7200 STALL=3600 DETACH=1 \
-  bash tools/remote-run.sh env PAR=3 bash tools/schematic-trial.sh ~/work/schematics/vanilla/*.mcstructure
+REMOTE_DIR=work/acacia-build-trial-live TIMEOUT=3600 STALL=1500 DETACH=1 \
+  bash tools/remote-run.sh bash tools/schematic-trial.sh             # all nine, ~10 min; or name some: taiga_house
+bash tools/testbox-wait.sh work/acacia-build-trial-live run          # in the background; exits with the run's code
+python3 tools/trial-times.py ~/work/acacia-build-trial-live          # build, per-run game seconds, stalled tails
 ```
 
+- Live runs keep their own dir (`-live`), so unit tests (`REMOTE_DIR=work/acacia-build-trial`) run meanwhile.
+- Checking one fix: name the structure, not all nine. `STALL_TICKS` (default 1200 here) ends a run that long
+  without a cell done; the stall explain still prints at 1000 (research/iteration-speed.md).
 - Each run writes `trial-<name>.log` (verdict line, mismatches, `build::findings`, explain on stalls) and
   `journal-<name>/` in the remote dir.
 - The `.mcstructure` files are Mojang content: they stay in `~/work/schematics/vanilla`, outside the repo.
