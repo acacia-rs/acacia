@@ -24,7 +24,7 @@ case "${1:-}" in
     done ;;
   status)
     for d in "$pool"/*/; do
-      i=$(basename "$d")
+      d=${d%/} i=$(basename "$d")
       if flock -n "$d.lock" true; then s=free; else s=leased; fi
       echo "$i :$(port_of "$i") $s"
     done ;;
