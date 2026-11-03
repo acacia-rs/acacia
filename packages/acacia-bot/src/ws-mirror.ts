@@ -1,6 +1,6 @@
+import { EntityTable, type EntityDelta } from './entity-table.js'
 import { AcaciaError } from './errors.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
-import type { EntityList } from './generated/types/EntityList.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
 import type { ItemTable } from './generated/types/ItemTable.js'
 import type { SyncReads } from './transport.js'
@@ -11,13 +11,13 @@ export interface MirrorRecord {
   bot: string
   hot?: HotSnapshot
   cold?: ColdSnapshot
-  entities?: EntityList
+  entities?: EntityDelta
   items?: ItemTable
 }
 
-type State = { hot: HotSnapshot | null; cold: ColdSnapshot | null; entities: EntityList | null; items: ItemTable | null }
+type State = { hot: HotSnapshot | null; cold: ColdSnapshot | null; entities: EntityTable | null; items: ItemTable | null }
 
-const PARTS = ['hot', 'cold', 'entities', 'items'] as const
+const PARTS = ['hot', 'cold', 'items'] as const
 
 function noTerrain(what: string): never {
   throw new AcaciaError('NOT_POSSIBLE', `${what} has no sync read over WebSocket; await bot.request('bot.findBlocks', ...) instead`)
@@ -34,6 +34,7 @@ export class WsMirror {
       const value = record[part]
       if (value !== undefined) (state as Record<string, unknown>)[part] = Object.freeze(value)
     }
+    if (record.entities) (state.entities ??= new EntityTable()).apply(record.entities)
   }
 
   forget(bot: string): void {

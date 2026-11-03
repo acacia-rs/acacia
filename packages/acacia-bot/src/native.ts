@@ -1,5 +1,5 @@
 import { NativeHost } from '../native/index.js'
-import { EntityFrames } from './entity-frame.js'
+import { NativeEntities } from './native-entities.js'
 import { AcaciaError } from './errors.js'
 import type { Command } from './generated/methods.js'
 import type { Block } from './generated/types/Block.js'
@@ -63,14 +63,14 @@ export class NativeTransport implements Transport {
   /** Per bot: the last hot JSON and its parse, so a getter within one tick parses nothing. */
   readonly #hot = new Map<string, { json: string; value: HotSnapshot }>()
   readonly #cold = new Versioned<ColdSnapshot>()
-  readonly #entities: EntityFrames
+  readonly #entities: NativeEntities
   /** Per bot, the item table once it arrived (it comes once). */
   readonly #items = new Map<string, ItemTable>()
 
   constructor(options: NativeTransportOptions = {}) {
     this.#closed = new Promise((resolve) => (this.#resolveClosed = resolve))
     this.#host = new NativeHost({ shards: options.shards, snapshots: options.snapshots, onRecords: (batch) => this.#receive(batch) })
-    this.#entities = new EntityFrames(this.#host)
+    this.#entities = new NativeEntities(this.#host)
   }
 
   open(listener: TransportListener): void {

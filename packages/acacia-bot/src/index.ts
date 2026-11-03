@@ -7,6 +7,7 @@ export { AcaciaError, ActionError, ConnectError, errorFrom, type ErrorCode } fro
 export type { BotEvents, EventName, EventOf } from './events.js'
 export * as goals from './goals.js'
 export { NativeTransport, type NativeTransportOptions } from './native.js'
+export { EntityTable, type AddedRow, type EntityDelta, type NumbersRow } from './entity-table.js'
 export type { EntityView, Item, Player } from './reads.js'
 export { Session, type AttachParams, type AttachResult, type CallOptions } from './session.js'
 export type { FindBlocksQuery, SyncReads, Transport, TransportListener } from './transport.js'

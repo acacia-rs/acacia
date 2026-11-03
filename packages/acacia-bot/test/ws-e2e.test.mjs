@@ -9,7 +9,7 @@ import { test } from 'node:test'
 
 import * as native from '../native/index.js'
 import { attachBot, createBot, WsTransport } from '@acacia-rs/bot'
-import { pkg, runHello } from './hello-run.mjs'
+import { pkg, runHello, until } from './hello-run.mjs'
 
 const daemonBin = process.env.ACACIA_DAEMON ?? join(pkg, '../../target/debug/acacia-daemon')
 const skip = !native.TestServer
@@ -49,12 +49,21 @@ test('a persisted bot outlives its connection and a new script attaches to it', 
   await bot.waitForTicks(2)
   assert.ok(bot.hot?.alive, 'the mirror serves bot.hot')
   assert.throws(() => bot.blockAt({ x: 0, y: 0, z: 0 }), { code: 'NOT_POSSIBLE' })
+  const { x, y, z } = bot.hot.position
+  server.addEntity('minecraft:zombie', 90, x + 2, y, z)
+  await until('the zombie in the mirror', () => bot.entities['90'] !== undefined)
+  const zombie = bot.entities['90']
+  server.moveEntity(90, x + 4, y, z)
+  await until('the zombie moved', () => Math.abs(zombie.position.x - (x + 4)) < 1e-3)
+  assert.equal(bot.entities['90'], zombie, 'a delta keeps the object')
   const ended = new Promise((resolve) => bot.once('end', resolve))
   await first.close()
   assert.match((await ended).message, /keeps running on the daemon/)
 
   const again = await attachBot({ via: daemon.url, username: 'Keeper' })
   assert.equal(again.id, bot.id)
+  await until('the attached mirror', () => again.entities['90'] !== undefined)
+  assert.ok(Math.abs(again.entities['90'].position.x - (x + 4)) < 1e-3, 'a full delta on attach')
   const lines = []
   again.on('chat', (line) => lines.push(line.plain))
   await again.waitForTicks(2)

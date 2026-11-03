@@ -8,7 +8,7 @@ impl Bot {
     /// A full snapshot built now, whether or not snapshots are published (see [`crate::snapshot`]).
     pub fn snapshot(&self) -> BotSnapshot {
         let tick = self.snapshots.as_ref().map_or(0, |p| p.tick);
-        let entities = Arc::new(super::entity::build_list(&self.state.entities, 0, &Default::default(), &mut Default::default()));
+        let entities = Arc::new(super::slots::ListBuilder::default().build(&self.state.entities, 0, &Default::default()).0);
         BotSnapshot { hot: self.hot_snapshot(tick), cold: Arc::new(build_cold(&self.state, 0)), entities }
     }
 

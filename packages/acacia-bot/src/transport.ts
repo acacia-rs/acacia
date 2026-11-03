@@ -3,7 +3,7 @@ import type { BotId } from './generated/types/BotId.js'
 import type { Block } from './generated/types/Block.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
-import type { EntityList } from './generated/types/EntityList.js'
+import type { EntityTable } from './entity-table.js'
 import type { FindBlocksParams } from './generated/types/FindBlocksParams.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
 import type { ItemTable } from './generated/types/ItemTable.js'
@@ -19,13 +19,13 @@ export interface TransportListener {
 
 /**
  * Reads served without a call, where the transport can (the native one can; a socket one would need a mirror).
- * `hot`, `cold` and `entities` return the same frozen object until the value changes, so callers can cache on it;
- * for `entities` that is until an entity comes or goes, as its entities may read their numbers live (README).
+ * `hot` and `cold` return the same frozen object until the value changes, so callers can cache on it. `entities`
+ * is one `EntityTable` per bot, kept current by applying deltas to it (README, Sync reads).
  */
 export interface SyncReads {
   hot(bot: BotId): HotSnapshot | null
   cold(bot: BotId): ColdSnapshot | null
-  entities(bot: BotId): EntityList | null
+  entities(bot: BotId): EntityTable | null
   blockAt(bot: BotId, x: number, y: number, z: number): Block | null
   /** The server's item names; the same object once it has arrived (it comes once, at login). */
   itemTable(bot: BotId): ItemTable | null

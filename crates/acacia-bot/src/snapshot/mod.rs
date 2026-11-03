@@ -7,7 +7,8 @@
 //! - [`EntityList`] (tracked entities, feet positions) is rebuilt once per tick batch when the entity tracker's
 //!   version moved, and at once on a spawn or removal, before its event goes out (a listener finds the entity
 //!   listed); [`EntityList::version`] changes exactly when it is rebuilt. Empty unless `Trackers::entities` (or
-//!   `hazards`) is on.
+//!   `hazards`) is on. Readers that keep a copy take changes instead ([`SnapshotReader::entity_delta`]; slots,
+//!   cursors and resyncs: [`delta`]).
 //! - Stacks carry network ids, not names: resolve them through [`SnapshotReader::items`], the item table the server
 //!   sends once (shared, not copied). Player strings are shared too.
 //! - Blocks need no copy: [`SnapshotReader::world`] is the bot's current dimension, readable from any thread;
@@ -16,8 +17,10 @@
 //!   Measurements: `research/js-measure/snapshot-results.md` and `examples/snapshot_cost.rs`.
 
 mod build;
+pub mod delta;
 mod entity;
 mod publish;
+mod slots;
 
 use std::sync::Arc;
 
@@ -27,6 +30,7 @@ use parking_lot::Mutex;
 
 use crate::state::ItemRegistry;
 
+pub use delta::EntityDelta;
 pub use entity::{EntityInfo, EntityList};
 pub(crate) use publish::Publisher;
 
@@ -112,9 +116,16 @@ pub struct SnapshotReader(Arc<Slot>);
 struct Slot {
     hot: Mutex<Hot>,
     cold: Mutex<Arc<Cold>>,
-    entities: Mutex<Arc<EntityList>>,
+    entities: Mutex<PublishedEntities>,
     world: Mutex<Option<Arc<World>>>,
     items: Mutex<ItemRegistry>,
+}
+
+/// The list and the log of how it got there, under one lock so a delta always ends at the list.
+#[derive(Default)]
+struct PublishedEntities {
+    list: Arc<EntityList>,
+    log: delta::ChangeLog,
 }
 
 impl SnapshotReader {
@@ -127,7 +138,13 @@ impl SnapshotReader {
     }
 
     pub fn entities(&self) -> Arc<EntityList> {
-        self.0.entities.lock().clone()
+        self.0.entities.lock().list.clone()
+    }
+
+    /// The changes from the list whose version is `since` to the current one (see [`delta`]).
+    pub fn entity_delta(&self, since: Option<u64>) -> EntityDelta {
+        let published = self.0.entities.lock();
+        published.log.delta(&published.list, since)
     }
 
     pub fn get(&self) -> BotSnapshot {

@@ -131,7 +131,7 @@ emit({
   entities: Object.keys(bot.entities).length,
   stacks: bot.inventory.length,
   hotJsonBytes: JSON.stringify(bot.hot).length,
-  entitiesJsonBytes: JSON.stringify(transport.reads.entities(bot.id)).length,
+  entitiesJsonBytes: JSON.stringify(Object.values(bot.entities)).length,
   coldJsonBytes: JSON.stringify(bot.cold).length,
   roundMs,
   rounds,

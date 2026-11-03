@@ -3,29 +3,11 @@
 //! `*_version` read so a transport can skip converting what it already holds.
 
 use acacia_api::{
-    ApiError, Block, BlockPos, BotId, ColdSnapshot, Entity, EntityList, ErrorCode, FindBlocksParams, FindBlocksResult,
-    HotSnapshot, ItemTable,
+    ApiError, Block, BlockPos, BotId, ColdSnapshot, EntityList, ErrorCode, FindBlocksParams, FindBlocksResult, HotSnapshot,
+    ItemTable,
 };
 
-use crate::{convert, Host};
-
-/// Numbers per entity in [`EntityFrame::numbers`]: feet x, y, z, velocity x, y, z, yaw, pitch, health (NaN when
-/// the server sent none).
-pub const ENTITY_NUMBERS: usize = 9;
-
-/// The entity list split for readers that look every tick: what changes only when entities come or go, and the
-/// numbers that change as they move, in the same order.
-#[derive(Debug, Clone, PartialEq)]
-pub struct EntityFrame {
-    /// As [`EntityList::version`]: moves on any change.
-    pub version: u64,
-    /// Moves when an entity comes or goes (or its ids, kind or name change).
-    pub members_version: u64,
-    /// The entities as of `members_version` (their numbers too); `None` when the reader said it holds them.
-    pub members: Option<Vec<Entity>>,
-    /// [`ENTITY_NUMBERS`] per member.
-    pub numbers: Vec<f64>,
-}
+use crate::{convert, EntityDelta, Host};
 
 impl Host {
     /// The bot's state as of its last tick.
@@ -51,19 +33,10 @@ impl Host {
         Some(self.reader(bot)?.entities().version)
     }
 
-    /// [`Host::entities`] as an [`EntityFrame`], leaving out the members when `known` is their version.
-    pub fn entity_frame(&self, bot: &BotId, known: Option<u64>) -> Option<EntityFrame> {
-        let list = self.reader(bot)?.entities();
-        let members = (known != Some(list.members_version)).then(|| list.entities.iter().map(convert::entity).collect());
-        let numbers = list
-            .entities
-            .iter()
-            .flat_map(|e| {
-                let ([x, y, z], [vx, vy, vz]) = (e.position, e.velocity);
-                [x, y, z, vx, vy, vz, e.yaw, e.pitch, e.health.unwrap_or(f32::NAN)].map(f64::from)
-            })
-            .collect();
-        Some(EntityFrame { version: list.version, members_version: list.members_version, members, numbers })
+    /// [`Host::entities`] as changes since the reader's cursor, the version of the last delta it applied (`None`
+    /// for a first read: a full one).
+    pub fn entity_delta(&self, bot: &BotId, since: Option<u64>) -> Option<EntityDelta> {
+        Some(EntityDelta(self.reader(bot)?.entity_delta(since)))
     }
 
     /// The block at a cell of the bot's current dimension; also `None` for a bot that tracks no terrain or a chunk

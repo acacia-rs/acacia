@@ -7,7 +7,7 @@ mod world;
 
 pub(crate) use event::event;
 pub(crate) use items::{item_name, recipe, stack_name};
-pub(crate) use snapshot::{cold, entities, entity, hot, snapshot};
+pub(crate) use snapshot::{cold, entities, hot, snapshot};
 pub(crate) use world::{block, find_blocks, item_table};
 
 use acacia_api::{ApiError, Control, EquipDestination, ErrorCode, EventGroup, Face, FormAnswer, FormValue, Goal};

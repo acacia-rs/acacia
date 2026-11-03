@@ -30,13 +30,15 @@
 //!
 //! - **Reads.** With [`HostConfig::snapshots`] each bot publishes its state per tick (acacia_bot::snapshot), and
 //!   [`Host::hot`], [`Host::cold`], [`Host::entities`] and [`Host::block_at`] read it and the bot's terrain from
-//!   any thread without a call or a `done`. [`Host::entity_frame`] is the entity list for per-tick readers.
+//!   any thread without a call or a `done`. Readers that keep a copy of the entity list take [`Host::entity_delta`]
+//!   instead: changes since their cursor.
 //!
 //! Not yet: reconnects through the swarm supervisor, online sign-in.
 
 mod bot;
 mod calls;
 mod convert;
+mod entity_delta;
 mod host;
 mod outbound;
 mod reads;
@@ -44,4 +46,4 @@ mod registry;
 
 pub use host::{Host, HostConfig};
 pub use outbound::Outbound;
-pub use reads::{EntityFrame, ENTITY_NUMBERS};
+pub use entity_delta::{EntityDelta, ENTITY_NUMBERS};

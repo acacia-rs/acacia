@@ -8,6 +8,7 @@ use serde::Serialize;
 pub(crate) struct Mirror {
     hot: String,
     cold: Option<u64>,
+    /// The entity list version this connection holds: its delta cursor.
     entities: Option<u64>,
     items: bool,
     /// The last pass that looked (see `Router::pass`), so a batch looks once per bot.
@@ -29,10 +30,12 @@ impl Mirror {
             parts.push(("cold", to_json(&cold)));
         }
         if host.entities_version(bot).is_some_and(|v| Some(v) != self.entities)
-            && let Some(list) = host.entities(bot)
+            && let Some(delta) = host.entity_delta(bot, self.entities)
         {
-            self.entities = Some(list.version);
-            parts.push(("entities", to_json(&list)));
+            self.entities = Some(delta.version());
+            if !delta.is_empty() {
+                parts.push(("entities", delta.to_json()));
+            }
         }
         if !self.items
             && let Some(table) = host.item_table(bot).filter(|t| !t.items.is_empty())

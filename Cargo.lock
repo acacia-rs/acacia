@@ -170,6 +170,7 @@ dependencies = [
  "acacia-testserver",
  "acacia-world",
  "parking_lot",
+ "serde",
  "serde_json",
  "tokio",
 ]

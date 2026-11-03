@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { setImmediate as tick } from 'node:timers/promises'
 
+import { EntityTable } from '@acacia-rs/bot'
+
 import { connected, entity, vec } from './fake.mjs'
 
 const hot = (position) => ({ tick: 1, position, velocity: vec(0, 0, 0), yaw: 0, pitch: 0, onGround: true })
@@ -13,17 +15,23 @@ test('entities and players come from the published state, recomputed only when i
   assert.deepEqual(bot.entities, {}, 'nothing published yet')
   assert.equal(bot.nearestEntity(), null)
 
-  const steve = entity('5', 'minecraft:player', vec(3, 64, 0), { uniqueId: '-5', username: 'Steve' })
-  const alex = entity('6', 'minecraft:player', vec(9, 64, 0), { uniqueId: '-6', username: 'Alex' })
-  const zombie = entity('7', 'minecraft:zombie', vec(1, 64, 0))
+  const at = (slot, x) => [slot, x, 64, 0, 0, 0, 0, 0, 0, null]
+  const table = new EntityTable()
+  table.apply({
+    version: 1,
+    full: true,
+    added: [[0, '5', '-5', 'minecraft:player', 'Steve'], [1, '6', '-6', 'minecraft:player', 'Alex'], [2, '7', '-7', 'minecraft:zombie', null]],
+    numbers: [at(0, 3), at(1, 9), at(2, 1)],
+  })
   const info = (username, uniqueId) => ({ uuid: `u-${username}`, username, xuid: '', uniqueId })
   via.state['bot-1'] = {
     hot: hot(vec(0, 64, 0)),
-    entities: { version: 1, entities: [steve, alex, zombie] },
+    entities: table,
     cold: { version: 1, inventory: [], effects: [], players: [info('Steve', '-5'), info('Herobrine', '-9')] },
   }
-  assert.equal(bot.entities['7'], zombie)
-  assert.equal(bot.entities, bot.entities, 'one object per published list')
+  const [steve, zombie] = [bot.entities['5'], bot.entities['7']]
+  assert.deepEqual([zombie.kind, zombie.position], ['minecraft:zombie', vec(1, 64, 0)])
+  assert.equal(bot.entities, bot.entities, 'one object per bot')
   assert.equal(bot.nearestEntity(), zombie)
   assert.equal(bot.nearestEntity((e) => e.kind === 'minecraft:player'), steve)
   assert.equal(bot.players.Steve.entity, steve, 'joined by unique id')
@@ -32,7 +40,9 @@ test('entities and players come from the published state, recomputed only when i
   assert.equal(bot.players, bot.players)
 
   const before = bot.players
-  via.state['bot-1'].entities = { version: 2, entities: [zombie] }
+  table.apply({ version: 2, numbers: [at(0, 4)] })
+  assert.equal(bot.players, before, 'a move keeps the players')
+  table.apply({ version: 3, removed: [at(0, 4), at(1, 9)] })
   assert.notEqual(bot.players, before)
   assert.equal(bot.players.Steve.entity, null, 'Steve left view')
 })

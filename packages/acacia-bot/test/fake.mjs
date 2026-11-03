@@ -1,7 +1,7 @@
 // A fake Transport for the TS layer's tests: records commands, lets the test push records and serve sync reads.
 import { setImmediate as tick } from 'node:timers/promises'
 
-import { AcaciaError, createBot } from '@acacia-rs/bot'
+import { AcaciaError, createBot, EntityTable } from '@acacia-rs/bot'
 
 export class FakeTransport {
   sent = []
@@ -68,4 +68,13 @@ export const vec = (x, y, z) => ({ x, y, z })
 
 export function entity(id, kind, position, extra = {}) {
   return { id, uniqueId: `-${id}`, kind, position, velocity: vec(0, 0, 0), yaw: 0, pitch: 0, ...extra }
+}
+
+/** An `EntityTable` holding `entities` (from `entity`), as a transport's `reads.entities` serves it. */
+export function entityTable(entities) {
+  const table = new EntityTable()
+  const added = entities.map((e, slot) => [slot, e.id, e.uniqueId, e.kind, e.username ?? null])
+  const numbers = entities.map(({ position: p, velocity: v, yaw, pitch, health }, slot) => [slot, p.x, p.y, p.z, v.x, v.y, v.z, yaw, pitch, health ?? null])
+  table.apply({ version: 1, full: true, added, numbers })
+  return table
 }

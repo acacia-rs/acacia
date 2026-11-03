@@ -70,21 +70,26 @@ impl Client {
         }
         let deadline = Instant::now() + Duration::from_secs(20);
         loop {
-            let left = deadline.saturating_duration_since(Instant::now());
-            let frame = timeout(left, self.ws.next()).await.unwrap_or_else(|_| panic!("no {what}; seen {:#?}", self.seen));
-            let Some(Ok(Message::Text(text))) = frame else {
-                self.closed = true;
-                panic!("the socket closed before {what}: {frame:?}");
-            };
-            let frame: Value = serde_json::from_str(text.as_str()).unwrap();
             let from = self.seen.len();
-            match frame["method"].as_str() {
-                Some("out") => self.seen.extend(frame["params"]["records"].as_array().unwrap().iter().cloned()),
-                _ => self.seen.push(frame),
-            }
+            self.read_frame(what, deadline).await;
             if let Some(i) = self.seen[from..].iter().position(&want) {
                 return from + i;
             }
+        }
+    }
+
+    /// Reads one frame into `seen`; panics at `deadline` or when the socket closes.
+    pub async fn read_frame(&mut self, what: &str, deadline: Instant) {
+        let left = deadline.saturating_duration_since(Instant::now());
+        let frame = timeout(left, self.ws.next()).await.unwrap_or_else(|_| panic!("no {what}; seen {:#?}", self.seen));
+        let Some(Ok(Message::Text(text))) = frame else {
+            self.closed = true;
+            panic!("the socket closed before {what}: {frame:?}");
+        };
+        let frame: Value = serde_json::from_str(text.as_str()).unwrap();
+        match frame["method"].as_str() {
+            Some("out") => self.seen.extend(frame["params"]["records"].as_array().unwrap().iter().cloned()),
+            _ => self.seen.push(frame),
         }
     }
 

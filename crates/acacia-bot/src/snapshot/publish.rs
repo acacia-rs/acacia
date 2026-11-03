@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use acacia_world::World;
 
-use super::entity::{build_list, Interner};
+use super::slots::ListBuilder;
 use super::{build, SnapshotReader};
 use crate::state::Entities;
 use crate::Bot;
@@ -18,7 +18,7 @@ pub(crate) struct Publisher {
     /// The entity tracker's version the published list was built from.
     entities_source: Option<u64>,
     entities_version: u64,
-    interner: Interner,
+    lists: ListBuilder,
     world: Option<Arc<World>>,
 }
 
@@ -71,8 +71,10 @@ impl Publisher {
             self.entities_source = source;
             self.entities_version += 1;
             let previous = self.reader.entities();
-            let list = build_list(entities, self.entities_version, &previous, &mut self.interner);
-            *self.reader.0.entities.lock() = Arc::new(list);
+            let (list, changes) = self.lists.build(entities, self.entities_version, &previous);
+            let mut published = self.reader.0.entities.lock();
+            published.log.push(list.version, changes);
+            published.list = Arc::new(list);
         }
     }
 }

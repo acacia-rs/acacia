@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use acacia_api::{ApiError, BlockPos, BotId, ErrorCode, FindBlocksParams};
-use acacia_host::{Host, HostConfig};
+use acacia_host::{Host, HostConfig, ENTITY_NUMBERS};
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::UnknownReturnValue;
 use napi_derive::napi;
@@ -21,14 +21,17 @@ pub struct NativeHostOptions {
 }
 
 #[napi(object, object_from_js = false)]
-pub struct EntityFrame {
+pub struct EntityDelta {
     pub version: i64,
-    pub members_version: i64,
-    /// `[id, uniqueId, kind, username | null][]` JSON, in `numbers`' order.
+    pub full: bool,
+    /// `{removed?, added?}` JSON (acacia-host's `EntityDelta::members_json`); null when no entity came or went.
     pub members: Option<String>,
-    /// Per member: feet x, y, z, velocity x, y, z, yaw, pitch, health (NaN when unknown).
+    /// The array to use from now on, when the one passed in was too small or the delta is full.
     pub numbers: Option<Float64Array>,
 }
+
+/// Slots an entity numbers array starts with.
+const MIN_SLOTS: usize = 16;
 
 /// One acacia-host and its record stream (contract: the crate docs).
 #[napi]
@@ -143,26 +146,29 @@ impl NativeHost {
         serde_json::to_string(&self.host.entities(&BotId(bot))?).ok()
     }
 
-    /// The bot's entity list split for per-tick reads (acacia-host's `EntityFrame`), or null for an unknown bot.
-    /// While `known` is still the members' version, `members` and `numbers` are null and the numbers are written
-    /// into `into` (the array that came with those members).
+    /// The bot's entity list as changes since `since` (acacia-host's `EntityDelta`), or null for an unknown bot.
+    /// The numbers of added and moved entities are written into `numbers` by slot; a new array comes back when
+    /// that one is too small (holding the old one's numbers too) or the delta is full (holding only the new ones).
     #[napi(catch_unwind)]
-    pub fn entity_frame(&self, bot: String, known: Option<i64>, mut into: Float64ArraySlice) -> Option<EntityFrame> {
-        let frame = self.host.entity_frame(&BotId(bot), known.map(|v| v as u64))?;
+    pub fn entity_delta(&self, bot: String, since: Option<i64>, mut numbers: Float64ArraySlice) -> Option<EntityDelta> {
+        let delta = self.host.entity_delta(&BotId(bot), since.map(|v| v as u64))?;
         // SAFETY: JS is blocked in this call, so nothing else touches the array.
-        let into = unsafe { into.as_mut() };
-        let numbers = match frame.members.is_none() && frame.numbers.len() == into.len() {
-            true => {
-                into.copy_from_slice(&frame.numbers);
-                None
+        let into = unsafe { numbers.as_mut() };
+        let slots = delta.slots() as usize;
+        let mut grown = (delta.full() || into.len() < slots * ENTITY_NUMBERS).then(|| {
+            let mut grown = vec![f64::NAN; slots.max(MIN_SLOTS).next_power_of_two() * ENTITY_NUMBERS];
+            if !delta.full() {
+                grown[..into.len()].copy_from_slice(into);
             }
-            false => Some(Float64Array::new(frame.numbers)),
-        };
-        let members = frame.members.map(|m| {
-            let rows: Vec<_> = m.iter().map(|e| (e.id, e.unique_id, &e.kind, &e.username)).collect();
-            serde_json::to_string(&rows).expect("ids and strings serialize")
+            grown
         });
-        Some(EntityFrame { version: frame.version as i64, members_version: frame.members_version as i64, members, numbers })
+        let target = grown.as_deref_mut().unwrap_or(into);
+        for (slot, row) in delta.numbers() {
+            let at = slot as usize * ENTITY_NUMBERS;
+            target[at..at + ENTITY_NUMBERS].copy_from_slice(&row);
+        }
+        let (version, full, members) = (delta.version() as i64, delta.full(), delta.members_json());
+        Some(EntityDelta { version, full, members, numbers: grown.map(Float64Array::new) })
     }
 
     /// The server's `ItemTable` (JSON), or null for an unknown bot; empty until the table arrives at login.

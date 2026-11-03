@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { afterEach, beforeEach, test } from 'node:test'
 import { setImmediate as tick } from 'node:timers/promises'
 
-import { entity, vec } from '../../acacia-bot/test/fake.mjs'
+import { entity, entityTable, vec } from '../../acacia-bot/test/fake.mjs'
 import { call, clientFor, fakeBots, sent, spawn } from './helpers.mjs'
 
 const hot = (position) => ({
@@ -23,13 +23,10 @@ beforeEach(async () => {
       effects: [],
       players: [{ uuid: 'u', username: 'Steve', xuid: '', uniqueId: '-77' }, { uuid: 'v', username: 'Alex', xuid: '', uniqueId: '-78' }],
     },
-    entities: {
-      version: 1,
-      entities: [
-        entity('77', 'minecraft:player', vec(5.5, 64, 0.5), { username: 'Steve' }),
-        entity('90', 'minecraft:zombie', vec(3.5, 64, 4.5)),
-      ],
-    },
+    entities: entityTable([
+      entity('77', 'minecraft:player', vec(5.5, 64, 0.5), { username: 'Steve' }),
+      entity('90', 'minecraft:zombie', vec(3.5, 64, 4.5)),
+    ]),
     items: { items: [{ id: 5, name: 'minecraft:stone' }] },
   }
   ;({ client, close } = await clientFor(bots, { allowCommands: false }))

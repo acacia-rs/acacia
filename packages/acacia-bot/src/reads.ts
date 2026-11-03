@@ -4,7 +4,7 @@ import type { Block } from './generated/types/Block.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
 import type { Entity } from './generated/types/Entity.js'
-import type { EntityList } from './generated/types/EntityList.js'
+import type { EntityTable } from './entity-table.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
 import type { ItemTable } from './generated/types/ItemTable.js'
 import type { PlayerInfo } from './generated/types/PlayerInfo.js'
@@ -48,12 +48,11 @@ class Derived<S extends readonly unknown[], T> {
   }
 }
 
-const EMPTY_ENTITIES: EntityList = { version: 0, entities: [] }
+const NO_ENTITIES: Readonly<Record<string, Entity>> = Object.freeze({})
 
 /** A bot's reads without a call (contract: the package README). Each is null where the transport has none. */
 export class BotReads extends BotCore {
-  readonly #byId = new Derived((list: EntityList) => Object.freeze(Object.fromEntries(list.entities.map((e) => [e.id, e]))))
-  readonly #players = new Derived(players)
+  readonly #players = new Derived((cold: ColdSnapshot | null, table: EntityTable | null, _members: number) => players(cold, table))
   readonly #inventory = new Derived(inventory)
 
   /** The per-tick state; null before the first tick. */
@@ -79,27 +78,22 @@ export class BotReads extends BotCore {
     return this.session.reads?.cold(this.id) ?? null
   }
 
-  /** Tracked entities by id (empty unless created with `entities`); one object until an entity comes or goes. */
+  /** Tracked entities by id (empty unless created with `entities`); one object per bot, updated in place. */
   get entities(): Readonly<Record<string, Entity>> {
-    return this.#byId.get(this.#entityList())
+    return this.#entityTable()?.byId ?? NO_ENTITIES
   }
 
   /** Other players by name: the player list joined with player entities in view, plus players seen only in view. */
   get players(): Readonly<Record<string, Player>> {
-    return this.#players.get(this.cold, this.#entityList())
+    const table = this.#entityTable()
+    return this.#players.get(this.cold, table, table?.members ?? 0)
   }
 
   /** The tracked entity closest to the bot's feet that passes `filter`; null if none (or before the first tick). */
   nearestEntity(filter: (entity: Entity) => boolean = () => true): Entity | null {
     const me = this.hot?.position
     if (!me) return null
-    let best: Entity | null = null
-    let bestDistance = Infinity
-    for (const e of this.#entityList().entities) {
-      const d = (e.position.x - me.x) ** 2 + (e.position.y - me.y) ** 2 + (e.position.z - me.z) ** 2
-      if (d < bestDistance && filter(e)) [best, bestDistance] = [e, d]
-    }
-    return best
+    return this.#entityTable()?.nearest(me.x, me.y, me.z, filter) ?? null
   }
 
   /** The block at a cell; null for an unloaded chunk or a bot that tracks no terrain. */
@@ -125,8 +119,8 @@ export class BotReads extends BotCore {
     return reads.findBlocks(this.id, query)
   }
 
-  #entityList(): EntityList {
-    return this.session.reads?.entities(this.id) ?? EMPTY_ENTITIES
+  #entityTable(): EntityTable | null {
+    return this.session.reads?.entities(this.id) ?? null
   }
 }
 
@@ -147,8 +141,8 @@ function inventory(cold: ColdSnapshot | null, table: ItemTable | null): readonly
   return Object.freeze(items)
 }
 
-function players(cold: ColdSnapshot | null, list: EntityList): Readonly<Record<string, Player>> {
-  const byUnique = new Map(list.entities.filter((e) => e.username !== undefined).map((e) => [e.uniqueId, e]))
+function players(cold: ColdSnapshot | null, table: EntityTable | null): Readonly<Record<string, Player>> {
+  const byUnique = new Map((table?.list ?? []).filter((e) => e.username !== undefined).map((e) => [e.uniqueId, e]))
   const out: Record<string, Player> = {}
   for (const info of cold?.players ?? []) {
     out[info.username] = Object.freeze({ username: info.username, info, entity: byUnique.get(info.uniqueId) ?? null })

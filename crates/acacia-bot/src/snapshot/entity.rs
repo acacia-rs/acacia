@@ -43,6 +43,16 @@ impl EntityInfo {
     pub(crate) fn copy(e: &Entity) -> Self {
         Self::of(e, &mut |s: &str| Arc::from(s))
     }
+
+    /// The same entity: ids, kind and name match (its numbers may differ).
+    pub fn same_member(&self, other: &EntityInfo) -> bool {
+        (self.runtime_id, self.unique_id) == (other.runtime_id, other.unique_id) && self.kind == other.kind && self.username == other.username
+    }
+
+    /// Position, motion, rotation and health match.
+    pub fn same_numbers(&self, other: &EntityInfo) -> bool {
+        (self.position, self.velocity, self.yaw, self.pitch, self.health) == (other.position, other.velocity, other.yaw, other.pitch, other.health)
+    }
 }
 
 /// Every tracked entity, rebuilt at most once a tick when the tracker changed.
@@ -53,16 +63,42 @@ pub struct EntityList {
     /// Moves when the ids, kinds or names change (an entity came or went), not when entities only move or turn.
     pub members_version: u64,
     pub entities: Vec<EntityInfo>,
+    /// `entities[i]`'s slot: kept while it stays listed, reused once it left (see [`super::delta`]).
+    pub slots: Vec<u32>,
+    /// Index into `entities` per slot, [`EntityList::FREE`] for an unused one.
+    by_slot: Vec<u32>,
 }
 
 impl EntityList {
+    const FREE: u32 = u32::MAX;
+
+    /// `capacity` bounds the slots: every one in `slots` is below it.
+    pub(crate) fn new(version: u64, members_version: u64, entities: Vec<EntityInfo>, slots: Vec<u32>, capacity: u32) -> Self {
+        let mut by_slot = vec![Self::FREE; capacity as usize];
+        for (i, &slot) in slots.iter().enumerate() {
+            by_slot[slot as usize] = i as u32;
+        }
+        EntityList { version, members_version, entities, slots, by_slot }
+    }
+
     /// The same entities in the same order: only positions, motion, rotation or health may differ.
     pub fn same_members(&self, other: &EntityList) -> bool {
-        self.entities.len() == other.entities.len()
-            && self.entities.iter().zip(&other.entities).all(|(a, b)| {
-                (a.runtime_id, a.unique_id) == (b.runtime_id, b.unique_id) && a.kind == b.kind && a.username == b.username
-            })
+        same_members(&self.entities, &other.entities)
     }
+
+    /// Every slot in use is below this.
+    pub fn slot_capacity(&self) -> u32 {
+        self.by_slot.len() as u32
+    }
+
+    /// The index into `entities` of the entity in `slot`.
+    pub fn index_of_slot(&self, slot: u32) -> Option<usize> {
+        self.by_slot.get(slot as usize).filter(|&&i| i != Self::FREE).map(|&i| i as usize)
+    }
+}
+
+pub(crate) fn same_members(a: &[EntityInfo], b: &[EntityInfo]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(a, b)| a.same_member(b))
 }
 
 /// Kind and player-name strings the published lists share.
@@ -83,50 +119,5 @@ impl Interner {
         let s: Arc<str> = s.into();
         self.0.insert(s.clone());
         s
-    }
-}
-
-/// `previous` is the list this one replaces, for [`EntityList::members_version`].
-pub(crate) fn build_list(entities: &crate::state::Entities, version: u64, previous: &EntityList, intern: &mut Interner) -> EntityList {
-    let entities = entities.iter().map(|e| EntityInfo::of(e, &mut |s| intern.get(s))).collect();
-    let mut list = EntityList { version, members_version: previous.members_version, entities };
-    if !list.same_members(previous) {
-        list.members_version += 1;
-    }
-    list
-}
-
-#[cfg(test)]
-mod tests {
-    use acacia_client::proto::packets::{AddEntity, MoveEntity, RemoveEntity};
-    use acacia_client::proto::types::{Rotation, Vec3f};
-
-    use super::*;
-    use crate::state::queries::test_support::{fixtures, raw};
-    use crate::state::{Entities, Me};
-
-    const ME: Me = Me { runtime_entity_id: 1, unique_entity_id: -1 };
-
-    #[test]
-    fn members_version_moves_on_spawn_and_removal_not_on_moves() {
-        let (mut es, mut intern) = (Entities::default(), Interner::default());
-        let position = |x| Vec3f { x, y: 64.0, z: 0.0 };
-        let add = |es: &mut Entities, id: u64| {
-            let mut p: AddEntity = fixtures::<AddEntity>()[0].decode().unwrap();
-            (p.runtime_id, p.unique_id, p.entity_type, p.position) = (id, -(id as i64), "minecraft:zombie".into(), position(0.0));
-            es.apply(&raw(&p), &ME).unwrap();
-        };
-        add(&mut es, 3);
-        let first = build_list(&es, 1, &EntityList::default(), &mut intern);
-        let rotation = Rotation { yaw: 0.0, pitch: 0.0, head_yaw: 0.0 };
-        es.apply(&raw(&MoveEntity { runtime_entity_id: 3, flags: 0, position: position(5.0), rotation }), &ME).unwrap();
-        let moved = build_list(&es, 2, &first, &mut intern);
-        add(&mut es, 4);
-        let grown = build_list(&es, 3, &moved, &mut intern);
-        es.apply(&raw(&RemoveEntity { entity_id_self: -4 }), &ME).unwrap();
-        let shrunk = build_list(&es, 4, &grown, &mut intern);
-
-        assert_eq!(moved.entities[0].position[0], 5.0);
-        assert_eq!([first.members_version, moved.members_version, grown.members_version, shrunk.members_version], [1, 1, 2, 3]);
     }
 }

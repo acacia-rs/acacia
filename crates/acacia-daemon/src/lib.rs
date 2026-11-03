@@ -29,10 +29,17 @@
 //!   attached are dropped. `bots` lists every bot: `{bots: [{bot, username, persist, attached, mine}]}`.
 //! - **Reads.** Sync reads cannot cross a socket (`reads: false`). With `hello {mirror: true}` the daemon pushes
 //!   each attached bot's published state instead: a `mirror` record `{bot, hot?, cold?, entities?, items?}` carries
-//!   the parts that changed (`HotSnapshot`, `ColdSnapshot`, `EntityList`, `ItemTable`, the last once), sent at
+//!   the parts that changed (`HotSnapshot`, `ColdSnapshot`, an entity delta, `ItemTable`, the last once), sent at
 //!   most every [`DaemonConfig::mirror_every`] and before any event or response of that bot, so a client's copy is
 //!   at least as new as the record it is handling. Terrain (`blockAt`, `findBlocks`) is not mirrored; call
 //!   `bot.findBlocks`.
+//! - **Entity deltas.** `entities` is `{version, full?, removed?, added?, numbers?}`: what changed since the last
+//!   one this connection got. Every entity has a slot, a small integer it keeps while listed and that is reused
+//!   after it left. Apply in order: with `full: true`, drop every entity not re-added in `added` (same slot and
+//!   id); drop `removed` (`[slot, x, y, z, vx, vy, vz, yaw, pitch, health | null]`, its last numbers); add `added`
+//!   (`[slot, id, uniqueId, kind, username | null]`); then write `numbers` (rows as `removed`) for every added or
+//!   moved entity. Positions are feet. The first record of a bot on a connection (a new mirror, an `attach`) is
+//!   full, and so is one after the connection fell behind the bot's change log (acacia-bot `snapshot::delta`).
 //! - **Backpressure.** Each connection queues [`DaemonConfig::queue`] frames; a client that falls that far behind
 //!   is disconnected (its bots close as above). The host's own `lagged` records go to every connection.
 //!

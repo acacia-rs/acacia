@@ -1,6 +1,7 @@
 //! The socket protocol end to end against FakeServer (contract: the crate docs).
 
 mod common;
+mod mirror;
 
 use std::time::{Duration, Instant};
 
