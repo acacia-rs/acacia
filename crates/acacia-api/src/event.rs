@@ -72,7 +72,7 @@ impl Event {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ChatLine {
     pub kind: ChatKind,
-    /// The sender's name when the packet names one (`chat`, `whisper`, `announcement`).
+    /// The sender's name when the packet names one (`chat`, `whisper`, `announcement`), without `§` codes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub sender: Option<String>,

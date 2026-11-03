@@ -31,7 +31,8 @@ pub enum ChatKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChatMessage {
     pub kind: ChatKind,
-    /// The sender's name when the packet names one (`Chat`, `Whisper`, `Announcement`).
+    /// The sender's name when the packet names one (`Chat`, `Whisper`, `Announcement`), without
+    /// formatting codes: BDS sends `Steve§r`.
     pub sender: Option<String>,
     /// With `§` formatting codes; JSON (rawtext) messages are flattened to their text.
     pub message: String,
@@ -68,7 +69,7 @@ impl ChatMessage {
             TextContent::JukeboxPopup(c) => (K::JukeboxPopup, None, c.message, c.parameters),
             TextContent::Default => return None,
         };
-        let sender = sender.filter(|s| !s.is_empty());
+        let sender = sender.map(|s| strip_formatting(&s)).filter(|s| !s.is_empty());
         Some(Self { kind, sender, message, params, rawtext: json, xuid: p.xuid })
     }
 
@@ -190,7 +191,7 @@ mod tests {
 
     #[test]
     fn player_chat_names_the_sender() {
-        let p = text(TextType::Chat, TextContent::Chat(TextContentChat { source_name: "Steve".into(), message: "§ahi".into() }));
+        let p = text(TextType::Chat, TextContent::Chat(TextContentChat { source_name: "Steve§r".into(), message: "§ahi".into() }));
         let m = ChatMessage::from_packet(p).unwrap();
         assert_eq!((m.kind, m.sender.as_deref(), m.plain().as_str(), m.xuid.as_str()), (ChatKind::Chat, Some("Steve"), "hi", "123"));
     }

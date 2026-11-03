@@ -35,14 +35,14 @@ impl TestServer {
         Ok(self.server()?.addr().port().into())
     }
 
-    /// Sends a player's chat line to the client.
+    /// Sends a player's chat line to the client, with the `§r` suffix BDS puts on sender names.
     #[napi]
     pub fn chat(&self, sender: String, message: String) -> Result<()> {
         self.server()?.send(&Text {
             needs_translation: false,
             category: TextCategory::Authored,
             r#type: TextType::Chat,
-            content: TextContent::Chat(TextContentChat { source_name: sender, message }),
+            content: TextContent::Chat(TextContentChat { source_name: format!("{sender}§r"), message }),
             xuid: String::new(),
             platform_chat_id: String::new(),
             has_filtered_message: false,

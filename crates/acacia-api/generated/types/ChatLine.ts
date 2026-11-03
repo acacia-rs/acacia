@@ -3,7 +3,7 @@ import type { ChatKind } from "./ChatKind";
 
 export type ChatLine = { kind: ChatKind, 
 /**
- * The sender's name when the packet names one (`chat`, `whisper`, `announcement`).
+ * The sender's name when the packet names one (`chat`, `whisper`, `announcement`), without `§` codes.
  */
 sender?: string, 
 /**
