@@ -1,7 +1,8 @@
 # @acacia/bot
 
 Minecraft Bedrock bots for Node.js (≥ 22), running on acacia's Rust client in-process through a Node-API addon
-(`crates/acacia-node`). Pre-release: nothing is published yet.
+(`crates/acacia-node`), or on an acacia daemon over WebSocket (`crates/acacia-daemon`) with the same API.
+Pre-release: nothing is published yet.
 
 ```js
 import { createBot, goals } from '@acacia/bot'
@@ -25,7 +26,9 @@ bot.on('chat', async ({ sender, plain }) => {
 npm install
 npm run build        # release addon (napi build, cargo -j 2, this crate only) + tsc
 npm run build:test   # debug addon with the `test-server` feature (TestServer for the end-to-end tests) + tsc
-npm test             # node:test: test/*.test.mjs over a fake transport (test/fake.mjs), e2e.test.mjs over FakeServer
+npm test             # node:test: test/*.test.mjs over a fake transport (test/fake.mjs), e2e.test.mjs over FakeServer,
+                     # ws.test.mjs over a stand-in daemon, ws-e2e.test.mjs over target/debug/acacia-daemon
+                     # (cargo build -p acacia-daemon -j 2; ACACIA_DAEMON=<path> picks another binary)
 ```
 
 Benchmarks (`bench:events`, `bench:reads`, `bench:memory`) and their recorded results: see `bench/RESULTS.md`.
@@ -39,7 +42,7 @@ The one place the TS layer's contract is written down (the wire format: acacia-a
 acacia-host's; the addon: acacia-node's).
 
 - **Layers.** A `Transport` moves commands out and record batches in. `NativeTransport` runs an acacia host in this
-  process; a WebSocket transport will implement the same interface. A `Session` per transport numbers calls,
+  process; `WsTransport` talks to an acacia daemon (below). A `Session` per transport numbers calls,
   settles each from its `done` record and routes events to bots. `createBot` without `via` shares one
   process-wide `NativeTransport`; `closeAll()` shuts it down.
 - **Calls** resolve or reject from their `done` record, which comes after every event the bot raised before the call
@@ -110,6 +113,24 @@ acacia-host's; the addon: acacia-node's).
   hungry); `toss(item, count?, { toward })` throws stacks, aimed at a point when given.
 - **Process lifetime.** The addon never holds Node open by itself. The session holds it while a bot is live or a
   call is unanswered, and a closing `NativeTransport` holds it until its stream ends, so `node script.js` runs while
-  it has bots and exits once they are closed.
+  it has bots and exits once they are closed. A `WsTransport`'s open socket holds Node, so it closes the socket when
+  the session no longer wants it held and reconnects (a new `hello`) on the next command.
+- **Over acacia-daemon** (`acacia-daemon --listen 127.0.0.1:19180 [--token T]`; protocol: its crate docs).
+  `createBot({ ..., via: 'ws://127.0.0.1:19180', token })` runs the bot there; one `WsTransport` (Node's global
+  `WebSocket`) is shared per URL and token, and `closeAll()` disconnects them. The API is the same, with these
+  differences:
+  - Refusals (`BUSY`, `UNKNOWN_BOT`, ...) reject asynchronously, and `VERSION_MISMATCH` / `UNAUTHORIZED` from the
+    handshake fail every queued call. An unreachable daemon fails `createBot` with `ConnectError` `IO`.
+  - The getters read a mirror the daemon pushes (`hello { mirror: true }`, `new WsTransport(url, { mirror: false })`
+    turns it off): `hot`, `entity`, `health`, `food`, `cold`, `inventory`, `heldItem`, `entities`, `players` and
+    `nearestEntity` work, at most a tick old and never older than the event or `await` being handled. `entities` is
+    a new object whenever any entity changed (no live numbers, unlike in-process). `blockAt` and `findBlocks` throw
+    `NOT_POSSIBLE`: terrain is not mirrored; `await bot.request('bot.findBlocks', query)` does the search.
+  - A bot belongs to its connection and closes when it drops, unless created with `persist: true` (ignored
+    in-process). `attachBot({ via, username })` (or `bot`) takes over a persisted bot from a new script; events raised
+    while nobody was attached are lost, and the mirror starts over. When the connection drops, open calls fail
+    `DISCONNECTED`, each of its bots gets a synthesized `end` (`lost`, or `closed` after `close()`), and the
+    transport is spent: the next `createBot` with the same URL opens a new one. No automatic reconnect.
 
-Not yet: `signIn`, reconnects, worker_threads (one host per env, untested).
+Not yet: `signIn`, reconnects, worker_threads (one host per env, untested), `@acacia/mcp` over `WsTransport`
+(it would need `findBlocks` as a call).

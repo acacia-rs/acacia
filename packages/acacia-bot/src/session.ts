@@ -3,7 +3,21 @@ import type { Command, MethodName, Params, Result } from './generated/methods.js
 import type { BotId } from './generated/types/BotId.js'
 import type { Event } from './generated/types/Event.js'
 import type { Out } from './generated/types/Out.js'
+import type { Snapshot } from './generated/types/Snapshot.js'
 import type { SyncReads, Transport } from './transport.js'
+
+/** acacia-daemon's `attach`: a running bot by id or username (contract: the package README). */
+export interface AttachParams {
+  bot?: string
+  username?: string
+}
+
+export interface AttachResult {
+  bot: BotId
+  username: string
+  persist: boolean
+  snapshot: Snapshot
+}
 
 export interface CallOptions {
   /** Aborting cancels the call (`cancel`); it then rejects with `signal.reason` once the bot has stopped. */
@@ -16,7 +30,7 @@ export interface BotSink {
 }
 
 interface Pending {
-  method: MethodName
+  method: MethodName | 'attach'
   resolve(value: unknown): void
   reject(error: unknown): void
   signal?: AbortSignal
@@ -70,6 +84,11 @@ export class Session {
       promise.then(cleanup, cleanup)
     }
     return promise
+  }
+
+  /** `attach` on an acacia-daemon transport; settles like `createBot` (the new bot's records wait a macrotask). */
+  attachBot(params: AttachParams): Promise<AttachResult> {
+    return this.call('attach' as MethodName, params as never) as Promise<unknown> as Promise<AttachResult>
   }
 
   attach(bot: BotId, sink: BotSink): void {
@@ -128,12 +147,12 @@ export class Session {
         const { result } = record
         if ('ok' in result) {
           pending.resolve(result.ok)
-          if (pending.method !== 'createBot') return false
+          if (pending.method !== 'createBot' && pending.method !== 'attach') return false
           this.#live.add((result.ok as Result<'createBot'>).bot)
           return true
         }
         const aborted = result.err.code === 'CANCELLED' && pending.signal?.aborted
-        pending.reject(aborted ? pending.signal!.reason : errorFrom(result.err, pending.method))
+        pending.reject(aborted ? pending.signal!.reason : errorFrom(result.err, pending.method as MethodName))
         return false
       }
       case 'lagged':
