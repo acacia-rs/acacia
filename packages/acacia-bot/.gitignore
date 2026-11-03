@@ -5,3 +5,6 @@ dist
 native/index.js
 native/index.d.ts
 src/generated
+# Release staging: `napi create-npm-dirs` and downloaded CI artifacts.
+npm
+artifacts
