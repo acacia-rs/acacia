@@ -71,9 +71,18 @@ for every tick our position is off by more than 0.0001, so each correction is a 
   round each joining player 40 ticks after the spawn: blocks and a water pool in the way, mobs, a hunger effect.
   It lands about when a goto plans, so a run's start depends on that race; it hid a stuck-start bug for a day
   (docs/pathfind-plan.md, "Core fixes").
-- Testbox jobs (`tools/remote-run.sh`, `tools/remote-test.sh`, `DETACH=1` to return at once) run under
-  `tools/testbox-guard.sh`: killed with their process group on `TIMEOUT` or `STALL` seconds without output
-  (done file 124 / 125); `tools/testbox-watch.sh` prints a line per job that finishes.
+- Testbox jobs (`tools/remote-run.sh`, `tools/remote-test.sh`) run under `tools/testbox-guard.sh`: killed with
+  their process group on `TIMEOUT` or `STALL` seconds without output (done file 124 / 125). The build lock
+  `target/.busy` is taken with `flock -o`; a lock still held after 600 s ends the job with 126 and the holder's
+  pids in the log (`tools/testbox-job.sh`). Both scripts wait and print the verdict; `DETACH=1` returns at once.
+- Waiting: a filtered test (`-- build::`, ~15-25 s after an edit) runs in the foreground, verdict and failing
+  tests' output included. A suite or live run: `DETACH=1`, then `tools/testbox-wait.sh <dir> test|run` with
+  `run_in_background`; it exits with the job's code. Not Monitor (it expires after 30 min) and no hand-written
+  `until` loops. `tools/testbox-watch.sh` prints a line per job that finishes.
+- Live runs get a dir of their own (`REMOTE_DIR=work/<folder>-live`): remote-test.sh wipes its dir before a
+  sync, so each script refuses while the other's job is still going in the same dir. Release and test builds
+  share almost nothing, so the second dir costs no extra build time.
+- `tools/iter-bench.sh` times the unit-test loop (launch, compile, rest; medians): research/iteration-speed.md.
 - Their `target/` is a link to tmpfs (`tools/testbox-target.sh`): testbox's disk is two shared HDDs and was most
   of every build. Each worktree gets `work/<folder>`; a new one fills from sccache, and the least recently used
   idle targets are dropped when tmpfs or memory runs short (rebuilt from sccache on next use).
