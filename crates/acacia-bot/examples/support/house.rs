@@ -18,6 +18,9 @@ mod scenes_redstone;
 const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/build/house16.mcstructure");
 /// Default tick cap (`MAX_TICKS` overrides).
 const MAX_TICKS: u32 = 40_000;
+/// Ticks without a cell done before a run counts as stalled (`STALL_TICKS` overrides). Two bots on house16
+/// have recovered from 2206 (research/iteration-speed.md).
+const STALL_TICKS: u32 = 3000;
 /// Footprint corner (pad offset).
 const AT: [i32; 3] = [4, 0, -8];
 const STATIONS: [[i32; 3]; 2] = [[0, 0, -10], [1, 0, -10]];
@@ -164,6 +167,7 @@ pub async fn drive(bot: &mut Bot, builder: Builder, kill_at: u32, label: &str) -
     let before = super::corrections(bot);
     let diag = Builder::new(builder.job().clone())?;
     let (mut last_done, mut still) = (0, 0);
+    let stall_ticks = std::env::var("STALL_TICKS").ok().and_then(|v| v.parse().ok()).unwrap_or(STALL_TICKS);
     let status = builder.status();
     let mut procs = Processes::new();
     let id = procs.add(builder, 10);
@@ -207,7 +211,7 @@ pub async fn drive(bot: &mut Bot, builder: Builder, kill_at: u32, label: &str) -
             }
             return Ok((ticks, s, super::corrections(bot) - before));
         }
-        if (kill_at > 0 && s.placed >= kill_at) || ticks >= max_ticks || still > 3000 {
+        if (kill_at > 0 && s.placed >= kill_at) || ticks >= max_ticks || still > stall_ticks {
             profile(&split);
             println!("{label} act timing:\n{}", bot.act_timing().table());
             return Ok((ticks, s, super::corrections(bot) - before));
