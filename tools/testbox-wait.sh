@@ -14,7 +14,7 @@ until ssh $opts "$host" "test -f $remote/$kind.done" 2>/dev/null; do sleep 2; do
 if [ "$kind" = test ]; then
   show="grep -E '^(testbox-(guard|job):|error(\[|:))' -A7 test.log | head -60
     sed -n '/^failures:\$/,/^failures:\$/p' test.log | head -n ${FAIL_LINES:-80}
-    grep -E '^test result|^error: test failed|could not compile' test.log"
+    grep -E '^test result' test.log"
 else
   show="tail -n ${TAIL:-80} run.log"
 fi
