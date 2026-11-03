@@ -130,8 +130,19 @@ export class BotReads extends BotCore {
   }
 }
 
+/** Item names by network id, per item table object (the transport hands back one per table). */
+const itemNames = new WeakMap<ItemTable, ReadonlyMap<number, string>>()
+const NO_NAMES: ReadonlyMap<number, string> = new Map()
+
+function namesOf(table: ItemTable | null): ReadonlyMap<number, string> {
+  if (!table) return NO_NAMES
+  let names = itemNames.get(table)
+  if (!names) itemNames.set(table, (names = new Map(table.items.map((i) => [i.id, i.name]))))
+  return names
+}
+
 function inventory(cold: ColdSnapshot | null, table: ItemTable | null): readonly Item[] {
-  const names = new Map(table?.items.map((i) => [i.id, i.name]))
+  const names = namesOf(table)
   const items = (cold?.inventory ?? []).map((s) => Object.freeze({ ...s, name: names.get(s.networkId) ?? null }))
   return Object.freeze(items)
 }
