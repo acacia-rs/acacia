@@ -221,6 +221,66 @@ interleaved: RSS 339 / 323 MB on, 360 / 320 MB off. No difference, so the publis
 extra ~0.8 MB/bot over Rust. `MALLOC_ARENA_MAX=2` (first runs: 244 / 271 MB at N = 100, against ~334) remains
 the one lever seen. Defaults unchanged.
 
+## Entity deltas
+
+Commit 9da8cbc (2026-11-03, late): entity reads apply deltas instead of refetching the members (contract: the
+package README, Sync reads; wire format: acacia-daemon's crate docs). acacia-bot logs per published list which
+slots were added, removed and moved; a read takes the changes since its version, the addon writes moved numbers
+straight into the reader's array, and only entities that came or went cross as JSON. `nearestEntity` reads the
+array instead of building a `Vec3` per entity.
+
+Method: an interleaved A/B on one box. `delta-before` is the parent commit ad782b8 and `delta-after` is 9da8cbc,
+both `npm run build:bench` addons. Each rep runs reads, then events 100/300 × `READ=entities|positions`, for one
+side and then the other, and rep 2 swaps the order. There were 2 reps a side. Rows are tagged `delta-before` /
+`delta-after` in `results/*.jsonl`. **Load was 77–122**, the heaviest of any run here, so the absolute numbers
+are worse than in the sections above. Compare only within this section.
+
+**`JOIN_MS` is 500 now** (events and memory benches). Since 1d24fe5, acacia-host spaces joins to one address
+500 ms apart, so at the old 100 ms most of 300 bots hit the 60 s join timeout (141 and 129 of 300 joined in a
+first attempt). The 300-bot runs now take ~170 s to join.
+
+Per-tick entity reads (`bench:events`). JS thread %, each rep. Churn (spawns + removals per second across the
+bots) moves from run to run, so it is listed:
+
+| bots, read | before: JS % (churn/s) | after: JS % (churn/s) | loop p99 ms before → after |
+|---|---|---|---|
+| 100, entities | 14.2 (155), 16.0 (160) | **12.0** (315), **13.7** (199) | 6.3, 9.7 → 5.8, 6.4 |
+| 100, positions | 20.1 (185), 19.9 (160) | **15.9** (165), **16.9** (155) | 10.6, 11.8 → 7.1, 10.4 |
+| 300, entities | 28.2 (1150), 34.7 (427) | **14.2** (1247), **18.6** (1757) | 44, 27 → 17, 34 |
+| 300, positions | 59.9 (324), 41.5 (1459) | **35.5** (1314), **40.9** (725) | 1805, 8.4 → 139, 144 |
+
+- `READ=entities` at 300 bots halves the JS thread even though the after runs had 1.1–4× the churn. The before
+  runs paid a members fetch and parse per change. The after runs pay for what changed.
+- `READ=positions` gains less. Its listener builds a fresh `Vec3` for each of ~600 entities per bot per tick, ~3.6 M
+  objects/s at 300 bots, and that consumer cost is unchanged.
+- At this load 2–4 of 300 bots hit the join timeout in 3 of 4 after runs, and 3 in 1 of 4 before runs. Call RTTs
+  were dominated by load (p50 9–94 ms at 300 bots on both sides) and are not compared.
+
+Sync reads (`bench:reads`, 2 runs a side, ns/op):
+
+| read | before | after |
+|---|---|---|
+| `bot.nearestEntity()` (~28 entities) | 2,550 / 2,541 | **1,540 / 1,474** |
+| `bot.entities`, cached | 586 / 566 | 499 / 533 |
+| `bot.entities` miss p50 (a membership change) | 175 / 166 µs | 116 / 114 µs |
+| `bot.players` miss p50 | 148 / 138 µs | 133 / 131 µs |
+
+- `nearestEntity` is 1.7× faster than before at the same load. The 2,160 ns regression (After the fixes) came
+  from the `Vec3` getters. The pre-split 1,360 ns was measured at load 10–27.
+- An after-side miss is a read that applied a membership change (`bot.entities` is one object now, so the bench
+  keys misses on `EntityTable.members`).
+
+The miss cost no longer grows with the entity count. A scratch probe made one membership change, waited 150 ms
+without reading, read `bot.hot` once, then timed one `bot.entities`, 60 changes per run:
+
+| entities | before | after | first `bot.hot` after the same idle |
+|---|---|---|---|
+| 38 | 185 µs | **87 µs** | 78–81 µs |
+| 610 | 643 µs | **87 µs** | 78–79 µs |
+
+The after-side ~85 µs is no larger than the first `bot.hot` read after the same 150 ms idle, so it is this box's
+cost of a first read after idling (at load ~80), not delta work. A read right after it costs 2–3 µs.
+
 ## Not done
 
 - No feature-gated synthetic emitter: `research/js-measure/tsfn-results.md` already isolates the TSFN path,
@@ -230,7 +290,7 @@ the one lever seen. Defaults unchanged.
 - No heaptrack attribution of the extra ~0.8 MB/bot. Snapshots are ruled out (After the fixes); arenas are
   the lead.
 - Per-tick entity reads at 300 bots still take 45–68% of the JS thread, mostly membership churn: a members
-  delta (only the entities that came) would be the next step.
+  delta (only the entities that came) would be the next step. Done since: see Entity deltas.
 - The BadSplit losses (Bugs 6) recur after the fixes: 4 across the 300-bot runs.
 
 ## Reproduce

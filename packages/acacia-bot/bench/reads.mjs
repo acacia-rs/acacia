@@ -56,10 +56,12 @@ function loop(fn) {
  * are the misses, the rest hits. `woken`: one read per 1 ms timer with records flowing (cold caches); otherwise
  * back to back on a blocked JS thread (warm; the shards still publish).
  */
-async function sampled(fn, woken) {
+// `changed` names what a miss is: by default a new object; `bot.entities` is one object kept by deltas, so there a
+// miss is a read that applied a membership change.
+async function sampled(fn, woken, changed = (v) => v) {
   const hits = []
   const misses = []
-  let last = fn()
+  let last = changed(fn())
   let reads = 0
   let yieldAt = performance.now()
   const until = performance.now() + sampleS * 1000
@@ -67,10 +69,11 @@ async function sampled(fn, woken) {
     const t0 = process.hrtime.bigint()
     const value = fn()
     const ns = Number(process.hrtime.bigint() - t0)
-    if (value !== last) misses.push(ns)
+    const now = changed(value)
+    if (now !== last) misses.push(ns)
     else if (woken || (reads & 255) === 0) hits.push(ns)
     reads++
-    last = value
+    last = now
     if (woken) await sleep(1)
     else if (performance.now() > yieldAt) {
       // Let the churn timer and the record stream run every 20 ms.
@@ -118,7 +121,8 @@ const sampledReads = {}
 for (const [name, fn] of Object.entries({ 'bot.hot': () => bot.hot, 'bot.entities': () => bot.entities, 'bot.inventory': () => bot.inventory, 'bot.players': () => bot.players })) {
   for (const woken of [false, true]) {
     const key = `${name} (${woken ? 'timer-woken' : 'back to back'})`
-    sampledReads[key] = await sampled(fn, woken)
+    const members = name === 'bot.entities' ? () => transport.reads.entities(bot.id)?.members : undefined
+    sampledReads[key] = await sampled(fn, woken, members)
     log(`${key}:`, JSON.stringify(sampledReads[key]))
     await sleep(200)
   }

@@ -2,13 +2,13 @@
 // (a stone floor), standing for SETTLE s after the last spawn; then process.memoryUsage() and smaps_rollup.
 // N = 0 loads the package and starts a host without a server. Method and the Rust baseline: RESULTS.md.
 // usage: node --expose-gc bench/memory.mjs <bots>
-// env: PHYSICS=1 ENTITIES=1 SNAPSHOTS=1, SHARDS (host default), JOIN_MS=100, SETTLE=25, CAP_MB=5000, PORT=19640, SAPLING / ADDRESS (common.mjs)
+// env: PHYSICS=1 ENTITIES=1 SNAPSHOTS=1, SHARDS (host default), JOIN_MS=500 (see events.mjs), SETTLE=25, CAP_MB=5000, PORT=19640, SAPLING / ADDRESS (common.mjs)
 import { emit, env, joinBots, load, log, memoryMb, num, sleep, smapsKb, startServer, statusKb } from './common.mjs'
 
 const n = Number(process.argv[2] ?? 1)
 const physics = env('PHYSICS', '1') === '1'
 const entities = env('ENTITIES', '1') === '1'
-const [joinMs, settle, capMb] = [num('JOIN_MS', 100), num('SETTLE', 25), num('CAP_MB', 5000)]
+const [joinMs, settle, capMb] = [num('JOIN_MS', 500), num('SETTLE', 25), num('CAP_MB', 5000)]
 
 // Node plus this script, before the package loads.
 const bare = { memoryMb: memoryMb(), smapsKb: smapsKb() }

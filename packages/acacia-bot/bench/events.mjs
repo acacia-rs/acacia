@@ -1,7 +1,7 @@
 // End-to-end event delivery through @acacia-rs/bot: N bots against a fresh load-server world with `physicsTick`,
 // `entitySpawn`/`entityGone` and `entityMoved` listeners, measured over a window after the joins (RESULTS.md).
 // usage: node bench/events.mjs <bots>
-// env: CLOCKS=225 MOBS=300 (the world), JOIN_MS=100, SETTLE=10, WINDOW=20 (s), PORT=19620, SHARDS (host default),
+// env: CLOCKS=225 MOBS=300 (the world), JOIN_MS=500, SETTLE=10, WINDOW=20 (s), PORT=19620, SHARDS (host default),
 //      PROBE_GAP=10 (ms between round-trip probes), READ=none|hot|entities|positions, SAPLING / ADDRESS (common.mjs)
 import { monitorEventLoopDelay } from 'node:perf_hooks'
 
@@ -11,7 +11,8 @@ import { emit, env, joinBots, load, log, memoryMb, num, percentiles, pidTicks, r
 
 const n = Number(process.argv[2] ?? 10)
 const world = { clocks: num('CLOCKS', 225), mobs: num('MOBS', 300) }
-const [joinMs, settle, window, probeGap] = [num('JOIN_MS', 100), num('SETTLE', 10), num('WINDOW', 20), num('PROBE_GAP', 10)]
+// JOIN_MS matches acacia-host's per-address join spacing (500 ms); faster, late joins pass common.mjs's timeout.
+const [joinMs, settle, window, probeGap] = [num('JOIN_MS', 500), num('SETTLE', 10), num('WINDOW', 20), num('PROBE_GAP', 10)]
 const shards = process.env.SHARDS ? Number(process.env.SHARDS) : undefined
 
 const server = await startServer({ port: num('PORT', 19620), ...world })
