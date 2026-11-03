@@ -23,6 +23,9 @@
     "native/index.js",
     "native/index.d.ts"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "napi": {
     "binaryName": "acacia-bot",
     "packageName": "@acacia/bot",
