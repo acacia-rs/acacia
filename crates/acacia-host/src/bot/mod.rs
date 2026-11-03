@@ -31,10 +31,11 @@ pub(crate) struct Spawn {
     pub shared_worlds: SharedWorlds,
     pub event_capacity: usize,
     pub snapshots: bool,
+    pub max_batch_bytes: usize,
 }
 
 pub(crate) async fn run(spawn: Spawn) {
-    let Spawn { out, mut rx, registry, call, params, shared_worlds, event_capacity, snapshots } = spawn;
+    let Spawn { out, mut rx, registry, call, params, shared_worlds, event_capacity, snapshots, max_batch_bytes } = spawn;
     let (sink, events) = channel(event_capacity);
     let transport = match params.transport.unwrap_or(Transport::Auto) {
         Transport::Auto => TransportKind::Auto,
@@ -42,7 +43,7 @@ pub(crate) async fn run(spawn: Spawn) {
         Transport::Nethernet => TransportKind::NetherNet,
     };
     let address = format!("{}:{}", params.host, params.port.unwrap_or(19132));
-    let builder = Client::builder(address).offline(params.username).transport(transport);
+    let builder = Client::builder(address).offline(params.username).transport(transport).max_batch_bytes(max_batch_bytes);
     let config = BotConfig {
         trackers: Trackers { entities: params.entities.unwrap_or(false), ..Trackers::default() },
         physics: params.physics.unwrap_or(false),

@@ -28,6 +28,9 @@ pub struct HostConfig {
     pub event_capacity: usize,
     /// Bots publish their state every tick for [`Host::hot`] and [`Host::block_at`] (default true).
     pub snapshots: bool,
+    /// Largest decompressed batch a bot accepts before it drops the connection (default 128 MiB). A newcomer on
+    /// a crowded server gets every player's skin in one batch: about 200 players overflowed the client's 32 MiB.
+    pub max_batch_bytes: usize,
 }
 
 impl Default for HostConfig {
@@ -40,6 +43,7 @@ impl Default for HostConfig {
             max_open_calls: 64,
             event_capacity: 4096,
             snapshots: true,
+            max_batch_bytes: 128 << 20,
         }
     }
 }
@@ -52,6 +56,7 @@ pub struct Host {
     shared_worlds: SharedWorlds,
     event_capacity: usize,
     snapshots: bool,
+    max_batch_bytes: usize,
 }
 
 impl Host {
@@ -79,6 +84,7 @@ impl Host {
             shared_worlds: SharedWorlds::new(),
             event_capacity: config.event_capacity,
             snapshots: config.snapshots,
+            max_batch_bytes: config.max_batch_bytes,
         };
         Ok((host, outbound))
     }
@@ -105,6 +111,7 @@ impl Host {
             shared_worlds: self.shared_worlds.clone(),
             event_capacity: self.event_capacity,
             snapshots: self.snapshots,
+            max_batch_bytes: self.max_batch_bytes,
         };
         let job: Job = Box::new(move || Box::pin(bot::run(spawn)));
         let submitted = self.shards.lock().get(shard).is_some_and(|s| s.submit(id.clone(), job));
