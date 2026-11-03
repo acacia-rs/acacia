@@ -102,6 +102,8 @@ test('an MCP client walks a bot to a player and crafts an item; collects, places
     server.layFloor(8)
     const [fx, fy, fz] = server.spawnFeet().map(Math.floor)
     await until('the floor under the bot', async () => (await call(client, 'findBlocks', { matching: ['stone'], maxDistance: 2 })).structured?.blocks?.length)
+    // Physics starts on the first tick with the floor under the bot, and dig needs it.
+    await call(client, 'waitForTicks', { ticks: 2 })
     const status = await tool('status')
     assert.match(status.text, /^Claude at /)
 
