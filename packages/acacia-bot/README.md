@@ -28,6 +28,8 @@ npm run build:test   # debug addon with the `test-server` feature (TestServer fo
 npm test             # node:test: test/*.test.mjs over a fake transport (test/fake.mjs), e2e.test.mjs over FakeServer
 ```
 
+Benchmarks (`bench:events`, `bench:reads`, `bench:memory`) and their recorded results: see `bench/RESULTS.md`.
+
 The end-to-end tests skip when the addon was built without `TestServer`. `src/generated/` is copied from
 `crates/acacia-api/generated` by `scripts/sync-types.mjs` on every build; edit the Rust schema, never the copy.
 
