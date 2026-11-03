@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { test } from 'node:test'
 
-import { createBot, PROTOCOL_VERSION, WsTransport } from '@acacia/bot'
+import { createBot, PROTOCOL_VERSION, WsTransport } from '@acacia-rs/bot'
 import { wsServer } from './ws-server.mjs'
 
 /** A transport with a listener recording what it delivers. */
@@ -26,7 +26,7 @@ test('hello goes first, commands wait for its answer, responses become done reco
   transport.send({ call: 1, method: 'createBot', params: { host: 'h', username: 'U', persist: true } })
   const peer = await server.connection()
   const hello = await peer.greet()
-  assert.deepEqual(hello, { protocolVersion: PROTOCOL_VERSION, client: '@acacia/bot', mirror: true, token: 'k' })
+  assert.deepEqual(hello, { protocolVersion: PROTOCOL_VERSION, client: '@acacia-rs/bot', mirror: true, token: 'k' })
   const create = await peer.next()
   assert.deepEqual(create, { jsonrpc: '2.0', id: 1, method: 'createBot', params: { host: 'h', username: 'U', persist: true } })
 

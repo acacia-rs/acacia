@@ -1,17 +1,17 @@
 # Releasing the JS packages
 
-`.github/workflows/js.yml` builds, tests and publishes `@acacia/bot`. Only `@acacia/bot` is published for now:
-`@acacia/mcp` depends on it through `file:../acacia-bot`, which would have to become a version range first.
+`.github/workflows/js.yml` builds, tests and publishes `@acacia-rs/bot`. Only `@acacia-rs/bot` is published for now:
+`@acacia-rs/mcp` depends on it through `file:../acacia-bot`, which would have to become a version range first.
 
 What gets published: the main package (TS layer, generated loader) plus one package per `napi.targets` entry
-(`@acacia/bot-linux-x64-gnu`, …), which `napi prepublish` publishes first and pins as exact-version
+(`@acacia-rs/bot-linux-x64-gnu`, …), which `napi prepublish` publishes first and pins as exact-version
 `optionalDependencies`. npm can't publish several packages atomically, so a failure half-way leaves some
 versions out; bump the version and run it again rather than unpublishing.
 
 ## One-time setup
 
-1. **Scope.** Create the npm org for the scope (`@acacia` if free). Using another scope: set `NPM_SCOPE` in
-   `js.yml`; `scripts/set-scope.mjs` renames the packages in CI before building.
+1. **Scope.** The packages live under the npm org `acacia-rs` (`@acacia` was taken). Using another scope: set
+   `NPM_SCOPE` in `js.yml`; `scripts/set-scope.mjs` renames the packages in CI before building.
 2. **First publish.** npm only lets you add a trusted publisher to a package that exists. Publish a `0.0.0`
    placeholder of the main package and each platform package by hand (`npm publish --access public` with a
    granular token, then revoke it).
@@ -30,8 +30,8 @@ versions out; bump the version and run it again rather than unpublishing.
 
 ## Verifying
 
-- `npm view @acacia/bot dist-tags` shows `next` at the new version; `npm view @acacia/bot@next optionalDependencies`
+- `npm view @acacia-rs/bot dist-tags` shows `next` at the new version; `npm view @acacia-rs/bot@next optionalDependencies`
   lists every platform package at that exact version.
 - The package page shows the provenance badge linking to the workflow run.
-- In an empty directory: `npm i @acacia/bot@next` and run the hello world from `acacia-bot/README.md` on at least
+- In an empty directory: `npm i @acacia-rs/bot@next` and run the hello world from `acacia-bot/README.md` on at least
   Linux and one of macOS/Windows.

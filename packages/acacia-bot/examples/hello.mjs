@@ -2,7 +2,7 @@
 // `pong`, walks to the sender on `!come` (or to `!come <x> <y> <z>`, `!walk <dx> <dz>`), leaves on `!quit`.
 // `node examples/hello.mjs [host:port] [name]` (build first: `npm run build`); `ACACIA_VIA=ws://127.0.0.1:19180`
 // runs the same script on an acacia-daemon instead of in-process.
-import { ActionError, createBot, goals } from '@acacia/bot'
+import { ActionError, createBot, goals } from '@acacia-rs/bot'
 
 const [address = '127.0.0.1:19132', username = 'Sprout'] = process.argv.slice(2)
 const [host, port = '19132'] = address.split(':')

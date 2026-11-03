@@ -1,4 +1,4 @@
-// Per-bot memory of @acacia/bot: N offline `createBot` bots in this process against one fresh load-server world
+// Per-bot memory of @acacia-rs/bot: N offline `createBot` bots in this process against one fresh load-server world
 // (a stone floor), standing for SETTLE s after the last spawn; then process.memoryUsage() and smaps_rollup.
 // N = 0 loads the package and starts a host without a server. Method and the Rust baseline: RESULTS.md.
 // usage: node --expose-gc bench/memory.mjs <bots>
@@ -12,7 +12,7 @@ const [joinMs, settle, capMb] = [num('JOIN_MS', 100), num('SETTLE', 25), num('CA
 
 // Node plus this script, before the package loads.
 const bare = { memoryMb: memoryMb(), smapsKb: smapsKb() }
-const { createBot, NativeTransport } = await import('@acacia/bot')
+const { createBot, NativeTransport } = await import('@acacia-rs/bot')
 const shards = process.env.SHARDS ? Number(process.env.SHARDS) : undefined
 const snapshots = env('SNAPSHOTS', '1') === '1'
 const transport = new NativeTransport({ shards, snapshots })

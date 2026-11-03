@@ -1,4 +1,4 @@
-import { AcaciaError, type BlockPos, type ContainerItem, type ItemCount, type Recipe } from '@acacia/bot'
+import { AcaciaError, type BlockPos, type ContainerItem, type ItemCount, type Recipe } from '@acacia-rs/bot'
 
 import type { BotHandle } from './bots.js'
 import { ENTITY_PARAM, eyesOf } from './entities.js'

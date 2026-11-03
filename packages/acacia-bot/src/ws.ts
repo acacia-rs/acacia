@@ -110,7 +110,7 @@ export class WsTransport implements Transport {
     this.#socket = socket
     socket.onopen = () => {
       const { token, mirror = true } = this.#options
-      const params = { protocolVersion: PROTOCOL_VERSION, client: '@acacia/bot', mirror, ...(token === undefined ? {} : { token }) }
+      const params = { protocolVersion: PROTOCOL_VERSION, client: '@acacia-rs/bot', mirror, ...(token === undefined ? {} : { token }) }
       socket.send(JSON.stringify({ jsonrpc: '2.0', id: HELLO, method: 'hello', params }))
     }
     socket.onmessage = (message) => {

@@ -88,7 +88,7 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
     for await (const [payload] of on(emitter, name, { ...options, close: ['end'] })) yield payload
   }
 
-  /** Calls any table method by name with this bot's id filled in, for generic callers (`@acacia/mcp`). */
+  /** Calls any table method by name with this bot's id filled in, for generic callers (`@acacia-rs/mcp`). */
   request<M extends MethodName>(method: M, params: BotParams<M>, options?: CallOptions): Promise<Voided<Result<M>>> {
     return this.call(method, params, options)
   }

@@ -4,7 +4,7 @@ import { test } from 'node:test'
 
 import { fromJsonSchema } from '@modelcontextprotocol/server'
 
-import { METHODS, mcpMethods, toolName, tools } from '@acacia/mcp'
+import { METHODS, mcpMethods, toolName, tools } from '@acacia-rs/mcp'
 import { clientFor, fakeBots } from './helpers.mjs'
 
 const COMPOSITES = ['connect', 'disconnect', 'status', 'inventory', 'nearbyEntities', 'readChat', 'giveToPlayer', 'stop']

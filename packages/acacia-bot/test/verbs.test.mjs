@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { GoalCompositeAny, GoalNear, GoalXZ, goals } from '@acacia/bot'
+import { GoalCompositeAny, GoalNear, GoalXZ, goals } from '@acacia-rs/bot'
 import { connected, entity, vec } from './fake.mjs'
 
 test('goal classes and shorthands are plain goals on the wire', async () => {

@@ -1,11 +1,11 @@
-// End-to-end event delivery through @acacia/bot: N bots against a fresh load-server world with `physicsTick`,
+// End-to-end event delivery through @acacia-rs/bot: N bots against a fresh load-server world with `physicsTick`,
 // `entitySpawn`/`entityGone` and `entityMoved` listeners, measured over a window after the joins (RESULTS.md).
 // usage: node bench/events.mjs <bots>
 // env: CLOCKS=225 MOBS=300 (the world), JOIN_MS=100, SETTLE=10, WINDOW=20 (s), PORT=19620, SHARDS (host default),
 //      PROBE_GAP=10 (ms between round-trip probes), READ=none|hot|entities|positions, SAPLING / ADDRESS (common.mjs)
 import { monitorEventLoopDelay } from 'node:perf_hooks'
 
-import { createBot, NativeTransport } from '@acacia/bot'
+import { createBot, NativeTransport } from '@acacia-rs/bot'
 
 import { emit, env, joinBots, load, log, memoryMb, num, percentiles, pidTicks, round, sleep, startServer, threadCpu, threadTicks } from './common.mjs'
 

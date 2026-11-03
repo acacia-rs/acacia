@@ -1,4 +1,4 @@
-import type { MethodName } from '@acacia/bot'
+import type { MethodName } from '@acacia-rs/bot'
 
 import { ADAPTERS, type Adapter } from './adapters.js'
 import type { BotHandle } from './bots.js'

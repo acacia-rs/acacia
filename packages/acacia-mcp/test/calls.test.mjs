@@ -1,4 +1,4 @@
-// Tool calls over an in-memory MCP client against @acacia/bot's fake transport (test/helpers.mjs).
+// Tool calls over an in-memory MCP client against @acacia-rs/bot's fake transport (test/helpers.mjs).
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, test } from 'node:test'
 import { setImmediate as tick } from 'node:timers/promises'

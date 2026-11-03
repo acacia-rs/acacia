@@ -1,5 +1,5 @@
 // An MCP client drives `acacia-mcp` (the stdio CLI, as Claude Desktop would) against acacia-testserver's FakeServer.
-// Needs @acacia/bot's addon built with TestServer (`npm run build:test`); prints the session as a transcript.
+// Needs @acacia-rs/bot's addon built with TestServer (`npm run build:test`); prints the session as a transcript.
 import assert from 'node:assert/strict'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -13,7 +13,7 @@ import * as native from '../../acacia-bot/native/index.js'
 import { call } from './helpers.mjs'
 
 const pkg = join(dirname(fileURLToPath(import.meta.url)), '..')
-const skip = native.TestServer ? false : "@acacia/bot's addon was built without TestServer (npm run build:test)"
+const skip = native.TestServer ? false : "@acacia-rs/bot's addon was built without TestServer (npm run build:test)"
 
 /**
  * Beside the bot at `at`: chops a log (FakeServer drops no items, so the log is given as if picked up), crafts

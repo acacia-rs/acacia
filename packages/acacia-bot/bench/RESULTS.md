@@ -1,4 +1,4 @@
-# @acacia/bot benchmarks (2026-11-03)
+# @acacia-rs/bot benchmarks (2026-11-03)
 
 Item 9 of `reports/Acacia native Node package design.md`. These runs use the real package and the release
 `acacia-node` addon. The earlier numbers in `research/js-measure/` came from a synthetic TSFN crate and from
@@ -69,7 +69,7 @@ Standing bots, a 25 s settle after the last spawn, then `process.memoryUsage()` 
 
 Against the alternatives (MB RSS):
 
-| N | @acacia/bot | acacia Rust | bedrock-protocol, no world kept |
+| N | @acacia-rs/bot | acacia Rust | bedrock-protocol, no world kept |
 |---|---|---|---|
 | 10 | 105 | 25 | 212 |
 | 100 | 334 | 176 | 1573 |
@@ -77,7 +77,7 @@ Against the alternatives (MB RSS):
 | per bot | ~2.8 | ~2.0 | 11–15 |
 
 mineflayer users report 100–400 MB per bot on Java (context only, with a full world). The pitch number for
-`@acacia/bot` is **about 3 MB per bot**: 4–5× under bedrock-protocol and ~35–140× under mineflayer's reports.
+`@acacia-rs/bot` is **about 3 MB per bot**: 4–5× under bedrock-protocol and ~35–140× under mineflayer's reports.
 
 ## Event delivery end to end (`bench:events`)
 

@@ -3,7 +3,7 @@
 // Needs a release addon with TestServer: `npm run build:bench`. Method: RESULTS.md.
 // usage: node bench/reads.mjs   env: ROUND_MS=200, ROUNDS=7, ENTITIES=20, SLOTS=20, SAMPLE_S=10
 import * as native from '../native/index.js'
-import { createBot, NativeTransport } from '@acacia/bot'
+import { createBot, NativeTransport } from '@acacia-rs/bot'
 
 import { emit, load, log, median, num, percentiles, round, sleep } from './common.mjs'
 

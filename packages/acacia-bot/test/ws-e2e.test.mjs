@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import * as native from '../native/index.js'
-import { attachBot, createBot, WsTransport } from '@acacia/bot'
+import { attachBot, createBot, WsTransport } from '@acacia-rs/bot'
 import { pkg, runHello } from './hello-run.mjs'
 
 const daemonBin = process.env.ACACIA_DAEMON ?? join(pkg, '../../target/debug/acacia-daemon')

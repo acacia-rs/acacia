@@ -1,4 +1,4 @@
-import { AcaciaError } from '@acacia/bot'
+import { AcaciaError } from '@acacia-rs/bot'
 
 import type { BotHandle, BotRegistry } from './bots.js'
 

@@ -1,7 +1,7 @@
 // A fake Transport for the TS layer's tests: records commands, lets the test push records and serve sync reads.
 import { setImmediate as tick } from 'node:timers/promises'
 
-import { AcaciaError, createBot } from '@acacia/bot'
+import { AcaciaError, createBot } from '@acacia-rs/bot'
 
 export class FakeTransport {
   sent = []

@@ -1,11 +1,11 @@
-# @acacia/bot
+# @acacia-rs/bot
 
 Minecraft Bedrock bots for Node.js (≥ 22), running on acacia's Rust client in-process through a Node-API addon
 (`crates/acacia-node`), or on an acacia daemon over WebSocket (`crates/acacia-daemon`) with the same API.
 Pre-release: nothing is published yet.
 
 ```js
-import { createBot, goals } from '@acacia/bot'
+import { createBot, goals } from '@acacia-rs/bot'
 
 const bot = await createBot({ host: '127.0.0.1', port: 19132, username: 'Sprout' })
 bot.on('chat', async ({ sender, plain }) => {
@@ -51,7 +51,7 @@ acacia-host's; the addon: acacia-node's).
   `craft`, `recipesFor`, the container verbs, `smelt`, `consume`, `toss`, `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
   `setControlState`, `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
   `bot.request(method, params, options)` calls any table method by name with the bot's id filled in, for generic
-  callers such as `@acacia/mcp`.
+  callers such as `@acacia-rs/mcp`.
 - **Movement.** `goto(goal)` takes a plain `Goal`: the classes `GoalBlock`, `GoalNear`, `GoalXZ`, `GoalY`,
   `GoalAway` and `GoalCompositeAny` (mineflayer-pathfinder's names) or the shorthands `goals.near(...)` etc. build
   one. `follow(entity, { range, signal })` keeps within `range` (default 2) of an entity until aborted; it never
@@ -139,5 +139,5 @@ acacia-host's; the addon: acacia-node's).
     `DISCONNECTED`, each of its bots gets a synthesized `end` (`lost`, or `closed` after `close()`), and the
     transport is spent: the next `createBot` with the same URL opens a new one. No automatic reconnect.
 
-Not yet: `signIn`, reconnects, worker_threads (one host per env, untested), `@acacia/mcp` over `WsTransport`
+Not yet: `signIn`, reconnects, worker_threads (one host per env, untested), `@acacia-rs/mcp` over `WsTransport`
 (it would need `findBlocks` as a call).

@@ -1,4 +1,4 @@
-import { AcaciaError, type Form, type FormAnswer, type Goal } from '@acacia/bot'
+import { AcaciaError, type Form, type FormAnswer, type Goal } from '@acacia-rs/bot'
 
 import type { BotHandle } from './bots.js'
 import { ENTITY_PARAM, nearGoal, resolveEntity } from './entities.js'

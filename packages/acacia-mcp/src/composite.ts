@@ -1,4 +1,4 @@
-import type { ChatLine, Entity, Form, Item } from '@acacia/bot'
+import type { ChatLine, Entity, Form, Item } from '@acacia-rs/bot'
 
 import type { BotHandle, ConnectOptions } from './bots.js'
 import { eyesOf, nearGoal } from './entities.js'

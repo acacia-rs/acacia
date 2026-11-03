@@ -1,9 +1,9 @@
-// Shared by the tests: an MCP client wired in memory to a server over a BotRegistry on @acacia/bot's FakeTransport.
+// Shared by the tests: an MCP client wired in memory to a server over a BotRegistry on @acacia-rs/bot's FakeTransport.
 import { setImmediate as tick } from 'node:timers/promises'
 
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 
-import { BotRegistry, createServer } from '@acacia/mcp'
+import { BotRegistry, createServer } from '@acacia-rs/mcp'
 import { FakeTransport } from '../../acacia-bot/test/fake.mjs'
 
 /** A client connected in memory to a server over `bots`. */

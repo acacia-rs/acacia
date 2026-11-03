@@ -1,4 +1,4 @@
-//! The Node-API addon under `@acacia/bot` (packages/acacia-bot): an acacia-host [`acacia_host::Host`] moved
+//! The Node-API addon under `@acacia-rs/bot` (packages/acacia-bot): an acacia-host [`acacia_host::Host`] moved
 //! across the napi boundary as JSON strings, nothing typed on this side. The one place the native contract is
 //! written down (the wire: acacia-api's crate docs; the host: acacia-host's; the TS layer: the package README):
 //!

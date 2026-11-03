@@ -1,5 +1,5 @@
 {
-  "name": "@acacia/bot",
+  "name": "@acacia-rs/bot",
   "version": "0.1.0",
   "description": "Minecraft Bedrock bots for Node.js on acacia's native Rust client",
   "license": "MIT",
@@ -28,7 +28,7 @@
   },
   "napi": {
     "binaryName": "acacia-bot",
-    "packageName": "@acacia/bot",
+    "packageName": "@acacia-rs/bot",
     "targets": [
       "x86_64-unknown-linux-gnu",
       "aarch64-unknown-linux-gnu",

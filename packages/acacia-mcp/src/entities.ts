@@ -1,4 +1,4 @@
-import { AcaciaError, type Entity, type Goal } from '@acacia/bot'
+import { AcaciaError, type Entity, type Goal } from '@acacia-rs/bot'
 
 import type { BotHandle } from './bots.js'
 import { kindName, type JsonSchema } from './tool.js'

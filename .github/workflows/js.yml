@@ -26,14 +26,14 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish @acacia/bot to npm under the `next` dist-tag (see packages/RELEASING.md)
+        description: Publish @acacia-rs/bot to npm under the `next` dist-tag (see packages/RELEASING.md)
         type: boolean
         default: false
 
 env:
   CARGO_TERM_COLOR: always
-  # TODO(user): the npm scope is unclaimed; the publish job renames the packages to this scope (packages/RELEASING.md).
-  NPM_SCOPE: '@acacia'
+  # The publish job renames the packages to this scope when it differs from package.json's (packages/RELEASING.md).
+  NPM_SCOPE: '@acacia-rs'
 
 concurrency:
   group: js-${{ github.ref }}
@@ -74,7 +74,7 @@ jobs:
         working-directory: packages/acacia-bot
       - run: npm ci
         working-directory: packages/acacia-mcp
-      # Builds @acacia/bot (debug, test-server) first, then the MCP package.
+      # Builds @acacia-rs/bot (debug, test-server) first, then the MCP package.
       - run: npm run build:test
         working-directory: packages/acacia-mcp
       - run: npm test
@@ -119,7 +119,7 @@ jobs:
         working-directory: packages/acacia-bot
       # Before the build: the generated loader hardcodes the platform package names.
       - name: Rename to the release scope
-        if: env.NPM_SCOPE != '@acacia'
+        if: env.NPM_SCOPE != '@acacia-rs'
         run: node scripts/set-scope.mjs "$NPM_SCOPE"
         working-directory: packages/acacia-bot
       - run: npm run build:native -- --release --target ${{ matrix.target }} ${{ matrix.cross }}
@@ -139,7 +139,7 @@ jobs:
             packages/acacia-bot/native/index.d.ts
           if-no-files-found: error
 
-  # TODO(user): claim the scope and add a trusted publisher per package on npmjs.com first (packages/RELEASING.md).
+  # TODO(user): add a trusted publisher per package on npmjs.com first (packages/RELEASING.md).
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish
     needs: [api-drift, test, build]
@@ -170,7 +170,7 @@ jobs:
           name: loader
           path: packages/acacia-bot/native
       - name: Rename to the release scope
-        if: env.NPM_SCOPE != '@acacia'
+        if: env.NPM_SCOPE != '@acacia-rs'
         run: node scripts/set-scope.mjs "$NPM_SCOPE"
       - run: npx napi create-npm-dirs
       - run: npx napi artifacts --output-dir artifacts --npm-dir npm

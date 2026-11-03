@@ -1,4 +1,4 @@
-// Crafting, container and item tools over an in-memory MCP client against @acacia/bot's fake transport.
+// Crafting, container and item tools over an in-memory MCP client against @acacia-rs/bot's fake transport.
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, test } from 'node:test'
 

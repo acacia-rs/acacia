@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { setImmediate as tick } from 'node:timers/promises'
 
-import { AcaciaError, ActionError, ConnectError, createBot } from '@acacia/bot'
+import { AcaciaError, ActionError, ConnectError, createBot } from '@acacia-rs/bot'
 import { connected, FakeTransport } from './fake.mjs'
 
 const chat = (plain) => ({ type: 'chat', kind: 'chat', sender: 'S', message: plain, plain, params: [], xuid: '' })

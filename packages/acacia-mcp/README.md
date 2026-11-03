@@ -1,12 +1,12 @@
-# @acacia/mcp
+# @acacia-rs/mcp
 
 An [MCP](https://modelcontextprotocol.io) server that lets LLM agents (Claude Desktop, Claude Code, Mindcraft-style
-setups) play Minecraft Bedrock through acacia bots. It runs on [`@acacia/bot`](../acacia-bot) in-process and
+setups) play Minecraft Bedrock through acacia bots. It runs on [`@acacia-rs/bot`](../acacia-bot) in-process and
 speaks MCP over stdio with the official TypeScript SDK (v2, `@modelcontextprotocol/server`). Pre-release: nothing
 is published yet.
 
 ```sh
-npx @acacia/mcp --host 127.0.0.1 --port 19132 --username Bot --offline
+npx @acacia-rs/mcp --host 127.0.0.1 --port 19132 --username Bot --offline
 ```
 
 With `--host` and `--username` the bot connects at start (`--no-connect` waits for the `connect` tool, which also
@@ -23,7 +23,7 @@ Claude Desktop (`claude_desktop_config.json`) or Claude Code (`.mcp.json`, or `c
   "mcpServers": {
     "minecraft": {
       "command": "npx",
-      "args": ["@acacia/mcp", "--host", "127.0.0.1", "--port", "19132", "--username", "Bot", "--offline"]
+      "args": ["@acacia-rs/mcp", "--host", "127.0.0.1", "--port", "19132", "--username", "Bot", "--offline"]
     }
   }
 }
@@ -84,7 +84,7 @@ is `findBlocks` + `dig`, building `equip` + `placeBlock`, and crafting `craft` (
   its ticks plus 10 s (at most 1200 ticks), other queued actions 30 s. `follow` never ends on its own, so its
   deadline is `seconds` and reaching it is success. A cancelled `goto` or `follow` coasts about 1.5-2 blocks before
   the bot stands still. Screen actions keep a player's pace: a `craft` takes 3-6 s (`ACACIA_HUMAN_SCALE`, see
-  @acacia/bot's README).
+  @acacia-rs/bot's README).
 - **Bots** are kept by username (case-insensitive) for the life of the process; a tool without `bot` uses the only
   connected bot, connecting the command-line one first if none is. A bot is handed out after its first tick, so
   `status` has its state from the first call. Each bot keeps its last 200 unread chat lines (not its own lines,
@@ -94,8 +94,8 @@ is `findBlocks` + `dig`, building `equip` + `placeBlock`, and crafting `craft` (
 
 ```sh
 npm install
-npm run build        # @acacia/bot's release build, then sync-methods + tsc
-npm run build:test   # @acacia/bot's debug addon with TestServer, then sync-methods + tsc
+npm run build        # @acacia-rs/bot's release build, then sync-methods + tsc
+npm run build:test   # @acacia-rs/bot's debug addon with TestServer, then sync-methods + tsc
 npm test             # node:test: tool generation and calls over a fake transport; e2e.test.mjs over FakeServer
 ```
 

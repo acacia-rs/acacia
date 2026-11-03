@@ -1,4 +1,4 @@
-// Moves @acacia/bot (name and napi.packageName) to another npm scope for a release: `node scripts/set-scope.mjs @x`.
+// Moves @acacia-rs/bot (name and napi.packageName) to another npm scope for a release: `node scripts/set-scope.mjs @x`.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

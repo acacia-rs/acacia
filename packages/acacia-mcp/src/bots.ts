@@ -1,4 +1,4 @@
-import { AcaciaError, closeAll, createBot, type Bot, type ChatLine, type Form, type Transport } from '@acacia/bot'
+import { AcaciaError, closeAll, createBot, type Bot, type ChatLine, type Form, type Transport } from '@acacia-rs/bot'
 
 import { badParams } from './tool.js'
 
@@ -80,7 +80,7 @@ export class BotRegistry {
   readonly #bots = new Map<string, BotHandle>()
   readonly #connecting = new Map<string, Promise<BotHandle>>()
 
-  /** `via`: the transport to run bots on (default: `@acacia/bot`'s shared in-process host). */
+  /** `via`: the transport to run bots on (default: `@acacia-rs/bot`'s shared in-process host). */
   constructor(
     readonly defaults: ConnectOptions = {},
     readonly via?: Transport,

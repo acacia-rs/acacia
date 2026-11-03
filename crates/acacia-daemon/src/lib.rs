@@ -1,6 +1,6 @@
 //! Serves an [`acacia_host::Host`] over WebSocket: JSON-RPC 2.0 in text frames, the same acacia-api schema the napi
 //! addon moves, plus a handshake and bot ownership. The one place the socket protocol is written down (values,
-//! methods and ordering: acacia-api's crate docs; the host: acacia-host's; the TS client: `@acacia/bot`'s README):
+//! methods and ordering: acacia-api's crate docs; the host: acacia-host's; the TS client: `@acacia-rs/bot`'s README):
 //!
 //! - **Handshake.** The first request is `hello {protocolVersion, client?, token?, mirror?}`. It answers
 //!   `{protocolVersion, server, methods, reads: false, mirror}`; `methods` is a hash of the method table (equal
@@ -37,7 +37,7 @@
 //!   is disconnected (its bots close as above). The host's own `lagged` records go to every connection.
 //!
 //! Not yet: MessagePack framing, TLS (put a proxy in front), reconnect resumption beyond `attach`, an MCP endpoint
-//! (`@acacia/mcp` can run over the TS client's `WsTransport` instead).
+//! (`@acacia-rs/mcp` can run over the TS client's `WsTransport` instead).
 
 mod conn;
 mod mirror;

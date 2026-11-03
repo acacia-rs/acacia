@@ -4,7 +4,7 @@ import { once } from 'node:events'
 import { test } from 'node:test'
 
 import * as native from '../native/index.js'
-import { createBot, NativeTransport } from '@acacia/bot'
+import { createBot, NativeTransport } from '@acacia-rs/bot'
 import { runHello, until } from './hello-run.mjs'
 
 const skip = native.TestServer ? false : 'the addon was built without TestServer (npm run build:test)'
