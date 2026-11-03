@@ -3,6 +3,16 @@ import { AcaciaError } from '@acacia/bot'
 import type { BotRegistry } from './bots.js'
 
 export type JsonSchema = Record<string, unknown>
+export type Args = Record<string, unknown>
+
+/** A schema's properties. */
+export const props = (schema: JsonSchema) => schema.properties as Record<string, JsonSchema>
+
+/** `base` with properties added or replaced. */
+export const withProps = (base: JsonSchema, add: Record<string, JsonSchema>): JsonSchema => ({
+  ...base,
+  properties: { ...props(base), ...add },
+})
 
 /** What a tool's result carries: `text` for the model, `structured` (an object) for clients that read it. */
 export type ToolResult = {

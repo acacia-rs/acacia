@@ -1,13 +1,11 @@
-import { AcaciaError } from './errors.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { Control } from './generated/types/Control.js'
 import type { Entity } from './generated/types/Entity.js'
-import type { EquipDestination } from './generated/types/EquipDestination.js'
 import type { Face } from './generated/types/Face.js'
 import type { FormAnswer } from './generated/types/FormAnswer.js'
 import type { Goal } from './generated/types/Goal.js'
 import type { Vec3 } from './generated/types/Vec3.js'
-import { BotReads, type Item } from './reads.js'
+import { BotItems } from './items.js'
 import type { CallOptions } from './session.js'
 
 /** An entity, or its `id`. */
@@ -19,7 +17,7 @@ const idOf = (entity: EntityRef): string => (typeof entity === 'string' ? entity
  * One connected bot (contract: the package README). Queued actions (`goto`, `follow`, `dig`, ...) run one at a
  * time in call order; `chat`, `command`, the control states and the getters do not wait for them.
  */
-export class Bot extends BotReads {
+export class Bot extends BotItems {
   /** Walks to `goal` (see `goals`); needs `physics`. Fails with `NOT_POSSIBLE` when there is no path. */
   goto(goal: Goal, options?: CallOptions): Promise<void> {
     return this.call('bot.goto', { goal }, options)
@@ -51,16 +49,6 @@ export class Bot extends BotReads {
 
   clearControlStates(options?: CallOptions): Promise<void> {
     return this.call('bot.clearControlStates', {}, options)
-  }
-
-  /**
-   * Moves an item (a name, `stone` or `minecraft:stone`, or an `inventory` entry) to `destination` (default the
-   * hand). `NOT_POSSIBLE` when the inventory has none.
-   */
-  equip(item: string | Item, destination?: EquipDestination, options?: CallOptions): Promise<void> {
-    const name = typeof item === 'string' ? item : item.name
-    if (name === null) return Promise.reject(new AcaciaError('BAD_PARAMS', 'the item has no name yet (no item table)'))
-    return this.call('bot.equip', { item: name, ...(destination === undefined ? {} : { destination }) }, options)
   }
 
   /** Places the held block against `face` (default `up`) of the block at `referenceBlock`, once the server shows it. */

@@ -1,9 +1,8 @@
 import { AcaciaError, type Entity, type Form, type FormAnswer, type Goal } from '@acacia/bot'
 
 import type { BotHandle } from './bots.js'
-import { badParams, distance, fmtPos, kindName, ok, type JsonSchema, type ToolResult } from './tool.js'
-
-type Args = Record<string, unknown>
+import { ITEM_ADAPTERS } from './item-adapters.js'
+import { badParams, distance, fmtPos, kindName, ok, props, withProps, type Args, type JsonSchema, type ToolResult } from './tool.js'
 
 /** How one method's tool differs from its generated form; every hook is optional (contract: README "Tools"). */
 export interface Adapter {
@@ -20,13 +19,6 @@ export interface Adapter {
   /** The success result. */
   done?(result: unknown, params: Args, handle: BotHandle): ToolResult
 }
-
-const props = (schema: JsonSchema) => schema.properties as Record<string, JsonSchema>
-
-const withProps = (base: JsonSchema, add: Record<string, JsonSchema>): JsonSchema => ({
-  ...base,
-  properties: { ...props(base), ...add },
-})
 
 const ENTITY_PARAM: JsonSchema = {
   type: 'string',
@@ -191,4 +183,5 @@ export const ADAPTERS: Partial<Record<string, Adapter>> = {
       return ok(blocks.length === 0 ? 'none found' : `found ${blocks.length}: ${list.join('; ')}`, { blocks })
     },
   },
+  ...ITEM_ADAPTERS,
 }

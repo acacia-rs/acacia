@@ -140,6 +140,13 @@ impl Driver {
         self.read(&format!("entity {id} tracked"), |h| h.entities(&bot).filter(|l| l.entities.iter().any(|e| e.id.0 == id))).await;
     }
 
+    /// Waits until the bot's published inventory holds exactly `count` of item `name` in all.
+    pub async fn holding(&self, server: &FakeServer, bot: &str, name: &str, count: u32) {
+        let (id, bot) = (i32::from(server.item_id(name).expect("an item the script knows")), BotId(bot.to_owned()));
+        let held = |h: &Host| h.cold(&bot).map_or(0, |c| c.inventory.iter().filter(|s| s.network_id == id).map(|s| u32::from(s.count)).sum());
+        self.read(&format!("{count} {name}"), |h| (held(h) == count).then_some(())).await;
+    }
+
     pub fn hot(&self, bot: &str) -> HotSnapshot {
         self.host.hot(&BotId(bot.to_owned())).expect("a spawned bot publishes its state")
     }

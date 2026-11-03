@@ -1,10 +1,12 @@
 //! acacia-bot values to and from acacia-api's schema.
 
 mod event;
+mod items;
 mod snapshot;
 mod world;
 
 pub(crate) use event::event;
+pub(crate) use items::{item_name, recipe};
 pub(crate) use snapshot::{cold, entities, hot, snapshot};
 pub(crate) use world::{block, find_blocks, item_table};
 

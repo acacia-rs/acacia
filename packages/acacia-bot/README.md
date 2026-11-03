@@ -43,7 +43,7 @@ acacia-host's; the addon: acacia-node's).
 - **Calls** resolve or reject from their `done` record, which comes after every event the bot raised before the call
   ended: listeners see what happened during `goto` before `await bot.goto()` returns. A refusal (`BUSY`,
   `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `equip`, `placeBlock`, `dig`,
-  `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
+  `craft`, `recipesFor`, `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
   `setControlState`, `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
   `bot.request(method, params, options)` calls any table method by name with the bot's id filled in, for generic
   callers such as `@acacia/mcp`.
@@ -83,8 +83,14 @@ acacia-host's; the addon: acacia-node's).
   hotbar slot. `bot.findBlocks({ matching, maxDistance = 16, count = 1 })` returns the nearest loaded cells whose
   block has any of the names (any state), nearest first, synchronously; `maxDistance` is capped at 64 and `count`
   at 1024 (the `bot.findBlocks` method is the same read for transports without sync reads). `equip(item,
-  destination = 'hand')` takes a name or an `inventory` entry; `placeBlock(referenceBlock, face = 'up')` resolves
-  once the server shows a block in the target cell (`REJECTED` after three tries).
+  destination = 'hand')` moves an item there; `placeBlock(referenceBlock, face = 'up')` resolves once the server
+  shows a block in the target cell (`REJECTED` after three tries). Item arguments take a name (`stone` or
+  `minecraft:stone`) or an `inventory` entry throughout.
+- **Crafting.** `craft(item, count = 1, { table })` crafts through the recipe book from the inventory, in the own
+  2x2 grid or at the crafting table at `table` (within reach), and resolves with how many items were made: at least
+  `count` (a craft makes the recipe's whole output), fewer only when the ingredients ran out after one craft.
+  `NOT_POSSIBLE` when no recipe fits the grid or ingredients are missing. `recipesFor(item)` lists the server's
+  recipes for an item, ingredients summed per item or `#tag`.
 - **Process lifetime.** The addon never holds Node open by itself. The session holds it while a bot is live or a
   call is unanswered, and a closing `NativeTransport` holds it until its stream ends, so `node script.js` runs while
   it has bots and exits once they are closed.

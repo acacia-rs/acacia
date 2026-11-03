@@ -49,4 +49,9 @@ api! {
     "bot.placeBlock" => PlaceBlock(PlaceBlockParams) -> (), Queued [mcp];
     /// The nearest loaded blocks with any of the names, read from the bot's terrain without waiting for an action.
     "bot.findBlocks" => FindBlocks(FindBlocksParams) -> FindBlocksResult, Immediate [mcp];
+    /// Crafts an item from the inventory through the recipe book, in the bot's own 2x2 grid or at a crafting table
+    /// (`table`, within reach). `NOT_POSSIBLE` when no recipe fits the grid or ingredients are missing.
+    "bot.craft" => Craft(CraftParams) -> CraftResult, Queued [mcp];
+    /// The server's recipes that make an item, with what each uses up and where it is made.
+    "bot.recipesFor" => RecipesFor(RecipesForParams) -> RecipesForResult, Queued [mcp];
 }

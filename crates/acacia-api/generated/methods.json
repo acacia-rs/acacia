@@ -1660,6 +1660,203 @@
         "title": "FindBlocksResult",
         "type": "object"
       }
+    },
+    {
+      "description": "Crafts an item from the inventory through the recipe book, in the bot's own 2x2 grid or at a crafting table\n(`table`, within reach). `NOT_POSSIBLE` when no recipe fits the grid or ingredients are missing.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.craft",
+      "params": {
+        "$defs": {
+          "BlockPos": {
+            "description": "A block cell.",
+            "properties": {
+              "x": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "y": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "z": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          },
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many items at least; 1 when absent. A craft makes a recipe's whole output (4 sticks), so more may come.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item to make (`minecraft:stick`, or just `stick`).",
+            "type": "string"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/BlockPos"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The crafting table to use, within reach; the bot's own 2x2 grid when absent."
+          }
+        },
+        "required": [
+          "bot",
+          "item"
+        ],
+        "title": "CraftParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "crafted": {
+            "description": "Items made: `count` or more, fewer only when the ingredients ran out after at least one craft.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "crafted"
+        ],
+        "title": "CraftResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "The server's recipes that make an item, with what each uses up and where it is made.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.recipesFor",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "item": {
+            "description": "The item to make (`minecraft:stick`, or just `stick`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "item"
+        ],
+        "title": "RecipesForParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "ItemCount": {
+            "properties": {
+              "count": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "item": {
+                "description": "An item name, `#tag` for any item with that tag (`#minecraft:planks`), or a MoLang item expression.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "item",
+              "count"
+            ],
+            "type": "object"
+          },
+          "Recipe": {
+            "description": "One server recipe, its ingredients summed over the grid.",
+            "properties": {
+              "fits2x2": {
+                "description": "Fits the bot's own 2x2 grid (no crafting table needed).",
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "inputs": {
+                "description": "What one craft uses up.",
+                "items": {
+                  "$ref": "#/$defs/ItemCount"
+                },
+                "type": "array"
+              },
+              "outputs": {
+                "description": "What one craft makes.",
+                "items": {
+                  "$ref": "#/$defs/ItemCount"
+                },
+                "type": "array"
+              },
+              "station": {
+                "description": "Where it is made: `crafting_table` (a 2x2 recipe too), `furnace`, `stonecutter`, `smithing_table`, ...",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "station",
+              "fits2x2",
+              "inputs",
+              "outputs"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "recipes": {
+            "items": {
+              "$ref": "#/$defs/Recipe"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "recipes"
+        ],
+        "title": "RecipesForResult",
+        "type": "object"
+      }
     }
   ],
   "protocolVersion": 1

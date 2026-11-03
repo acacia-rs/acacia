@@ -51,12 +51,15 @@ Every tool but `connect` takes an optional `bot` (a username), needed only while
 | `placeBlock` | Places the held block against a face of a block |
 | `equip` | Moves an item to the hand, an armour slot or the off hand |
 | `findBlocks` | The nearest loaded blocks with any of the names |
+| `craft` | Crafts an item: at a crafting table in reach when there is one (`table: false` keeps to the 2x2 grid) |
+| `recipesFor` | The recipes that make an item, one line each: output, ingredients, where |
 | `lookAt`, `attack`, `waitForTicks`, `answerForm` | Look at a point; hit an entity; let ticks pass; answer a server form |
 | `command` | Runs a slash command (only with `--allow-commands`) |
 
 `status` is the place to start: it is what an agent needs to pick its next action. Entity params (`follow`,
-`attack`) take an id from `nearbyEntities`, a player's name, or a kind (`zombie`) for the nearest one. There is no
-crafting tool yet; collecting (`findBlocks` + `dig`) and building (`equip` + `placeBlock`) are.
+`attack`) take an id from `nearbyEntities`, a player's name, or a kind (`zombie`) for the nearest one. Collecting
+is `findBlocks` + `dig`, building `equip` + `placeBlock`, and crafting `craft` (walk to a crafting table first for
+3x3 recipes).
 
 ## Contract
 
@@ -64,18 +67,18 @@ crafting tool yet; collecting (`findBlocks` + `dig`) and building (`equip` + `pl
   `mcp` is a tool named after it without `bot.`, with the table's doc comment as its description and its params
   schema (from schemars, in `methods.json`) as the input schema: `bot` made optional and schemars' numeric
   `format`s dropped. Methods also flagged `privileged` need `--allow-commands`. A method's adapter
-  (`src/adapters.ts`) may reshape a tool to keep it flat (`goto`'s goal union, `answerForm`'s answer union), resolve
-  names to entity ids, set its deadline and phrase its result. Describe a method by editing the Rust doc
+  (`src/adapters.ts`; item and container methods in `src/item-adapters.ts`) may reshape a tool to keep it flat (`goto`'s goal union, `answerForm`'s answer union), resolve
+  names to entity ids or nearby blocks (`craft`'s table), set its deadline and phrase its result. Describe a method by editing the Rust doc
   comments; `scripts/sync-methods.mjs` copies `methods.json` in on every build.
 - **Results** are short text for the model plus `structuredContent` where there is data (`status`, `inventory`,
-  `nearbyEntities`, `readChat`, `findBlocks`; `findBlocks` also declares its `outputSchema`). Actions that move the
-  bot report where it ended up.
+  `nearbyEntities`, `readChat`, and every method with a result, which also declares its `outputSchema`). Actions
+  that move the bot report where it ended up.
 - **Errors** are tool results with `isError`, never protocol errors: the text is `CODE: message` with the acacia
   `ErrorCode` (`NOT_POSSIBLE`, `NOT_VISIBLE`, `REJECTED`, `TIMEOUT`, `CANCELLED`, `BAD_PARAMS`, `UNKNOWN_BOT`, ...),
   and `structuredContent.error` holds `{code, message}`. Calls with params that fail the schema are refused by the
   SDK the same way.
 - **Long actions** wait until done. Cancelling the MCP request, or the `stop` tool, cancels the bot's call (within a
-  tick). Each has a deadline after which it is cancelled with `TIMEOUT`: `goto` 120 s, `dig` 60 s, `waitForTicks`
+  tick). Each has a deadline after which it is cancelled with `TIMEOUT`: `goto` 120 s, `dig` and `craft` 60 s, `waitForTicks`
   its ticks plus 10 s (at most 1200 ticks), other queued actions 30 s. `follow` never ends on its own, so its
   deadline is `seconds` and reaching it is success.
 - **Bots** are kept by username (case-insensitive) for the life of the process; a tool without `bot` uses the only
@@ -94,4 +97,4 @@ npm test             # node:test: tool generation and calls over a fake transpor
 `e2e.test.mjs` runs the CLI on stdio under the SDK's client against FakeServer and prints the session; it skips when
 the addon was built without `TestServer`.
 
-Not yet: crafting and containers (no such methods), Streamable HTTP, MCP resources or notifications for events.
+Not yet: Streamable HTTP, MCP resources or notifications for events.

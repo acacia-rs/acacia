@@ -106,6 +106,8 @@ test('in process: events, sync reads, cancel and close', { skip, timeout: 60_000
     const seen = []
     bot.on('entitySpawn', (e) => seen.push(['spawn', e.id, e.kind]))
     bot.on('entityGone', (e) => seen.push(['gone', e.id]))
+    // The listeners' setEvents must reach the bot before the AddEntity does, or the spawn is filtered out.
+    await bot.waitForTicks(2)
     server.addEntity('minecraft:zombie', 90, x + 2, y, z)
     await until('the zombie spawn', () => seen.some(([what, id]) => what === 'spawn' && id === '90'))
     assert.deepEqual(seen.find(([, id]) => id === '90'), ['spawn', '90', 'minecraft:zombie'])

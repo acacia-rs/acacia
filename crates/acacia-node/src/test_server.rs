@@ -1,6 +1,7 @@
 use acacia_proto::packets::{InventoryTransaction, Text, TextCategory, TextContent, TextContentChat, TextType};
+use acacia_proto::types::WindowType;
 use acacia_proto::Packet;
-use acacia_testserver::{FakeServer, Script};
+use acacia_testserver::{FakeServer, InventoryServer, Script};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use tokio::runtime::Runtime;
@@ -10,6 +11,14 @@ use tokio::runtime::Runtime;
 pub struct TestServer {
     server: Option<FakeServer>,
     runtime: Option<Runtime>,
+    inventory: Option<InventoryServer>,
+}
+
+#[napi(object)]
+pub struct ContainerItem {
+    pub slot: u32,
+    pub name: String,
+    pub count: u32,
 }
 
 #[napi]
@@ -18,7 +27,7 @@ impl TestServer {
     pub fn start() -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build()?;
         let server = runtime.block_on(FakeServer::start(Script::bds_spawn()))?;
-        Ok(Self { server: Some(server), runtime: Some(runtime) })
+        Ok(Self { server: Some(server), runtime: Some(runtime), inventory: None })
     }
 
     #[napi(getter)]
@@ -100,6 +109,33 @@ impl TestServer {
     #[napi]
     pub fn set_block(&self, x: i32, y: i32, z: i32, name: String) -> Result<()> {
         self.server()?.set_blocks(&[[x, y, z]], acacia_testserver::bds_block_id(&name));
+        Ok(())
+    }
+
+    /// Starts accepting the client's item stack requests and opening its inventory screen and the blocks
+    /// `addContainer` registers (acacia-testserver's `serve_inventory`).
+    #[napi]
+    pub fn serve_inventory(&mut self) -> Result<()> {
+        let inventory = {
+            let _guard = self.runtime()?.enter();
+            self.server()?.serve_inventory()
+        };
+        self.inventory = Some(inventory);
+        Ok(())
+    }
+
+    /// Makes the block at `(x, y, z)` open as a `chest`, `furnace` or `craftingTable` window holding `items`.
+    #[napi]
+    pub fn add_container(&self, x: i32, y: i32, z: i32, kind: String, items: Vec<ContainerItem>) -> Result<()> {
+        let kind = match kind.as_str() {
+            "chest" => WindowType::Container,
+            "furnace" => WindowType::Furnace,
+            "craftingTable" => WindowType::Workbench,
+            other => return Err(Error::from_reason(format!("unknown container kind {other}"))),
+        };
+        let inventory = self.inventory.as_ref().ok_or_else(|| Error::from_reason("call serveInventory first"))?;
+        let items: Vec<_> = items.iter().map(|i| (i.slot as usize, i.name.as_str(), i.count as u16)).collect();
+        inventory.add_container(self.server()?, [x, y, z], kind, &items);
         Ok(())
     }
 

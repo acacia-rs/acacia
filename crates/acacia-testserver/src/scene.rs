@@ -31,10 +31,11 @@ fn vec3([x, y, z]: [f32; 3]) -> Vec3f {
     Vec3f { x, y, z }
 }
 
-/// The id BDS sends for block `name`'s default state.
+/// The id BDS sends for block `name`'s state without properties, or its first state (an `oak_log` has an axis).
 pub fn bds_block_id(name: &str) -> u32 {
     let registry = BlockRegistry::vanilla();
-    let id = registry.find(name, "").unwrap_or_else(|| panic!("{name} is not a vanilla block"));
+    let first = || registry.states_of(name).next().map(|(id, _)| id);
+    let id = registry.find(name, "").or_else(first).unwrap_or_else(|| panic!("{name} is not a vanilla block"));
     registry.network_hash(id)
 }
 

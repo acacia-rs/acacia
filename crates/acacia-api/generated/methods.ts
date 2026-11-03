@@ -5,6 +5,8 @@ import type { BotParams } from "./types/BotParams";
 import type { CancelParams } from "./types/CancelParams";
 import type { ChatParams } from "./types/ChatParams";
 import type { CommandParams } from "./types/CommandParams";
+import type { CraftParams } from "./types/CraftParams";
+import type { CraftResult } from "./types/CraftResult";
 import type { CreateBotParams } from "./types/CreateBotParams";
 import type { CreateBotResult } from "./types/CreateBotResult";
 import type { DigParams } from "./types/DigParams";
@@ -15,6 +17,8 @@ import type { FollowParams } from "./types/FollowParams";
 import type { GotoParams } from "./types/GotoParams";
 import type { LookAtParams } from "./types/LookAtParams";
 import type { PlaceBlockParams } from "./types/PlaceBlockParams";
+import type { RecipesForParams } from "./types/RecipesForParams";
+import type { RecipesForResult } from "./types/RecipesForResult";
 import type { SetControlStateParams } from "./types/SetControlStateParams";
 import type { SetEventsParams } from "./types/SetEventsParams";
 import type { Snapshot } from "./types/Snapshot";
@@ -119,6 +123,17 @@ export interface Methods {
    * @mcp
    */
   "bot.findBlocks": { params: FindBlocksParams; result: FindBlocksResult; lane: "immediate" };
+  /**
+   * Crafts an item from the inventory through the recipe book, in the bot's own 2x2 grid or at a crafting table
+   * (`table`, within reach). `NOT_POSSIBLE` when no recipe fits the grid or ingredients are missing.
+   * @mcp
+   */
+  "bot.craft": { params: CraftParams; result: CraftResult; lane: "queued" };
+  /**
+   * The server's recipes that make an item, with what each uses up and where it is made.
+   * @mcp
+   */
+  "bot.recipesFor": { params: RecipesForParams; result: RecipesForResult; lane: "queued" };
 }
 
 export type MethodName = keyof Methods;

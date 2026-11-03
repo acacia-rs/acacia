@@ -28,7 +28,7 @@ pub(crate) struct Shared {
     spawned: Option<Duration>,
 }
 
-enum Command {
+pub(crate) enum Command {
     Send(Bytes),
     Kick(String),
 }
@@ -38,10 +38,10 @@ enum Command {
 /// [`recv`](Self::recv) and [`kick`](Self::kick). Stops when dropped.
 pub struct FakeServer {
     addr: SocketAddr,
-    shared: Arc<Mutex<Shared>>,
-    commands: mpsc::UnboundedSender<Command>,
+    pub(crate) shared: Arc<Mutex<Shared>>,
+    pub(crate) commands: mpsc::UnboundedSender<Command>,
     /// Ticks whenever `shared` changes.
-    changes: watch::Receiver<()>,
+    pub(crate) changes: watch::Receiver<()>,
     /// Index into `received` after the last packet [`recv`](Self::recv) returned.
     cursor: Mutex<usize>,
     task: JoinHandle<()>,

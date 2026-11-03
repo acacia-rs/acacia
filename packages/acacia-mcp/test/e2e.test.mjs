@@ -15,8 +15,43 @@ import { call } from './helpers.mjs'
 const pkg = join(dirname(fileURLToPath(import.meta.url)), '..')
 const skip = native.TestServer ? false : "@acacia/bot's addon was built without TestServer (npm run build:test)"
 
-test('an MCP client walks a bot to a player, collects and places a block, chats, follows and cancels', { skip, timeout: 120_000 }, async () => {
+/**
+ * Beside the bot at `at`: chops a log (FakeServer drops no items, so the log is given as if picked up), crafts
+ * planks, sticks and a crafting table in the 2x2 grid, places the table and crafts a pickaxe at it.
+ */
+async function craftBeside({ tool, quiet, server, until }, at) {
+  const [x, y, z] = [Math.floor(at.x), Math.floor(at.y), Math.floor(at.z)]
+  const seen = (name) => async () => (await quiet('findBlocks', { matching: [name], maxDistance: 3 })).structured?.blocks?.length
+  server.setBlock(x + 1, y, z, 'minecraft:oak_log')
+  await until('the log in view', seen('oak_log'))
+  const chopping = tool('dig', { x: x + 1, y, z })
+  await sleep(1000)
+  server.setBlock(x + 1, y, z, 'minecraft:air')
+  assert.ok(!(await chopping).isError)
+  server.give(1, 'minecraft:oak_log', 3)
+  await until('the logs in the inventory', async () => (await quiet('inventory')).text.includes('minecraft:oak_log x3'))
+
+  assert.match((await tool('recipesFor', { item: 'crafting_table' })).text, /minecraft:crafting_table x1 from #minecraft:planks x4 \(2x2 grid\)/)
+  assert.equal((await tool('craft', { item: 'oak_planks', count: 12 })).text, 'crafted 12 oak_planks')
+  assert.equal((await tool('craft', { item: 'stick' })).text, 'crafted 4 stick')
+  assert.equal((await tool('craft', { item: 'crafting_table' })).text, 'crafted 1 crafting_table')
+  assert.match((await tool('craft', { item: 'wooden_pickaxe', table: false })).text, /^NOT_POSSIBLE: .*no recipe for minecraft:wooden_pickaxe in the 2x2 grid/)
+
+  assert.ok(!(await tool('equip', { item: 'crafting_table' })).isError)
+  const before = server.inventoryTransactions()
+  const placing = tool('placeBlock', { x: x + 1, y: y - 1, z, face: 'up' })
+  await until('the placement packet', () => server.inventoryTransactions() > before)
+  server.setBlock(x + 1, y, z, 'minecraft:crafting_table')
+  server.addContainer(x + 1, y, z, 'craftingTable', [])
+  assert.ok(!(await placing).isError)
+  await until('the table in view', seen('crafting_table'))
+  assert.equal((await tool('craft', { item: 'wooden_pickaxe' })).text, `crafted 1 wooden_pickaxe at the crafting table at ${x + 1} ${y} ${z}`)
+  assert.match((await tool('inventory')).text, /minecraft:wooden_pickaxe x1/)
+}
+
+test('an MCP client walks a bot to a player and crafts an item; collects, places, chats, follows and cancels', { skip, timeout: 180_000 }, async () => {
   const server = native.TestServer.start()
+  server.serveInventory()
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: ['dist/cli.js', '--host', '127.0.0.1', '--port', String(server.port), '--username', 'Claude', '--transport', 'raknet', '--offline'],
@@ -45,7 +80,7 @@ test('an MCP client walks a bot to a player, collects and places a block, chats,
     await client.connect(transport)
     const { tools } = await client.listTools()
     transcript.push(`tools: ${tools.map((t) => t.name).join(', ')}`)
-    for (const name of ['status', 'goto', 'follow', 'readChat', 'findBlocks', 'dig', 'equip', 'placeBlock']) {
+    for (const name of ['status', 'goto', 'follow', 'readChat', 'findBlocks', 'dig', 'equip', 'placeBlock', 'craft', 'recipesFor']) {
       assert.ok(tools.some((t) => t.name === name), name)
     }
     assert.ok(!tools.some((t) => t.name === 'command'), 'command needs --allow-commands')
@@ -62,7 +97,7 @@ test('an MCP client walks a bot to a player, collects and places a block, chats,
     server.chat('Steve', 'hi Claude')
     assert.equal((await tool('readChat', { wait: 10 })).text, '<Steve> hi Claude')
 
-    // In place of crafting (not in the API yet): collect a block with findBlocks + dig, then build with equip + placeBlock.
+    // Collect a block with findBlocks + dig, then build with equip + placeBlock.
     const found = await tool('findBlocks', { matching: ['stone'], maxDistance: 3, count: 50 })
     assert.ok(found.structured.blocks.some((b) => b.x === fx + 1 && b.y === fy - 1 && b.z === fz))
     const digging = tool('dig', { x: fx + 1, y: fy - 1, z: fz })
@@ -87,6 +122,8 @@ test('an MCP client walks a bot to a player, collects and places a block, chats,
     assert.match(walked.text, /^arrived/)
     const [steve] = (await tool('status')).structured.players
     assert.ok(steve.distance <= 3, `within 2 of Steve's cell: ${steve.distance}`)
+    const quiet = (name, args) => call(client, name, args)
+    await craftBeside({ tool, quiet, server, until }, (await call(client, 'status')).structured.position)
 
     const aborted = new AbortController()
     const following = tool('follow', { entity: 'Steve', seconds: 60 }, { signal: aborted.signal })
