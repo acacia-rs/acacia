@@ -7,7 +7,7 @@ import { fromJsonSchema } from '@modelcontextprotocol/server'
 import { METHODS, mcpMethods, toolName, tools } from '@acacia/mcp'
 import { clientFor, fakeBots } from './helpers.mjs'
 
-const COMPOSITES = ['connect', 'disconnect', 'status', 'inventory', 'nearbyEntities', 'readChat', 'stop']
+const COMPOSITES = ['connect', 'disconnect', 'status', 'inventory', 'nearbyEntities', 'readChat', 'giveToPlayer', 'stop']
 
 const deref = (schema, root) => (schema.$ref ? root.$defs[schema.$ref.split('/').at(-1)] : schema)
 

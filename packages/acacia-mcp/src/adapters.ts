@@ -1,60 +1,16 @@
-import { AcaciaError, type Entity, type Form, type FormAnswer, type Goal } from '@acacia/bot'
+import { AcaciaError, type Form, type FormAnswer, type Goal } from '@acacia/bot'
 
 import type { BotHandle } from './bots.js'
+import { ENTITY_PARAM, nearGoal, resolveEntity } from './entities.js'
 import { ITEM_ADAPTERS } from './item-adapters.js'
-import { badParams, distance, fmtPos, kindName, ok, props, withProps, type Args, type JsonSchema, type ToolResult } from './tool.js'
+import { badParams, distance, fmtPos, here, ok, props, withProps, type Adapter, type Args, type JsonSchema, type ToolResult } from './tool.js'
 
-/** How one method's tool differs from its generated form; every hook is optional (contract: README "Tools"). */
-export interface Adapter {
-  /** Rewrites the generated input schema (to keep it flat, or to add tool-only params). */
-  schema?(base: JsonSchema): JsonSchema
-  /** Appended to the method's description. */
-  note?: string
-  /** Tool args (without `bot`) to the method's params (without `bot`). */
-  params?(args: Args, handle: BotHandle): Args
-  /** Milliseconds the call may run before it is cancelled (from the tool args). */
-  timeout?(args: Args): number
-  /** The result when the deadline ends the call, for calls that never end on their own (else a `TIMEOUT` error). */
-  untilDeadline?(args: Args, handle: BotHandle): ToolResult
-  /** The success result. */
-  done?(result: unknown, params: Args, handle: BotHandle): ToolResult
-}
-
-const ENTITY_PARAM: JsonSchema = {
-  type: 'string',
-  description: "An entity id (from nearbyEntities), a player's name, or an entity kind (`zombie`) for the nearest one.",
-}
-
-/** The entity `ref` names: a runtime id, a player's name, or the nearest entity of a kind. */
-export function resolveEntity(handle: BotHandle, ref: string): Entity {
-  const { bot } = handle
-  if (/^\d+$/.test(ref)) {
-    const byId = bot.entities[ref]
-    if (byId) return byId
-    throw new AcaciaError('NOT_POSSIBLE', `no entity ${ref} in view`)
-  }
-  const lower = ref.toLowerCase()
-  const player = Object.values(bot.players).find((p) => p.username.toLowerCase() === lower)
-  if (player?.entity) return player.entity
-  if (player) throw new AcaciaError('NOT_POSSIBLE', `${player.username} is online but not in view`)
-  const kind = kindName(lower)
-  const nearest = bot.nearestEntity((e) => e.kind === kind)
-  if (nearest) return nearest
-  throw new AcaciaError('NOT_POSSIBLE', `no player or entity called ${ref} in view`)
-}
-
-const here = (handle: BotHandle) => {
-  const position = handle.bot.entity?.position
-  return position ? `; ${handle.name} is now at ${fmtPos(position)}` : ''
-}
+export type { Adapter }
 
 function gotoGoal(args: Args, handle: BotHandle): Goal {
   const { x, y, z, player } = args as { x?: number; y?: number; z?: number; player?: string }
   const range = args.range as number | undefined
-  if (player !== undefined) {
-    const { position: p } = resolveEntity(handle, player)
-    return { type: 'near', x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z), range: range ?? 2 }
-  }
+  if (player !== undefined) return nearGoal(handle, player, range ?? 2)
   if (x === undefined || z === undefined) throw badParams('goto needs x and z (and y), or player')
   if (y === undefined) return { type: 'xz', x, z }
   return range ? { type: 'near', x, y, z, range } : { type: 'block', x, y, z }

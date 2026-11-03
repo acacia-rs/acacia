@@ -1,4 +1,4 @@
-//! Params and results of crafting.
+//! Params and results of crafting and smelting.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,38 @@ pub struct CraftParams {
 pub struct CraftResult {
     /// Items made: `count` or more, fewer only when the ingredients ran out after at least one craft.
     pub crafted: u32,
+}
+
+/// Smelts items in the furnace, blast furnace or smoker at `x, y, z` (within reach).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SmeltParams {
+    pub bot: BotId,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    /// The item to smelt (`minecraft:raw_iron`, or just `raw_iron`).
+    pub item: String,
+    /// How many, 1 to 64; 1 when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    #[schemars(range(min = 1, max = 64))]
+    pub count: Option<u8>,
+    /// Fuel to add (`coal`); none when absent, for a furnace that still burns.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub fuel: Option<String>,
+    /// How much fuel; 1 when absent (one coal smelts 8 items).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    #[schemars(range(min = 1, max = 64))]
+    pub fuel_count: Option<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct SmeltResult {
+    /// Items taken out of the output slot.
+    pub smelted: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]

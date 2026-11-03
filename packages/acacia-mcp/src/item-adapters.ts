@@ -1,8 +1,8 @@
 import { AcaciaError, type BlockPos, type ContainerItem, type ItemCount, type Recipe } from '@acacia/bot'
 
-import type { Adapter } from './adapters.js'
 import type { BotHandle } from './bots.js'
-import { fmtPos, ok, withProps, type Args, type ToolResult } from './tool.js'
+import { ENTITY_PARAM, eyesOf } from './entities.js'
+import { fmtPos, ok, withProps, type Adapter, type Args, type JsonSchema, type ToolResult } from './tool.js'
 
 /** Blocks from the bot's feet within which a crafting table counts as in reach. */
 const TABLE_REACH = 4
@@ -11,6 +11,8 @@ const nearestTable = (handle: BotHandle): BlockPos | undefined =>
   handle.bot.findBlocks({ matching: ['crafting_table'], maxDistance: TABLE_REACH, count: 1 })[0]
 
 const CONTAINER_NOTE = 'Walk within reach of it first (goto with range 3).'
+
+const TOWARD_PARAM: JsonSchema = { ...ENTITY_PARAM, description: `Throw toward this entity or player (giveToPlayer also walks there). ${ENTITY_PARAM.description}` }
 
 function moved(result: unknown, where: string, params: Args): ToolResult {
   const { moved } = result as { moved: number }
@@ -62,6 +64,26 @@ export const ITEM_ADAPTERS: Partial<Record<string, Adapter>> = {
   'bot.withdraw': {
     note: CONTAINER_NOTE,
     done: (result, params) => moved(result, `taken from the container at ${fmtPos(params as BlockPos)}`, params),
+  },
+  'bot.smelt': {
+    note: CONTAINER_NOTE,
+    timeout: (args) => ((args.count as number | undefined) ?? 1) * 10_000 + 30_000,
+    done: (result, params) => {
+      const { smelted } = result as { smelted: number }
+      return ok(`smelted ${params.item}: took ${smelted} items out of the furnace at ${fmtPos(params as BlockPos)}`, { smelted })
+    },
+  },
+  'bot.consume': {
+    timeout: () => 15_000,
+    done: (_, params, handle) => ok(`consumed ${params.item ?? 'the held item'}; food now ${handle.bot.food ?? '?'}`),
+  },
+  'bot.toss': {
+    schema: (base) => withProps(base, { toward: TOWARD_PARAM }),
+    params: ({ toward, ...args }, handle) => (toward === undefined ? args : { ...args, toward: eyesOf(handle, String(toward)) }),
+    done: (result, params) => {
+      const { tossed } = result as { tossed: number }
+      return ok(`tossed ${tossed} ${params.item}`, { tossed })
+    },
   },
   'bot.recipesFor': {
     done: (result, params) => {

@@ -55,6 +55,15 @@ test('container tools: contents by slot, and how many moved where', async () => 
   assert.equal(taken.text, '3 oak_log taken from the container at 4 64 -2')
 })
 
+test('smelt and consume say what happened', async () => {
+  const furnace = { x: 1, y: 64, z: 3 }
+  const smelted = await answered('smelt', { ...furnace, item: 'raw_iron', count: 2, fuel: 'coal' }, 'bot.smelt', { ok: { smelted: 2 } })
+  assert.deepEqual(smelted.params, { bot: 'bot-1', ...furnace, item: 'raw_iron', count: 2, fuel: 'coal' })
+  assert.deepEqual([smelted.text, smelted.structured], ['smelted raw_iron: took 2 items out of the furnace at 1 64 3', { smelted: 2 }])
+  const ate = await answered('consume', { item: 'bread' }, 'bot.consume')
+  assert.deepEqual([ate.params, ate.text], [{ bot: 'bot-1', item: 'bread' }, 'consumed bread; food now ?'])
+})
+
 test('recipesFor lists each recipe as one line', async () => {
   const recipes = [
     { id: 'a', station: 'crafting_table', fits2x2: true, inputs: [{ item: '#minecraft:planks', count: 2 }], outputs: [{ item: 'minecraft:stick', count: 4 }] },

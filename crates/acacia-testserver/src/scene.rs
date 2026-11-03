@@ -95,9 +95,18 @@ impl FakeServer {
 
     /// Puts `count` of item `name` in main-inventory slot `slot` (0-8: the hotbar), with stack id `stack_id`.
     pub fn give(&self, slot: u32, name: &str, count: u16, stack_id: i32) {
+        self.set_slot(WindowIDVarint::Inventory.to_raw(), slot, Some((name, count)), stack_id);
+    }
+
+    /// Sets slot `slot` of window `window` to `count` of item `name`, or empties it (`None`).
+    pub fn set_slot(&self, window: i64, slot: u32, item: Option<(&str, u16)>, stack_id: i32) {
         let mut p: InventorySlot = fixture(include_str!("../../acacia-proto/tests/fixtures/packets/inventory_slot.hex"));
+        (p.window_id, p.slot, p.container, p.storage_item) = (WindowIDVarint::from_raw(window), slot, None, None);
+        let Some((name, count)) = item else {
+            (p.item.network_id, p.item.count, p.item.has_stack_id, p.item.stack_id, p.item.block_runtime_id) = (0, 0, false, None, 0);
+            return self.send(&p);
+        };
         let id = self.item_id(name).unwrap_or_else(|| panic!("{name} is not in the script's item registry"));
-        (p.window_id, p.slot, p.container, p.storage_item) = (WindowIDVarint::Inventory, slot, None, None);
         let block = BlockRegistry::vanilla().find(name, "").map_or(0, |b| BlockRegistry::vanilla().network_hash(b));
         (p.item.network_id, p.item.count, p.item.metadata) = (id, count, 0);
         (p.item.has_stack_id, p.item.stack_id, p.item.block_runtime_id) = (true, Some(stack_id), block);

@@ -1,6 +1,6 @@
 import { AcaciaError } from '@acacia/bot'
 
-import type { BotRegistry } from './bots.js'
+import type { BotHandle, BotRegistry } from './bots.js'
 
 export type JsonSchema = Record<string, unknown>
 export type Args = Record<string, unknown>
@@ -35,6 +35,22 @@ export interface ToolDef {
   outputSchema?: JsonSchema
   annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; openWorldHint?: boolean }
   run(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>
+}
+
+/** How one method's tool differs from its generated form; every hook is optional (contract: README "Tools"). */
+export interface Adapter {
+  /** Rewrites the generated input schema (to keep it flat, or to add tool-only params). */
+  schema?(base: JsonSchema): JsonSchema
+  /** Appended to the method's description. */
+  note?: string
+  /** Tool args (without `bot`) to the method's params (without `bot`). */
+  params?(args: Args, handle: BotHandle): Args
+  /** Milliseconds the call may run before it is cancelled (from the tool args). */
+  timeout?(args: Args): number
+  /** The result when the deadline ends the call, for calls that never end on their own (else a `TIMEOUT` error). */
+  untilDeadline?(args: Args, handle: BotHandle): ToolResult
+  /** The success result. */
+  done?(result: unknown, params: Args, handle: BotHandle): ToolResult
 }
 
 export function ok(text: string, structured?: Record<string, unknown>): ToolResult {
@@ -85,5 +101,10 @@ export const round = (n: number) => Math.round(n * 10) / 10
 export const fmtPos = (p: Pos) => `${round(p.x)} ${round(p.y)} ${round(p.z)}`
 /** Euclidean, to a tenth of a block. */
 export const distance = (a: Pos, b: Pos) => round(Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z))
+/** `; <bot> is now at x y z`, or nothing before the bot has a position. */
+export const here = (handle: BotHandle) => {
+  const position = handle.bot.entity?.position
+  return position ? `; ${handle.name} is now at ${fmtPos(position)}` : ''
+}
 /** `zombie` → `minecraft:zombie`. */
 export const kindName = (kind: string) => (kind.includes(':') ? kind : `minecraft:${kind}`).toLowerCase()

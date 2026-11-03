@@ -1,4 +1,5 @@
-export { ADAPTERS, resolveEntity, type Adapter } from './adapters.js'
+export { ADAPTERS, type Adapter } from './adapters.js'
+export { resolveEntity } from './entities.js'
 export { BotHandle, BotRegistry, type ConnectOptions } from './bots.js'
 export { COMPOSITE_TOOLS } from './composite.js'
 export { generatedTools } from './generated.js'

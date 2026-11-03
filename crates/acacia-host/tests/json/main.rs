@@ -6,6 +6,7 @@ mod crafting;
 mod entities;
 mod items;
 mod moves;
+mod survival;
 
 use std::time::{Duration, Instant};
 

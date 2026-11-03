@@ -42,6 +42,9 @@ pub(crate) fn action(bot: &mut Bot, method: Method) -> Action<'_> {
         Method::ContainerContents(p) => Box::pin(async move { answer(containers::contents(bot, p).await, Reply::ContainerContents) }),
         Method::Deposit(p) => Box::pin(async move { answer(containers::deposit(bot, p).await, Reply::Deposit) }),
         Method::Withdraw(p) => Box::pin(async move { answer(containers::withdraw(bot, p).await, Reply::Withdraw) }),
+        Method::Smelt(p) => Box::pin(async move { answer(crafting::smelt(bot, p).await, Reply::Smelt) }),
+        Method::Consume(p) => Box::pin(async move { done(Reply::Consume(()))(items::consume(bot, p).await) }),
+        Method::Toss(p) => Box::pin(async move { answer(items::toss(bot, p).await, Reply::Toss) }),
         other => {
             let name = other.name();
             Box::pin(async move { Err(ApiError::new(ErrorCode::Internal, format!("{name} is not a queued method"))) })

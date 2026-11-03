@@ -57,6 +57,9 @@ async function craftBeside({ tool, quiet, server, until }, at) {
   assert.match((await tool('withdraw', { ...chest, item: 'apple' })).text, /^3 apple taken from the container/)
   assert.match((await tool('deposit', { ...chest, item: 'wooden_pickaxe' })).text, /^1 wooden_pickaxe put into the container/)
   assert.match((await tool('inventory')).text, /minecraft:apple x3/)
+  assert.match((await tool('giveToPlayer', { player: 'Steve', item: 'apple', count: 1 })).text, /^threw 1 apple to Steve/)
+  await until('one apple gone', async () => (await quiet('inventory')).text.includes('minecraft:apple x2'))
+  await tool('inventory')
 }
 
 test('an MCP client walks a bot to a player and crafts an item; collects, places, chats, follows and cancels', { skip, timeout: 180_000 }, async () => {

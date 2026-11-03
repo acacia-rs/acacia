@@ -5,6 +5,7 @@ import type { BotParams } from "./types/BotParams";
 import type { CancelParams } from "./types/CancelParams";
 import type { ChatParams } from "./types/ChatParams";
 import type { CommandParams } from "./types/CommandParams";
+import type { ConsumeParams } from "./types/ConsumeParams";
 import type { ContainerContents } from "./types/ContainerContents";
 import type { ContainerParams } from "./types/ContainerParams";
 import type { CraftParams } from "./types/CraftParams";
@@ -23,7 +24,11 @@ import type { RecipesForParams } from "./types/RecipesForParams";
 import type { RecipesForResult } from "./types/RecipesForResult";
 import type { SetControlStateParams } from "./types/SetControlStateParams";
 import type { SetEventsParams } from "./types/SetEventsParams";
+import type { SmeltParams } from "./types/SmeltParams";
+import type { SmeltResult } from "./types/SmeltResult";
 import type { Snapshot } from "./types/Snapshot";
+import type { TossParams } from "./types/TossParams";
+import type { TossResult } from "./types/TossResult";
 import type { TransferParams } from "./types/TransferParams";
 import type { TransferResult } from "./types/TransferResult";
 import type { WaitForTicksParams } from "./types/WaitForTicksParams";
@@ -155,6 +160,23 @@ export interface Methods {
    * @mcp
    */
   "bot.withdraw": { params: TransferParams; result: TransferResult; lane: "queued" };
+  /**
+   * Smelts items at a furnace, blast furnace or smoker (within reach): puts them and any fuel in, waits until they
+   * are done (10 s an item in a furnace, 5 s otherwise), takes the output and closes it.
+   * @mcp
+   */
+  "bot.smelt": { params: SmeltParams; result: SmeltResult; lane: "queued" };
+  /**
+   * Eats or drinks: the held item, or `item` taken into the hand first. Resolves once the server has consumed it.
+   * `NOT_POSSIBLE` for something inedible, or food while not hungry.
+   * @mcp
+   */
+  "bot.consume": { params: ConsumeParams; result: null; lane: "queued" };
+  /**
+   * Throws items out of the inventory, a stack at a time. `NOT_POSSIBLE` when it has none.
+   * @mcp
+   */
+  "bot.toss": { params: TossParams; result: TossResult; lane: "queued" };
 }
 
 export type MethodName = keyof Methods;

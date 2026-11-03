@@ -43,7 +43,7 @@ acacia-host's; the addon: acacia-node's).
 - **Calls** resolve or reject from their `done` record, which comes after every event the bot raised before the call
   ended: listeners see what happened during `goto` before `await bot.goto()` returns. A refusal (`BUSY`,
   `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `equip`, `placeBlock`, `dig`,
-  `craft`, `recipesFor`, the container verbs, `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
+  `craft`, `recipesFor`, the container verbs, `smelt`, `consume`, `toss`, `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
   `setControlState`, `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
   `bot.request(method, params, options)` calls any table method by name with the bot's id filled in, for generic
   callers such as `@acacia/mcp`.
@@ -95,6 +95,9 @@ acacia-host's; the addon: acacia-node's).
   count?)` each open the container block at `pos` (within reach), act and close it, also on failure. The moves
   resolve with how many items moved (up to `count`, all when absent): fewer once the source has no more or the
   other side is full; `NOT_POSSIBLE` when nothing could move.
+- **Survival items.** `smelt(furnace, item, count = 1, { fuel, fuelCount })` runs a furnace, blast furnace or smoker
+  to the end and resolves with how many came out; `consume(item?)` eats or drinks (`NOT_POSSIBLE` when not
+  hungry); `toss(item, count?, { toward })` throws stacks, aimed at a point when given.
 - **Process lifetime.** The addon never holds Node open by itself. The session holds it while a bot is live or a
   call is unanswered, and a closing `NativeTransport` holds it until its stream ends, so `node script.js` runs while
   it has bots and exits once they are closed.

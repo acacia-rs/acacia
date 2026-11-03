@@ -54,8 +54,13 @@ impl Driver {
     /// Calls and waits for the result, which must be `ok`.
     pub async fn ok(&mut self, call: u64, method: &str, params: Value) -> Value {
         self.call(call, method, params);
+        self.ok_done(call).await
+    }
+
+    /// Waits for call `call`'s result, which must be `ok`.
+    pub async fn ok_done(&mut self, call: u64) -> Value {
         let (_, result) = self.done(call).await;
-        result.get("ok").unwrap_or_else(|| panic!("{method} failed: {result}")).clone()
+        result.get("ok").unwrap_or_else(|| panic!("call {call} failed: {result}")).clone()
     }
 
     /// Creates a bot on `server` (chat events on, plus `extra` params); returns its id.

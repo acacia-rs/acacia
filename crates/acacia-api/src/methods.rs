@@ -62,4 +62,12 @@ api! {
     /// Takes items out of a chest, barrel or other container (within reach) into the inventory. `NOT_POSSIBLE` when
     /// the container has none of the item or the inventory is full.
     "bot.withdraw" => Withdraw(TransferParams) -> TransferResult, Queued [mcp];
+    /// Smelts items at a furnace, blast furnace or smoker (within reach): puts them and any fuel in, waits until they
+    /// are done (10 s an item in a furnace, 5 s otherwise), takes the output and closes it.
+    "bot.smelt" => Smelt(SmeltParams) -> SmeltResult, Queued [mcp];
+    /// Eats or drinks: the held item, or `item` taken into the hand first. Resolves once the server has consumed it.
+    /// `NOT_POSSIBLE` for something inedible, or food while not hungry.
+    "bot.consume" => Consume(ConsumeParams) -> (), Queued [mcp];
+    /// Throws items out of the inventory, a stack at a time. `NOT_POSSIBLE` when it has none.
+    "bot.toss" => Toss(TossParams) -> TossResult, Queued [mcp];
 }

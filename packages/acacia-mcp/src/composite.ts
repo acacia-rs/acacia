@@ -1,7 +1,8 @@
 import type { ChatLine, Entity, Form, Item } from '@acacia/bot'
 
 import type { BotHandle, ConnectOptions } from './bots.js'
-import { botSchema, distance, fmtPos, guarded, kindName, ok, round, type JsonSchema, type ToolDef, type ToolResult } from './tool.js'
+import { eyesOf, nearGoal } from './entities.js'
+import { botSchema, distance, fmtPos, guarded, here, kindName, ok, round, type JsonSchema, type ToolDef, type ToolResult } from './tool.js'
 
 type Args = Record<string, unknown>
 
@@ -161,6 +162,25 @@ export const COMPOSITE_TOOLS: ToolDef[] = [
       return ok(lines.map(chatText).join('\n') || 'no new chat', {
         lines: lines.map((l) => ({ kind: l.kind, sender: l.sender, message: l.plain })),
       })
+    },
+  }),
+  botTool({
+    name: 'giveToPlayer',
+    description: 'Walks to a player (within 2 blocks) and throws them items from the inventory.',
+    inputSchema: botSchema(
+      {
+        player: { type: 'string', description: "The player's name." },
+        item: { type: 'string', description: 'The item (`minecraft:bread`, or just `bread`).' },
+        count: { type: 'integer', minimum: 1, description: 'How many; all the inventory has when absent.' },
+      },
+      ['player', 'item'],
+    ),
+    run: async (handle, args, signal) => {
+      const { player, item, count } = args as { player: string; item: string; count?: number }
+      await handle.action(signal, 120_000, (s) => handle.bot.goto(nearGoal(handle, player, 2), { signal: s }))
+      const toss = (s: AbortSignal) => handle.bot.toss(item, count, { toward: eyesOf(handle, player), signal: s })
+      const tossed = await handle.action(signal, 30_000, toss)
+      return ok(`threw ${tossed} ${item} to ${player}${here(handle)}`, { tossed })
     },
   }),
   botTool({

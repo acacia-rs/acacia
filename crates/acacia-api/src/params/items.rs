@@ -1,10 +1,10 @@
-//! Params and results of the inventory and block verbs: equipping, placing, finding blocks.
+//! Params and results of the inventory and block verbs: equipping, placing, finding blocks, eating, tossing.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{BlockPos, BotId};
+use crate::{BlockPos, BotId, Vec3};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct EquipParams {
@@ -74,4 +74,33 @@ pub struct FindBlocksParams {
 pub struct FindBlocksResult {
     /// Nearest first.
     pub blocks: Vec<BlockPos>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct ConsumeParams {
+    pub bot: BotId,
+    /// A food or drink to take into the hand first; the held item when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub item: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct TossParams {
+    pub bot: BotId,
+    /// The item (`minecraft:dirt`, or just `dirt`).
+    pub item: String,
+    /// How many at most; all the inventory has when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub count: Option<u32>,
+    /// A point to look at first, so the items fly that way (a player's eyes); where the bot looks when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub toward: Option<Vec3>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct TossResult {
+    pub tossed: u32,
 }

@@ -54,6 +54,7 @@ Every tool but `connect` takes an optional `bot` (a username), needed only while
 | `craft` | Crafts an item: at a crafting table in reach when there is one (`table: false` keeps to the 2x2 grid) |
 | `recipesFor` | The recipes that make an item, one line each: output, ingredients, where |
 | `containerContents`, `deposit`, `withdraw` | Read a chest (or barrel, ...) at `x, y, z`; put items in; take items out |
+| `smelt`, `consume`, `toss`, `giveToPlayer` | Run a furnace at `x, y, z`; eat or drink; throw items (`toward` an entity); walk to a player and throw them items |
 | `lookAt`, `attack`, `waitForTicks`, `answerForm` | Look at a point; hit an entity; let ticks pass; answer a server form |
 | `command` | Runs a slash command (only with `--allow-commands`) |
 
@@ -79,7 +80,7 @@ is `findBlocks` + `dig`, building `equip` + `placeBlock`, and crafting `craft` (
   and `structuredContent.error` holds `{code, message}`. Calls with params that fail the schema are refused by the
   SDK the same way.
 - **Long actions** wait until done. Cancelling the MCP request, or the `stop` tool, cancels the bot's call (within a
-  tick). Each has a deadline after which it is cancelled with `TIMEOUT`: `goto` 120 s, `dig` and `craft` 60 s, `waitForTicks`
+  tick). Each has a deadline after which it is cancelled with `TIMEOUT`: `goto` 120 s, `dig` and `craft` 60 s, `smelt` 10 s an item plus 30 s, `consume` 15 s, `waitForTicks`
   its ticks plus 10 s (at most 1200 ticks), other queued actions 30 s. `follow` never ends on its own, so its
   deadline is `seconds` and reaching it is success.
 - **Bots** are kept by username (case-insensitive) for the life of the process; a tool without `bot` uses the only

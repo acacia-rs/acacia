@@ -2088,6 +2088,226 @@
         "title": "TransferResult",
         "type": "object"
       }
+    },
+    {
+      "description": "Smelts items at a furnace, blast furnace or smoker (within reach): puts them and any fuel in, waits until they\nare done (10 s an item in a furnace, 5 s otherwise), takes the output and closes it.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.smelt",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Smelts items in the furnace, blast furnace or smoker at `x, y, z` (within reach).",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many, 1 to 64; 1 when absent.",
+            "format": "uint8",
+            "maximum": 64,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "fuel": {
+            "description": "Fuel to add (`coal`); none when absent, for a furnace that still burns.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fuelCount": {
+            "description": "How much fuel; 1 when absent (one coal smelts 8 items).",
+            "format": "uint8",
+            "maximum": 64,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item to smelt (`minecraft:raw_iron`, or just `raw_iron`).",
+            "type": "string"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "item"
+        ],
+        "title": "SmeltParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "smelted": {
+            "description": "Items taken out of the output slot.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "smelted"
+        ],
+        "title": "SmeltResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Eats or drinks: the held item, or `item` taken into the hand first. Resolves once the server has consumed it.\n`NOT_POSSIBLE` for something inedible, or food while not hungry.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.consume",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "item": {
+            "description": "A food or drink to take into the hand first; the held item when absent.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "ConsumeParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Throws items out of the inventory, a stack at a time. `NOT_POSSIBLE` when it has none.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.toss",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Vec3": {
+            "description": "A point (feet position, velocity).",
+            "properties": {
+              "x": {
+                "format": "float",
+                "type": "number"
+              },
+              "y": {
+                "format": "float",
+                "type": "number"
+              },
+              "z": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many at most; all the inventory has when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item (`minecraft:dirt`, or just `dirt`).",
+            "type": "string"
+          },
+          "toward": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Vec3"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A point to look at first, so the items fly that way (a player's eyes); where the bot looks when absent."
+          }
+        },
+        "required": [
+          "bot",
+          "item"
+        ],
+        "title": "TossParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "tossed": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tossed"
+        ],
+        "title": "TossResult",
+        "type": "object"
+      }
     }
   ],
   "protocolVersion": 1

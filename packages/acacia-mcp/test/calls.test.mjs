@@ -89,6 +89,22 @@ test('goto walks to a player by name and reports arrival; a failure is a tool er
   assert.deepEqual([bad.isError, bad.text], [true, 'NOT_POSSIBLE: no player or entity called Nobody in view'])
 })
 
+test('toss aims at a named entity; giveToPlayer walks to the player first', async () => {
+  const tossing = call(client, 'toss', { item: 'dirt', count: 2, toward: 'Steve' })
+  const toss = await sent(via, 'bot.toss')
+  assert.deepEqual(toss.params, { bot: 'bot-1', item: 'dirt', count: 2, toward: { x: 5.5, y: 65.62, z: 0.5 } })
+  via.answer('bot.toss', { ok: { tossed: 2 } })
+  assert.deepEqual([(await tossing).text, (await tossing).structured], ['tossed 2 dirt', { tossed: 2 }])
+
+  const n = via.sent.length
+  const giving = call(client, 'giveToPlayer', { player: 'Steve', item: 'stone' })
+  assert.deepEqual((await sent(via, 'bot.goto', n)).params.goal, { type: 'near', x: 5, y: 64, z: 0, range: 2 })
+  via.answer('bot.goto')
+  assert.deepEqual((await sent(via, 'bot.toss', n)).params, { bot: 'bot-1', item: 'stone', toward: { x: 5.5, y: 65.62, z: 0.5 } })
+  via.answer('bot.toss', { ok: { tossed: 10 } })
+  assert.equal((await giving).text, 'threw 10 stone to Steve; U is now at 0.5 64 0.5')
+})
+
 test('cancelling an MCP request cancels the bot call it started', async () => {
   const aborted = new AbortController()
   const following = client.callTool({ name: 'follow', arguments: { entity: 'Steve' } }, { signal: aborted.signal })

@@ -38,3 +38,23 @@ test('container verbs take the cell, an item and an optional count, and unwrap t
   assert.equal(via.answer('bot.withdraw', { ok: { moved: 3 } }).params.count, 3)
   assert.equal(await taking, 3)
 })
+
+test('smelt, consume and toss send their options flat and unwrap their results', async () => {
+  const { via, bot } = await connected()
+  const smelting = bot.smelt({ x: 1, y: 2, z: 3 }, 'raw_iron', 8, { fuel: 'coal' })
+  assert.deepEqual(via.answer('bot.smelt', { ok: { smelted: 8 } }).params, {
+    bot: 'bot-1', x: 1, y: 2, z: 3, item: 'raw_iron', count: 8, fuel: 'coal', fuelCount: 1,
+  })
+  assert.equal(await smelting, 8)
+
+  const eating = bot.consume()
+  assert.deepEqual(via.answer('bot.consume').params, { bot: 'bot-1' })
+  await eating
+  const eatingApple = bot.consume('apple')
+  assert.equal(via.answer('bot.consume').params.item, 'apple')
+  await eatingApple
+
+  const tossing = bot.toss('dirt', 3, { toward: { x: 1, y: 65.6, z: 0, extra: 1 } })
+  assert.deepEqual(via.answer('bot.toss', { ok: { tossed: 3 } }).params, { bot: 'bot-1', item: 'dirt', count: 3, toward: { x: 1, y: 65.6, z: 0 } })
+  assert.equal(await tossing, 3)
+})
