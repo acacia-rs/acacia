@@ -18,7 +18,8 @@ pub struct HostConfig {
     pub shards: usize,
     /// Batches the outbound channel holds before shards hold records back (default 256).
     pub batches: usize,
-    /// A shard sends at most one batch per this long (default 10 ms), so bots that tick together share one.
+    /// A shard sends events at most one batch per this long (default 10 ms), so bots that tick together share one.
+    /// A call's `done` goes out at once, behind the events queued before it.
     pub flush_every: Duration,
     /// Records a shard holds back while the channel is full before it drops lossy events (default 65536).
     pub max_held: usize,

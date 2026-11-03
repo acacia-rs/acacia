@@ -14,7 +14,7 @@
 //! - **Stream.** The bot's events leave through its event sink as they happen (`acacia_bot::events::channel`),
 //!   are converted and numbered, and a call's `done` is written only after the events raised before it ended.
 //!   Each shard buffers its bots' records and sends them as one JSON array at most once per
-//!   [`HostConfig::flush_every`]. When the outbound channel is full the shard keeps them and merges them into
+//!   [`HostConfig::flush_every`], or at once when a `done` is buffered. When the outbound channel is full the shard keeps them and merges them into
 //!   its next batch, dropping lossy events (counted in `lagged`) past [`HostConfig::max_held`].
 //! - **Lifecycle.** `createBot` answers once the bot has spawned, after a `spawn` event. `bot.close` cancels the
 //!   running call, disconnects (at most 2 s), emits `end`, fails queued calls `DISCONNECTED` and then answers.

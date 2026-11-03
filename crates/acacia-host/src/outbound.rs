@@ -38,17 +38,28 @@ pub(crate) fn channel(batches: usize) -> (mpsc::Sender<String>, Outbound) {
 pub(crate) struct ShardBuf {
     records: Mutex<Vec<Out>>,
     notify: Notify,
+    /// A `done` was pushed: the flusher sends without waiting out [`Flusher::every`].
+    urgent: Notify,
     stopped: AtomicBool,
 }
 
 impl ShardBuf {
     pub(crate) fn new() -> Arc<Self> {
-        Arc::new(Self { records: Mutex::new(Vec::new()), notify: Notify::new(), stopped: AtomicBool::new(false) })
+        Arc::new(Self {
+            records: Mutex::new(Vec::new()),
+            notify: Notify::new(),
+            urgent: Notify::new(),
+            stopped: AtomicBool::new(false),
+        })
     }
 
     pub(crate) fn push(&self, record: Out) {
+        let done = matches!(record, Out::Done { .. });
         self.records.lock().push(record);
         self.notify.notify_one();
+        if done {
+            self.urgent.notify_one();
+        }
     }
 
     /// The flusher sends what is left and ends.
@@ -61,7 +72,8 @@ impl ShardBuf {
 pub(crate) struct Flusher {
     pub buf: Arc<ShardBuf>,
     pub tx: mpsc::Sender<String>,
-    /// At most one batch per this long, so bots ticking together share one.
+    /// At most one batch per this long, so bots ticking together share one; a `done` goes out at once, with the
+    /// events queued before it.
     pub every: Duration,
     /// Past this many held records, lossy events are dropped and counted (`lagged`).
     pub max_held: usize,
@@ -73,7 +85,11 @@ impl Flusher {
         let mut last = Instant::now();
         loop {
             self.buf.notify.notified().await;
-            tokio::time::sleep_until(last + self.every).await;
+            // A permit left by a `done` that went out with an earlier batch costs one early flush at most.
+            tokio::select! {
+                () = tokio::time::sleep_until(last + self.every) => {}
+                () = self.buf.urgent.notified() => {}
+            }
             last = Instant::now();
             held.append(&mut self.buf.records.lock());
             held = self.flush(held);
@@ -108,5 +124,30 @@ impl Flusher {
                 held
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use acacia_api::{BotId, CallId, CallResult, Event};
+    use serde_json::Value;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn done_flushes_at_once_after_its_events() {
+        let (tx, mut out) = channel(4);
+        let flusher = Flusher { buf: ShardBuf::new(), tx, every: Duration::from_secs(5), max_held: 16 };
+        let buf = flusher.buf.clone();
+        tokio::spawn(flusher.run());
+        let bot = BotId("b".into());
+        buf.push(Out::Event { bot: bot.clone(), seq: 1, event: Event::Spawn });
+        buf.push(Out::Done { bot: bot.clone(), call: CallId(1), result: CallResult::Ok(Value::Null) });
+        let batch = tokio::time::timeout(Duration::from_secs(1), out.recv()).await.expect("no wait for the interval");
+        let records: Vec<Out> = serde_json::from_str(&batch.unwrap()).unwrap();
+        assert!(matches!(records.as_slice(), [Out::Event { .. }, Out::Done { .. }]), "{records:?}");
+
+        buf.push(Out::Event { bot, seq: 2, event: Event::Spawn });
+        assert!(tokio::time::timeout(Duration::from_millis(300), out.recv()).await.is_err(), "events still wait");
     }
 }
