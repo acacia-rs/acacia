@@ -31,7 +31,7 @@ pub struct MethodInfo {
     /// The doc comment: JSDoc and the MCP tool description.
     pub doc: &'static str,
     pub lane: Lane,
-    /// `mcp` (offered as an MCP tool), `experimental`.
+    /// `mcp` (offered as an MCP tool), `privileged` (MCP offers it only when the operator opts in), `experimental`.
     pub flags: &'static [&'static str],
     pub params: TypeInfo,
     pub result: TypeInfo,

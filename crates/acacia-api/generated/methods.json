@@ -204,9 +204,7 @@
     },
     {
       "description": "The bot's state now, built on demand.",
-      "flags": [
-        "mcp"
-      ],
+      "flags": [],
       "lane": "immediate",
       "name": "bot.snapshot",
       "params": {
@@ -684,6 +682,7 @@
             "$ref": "#/$defs/BotId"
           },
           "message": {
+            "description": "The line everyone sees.",
             "type": "string"
           }
         },
@@ -703,7 +702,8 @@
     {
       "description": "Runs a slash command (the leading `/` is optional).",
       "flags": [
-        "mcp"
+        "mcp",
+        "privileged"
       ],
       "lane": "immediate",
       "name": "bot.command",
@@ -720,6 +720,7 @@
             "$ref": "#/$defs/BotId"
           },
           "command": {
+            "description": "The command line, e.g. `/time set day`.",
             "type": "string"
           }
         },
@@ -947,6 +948,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block cell `x, y, z` to break.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1188,6 +1190,7 @@
             "$ref": "#/$defs/BotId"
           },
           "ticks": {
+            "description": "20 a second.",
             "format": "uint32",
             "minimum": 0,
             "type": "integer"
@@ -1327,7 +1330,8 @@
             "$ref": "#/$defs/BotId"
           },
           "entity": {
-            "$ref": "#/$defs/EntityId"
+            "$ref": "#/$defs/EntityId",
+            "description": "A tracked entity's id (players included)."
           }
         },
         "required": [

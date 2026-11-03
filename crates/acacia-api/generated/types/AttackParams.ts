@@ -2,4 +2,8 @@
 import type { BotId } from "./BotId";
 import type { EntityId } from "./EntityId";
 
-export type AttackParams = { bot: BotId, entity: EntityId, };
+export type AttackParams = { bot: BotId, 
+/**
+ * A tracked entity's id (players included).
+ */
+entity: EntityId, };

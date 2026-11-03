@@ -10,12 +10,14 @@ use crate::{BotId, FormAnswer};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ChatParams {
     pub bot: BotId,
+    /// The line everyone sees.
     pub message: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CommandParams {
     pub bot: BotId,
+    /// The command line, e.g. `/time set day`.
     pub command: String,
 }
 
@@ -43,6 +45,7 @@ pub enum Goal {
     Any { goals: Vec<Goal> },
 }
 
+/// The block cell `x, y, z` to break.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct DigParams {
     pub bot: BotId,
@@ -62,5 +65,6 @@ pub struct AnswerFormParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct WaitForTicksParams {
     pub bot: BotId,
+    /// 20 a second.
     pub ticks: u32,
 }

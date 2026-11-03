@@ -40,7 +40,6 @@ export interface Methods {
   "cancel": { params: CancelParams; result: null; lane: "immediate" };
   /**
    * The bot's state now, built on demand.
-   * @mcp
    */
   "bot.snapshot": { params: BotParams; result: Snapshot; lane: "immediate" };
   /**
@@ -55,6 +54,7 @@ export interface Methods {
   /**
    * Runs a slash command (the leading `/` is optional).
    * @mcp
+   * @privileged
    */
   "bot.command": { params: CommandParams; result: null; lane: "immediate" };
   /**

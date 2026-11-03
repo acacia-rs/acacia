@@ -29,6 +29,7 @@ pub struct LookAtParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct AttackParams {
     pub bot: BotId,
+    /// A tracked entity's id (players included).
     pub entity: EntityId,
 }
 

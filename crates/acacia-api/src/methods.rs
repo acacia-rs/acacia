@@ -14,13 +14,13 @@ api! {
     /// Cancels call `call`: removed if still queued, ended within a tick if running. Fails with `CANCELLED`.
     "cancel" => Cancel(CancelParams) -> (), Immediate [];
     /// The bot's state now, built on demand.
-    "bot.snapshot" => Snapshot(BotParams) -> Snapshot, Immediate [mcp];
+    "bot.snapshot" => Snapshot(BotParams) -> Snapshot, Immediate [];
     /// Changes the event groups the bot reports.
     "bot.setEvents" => SetEvents(SetEventsParams) -> (), Immediate [];
     /// Sends a chat line.
     "bot.chat" => Chat(ChatParams) -> (), Immediate [mcp];
     /// Runs a slash command (the leading `/` is optional).
-    "bot.command" => Command(CommandParams) -> (), Immediate [mcp];
+    "bot.command" => Command(CommandParams) -> (), Immediate [mcp, privileged];
     /// Walks to a goal (physics bots only). Fails with `NOT_POSSIBLE` when there is no path.
     "bot.goto" => Goto(GotoParams) -> (), Queued [mcp];
     /// Breaks the block at a cell, as a player would (reach, tool, mining time).
