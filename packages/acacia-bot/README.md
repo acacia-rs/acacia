@@ -75,6 +75,14 @@ acacia-host's; the addon: acacia-node's).
   object per tick; `cold`, `entities` and `players` are one frozen object per change, rebuilt at most once a tick
   except that a spawn or removal is published before its `entitySpawn` / `entityGone` event, so a listener finds
   `bot.entities` agreeing with the event.
+  With `NativeTransport`, a "change" for `entities` and `players` is an entity coming or going (or its kind or name
+  changing). Moves don't rebuild them: their entities' `position`, `velocity`, `yaw`, `pitch` and `health` are
+  getters on a typed array that the addon overwrites in place when anything moved, so reading `bot.entities` and
+  every `.position` each tick costs one copy and no JSON or allocation. The getters show the numbers as of the latest read of
+  `bot.entities`, `bot.players` or `bot.nearestEntity`. An entity keeps its object while it stays in view; once it
+  has left, the object keeps its last numbers.
+  Each `position` read is a fresh object, and the numbers are the wire's f32s widened (10.100000381469727, where
+  events show 10.1).
   Entities need `createBot({ entities })` (default on); their `id` is the decimal-string runtime id actions take,
   and `position` is the feet, players included. `bot.players` is keyed by name: the player list joined with player
   entities in view (`entity`, null when out of view), plus players seen only in view (`info` null). Non-physics bots

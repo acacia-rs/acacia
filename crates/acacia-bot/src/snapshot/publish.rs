@@ -70,7 +70,9 @@ impl Publisher {
         if source != self.entities_source {
             self.entities_source = source;
             self.entities_version += 1;
-            *self.reader.0.entities.lock() = Arc::new(build_list(entities, self.entities_version, &mut self.interner));
+            let previous = self.reader.entities();
+            let list = build_list(entities, self.entities_version, &previous, &mut self.interner);
+            *self.reader.0.entities.lock() = Arc::new(list);
         }
     }
 }

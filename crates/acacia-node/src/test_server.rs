@@ -92,6 +92,13 @@ impl TestServer {
         Ok(())
     }
 
+    /// Moves an entity from `add_entity` to feet at `(x, y, z)`.
+    #[napi]
+    pub fn move_entity(&self, id: u32, x: f64, y: f64, z: f64) -> Result<()> {
+        self.server()?.move_entity(id.into(), [x as f32, y as f32, z as f32]);
+        Ok(())
+    }
+
     #[napi]
     pub fn remove_entity(&self, id: u32) -> Result<()> {
         self.server()?.remove_entity(id.into());

@@ -79,7 +79,7 @@ export class BotReads extends BotCore {
     return this.session.reads?.cold(this.id) ?? null
   }
 
-  /** Tracked entities by id (empty unless created with `entities`); one frozen object per change. */
+  /** Tracked entities by id (empty unless created with `entities`); one object until an entity comes or goes. */
   get entities(): Readonly<Record<string, Entity>> {
     return this.#byId.get(this.#entityList())
   }

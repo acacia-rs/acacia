@@ -18,6 +18,16 @@ pub struct NativeHostOptions {
     pub on_records: Function<'static, Option<String>, UnknownReturnValue>,
 }
 
+#[napi(object, object_from_js = false)]
+pub struct EntityFrame {
+    pub version: i64,
+    pub members_version: i64,
+    /// `[id, uniqueId, kind, username | null][]` JSON, in `numbers`' order.
+    pub members: Option<String>,
+    /// Per member: feet x, y, z, velocity x, y, z, yaw, pitch, health (NaN when unknown).
+    pub numbers: Option<Float64Array>,
+}
+
 /// One acacia-host and its record stream (contract: the crate docs).
 #[napi]
 pub struct NativeHost {
@@ -128,6 +138,28 @@ impl NativeHost {
     #[napi(catch_unwind)]
     pub fn snapshot_entities(&self, bot: String) -> Option<String> {
         serde_json::to_string(&self.host.entities(&BotId(bot))?).ok()
+    }
+
+    /// The bot's entity list split for per-tick reads (acacia-host's `EntityFrame`), or null for an unknown bot.
+    /// While `known` is still the members' version, `members` and `numbers` are null and the numbers are written
+    /// into `into` (the array that came with those members).
+    #[napi(catch_unwind)]
+    pub fn entity_frame(&self, bot: String, known: Option<i64>, mut into: Float64ArraySlice) -> Option<EntityFrame> {
+        let frame = self.host.entity_frame(&BotId(bot), known.map(|v| v as u64))?;
+        // SAFETY: JS is blocked in this call, so nothing else touches the array.
+        let into = unsafe { into.as_mut() };
+        let numbers = match frame.members.is_none() && frame.numbers.len() == into.len() {
+            true => {
+                into.copy_from_slice(&frame.numbers);
+                None
+            }
+            false => Some(Float64Array::new(frame.numbers)),
+        };
+        let members = frame.members.map(|m| {
+            let rows: Vec<_> = m.iter().map(|e| (e.id, e.unique_id, &e.kind, &e.username)).collect();
+            serde_json::to_string(&rows).expect("ids and strings serialize")
+        });
+        Some(EntityFrame { version: frame.version as i64, members_version: frame.members_version as i64, members, numbers })
     }
 
     /// The server's `ItemTable` (JSON), or null for an unknown bot; empty until the table arrives at login.

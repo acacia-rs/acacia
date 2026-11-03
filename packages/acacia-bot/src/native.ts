@@ -1,9 +1,9 @@
 import { NativeHost } from '../native/index.js'
+import { EntityFrames } from './entity-frame.js'
 import { AcaciaError } from './errors.js'
 import type { Command } from './generated/methods.js'
 import type { Block } from './generated/types/Block.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
-import type { EntityList } from './generated/types/EntityList.js'
 import type { ErrorCode } from './generated/types/ErrorCode.js'
 import type { FindBlocksResult } from './generated/types/FindBlocksResult.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
@@ -61,13 +61,14 @@ export class NativeTransport implements Transport {
   /** Per bot: the last hot JSON and its parse, so a getter within one tick parses nothing. */
   readonly #hot = new Map<string, { json: string; value: HotSnapshot }>()
   readonly #cold = new Versioned<ColdSnapshot>()
-  readonly #entities = new Versioned<EntityList>()
+  readonly #entities: EntityFrames
   /** Per bot, the item table once it arrived (it comes once). */
   readonly #items = new Map<string, ItemTable>()
 
   constructor(options: NativeTransportOptions = {}) {
     this.#closed = new Promise((resolve) => (this.#resolveClosed = resolve))
     this.#host = new NativeHost({ shards: options.shards, onRecords: (batch) => this.#receive(batch) })
+    this.#entities = new EntityFrames(this.#host)
   }
 
   open(listener: TransportListener): void {
@@ -109,7 +110,7 @@ export class NativeTransport implements Transport {
       return value
     },
     cold: (bot) => this.#cold.read(bot, this.#host.coldVersion(bot), () => this.#host.snapshotCold(bot)),
-    entities: (bot) => this.#entities.read(bot, this.#host.entitiesVersion(bot), () => this.#host.snapshotEntities(bot)),
+    entities: (bot) => this.#entities.read(bot),
     blockAt: (bot, x, y, z) => {
       const json = this.#host.blockAt(bot, x, y, z)
       return json === null ? null : (JSON.parse(json) as Block)

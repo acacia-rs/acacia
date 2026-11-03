@@ -27,6 +27,11 @@ async fn entities_come_and_go_and_a_bot_walks_to_a_player() {
     let listed = |l: &acacia_api::EntityList, want: u64| l.entities.iter().any(|e| e.id.0 == want);
     let list = d.read("both in the entity list", |h| h.entities(&id).filter(|l| listed(l, 900) && listed(l, 901))).await;
     assert_eq!(d.host.entities_version(&id), Some(list.version));
+    let frame = d.host.entity_frame(&id, None).unwrap();
+    let members = frame.members.as_ref().unwrap();
+    assert_eq!(members, &list.entities);
+    assert_eq!(frame.numbers.len(), members.len() * acacia_host::ENTITY_NUMBERS);
+    assert!(d.host.entity_frame(&id, Some(frame.members_version)).unwrap().members.is_none(), "known members are left out");
     server.remove_entity(9000);
     d.event(&bot, "zombie gone", |e| e["type"] == "entityGone" && e["id"] == "900").await;
     let snapshot = d.ok(2, "bot.snapshot", json!({ "bot": bot })).await;

@@ -19,7 +19,8 @@ export interface TransportListener {
 
 /**
  * Reads served without a call, where the transport can (the native one can; a socket one would need a mirror).
- * `hot`, `cold` and `entities` return the same frozen object until the value changes, so callers can cache on it.
+ * `hot`, `cold` and `entities` return the same frozen object until the value changes, so callers can cache on it;
+ * for `entities` that is until an entity comes or goes, as its entities may read their numbers live (README).
  */
 export interface SyncReads {
   hot(bot: BotId): HotSnapshot | null

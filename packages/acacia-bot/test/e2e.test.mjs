@@ -113,6 +113,12 @@ test('in process: events, sync reads, cancel and close', { skip, timeout: 60_000
     assert.deepEqual(seen.find(([, id]) => id === '90'), ['spawn', '90', 'minecraft:zombie'])
     await until('the zombie in bot.entities', () => bot.entities['90'] !== undefined)
     assert.equal(bot.nearestEntity((e) => e.kind === 'minecraft:zombie')?.id, '90')
+    const before = bot.entities
+    server.moveEntity(90, x + 4, y, z)
+    await until('the zombie moved', () => Math.abs(bot.entities['90'].position.x - (x + 4)) < 1e-3)
+    assert.equal(bot.entities, before, 'a move keeps the list, its entities read live')
+    assert.ok(Math.abs({ ...bot.entities['90'] }.position.x - (x + 4)) < 1e-3, 'a spread copies the live fields')
+    assert.equal(JSON.parse(JSON.stringify(bot.entities['90'])).kind, 'minecraft:zombie')
     server.removeEntity(90)
     await until('the zombie gone', () => seen.some(([what, id]) => what === 'gone' && id === '90'))
     await until('the zombie out of bot.entities', () => bot.entities['90'] === undefined)

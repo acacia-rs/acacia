@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 
 use acacia_proto::packets::{
-    AddEntity, AddPlayer, InventorySlot, ItemRegistry, MovePlayer, RemoveEntity, Respawn, StartGame, SubchunkRequest,
+    AddEntity, AddPlayer, InventorySlot, ItemRegistry, MoveEntity, MovePlayer, RemoveEntity, Respawn, StartGame, SubchunkRequest,
     UpdateSubchunkBlocks,
 };
 use acacia_proto::types::{BlockCoordinates, BlockUpdate, BlockUpdateTransitionType, Vec3f, WindowIDVarint};
@@ -54,6 +54,14 @@ impl FakeServer {
         let mut p: AddEntity = fixture(include_str!("../../acacia-proto/tests/fixtures/packets/add_entity.hex"));
         (p.runtime_id, p.unique_id, p.entity_type, p.position) = (runtime_id, unique_id, kind.into(), vec3(feet));
         (p.velocity, p.yaw, p.pitch, p.head_yaw, p.body_yaw) = (vec3([0.0; 3]), 0.0, 0.0, 0.0, 0.0);
+        self.send(&p);
+    }
+
+    /// Moves a non-player entity's feet to `feet` (`MoveEntity`, on the ground, facing south).
+    pub fn move_entity(&self, runtime_id: u64, feet: [f32; 3]) {
+        let mut p: MoveEntity = fixture(include_str!("../../acacia-proto/tests/fixtures/packets/move_entity.hex"));
+        (p.runtime_entity_id, p.flags, p.position) = (runtime_id, 1, vec3(feet));
+        (p.rotation.yaw, p.rotation.pitch, p.rotation.head_yaw) = (0.0, 0.0, 0.0);
         self.send(&p);
     }
 
