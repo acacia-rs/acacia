@@ -53,6 +53,7 @@ Every tool but `connect` takes an optional `bot` (a username), needed only while
 | `findBlocks` | The nearest loaded blocks with any of the names |
 | `craft` | Crafts an item: at a crafting table in reach when there is one (`table: false` keeps to the 2x2 grid) |
 | `recipesFor` | The recipes that make an item, one line each: output, ingredients, where |
+| `containerContents`, `deposit`, `withdraw` | Read a chest (or barrel, ...) at `x, y, z`; put items in; take items out |
 | `lookAt`, `attack`, `waitForTicks`, `answerForm` | Look at a point; hit an entity; let ticks pass; answer a server form |
 | `command` | Runs a slash command (only with `--allow-commands`) |
 

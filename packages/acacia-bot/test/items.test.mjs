@@ -22,3 +22,19 @@ test('craft sends the item, count and table, and resolves with the count made', 
   assert.deepEqual(via.answer('bot.recipesFor', { ok: { recipes: [recipe] } }).params, { bot: 'bot-1', item: 'stick' })
   assert.deepEqual(await looking, [recipe])
 })
+
+test('container verbs take the cell, an item and an optional count, and unwrap their results', async () => {
+  const { via, bot } = await connected()
+  const chest = { x: 4, y: 64, z: -2, extra: 1 }
+  const items = [{ slot: 0, item: 'minecraft:cobblestone', count: 20 }]
+  const reading = bot.containerContents(chest)
+  assert.deepEqual(via.answer('bot.containerContents', { ok: { items } }).params, { bot: 'bot-1', x: 4, y: 64, z: -2 })
+  assert.deepEqual(await reading, items)
+
+  const putting = bot.deposit(chest, 'cobblestone')
+  assert.deepEqual(via.answer('bot.deposit', { ok: { moved: 10 } }).params, { bot: 'bot-1', x: 4, y: 64, z: -2, item: 'cobblestone' })
+  assert.equal(await putting, 10)
+  const taking = bot.withdraw(chest, 'oak_log', 3)
+  assert.equal(via.answer('bot.withdraw', { ok: { moved: 3 } }).params.count, 3)
+  assert.equal(await taking, 3)
+})

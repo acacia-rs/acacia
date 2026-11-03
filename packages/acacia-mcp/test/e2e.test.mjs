@@ -17,7 +17,8 @@ const skip = native.TestServer ? false : "@acacia/bot's addon was built without 
 
 /**
  * Beside the bot at `at`: chops a log (FakeServer drops no items, so the log is given as if picked up), crafts
- * planks, sticks and a crafting table in the 2x2 grid, places the table and crafts a pickaxe at it.
+ * planks, sticks and a crafting table in the 2x2 grid, places the table and crafts a pickaxe at it; then trades
+ * the pickaxe for apples at a chest.
  */
 async function craftBeside({ tool, quiet, server, until }, at) {
   const [x, y, z] = [Math.floor(at.x), Math.floor(at.y), Math.floor(at.z)]
@@ -47,6 +48,15 @@ async function craftBeside({ tool, quiet, server, until }, at) {
   await until('the table in view', seen('crafting_table'))
   assert.equal((await tool('craft', { item: 'wooden_pickaxe' })).text, `crafted 1 wooden_pickaxe at the crafting table at ${x + 1} ${y} ${z}`)
   assert.match((await tool('inventory')).text, /minecraft:wooden_pickaxe x1/)
+
+  const chest = { x: x - 1, y, z }
+  server.setBlock(x - 1, y, z, 'minecraft:chest')
+  server.addContainer(x - 1, y, z, 'chest', [{ slot: 4, name: 'minecraft:apple', count: 3 }])
+  await until('the chest in view', seen('chest'))
+  assert.equal((await tool('containerContents', chest)).text, 'slot 4: minecraft:apple x3')
+  assert.match((await tool('withdraw', { ...chest, item: 'apple' })).text, /^3 apple taken from the container/)
+  assert.match((await tool('deposit', { ...chest, item: 'wooden_pickaxe' })).text, /^1 wooden_pickaxe put into the container/)
+  assert.match((await tool('inventory')).text, /minecraft:apple x3/)
 }
 
 test('an MCP client walks a bot to a player and crafts an item; collects, places, chats, follows and cancels', { skip, timeout: 180_000 }, async () => {

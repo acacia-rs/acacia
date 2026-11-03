@@ -41,6 +41,20 @@ test('craft uses a crafting table in reach unless told not to, and says what it 
   assert.equal(grid.params.table, undefined)
 })
 
+test('container tools: contents by slot, and how many moved where', async () => {
+  const chest = { x: 4, y: 64, z: -2 }
+  const items = [{ slot: 0, item: 'minecraft:cobblestone', count: 20 }, { slot: 3, item: 'minecraft:oak_log', count: 5 }]
+  const viewed = await answered('containerContents', chest, 'bot.containerContents', { ok: { items } })
+  assert.equal(viewed.text, 'slot 0: minecraft:cobblestone x20\nslot 3: minecraft:oak_log x5')
+  assert.equal((await answered('containerContents', chest, 'bot.containerContents', { ok: { items: [] } })).text, 'empty')
+
+  const put = await answered('deposit', { ...chest, item: 'cobblestone' }, 'bot.deposit', { ok: { moved: 10 } })
+  assert.deepEqual(put.params, { bot: 'bot-1', ...chest, item: 'cobblestone' })
+  assert.deepEqual([put.text, put.structured], ['10 cobblestone put into the container at 4 64 -2', { moved: 10 }])
+  const taken = await answered('withdraw', { ...chest, item: 'oak_log', count: 3 }, 'bot.withdraw', { ok: { moved: 3 } })
+  assert.equal(taken.text, '3 oak_log taken from the container at 4 64 -2')
+})
+
 test('recipesFor lists each recipe as one line', async () => {
   const recipes = [
     { id: 'a', station: 'crafting_table', fits2x2: true, inputs: [{ item: '#minecraft:planks', count: 2 }], outputs: [{ item: 'minecraft:stick', count: 4 }] },

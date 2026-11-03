@@ -6,7 +6,7 @@ mod snapshot;
 mod world;
 
 pub(crate) use event::event;
-pub(crate) use items::{item_name, recipe};
+pub(crate) use items::{item_name, recipe, stack_name};
 pub(crate) use snapshot::{cold, entities, hot, snapshot};
 pub(crate) use world::{block, find_blocks, item_table};
 

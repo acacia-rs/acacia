@@ -54,4 +54,12 @@ api! {
     "bot.craft" => Craft(CraftParams) -> CraftResult, Queued [mcp];
     /// The server's recipes that make an item, with what each uses up and where it is made.
     "bot.recipesFor" => RecipesFor(RecipesForParams) -> RecipesForResult, Queued [mcp];
+    /// What a chest, barrel or other container holds: opens it (within reach), reads it and closes it.
+    "bot.containerContents" => ContainerContents(ContainerParams) -> ContainerContents, Queued [mcp];
+    /// Puts items from the inventory into a chest, barrel or other container (within reach). `NOT_POSSIBLE` when the
+    /// inventory has none of the item or the container is full.
+    "bot.deposit" => Deposit(TransferParams) -> TransferResult, Queued [mcp];
+    /// Takes items out of a chest, barrel or other container (within reach) into the inventory. `NOT_POSSIBLE` when
+    /// the container has none of the item or the inventory is full.
+    "bot.withdraw" => Withdraw(TransferParams) -> TransferResult, Queued [mcp];
 }

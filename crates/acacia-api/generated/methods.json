@@ -1857,6 +1857,237 @@
         "title": "RecipesForResult",
         "type": "object"
       }
+    },
+    {
+      "description": "What a chest, barrel or other container holds: opens it (within reach), reads it and closes it.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.containerContents",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "ContainerParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "ContainerItem": {
+            "properties": {
+              "count": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "item": {
+                "description": "The item's name, or `#<network id>` for one missing from the server's item table.",
+                "type": "string"
+              },
+              "slot": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "slot",
+              "item",
+              "count"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "items": {
+            "description": "The non-empty slots, in slot order.",
+            "items": {
+              "$ref": "#/$defs/ContainerItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ContainerContents",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Puts items from the inventory into a chest, barrel or other container (within reach). `NOT_POSSIBLE` when the\ninventory has none of the item or the container is full.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.deposit",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Moves items of one kind between the container at `x, y, z` and the bot's main inventory.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many at most; all there are when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item (`minecraft:cobblestone`, or just `cobblestone`).",
+            "type": "string"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "item"
+        ],
+        "title": "TransferParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "moved": {
+            "description": "Items moved: fewer than `count` once the source has no more or the other side is full.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "moved"
+        ],
+        "title": "TransferResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Takes items out of a chest, barrel or other container (within reach) into the inventory. `NOT_POSSIBLE` when\nthe container has none of the item or the inventory is full.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.withdraw",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Moves items of one kind between the container at `x, y, z` and the bot's main inventory.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many at most; all there are when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item (`minecraft:cobblestone`, or just `cobblestone`).",
+            "type": "string"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "item"
+        ],
+        "title": "TransferParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "moved": {
+            "description": "Items moved: fewer than `count` once the source has no more or the other side is full.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "moved"
+        ],
+        "title": "TransferResult",
+        "type": "object"
+      }
     }
   ],
   "protocolVersion": 1

@@ -5,6 +5,8 @@ import type { BotParams } from "./types/BotParams";
 import type { CancelParams } from "./types/CancelParams";
 import type { ChatParams } from "./types/ChatParams";
 import type { CommandParams } from "./types/CommandParams";
+import type { ContainerContents } from "./types/ContainerContents";
+import type { ContainerParams } from "./types/ContainerParams";
 import type { CraftParams } from "./types/CraftParams";
 import type { CraftResult } from "./types/CraftResult";
 import type { CreateBotParams } from "./types/CreateBotParams";
@@ -22,6 +24,8 @@ import type { RecipesForResult } from "./types/RecipesForResult";
 import type { SetControlStateParams } from "./types/SetControlStateParams";
 import type { SetEventsParams } from "./types/SetEventsParams";
 import type { Snapshot } from "./types/Snapshot";
+import type { TransferParams } from "./types/TransferParams";
+import type { TransferResult } from "./types/TransferResult";
 import type { WaitForTicksParams } from "./types/WaitForTicksParams";
 
 export const PROTOCOL_VERSION = 1;
@@ -134,6 +138,23 @@ export interface Methods {
    * @mcp
    */
   "bot.recipesFor": { params: RecipesForParams; result: RecipesForResult; lane: "queued" };
+  /**
+   * What a chest, barrel or other container holds: opens it (within reach), reads it and closes it.
+   * @mcp
+   */
+  "bot.containerContents": { params: ContainerParams; result: ContainerContents; lane: "queued" };
+  /**
+   * Puts items from the inventory into a chest, barrel or other container (within reach). `NOT_POSSIBLE` when the
+   * inventory has none of the item or the container is full.
+   * @mcp
+   */
+  "bot.deposit": { params: TransferParams; result: TransferResult; lane: "queued" };
+  /**
+   * Takes items out of a chest, barrel or other container (within reach) into the inventory. `NOT_POSSIBLE` when
+   * the container has none of the item or the inventory is full.
+   * @mcp
+   */
+  "bot.withdraw": { params: TransferParams; result: TransferResult; lane: "queued" };
 }
 
 export type MethodName = keyof Methods;

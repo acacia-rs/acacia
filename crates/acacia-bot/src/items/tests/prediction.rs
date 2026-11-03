@@ -1,7 +1,7 @@
 use acacia_client::proto::types::{ContainerSlotType as T, WindowType};
 
 use super::super::plan::Plan;
-use super::super::quick::quick_move_ops;
+use super::super::quick::{quick_move_ops, quick_move_up_to_ops};
 use super::super::request::{check_status, response_for};
 use super::*;
 use crate::items::{Op, SlotRef};
@@ -141,6 +141,16 @@ fn quick_move_merges_then_fills_an_empty_slot() {
     state.inventory.main[0] = stack(6, 1, 99);
     state.inventory.main[20] = stack(6, 1, 98);
     assert!(matches!(quick_move_ops(&state, SlotRef::Container(0)), Err(ActionError::NotPossible(_))));
+}
+
+#[test]
+fn quick_move_up_to_moves_part_of_a_stack() {
+    let mut state = state_with(&[(0, stack(5, 60, 7))]);
+    open_container(&mut state, WindowType::Container, vec![stack(5, 62, 30), ItemStack::default()]);
+    assert_eq!(quick_move_up_to_ops(&state, SlotRef::Main(0), 10).unwrap(), [
+        Op::Transfer { from: SlotRef::Main(0), to: SlotRef::Container(0), count: 2 },
+        Op::Transfer { from: SlotRef::Main(0), to: SlotRef::Container(1), count: 8 },
+    ]);
 }
 
 #[test]

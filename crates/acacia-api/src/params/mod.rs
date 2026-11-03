@@ -2,12 +2,14 @@
 //! field (the `api!` table relies on it).
 
 mod actions;
+mod containers;
 mod crafting;
 mod host;
 mod items;
 mod moves;
 
 pub use actions::*;
+pub use containers::*;
 pub use crafting::*;
 pub use host::*;
 pub use items::*;

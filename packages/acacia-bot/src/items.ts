@@ -1,5 +1,6 @@
 import { AcaciaError } from './errors.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
+import type { ContainerItem } from './generated/types/ContainerItem.js'
 import type { EquipDestination } from './generated/types/EquipDestination.js'
 import type { Recipe } from './generated/types/Recipe.js'
 import { BotReads, type Item } from './reads.js'
@@ -27,7 +28,7 @@ export class BotItems extends BotReads {
    */
   async craft(item: ItemRef, count = 1, options: CallOptions & { table?: BlockPos } = {}): Promise<number> {
     const { table, ...call } = options
-    const params = { item: nameOf(item), count, ...(table === undefined ? {} : { table: { x: table.x, y: table.y, z: table.z } }) }
+    const params = { item: nameOf(item), count, ...(table === undefined ? {} : { table: cell(table) }) }
     return (await this.call('bot.craft', params, call)).crafted
   }
 
@@ -35,4 +36,27 @@ export class BotItems extends BotReads {
   async recipesFor(item: ItemRef, options?: CallOptions): Promise<Recipe[]> {
     return (await this.call('bot.recipesFor', { item: nameOf(item) }, options)).recipes
   }
+
+  /** What the container at `container` (within reach) holds: opened, read and closed in one call. */
+  async containerContents(container: BlockPos, options?: CallOptions): Promise<ContainerItem[]> {
+    return (await this.call('bot.containerContents', cell(container), options)).items
+  }
+
+  /** Puts up to `count` (default all) of an item into the container at `container`; resolves with how many moved. */
+  async deposit(container: BlockPos, item: ItemRef, count?: number, options?: CallOptions): Promise<number> {
+    return (await this.call('bot.deposit', transfer(container, item, count), options)).moved
+  }
+
+  /** Takes up to `count` (default all) of an item out of the container at `container`; resolves with how many moved. */
+  async withdraw(container: BlockPos, item: ItemRef, count?: number, options?: CallOptions): Promise<number> {
+    return (await this.call('bot.withdraw', transfer(container, item, count), options)).moved
+  }
 }
+
+const cell = ({ x, y, z }: BlockPos) => ({ x, y, z })
+
+const transfer = (container: BlockPos, item: ItemRef, count?: number) => ({
+  ...cell(container),
+  item: nameOf(item),
+  ...(count === undefined ? {} : { count }),
+})
