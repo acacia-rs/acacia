@@ -2,7 +2,7 @@
 // `entitySpawn`/`entityGone` and `entityMoved` listeners, measured over a window after the joins (RESULTS.md).
 // usage: node bench/events.mjs <bots>
 // env: CLOCKS=225 MOBS=300 (the world), JOIN_MS=100, SETTLE=10, WINDOW=20 (s), PORT=19620, SHARDS (host default),
-//      PROBE_GAP=10 (ms between round-trip probes), READ=none|hot|entities, SAPLING / ADDRESS (bench/common.mjs)
+//      PROBE_GAP=10 (ms between round-trip probes), READ=none|hot|entities|positions, SAPLING / ADDRESS (common.mjs)
 import { monitorEventLoopDelay } from 'node:perf_hooks'
 
 import { createBot, NativeTransport } from '@acacia/bot'
@@ -40,7 +40,7 @@ const reset = () => {
 }
 
 // READ=hot: every physicsTick listener also reads bot.hot (a one-snapshot-per-tick consumer); READ=entities adds
-// bot.entities too.
+// bot.entities too, and READ=positions every entity's position.
 const read = env('READ', 'none')
 let readSink = 0
 function listen(bot, first) {
@@ -48,6 +48,7 @@ function listen(bot, first) {
     counts.physicsTick++
     if (read !== 'none') readSink += bot.hot?.tick ?? 0
     if (read === 'entities') readSink += Object.keys(bot.entities).length
+    if (read === 'positions') for (const e of Object.values(bot.entities)) readSink += e.position.x
   })
   bot.on('entitySpawn', () => counts.entitySpawn++)
   bot.on('entityGone', () => counts.entityGone++)

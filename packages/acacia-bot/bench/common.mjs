@@ -11,8 +11,8 @@ export const round = (v, digits = 1) => Math.round(v * 10 ** digits) / 10 ** dig
 export const log = (...args) => console.error(`[${new Date().toISOString().slice(11, 19)}]`, ...args)
 export const load = () => loadavg().map((l) => round(l, 2))
 
-/** One JSON line on stdout: the bench's row (bench/matrix.sh appends it to results/<bench>.jsonl). */
-export const emit = (row) => console.log(JSON.stringify({ ...row, at: new Date().toISOString(), node: process.version }))
+/** One JSON line on stdout: the bench's row (bench/matrix.sh appends it to results/<bench>.jsonl); TAG labels a build. */
+export const emit = (row) => console.log(JSON.stringify({ ...row, tag: env('TAG', null), at: new Date().toISOString(), node: process.version }))
 
 /**
  * A fresh sapling `load_server` (`$SAPLING/target/release/examples/load_server <port> <clocks> <mobs>`): a stone

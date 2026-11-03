@@ -2,7 +2,7 @@
 // (a stone floor), standing for SETTLE s after the last spawn; then process.memoryUsage() and smaps_rollup.
 // N = 0 loads the package and starts a host without a server. Method and the Rust baseline: RESULTS.md.
 // usage: node --expose-gc bench/memory.mjs <bots>
-// env: PHYSICS=1 ENTITIES=1, SHARDS (host default), JOIN_MS=100, SETTLE=25, CAP_MB=5000, PORT=19640, SAPLING / ADDRESS (common.mjs)
+// env: PHYSICS=1 ENTITIES=1 SNAPSHOTS=1, SHARDS (host default), JOIN_MS=100, SETTLE=25, CAP_MB=5000, PORT=19640, SAPLING / ADDRESS (common.mjs)
 import { emit, env, joinBots, load, log, memoryMb, num, sleep, smapsKb, startServer, statusKb } from './common.mjs'
 
 const n = Number(process.argv[2] ?? 1)
@@ -14,11 +14,12 @@ const [joinMs, settle, capMb] = [num('JOIN_MS', 100), num('SETTLE', 25), num('CA
 const bare = { memoryMb: memoryMb(), smapsKb: smapsKb() }
 const { createBot, NativeTransport } = await import('@acacia/bot')
 const shards = process.env.SHARDS ? Number(process.env.SHARDS) : undefined
-const transport = new NativeTransport({ shards })
+const snapshots = env('SNAPSHOTS', '1') === '1'
+const transport = new NativeTransport({ shards, snapshots })
 await sleep(1000)
 const loaded = { memoryMb: memoryMb(), smapsKb: smapsKb() }
 
-const base = { bench: 'memory', bots: n, physics, entities, shards: shards ?? null, mallocArenaMax: env('MALLOC_ARENA_MAX', null), joinMs, settleS: settle }
+const base = { bench: 'memory', bots: n, physics, entities, snapshots, shards: shards ?? null, mallocArenaMax: env('MALLOC_ARENA_MAX', null), joinMs, settleS: settle }
 let joined = { spawned: 0, failed: 0, errors: {}, joinS: 0 }
 setInterval(() => {
   const rss = process.memoryUsage.rss() / 1048576

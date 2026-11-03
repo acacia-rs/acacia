@@ -5,6 +5,9 @@ Item 9 of `reports/Acacia native Node package design.md`. These runs use the rea
 Rust-only runs. Raw rows are in `results/*.jsonl`, one JSON line per run. `node bench/summarize.mjs` prints the
 median tables quoted below.
 
+The bottlenecks found here were fixed the same day: see [After the fixes](#after-the-fixes). The sections up to
+it describe the first runs and are kept as they were.
+
 ## Headlines
 
 - **Memory: ~2.8 MB per standing bot on ~69 MB fixed.** 200 crowded bots took 634 MB RSS. The JS heap stays at
@@ -154,21 +157,88 @@ shows the median over 3 runs.
 6. Not investigated: 3 RakNet losses (`lost: Transport(Protocol("BadSplit"))`) across ~2100 bot-runs at
    300 bots, and the 7 join `DISCONNECTED` failures, all at load 50–66.
 
+## After the fixes
+
+Fixes 2–5 above, one commit each on js/cancel (2026-11-03, later): `done` flushes at once (acacia-host
+`outbound.rs`), entity reads split into members and a numbers array (`src/entity-frame.ts`, contract in the
+package README), `find_blocks` clipped to the search box, item names mapped once per table. Rows are tagged
+`"tag": "after"` in `results/*.jsonl` (`TAG=` env); untagged rows are the first runs. Same machine, `npm run
+build:bench` addon for every run. Load was lower than for the first runs (10–27 against 26–95), so the CPU and
+latency gains are partly load; the RTT and entity-read gains are not (see the idle row and the cost model).
+`after-v1` rows are a first cut of the entity split, superseded (below).
+
+Calls (`bench:events`, `READ=none`; median of 2 reps after, of 3–5 before; idle = 1 bot, `CLOCKS=0 MOBS=0`):
+
+| bots | immediate RTT p50 / p99 ms | waitForTicks(1) p50 / p99 ms | batches/s | JS thread |
+|---|---|---|---|---|
+| 1, idle | 2.19 / 12.7 → **0.022 / 0.06** | 56.3 / 59.6 → 51.3 / 51.8 | 78 → 117 | 2.4% → 0.7% |
+| 10 | 4.1 / 12.3 → **0.18 / 2.1** | 55.9 / 62.4 → 51.4 / 54.5 | 224 → 258 | 2.2% → 4.7% |
+| 100 | 8.4 / 20.9 → **0.44 / 10.3** | 57.9 / 73.5 → 51.7 / 65.6 | 328 → 401 | 8.7% → 9.4% |
+| 300 | 10.7 / 65.9 → **1.41 / 30.9** | 62.6 / 137 → 54.0 / 113 | 246 → 311 | 17.3% → 16.1% |
+
+- The flush floor is gone: a `done` now leaves with the events queued before it. Batches/s rise by up to a
+  quarter. The probes run back to back 10 ms apart, so faster calls mean more of them, which is most of the
+  10-bot JS-thread rise.
+
+Per-tick entity reads (each `physicsTick` listener reads `bot.entities`; `positions` also reads every entity's
+`.position`):
+
+| bots, read | JS thread | loop delay p50 / p99 ms | immediate RTT p50 ms | finished |
+|---|---|---|---|---|
+| 100, entities | 77.2% → **19.8%** | 0.16 / 76 → 0.07 / 5.9 | 11.0 → 1.15 | yes |
+| 100, positions | – → **18.2%** | – → 0.06 / 2.0 | – → 0.48 | yes |
+| 300, entities | saturated → **45.4%** | – → 0.06 / 5.8 | – → 1.58 | no (killed at 600 s) → yes |
+| 300, positions | – → **68%** | – → 0.06 / 8.8 | – → 1.64 | yes (2 of 2) |
+
+- Cost model (`node` microbench, 600 entities): a move is one `entitiesVersion` call plus one copy into the
+  reader's `Float64Array`; reading all 600 positions is 7 µs. What remains at 300 bots is membership churn:
+  ~1200 spawns/removals a second across the bots, each a members fetch. Sending full `Entity` JSON and building
+  fresh getter objects cost ~1.1–1.5 ms per change at 600 entities (the `after-v1` cut, whose 300-bot runs went
+  past 5.7 GB RSS behind a saturated JS thread and were killed). Members as `[id, uniqueId, kind, username]`
+  rows (24 KB, parse 83 µs) with objects carried over by id cost ~90 µs.
+
+Sync reads (`bench:reads`, median of 3 runs; ns/op unless noted):
+
+| read | before | after |
+|---|---|---|
+| `findBlocks` stone, r4, count 1 | 38,600 | **2,600** |
+| `findBlocks` stone, r8, count 16 | 51,700 | **11,050** |
+| `findBlocks` missing block, r16 | 2,600 | 1,650 |
+| `bot.inventory` miss p50 | 218 µs | **76 µs** |
+| `bot.entities` miss p50 (a pig added or removed: a membership change) | 141 µs | 134 µs |
+| `bot.players` miss p50 | 110 µs | 88 µs |
+| `bot.nearestEntity()` | 1,360 | 2,160 |
+| cached getters (`hot`, `entities`, `inventory`, `blockAt`) | 530–1,280 | 350–840 |
+
+- The item-table `Map` rebuild was 97 µs of the inventory miss, timed alone (2076 items). The rest of the
+  miss is the cold fetch and parse, as for `bot.hot`.
+- `nearestEntity` got slower: each `.position` is now a getter that builds a `Vec3`. Still ~75 ns an entity.
+- The reads bench churns membership, not positions, so its `bot.entities` miss is the membership path; the
+  per-tick case is the event table above.
+
+Memory: snapshots off (`NativeTransport({ snapshots: false })`, new, for this A/B) at N = 100, 2 reps each,
+interleaved: RSS 339 / 323 MB on, 360 / 320 MB off. No difference, so the published snapshots are not the
+extra ~0.8 MB/bot over Rust. `MALLOC_ARENA_MAX=2` (first runs: 244 / 271 MB at N = 100, against ~334) remains
+the one lever seen. Defaults unchanged.
+
 ## Not done
 
 - No feature-gated synthetic emitter: `research/js-measure/tsfn-results.md` already isolates the TSFN path,
   and these runs show the transport isn't the bottleneck.
 - The Rust (`memory_bench`, branch js/measure) and bedrock-protocol baselines were not re-run today. Their
   figures are quoted from memory-results.md.
-- No heaptrack attribution of the extra ~0.8 MB/bot, and no snapshots-off A/B (`HostConfig::snapshots` is not
-  reachable from JS).
+- No heaptrack attribution of the extra ~0.8 MB/bot. Snapshots are ruled out (After the fixes); arenas are
+  the lead.
+- Per-tick entity reads at 300 bots still take 45–68% of the JS thread, mostly membership churn: a members
+  delta (only the entities that came) would be the next step.
+- The BadSplit losses (Bugs 6) recur after the fixes: 4 across the 300-bot runs.
 
 ## Reproduce
 
 ```sh
 npm run build                       # events, memory (npm run build:bench for reads and READ=)
 npm run bench:memory -- 100         # one run, one JSON line on stdout; env in the script header
-npm run bench:events -- 300
+npm run bench:events -- 300        # READ=none|hot|entities|positions; TAG=<label> tags the row
 npm run bench:reads
 bash bench/matrix.sh memory 3       # the matrix, rows to results/<bench>.jsonl
 node bench/summarize.mjs            # median tables

@@ -21,12 +21,12 @@ const table = (head, lines) => [`| ${head.join(' | ')} |`, `|${head.map(() => '-
 
 const events = rows('events')
 if (events.length) {
-  const cells = groupBy(events, (r) => `${r.bots}|${r.clocks}|${r.mobs}|${r.shards ?? ''}|${r.read ?? 'none'}`)
+  const cells = groupBy(events, (r) => `${r.tag ?? ''}|${r.bots}|${r.clocks}|${r.mobs}|${r.shards ?? ''}|${r.read ?? 'none'}`)
   console.log('## events (median of reps)\n')
   console.log(table(
-    ['bots', 'clocks/mobs', 'read', 'reps', 'spawned', 'events/s', 'ticks/bot/s', 'moved ents/s', 'batches/s', 'rec/batch', 'JS CPU %', 'proc CPU %', 'server CPU %', 'JS µs/ev', 'loop p50/p99 ms', 'imm RTT p50/p99 ms', 'wait1 RTT p50/p99 ms', 'lagged', 'ended', 'load'],
+    ['tag', 'bots', 'clocks/mobs', 'read', 'reps', 'spawned', 'events/s', 'ticks/bot/s', 'moved ents/s', 'batches/s', 'rec/batch', 'JS CPU %', 'proc CPU %', 'server CPU %', 'JS µs/ev', 'loop p50/p99 ms', 'imm RTT p50/p99 ms', 'wait1 RTT p50/p99 ms', 'lagged', 'ended', 'load'],
     [...cells.values()].map((c) => [
-      c[0].bots, `${c[0].clocks}/${c[0].mobs}`, c[0].read ?? 'none', c.length, med(c, (r) => r.spawned), med(c, (r) => r.eventsPerS), med(c, (r) => r.ticksPerBotS),
+      c[0].tag ?? '–', c[0].bots, `${c[0].clocks}/${c[0].mobs}`, c[0].read ?? 'none', c.length, med(c, (r) => r.spawned), med(c, (r) => r.eventsPerS), med(c, (r) => r.ticksPerBotS),
       med(c, (r) => r.perS.movedEntities), med(c, (r) => r.perS.batches), med(c, (r) => r.recordsPerBatch), med(c, (r) => r.cpuPct.js),
       med(c, (r) => r.cpuPct.process), med(c, (r) => r.cpuPct.server), med(c, (r) => r.jsUsPerEvent),
       `${med(c, (r) => r.loopDelayMs.p50)} / ${med(c, (r) => r.loopDelayMs.p99)}`,
@@ -41,7 +41,7 @@ if (events.length) {
 
 const memory = rows('memory').filter((r) => !r.capped)
 if (memory.length) {
-  const variant = (r) => [r.physics ? 'phys on' : 'phys off', r.shards && `${r.shards} shard`, r.mallocArenaMax && `arenas ${r.mallocArenaMax}`].filter(Boolean).join(', ')
+  const variant = (r) => [r.physics ? 'phys on' : 'phys off', r.snapshots === false && 'snapshots off', r.shards && `${r.shards} shard`, r.mallocArenaMax && `arenas ${r.mallocArenaMax}`].filter(Boolean).join(', ')
   const cells = groupBy(memory, (r) => `${variant(r)}|${r.bots}`)
   console.log('\n## memory (median of reps, MB)\n')
   console.log(table(
@@ -56,7 +56,7 @@ if (memory.length) {
 }
 
 for (const r of rows('reads')) {
-  console.log(`\n## reads (${r.at}, ${r.entities} entities, ${r.stacks} stacks, load ${r.load[0]})\n`)
+  console.log(`\n## reads (${r.tag ?? '–'}, ${r.at}, ${r.entities} entities, ${r.stacks} stacks, load ${r.load[0]})\n`)
   console.log(table(['read', 'ns/op'], Object.entries(r.nsPerOp)))
   console.log()
   console.log(table(['sampled read', 'misses', 'miss p50/p99 ns', 'hits', 'hit p50/p99 ns'],
