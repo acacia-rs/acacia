@@ -22,10 +22,19 @@ export async function fakeBots(username = 'U') {
   const bots = new BotRegistry({ host: 'h' }, via)
   const connecting = bots.connect({ username })
   await tick()
-  via.push(via.event({ type: 'spawn' }), via.done(via.last('createBot').call, { ok: { bot: 'bot-1' } }))
+  await spawn(via)
   const handle = await connecting
   await tick()
   return { via, bots, handle }
+}
+
+/** Answers the last `createBot` with bot `id` spawned, then publishes the first snapshot `connect` waits for. */
+export async function spawn(via, id = 'bot-1') {
+  const before = via.sent.length
+  via.push(via.event({ type: 'spawn' }, 1, id), via.done(via.last('createBot').call, { ok: { bot: id } }, id))
+  const wait = await sent(via, 'bot.waitForTicks', before)
+  via.state[id] = { ...via.state[id], hot: via.state[id]?.hot ?? { tick: 1 } }
+  via.push(via.done(wait.call, { ok: null }, id))
 }
 
 /** Calls tool `name` and returns `{ text, structured, isError }`. */

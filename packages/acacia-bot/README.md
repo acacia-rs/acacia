@@ -55,8 +55,12 @@ acacia-host's; the addon: acacia-node's).
   resolves on its own. Entity arguments take an `Entity` or its `id`. Control states are held keys of a physics bot:
   a running movement action (`goto`, `follow`) overrides them, and every queued call releases them when it ends.
 - **Cancellation.** An aborted `signal` sends `cancel` for the call; the promise rejects with `signal.reason`
-  (`AbortError`, or `TimeoutError` from `AbortSignal.timeout`) once the bot has stopped. A signal that is already
-  aborted rejects without sending anything. `createBot` cannot be cancelled yet.
+  (`AbortError`, or `TimeoutError` from `AbortSignal.timeout`) once the bot's action has ended, within a tick. Keys
+  are released then, but a moving bot keeps its momentum: a cancelled `goto` or `follow` coasts about 1.5-2 blocks
+  over some 8 ticks before it stands still. A signal that is already aborted rejects without sending anything.
+  `createBot` cannot be cancelled yet.
+- **Pacing.** Screen actions move at a player's pace: a `craft` takes 3-6 s, container verbs a few seconds
+  (acacia-bot's `human.rs`). `ACACIA_HUMAN_SCALE=0.1` in the environment scales every such delay (0 removes them).
 - **Joins.** Joins to one address are spaced about 0.5 s apart and BDS's `RecentlyConnected` refusal is retried
   (acacia-host's crate docs), so many `createBot` calls at once just take longer.
 - **Errors** are `AcaciaError` with a `code` from acacia-api's `ErrorCode`: `ConnectError` for a failed `createBot`,
@@ -73,7 +77,8 @@ acacia-host's; the addon: acacia-node's).
   that throws does not stop the batch; its error is rethrown as an uncaught exception afterwards.
 - **Sync reads.** `bot.hot`, `bot.entity`, `bot.health`, `bot.food`, `bot.cold`, `bot.entities`, `bot.players`,
   `bot.nearestEntity(filter?)` and `bot.blockAt(pos)` read the bot's published state and terrain without a call,
-  where the transport offers `reads` (null or empty otherwise, and before the first tick). `bot.hot` is one frozen
+  where the transport offers `reads` (null or empty otherwise, and before the first tick: `createBot` resolves at
+  spawn, and `waitForTicks(n)` is a timed pause that can end before that tick, so loop on it until `bot.hot` is set). `bot.hot` is one frozen
   object per tick; `cold`, `entities` and `players` are one frozen object per change, rebuilt at most once a tick
   except that a spawn or removal is published before its `entitySpawn` / `entityGone` event, so a listener finds
   `bot.entities` agreeing with the event.

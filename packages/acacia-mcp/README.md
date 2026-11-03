@@ -82,10 +82,13 @@ is `findBlocks` + `dig`, building `equip` + `placeBlock`, and crafting `craft` (
 - **Long actions** wait until done. Cancelling the MCP request, or the `stop` tool, cancels the bot's call (within a
   tick). Each has a deadline after which it is cancelled with `TIMEOUT`: `goto` 120 s, `dig` and `craft` 60 s, `smelt` 10 s an item plus 30 s, `consume` 15 s, `waitForTicks`
   its ticks plus 10 s (at most 1200 ticks), other queued actions 30 s. `follow` never ends on its own, so its
-  deadline is `seconds` and reaching it is success.
+  deadline is `seconds` and reaching it is success. A cancelled `goto` or `follow` coasts about 1.5-2 blocks before
+  the bot stands still. Screen actions keep a player's pace: a `craft` takes 3-6 s (`ACACIA_HUMAN_SCALE`, see
+  @acacia/bot's README).
 - **Bots** are kept by username (case-insensitive) for the life of the process; a tool without `bot` uses the only
-  connected bot, connecting the command-line one first if none is. Each bot keeps its last 200 unread chat lines
-  and the forms the server opened. The process exits when the client closes stdin, closing the bots first.
+  connected bot, connecting the command-line one first if none is. A bot is handed out after its first tick, so
+  `status` has its state from the first call. Each bot keeps its last 200 unread chat lines (not its own lines,
+  which BDS echoes; translated lines show their params) and the forms the server opened. The process exits when the client closes stdin, closing the bots first.
 
 ## Build and test
 

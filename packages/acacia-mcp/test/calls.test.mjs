@@ -4,7 +4,7 @@ import { afterEach, beforeEach, test } from 'node:test'
 import { setImmediate as tick } from 'node:timers/promises'
 
 import { entity, vec } from '../../acacia-bot/test/fake.mjs'
-import { call, clientFor, fakeBots, sent } from './helpers.mjs'
+import { call, clientFor, fakeBots, sent, spawn } from './helpers.mjs'
 
 const hot = (position) => ({
   tick: 5, position, velocity: vec(0, 0, 0), yaw: 0, pitch: 0, onGround: true, health: 18, maxHealth: 20, food: 17,
@@ -67,6 +67,16 @@ test('readChat returns lines since the last call, and can wait for the next', as
   const { text, structured } = await waiting
   assert.equal(text, '<Steve> still there?')
   assert.deepEqual(structured.lines, [{ kind: 'chat', sender: 'Steve', message: 'still there?' }])
+})
+
+test("readChat skips the bot's own echoed lines and shows translation params", async () => {
+  const joined = { type: 'chat', kind: 'translation', message: '%multiplayer.player.joined', plain: '%multiplayer.player.joined', params: ['Alex'], xuid: '' }
+  const own = { type: 'chat', kind: 'chat', sender: 'U', message: 'mine', plain: 'mine', params: [], xuid: '' }
+  via.push(via.event(own, 1), via.event(joined, 2))
+  await tick()
+  const { text, structured } = await call(client, 'readChat')
+  assert.equal(text, '[translation] %multiplayer.player.joined (Alex)')
+  assert.deepEqual(structured.lines, [{ kind: 'translation', sender: undefined, message: '%multiplayer.player.joined', params: ['Alex'] }])
 })
 
 test('goto walks to a player by name and reports arrival; a failure is a tool error with the acacia code', async () => {
@@ -163,7 +173,7 @@ test('findBlocks gives positions as text and structured content; chat is immedia
 test('several bots: tools need `bot`; command stays off without --allow-commands', async () => {
   const second = bots.connect({ username: 'Two' })
   await tick()
-  via.push(via.event({ type: 'spawn' }, 1, 'bot-2'), via.done(via.last('createBot').call, { ok: { bot: 'bot-2' } }, 'bot-2'))
+  await spawn(via, 'bot-2')
   await second
   const { text, isError } = await call(client, 'chat', { message: 'x' })
   assert.ok(isError)

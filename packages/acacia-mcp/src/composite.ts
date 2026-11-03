@@ -37,7 +37,10 @@ function formText(form: Form): string {
   return `#${form.id} "${form.title}", inputs: ${inputs.map((e) => `${e.type} "${'text' in e ? e.text : ''}"`).join(', ')}`
 }
 
-const chatText = (line: ChatLine) => (line.sender ? `<${line.sender}> ${line.plain}` : `[${line.kind}] ${line.plain}`)
+const chatText = (line: ChatLine) => {
+  const params = line.params.length > 0 ? ` (${line.params.join(', ')})` : ''
+  return line.sender ? `<${line.sender}> ${line.plain}${params}` : `[${line.kind}] ${line.plain}${params}`
+}
 
 function status(handle: BotHandle): ToolResult {
   const { bot } = handle
@@ -160,7 +163,7 @@ export const COMPOSITE_TOOLS: ToolDef[] = [
     run: async (handle, args, signal) => {
       const lines = await handle.takeChat(((args.wait as number | undefined) ?? 0) * 1000, signal)
       return ok(lines.map(chatText).join('\n') || 'no new chat', {
-        lines: lines.map((l) => ({ kind: l.kind, sender: l.sender, message: l.plain })),
+        lines: lines.map((l) => ({ kind: l.kind, sender: l.sender, message: l.plain, ...(l.params.length > 0 && { params: l.params }) })),
       })
     },
   }),
