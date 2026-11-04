@@ -71,3 +71,28 @@ test('activation, hand and respawn verbs send flat params; entities go by id', a
     await running
   }
 })
+
+test('survival verbs: tools, auto-eat, beds, signs and the craftable list', async () => {
+  const { via, bot } = await connected({ autoEat: true })
+  assert.deepEqual(via.last('createBot').params.autoEat, {}, 'true takes the defaults')
+  const cell = { x: 1, y: 2, z: 3 }
+  const sticks = [{ item: 'minecraft:stick', count: 4 }]
+  const cases = [
+    [() => bot.equipBestTool(cell), 'bot.equipBestTool', cell, { slot: 2 }, 2],
+    [() => bot.equipBestTool(cell), 'bot.equipBestTool', cell, { slot: null }, null],
+    [() => bot.dig(cell, { equipBestTool: true }), 'bot.dig', { ...cell, equipBestTool: true }, null, null],
+    [() => bot.setAutoEat(false), 'bot.setAutoEat', { enabled: false }, null, null],
+    [() => bot.setAutoEat({ below: 10, prefer: 'noWaste' }), 'bot.setAutoEat', { enabled: true, below: 10, prefer: 'noWaste' }, null, null],
+    [() => bot.sleep(cell), 'bot.sleep', cell, null, null],
+    [() => bot.wake(), 'bot.wake', {}, null, null],
+    [() => bot.writeSign(cell, 'hello\nworld'), 'bot.writeSign', { ...cell, lines: ['hello', 'world'] }, null, null],
+    [() => bot.writeSign(cell, ['x'], { back: true }), 'bot.writeSign', { ...cell, lines: ['x'], back: true }, null, null],
+    [() => bot.craftableItems(), 'bot.craftableItems', {}, { items: sticks }, sticks],
+    [() => bot.craftableItems({ table: true }), 'bot.craftableItems', { table: true }, { items: [] }, []],
+  ]
+  for (const [run, method, params, result, want] of cases) {
+    const running = run()
+    assert.deepEqual(via.answer(method, { ok: result }).params, { bot: 'bot-1', ...params }, method)
+    assert.deepEqual(await running, want, method)
+  }
+})

@@ -72,6 +72,32 @@ test('inventory names stacks from the item table, heldItem follows the selected 
   await placing
 })
 
+test('entitiesNear sorts by distance from the bot or a point; blockAtCursor and isSleeping read published state', async () => {
+  const { via, bot } = await connected()
+  assert.deepEqual(bot.entitiesNear(10), [], 'before the first tick')
+  const at = (slot, x) => [slot, x, 64, 0, 0, 0, 0, 0, 0, null]
+  const table = new EntityTable()
+  table.apply({
+    version: 1,
+    full: true,
+    added: [[0, '5', '-5', 'minecraft:player', 'Steve'], [1, '6', '-6', 'minecraft:cow', null], [2, '7', '-7', 'minecraft:zombie', null]],
+    numbers: [at(0, 3), at(1, 9), at(2, 1)],
+  })
+  via.state['bot-1'] = { hot: { ...hot(vec(0, 64, 0)), sleeping: false }, entities: table }
+  assert.deepEqual(bot.entitiesNear(5).map((e) => e.id), ['7', '5'])
+  assert.deepEqual(bot.entitiesNear(3, { point: vec(9, 64, 0) }).map((e) => e.id), ['6'])
+  assert.deepEqual(bot.entitiesNear(100, { filter: (e) => e.kind !== 'minecraft:zombie' }).map((e) => e.id), ['5', '6'])
+  assert.equal(bot.isSleeping, false)
+  via.state['bot-1'].hot = { ...hot(vec(0, 64, 0)), sleeping: true }
+  assert.equal(bot.isSleeping, true)
+
+  assert.equal(bot.blockAtCursor(), null)
+  const hit = { position: vec(1, 63, 0), block: { name: 'minecraft:stone', states: {}, stateId: 1 }, face: 'up', point: vec(1.5, 64, 0.5), distance: 2 }
+  via.state['bot-1'].cursor = hit
+  assert.equal(bot.blockAtCursor(4), hit)
+  assert.deepEqual(via.queries, [{}, { maxDistance: 4 }])
+})
+
 test('entity listeners turn their groups on', async () => {
   const { via, bot } = await connected()
   bot.on('entitySpawn', () => {})

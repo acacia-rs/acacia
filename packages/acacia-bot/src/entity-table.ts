@@ -105,6 +105,18 @@ export class EntityTable implements Store {
     return best
   }
 
+  /** The entities within `radius` of (x, y, z) that pass `filter`, nearest first. */
+  within(x: number, y: number, z: number, radius: number, filter: (entity: Entity) => boolean): Entity[] {
+    const found: [Entity, number][] = []
+    for (const e of this.list as Live[]) {
+      const { store, base } = e[PLACE]
+      const n = store.numbers
+      const d = (n[base] - x) ** 2 + (n[base + 1] - y) ** 2 + (n[base + 2] - z) ** 2
+      if (d <= radius * radius && filter(e)) found.push([e, d])
+    }
+    return found.sort((a, b) => a[1] - b[1]).map(([e]) => e)
+  }
+
   #dropAllBut(added: AddedRow[]): void {
     const kept = new Set(added.map((row) => this.#bySlot[row[0]]).filter((e, i) => e && same(e, added[i])))
     for (const e of [...this.list] as Live[]) if (!kept.has(e)) this.#drop(e, own(this.numbers, e[PLACE].base))

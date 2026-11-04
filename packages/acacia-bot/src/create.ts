@@ -1,4 +1,5 @@
 import { Bot } from './bot.js'
+import type { AutoEatPolicy } from './generated/types/AutoEatPolicy.js'
 import type { CreateBotParams } from './generated/types/CreateBotParams.js'
 import type { EventGroup } from './generated/types/EventGroup.js'
 import type { SignInParams } from './generated/types/SignInParams.js'
@@ -16,7 +17,9 @@ export interface Via {
   token?: string
 }
 
-export interface BotOptions extends Omit<CreateBotParams, 'physics' | 'entities' | 'events'>, Via, HostCallOptions {
+export interface BotOptions extends Omit<CreateBotParams, 'physics' | 'entities' | 'events' | 'autoEat'>, Via, HostCallOptions {
+  /** Eat when hungry, from the start: `true` (or `{}`) for the defaults, or a policy (default off; `setAutoEat`). */
+  autoEat?: boolean | AutoEatPolicy
   /** Simulate movement and track terrain, needed to walk (default true). */
   physics?: boolean
   /** Track entities and other players: `entities`, `players`, entity events, `follow`, `attack` (default true). */
@@ -63,10 +66,11 @@ function transportFor({ via, token }: Via): Transport {
  * `signal.reason` when `signal` aborts first (signing in, connecting or between join retries).
  */
 export async function createBot(options: BotOptions): Promise<Bot> {
-  const { via, token, physics = true, entities = true, events = [], persist, signal, onMsaCode = logMsaCode, ...params } = options
+  const { via, token, physics = true, entities = true, events = [], persist, signal, onMsaCode = logMsaCode, autoEat, ...params } = options
   const session = sessionFor(transportFor({ via, token }))
   const keep = persist === undefined ? {} : { persist }
-  const { bot: id } = await session.call('createBot', { ...params, physics, entities, events, ...keep }, { signal, onMsaCode })
+  const eat = autoEat === undefined || autoEat === false ? {} : { autoEat: autoEat === true ? {} : autoEat }
+  const { bot: id } = await session.call('createBot', { ...params, physics, entities, events, ...keep, ...eat }, { signal, onMsaCode })
   const bot = new Bot(session, id, params.username, events)
   if (signal?.aborted) {
     // The abort came after the bot spawned: the caller gave up on it.

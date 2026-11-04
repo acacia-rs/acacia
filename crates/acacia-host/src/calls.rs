@@ -4,6 +4,7 @@ mod containers;
 mod crafting;
 mod interact;
 mod items;
+mod survival;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -25,7 +26,7 @@ pub(crate) fn action(bot: &mut Bot, method: Method) -> Action<'_> {
     let done = |reply: Reply| move |r: Result<(), ActionError>| r.map(|()| reply).map_err(convert::action_error);
     match method {
         Method::Goto(p) => Box::pin(async move { done(Reply::Goto(()))(bot.goto(convert::goal(p.goal)).await) }),
-        Method::Dig(p) => Box::pin(async move { done(Reply::Dig(()))(bot.break_block([p.x, p.y, p.z]).await) }),
+        Method::Dig(p) => Box::pin(async move { done(Reply::Dig(()))(survival::dig(bot, p).await) }),
         Method::AnswerForm(p) => {
             Box::pin(async move { done(Reply::AnswerForm(()))(bot.answer_form(p.form, convert::form_reply(p.answer)).await) })
         }
@@ -53,6 +54,20 @@ pub(crate) fn action(bot: &mut Bot, method: Method) -> Action<'_> {
         Method::SwingArm(_) => now(bot, Bot::swing, Reply::SwingArm(())),
         Method::SetQuickBarSlot(p) => Box::pin(async move { done(Reply::SetQuickBarSlot(()))(bot.select_hotbar(p.slot)) }),
         Method::Respawn(_) => Box::pin(async move { done(Reply::Respawn(()))(interact::respawn(bot)) }),
+        Method::EquipBestTool(p) => {
+            Box::pin(async move { answer(survival::equip_best_tool(bot, [p.x, p.y, p.z]).await, Reply::EquipBestTool) })
+        }
+        Method::SetAutoEat(p) => {
+            survival::set_auto_eat(bot, &p);
+            Box::pin(async move { Ok(Reply::SetAutoEat(())) })
+        }
+        Method::Sleep(p) => Box::pin(async move { done(Reply::Sleep(()))(bot.sleep([p.x, p.y, p.z]).await) }),
+        Method::Wake(_) => Box::pin(async move { done(Reply::Wake(()))(bot.wake().await) }),
+        Method::WriteSign(p) => Box::pin(async move { done(Reply::WriteSign(()))(survival::write_sign(bot, p).await) }),
+        Method::CraftableItems(p) => {
+            let items = survival::craftable_items(bot, p.table == Some(true));
+            Box::pin(async move { Ok(Reply::CraftableItems(items)) })
+        }
         other => {
             let name = other.name();
             Box::pin(async move { Err(ApiError::new(ErrorCode::Internal, format!("{name} is not a queued method"))) })

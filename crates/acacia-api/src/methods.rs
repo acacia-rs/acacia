@@ -95,4 +95,26 @@ api! {
     /// Presses "respawn" on the death screen; a `respawn` event follows once the server has moved the bot. Bots
     /// respawn on their own unless created with `autoRespawn: false`. `NOT_POSSIBLE` while alive.
     "bot.respawn" => Respawn(BotParams) -> (), Queued [mcp];
+    /// Holds the inventory's fastest tool for the block at a cell (main inventory, moved into the hotbar if needed),
+    /// skipping tools about to break; keeps the held item when nothing beats the bare hand. Physics bots only:
+    /// `NOT_POSSIBLE` for an unloaded cell.
+    "bot.equipBestTool" => EquipBestTool(EquipBestToolParams) -> EquipBestToolResult, Queued [mcp];
+    /// Turns auto-eat on or off: when hunger drops below `below` and the bot is idle (no queued call running, no
+    /// window open) it eats from the hotbar, moving food up from the inventory if needed, and switches back.
+    "bot.setAutoEat" => SetAutoEat(SetAutoEatParams) -> (), Queued [mcp];
+    /// Lies down in a bed (within reach) and resolves once the server shows the bot asleep. `REJECTED` with the
+    /// server's reason (daytime, monsters nearby, occupied), `NOT_POSSIBLE` for a block that is not a bed.
+    "bot.sleep" => Sleep(SleepParams) -> (), Queued [mcp];
+    /// Leaves the bed and resolves once the server shows the bot awake. `NOT_POSSIBLE` when not sleeping.
+    "bot.wake" => Wake(BotParams) -> (), Queued [mcp];
+    /// Writes a sign (within reach): clicks it unless its editor is open (as after placing one), types at a
+    /// person's pace and closes the editor. `NOT_POSSIBLE` for a waxed sign, too much text, or when the server
+    /// opened the other side.
+    "bot.writeSign" => WriteSign(WriteSignParams) -> (), Queued [mcp];
+    /// The items the inventory can craft now through the recipe book, in the bot's own 2x2 grid or (`table`) at a
+    /// crafting table. Ingredients are matched greedily, so a recipe whose tags overlap can be missed.
+    "bot.craftableItems" => CraftableItems(CraftableItemsParams) -> CraftableItemsResult, Queued [mcp];
+    /// The block the bot is looking at: the first block shape its line of sight enters (collision or selection box,
+    /// as the crosshair and anticheats see it), read from its terrain without waiting for an action.
+    "bot.blockAtCursor" => BlockAtCursor(BlockAtCursorParams) -> BlockAtCursorResult, Immediate [mcp];
 }

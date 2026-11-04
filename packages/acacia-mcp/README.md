@@ -71,6 +71,9 @@ Every tool but `connect` takes an optional `bot` (a username), needed only while
 | `lookAt`, `attack`, `waitForTicks`, `answerForm` | Look at a point; hit an entity; let ticks pass; answer a server form |
 | `activateBlock`, `activateEntity` | Right-click a block at `x, y, z` (doors, buttons, beds) / an entity (trade, mount, feed) |
 | `activateItem`, `deactivateItem`, `setQuickBarSlot`, `respawn` | Use the held item in the air / release it (bows, shields); select a hotbar slot; respawn after death |
+| `equipBestTool`, `setAutoEat` | Hold the fastest tool for a block (`dig` takes `equipBestTool` too); turn eating when hungry on or off |
+| `sleep`, `wake`, `writeSign` | Lie down in a bed at `x, y, z` / get up; write up to 4 `lines` on a sign (`back` for its back) |
+| `craftableItems`, `blockAtCursor` | What the inventory can craft now (`table` for 3x3 recipes); the block the bot is looking at |
 | `command` | Runs a slash command (only with `--allow-commands`) |
 
 `status` is the place to start: it is what an agent needs to pick its next action. Entity params (`follow`,

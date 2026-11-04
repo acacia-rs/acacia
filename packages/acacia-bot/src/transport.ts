@@ -1,6 +1,8 @@
 import type { Command } from './generated/methods.js'
 import type { BotId } from './generated/types/BotId.js'
 import type { Block } from './generated/types/Block.js'
+import type { BlockAtCursorParams } from './generated/types/BlockAtCursorParams.js'
+import type { CursorHit } from './generated/types/CursorHit.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
 import type { EntityTable } from './entity-table.js'
@@ -31,6 +33,8 @@ export interface SyncReads {
   itemTable(bot: BotId): ItemTable | null
   /** `bot.findBlocks` without a call; throws an `AcaciaError` as the call would fail. */
   findBlocks(bot: BotId, query: FindBlocksQuery): BlockPos[]
+  /** `bot.blockAtCursor` without a call; throws as `findBlocks`. */
+  blockAtCursor(bot: BotId, query: Omit<BlockAtCursorParams, 'bot'>): CursorHit | null
 }
 
 export type FindBlocksQuery = Omit<FindBlocksParams, 'bot'>

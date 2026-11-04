@@ -20,7 +20,8 @@ type State = { hot: HotSnapshot | null; cold: ColdSnapshot | null; entities: Ent
 const PARTS = ['hot', 'cold', 'items'] as const
 
 function noTerrain(what: string): never {
-  throw new AcaciaError('NOT_POSSIBLE', `${what} has no sync read over WebSocket; await bot.request('bot.findBlocks', ...) instead`)
+  const method = what === 'blockAt' ? 'findBlocks' : what
+  throw new AcaciaError('NOT_POSSIBLE', `${what} has no sync read over WebSocket; await bot.request('bot.${method}', ...) instead`)
 }
 
 /** The bots' state as the daemon last pushed it, served as `SyncReads` (contract: the package README). */
@@ -52,5 +53,6 @@ export class WsMirror {
     itemTable: (bot) => this.#bots.get(bot)?.items ?? null,
     blockAt: () => noTerrain('blockAt'),
     findBlocks: () => noTerrain('findBlocks'),
+    blockAtCursor: () => noTerrain('blockAtCursor'),
   }
 }

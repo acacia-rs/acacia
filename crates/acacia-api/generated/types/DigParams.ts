@@ -4,4 +4,8 @@ import type { BotId } from "./BotId";
 /**
  * The block cell `x, y, z` to break.
  */
-export type DigParams = { bot: BotId, x: number, y: number, z: number, };
+export type DigParams = { bot: BotId, x: number, y: number, z: number, 
+/**
+ * Hold the fastest tool for the block first, as `bot.equipBestTool` does (default false: the held item).
+ */
+equipBestTool?: boolean, };

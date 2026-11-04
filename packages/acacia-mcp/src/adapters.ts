@@ -1,9 +1,9 @@
-import { AcaciaError, type Form, type FormAnswer, type Goal } from '@acacia-rs/bot'
+import { AcaciaError, type CursorHit, type Form, type FormAnswer, type Goal } from '@acacia-rs/bot'
 
 import type { BotHandle } from './bots.js'
 import { ENTITY_PARAM, nearGoal, resolveEntity } from './entities.js'
 import { ITEM_ADAPTERS } from './item-adapters.js'
-import { badParams, distance, fmtPos, here, ok, props, withProps, type Adapter, type Args, type JsonSchema, type ToolResult } from './tool.js'
+import { badParams, distance, fmtPos, here, ok, props, round, withProps, type Adapter, type Args, type JsonSchema, type ToolResult } from './tool.js'
 
 export type { Adapter }
 
@@ -137,6 +137,17 @@ export const ADAPTERS: Partial<Record<string, Adapter>> = {
     timeout: (args) => (args.ticks as number) * 50 + 10_000,
   },
   'bot.dig': { timeout: () => 60_000 },
+  'bot.sleep': { timeout: () => 15_000, done: () => ok('asleep') },
+  'bot.wake': { done: () => ok('awake') },
+  'bot.writeSign': { timeout: () => 30_000 },
+  'bot.setAutoEat': { done: (_, params) => ok(`auto-eat ${params.enabled ? 'on' : 'off'}`) },
+  'bot.blockAtCursor': {
+    done: (result) => {
+      const { hit } = result as { hit: CursorHit | null }
+      if (!hit) return ok('no block in sight within reach', { hit })
+      return ok(`${hit.block.name} at ${fmtPos(hit.position)}, ${hit.face} face, ${round(hit.distance)} away`, { hit })
+    },
+  },
   'bot.findBlocks': {
     done: (result, _, handle) => {
       const { blocks } = result as { blocks: { x: number; y: number; z: number }[] }

@@ -67,9 +67,9 @@ acacia-host's; the addon: acacia-node's).
 - **Calls** resolve or reject from their `done` record, which comes after every event the bot raised before the call
   ended: listeners see what happened during `goto` before `await bot.goto()` returns. A refusal (`BUSY`,
   `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `equip`, `placeBlock`, `dig`,
-  `craft`, `recipesFor`, the container verbs, `smelt`, `consume`, `toss`, the activation and hand verbs, `respawn`,
-  `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
-  `setControlState`, `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
+  `craft`, `recipesFor`, `craftableItems`, the container verbs, `smelt`, `consume`, `toss`, the activation and hand
+  verbs, `respawn`, the survival verbs, `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`,
+  `command`, `setEvents`, `setControlState`, `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
   `bot.request(method, params, options)` calls any table method by name with the bot's id filled in, for generic
   callers such as `@acacia-rs/mcp`.
 - **Movement.** `goto(goal)` takes a plain `Goal`: the classes `GoalBlock`, `GoalNear`, `GoalXZ`, `GoalY`,
@@ -121,8 +121,10 @@ acacia-host's; the addon: acacia-node's).
   Events a bot raises before `createBot` resolves are not delivered; records after it wait one macrotask so the
   caller can attach listeners. `bot.events(name, { signal })` iterates one event and ends with the bot. A listener
   that throws does not stop the batch; its error is rethrown as an uncaught exception afterwards.
-- **Sync reads.** `bot.hot`, `bot.entity`, `bot.health`, `bot.food`, `bot.cold`, `bot.entities`, `bot.players`,
-  `bot.nearestEntity(filter?)` and `bot.blockAt(pos)` read the bot's published state and terrain without a call,
+- **Sync reads.** `bot.hot`, `bot.entity`, `bot.health`, `bot.food`, `bot.isSleeping`, `bot.cold`, `bot.entities`,
+  `bot.players`, `bot.nearestEntity(filter?)`, `bot.entitiesNear(maxDistance, { point, filter })` (nearest first),
+  `bot.blockAt(pos)` and `bot.blockAtCursor(maxDistance = 6)` (the first block shape on the line of sight from the
+  standing eye height, with its face, point and distance; null if none) read the bot's published state and terrain without a call,
   where the transport offers `reads` (null or empty otherwise, and before the first tick: `createBot` resolves at
   spawn). `await bot.ready({ signal })` waits for that tick: it resolves once the bot has ticked (on its first
   `physicsTick`, at once if `bot.hot` is already set) and the event groups of the listeners attached so far are on,
@@ -167,14 +169,22 @@ acacia-host's; the addon: acacia-node's).
   2x2 grid or at the crafting table at `table` (within reach), and resolves with how many items were made: at least
   `count` (a craft makes the recipe's whole output), fewer only when the ingredients ran out after one craft.
   `NOT_POSSIBLE` when no recipe fits the grid or ingredients are missing. `recipesFor(item)` lists the server's
-  recipes for an item, ingredients summed per item or `#tag`.
+  recipes for an item, ingredients summed per item or `#tag`; `craftableItems({ table })` the items the inventory
+  can craft now (2x2 recipes, 3x3 too with `table`), each with what one craft makes.
 - **Containers** are stateless: `containerContents(pos)`, `deposit(pos, item, count?)` and `withdraw(pos, item,
   count?)` each open the container block at `pos` (within reach), act and close it, also on failure. The moves
   resolve with how many items moved (up to `count`, all when absent): fewer once the source has no more or the
-  other side is full; `NOT_POSSIBLE` when nothing could move.
+  other side is full; `NOT_POSSIBLE` when nothing could move. There is no `openContainer` window handle: a window
+  held open between calls would keep auto-eat off (it waits for the screen to close).
 - **Survival items.** `smelt(furnace, item, count = 1, { fuel, fuelCount })` runs a furnace, blast furnace or smoker
   to the end and resolves with how many came out; `consume(item?)` eats or drinks (`NOT_POSSIBLE` when not
   hungry); `toss(item, count?, { toward })` throws stacks, aimed at a point when given.
+- **Survival verbs.** `equipBestTool(pos)` holds the inventory's fastest tool for a block (resolves with the hotbar
+  slot, null when the hand is best); `dig(pos, { equipBestTool: true })` does it first. `createBot({ autoEat })`
+  (`true` or `{ below = 14, prefer = 'saturation' | 'noWaste', fromInventory = true }`) and `setAutoEat(policy |
+  false)` eat when hungry while the bot is idle. `sleep(bed)` resolves once the server shows the bot asleep
+  (`REJECTED` with its reason), `wake()` once awake. `writeSign(pos, lines, { back })` writes up to 4 lines; the
+  server opens the side the bot faces (`NOT_POSSIBLE` for the other one).
 - **Process lifetime.** The addon never holds Node open by itself. The session holds it while a bot is live or a
   call is unanswered, and a closing `NativeTransport` holds it until its stream ends, so `node script.js` runs while
   it has bots and exits once they are closed. A `WsTransport`'s open socket holds Node, so it closes the socket when
@@ -189,8 +199,8 @@ acacia-host's; the addon: acacia-node's).
   - The getters read a mirror the daemon pushes (`hello { mirror: true }`, `new WsTransport(url, { mirror: false })`
     turns it off): `hot`, `entity`, `health`, `food`, `cold`, `inventory`, `heldItem`, `entities`, `players` and
     `nearestEntity` work, at most a tick old and never older than the event or `await` being handled. `entities` is
-    kept by deltas as in-process. `blockAt` and `findBlocks` throw
-    `NOT_POSSIBLE`: terrain is not mirrored; `await bot.request('bot.findBlocks', query)` does the search.
+    kept by deltas as in-process. `blockAt`, `findBlocks` and `blockAtCursor` throw `NOT_POSSIBLE`: terrain is not
+    mirrored; `await bot.request('bot.findBlocks', query)` (or `'bot.blockAtCursor'`) does the read.
   - A bot belongs to its connection and closes when it drops, unless created with `persist: true` (ignored
     in-process). `attachBot({ via, username })` (or `bot`) takes over a persisted bot from a new script; events raised
     while nobody was attached are lost, and the mirror starts over. When the connection drops, open calls fail

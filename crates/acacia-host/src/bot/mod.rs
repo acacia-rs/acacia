@@ -53,6 +53,7 @@ pub(crate) async fn run(spawn: Spawn) {
         trackers: Trackers { entities: params.entities.unwrap_or(false), ..Trackers::default() },
         physics: params.physics.unwrap_or(false),
         auto_respawn: params.auto_respawn.unwrap_or(true),
+        auto_eat: params.auto_eat.as_ref().map(convert::auto_eat),
         events: convert::events(params.events.as_deref().unwrap_or_default()),
         event_sink: Some(sink),
         snapshots,

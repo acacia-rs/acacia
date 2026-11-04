@@ -91,4 +91,17 @@ export const ITEM_ADAPTERS: Partial<Record<string, Adapter>> = {
       return ok(recipes.length ? recipes.map(recipeText).join('\n') : `no recipe makes ${params.item}`, { recipes })
     },
   },
+  'bot.craftableItems': {
+    done: (result, params) => {
+      const { items } = result as { items: ItemCount[] }
+      const where = params.table ? 'at a crafting table' : 'in the 2x2 grid'
+      return ok(items.length ? `craftable ${where}: ${counted(items)}` : `nothing is craftable ${where}`, { items })
+    },
+  },
+  'bot.equipBestTool': {
+    done: (result) => {
+      const { slot } = result as { slot: number | null }
+      return ok(slot === null ? 'nothing beats the bare hand; kept the held item' : `holding the best tool in hotbar slot ${slot}`, { slot })
+    },
+  },
 }

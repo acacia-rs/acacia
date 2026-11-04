@@ -3,6 +3,8 @@ import type { ActivateBlockParams } from "./types/ActivateBlockParams";
 import type { ActivateEntityParams } from "./types/ActivateEntityParams";
 import type { AnswerFormParams } from "./types/AnswerFormParams";
 import type { AttackParams } from "./types/AttackParams";
+import type { BlockAtCursorParams } from "./types/BlockAtCursorParams";
+import type { BlockAtCursorResult } from "./types/BlockAtCursorResult";
 import type { BotParams } from "./types/BotParams";
 import type { CancelCallParams } from "./types/CancelCallParams";
 import type { CancelParams } from "./types/CancelParams";
@@ -13,9 +15,13 @@ import type { ContainerContents } from "./types/ContainerContents";
 import type { ContainerParams } from "./types/ContainerParams";
 import type { CraftParams } from "./types/CraftParams";
 import type { CraftResult } from "./types/CraftResult";
+import type { CraftableItemsParams } from "./types/CraftableItemsParams";
+import type { CraftableItemsResult } from "./types/CraftableItemsResult";
 import type { CreateBotParams } from "./types/CreateBotParams";
 import type { CreateBotResult } from "./types/CreateBotResult";
 import type { DigParams } from "./types/DigParams";
+import type { EquipBestToolParams } from "./types/EquipBestToolParams";
+import type { EquipBestToolResult } from "./types/EquipBestToolResult";
 import type { EquipParams } from "./types/EquipParams";
 import type { FindBlocksParams } from "./types/FindBlocksParams";
 import type { FindBlocksResult } from "./types/FindBlocksResult";
@@ -25,11 +31,13 @@ import type { LookAtParams } from "./types/LookAtParams";
 import type { PlaceBlockParams } from "./types/PlaceBlockParams";
 import type { RecipesForParams } from "./types/RecipesForParams";
 import type { RecipesForResult } from "./types/RecipesForResult";
+import type { SetAutoEatParams } from "./types/SetAutoEatParams";
 import type { SetControlStateParams } from "./types/SetControlStateParams";
 import type { SetEventsParams } from "./types/SetEventsParams";
 import type { SetQuickBarSlotParams } from "./types/SetQuickBarSlotParams";
 import type { SignInParams } from "./types/SignInParams";
 import type { SignInResult } from "./types/SignInResult";
+import type { SleepParams } from "./types/SleepParams";
 import type { SmeltParams } from "./types/SmeltParams";
 import type { SmeltResult } from "./types/SmeltResult";
 import type { Snapshot } from "./types/Snapshot";
@@ -38,6 +46,7 @@ import type { TossResult } from "./types/TossResult";
 import type { TransferParams } from "./types/TransferParams";
 import type { TransferResult } from "./types/TransferResult";
 import type { WaitForTicksParams } from "./types/WaitForTicksParams";
+import type { WriteSignParams } from "./types/WriteSignParams";
 
 export const PROTOCOL_VERSION = 1;
 
@@ -232,6 +241,49 @@ export interface Methods {
    * @mcp
    */
   "bot.respawn": { params: BotParams; result: null; lane: "queued" };
+  /**
+   * Holds the inventory's fastest tool for the block at a cell (main inventory, moved into the hotbar if needed),
+   * skipping tools about to break; keeps the held item when nothing beats the bare hand. Physics bots only:
+   * `NOT_POSSIBLE` for an unloaded cell.
+   * @mcp
+   */
+  "bot.equipBestTool": { params: EquipBestToolParams; result: EquipBestToolResult; lane: "queued" };
+  /**
+   * Turns auto-eat on or off: when hunger drops below `below` and the bot is idle (no queued call running, no
+   * window open) it eats from the hotbar, moving food up from the inventory if needed, and switches back.
+   * @mcp
+   */
+  "bot.setAutoEat": { params: SetAutoEatParams; result: null; lane: "queued" };
+  /**
+   * Lies down in a bed (within reach) and resolves once the server shows the bot asleep. `REJECTED` with the
+   * server's reason (daytime, monsters nearby, occupied), `NOT_POSSIBLE` for a block that is not a bed.
+   * @mcp
+   */
+  "bot.sleep": { params: SleepParams; result: null; lane: "queued" };
+  /**
+   * Leaves the bed and resolves once the server shows the bot awake. `NOT_POSSIBLE` when not sleeping.
+   * @mcp
+   */
+  "bot.wake": { params: BotParams; result: null; lane: "queued" };
+  /**
+   * Writes a sign (within reach): clicks it unless its editor is open (as after placing one), types at a
+   * person's pace and closes the editor. `NOT_POSSIBLE` for a waxed sign, too much text, or when the server
+   * opened the other side.
+   * @mcp
+   */
+  "bot.writeSign": { params: WriteSignParams; result: null; lane: "queued" };
+  /**
+   * The items the inventory can craft now through the recipe book, in the bot's own 2x2 grid or (`table`) at a
+   * crafting table. Ingredients are matched greedily, so a recipe whose tags overlap can be missed.
+   * @mcp
+   */
+  "bot.craftableItems": { params: CraftableItemsParams; result: CraftableItemsResult; lane: "queued" };
+  /**
+   * The block the bot is looking at: the first block shape its line of sight enters (collision or selection box,
+   * as the crosshair and anticheats see it), read from its terrain without waiting for an action.
+   * @mcp
+   */
+  "bot.blockAtCursor": { params: BlockAtCursorParams; result: BlockAtCursorResult; lane: "immediate" };
 }
 
 export type MethodName = keyof Methods;

@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{BotId, CallId};
+use crate::{AutoEatPolicy, BotId, CallId};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +44,10 @@ pub struct CreateBotParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub auto_respawn: Option<bool>,
+    /// Eat when hungry, from the start (default off; `bot.setAutoEat` changes it). `{}` takes the defaults.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub auto_eat: Option<AutoEatPolicy>,
     /// Event groups reported from the start (default none; `bot.setEvents` changes them).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

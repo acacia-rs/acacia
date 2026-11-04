@@ -47,11 +47,16 @@ pub enum Goal {
 
 /// The block cell `x, y, z` to break.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DigParams {
     pub bot: BotId,
     pub x: i32,
     pub y: i32,
     pub z: i32,
+    /// Hold the fastest tool for the block first, as `bot.equipBestTool` does (default false: the held item).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub equip_best_tool: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]

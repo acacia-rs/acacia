@@ -9,6 +9,7 @@ mod interact;
 mod items;
 mod moves;
 mod survival;
+mod survival_verbs;
 
 use std::time::{Duration, Instant};
 

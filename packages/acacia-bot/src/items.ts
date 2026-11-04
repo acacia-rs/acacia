@@ -77,7 +77,7 @@ export class BotItems extends BotReads {
 }
 
 /** The point alone, without the extra fields an `Entity` position or block carries. */
-const cell = ({ x, y, z }: BlockPos | Vec3) => ({ x, y, z })
+export const cell = ({ x, y, z }: BlockPos | Vec3) => ({ x, y, z })
 
 const transfer = (container: BlockPos, item: ItemRef, count?: number) => ({
   ...cell(container),

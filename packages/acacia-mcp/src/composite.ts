@@ -22,10 +22,9 @@ function botTool(def: Omit<ToolDef, 'run'> & { run(handle: BotHandle, args: Args
 function nearby(handle: BotHandle, maxDistance: number): (Entity & { distance: number })[] {
   const me = handle.bot.entity?.position
   if (!me) return []
-  return Object.values(handle.bot.entities)
+  return handle.bot
+    .entitiesNear(maxDistance, { filter: (e) => e.username !== handle.name })
     .map((e) => ({ ...e, distance: distance(me, e.position) }))
-    .filter((e) => e.distance <= maxDistance && e.username !== handle.name)
-    .sort((a, b) => a.distance - b.distance)
 }
 
 function formText(form: Form): string {

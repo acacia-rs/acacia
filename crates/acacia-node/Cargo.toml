@@ -16,6 +16,7 @@ acacia-api = { version = "0.1.0", path = "../acacia-api" }
 acacia-host = { version = "0.1.0", path = "../acacia-host" }
 napi = { version = "3.15", features = ["napi6"] }
 napi-derive = "3"
+serde = "1"
 serde_json = "1"
 acacia-testserver = { path = "../acacia-testserver", optional = true }
 acacia-proto = { workspace = true, optional = true }

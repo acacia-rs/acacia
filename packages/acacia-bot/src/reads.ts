@@ -3,6 +3,7 @@ import { AcaciaError, ActionError } from './errors.js'
 import type { Block } from './generated/types/Block.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
+import type { CursorHit } from './generated/types/CursorHit.js'
 import type { Entity } from './generated/types/Entity.js'
 import type { Event } from './generated/types/Event.js'
 import type { EntityTable } from './entity-table.js'
@@ -134,6 +135,28 @@ export class BotReads extends BotCore {
     const me = this.hot?.position
     if (!me) return null
     return this.#entityTable()?.nearest(me.x, me.y, me.z, filter) ?? null
+  }
+
+  /**
+   * Tracked entities within `maxDistance` blocks of `point` (default the bot's feet) that pass `filter`, nearest
+   * first; empty before the first tick.
+   */
+  entitiesNear(maxDistance: number, options: { point?: Vec3; filter?: (entity: Entity) => boolean } = {}): Entity[] {
+    const { point = this.hot?.position, filter = () => true } = options
+    if (!point) return []
+    return this.#entityTable()?.within(point.x, point.y, point.z, maxDistance, filter) ?? []
+  }
+
+  /** In a bed, as the server shows it. */
+  get isSleeping(): boolean {
+    return this.hot?.sleeping ?? false
+  }
+
+  /** The block the bot is looking at within `maxDistance` (default 6, at most 64) blocks of its eyes; null if none. */
+  blockAtCursor(maxDistance?: number): CursorHit | null {
+    const reads = this.session.reads
+    if (!reads) throw new AcaciaError('NOT_POSSIBLE', 'this transport has no sync reads')
+    return reads.blockAtCursor(this.id, maxDistance === undefined ? {} : { maxDistance })
   }
 
   /** The block at a cell; null for an unloaded chunk or a bot that tracks no terrain. */

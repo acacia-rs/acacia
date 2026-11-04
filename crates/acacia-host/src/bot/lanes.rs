@@ -13,6 +13,8 @@ use tokio::sync::{mpsc, oneshot};
 use crate::convert;
 use crate::registry::{BotOut, Msg};
 
+const NO_SNAPSHOTS: &str = "the host publishes no snapshots (HostConfig::snapshots)";
+
 pub(super) struct Lanes {
     pub out: Arc<BotOut>,
     pub rx: mpsc::UnboundedReceiver<Msg>,
@@ -98,7 +100,11 @@ impl Lanes {
             }
             Method::FindBlocks(p) => match &self.reader {
                 Some(reader) => self.out.done(call, convert::find_blocks(reader, &p).map(Reply::FindBlocks)),
-                None => self.out.fail(call, ErrorCode::NotPossible, "the host publishes no snapshots (HostConfig::snapshots)"),
+                None => self.out.fail(call, ErrorCode::NotPossible, NO_SNAPSHOTS),
+            },
+            Method::BlockAtCursor(p) => match &self.reader {
+                Some(reader) => self.out.done(call, convert::block_at_cursor(reader, &p).map(Reply::BlockAtCursor)),
+                None => self.out.fail(call, ErrorCode::NotPossible, NO_SNAPSHOTS),
             },
             Method::Snapshot(_) => {
                 let (tx, rx) = oneshot::channel();

@@ -5,8 +5,8 @@ import type { Face } from './generated/types/Face.js'
 import type { FormAnswer } from './generated/types/FormAnswer.js'
 import type { Goal } from './generated/types/Goal.js'
 import type { Vec3 } from './generated/types/Vec3.js'
-import { BotItems } from './items.js'
 import type { CallOptions } from './session.js'
+import { BotSurvival } from './survival.js'
 
 /** An entity, or its `id`. */
 export type EntityRef = Entity | string
@@ -17,7 +17,7 @@ const idOf = (entity: EntityRef): string => (typeof entity === 'string' ? entity
  * One connected bot (contract: the package README). Queued actions (`goto`, `follow`, `dig`, ...) run one at a
  * time in call order; `chat`, `command`, the control states and the getters do not wait for them.
  */
-export class Bot extends BotItems {
+export class Bot extends BotSurvival {
   /** Walks to `goal` (see `goals`); needs `physics`. Fails with `NOT_POSSIBLE` when there is no path. */
   goto(goal: Goal, options?: CallOptions): Promise<void> {
     return this.call('bot.goto', { goal }, options)
@@ -57,9 +57,11 @@ export class Bot extends BotItems {
     return this.call('bot.placeBlock', { x, y, z, ...(face === undefined ? {} : { face }) }, options)
   }
 
-  /** Breaks the block at a cell, as a player would. */
-  dig(pos: BlockPos, options?: CallOptions): Promise<void> {
-    return this.call('bot.dig', { x: pos.x, y: pos.y, z: pos.z }, options)
+  /** Breaks the block at a cell, as a player would; with `equipBestTool`, holding the fastest tool for it first. */
+  dig(pos: BlockPos, options: CallOptions & { equipBestTool?: boolean } = {}): Promise<void> {
+    const { equipBestTool, ...call } = options
+    const params = { x: pos.x, y: pos.y, z: pos.z, ...(equipBestTool === undefined ? {} : { equipBestTool }) }
+    return this.call('bot.dig', params, call)
   }
 
   answerForm(form: number | { id: number }, answer: FormAnswer, options?: CallOptions): Promise<void> {

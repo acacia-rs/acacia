@@ -6,6 +6,7 @@ import { NativeHot } from './native-hot.js'
 import { AcaciaError } from './errors.js'
 import type { Command } from './generated/methods.js'
 import type { Block } from './generated/types/Block.js'
+import type { BlockAtCursorResult } from './generated/types/BlockAtCursorResult.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
 import type { ErrorCode } from './generated/types/ErrorCode.js'
 import type { FindBlocksResult } from './generated/types/FindBlocksResult.js'
@@ -132,6 +133,10 @@ export class NativeTransport implements Transport {
     findBlocks: (bot, query) => {
       const json = rethrown(() => this.#host.findBlocks(bot, JSON.stringify({ ...query, bot })))
       return (JSON.parse(json) as FindBlocksResult).blocks
+    },
+    blockAtCursor: (bot, query) => {
+      const json = rethrown(() => this.#host.blockAtCursor(bot, JSON.stringify({ ...query, bot })))
+      return (JSON.parse(json) as BlockAtCursorResult).hit
     },
   }
 

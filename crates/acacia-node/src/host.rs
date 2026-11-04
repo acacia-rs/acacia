@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use acacia_api::{ApiError, BlockPos, BotId, ErrorCode, FindBlocksParams};
+use acacia_api::{ApiError, BlockAtCursorParams, BlockPos, BotId, ErrorCode, FindBlocksParams};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use acacia_host::{Host, HostConfig, ENTITY_NUMBERS};
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::UnknownReturnValue;
@@ -191,10 +193,13 @@ impl NativeHost {
     /// `bot.findBlocks` now: `FindBlocksParams` JSON in, `FindBlocksResult` JSON out; throws with the error's `code`.
     #[napi]
     pub fn find_blocks(&self, bot: String, params: String) -> Result<String, Code> {
-        let params: FindBlocksParams =
-            serde_json::from_str(&params).map_err(|e| refusal(ApiError::new(ErrorCode::BadParams, e.to_string())))?;
-        let found = self.host.find_blocks(&BotId(bot), &params).map_err(refusal)?;
-        serde_json::to_string(&found).map_err(|e| refusal(ApiError::new(ErrorCode::Internal, e.to_string())))
+        json_read(&params, |p: FindBlocksParams| self.host.find_blocks(&BotId(bot), &p))
+    }
+
+    /// `bot.blockAtCursor` now: `BlockAtCursorParams` JSON in, `BlockAtCursorResult` JSON out; throws as `find_blocks`.
+    #[napi]
+    pub fn block_at_cursor(&self, bot: String, params: String) -> Result<String, Code> {
+        json_read(&params, |p: BlockAtCursorParams| self.host.block_at_cursor(&BotId(bot), &p))
     }
 
     /// The `Block` at a cell of the bot's dimension (JSON), or null when unknown (see acacia-host's `block_at`).
@@ -203,4 +208,11 @@ impl NativeHost {
         let block = self.host.block_at(&BotId(bot), BlockPos { x, y, z })?;
         serde_json::to_string(&block).ok()
     }
+}
+
+/// A sync read with JSON params and result; a parse failure is `BAD_PARAMS`.
+fn json_read<P: DeserializeOwned, R: Serialize>(params: &str, read: impl FnOnce(P) -> std::result::Result<R, ApiError>) -> Result<String, Code> {
+    let params = serde_json::from_str(params).map_err(|e| refusal(ApiError::new(ErrorCode::BadParams, e.to_string())))?;
+    let found = read(params).map_err(refusal)?;
+    serde_json::to_string(&found).map_err(|e| refusal(ApiError::new(ErrorCode::Internal, e.to_string())))
 }

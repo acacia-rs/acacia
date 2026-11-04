@@ -1,20 +1,24 @@
 //! acacia-bot values to and from acacia-api's schema.
 
+mod cursor;
 mod event;
 mod items;
 mod snapshot;
 mod world;
 
+pub(crate) use cursor::block_at_cursor;
 pub(crate) use event::event;
 pub(crate) use items::{item_name, recipe, stack_name};
 pub(crate) use snapshot::{cold, entities, hot, snapshot};
 pub(crate) use world::{block, find_blocks, item_table};
 
-use acacia_api::{ApiError, Control, EquipDestination, ErrorCode, EventGroup, Face, FormAnswer, FormValue, Goal};
+use acacia_api::{
+    ApiError, AutoEatPolicy, Control, EquipDestination, ErrorCode, EventGroup, Face, FoodPreference, FormAnswer, FormValue, Goal,
+};
 use acacia_bot::forms::{FormReply, FormValue as BotFormValue};
 use acacia_bot::interact::Face as BotFace;
 use acacia_bot::movement::Key;
-use acacia_bot::survival::Destination;
+use acacia_bot::survival::{AutoEat, Destination, FoodChoice};
 use acacia_bot::pathfind::Goal as BotGoal;
 use acacia_bot::{ActionError, ConnectError, Events};
 
@@ -123,4 +127,13 @@ fn form_value(value: FormValue) -> BotFormValue {
         FormValue::Slider(v) => BotFormValue::Slider(v),
         FormValue::Choice(i) => BotFormValue::Choice(i as usize),
     }
+}
+
+pub(crate) fn auto_eat(p: &AutoEatPolicy) -> AutoEat {
+    let default = AutoEat::default();
+    let prefer = p.prefer.map_or(default.prefer, |f| match f {
+        FoodPreference::Saturation => FoodChoice::Saturation,
+        FoodPreference::NoWaste => FoodChoice::NoWaste,
+    });
+    AutoEat { below: p.below.unwrap_or(default.below), prefer, from_inventory: p.from_inventory.unwrap_or(default.from_inventory) }
 }

@@ -19,6 +19,10 @@ export class FakeTransport {
       this.queries.push(query)
       return this.state[bot]?.found ?? []
     },
+    blockAtCursor: (bot, query) => {
+      this.queries.push(query)
+      return this.state[bot]?.cursor ?? null
+    },
   }
   queries = []
   open(listener) {

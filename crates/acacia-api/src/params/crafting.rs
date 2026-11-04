@@ -67,6 +67,21 @@ pub struct RecipesForParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct CraftableItemsParams {
+    pub bot: BotId,
+    /// Count 3x3 recipes too, as at a crafting table; only the bot's own 2x2 grid when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub table: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct CraftableItemsResult {
+    /// One entry per item, in the server's recipe order, with what one craft of its first fitting recipe makes.
+    pub items: Vec<ItemCount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct RecipesForResult {
     pub recipes: Vec<Recipe>,
 }

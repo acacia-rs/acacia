@@ -112,6 +112,24 @@ test('toss aims at a named entity; giveToPlayer walks to the player first', asyn
   assert.equal((await giving).text, 'threw 10 stone to Steve; U is now at 0.5 64 0.5')
 })
 
+test('survival tools: flat auto-eat params, the cursor block, the craftable list', async () => {
+  const eating = call(client, 'setAutoEat', { enabled: true, below: 12 })
+  assert.deepEqual((await sent(via, 'bot.setAutoEat')).params, { bot: 'bot-1', enabled: true, below: 12 })
+  via.answer('bot.setAutoEat')
+  assert.equal((await eating).text, 'auto-eat on')
+
+  const looking = call(client, 'blockAtCursor', {})
+  const hit = { position: vec(1, 63, 0), block: { name: 'minecraft:stone', states: {}, stateId: 1 }, face: 'up', point: vec(1.5, 64, 0.5), distance: 1.94 }
+  await sent(via, 'bot.blockAtCursor')
+  via.answer('bot.blockAtCursor', { ok: { hit } })
+  assert.equal((await looking).text, 'minecraft:stone at 1 63 0, up face, 1.9 away')
+
+  const listing = call(client, 'craftableItems', { table: true })
+  assert.deepEqual((await sent(via, 'bot.craftableItems')).params, { bot: 'bot-1', table: true })
+  via.answer('bot.craftableItems', { ok: { items: [{ item: 'minecraft:stick', count: 4 }] } })
+  assert.equal((await listing).text, 'craftable at a crafting table: minecraft:stick x4')
+})
+
 test('cancelling an MCP request cancels the bot call it started', async () => {
   const aborted = new AbortController()
   const following = client.callTool({ name: 'follow', arguments: { entity: 'Steve' } }, { signal: aborted.signal })

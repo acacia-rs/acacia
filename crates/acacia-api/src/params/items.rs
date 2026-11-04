@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{BlockPos, BotId, Vec3};
+use crate::{Block, BlockPos, BotId, Vec3};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct EquipParams {
@@ -74,6 +74,35 @@ pub struct FindBlocksParams {
 pub struct FindBlocksResult {
     /// Nearest first.
     pub blocks: Vec<BlockPos>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockAtCursorParams {
+    pub bot: BotId,
+    /// Blocks from the eyes; 6 when absent, at most 64.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub max_distance: Option<f32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct BlockAtCursorResult {
+    /// Null when the ray meets no block within the distance (or only unloaded chunks).
+    pub hit: Option<CursorHit>,
+}
+
+/// The first block shape the bot's line of sight enters.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct CursorHit {
+    pub position: BlockPos,
+    pub block: Block,
+    /// The face the ray entered through.
+    pub face: Face,
+    /// Where it entered.
+    pub point: Vec3,
+    /// From the eyes, in blocks.
+    pub distance: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
