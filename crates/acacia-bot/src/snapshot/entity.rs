@@ -1,5 +1,6 @@
-use std::collections::HashSet;
 use std::sync::Arc;
+
+use rustc_hash::FxHashSet;
 
 use crate::state::Entity;
 
@@ -42,6 +43,11 @@ impl EntityInfo {
     /// For events: allocates its strings.
     pub(crate) fn copy(e: &Entity) -> Self {
         Self::of(e, &mut |s: &str| Arc::from(s))
+    }
+
+    /// Its kind or username when it equals `s`.
+    pub(crate) fn string(&self, s: &str) -> Option<Arc<str>> {
+        std::iter::once(&self.kind).chain(&self.username).find(|k| ***k == *s).cloned()
     }
 
     /// The same entity: ids, kind and name match (its numbers may differ).
@@ -103,7 +109,7 @@ pub(crate) fn same_members(a: &[EntityInfo], b: &[EntityInfo]) -> bool {
 
 /// Kind and player-name strings the published lists share.
 #[derive(Default)]
-pub(crate) struct Interner(HashSet<Arc<str>>);
+pub(crate) struct Interner(FxHashSet<Arc<str>>);
 
 impl Interner {
     /// Bounds the set on servers that churn through many names.

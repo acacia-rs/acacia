@@ -16,7 +16,16 @@ pub(crate) struct ListBuilder {
 impl ListBuilder {
     /// `previous` is the list this one replaces (the last this builder built, or an empty one).
     pub(crate) fn build(&mut self, entities: &Entities, version: u64, previous: &EntityList) -> (EntityList, Changes) {
-        let infos: Vec<EntityInfo> = entities.iter().map(|e| EntityInfo::of(e, &mut |s| self.interner.get(s))).collect();
+        let interner = &mut self.interner;
+        let infos: Vec<EntityInfo> = entities
+            .iter()
+            .enumerate()
+            .map(|(i, e)| {
+                // Usually nothing came or went: the entity at the same index lends its strings without a hash lookup.
+                let same = previous.entities.get(i).filter(|p| p.runtime_id == e.runtime_id);
+                EntityInfo::of(e, &mut |s| same.and_then(|p| p.string(s)).unwrap_or_else(|| interner.get(s)))
+            })
+            .collect();
         let mut changes = Changes::default();
         let same = same_members(&previous.entities, &infos);
         let slots = match same {
