@@ -32,10 +32,10 @@ async function startDaemon() {
   return { url, stop: () => child.kill() }
 }
 
-test('hello world over the daemon: the same script with ACACIA_VIA=ws://...', { skip, timeout: 90_000 }, async (t) => {
+test('hello world over the daemon: the same script with ACACIA_VIA=ws://..., never loading the addon', { skip, timeout: 90_000 }, async (t) => {
   const daemon = await startDaemon()
   t.after(daemon.stop)
-  await runHello(native, { ACACIA_VIA: daemon.url })
+  await runHello(native, { ACACIA_VIA: daemon.url, NODE_OPTIONS: `--import ${join(pkg, 'test/no-addon.mjs')}` })
 })
 
 test('aborting a createBot still joining a silent server cancels it on the daemon', { skip, timeout: 30_000 }, async (t) => {

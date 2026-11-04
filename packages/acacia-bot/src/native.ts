@@ -1,4 +1,6 @@
-import { NativeHost } from '../native/index.js'
+import { createRequire } from 'node:module'
+
+import type { NativeHost } from '../native/index.js'
 import { NativeEntities } from './native-entities.js'
 import { AcaciaError } from './errors.js'
 import type { Command } from './generated/methods.js'
@@ -9,6 +11,13 @@ import type { FindBlocksResult } from './generated/types/FindBlocksResult.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
 import type { ItemTable } from './generated/types/ItemTable.js'
 import type { SyncReads, Transport, TransportListener } from './transport.js'
+
+let addon: typeof import('../native/index.js') | undefined
+
+/** The addon, loaded by the first `NativeTransport` so WebSocket-only use needs no binary (README, Packaging). */
+function loadAddon(): typeof import('../native/index.js') {
+  return (addon ??= createRequire(import.meta.url)('../native/index.js'))
+}
 
 /** Runs an addon call, turning what it throws (a `code` and a message) into an `AcaciaError`. */
 function rethrown<T>(call: () => T): T {
@@ -74,7 +83,7 @@ export class NativeTransport implements Transport {
 
   constructor(options: NativeTransportOptions = {}) {
     this.#closed = new Promise((resolve) => (this.#resolveClosed = resolve))
-    this.#host = new NativeHost({ ...options, onRecords: (batch) => this.#receive(batch) })
+    this.#host = new (loadAddon().NativeHost)({ ...options, onRecords: (batch) => this.#receive(batch) })
     this.#entities = new NativeEntities(this.#host)
   }
 

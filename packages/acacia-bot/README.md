@@ -45,6 +45,10 @@ acacia-host's; the addon: acacia-node's).
   process; `WsTransport` talks to an acacia daemon (below). A `Session` per transport numbers calls,
   settles each from its `done` record and routes events to bots. `createBot` without `via` shares one
   process-wide `NativeTransport`; `closeAll()` shuts it down.
+- **Packaging.** ESM only, Node ≥ 22.12; CommonJS code `require('@acacia-rs/bot')` through Node's require(esm). The
+  native addon (one binary per platform, from an `optionalDependencies` package) is loaded by the first
+  `NativeTransport`, including the shared one `createBot` without `via` makes, so code that only uses
+  `WsTransport` / `via: 'ws://...'` runs on platforms with no binary.
 - **Calls** resolve or reject from their `done` record, which comes after every event the bot raised before the call
   ended: listeners see what happened during `goto` before `await bot.goto()` returns. A refusal (`BUSY`,
   `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `equip`, `placeBlock`, `dig`,
