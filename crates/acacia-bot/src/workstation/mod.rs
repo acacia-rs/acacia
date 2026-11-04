@@ -21,6 +21,7 @@ mod enchants;
 mod furnace;
 mod grid;
 mod grindstone;
+mod held_grid;
 mod hand;
 mod loom;
 mod pick;
