@@ -15,10 +15,29 @@ const idOf = (entity: EntityRef): string => (typeof entity === 'string' ? entity
 
 /**
  * One connected bot (contract: the package README). Queued actions (`goto`, `follow`, `dig`, ...) run one at a
- * time in call order; `chat`, `command`, the control states and the getters do not wait for them.
+ * time in call order; `chat`, `command`, the control states and the getters do not wait for them. Every call
+ * takes {@link CallOptions} last: aborting its `signal` cancels it (README, Cancellation).
+ *
+ * @example
+ * ```js
+ * const bot = await createBot({ host: '127.0.0.1', username: 'Sprout' })
+ * const [log] = bot.findBlocks({ matching: ['oak_log'], maxDistance: 32 })
+ * if (log) {
+ *   await bot.goto(goals.near(log.x, log.y, log.z, 2))
+ *   await bot.dig(log, { equipBestTool: true })
+ * }
+ * await bot.close()
+ * ```
  */
 export class Bot extends BotSurvival {
-  /** Walks to `goal` (see `goals`); needs `physics`. Fails with `NOT_POSSIBLE` when there is no path. */
+  /**
+   * Walks to `goal` (see {@link goals}); needs `physics`. Fails with `NOT_POSSIBLE` when there is no path.
+   *
+   * @example
+   * ```js
+   * await bot.goto(goals.near(x, y, z, 2), { signal: AbortSignal.timeout(30_000) })
+   * ```
+   */
   goto(goal: Goal, options?: CallOptions): Promise<void> {
     return this.call('bot.goto', { goal }, options)
   }
@@ -26,6 +45,13 @@ export class Bot extends BotSurvival {
   /**
    * Keeps within `range` blocks (default 2) of `entity` until `signal` aborts it, or the bot ends: it never
    * resolves on its own. Fails with `NOT_POSSIBLE` for an entity the bot does not track.
+   *
+   * @example
+   * ```js
+   * const stop = new AbortController()
+   * bot.follow(bot.players.Steve.entity, { range: 3, signal: stop.signal }).catch(() => {})
+   * // later: stop.abort()
+   * ```
    */
   follow(entity: EntityRef, options: CallOptions & { range?: number } = {}): Promise<void> {
     const { range, ...call } = options
@@ -47,6 +73,7 @@ export class Bot extends BotSurvival {
     return this.call('bot.setControlState', { control, state }, options)
   }
 
+  /** Releases every held movement key. */
   clearControlStates(options?: CallOptions): Promise<void> {
     return this.call('bot.clearControlStates', {}, options)
   }
@@ -64,6 +91,10 @@ export class Bot extends BotSurvival {
     return this.call('bot.dig', params, call)
   }
 
+  /**
+   * Answers a form from a `form` event (or its id); an answer that does not fit the form is refused before
+   * anything is sent.
+   */
   answerForm(form: number | { id: number }, answer: FormAnswer, options?: CallOptions): Promise<void> {
     return this.call('bot.answerForm', { form: typeof form === 'number' ? form : form.id, answer }, options)
   }
@@ -79,6 +110,7 @@ export class Bot extends BotSurvival {
     return this.call('bot.activateItem', {}, options)
   }
 
+  /** Releases the item `activateItem` keeps in use (a drawn bow shoots). */
   deactivateItem(options?: CallOptions): Promise<void> {
     return this.call('bot.deactivateItem', {}, options)
   }
@@ -88,6 +120,7 @@ export class Bot extends BotSurvival {
     return this.call('bot.activateEntity', { entity: idOf(entity) }, options)
   }
 
+  /** Swings the main hand, hitting nothing. */
   swingArm(options?: CallOptions): Promise<void> {
     return this.call('bot.swingArm', {}, options)
   }

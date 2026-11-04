@@ -46,6 +46,7 @@
     "build:native": "CARGO_BUILD_JOBS=2 napi build --platform --esm --manifest-path ../../crates/acacia-node/Cargo.toml --output-dir native",
     "build:ts": "node scripts/sync-types.mjs && tsc -p tsconfig.json",
     "test": "node --test --test-reporter=spec 'test/*.test.mjs'",
+    "docs": "node scripts/sync-types.mjs && npm --prefix ../api-docs run bot",
     "build:bench": "npm run build:native -- --release --features test-server && npm run build:ts",
     "bench:events": "node bench/events.mjs",
     "bench:reads": "node bench/reads.mjs",

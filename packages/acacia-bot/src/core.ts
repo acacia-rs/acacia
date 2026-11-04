@@ -16,7 +16,9 @@ type Voided<T> = T extends null ? void : T
 
 /** A bot's events, calls and lifecycle; `Bot` adds the reads and verbs. */
 export class BotCore extends EventEmitter<BotEvents> implements BotSink {
+  /** The host's id for this bot. */
   readonly id: BotId
+  /** The `username` it was created with (for `microsoft` auth, the token cache key, not the gamertag). */
   readonly username: string
   protected readonly session: Session
   #ended = false
@@ -70,6 +72,12 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
   /**
    * Emits `chat:<name>` with the capture groups whenever a chat line's `plain` text matches `regex` (mineflayer's
    * `addChatPattern`); adding a name again replaces its pattern.
+   *
+   * @example
+   * ```js
+   * bot.addChatPattern('pay', /^(\w+) paid you (\d+)$/)
+   * bot.on('chat:pay', ([who, amount]) => console.log(who, amount))
+   * ```
    */
   addChatPattern(name: string, regex: RegExp, options?: ChatPatternOptions): void {
     this.#chatPatterns.add(name, regex, options)
@@ -85,6 +93,7 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
     return this.#ended
   }
 
+  /** Sends a chat line; runs at once, mid-action too. */
   chat(message: string, options?: CallOptions): Promise<void> {
     return this.call('bot.chat', { message }, options)
   }
@@ -109,7 +118,14 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
     return this.#ended ? Promise.resolve() : this.call('bot.close', {})
   }
 
-  /** `name`'s payloads as an async iterator; it ends when the bot does (or throws on `signal`). */
+  /**
+   * `name`'s payloads as an async iterator; it ends when the bot does (or throws on `signal`).
+   *
+   * @example
+   * ```js
+   * for await (const line of bot.events('chat')) if (line.plain === '!quit') break
+   * ```
+   */
   async *events<K extends keyof BotEvents>(name: K, options: { signal?: AbortSignal } = {}): AsyncGenerator<BotEvents[K][0]> {
     const emitter = this as EventEmitter
     if (name === 'end') {
@@ -121,7 +137,14 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
     for await (const [payload] of on(emitter, name, { ...options, close: ['end'] })) yield payload
   }
 
-  /** Calls any table method by name with this bot's id filled in, for generic callers (`@acacia-rs/mcp`). */
+  /**
+   * Calls any table method by name with this bot's id filled in, for generic callers (`@acacia-rs/mcp`).
+   *
+   * @example
+   * ```js
+   * const { blocks } = await bot.request('bot.findBlocks', { matching: ['chest'], maxDistance: 8 })
+   * ```
+   */
   request<M extends MethodName>(method: M, params: BotParams<M>, options?: CallOptions): Promise<Voided<Result<M>>> {
     return this.call(method, params, options)
   }

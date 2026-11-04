@@ -53,19 +53,31 @@ class Versioned<T> {
   }
 }
 
+/** {@link NativeTransport}'s host options. */
 export interface NativeTransportOptions {
   /** Shard threads running the bots (default: the CPU count, at most 4). */
   shards?: number
   /** Bots publish their state for the sync reads (default true; off, `bot.hot` and the other reads are null). */
   snapshots?: boolean
-  /** Join spacing per address and its jitter, ms (default 500 and 250; why: the package README, Joins). */
+  /** Join spacing per address, ms (default 500; why: the package README, Joins). */
   joinSpacingMs?: number
+  /** Random spread added to `joinSpacingMs`, ± ms (default 250). */
   joinJitterMs?: number
   /** Largest decompressed batch a bot accepts, bytes (default 128 MiB; README, Joins). */
   maxBatchBytes?: number
 }
 
-/** The acacia host in this process, through the native addon (crates/acacia-node). */
+/**
+ * The acacia host in this process, through the native addon (crates/acacia-node). `createBot` without `via` shares
+ * one with default options; build one for other options, or to close its bots together.
+ *
+ * @example
+ * ```js
+ * const via = new NativeTransport({ shards: 2, joinSpacingMs: 1000 })
+ * const bots = await Promise.all(['A', 'B'].map((username) => createBot({ host, username, via })))
+ * await via.close()
+ * ```
+ */
 export class NativeTransport implements Transport {
   readonly #host: NativeHost
   #listener?: TransportListener
@@ -113,6 +125,7 @@ export class NativeTransport implements Transport {
     this.#host.setKeepAlive(!this.#ended && (this.#held || this.#closing))
   }
 
+  /** The addon's published state and terrain, read without a call. */
   readonly reads: SyncReads = {
     hot: (bot) => this.#hot.read(bot),
     cold: (bot) => this.#cold.read(bot, this.#host.coldVersion(bot), () => this.#host.snapshotCold(bot)),

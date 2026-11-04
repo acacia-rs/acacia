@@ -31,7 +31,7 @@ bot.on('chat', async ({ sender, plain }) => {
 ```
 
 [`examples/hello.mjs`](examples/hello.mjs) is the full hello world: `node examples/hello.mjs 127.0.0.1:19132 Sprout`.
-For LLM agents, [`@acacia-rs/mcp`](../acacia-mcp) serves these bots over MCP.
+For LLM agents, [`@acacia-rs/mcp`](../acacia-mcp/README.md) serves these bots over MCP.
 
 ## Build and test
 
@@ -45,6 +45,11 @@ npm test             # node:test: test/*.test.mjs over a fake transport (test/fa
                      # ws.test.mjs over a stand-in daemon, ws-e2e.test.mjs over target/debug/acacia-daemon
                      # (cargo build -p acacia-daemon -j 2; ACACIA_DAEMON=<path> picks another binary)
 ```
+
+`npm run docs` builds the API reference with TypeDoc into `docs-site/` (after a build: it reads the addon's
+typings); a TypeDoc warning, such as an undocumented export, fails it. TypeDoc runs from its own workspace,
+`../api-docs`, because it needs TypeScript ≤ 6.0 and this package builds with 7. The reference documents the
+signatures; this README stays the one place for the contract below.
 
 Benchmarks (`bench:events`, `bench:reads`, `bench:memory`) and their recorded results: see `bench/RESULTS.md`.
 

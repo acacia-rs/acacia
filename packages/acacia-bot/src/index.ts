@@ -6,11 +6,21 @@ export { WsTransport, type WsTransportOptions } from './ws.js'
 export { AcaciaError, ActionError, ConnectError, errorFrom, type ErrorCode } from './errors.js'
 export type { BotEvents, ChatPatternEvents, DerivedEvents, EventName, EventOf } from './events.js'
 export type { ChatPatternOptions } from './chat-patterns.js'
+/**
+ * The goal classes and their shorthands for {@link Bot.goto}: `goals.near(x, y, z, 2)` is `new GoalNear(x, y, z, 2)`.
+ *
+ * @example
+ * ```js
+ * await bot.goto(goals.xz(100, -40), { signal: AbortSignal.timeout(60_000) })
+ * ```
+ */
 export * as goals from './goals.js'
+/** acacia-api's whole wire schema: every params, result, event and snapshot type (the common ones are also top-level). */
+export type * as wire from './generated/types/index.js'
 export { NativeTransport, type NativeTransportOptions } from './native.js'
 export { EntityTable, type AddedRow, type EntityDelta, type NumbersRow } from './entity-table.js'
 export type { EntityView, Item, Player } from './reads.js'
-export { Session, type AttachParams, type AttachResult, type CallOptions, type HostCallOptions, type MsaCodePrompt } from './session.js'
+export { Session, type AttachParams, type AttachResult, type BotSink, type CallOptions, type HostCallOptions, type MsaCodePrompt } from './session.js'
 export type { Auth } from './generated/types/Auth.js'
 export type { SignInResult } from './generated/types/SignInResult.js'
 export type { FindBlocksQuery, SyncReads, Transport, TransportListener } from './transport.js'

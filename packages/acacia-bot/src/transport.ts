@@ -26,9 +26,13 @@ export interface TransportListener {
  * is one `EntityTable` per bot, kept current by applying deltas to it (README, Sync reads).
  */
 export interface SyncReads {
+  /** `bot.hot`. */
   hot(bot: BotId): HotSnapshot | null
+  /** `bot.cold`. */
   cold(bot: BotId): ColdSnapshot | null
+  /** The bot's entity table, behind `bot.entities` and `bot.players`. */
   entities(bot: BotId): EntityTable | null
+  /** `bot.blockAt`, at an integer cell. */
   blockAt(bot: BotId, x: number, y: number, z: number): Block | null
   /** The server's item names; the same object once it has arrived (it comes once, at login). */
   itemTable(bot: BotId): ItemTable | null
@@ -38,7 +42,8 @@ export interface SyncReads {
   blockAtCursor(bot: BotId, query: Omit<BlockAtCursorParams, 'bot'>): CursorHit | null
 }
 
-export type FindBlocksQuery = Omit<FindBlocksParams, 'bot' | 'matching'> & { matching: BlockName[] }
+/** `bot.findBlocks`' query: the method's params without `bot`, `matching` typed as {@link BlockName}s. */
+export type FindBlocksQuery =Omit<FindBlocksParams, 'bot' | 'matching'> & { matching: BlockName[] }
 
 /**
  * Moves commands to an acacia host and its records back (contract: the package README). `NativeTransport` runs the
@@ -53,5 +58,6 @@ export interface Transport {
   setKeepAlive?(on: boolean): void
   /** Shuts the host down; resolves after the listener's `closed`. */
   close(): Promise<void>
+  /** Reads without a call, where the transport can serve them. */
   readonly reads?: SyncReads
 }

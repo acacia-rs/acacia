@@ -2,6 +2,7 @@ import type { Entity } from './generated/types/Entity.js'
 import type { Event } from './generated/types/Event.js'
 import type { EventGroup } from './generated/types/EventGroup.js'
 
+/** A raw event's name: an {@link Event}'s `type`. */
 export type EventName = Event['type']
 
 /** The event of type `K`, as the bot emits it (the record's `event`, `type` included). */

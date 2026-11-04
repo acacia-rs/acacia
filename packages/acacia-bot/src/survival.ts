@@ -25,6 +25,7 @@ export class BotSurvival extends BotItems {
     return this.call('bot.sleep', cell(bed), options)
   }
 
+  /** Gets out of bed; resolves once the server shows the bot awake. */
   wake(options?: CallOptions): Promise<void> {
     return this.call('bot.wake', {}, options)
   }

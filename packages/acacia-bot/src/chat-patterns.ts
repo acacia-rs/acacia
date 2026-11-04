@@ -1,3 +1,4 @@
+/** `bot.addChatPattern`'s options. */
 export interface ChatPatternOptions {
   /** Keep matching after the first match (default true); false removes the pattern once it has matched. */
   repeat?: boolean

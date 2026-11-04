@@ -77,6 +77,12 @@ jobs:
       # Builds @acacia-rs/bot (debug, test-server) first, then the MCP package.
       - run: npm run build:test
         working-directory: packages/acacia-mcp
+      # The API reference (TypeDoc, into packages/acacia-bot/docs-site); any TypeDoc warning fails it. It needs the
+      # addon's generated typings, so it runs after the build.
+      # TODO(user): publishing it (actions/upload-pages-artifact + actions/deploy-pages to GitHub Pages) is your call.
+      - run: npm run docs
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+        working-directory: packages/acacia-bot
       # ws-e2e.test.mjs runs against the daemon.
       - run: cargo build -p acacia-daemon
       - run: npm test

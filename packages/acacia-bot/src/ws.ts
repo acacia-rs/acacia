@@ -5,6 +5,7 @@ import type { Out } from './generated/types/Out.js'
 import type { SyncReads, Transport, TransportListener } from './transport.js'
 import { WsMirror, type MirrorRecord } from './ws-mirror.js'
 
+/** {@link WsTransport}'s options. */
 export interface WsTransportOptions {
   /** The daemon's `--token`. */
   token?: string
@@ -38,8 +39,19 @@ const HELLO = 'hello'
 /**
  * acacia-daemon over WebSocket, JSON-RPC 2.0 (contract: the package README; the protocol: acacia-daemon's crate
  * docs). Connects on the first command, and closes the socket while the session holds nothing open.
+ * `createBot({ via: 'ws://...' })` makes and shares one per URL and token; build one to pass options or own its
+ * lifetime.
+ *
+ * @example
+ * ```js
+ * const via = new WsTransport('ws://127.0.0.1:19180', { token: process.env.ACACIA_TOKEN })
+ * const bot = await createBot({ host: '127.0.0.1', username: 'Remote', via })
+ * // ...
+ * await via.close()
+ * ```
  */
 export class WsTransport implements Transport {
+  /** The daemon's URL. */
   readonly url: string
   readonly #options: WsTransportOptions
   #listener?: TransportListener
@@ -61,6 +73,7 @@ export class WsTransport implements Transport {
     this.#closed = new Promise((resolve) => (this.#resolveClosed = resolve))
   }
 
+  /** The mirror's reads (no terrain); undefined with `mirror: false`. */
   get reads(): SyncReads | undefined {
     return this.#options.mirror === false ? undefined : this.#mirror.reads
   }

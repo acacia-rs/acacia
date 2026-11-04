@@ -4,10 +4,24 @@ import type { MethodName } from './generated/methods.js'
 
 export type { ErrorCode }
 
-/** Every acacia failure; branch on `code` (`message` is free text). */
+/**
+ * Every acacia failure; branch on `code` (`message` is free text). Which class a code comes as: README, Errors.
+ *
+ * @example
+ * ```js
+ * try {
+ *   await bot.goto(goals.near(10, 64, 10, 2))
+ * } catch (e) {
+ *   if (e instanceof ActionError && e.code === 'NOT_POSSIBLE') await bot.chat('no path')
+ *   else throw e
+ * }
+ * ```
+ */
 export class AcaciaError extends Error {
+  /** What failed, from acacia-api's {@link ErrorCode}. */
   readonly code: ErrorCode
 
+  /** @param message Free text for people. */
   constructor(code: ErrorCode, message: string, options?: ErrorOptions) {
     super(message, options)
     this.code = code
@@ -24,7 +38,7 @@ export class ConnectError extends AcaciaError {}
 const ACTION_CODES = new Set<string>(['TIMEOUT', 'DISCONNECTED', 'REJECTED', 'NOT_POSSIBLE', 'NOT_VISIBLE', 'CANCELLED'])
 const HOST_CODES = new Set<string>(['BUSY', 'UNKNOWN_BOT', 'UNKNOWN_METHOD', 'BAD_PARAMS', 'CLOSED', 'INTERNAL', 'VERSION_MISMATCH', 'UNAUTHORIZED'])
 
-/** The error class for a failed call of `method`. */
+/** The error class for a failed call of `method` (for custom transports and generic callers). */
 export function errorFrom(error: ApiError, method?: MethodName): AcaciaError {
   if (HOST_CODES.has(error.code)) return new AcaciaError(error.code, error.message)
   if (method === 'createBot') return new ConnectError(error.code, error.message)

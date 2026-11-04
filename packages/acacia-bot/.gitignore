@@ -5,6 +5,8 @@ dist
 native/index.js
 native/index.d.ts
 src/generated
+# npm run docs (TypeDoc).
+docs-site
 # Release staging: `napi create-npm-dirs` and downloaded CI artifacts.
 npm
 artifacts

@@ -101,15 +101,18 @@ export class BotReads extends BotCore {
     })
   }
 
+  /** The bot's own body (mineflayer's `bot.entity`); null before the first tick. */
   get entity(): EntityView | null {
     const hot = this.hot
     return hot && { position: hot.position, velocity: hot.velocity, yaw: hot.yaw, pitch: hot.pitch, onGround: hot.onGround }
   }
 
+  /** Health points, 0-20 for a player; null before the first tick. */
   get health(): number | null {
     return this.hot?.health ?? null
   }
 
+  /** The hunger bar, 0-20; null before the first tick. */
   get food(): number | null {
     return this.hot?.food ?? null
   }
@@ -175,7 +178,15 @@ export class BotReads extends BotCore {
     return this.inventory.find((i) => i.window === 0 && i.slot === slot) ?? null
   }
 
-  /** The nearest loaded blocks with any of `matching`'s names, nearest first (contract: bot.findBlocks). */
+  /**
+   * The nearest loaded blocks with any of `matching`'s names, nearest first (README, Inventory and blocks).
+   * Throws `NOT_POSSIBLE` on a transport without sync reads (`WsTransport`: use `bot.request('bot.findBlocks', ...)`).
+   *
+   * @example
+   * ```js
+   * const ores = bot.findBlocks({ matching: ['iron_ore', 'deepslate_iron_ore'], maxDistance: 32, count: 10 })
+   * ```
+   */
   findBlocks(query: FindBlocksQuery): BlockPos[] {
     const reads = this.session.reads
     if (!reads) throw new AcaciaError('NOT_POSSIBLE', 'this transport has no sync reads')

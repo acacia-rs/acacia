@@ -27,6 +27,12 @@ export class BotItems extends BotReads {
   /**
    * Crafts at least `count` (default 1) of an item in the bot's own 2x2 grid, or at the crafting table at
    * `options.table` (within reach). Resolves with how many were made.
+   *
+   * @example
+   * ```js
+   * await bot.craft('oak_planks', 4)
+   * await bot.craft('wooden_pickaxe', 1, { table: { x: 3, y: 64, z: -2 } })
+   * ```
    */
   async craft(item: ItemRef, count = 1, options: CallOptions & { table?: BlockPos } = {}): Promise<number> {
     const { table, ...call } = options

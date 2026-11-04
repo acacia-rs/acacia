@@ -9,17 +9,22 @@ import type { SyncReads, Transport } from './transport.js'
 
 /** acacia-daemon's `attach`: a running bot by id or username (contract: the package README). */
 export interface AttachParams {
+  /** The bot's id. */
   bot?: string
+  /** Or the username it was created with. */
   username?: string
 }
 
+/** What the daemon answers `attach` with. */
 export interface AttachResult {
   bot: BotId
   username: string
   persist: boolean
+  /** The bot's state as of the attach. */
   snapshot: Snapshot
 }
 
+/** The options every bot call takes last. */
 export interface CallOptions {
   /** Aborting cancels the call (`cancel`, or `cancelCall` for `createBot` / `signIn`); it then rejects with `signal.reason` once the host has stopped it. */
   signal?: AbortSignal
@@ -39,6 +44,7 @@ const HOST_CANCELLABLE: ReadonlySet<string> = new Set(['createBot', 'signIn'])
 
 /** Where a bot's events go. */
 export interface BotSink {
+  /** Called once per event record of the bot, in stream order. */
   event(event: Event): void
 }
 
@@ -72,10 +78,12 @@ export class Session {
     transport.open({ records: (records) => this.#receive(records), closed: () => this.#closed() })
   }
 
+  /** The transport's sync reads, if it has them. */
   get reads(): SyncReads | undefined {
     return this.#transport.reads
   }
 
+  /** Sends one call; settles from its `done` record, or rejects at once for a refusal or an aborted `signal`. */
   call<M extends MethodName>(method: M, params: Params<M>, options: HostCallOptions = {}): Promise<Result<M>> {
     const { signal, onMsaCode } = options
     if (signal?.aborted) return Promise.reject(signal.reason)
@@ -108,6 +116,7 @@ export class Session {
     return this.call('attach' as MethodName, params as never) as Promise<unknown> as Promise<AttachResult>
   }
 
+  /** Routes `bot`'s events to `sink` (a `Bot` attaches itself when built). */
   attach(bot: BotId, sink: BotSink): void {
     this.#bots.set(bot, sink)
   }
