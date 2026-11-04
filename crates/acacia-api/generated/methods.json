@@ -8,10 +8,18 @@
       "params": {
         "$defs": {
           "Auth": {
-            "enum": [
-              "offline"
-            ],
-            "type": "string"
+            "oneOf": [
+              {
+                "const": "offline",
+                "description": "No account: servers with `online-mode=false` (LAN, most test servers).",
+                "type": "string"
+              },
+              {
+                "const": "microsoft",
+                "description": "A Microsoft account signed in by device code, its tokens cached per `username` (an `msaCode` record asks a\nperson to sign in when the cache has none).",
+                "type": "string"
+              }
+            ]
           },
           "EventGroup": {
             "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (`entityMoved`, once per tick batch); `entities` and `entityMoves` need `entities`.",
@@ -49,7 +57,7 @@
                 "type": "null"
               }
             ],
-            "description": "Default `offline`, the only one so far."
+            "description": "Default `offline`."
           },
           "entities": {
             "description": "Track entities and other players, needed for their positions, entity events, `follow` and `attack`\n(default false: on busy servers it is most of the decode work).",
@@ -89,6 +97,13 @@
               "null"
             ]
           },
+          "profilesFolder": {
+            "description": "`microsoft` only: the token cache directory (see [`SignInParams::profiles_folder`]).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "transport": {
             "anyOf": [
               {
@@ -101,6 +116,7 @@
             "description": "Default `auto`: RakNet if the server answers a ping, else NetherNet."
           },
           "username": {
+            "description": "The player name (`offline`), or the account's key in the token cache (`microsoft`: the server sees the\nXbox gamertag).",
             "type": "string"
           }
         },
@@ -128,6 +144,51 @@
           "bot"
         ],
         "title": "CreateBotResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Signs a Microsoft account in without connecting, so later `createBot` calls find its tokens cached: an\n`msaCode` record asks a person to sign in when the cache has none. Fails `AUTH` (see the code).",
+      "flags": [],
+      "lane": "host",
+      "name": "signIn",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "profilesFolder": {
+            "description": "Where tokens are cached, one `<username>.json` each (default `~/.acacia/auth` of the host's user). Holds\nrefresh tokens: keep it private. acacia-daemon sets it itself and refuses this.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "description": "The account's key in the token cache, as `createBot`'s `username`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "title": "SignInParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "displayName": {
+            "description": "The Xbox gamertag servers will see.",
+            "type": "string"
+          },
+          "xuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "xuid"
+        ],
+        "title": "SignInResult",
         "type": "object"
       }
     },

@@ -39,6 +39,9 @@ pub enum ErrorCode {
     Io,
     /// NetherNet or its signaling service failed while connecting.
     NetherNet,
+    /// Microsoft/Xbox sign-in failed: the device code lapsed or was declined, the account needs action on Microsoft's
+    /// side (no Xbox profile, ban, age check), or the token cache could not be used. Retrying rarely helps.
+    Auth,
     /// The host is shutting down.
     Closed,
     /// A socket client's `hello` named a protocol version the server does not speak.

@@ -24,7 +24,8 @@
 //! - **Panics** in the sync functions become JS errors (`catch_unwind`); a bot task's panic is the host's
 //!   (`error` event, its calls fail `INTERNAL`).
 //! - **`TestServer`** (feature `test-server`, test builds only) runs acacia-testserver's `FakeServer` for the
-//!   package's end-to-end tests.
+//!   package's end-to-end tests. In those builds `ACACIA_FAKE_SIGN_IN=1` at `new NativeHost` swaps Microsoft
+//!   sign-in for acacia-host's `FakeSignIn` (code `FAKE1234`, signed in 300 ms after the prompt, nothing on disk).
 
 mod error;
 mod forward;

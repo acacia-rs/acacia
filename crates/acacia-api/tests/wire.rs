@@ -29,8 +29,16 @@ fn bad_commands_say_what_is_wrong() {
 fn records_are_tagged_camel_case_objects() {
     let records = [
         Out::Event { bot: "bot-1".into(), seq: 3, event: Event::WindowClose { window_id: 2 } },
-        Out::Done { bot: "bot-1".into(), call: CallId(9), result: CallResult::ok(&Reply::Chat(())) },
-        Out::Done { bot: "bot-1".into(), call: CallId(10), result: CallResult::Err(ApiError::new(ErrorCode::NotVisible, "behind glass")) },
+        Out::Done { bot: Some("bot-1".into()), call: CallId(9), result: CallResult::ok(&Reply::Chat(())) },
+        Out::Done { bot: Some("bot-1".into()), call: CallId(10), result: CallResult::Err(ApiError::new(ErrorCode::NotVisible, "behind glass")) },
+        Out::MsaCode(MsaCode {
+            call: CallId(11),
+            user_code: "ABCD1234".into(),
+            verification_uri: "https://www.microsoft.com/link".into(),
+            message: "enter ABCD1234".into(),
+            expires_in: 900,
+        }),
+        Out::Done { bot: None, call: CallId(11), result: CallResult::Err(ApiError::new(ErrorCode::Auth, "declined")) },
     ];
     let json: Value = serde_json::from_str(&batch_json(&records)).unwrap();
     assert_eq!(
@@ -39,6 +47,8 @@ fn records_are_tagged_camel_case_objects() {
             {"type": "event", "bot": "bot-1", "seq": 3, "event": {"type": "windowClose", "windowId": 2}},
             {"type": "done", "bot": "bot-1", "call": 9, "result": {"ok": null}},
             {"type": "done", "bot": "bot-1", "call": 10, "result": {"err": {"code": "NOT_VISIBLE", "message": "behind glass"}}},
+            {"type": "msaCode", "call": 11, "userCode": "ABCD1234", "verificationUri": "https://www.microsoft.com/link", "message": "enter ABCD1234", "expiresIn": 900},
+            {"type": "done", "call": 11, "result": {"err": {"code": "AUTH", "message": "declined"}}},
         ])
     );
 }

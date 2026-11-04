@@ -24,6 +24,8 @@ import type { RecipesForParams } from "./types/RecipesForParams";
 import type { RecipesForResult } from "./types/RecipesForResult";
 import type { SetControlStateParams } from "./types/SetControlStateParams";
 import type { SetEventsParams } from "./types/SetEventsParams";
+import type { SignInParams } from "./types/SignInParams";
+import type { SignInResult } from "./types/SignInResult";
 import type { SmeltParams } from "./types/SmeltParams";
 import type { SmeltResult } from "./types/SmeltResult";
 import type { Snapshot } from "./types/Snapshot";
@@ -42,6 +44,11 @@ export interface Methods {
    * Connects a bot and resolves once it has spawned. The `done` record names the new bot.
    */
   "createBot": { params: CreateBotParams; result: CreateBotResult; lane: "host" };
+  /**
+   * Signs a Microsoft account in without connecting, so later `createBot` calls find its tokens cached: an
+   * `msaCode` record asks a person to sign in when the cache has none. Fails `AUTH` (see the code).
+   */
+  "signIn": { params: SignInParams; result: SignInResult; lane: "host" };
   /**
    * Disconnects the bot (waiting up to 2 s for the server to free the session). The running call is
    * cancelled and queued ones fail with `DISCONNECTED`; an `end` event comes before this resolves.

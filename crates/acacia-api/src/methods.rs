@@ -8,6 +8,9 @@ use crate::Snapshot;
 api! {
     /// Connects a bot and resolves once it has spawned. The `done` record names the new bot.
     "createBot" => CreateBot(CreateBotParams) -> CreateBotResult, Host [];
+    /// Signs a Microsoft account in without connecting, so later `createBot` calls find its tokens cached: an
+    /// `msaCode` record asks a person to sign in when the cache has none. Fails `AUTH` (see the code).
+    "signIn" => SignIn(SignInParams) -> SignInResult, Host [];
     /// Disconnects the bot (waiting up to 2 s for the server to free the session). The running call is
     /// cancelled and queued ones fail with `DISCONNECTED`; an `end` event comes before this resolves.
     "bot.close" => Close(BotParams) -> (), Immediate [];

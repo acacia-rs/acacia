@@ -1,4 +1,4 @@
-import { AcaciaError, closeAll, createBot, type Bot, type ChatLine, type Form, type Transport } from '@acacia-rs/bot'
+import { AcaciaError, closeAll, createBot, type Auth, type Bot, type ChatLine, type Form, type MsaCodePrompt, type Transport } from '@acacia-rs/bot'
 
 import { badParams } from './tool.js'
 
@@ -7,7 +7,12 @@ export interface ConnectOptions {
   port?: number
   username?: string
   transport?: 'auto' | 'raknet' | 'nethernet'
+  auth?: Auth
+  profilesFolder?: string
 }
+
+/** What `connectOrPrompt` got first: the bot, or the sign-in a person must finish while it keeps connecting. */
+export type Connecting = { handle: BotHandle } | { prompt: MsaCodePrompt; username: string }
 
 /** Unread chat lines kept per bot; older ones are dropped first. */
 const CHAT_KEEP = 200
@@ -77,6 +82,11 @@ export class BotHandle {
 export class BotRegistry {
   readonly #bots = new Map<string, BotHandle>()
   readonly #connecting = new Map<string, Promise<BotHandle>>()
+  /** The device code a connecting bot waits on, and who waits to hear of one. */
+  readonly #prompts = new Map<string, MsaCodePrompt>()
+  readonly #promptWaiters = new Map<string, Set<(prompt: MsaCodePrompt) => void>>()
+  /** How long `connectOrPrompt` waits on a person who already has a code. */
+  signInWaitMs = 50_000
 
   /** `via`: the transport to run bots on (default: `@acacia-rs/bot`'s shared in-process host). */
   constructor(
@@ -86,12 +96,17 @@ export class BotRegistry {
 
   /** Connects a bot (or returns the one already connected or connecting under that name). */
   connect(options: ConnectOptions = {}): Promise<BotHandle> {
-    const { host, port, username, transport } = { ...this.defaults, ...options }
+    const { host, port, username, transport, auth, profilesFolder } = { ...this.defaults, ...options }
     if (!host || !username) return Promise.reject(badParams('connect needs a host and a username (no defaults were given)'))
     const key = username.toLowerCase()
     const known = this.#bots.get(key) ?? this.#connecting.get(key)
     if (known) return Promise.resolve(known)
-    const connecting = createBot({ host, port, username, transport, via: this.via })
+    const onMsaCode = (prompt: MsaCodePrompt) => {
+      process.stderr.write(`acacia-mcp: ${username}: ${prompt.message}\n`)
+      this.#prompts.set(key, prompt)
+      for (const wake of this.#promptWaiters.get(key) ?? []) wake(prompt)
+    }
+    const connecting = createBot({ host, port, username, transport, auth, profilesFolder, onMsaCode, via: this.via })
       .then(async (bot) => {
         const handle = new BotHandle(bot)
         await bot.ready()
@@ -99,9 +114,35 @@ export class BotRegistry {
         bot.once('end', () => this.#bots.delete(key))
         return handle
       })
-      .finally(() => this.#connecting.delete(key))
+      .finally(() => {
+        this.#connecting.delete(key)
+        this.#prompts.delete(key)
+      })
     this.#connecting.set(key, connecting)
     return connecting
+  }
+
+  /**
+   * `connect`, but settling early with the device code when a person must sign the account in first. While a code
+   * is already out it waits up to `signInWaitMs` for the bot, then hands the same code back (MCP clients time out).
+   */
+  async connectOrPrompt(options: ConnectOptions = {}): Promise<Connecting> {
+    const connecting = this.connect(options)
+    const username = options.username ?? this.defaults.username ?? ''
+    const key = username.toLowerCase()
+    const known = this.#prompts.get(key)
+    let wake!: (prompt: MsaCodePrompt) => void
+    const prompted = new Promise<MsaCodePrompt>((resolve) => (wake = resolve))
+    const waiters = this.#promptWaiters.get(key) ?? this.#promptWaiters.set(key, new Set()).get(key)!
+    const timer = known && setTimeout(() => wake(this.#prompts.get(key) ?? known), this.signInWaitMs)
+    if (!known) waiters.add(wake)
+    try {
+      return await Promise.race([connecting.then((handle) => ({ handle })), prompted.then((prompt) => ({ prompt, username }))])
+    } finally {
+      clearTimeout(timer)
+      waiters.delete(wake)
+      if (waiters.size === 0) this.#promptWaiters.delete(key)
+    }
   }
 
   /** The bot named `name`, or the only one; connects the default bot when none is connected or connecting. */

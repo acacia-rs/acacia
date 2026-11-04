@@ -2,6 +2,7 @@ import { AcaciaError, errorFrom } from './errors.js'
 import type { Command, MethodName, Params, Result } from './generated/methods.js'
 import type { BotId } from './generated/types/BotId.js'
 import type { Event } from './generated/types/Event.js'
+import type { MsaCode } from './generated/types/MsaCode.js'
 import type { Out } from './generated/types/Out.js'
 import type { Snapshot } from './generated/types/Snapshot.js'
 import type { SyncReads, Transport } from './transport.js'
@@ -24,6 +25,14 @@ export interface CallOptions {
   signal?: AbortSignal
 }
 
+/** A Microsoft device code for a person to enter at `verificationUri` (`message` says so in words). */
+export type MsaCodePrompt = Omit<MsaCode, 'call'>
+
+/** `createBot` / `signIn` options of a call: where its sign-in prompt goes. */
+export interface HostCallOptions extends CallOptions {
+  onMsaCode?: (prompt: MsaCodePrompt) => void
+}
+
 /** Where a bot's events go. */
 export interface BotSink {
   event(event: Event): void
@@ -34,6 +43,7 @@ interface Pending {
   resolve(value: unknown): void
   reject(error: unknown): void
   signal?: AbortSignal
+  onMsaCode?: (prompt: MsaCodePrompt) => void
 }
 
 /**
@@ -62,13 +72,13 @@ export class Session {
     return this.#transport.reads
   }
 
-  call<M extends MethodName>(method: M, params: Params<M>, options: CallOptions = {}): Promise<Result<M>> {
-    const { signal } = options
+  call<M extends MethodName>(method: M, params: Params<M>, options: HostCallOptions = {}): Promise<Result<M>> {
+    const { signal, onMsaCode } = options
     if (signal?.aborted) return Promise.reject(signal.reason)
     if (this.#ended) return Promise.reject(new AcaciaError('CLOSED', 'the host has shut down'))
     const call = this.#nextCall++
     const promise = new Promise<Result<M>>((resolve, reject) => {
-      this.#pending.set(call, { method, resolve: resolve as (v: unknown) => void, reject, signal })
+      this.#pending.set(call, { method, resolve: resolve as (v: unknown) => void, reject, signal, onMsaCode })
     })
     try {
       this.#transport.send({ call, method, params } as Command)
@@ -158,6 +168,11 @@ export class Session {
       case 'lagged':
         for (const bot of this.#bots.values()) bot.event({ type: 'lagged', dropped: record.dropped })
         return false
+      case 'msaCode': {
+        const { type: _, call, ...prompt } = record
+        this.#pending.get(call)?.onMsaCode?.(prompt)
+        return false
+      }
       default:
         return false
     }

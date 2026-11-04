@@ -69,6 +69,15 @@ acacia-host's; the addon: acacia-node's).
   options set the spacing and the largest decompressed batch a bot accepts (default 128 MiB; a crowded server's
   skins outgrow less): `new NativeTransport({ joinSpacingMs, joinJitterMs, maxBatchBytes })` in-process,
   `acacia-daemon --join-spacing-ms N --join-jitter-ms N --max-batch-bytes N` over WebSocket.
+- **Sign-in.** `createBot({ auth: 'microsoft', username, profilesFolder, onMsaCode })` joins online-mode servers
+  as a Microsoft/Xbox account (default `auth: 'offline'`). `username` is the account's key in the token cache
+  (`profilesFolder`, default `~/.acacia/auth` of the host's user, one `<username>.json` holding refresh tokens);
+  the server sees the gamertag. Without cached tokens the host starts a device-code sign-in and `onMsaCode({
+  userCode, verificationUri, message, expiresIn })` fires once, before `createBot` resolves (default `logMsaCode`:
+  `message` on stderr, as bedrock-protocol does); `createBot` resolves once a person has signed in and the bot
+  spawned, or rejects `AUTH`. `signIn({ username, profilesFolder, onMsaCode })` does the same without connecting
+  and resolves `{ displayName, xuid }`. Over acacia-daemon the prompt comes back over the socket the same way, and
+  the daemon's `--profiles-folder` holds the tokens (`profilesFolder` is refused).
 - **Errors** are `AcaciaError` with a `code` from acacia-api's `ErrorCode`: `ConnectError` for a failed `createBot`,
   `ActionError` for `TIMEOUT`, `DISCONNECTED`, `REJECTED`, `NOT_POSSIBLE`, `NOT_VISIBLE`, `CANCELLED`, the base class
   for host codes (`BUSY`, `UNKNOWN_BOT`, `BAD_PARAMS`, `CLOSED`, `INTERNAL`, ...). `message` is free text.
@@ -150,5 +159,5 @@ acacia-host's; the addon: acacia-node's).
     `DISCONNECTED`, each of its bots gets a synthesized `end` (`lost`, or `closed` after `close()`), and the
     transport is spent: the next `createBot` with the same URL opens a new one. No automatic reconnect.
 
-Not yet: `signIn`, reconnects, worker_threads (one host per env, untested), `@acacia-rs/mcp` over `WsTransport`
+Not yet: Realms and friend joins, reconnects, worker_threads (one host per env, untested), `@acacia-rs/mcp` over `WsTransport`
 (it would need `findBlocks` as a call).

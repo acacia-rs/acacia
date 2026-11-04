@@ -34,7 +34,15 @@
 //!   any thread without a call or a `done`. Readers that keep a copy of the entity list take [`Host::entity_delta`]
 //!   instead: changes since their cursor.
 //!
-//! Not yet: reconnects through the swarm supervisor, online sign-in.
+//! - **Sign-in.** `createBot {auth: "microsoft"}` signs `username` in before it joins: from the token cache in
+//!   `profilesFolder` ([`HostConfig::profiles_folder`], else [`default_profiles_folder`]), or by device code, sent
+//!   as an `msaCode` record of the call for a person to enter, then waits until they have (or the code lapses:
+//!   `AUTH`). `signIn` does the same without joining; its records name no bot and go out on the first shard. The
+//!   work runs on one sign-in thread of the host's ([`HostConfig::sign_in`] picks the provider: acacia-auth's flow,
+//!   or a test's `FakeSignIn`, feature `fake-sign-in`), so a shard never waits on it; `cancel` and `bot.close` of a
+//!   signing-in `createBot` abandon it. Shutdown answers open `signIn` calls `CLOSED`.
+//!
+//! Not yet: reconnects through the swarm supervisor, Realms and friend joins.
 
 mod bot;
 mod calls;
@@ -44,7 +52,11 @@ mod host;
 mod outbound;
 mod reads;
 mod registry;
+mod sign_in;
 
 pub use host::{Host, HostConfig};
+#[cfg(feature = "fake-sign-in")]
+pub use sign_in::{FakeSignIn, FAKE_USER_CODE};
+pub use sign_in::{default_profiles_folder, DeviceCode, LoginFuture, MicrosoftSignIn, MsaAccount, OnlineLogin, Prompt, SignIn};
 pub use outbound::Outbound;
 pub use entity_delta::{EntityDelta, ENTITY_NUMBERS};

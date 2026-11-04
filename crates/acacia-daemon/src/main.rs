@@ -1,6 +1,6 @@
 //! `acacia-daemon [--listen 127.0.0.1:19180] [--token SECRET] [--shards N] [--join-spacing-ms N]
-//! [--join-jitter-ms N] [--max-batch-bytes N]`: serves acacia bots over WebSocket (protocol: the crate docs; the
-//! host options and their defaults: acacia-host's `HostConfig`). `ACACIA_TOKEN` sets the token too. Prints
+//! [--join-jitter-ms N] [--max-batch-bytes N] [--profiles-folder DIR]`: serves acacia bots over WebSocket (protocol:
+//! the crate docs; the host options and their defaults: acacia-host's `HostConfig`). `ACACIA_TOKEN` sets the token too. Prints
 //! `listening on ws://ADDR` once ready.
 
 use std::io::Write;
@@ -11,7 +11,7 @@ use std::time::Duration;
 use acacia_daemon::{Daemon, DaemonConfig};
 
 const USAGE: &str = "usage: acacia-daemon [--listen ADDR] [--token SECRET] [--shards N] [--join-spacing-ms N] \
-                     [--join-jitter-ms N] [--max-batch-bytes N]";
+                     [--join-jitter-ms N] [--max-batch-bytes N] [--profiles-folder DIR]";
 
 fn parse(args: &[String], token: Option<String>) -> Result<(String, DaemonConfig), String> {
     let mut listen = "127.0.0.1:19180".to_owned();
@@ -27,6 +27,7 @@ fn parse(args: &[String], token: Option<String>) -> Result<(String, DaemonConfig
             "--join-spacing-ms" => host.join_spacing = Duration::from_millis(number(flag, &value()?)?),
             "--join-jitter-ms" => host.join_jitter = Duration::from_millis(number(flag, &value()?)?),
             "--max-batch-bytes" => host.max_batch_bytes = number(flag, &value()?)?,
+            "--profiles-folder" => host.profiles_folder = Some(value()?.into()),
             "-h" | "--help" => return Err(USAGE.to_owned()),
             other => return Err(format!("unknown argument {other}\n{USAGE}")),
         }
@@ -95,6 +96,8 @@ mod tests {
         assert_eq!(config.host.join_spacing, Duration::from_millis(100));
         assert_eq!(config.host.join_jitter, Duration::ZERO);
         assert_eq!((config.host.max_batch_bytes, config.host.shards), (1024, 2));
+        let (_, config) = parse(&args("--profiles-folder /srv/tokens"), None).unwrap();
+        assert_eq!(config.host.profiles_folder.as_deref(), Some(std::path::Path::new("/srv/tokens")));
         assert!(parse(&args("--join-spacing-ms soon"), None).unwrap_err().starts_with("--join-spacing-ms: "));
     }
 }

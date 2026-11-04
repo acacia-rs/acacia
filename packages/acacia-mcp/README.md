@@ -10,9 +10,12 @@ npx @acacia-rs/mcp --host 127.0.0.1 --port 19132 --username Bot --offline
 ```
 
 With `--host` and `--username` the bot connects at start (`--no-connect` waits for the `connect` tool, which also
-adds more bots). `--transport auto|raknet|nethernet` picks the network (default auto); `--offline` is accepted for
-familiarity, offline auth being the only kind so far. `--allow-commands` adds the `command` tool (slash commands);
-it is off by default, and there is no raw packet tool.
+adds more bots). `--transport auto|raknet|nethernet` picks the network (default auto). `--auth microsoft` signs
+`--username` in as an Xbox account for online-mode servers (tokens in `--profiles-folder`, default
+`~/.acacia/auth`; `--offline` is `--auth offline`, the default). Without cached tokens the device-code message goes
+to stderr, and the `connect` tool returns it as its result at once so the agent can ask the user to sign in; a
+second `connect` waits (up to 50 s a call) for the bot. `--allow-commands` adds the `command` tool (slash
+commands); it is off by default, and there is no raw packet tool.
 
 ## Setup
 

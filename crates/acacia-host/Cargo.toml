@@ -14,11 +14,17 @@ acacia-bot = { version = "0.1.0", path = "../acacia-bot" }
 acacia-client.workspace = true
 acacia-raknet.workspace = true
 acacia-world.workspace = true
+p384 = { version = "0.13", features = ["ecdsa"] }
 parking_lot = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.53.1", features = ["rt", "time", "macros", "sync"] }
+tokio = { version = "1.53.1", features = ["rt", "rt-multi-thread", "time", "macros", "sync"] }
+
+[features]
+# `FakeSignIn`, a `SignIn` that needs no Microsoft account; tests only.
+fake-sign-in = []
 
 [dev-dependencies]
+acacia-host = { path = ".", features = ["fake-sign-in"] }
 acacia-testserver = { path = "../acacia-testserver" }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }

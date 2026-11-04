@@ -66,6 +66,7 @@ pub(crate) fn rpc_code(code: ErrorCode) -> i64 {
         ErrorCode::Resolve => -32030,
         ErrorCode::Io => -32031,
         ErrorCode::NetherNet => -32032,
+        ErrorCode::Auth => -32033,
         ErrorCode::VersionMismatch => -32040,
         ErrorCode::Unauthorized => -32041,
         ErrorCode::UnknownMethod => -32601,

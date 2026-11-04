@@ -59,6 +59,11 @@ impl Router {
                         self.done(CallId(call), bot, result);
                     }
                 }
+                ("msaCode", _) => {
+                    if let Some(call) = peek.call {
+                        self.msa_code(CallId(call), raw.get(), &mut touched);
+                    }
+                }
                 ("lagged", _) => {
                     for (id, c) in self.conns.iter_mut().filter(|(_, c)| c.hello) {
                         c.pending.push(raw.get().to_owned());
@@ -88,6 +93,17 @@ impl Router {
                     c.subs.remove(bot);
                 }
             }
+        }
+    }
+
+    /// A sign-in prompt of an open call: to that call's connection, under the client's request id.
+    fn msa_code(&mut self, call: CallId, raw: &str, touched: &mut HashSet<ConnId>) {
+        let Some((conn, Some(id))) = self.calls.get(&call).map(|c| (c.conn, c.id.clone())) else { return };
+        let Ok(mut record) = serde_json::from_str::<Value>(raw) else { return };
+        record["call"] = id;
+        if let Some(c) = self.conns.get_mut(&conn) {
+            c.pending.push(record.to_string());
+            touched.insert(conn);
         }
     }
 

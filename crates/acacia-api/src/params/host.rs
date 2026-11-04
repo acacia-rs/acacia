@@ -15,11 +15,17 @@ pub struct CreateBotParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub port: Option<u16>,
+    /// The player name (`offline`), or the account's key in the token cache (`microsoft`: the server sees the
+    /// Xbox gamertag).
     pub username: String,
-    /// Default `offline`, the only one so far.
+    /// Default `offline`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub auth: Option<Auth>,
+    /// `microsoft` only: the token cache directory (see [`SignInParams::profiles_folder`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub profiles_folder: Option<String>,
     /// Default `auto`: RakNet if the server answers a ping, else NetherNet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -42,7 +48,31 @@ pub struct CreateBotParams {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum Auth {
+    /// No account: servers with `online-mode=false` (LAN, most test servers).
     Offline,
+    /// A Microsoft account signed in by device code, its tokens cached per `username` (an `msaCode` record asks a
+    /// person to sign in when the cache has none).
+    Microsoft,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SignInParams {
+    /// The account's key in the token cache, as `createBot`'s `username`.
+    pub username: String,
+    /// Where tokens are cached, one `<username>.json` each (default `~/.acacia/auth` of the host's user). Holds
+    /// refresh tokens: keep it private. acacia-daemon sets it itself and refuses this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub profiles_folder: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SignInResult {
+    /// The Xbox gamertag servers will see.
+    pub display_name: String,
+    pub xuid: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]

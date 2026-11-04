@@ -1,5 +1,6 @@
 //! The socket protocol end to end against FakeServer (contract: the crate docs).
 
+mod auth;
 mod common;
 mod mirror;
 

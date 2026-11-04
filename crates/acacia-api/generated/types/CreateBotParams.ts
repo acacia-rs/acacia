@@ -11,11 +11,20 @@ host: string,
 /**
  * Default 19132.
  */
-port?: number, username: string, 
+port?: number, 
 /**
- * Default `offline`, the only one so far.
+ * The player name (`offline`), or the account's key in the token cache (`microsoft`: the server sees the
+ * Xbox gamertag).
+ */
+username: string, 
+/**
+ * Default `offline`.
  */
 auth?: Auth, 
+/**
+ * `microsoft` only: the token cache directory (see [`SignInParams::profiles_folder`]).
+ */
+profilesFolder?: string, 
 /**
  * Default `auto`: RakNet if the server answers a ping, else NetherNet.
  */

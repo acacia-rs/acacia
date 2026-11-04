@@ -23,7 +23,7 @@ tokio = { version = "1.53.1", features = ["rt-multi-thread"], optional = true }
 
 [features]
 # `TestServer` (acacia-testserver's FakeServer) for the package's end-to-end tests; never in release builds.
-test-server = ["dep:acacia-testserver", "dep:acacia-proto", "dep:tokio"]
+test-server = ["dep:acacia-testserver", "dep:acacia-proto", "dep:tokio", "acacia-host/fake-sign-in"]
 
 [build-dependencies]
 napi-build = "2"

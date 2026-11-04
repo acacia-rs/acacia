@@ -88,8 +88,17 @@ const CONNECT_SCHEMA: JsonSchema = {
   properties: {
     host: { type: 'string', description: 'Server address; the --host default when absent.' },
     port: { type: 'integer', minimum: 1, maximum: 65535, description: 'Default --port, else 19132.' },
-    username: { type: 'string', description: 'The bot name (offline auth); the --username default when absent.' },
+    username: {
+      type: 'string',
+      description: 'The bot name (offline) or the account to sign in as (microsoft); the --username default when absent.',
+    },
     transport: { type: 'string', enum: ['auto', 'raknet', 'nethernet'], description: 'Default auto.' },
+    auth: {
+      type: 'string',
+      enum: ['offline', 'microsoft'],
+      description: 'offline (default --auth, else offline) or microsoft: an Xbox account, for online-mode servers.',
+    },
+    profilesFolder: { type: 'string', description: 'microsoft: the token cache directory; default --profiles-folder, else ~/.acacia/auth.' },
   },
   required: [],
 }
@@ -97,12 +106,21 @@ const CONNECT_SCHEMA: JsonSchema = {
 export const COMPOSITE_TOOLS: ToolDef[] = [
   {
     name: 'connect',
-    description: 'Connects a bot to a Bedrock server and waits until it has spawned. Other tools then act as it.',
+    description:
+      'Connects a bot to a Bedrock server and waits until it has spawned. Other tools then act as it. With microsoft ' +
+      'auth and no cached sign-in it returns at once with a device code for the user to enter; call connect again to ' +
+      'wait for the bot once they have.',
     inputSchema: CONNECT_SCHEMA,
     annotations: { openWorldHint: true },
     run: (args, { bots }) =>
       guarded(async () => {
-        const handle = await bots.connect(args as ConnectOptions)
+        const got = await bots.connectOrPrompt(args as ConnectOptions)
+        if ('prompt' in got) {
+          const { prompt, username } = got
+          const text = `${prompt.message} ${username} joins once that is done; the code lapses ${Math.round(prompt.expiresIn / 60)} min after it was issued. Ask the user to sign in, then call connect again to wait for the bot.`
+          return ok(text, { bot: username, signIn: prompt })
+        }
+        const { handle } = got
         return ok(`${handle.name} is connected; bots: ${bots.names().join(', ')}`, { bot: handle.name, bots: bots.names() })
       }),
   },

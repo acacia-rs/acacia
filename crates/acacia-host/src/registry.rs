@@ -10,6 +10,7 @@ use parking_lot::Mutex;
 use tokio::sync::{mpsc, Notify};
 
 use crate::outbound::ShardBuf;
+use crate::sign_in::DeviceCode;
 
 /// What a bot's task receives.
 pub(crate) enum Msg {
@@ -40,7 +41,12 @@ impl BotOut {
     pub(crate) fn done(&self, call: CallId, result: Result<Reply, ApiError>) {
         self.open.lock().remove(&call);
         let result = result.map_or_else(CallResult::Err, |r| CallResult::ok(&r));
-        self.buf.push(Out::Done { bot: self.id.clone(), call, result });
+        self.buf.push(Out::Done { bot: Some(self.id.clone()), call, result });
+    }
+
+    /// A sign-in for this bot's `createBot` waits on a person.
+    pub(crate) fn msa_code(&self, call: CallId, code: DeviceCode) {
+        self.buf.push(crate::sign_in::msa_code(call, code));
     }
 
     pub(crate) fn fail(&self, call: CallId, code: ErrorCode, message: &str) {

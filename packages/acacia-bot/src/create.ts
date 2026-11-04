@@ -1,8 +1,10 @@
 import { Bot } from './bot.js'
 import type { CreateBotParams } from './generated/types/CreateBotParams.js'
 import type { EventGroup } from './generated/types/EventGroup.js'
+import type { SignInParams } from './generated/types/SignInParams.js'
+import type { SignInResult } from './generated/types/SignInResult.js'
 import { NativeTransport } from './native.js'
-import { Session, type AttachParams } from './session.js'
+import { Session, type AttachParams, type MsaCodePrompt } from './session.js'
 import type { Transport } from './transport.js'
 import { WsTransport } from './ws.js'
 
@@ -23,6 +25,18 @@ export interface BotOptions extends Omit<CreateBotParams, 'physics' | 'entities'
   events?: EventGroup[]
   /** Over acacia-daemon: keep the bot running after this connection ends, for `attachBot` (ignored in-process). */
   persist?: boolean
+  /** `auth: 'microsoft'`: shows a device code to a person when the account is not signed in (default `logMsaCode`). */
+  onMsaCode?: (prompt: MsaCodePrompt) => void
+}
+
+export interface SignInOptions extends SignInParams, Via {
+  /** Shows the device code to a person (default `logMsaCode`). */
+  onMsaCode?: (prompt: MsaCodePrompt) => void
+}
+
+/** The default `onMsaCode`: the prompt's `message` on stderr, as bedrock-protocol does. */
+export function logMsaCode(prompt: MsaCodePrompt): void {
+  process.stderr.write(`${prompt.message}\n`)
 }
 
 export interface AttachOptions extends AttachParams, Via {
@@ -51,11 +65,20 @@ function transportFor({ via, token }: Via): Transport {
 
 /** Connects a bot; resolves once it has spawned. Rejects with a `ConnectError` when it cannot connect. */
 export async function createBot(options: BotOptions): Promise<Bot> {
-  const { via, token, physics = true, entities = true, events = [], persist, ...params } = options
+  const { via, token, physics = true, entities = true, events = [], persist, onMsaCode = logMsaCode, ...params } = options
   const session = sessionFor(transportFor({ via, token }))
   const keep = persist === undefined ? {} : { persist }
-  const { bot } = await session.call('createBot', { ...params, physics, entities, events, ...keep })
+  const { bot } = await session.call('createBot', { ...params, physics, entities, events, ...keep }, { onMsaCode })
   return new Bot(session, bot, params.username, events)
+}
+
+/**
+ * Signs a Microsoft account in without connecting, so later `createBot({ auth: 'microsoft' })` calls with that
+ * `username` find its tokens cached. Rejects with `AUTH` when sign-in fails or the device code lapses.
+ */
+export async function signIn(options: SignInOptions): Promise<SignInResult> {
+  const { via, token, onMsaCode = logMsaCode, ...params } = options
+  return sessionFor(transportFor({ via, token })).call('signIn', params, { onMsaCode })
 }
 
 /** Takes over a bot kept running on acacia-daemon (`createBot({ persist: true })`), by `bot` id or `username`. */

@@ -1,4 +1,5 @@
 use std::io;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,6 +12,7 @@ use parking_lot::Mutex;
 use crate::bot::{self, Spawn};
 use crate::outbound::{self, Flusher, Outbound, ShardBuf};
 use crate::registry::Registry;
+use crate::sign_in::{MicrosoftSignIn, SignIn, SignIns};
 
 #[derive(Debug, Clone)]
 pub struct HostConfig {
@@ -37,6 +39,10 @@ pub struct HostConfig {
     pub join_spacing: Duration,
     /// Each gap varies by up to this much either way, capped at `join_spacing` (default 250 ms).
     pub join_jitter: Duration,
+    /// Where Microsoft sign-in goes (default `None`: [`MicrosoftSignIn`], acacia-auth's device-code flow).
+    pub sign_in: Option<Arc<dyn SignIn>>,
+    /// The token cache for calls that name no `profilesFolder` (default `None`: [`crate::default_profiles_folder`]).
+    pub profiles_folder: Option<PathBuf>,
 }
 
 impl Default for HostConfig {
@@ -52,6 +58,8 @@ impl Default for HostConfig {
             max_batch_bytes: 128 << 20,
             join_spacing: JoinQueue::DELAY,
             join_jitter: JoinQueue::JITTER,
+            sign_in: None,
+            profiles_folder: None,
         }
     }
 }
@@ -63,6 +71,7 @@ pub struct Host {
     bufs: Vec<Arc<ShardBuf>>,
     shared_worlds: SharedWorlds,
     joins: Arc<JoinQueue>,
+    sign_ins: Arc<SignIns>,
     event_capacity: usize,
     snapshots: bool,
     max_batch_bytes: usize,
@@ -86,12 +95,15 @@ impl Host {
             shard.submit(ShardJobId(format!("flusher-{index}")), Box::new(move || Box::pin(flusher.run())));
             threads.push(shard);
         }
+        let provider = config.sign_in.unwrap_or_else(|| Arc::new(MicrosoftSignIn::default()));
+        let sign_ins = Arc::new(SignIns::new(provider, config.profiles_folder, bufs[0].clone()));
         let host = Host {
             registry,
             shards: Mutex::new(threads),
             bufs,
             shared_worlds: SharedWorlds::new(),
             joins: Arc::new(JoinQueue::new(config.join_spacing, config.join_jitter)),
+            sign_ins,
             event_capacity: config.event_capacity,
             snapshots: config.snapshots,
             max_batch_bytes: config.max_batch_bytes,
@@ -106,9 +118,13 @@ impl Host {
 
     pub fn submit(&self, command: Command) -> Result<(), ApiError> {
         let Command { call, method } = command;
-        let Method::CreateBot(params) = method else {
-            let bot = method.bot().cloned().ok_or_else(|| ApiError::new(ErrorCode::BadParams, "no bot named"))?;
-            return self.registry.lock().send(&bot, call, method);
+        let params = match method {
+            Method::CreateBot(params) => params,
+            Method::SignIn(params) => return self.sign_ins.sign_in(call, params),
+            method => {
+                let bot = method.bot().cloned().ok_or_else(|| ApiError::new(ErrorCode::BadParams, "no bot named"))?;
+                return self.registry.lock().send(&bot, call, method);
+            }
         };
         let (shard, out, rx) = self.registry.lock().add(call, &self.bufs)?;
         let id = ShardJobId(out.id.0.clone());
@@ -120,6 +136,7 @@ impl Host {
             params,
             shared_worlds: self.shared_worlds.clone(),
             joins: self.joins.clone(),
+            sign_ins: self.sign_ins.clone(),
             event_capacity: self.event_capacity,
             snapshots: self.snapshots,
             max_batch_bytes: self.max_batch_bytes,
@@ -146,6 +163,7 @@ impl Host {
         if let Some(emptied) = emptied {
             let _ = tokio::time::timeout(Duration::from_secs(10), emptied.notified()).await;
         }
+        self.sign_ins.close();
         for buf in &self.bufs {
             buf.stop();
         }

@@ -11,10 +11,31 @@ use crate::{ApiError, BotId, CallId, ErrorCode, Event, Method};
 pub enum Out {
     /// `seq` counts the bot's events from 1, so a consumer can see a gap.
     Event { bot: BotId, seq: u64, event: Event },
-    /// Call `call` ended; `result` is the method's result or why it failed.
-    Done { bot: BotId, call: CallId, result: CallResult },
+    /// Call `call` ended; `result` is the method's result or why it failed. `bot` is absent for a host call that
+    /// names no bot (`signIn`).
+    Done {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        bot: Option<BotId>,
+        call: CallId,
+        result: CallResult,
+    },
     /// The host dropped this many lossy events because nobody drained the stream.
     Lagged { dropped: u64 },
+    /// A Microsoft sign-in for open call `call` (`createBot`, `signIn`) needs a person; comes before its `done`.
+    MsaCode(MsaCode),
+}
+
+/// The device code a person enters at `verificationUri` to sign the account in (`message` says so in words).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MsaCode {
+    pub call: CallId,
+    pub user_code: String,
+    pub verification_uri: String,
+    pub message: String,
+    /// Seconds the code stays valid; the call fails `AUTH` once it lapses.
+    pub expires_in: u64,
 }
 
 /// `{"ok": result}` or `{"err": ApiError}`.

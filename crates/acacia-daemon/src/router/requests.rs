@@ -104,6 +104,9 @@ impl Router {
 
     fn host_call(&mut self, conn: ConnId, request: &Request) -> Outcome {
         let mut params = request.params.clone();
+        if params.get("profilesFolder").is_some() {
+            return Err(bad("profilesFolder is the daemon's (--profiles-folder): a client may not pick where tokens are written"));
+        }
         let persist = match params.as_object_mut() {
             Some(p) if request.method == "createBot" => p.remove("persist").and_then(|v| v.as_bool()).unwrap_or(false),
             _ => false,

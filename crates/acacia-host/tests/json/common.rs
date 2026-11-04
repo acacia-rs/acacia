@@ -19,7 +19,12 @@ pub struct Driver {
 
 impl Driver {
     pub fn start() -> Self {
-        let (host, out) = Host::start(HostConfig { shards: 2, ..HostConfig::default() }).unwrap();
+        Self::start_with(HostConfig::default())
+    }
+
+    /// A host on `config`, with two shards.
+    pub fn start_with(config: HostConfig) -> Self {
+        let (host, out) = Host::start(HostConfig { shards: 2, ..config }).unwrap();
         Self { host, out, seen: Vec::new() }
     }
 

@@ -17,7 +17,12 @@ use tokio_tungstenite::tungstenite::{self, Message};
 use tokio_tungstenite::WebSocketStream;
 
 pub async fn daemon(token: Option<&str>) -> Daemon {
-    let config = DaemonConfig { host: HostConfig { shards: 1, ..HostConfig::default() }, token: token.map(Into::into), ..DaemonConfig::default() };
+    daemon_on(HostConfig::default(), token).await
+}
+
+/// A daemon on `host` (one shard).
+pub async fn daemon_on(host: HostConfig, token: Option<&str>) -> Daemon {
+    let config = DaemonConfig { host: HostConfig { shards: 1, ..host }, token: token.map(Into::into), ..DaemonConfig::default() };
     Daemon::bind("127.0.0.1:0", config).await.unwrap()
 }
 

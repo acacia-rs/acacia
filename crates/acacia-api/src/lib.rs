@@ -13,7 +13,9 @@
 //!   Per bot, records keep the order the bot produced them in, and a call's `done` comes after every event the
 //!   bot raised before the call ended, so a caller sees what happened during an action before it settles.
 //!   `seq` numbers each bot's events. Lossy events ([`Event::is_lossy`]) may be dropped under backpressure and
-//!   are then counted in a `lagged` record; nothing else is dropped.
+//!   are then counted in a `lagged` record; nothing else is dropped. A few records belong to an open call rather
+//!   than a bot ([`Out::MsaCode`]: a sign-in waiting on a person), named by its call id since a `createBot` has no
+//!   bot yet.
 //! - **Sync reads.** Transports that can read a bot's published state without a call ([`HotSnapshot`],
 //!   [`ColdSnapshot`], [`EntityList`], [`Block`]) hand out these types; they are in `generated/types` though no
 //!   method returns them.
@@ -43,7 +45,7 @@ pub use form::{Form, FormAnswer, FormBody, FormButton, FormElement, FormValue};
 pub use geom::{Block, BlockPos, Vec3};
 pub use ids::{BotId, CallId, EntityId, UniqueId};
 pub use methods::*;
-pub use out::{batch_json, CallResult, Command, Out};
+pub use out::{batch_json, CallResult, Command, MsaCode, Out};
 pub use params::*;
 pub use snapshot::{ColdSnapshot, Effect, HotSnapshot, ItemName, ItemTable, PlayerInfo, Snapshot, Stack};
 pub use table::{Lane, MethodInfo};

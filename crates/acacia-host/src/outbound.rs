@@ -54,7 +54,7 @@ impl ShardBuf {
     }
 
     pub(crate) fn push(&self, record: Out) {
-        let done = matches!(record, Out::Done { .. });
+        let done = matches!(record, Out::Done { .. } | Out::MsaCode(_));
         self.records.lock().push(record);
         self.notify.notify_one();
         if done {
@@ -142,7 +142,7 @@ mod tests {
         tokio::spawn(flusher.run());
         let bot = BotId("b".into());
         buf.push(Out::Event { bot: bot.clone(), seq: 1, event: Event::Spawn });
-        buf.push(Out::Done { bot: bot.clone(), call: CallId(1), result: CallResult::Ok(Value::Null) });
+        buf.push(Out::Done { bot: Some(bot.clone()), call: CallId(1), result: CallResult::Ok(Value::Null) });
         let batch = tokio::time::timeout(Duration::from_secs(1), out.recv()).await.expect("no wait for the interval");
         let records: Vec<Out> = serde_json::from_str(&batch.unwrap()).unwrap();
         assert!(matches!(records.as_slice(), [Out::Event { .. }, Out::Done { .. }]), "{records:?}");

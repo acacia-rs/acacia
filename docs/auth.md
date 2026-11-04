@@ -108,3 +108,7 @@ stores `version` in the JSON (files without it read as 0).
 `Banned`, `ParentallyRestricted`, `TermsNotAccepted`, `CountryNotAuthorized`, `AgeVerificationRequired`, `ScreenTimeExceeded`,
 `GamertagChangeRequired`, `DeviceSignInLimit`, `SignedInElsewhere`, `Other(code)`. `Error::requires_user_action()` is true for all
 named variants (report "xbox_required"). Also `DeviceCodeExpired`, `DeviceCodeDeclined`, `OAuth`, `Status`, `Http`, `Protocol`, `Jwt`, `Key`, `Cache`.
+
+## From JS
+`createBot({ auth: 'microsoft' })` / `signIn()` run this flow through acacia-host (`MicrosoftSignIn`, contract in
+acacia-host's crate docs, "Sign-in"); every failure above surfaces as `AUTH` with its message.

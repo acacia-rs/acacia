@@ -20,7 +20,12 @@
 //!   acacia-api `Out` records (`event`, `lagged`) and `mirror` records, at most one per host batch and connection.
 //!   A response comes after the `out` holding the events raised before its call ended, so the host's ordering
 //!   (events before `done`) holds across the socket. `seq` numbers each bot's events from 1; a client attaching to
-//!   a running bot sees it mid-count.
+//!   a running bot sees it mid-count. An `msaCode` record (a sign-in waiting on a person) goes to the connection
+//!   whose `createBot` or `signIn` it belongs to, its `call` set to that request's `id`; a notification gets none.
+//! - **Sign-in.** Tokens are cached in the daemon's `--profiles-folder` (default acacia-host's
+//!   `default_profiles_folder` of the daemon's user), per `username`: any client with the token can play an account
+//!   someone signed in there. Params naming `profilesFolder` are refused `BAD_PARAMS`, so clients cannot pick
+//!   where token files are written.
 //! - **Ownership.** A bot belongs to the connections that created or attached to it: only they can call it or get
 //!   its events, and `bot.close` from any of them closes it. When a connection drops, its bots close, and its open
 //!   calls on persisted bots are cancelled. `createBot {..., persist: true}` keeps the bot running with no

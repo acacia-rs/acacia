@@ -1,5 +1,6 @@
 //! Driving bots purely through command JSON and reading the record stream back (contract: the crate docs).
 
+mod auth;
 mod common;
 mod containers;
 mod crafting;

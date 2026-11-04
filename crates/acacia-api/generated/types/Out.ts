@@ -3,8 +3,9 @@ import type { BotId } from "./BotId";
 import type { CallId } from "./CallId";
 import type { CallResult } from "./CallResult";
 import type { Event } from "./Event";
+import type { MsaCode } from "./MsaCode";
 
 /**
  * One record of the outbound stream (ordering: see the crate docs).
  */
-export type Out = { "type": "event", bot: BotId, seq: number, event: Event, } | { "type": "done", bot: BotId, call: CallId, result: CallResult, } | { "type": "lagged", dropped: number, };
+export type Out = { "type": "event", bot: BotId, seq: number, event: Event, } | { "type": "done", bot?: BotId, call: CallId, result: CallResult, } | { "type": "lagged", dropped: number, } | { "type": "msaCode" } & MsaCode;

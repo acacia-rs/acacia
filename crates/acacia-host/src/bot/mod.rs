@@ -7,7 +7,7 @@ mod lanes;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use acacia_api::{ApiError, CallId, CreateBotParams, CreateBotResult, EndReason, ErrorCode, Event, Method, Reply, Transport};
+use acacia_api::{ApiError, Auth, CallId, CreateBotParams, CreateBotResult, EndReason, ErrorCode, Event, Method, Reply, Transport};
 use acacia_bot::client::{Client, TransportKind};
 use acacia_bot::events::channel;
 use acacia_bot::state::Trackers;
@@ -20,6 +20,7 @@ use tokio::sync::mpsc;
 use crate::calls::{action, Cancellable};
 use crate::convert;
 use crate::registry::{BotOut, Msg, Registry};
+use crate::sign_in::SignIns;
 use lanes::Lanes;
 
 /// What a new bot's task starts from.
@@ -33,13 +34,14 @@ pub(crate) struct Spawn {
     pub shared_worlds: SharedWorlds,
     /// Shared by every bot of the host.
     pub joins: Arc<JoinQueue>,
+    pub sign_ins: Arc<SignIns>,
     pub event_capacity: usize,
     pub snapshots: bool,
     pub max_batch_bytes: usize,
 }
 
 pub(crate) async fn run(spawn: Spawn) {
-    let Spawn { out, mut rx, registry, call, params, shared_worlds, joins, event_capacity, snapshots, max_batch_bytes } = spawn;
+    let Spawn { out, mut rx, registry, call, params, shared_worlds, joins, sign_ins, event_capacity, snapshots, max_batch_bytes } = spawn;
     let (sink, events) = channel(event_capacity);
     let transport = match params.transport.unwrap_or(Transport::Auto) {
         Transport::Auto => TransportKind::Auto,
@@ -47,7 +49,6 @@ pub(crate) async fn run(spawn: Spawn) {
         Transport::Nethernet => TransportKind::NetherNet,
     };
     let address = format!("{}:{}", params.host, params.port.unwrap_or(19132));
-    let builder = || Client::builder(&address).offline(&params.username).transport(transport).max_batch_bytes(max_batch_bytes);
     let config = BotConfig {
         trackers: Trackers { entities: params.entities.unwrap_or(false), ..Trackers::default() },
         physics: params.physics.unwrap_or(false),
@@ -59,11 +60,28 @@ pub(crate) async fn run(spawn: Spawn) {
     };
     let mut early = VecDeque::new();
     let connected = {
-        let connect = join::connect(&joins, &address, builder, &config);
+        let connect = async {
+            let login = match params.auth.unwrap_or(Auth::Offline) {
+                Auth::Offline => None,
+                Auth::Microsoft => {
+                    let account = sign_ins.account(&params.username, params.profiles_folder.as_deref());
+                    let prompt = out.clone();
+                    Some(sign_ins.login(account, Box::new(move |code| prompt.msa_code(call, code))).await?)
+                }
+            };
+            let builder = || {
+                let builder = Client::builder(&address).transport(transport).max_batch_bytes(max_batch_bytes);
+                match &login {
+                    Some(l) => builder.online(l.credentials.clone(), l.key.clone()),
+                    None => builder.offline(&params.username),
+                }
+            };
+            join::connect(&joins, &address, builder, &config).await.map_err(convert::connect_error)
+        };
         tokio::pin!(connect);
         loop {
             tokio::select! {
-                bot = &mut connect => break bot.map_err(convert::connect_error),
+                bot = &mut connect => break bot,
                 msg = rx.recv() => match msg {
                     Some(Msg::Call(c, Method::Cancel(p))) if p.call == call => {
                         out.done(c, Ok(Reply::Cancel(())));
