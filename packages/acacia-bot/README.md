@@ -125,7 +125,7 @@ acacia-host's; the addon: acacia-node's).
   `physicsTick`, at once if `bot.hot` is already set) and the event groups of the listeners attached so far are on,
   so attach listeners, then await it; it rejects `DISCONNECTED` if the bot ends first. `waitForTicks(n)` is a timed
   pause and can end before a tick. `bot.hot` is one frozen
-  object per tick; `cold` and `players` are one frozen object per change (`players`: an entity or player-list
+  object per tick (in-process its numbers are f32s widened, like entities' below); `cold` and `players` are one frozen object per change (`players`: an entity or player-list
   entry coming or going), rebuilt at most once a tick except that a spawn or removal is published before its
   `entitySpawn` / `entityGone` event, so a listener finds `bot.entities` agreeing with the event.
   **Entities are kept by deltas.** `bot.entities` is one object per bot, updated in place (read it, don't write

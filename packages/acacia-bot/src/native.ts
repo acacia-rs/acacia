@@ -2,13 +2,13 @@ import { createRequire } from 'node:module'
 
 import type { NativeHost } from '../native/index.js'
 import { NativeEntities } from './native-entities.js'
+import { NativeHot } from './native-hot.js'
 import { AcaciaError } from './errors.js'
 import type { Command } from './generated/methods.js'
 import type { Block } from './generated/types/Block.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
 import type { ErrorCode } from './generated/types/ErrorCode.js'
 import type { FindBlocksResult } from './generated/types/FindBlocksResult.js'
-import type { HotSnapshot } from './generated/types/HotSnapshot.js'
 import type { ItemTable } from './generated/types/ItemTable.js'
 import type { SyncReads, Transport, TransportListener } from './transport.js'
 
@@ -74,8 +74,7 @@ export class NativeTransport implements Transport {
   #ended = false
   readonly #closed: Promise<void>
   #resolveClosed!: () => void
-  /** Per bot: the last hot JSON and its parse, so a getter within one tick parses nothing. */
-  readonly #hot = new Map<string, { json: string; value: HotSnapshot }>()
+  readonly #hot: NativeHot
   readonly #cold = new Versioned<ColdSnapshot>()
   readonly #entities: NativeEntities
   /** Per bot, the item table once it arrived (it comes once). */
@@ -85,6 +84,7 @@ export class NativeTransport implements Transport {
     this.#closed = new Promise((resolve) => (this.#resolveClosed = resolve))
     this.#host = new (loadAddon().NativeHost)({ ...options, onRecords: (batch) => this.#receive(batch) })
     this.#entities = new NativeEntities(this.#host)
+    this.#hot = new NativeHot(this.#host)
   }
 
   open(listener: TransportListener): void {
@@ -113,18 +113,7 @@ export class NativeTransport implements Transport {
   }
 
   readonly reads: SyncReads = {
-    hot: (bot) => {
-      const json = this.#host.snapshotHot(bot)
-      if (json === null) {
-        this.#hot.delete(bot)
-        return null
-      }
-      const cached = this.#hot.get(bot)
-      if (cached?.json === json) return cached.value
-      const value = Object.freeze(JSON.parse(json) as HotSnapshot)
-      this.#hot.set(bot, { json, value })
-      return value
-    },
+    hot: (bot) => this.#hot.read(bot),
     cold: (bot) => this.#cold.read(bot, this.#host.coldVersion(bot), () => this.#host.snapshotCold(bot)),
     entities: (bot) => this.#entities.read(bot),
     blockAt: (bot, x, y, z) => {

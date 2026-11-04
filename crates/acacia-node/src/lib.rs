@@ -13,10 +13,10 @@
 //! - **Keep-alive.** The threadsafe function is weak, so the addon never holds Node's event loop by itself.
 //!   `setKeepAlive(true)` refs it and `false` unrefs it; the caller holds it while it owes the script something
 //!   (live bots, unanswered calls, a close in progress) and must release it once the stream has ended.
-//! - **Sync reads** (`snapshotHot`, `snapshotCold`, `snapshotEntities`, `blockAt`) return acacia-api
-//!   `HotSnapshot` / `ColdSnapshot` / `EntityList` / `Block` JSON, or `null` (unknown bot, no tick yet, chunk not
-//!   loaded), without a call. `snapshotHot` serializes at most once per bot tick, so callers can compare strings
-//!   to skip a parse; the versioned parts have `coldVersion` / `entitiesVersion` to check before fetching.
+//! - **Sync reads** (`snapshotCold`, `snapshotEntities`, `blockAt`) return acacia-api `ColdSnapshot` /
+//!   `EntityList` / `Block` JSON, or `null` (unknown bot, chunk not loaded), without a call; the versioned parts
+//!   have `coldVersion` / `entitiesVersion` to check before fetching. `hotNumbers(bot, into)` writes the
+//!   `HotSnapshot` as numbers (order: crate::hot) and returns false for an unknown bot or before its first tick.
 //!   `entityDelta(bot, since, numbers)` is the entity list as changes since the caller's last version (acacia-host's
 //!   `EntityDelta`): entities that came or went as JSON, numbers written straight into the caller's array by slot.
 //!   `itemTable` is the server's item names (fetch once it is non-empty); `findBlocks` runs `bot.findBlocks`
@@ -31,5 +31,6 @@
 mod error;
 mod forward;
 mod host;
+mod hot;
 #[cfg(feature = "test-server")]
 mod test_server;

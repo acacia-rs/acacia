@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -10,6 +9,7 @@ use napi_derive::napi;
 
 use crate::error::{refusal, Code};
 use crate::forward::{self, Sink, MAX_QUEUE};
+use crate::hot::{self, HOT_NUMBERS};
 
 #[napi(object, object_to_js = false)]
 pub struct NativeHostOptions {
@@ -47,8 +47,6 @@ pub struct NativeHost {
     sink: Arc<Sink>,
     keep_alive: bool,
     closing: bool,
-    /// Each bot's last hot snapshot JSON and the tick it is from.
-    hot: HashMap<String, (u64, String)>,
 }
 
 #[napi]
@@ -80,7 +78,7 @@ impl NativeHost {
         let (host, outbound) = Host::start(config).map_err(|e| Error::from_reason(format!("host threads: {e}")))?;
         let host = Arc::new(host);
         forward::spawn(outbound, sink.clone()).map_err(|e| Error::from_reason(format!("forwarder thread: {e}")))?;
-        Ok(Self { host, sink, keep_alive: false, closing: false, hot: HashMap::new() })
+        Ok(Self { host, sink, keep_alive: false, closing: false })
     }
 
     /// Enqueues one command (JSON); throws with the refusal's `code` if the host will not take it.
@@ -123,19 +121,16 @@ impl NativeHost {
         Ok(())
     }
 
-    /// The bot's `HotSnapshot` as of its last tick (JSON), or null for an unknown bot or before its first tick.
+    /// Writes the bot's `HotSnapshot` as of its last tick into `into` (at least 26 slots, order: crate::hot); false
+    /// for an unknown bot or before its first tick.
     #[napi(catch_unwind)]
-    pub fn snapshot_hot(&mut self, bot: String) -> Option<String> {
-        let Some(hot) = self.host.hot(&BotId(bot.clone())).filter(|h| h.tick != 0) else {
-            self.hot.remove(&bot);
-            return None;
-        };
-        if let Some((_, json)) = self.hot.get(&bot).filter(|(tick, _)| *tick == hot.tick) {
-            return Some(json.clone());
-        }
-        let json = serde_json::to_string(&hot).ok()?;
-        self.hot.insert(bot, (hot.tick, json.clone()));
-        Some(json)
+    pub fn hot_numbers(&self, bot: String, mut into: Float64ArraySlice) -> Result<bool> {
+        let Some(hot) = self.host.hot(&BotId(bot)).filter(|h| h.tick != 0) else { return Ok(false) };
+        // SAFETY: JS is blocked in this call, so nothing else touches the array.
+        let into = unsafe { into.as_mut() };
+        let target = into.get_mut(..HOT_NUMBERS).ok_or_else(|| Error::from_reason(format!("hotNumbers needs {HOT_NUMBERS} slots")))?;
+        target.copy_from_slice(&hot::numbers(&hot));
+        Ok(true)
     }
 
     /// The version of the bot's `ColdSnapshot`, or null for an unknown bot.
