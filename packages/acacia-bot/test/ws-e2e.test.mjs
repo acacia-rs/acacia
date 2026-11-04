@@ -10,7 +10,7 @@ import { test } from 'node:test'
 
 import * as native from '../native/index.js'
 import { attachBot, createBot, WsTransport } from '@acacia-rs/bot'
-import { pkg, runHello, until } from './hello-run.mjs'
+import { exampleEnv, pkg, runHello, startExample, until } from './hello-run.mjs'
 
 const daemonBin = process.env.ACACIA_DAEMON ?? join(pkg, '../../target/debug/acacia-daemon')
 const skip = !native.TestServer
@@ -54,7 +54,32 @@ test('aborting a createBot still joining a silent server cancels it on the daemo
   assert.ok(Date.now() - started < 3_000, `the join stopped ${Date.now() - started} ms in`)
 })
 
-test('a persisted bot outlives its connection and a new script attaches to it', { skip, timeout: 60_000 }, async (t) => {
+test('examples/ws-persist.mjs: the bot outlives the script, and the next run attaches to it', { skip, timeout: 60_000 }, async (t) => {
+  const daemon = await startDaemon()
+  const server = native.TestServer.start()
+  t.after(() => {
+    daemon.stop()
+    server.stop()
+  })
+  const env = exampleEnv(server, { ACACIA_VIA: daemon.url })
+  const first = startExample('ws-persist.mjs', ['Keeper'], env)
+  t.after(first.kill)
+  await first.waitFor(/Keeper at /)
+  assert.match(first.out, /created Keeper, persisted/)
+  server.chat('Steve', '!detach')
+  assert.equal(await first.exitCode(), 0, first.out)
+  assert.match(first.out, /keeps running on the daemon/)
+
+  const second = startExample('ws-persist.mjs', ['Keeper'], env)
+  t.after(second.kill)
+  await second.waitFor(/Keeper at /)
+  assert.match(second.out, /attached to Keeper/)
+  server.chat('Steve', '!quit')
+  assert.equal(await second.exitCode(), 0, second.out)
+  assert.match(second.out, /ended: closed/)
+})
+
+test('a persisted bot outlives its connection and a new script attaches to it',{ skip, timeout: 60_000 }, async (t) => {
   const daemon = await startDaemon()
   const server = native.TestServer.start()
   t.after(() => {

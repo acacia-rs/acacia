@@ -33,6 +33,24 @@ bot.on('chat', async ({ sender, plain }) => {
 [`examples/hello.mjs`](examples/hello.mjs) is the full hello world: `node examples/hello.mjs 127.0.0.1:19132 Sprout`.
 For LLM agents, [`@acacia-rs/mcp`](../acacia-mcp/README.md) serves these bots over MCP.
 
+## Examples
+
+Each joins an offline-mode server named by `ACACIA_HOST` / `ACACIA_PORT` (default `127.0.0.1:19132`;
+[`examples/connection.mjs`](examples/connection.mjs) has the rest) and says at its top how to run it.
+
+| Example | Shows |
+|---|---|
+| [`hello.mjs`](examples/hello.mjs) | Chat commands, `goto` with goals, errors and timeouts |
+| [`follow.mjs`](examples/follow.mjs) | `follow` the player who says `!follow`, cancelled on `!stop` through an `AbortController` |
+| [`miner.mjs`](examples/miner.mjs) | `findBlocks` for ores, `equipBestTool`, `dig`, then `deposit` the drops into a chest |
+| [`crafter.mjs`](examples/crafter.mjs) | Logs to planks, sticks and a crafting table (`craft`), `placeBlock` it, a pickaxe at the table |
+| [`swarm.mjs`](examples/swarm.mjs) | N bots in one process with spaced joins and shared chunks, each walking to a spot; prints RSS |
+| [`ws-persist.mjs`](examples/ws-persist.mjs) | A `persist`ed bot on acacia-daemon that a restarted script picks up with `attachBot` |
+| [`typescript/`](examples/typescript/index.ts) | The typed API from TypeScript: `BlockName`, typed events and options |
+
+`test/examples.test.mjs` checks every example parses (and the TypeScript one type-checks) and runs `follow.mjs`
+and `crafter.mjs` against FakeServer; `ws-e2e.test.mjs` runs `ws-persist.mjs` against the daemon.
+
 ## Build and test
 
 From a checkout (Rust stable and Node ≥ 22.12). The two packages are one npm workspace: install from `packages/`.
