@@ -3,6 +3,7 @@
 use acacia_api::{ApiError, BotId, BotParams, CancelCallParams, CancelParams, ErrorCode, Method, METHODS, PROTOCOL_VERSION};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use subtle::ConstantTimeEq;
 
 use super::{Call, ConnId, Kind, Router};
 use crate::rpc::{self, Request};
@@ -61,7 +62,7 @@ impl Router {
 
     fn hello(&mut self, conn: ConnId, params: &Value) -> Outcome {
         let hello: Hello = serde_json::from_value(params.clone()).map_err(bad)?;
-        if self.token.as_ref().is_some_and(|t| hello.token.as_ref() != Some(t)) {
+        if self.token.as_ref().is_some_and(|t| !hello.token.as_ref().is_some_and(|h| token_matches(h, t))) {
             return Err(ApiError::new(ErrorCode::Unauthorized, "wrong or missing token"));
         }
         if hello.protocol_version != PROTOCOL_VERSION {
@@ -137,6 +138,24 @@ impl Router {
         }
         self.calls.insert(call, Call { conn, id, bot, kind });
         Ok(())
+    }
+}
+
+/// Constant time in the contents, so response timing cannot leak the token a prefix at a time (only its length).
+fn token_matches(given: &str, token: &str) -> bool {
+    given.as_bytes().ct_eq(token.as_bytes()).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::token_matches;
+
+    #[test]
+    fn tokens_match_only_when_equal() {
+        assert!(token_matches("s3cret", "s3cret"));
+        assert!(!token_matches("s3creT", "s3cret"));
+        assert!(!token_matches("s3cre", "s3cret"));
+        assert!(!token_matches("", "s3cret"));
     }
 }
 

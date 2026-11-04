@@ -147,6 +147,7 @@ dependencies = [
  "futures-util",
  "serde",
  "serde_json",
+ "subtle",
  "tokio",
  "tokio-tungstenite",
 ]

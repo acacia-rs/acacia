@@ -46,10 +46,18 @@
 //!   (`[slot, id, uniqueId, kind, username | null]`); then write `numbers` (rows as `removed`) for every added or
 //!   moved entity. Positions are feet. The first record of a bot on a connection (a new mirror, an `attach`) is
 //!   full, and so is one after the connection fell behind the bot's change log (acacia-bot `snapshot::delta`).
+//! - **Security.** The daemon speaks plain `ws://` and has no TLS of its own. Bind it to loopback (the default
+//!   `127.0.0.1:19180`); to reach it across a network, give it a `--token` (compared in constant time) and put a
+//!   TLS-terminating reverse proxy in front, so the token never crosses the wire in clear text. With Caddy:
+//!   `daemon.example.com { reverse_proxy 127.0.0.1:19180 }` (WebSocket upgrades pass through); with nginx, a
+//!   `location /` doing `proxy_pass http://127.0.0.1:19180;` plus `proxy_http_version 1.1;`, `proxy_set_header
+//!   Upgrade $http_upgrade;`, `proxy_set_header Connection "upgrade";` and a `proxy_read_timeout` longer than the
+//!   bots' quiet spells. Clients then use `wss://daemon.example.com`. Anyone holding the token drives every bot and
+//!   every account signed in under `--profiles-folder`.
 //! - **Backpressure.** Each connection queues [`DaemonConfig::queue`] frames; a client that falls that far behind
 //!   is disconnected (its bots close as above). The host's own `lagged` records go to every connection.
 //!
-//! Not yet: MessagePack framing, TLS (put a proxy in front), reconnect resumption beyond `attach`, an MCP endpoint
+//! Not yet: MessagePack framing, built-in TLS (see Security), reconnect resumption beyond `attach`, an MCP endpoint
 //! (`@acacia-rs/mcp` can run over the TS client's `WsTransport` instead).
 
 mod conn;

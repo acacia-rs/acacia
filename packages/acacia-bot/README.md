@@ -157,7 +157,8 @@ acacia-host's; the addon: acacia-node's).
   the session no longer wants it held and reconnects (a new `hello`) on the next command.
 - **Over acacia-daemon** (`acacia-daemon --listen 127.0.0.1:19180 [--token T]`; protocol: its crate docs).
   `createBot({ ..., via: 'ws://127.0.0.1:19180', token })` runs the bot there; one `WsTransport` (Node's global
-  `WebSocket`) is shared per URL and token, and `closeAll()` disconnects them. The API is the same, with these
+  `WebSocket`) is shared per URL and token, and `closeAll()` disconnects them. The daemon has no TLS; across a
+  network, give it a `--token`, put a TLS proxy in front and use `wss://` (recipe: its crate docs, Security). The API is the same, with these
   differences:
   - Refusals (`BUSY`, `UNKNOWN_BOT`, ...) reject asynchronously, and `VERSION_MISMATCH` / `UNAUTHORIZED` from the
     handshake fail every queued call. An unreachable daemon fails `createBot` with `ConnectError` `IO`.
