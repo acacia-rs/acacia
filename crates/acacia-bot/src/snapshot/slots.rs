@@ -11,9 +11,29 @@ pub(crate) struct ListBuilder {
     /// Slots freed by removals, reused before new ones.
     free: Vec<u32>,
     capacity: u32,
+    /// [`Entities::members_version`] of the last list built, and each of its entities' index by runtime id.
+    members: Option<u64>,
+    index: FxHashMap<u64, u32>,
 }
 
 impl ListBuilder {
+    /// No entity came or went since the last list [`ListBuilder::build`] made, so [`ListBuilder::patch`] can update it.
+    pub(crate) fn can_patch(&self, entities: &Entities) -> bool {
+        self.members == Some(entities.members_version())
+    }
+
+    /// Re-reads the numbers of the `touched` entities into `list`, the last list built (see [`ListBuilder::can_patch`]).
+    pub(crate) fn patch(&self, entities: &Entities, touched: &[u64], list: &mut EntityList) -> Changes {
+        let mut changes = Changes::default();
+        for id in touched {
+            let (Some(&i), Some(e)) = (self.index.get(id), entities.get(*id)) else { continue };
+            if list.entities[i as usize].update_numbers(e) {
+                changes.moved.push(list.slots[i as usize]);
+            }
+        }
+        changes
+    }
+
     /// `previous` is the list this one replaces (the last this builder built, or an empty one).
     pub(crate) fn build(&mut self, entities: &Entities, version: u64, previous: &EntityList) -> (EntityList, Changes) {
         let interner = &mut self.interner;
@@ -37,6 +57,9 @@ impl ListBuilder {
             false => self.reassign(previous, &infos, &mut changes),
         };
         let members_version = previous.members_version + u64::from(!same);
+        self.members = Some(entities.members_version());
+        self.index.clear();
+        self.index.extend(infos.iter().enumerate().map(|(i, e)| (e.runtime_id, i as u32)));
         (EntityList::new(version, members_version, infos, slots, self.capacity), changes)
     }
 

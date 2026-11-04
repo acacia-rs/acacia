@@ -25,19 +25,29 @@ pub struct EntityInfo {
 impl EntityInfo {
     /// `intern` shares the kind and name strings between rebuilds.
     pub(crate) fn of(e: &Entity, intern: &mut impl FnMut(&str) -> Arc<str>) -> Self {
-        let f = e.feet();
-        let v = &e.velocity;
+        let (position, velocity, yaw, pitch, health) = numbers(e);
         EntityInfo {
             runtime_id: e.runtime_id,
             unique_id: e.unique_id,
             kind: intern(&e.kind),
             username: e.username.as_deref().map(&mut *intern),
-            position: [f.x, f.y, f.z],
-            velocity: [v.x, v.y, v.z],
-            yaw: e.yaw,
-            pitch: e.pitch,
-            health: e.health(),
+            position,
+            velocity,
+            yaw,
+            pitch,
+            health,
         }
+    }
+
+    /// Takes `e`'s position, motion, rotation and health; true when any of them changed.
+    pub(crate) fn update_numbers(&mut self, e: &Entity) -> bool {
+        let fresh = numbers(e);
+        let held = (self.position, self.velocity, self.yaw, self.pitch, self.health);
+        if fresh == held {
+            return false;
+        }
+        (self.position, self.velocity, self.yaw, self.pitch, self.health) = fresh;
+        true
     }
 
     /// For events: allocates its strings.
@@ -61,10 +71,17 @@ impl EntityInfo {
     }
 }
 
-/// Every tracked entity, rebuilt at most once a tick when the tracker changed.
+type Numbers = ([f32; 3], [f32; 3], f32, f32, Option<f32>);
+
+fn numbers(e: &Entity) -> Numbers {
+    let (f, v) = (e.feet(), &e.velocity);
+    ([f.x, f.y, f.z], [v.x, v.y, v.z], e.yaw, e.pitch, e.health())
+}
+
+/// Every tracked entity, updated at most once a tick when the tracker changed.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EntityList {
-    /// Moves exactly when the list is rebuilt (0 in an on-demand snapshot).
+    /// Moves exactly when the list changes (0 in an on-demand snapshot).
     pub version: u64,
     /// Moves when the ids, kinds or names change (an entity came or went), not when entities only move or turn.
     pub members_version: u64,

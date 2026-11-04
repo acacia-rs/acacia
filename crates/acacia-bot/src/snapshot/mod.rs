@@ -4,9 +4,11 @@
 //! - [`Cold`] (inventory, effects, player list) is rebuilt only when the version counters of
 //!   [`crate::state::Inventory`], [`crate::state::Effects`] or [`crate::state::PlayerList`] move, and shared as an
 //!   `Arc`; [`Cold::version`] changes exactly when it is rebuilt, so readers can cache on it.
-//! - [`EntityList`] (tracked entities, feet positions) is rebuilt once per tick batch when the entity tracker's
-//!   version moved, and at once on a spawn or removal, before its event goes out (a listener finds the entity
-//!   listed); [`EntityList::version`] changes exactly when it is rebuilt. Empty unless `Trackers::entities` (or
+//! - [`EntityList`] (tracked entities, feet positions) is updated once per tick batch when a listed field of a
+//!   tracked entity changed ([`crate::state::Entities::listed_version`]), and at once on a spawn or removal,
+//!   before its event goes out (a listener finds the entity listed). Without a spawn or removal only the entities
+//!   the tracker stamped are re-read, in place unless a reader holds the list; otherwise it is rebuilt.
+//!   [`EntityList::version`] changes exactly when the list does. Empty unless `Trackers::entities` (or
 //!   `hazards`) is on. Readers that keep a copy take changes instead ([`SnapshotReader::entity_delta`]; slots,
 //!   cursors and resyncs: [`delta`]).
 //! - Stacks carry network ids, not names: resolve them through [`SnapshotReader::items`], the item table the server

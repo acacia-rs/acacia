@@ -41,6 +41,7 @@ impl Entities {
             e.head_yaw = r as f32 * BYTE_ROTATION;
         }
         e.on_ground = p.on_ground;
+        self.stamps.touch(e);
     }
 
     pub(super) fn move_absolute(&mut self, p: &MoveEntity) {
@@ -52,6 +53,7 @@ impl Entities {
         e.yaw = p.rotation.pitch;
         e.head_yaw = p.rotation.head_yaw;
         e.on_ground = p.flags & ON_GROUND != 0;
+        self.stamps.touch(e);
     }
 
     pub(super) fn move_player(&mut self, p: &MovePlayer) {
@@ -63,5 +65,6 @@ impl Entities {
         e.yaw = p.yaw;
         e.head_yaw = p.head_yaw;
         e.on_ground = p.on_ground;
+        self.stamps.touch(e);
     }
 }
