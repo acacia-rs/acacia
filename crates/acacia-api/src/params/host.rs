@@ -6,6 +6,7 @@ use ts_rs::TS;
 
 use crate::{AutoEatPolicy, BotId, CallId};
 
+/// The server to join and what the bot tracks there.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateBotParams {
@@ -54,6 +55,7 @@ pub struct CreateBotParams {
     pub events: Option<Vec<EventGroup>>,
 }
 
+/// How a bot logs in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum Auth {
@@ -64,6 +66,7 @@ pub enum Auth {
     Microsoft,
 }
 
+/// The Microsoft account to sign in.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SignInParams {
@@ -76,6 +79,7 @@ pub struct SignInParams {
     pub profiles_folder: Option<String>,
 }
 
+/// The Xbox profile a sign-in reached.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SignInResult {
@@ -84,6 +88,7 @@ pub struct SignInResult {
     pub xuid: String,
 }
 
+/// The network protocol a bot connects over.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum Transport {
@@ -109,16 +114,19 @@ pub enum EventGroup {
     EntityMoves,
 }
 
+/// The new bot's id.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CreateBotResult {
     pub bot: BotId,
 }
 
+/// The bot a method without other params acts on.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct BotParams {
     pub bot: BotId,
 }
 
+/// A bot's call to cancel.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CancelParams {
     pub bot: BotId,
@@ -126,12 +134,14 @@ pub struct CancelParams {
     pub call: CallId,
 }
 
+/// A host call (no bot yet) to cancel.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CancelCallParams {
     /// The `createBot` or `signIn` call to cancel.
     pub call: CallId,
 }
 
+/// The event groups the bot reports from now on.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct SetEventsParams {
     pub bot: BotId,

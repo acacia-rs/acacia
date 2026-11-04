@@ -2,6 +2,9 @@
 import type { BotId } from "./BotId";
 import type { FormAnswer } from "./FormAnswer";
 
+/**
+ * An open form and the answer to it.
+ */
 export type AnswerFormParams = { bot: BotId, 
 /**
  * The form's id, from its `form` event.

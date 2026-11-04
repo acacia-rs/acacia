@@ -13,6 +13,7 @@ pub struct Form {
     pub body: FormBody,
 }
 
+/// What a [`Form`] asks for, by kind.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum FormBody {
@@ -25,6 +26,7 @@ pub enum FormBody {
     Custom { elements: Vec<FormElement> },
 }
 
+/// A simple form's button.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct FormButton {
     pub text: String,
@@ -34,6 +36,7 @@ pub struct FormButton {
     pub image: Option<String>,
 }
 
+/// One element of a custom form (an input), or a simple form's text between buttons.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum FormElement {
@@ -62,6 +65,7 @@ pub enum FormAnswer {
     Close,
 }
 
+/// A custom form answer's value for one input element.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(tag = "type", content = "value", rename_all = "camelCase")]
 pub enum FormValue {

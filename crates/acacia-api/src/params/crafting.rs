@@ -6,6 +6,7 @@ use ts_rs::TS;
 
 use crate::{BlockPos, BotId};
 
+/// The item to craft, how many and where.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CraftParams {
     pub bot: BotId,
@@ -21,6 +22,7 @@ pub struct CraftParams {
     pub table: Option<BlockPos>,
 }
 
+/// How many items `bot.craft` made.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CraftResult {
     /// Items made: `count` or more, fewer only when the ingredients ran out after at least one craft.
@@ -53,12 +55,14 @@ pub struct SmeltParams {
     pub fuel_count: Option<u8>,
 }
 
+/// How many items `bot.smelt` took out.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct SmeltResult {
     /// Items taken out of the output slot.
     pub smelted: u32,
 }
 
+/// The item to list recipes for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct RecipesForParams {
     pub bot: BotId,
@@ -66,6 +70,7 @@ pub struct RecipesForParams {
     pub item: String,
 }
 
+/// Which grid `bot.craftableItems` counts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CraftableItemsParams {
     pub bot: BotId,
@@ -75,12 +80,14 @@ pub struct CraftableItemsParams {
     pub table: Option<bool>,
 }
 
+/// The items the inventory can craft now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CraftableItemsResult {
     /// One entry per item, in the server's recipe order, with what one craft of its first fitting recipe makes.
     pub items: Vec<ItemCount>,
 }
 
+/// The server's recipes for an item.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct RecipesForResult {
     pub recipes: Vec<Recipe>,
@@ -101,6 +108,7 @@ pub struct Recipe {
     pub outputs: Vec<ItemCount>,
 }
 
+/// An item (or item tag) and a count.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ItemCount {
     /// An item name, `#tag` for any item with that tag (`#minecraft:planks`), or a MoLang item expression.

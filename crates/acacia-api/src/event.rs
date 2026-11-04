@@ -70,6 +70,7 @@ impl Event {
     }
 }
 
+/// A chat, system or translated line the server sent (the `chat` event).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ChatLine {
     pub kind: ChatKind,
@@ -90,6 +91,7 @@ pub struct ChatLine {
     pub xuid: String,
 }
 
+/// The protocol's text type of a [`ChatLine`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum ChatKind {
@@ -104,6 +106,7 @@ pub enum ChatKind {
     System,
 }
 
+/// A window the server opened: a container block or entity.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Window {
@@ -126,6 +129,7 @@ pub struct Window {
     pub slots: Vec<Stack>,
 }
 
+/// Where a `title` event's text shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum TitleKind {
@@ -136,6 +140,7 @@ pub enum TitleKind {
     Clear,
 }
 
+/// Why a bot ended (the `end` event).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

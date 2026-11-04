@@ -2,4 +2,7 @@
 import type { FormButton } from "./FormButton";
 import type { FormElement } from "./FormElement";
 
+/**
+ * What a [`Form`] asks for, by kind.
+ */
 export type FormBody = { "type": "simple", content: string, buttons: Array<FormButton>, elements: Array<FormElement>, positions: Array<number>, } | { "type": "modal", content: string, yes: string, no: string, } | { "type": "custom", elements: Array<FormElement>, };

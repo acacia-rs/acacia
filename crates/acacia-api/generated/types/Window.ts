@@ -3,6 +3,9 @@ import type { BlockPos } from "./BlockPos";
 import type { Stack } from "./Stack";
 import type { UniqueId } from "./UniqueId";
 
+/**
+ * A window the server opened: a container block or entity.
+ */
 export type Window = { windowId: number, 
 /**
  * The protocol's window type name (`Container`, `Furnace`, ...).

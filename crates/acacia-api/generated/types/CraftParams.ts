@@ -2,6 +2,9 @@
 import type { BlockPos } from "./BlockPos";
 import type { BotId } from "./BotId";
 
+/**
+ * The item to craft, how many and where.
+ */
 export type CraftParams = { bot: BotId, 
 /**
  * The item to make (`minecraft:stick`, or just `stick`).

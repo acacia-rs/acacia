@@ -7,6 +7,7 @@ use ts_rs::TS;
 
 use crate::{BotId, FormAnswer};
 
+/// A chat line to send.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ChatParams {
     pub bot: BotId,
@@ -14,6 +15,7 @@ pub struct ChatParams {
     pub message: String,
 }
 
+/// A slash command to run.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct CommandParams {
     pub bot: BotId,
@@ -21,6 +23,7 @@ pub struct CommandParams {
     pub command: String,
 }
 
+/// The goal to walk to.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct GotoParams {
     pub bot: BotId,
@@ -59,6 +62,7 @@ pub struct DigParams {
     pub equip_best_tool: Option<bool>,
 }
 
+/// An open form and the answer to it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct AnswerFormParams {
     pub bot: BotId,
@@ -67,6 +71,7 @@ pub struct AnswerFormParams {
     pub answer: FormAnswer,
 }
 
+/// How many ticks to let pass.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct WaitForTicksParams {
     pub bot: BotId,

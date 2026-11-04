@@ -8,6 +8,7 @@
       "params": {
         "$defs": {
           "Auth": {
+            "description": "How a bot logs in.",
             "oneOf": [
               {
                 "const": "offline",
@@ -72,6 +73,7 @@
             "type": "string"
           },
           "FoodPreference": {
+            "description": "Which food auto-eat picks.",
             "oneOf": [
               {
                 "const": "saturation",
@@ -86,6 +88,7 @@
             ]
           },
           "Transport": {
+            "description": "The network protocol a bot connects over.",
             "enum": [
               "auto",
               "raknet",
@@ -95,6 +98,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The server to join and what the bot tracks there.",
         "properties": {
           "auth": {
             "anyOf": [
@@ -201,6 +205,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The new bot's id.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -220,6 +225,7 @@
       "name": "signIn",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The Microsoft account to sign in.",
         "properties": {
           "profilesFolder": {
             "description": "Where tokens are cached, one `<username>.json` each (default `~/.acacia/auth` of the host's user). Holds\nrefresh tokens: keep it private. acacia-daemon sets it itself and refuses this.",
@@ -241,6 +247,7 @@
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The Xbox profile a sign-in reached.",
         "properties": {
           "displayName": {
             "description": "The Xbox gamertag servers will see.",
@@ -271,6 +278,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -307,6 +315,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A bot's call to cancel.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -344,6 +353,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A host call (no bot yet) to cancel.",
         "properties": {
           "call": {
             "$ref": "#/$defs/CallId",
@@ -375,6 +385,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -435,6 +446,7 @@
             "type": "object"
           },
           "Effect": {
+            "description": "A status effect on the bot, by the protocol's effect id.",
             "properties": {
               "amplifier": {
                 "format": "int32",
@@ -798,6 +810,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The event groups the bot reports from now on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -837,6 +850,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A chat line to send.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -875,6 +889,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A slash command to run.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1072,6 +1087,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The goal to walk to.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1236,6 +1252,7 @@
             ]
           },
           "FormValue": {
+            "description": "A custom form answer's value for one input element.",
             "oneOf": [
               {
                 "properties": {
@@ -1309,6 +1326,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "An open form and the answer to it.",
         "properties": {
           "answer": {
             "$ref": "#/$defs/FormAnswer"
@@ -1352,6 +1370,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many ticks to let pass.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1395,6 +1414,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The entity to keep close to.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1492,6 +1512,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The entity to swing at.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1540,6 +1561,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A movement key to hold (`state` true) or release.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1578,6 +1600,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1630,6 +1653,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The item to move and where to.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1677,6 +1701,7 @@
             "type": "string"
           },
           "Face": {
+            "description": "A block face, by the direction it points.",
             "enum": [
               "down",
               "up",
@@ -1748,6 +1773,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block names to look for around the bot, and how far and how many.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1812,6 +1838,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The cells `bot.findBlocks` found.",
         "properties": {
           "blocks": {
             "description": "Nearest first.",
@@ -1866,6 +1893,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The item to craft, how many and where.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1904,6 +1932,7 @@
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many items `bot.craft` made.",
         "properties": {
           "crafted": {
             "description": "Items made: `count` or more, fewer only when the ingredients ran out after at least one craft.",
@@ -1934,6 +1963,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The item to list recipes for.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -1953,6 +1983,7 @@
       "result": {
         "$defs": {
           "ItemCount": {
+            "description": "An item (or item tag) and a count.",
             "properties": {
               "count": {
                 "format": "uint32",
@@ -2010,6 +2041,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The server's recipes for an item.",
         "properties": {
           "recipes": {
             "items": {
@@ -2040,6 +2072,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The container block cell `x, y, z` to read.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2069,6 +2102,7 @@
       "result": {
         "$defs": {
           "ContainerItem": {
+            "description": "One non-empty container slot.",
             "properties": {
               "count": {
                 "format": "uint32",
@@ -2094,6 +2128,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What a container held when it was read.",
         "properties": {
           "items": {
             "description": "The non-empty slots, in slot order.",
@@ -2168,6 +2203,7 @@
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How a `bot.deposit` or `bot.withdraw` went.",
         "properties": {
           "moved": {
             "description": "Items moved: fewer than `count` once the source has no more or the other side is full.",
@@ -2241,6 +2277,7 @@
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How a `bot.deposit` or `bot.withdraw` went.",
         "properties": {
           "moved": {
             "description": "Items moved: fewer than `count` once the source has no more or the other side is full.",
@@ -2332,6 +2369,7 @@
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many items `bot.smelt` took out.",
         "properties": {
           "smelted": {
             "description": "Items taken out of the output slot.",
@@ -2362,6 +2400,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What to eat or drink.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2424,6 +2463,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The items to throw, how many and which way.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2462,6 +2502,7 @@
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many items `bot.toss` threw.",
         "properties": {
           "tossed": {
             "format": "uint32",
@@ -2490,6 +2531,7 @@
             "type": "string"
           },
           "Face": {
+            "description": "A block face, by the direction it points.",
             "enum": [
               "down",
               "up",
@@ -2561,6 +2603,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2593,6 +2636,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2629,6 +2673,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The entity to right-click.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2664,6 +2709,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2696,6 +2742,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The hotbar slot to hold.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2736,6 +2783,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -2797,6 +2845,7 @@
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What `bot.equipBestTool` holds now.",
         "properties": {
           "slot": {
             "description": "The hotbar slot now held; null when nothing in the inventory beats the bare hand (the held item is kept).",
@@ -2830,6 +2879,7 @@
             "type": "string"
           },
           "FoodPreference": {
+            "description": "Which food auto-eat picks.",
             "oneOf": [
               {
                 "const": "saturation",
@@ -2845,7 +2895,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "description": "How auto-eat picks its moment and its food; every field has a default.",
+        "description": "Auto-eat on (with its policy) or off.",
         "properties": {
           "below": {
             "description": "Eat when the hunger bar (0-20) drops below this; 14 when absent.",
@@ -2959,6 +3009,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -3055,6 +3106,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Which grid `bot.craftableItems` counts.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -3076,6 +3128,7 @@
       "result": {
         "$defs": {
           "ItemCount": {
+            "description": "An item (or item tag) and a count.",
             "properties": {
               "count": {
                 "format": "uint32",
@@ -3095,6 +3148,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The items the inventory can craft now.",
         "properties": {
           "items": {
             "description": "One entry per item, in the server's recipe order, with what one craft of its first fitting recipe makes.",
@@ -3126,6 +3180,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How far `bot.blockAtCursor` looks.",
         "properties": {
           "bot": {
             "$ref": "#/$defs/BotId"
@@ -3231,6 +3286,7 @@
             "type": "object"
           },
           "Face": {
+            "description": "A block face, by the direction it points.",
             "enum": [
               "down",
               "up",
@@ -3266,6 +3322,7 @@
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block the bot looks at, if any.",
         "properties": {
           "hit": {
             "anyOf": [

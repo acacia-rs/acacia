@@ -19,6 +19,7 @@ pub struct ActivateBlockParams {
     pub face: Option<Face>,
 }
 
+/// The entity to right-click.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ActivateEntityParams {
     pub bot: BotId,
@@ -26,6 +27,7 @@ pub struct ActivateEntityParams {
     pub entity: EntityId,
 }
 
+/// The hotbar slot to hold.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct SetQuickBarSlotParams {
     pub bot: BotId,

@@ -48,10 +48,13 @@ import type { TransferResult } from "./types/TransferResult";
 import type { WaitForTicksParams } from "./types/WaitForTicksParams";
 import type { WriteSignParams } from "./types/WriteSignParams";
 
+/** The wire protocol's version, checked in acacia-daemon's `hello`. */
 export const PROTOCOL_VERSION = 1;
 
+/** Where a method runs: on the host (no bot yet), queued behind the bot's running action, or at once. */
 export type Lane = "host" | "queued" | "immediate";
 
+/** Every method of the table by name: its params, its result and its lane. */
 export interface Methods {
   /**
    * Connects a bot and resolves once it has spawned. The `done` record names the new bot.
@@ -286,8 +289,11 @@ export interface Methods {
   "bot.blockAtCursor": { params: BlockAtCursorParams; result: BlockAtCursorResult; lane: "immediate" };
 }
 
+/** A method's name (`createBot`, `bot.goto`, ...). */
 export type MethodName = keyof Methods;
+/** Method `M`'s params. */
 export type Params<M extends MethodName> = Methods[M]["params"];
+/** Method `M`'s result (`null` for none). */
 export type Result<M extends MethodName> = Methods[M]["result"];
 /** One call as a transport sends it. */
 export type Command = { [M in MethodName]: { call: number; method: M; params: Params<M> } }[MethodName];

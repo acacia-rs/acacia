@@ -2,6 +2,9 @@
 import type { BotId } from "./BotId";
 import type { EquipDestination } from "./EquipDestination";
 
+/**
+ * The item to move and where to.
+ */
 export type EquipParams = { bot: BotId, 
 /**
  * An item name (`minecraft:stone`, or just `stone`) in the main inventory.

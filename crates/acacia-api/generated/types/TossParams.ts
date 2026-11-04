@@ -2,6 +2,9 @@
 import type { BotId } from "./BotId";
 import type { Vec3 } from "./Vec3";
 
+/**
+ * The items to throw, how many and which way.
+ */
 export type TossParams = { bot: BotId, 
 /**
  * The item (`minecraft:dirt`, or just `dirt`).

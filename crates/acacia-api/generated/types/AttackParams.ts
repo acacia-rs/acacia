@@ -2,6 +2,9 @@
 import type { BotId } from "./BotId";
 import type { EntityId } from "./EntityId";
 
+/**
+ * The entity to swing at.
+ */
 export type AttackParams = { bot: BotId, 
 /**
  * A tracked entity's id (players included).

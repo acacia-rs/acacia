@@ -6,6 +6,7 @@ use ts_rs::TS;
 
 use crate::BotId;
 
+/// The container block cell `x, y, z` to read.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ContainerParams {
     pub bot: BotId,
@@ -14,12 +15,14 @@ pub struct ContainerParams {
     pub z: i32,
 }
 
+/// What a container held when it was read.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ContainerContents {
     /// The non-empty slots, in slot order.
     pub items: Vec<ContainerItem>,
 }
 
+/// One non-empty container slot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ContainerItem {
     pub slot: u32,
@@ -43,6 +46,7 @@ pub struct TransferParams {
     pub count: Option<u32>,
 }
 
+/// How a `bot.deposit` or `bot.withdraw` went.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct TransferResult {
     /// Items moved: fewer than `count` once the source has no more or the other side is full.

@@ -2,4 +2,7 @@
 import type { BotId } from "./BotId";
 import type { Goal } from "./Goal";
 
+/**
+ * The goal to walk to.
+ */
 export type GotoParams = { bot: BotId, goal: Goal, };

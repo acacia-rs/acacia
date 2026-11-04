@@ -6,6 +6,7 @@ use ts_rs::TS;
 
 use crate::{BotId, EntityId};
 
+/// The entity to keep close to.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct FollowParams {
     pub bot: BotId,
@@ -26,6 +27,7 @@ pub struct LookAtParams {
     pub z: f32,
 }
 
+/// The entity to swing at.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct AttackParams {
     pub bot: BotId,
@@ -33,6 +35,7 @@ pub struct AttackParams {
     pub entity: EntityId,
 }
 
+/// A movement key to hold (`state` true) or release.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct SetControlStateParams {
     pub bot: BotId,

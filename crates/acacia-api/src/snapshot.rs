@@ -78,6 +78,7 @@ pub struct Stack {
     pub custom_name: Option<String>,
 }
 
+/// A status effect on the bot, by the protocol's effect id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct Effect {
     pub id: i32,
@@ -92,6 +93,7 @@ pub struct ItemTable {
     pub items: Vec<ItemName>,
 }
 
+/// One [`ItemTable`] entry: a network id and its namespaced item name.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ItemName {
     pub id: i32,

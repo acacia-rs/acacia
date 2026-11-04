@@ -2,6 +2,9 @@
 import type { BotId } from "./BotId";
 import type { CallId } from "./CallId";
 
+/**
+ * A bot's call to cancel.
+ */
 export type CancelParams = { bot: BotId, 
 /**
  * The call to cancel.

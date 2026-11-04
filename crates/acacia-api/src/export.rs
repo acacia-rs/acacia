@@ -69,8 +69,12 @@ pub fn methods_ts(cfg: &ts_rs::Config) -> String {
         ts += line;
         ts.push('\n');
     }
-    let _ = write!(ts, "\nexport const PROTOCOL_VERSION = {PROTOCOL_VERSION};\n\n");
-    ts += "export type Lane = \"host\" | \"queued\" | \"immediate\";\n\nexport interface Methods {\n";
+    ts += "\n/** The wire protocol's version, checked in acacia-daemon's `hello`. */\n";
+    let _ = write!(ts, "export const PROTOCOL_VERSION = {PROTOCOL_VERSION};\n\n");
+    ts += "/** Where a method runs: on the host (no bot yet), queued behind the bot's running action, or at once. */\n";
+    ts += "export type Lane = \"host\" | \"queued\" | \"immediate\";\n\n";
+    ts += "/** Every method of the table by name: its params, its result and its lane. */\n";
+    ts += "export interface Methods {\n";
     for m in METHODS {
         ts += "  /**\n";
         for line in doc_lines(m) {
@@ -83,9 +87,9 @@ pub fn methods_ts(cfg: &ts_rs::Config) -> String {
         let (params, result) = ((m.params.ts_name)(cfg), (m.result.ts_name)(cfg));
         let _ = writeln!(ts, "   */\n  \"{}\": {{ params: {params}; result: {result}; lane: {lane} }};", m.name);
     }
-    ts += "}\n\nexport type MethodName = keyof Methods;\n";
-    ts += "export type Params<M extends MethodName> = Methods[M][\"params\"];\n";
-    ts += "export type Result<M extends MethodName> = Methods[M][\"result\"];\n";
+    ts += "}\n\n/** A method's name (`createBot`, `bot.goto`, ...). */\nexport type MethodName = keyof Methods;\n";
+    ts += "/** Method `M`'s params. */\nexport type Params<M extends MethodName> = Methods[M][\"params\"];\n";
+    ts += "/** Method `M`'s result (`null` for none). */\nexport type Result<M extends MethodName> = Methods[M][\"result\"];\n";
     ts += "/** One call as a transport sends it. */\n";
     ts += "export type Command = { [M in MethodName]: { call: number; method: M; params: Params<M> } }[MethodName];\n";
     ts

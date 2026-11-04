@@ -2,4 +2,7 @@
 import type { BotId } from "./BotId";
 import type { EventGroup } from "./EventGroup";
 
+/**
+ * The event groups the bot reports from now on.
+ */
 export type SetEventsParams = { bot: BotId, events: Array<EventGroup>, };

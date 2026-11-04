@@ -2,4 +2,7 @@
 import type { BotId } from "./BotId";
 import type { Control } from "./Control";
 
+/**
+ * A movement key to hold (`state` true) or release.
+ */
 export type SetControlStateParams = { bot: BotId, control: Control, state: boolean, };

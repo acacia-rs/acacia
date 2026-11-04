@@ -11,6 +11,7 @@ pub struct ApiError {
     pub message: String,
 }
 
+/// What kind of failure an [`ApiError`] is; new codes may be added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[non_exhaustive]

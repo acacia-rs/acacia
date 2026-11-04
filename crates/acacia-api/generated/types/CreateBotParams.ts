@@ -4,6 +4,9 @@ import type { AutoEatPolicy } from "./AutoEatPolicy";
 import type { EventGroup } from "./EventGroup";
 import type { Transport } from "./Transport";
 
+/**
+ * The server to join and what the bot tracks there.
+ */
 export type CreateBotParams = { 
 /**
  * Server host name or address.

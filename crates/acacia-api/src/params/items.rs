@@ -6,6 +6,7 @@ use ts_rs::TS;
 
 use crate::{Block, BlockPos, BotId, Vec3};
 
+/// The item to move and where to.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct EquipParams {
     pub bot: BotId,
@@ -43,6 +44,7 @@ pub struct PlaceBlockParams {
     pub face: Option<Face>,
 }
 
+/// A block face, by the direction it points.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum Face {
@@ -54,6 +56,7 @@ pub enum Face {
     East,
 }
 
+/// The block names to look for around the bot, and how far and how many.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FindBlocksParams {
@@ -70,12 +73,14 @@ pub struct FindBlocksParams {
     pub count: Option<u32>,
 }
 
+/// The cells `bot.findBlocks` found.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct FindBlocksResult {
     /// Nearest first.
     pub blocks: Vec<BlockPos>,
 }
 
+/// How far `bot.blockAtCursor` looks.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockAtCursorParams {
@@ -86,6 +91,7 @@ pub struct BlockAtCursorParams {
     pub max_distance: Option<f32>,
 }
 
+/// The block the bot looks at, if any.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct BlockAtCursorResult {
     /// Null when the ray meets no block within the distance (or only unloaded chunks).
@@ -105,6 +111,7 @@ pub struct CursorHit {
     pub distance: f32,
 }
 
+/// What to eat or drink.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ConsumeParams {
     pub bot: BotId,
@@ -114,6 +121,7 @@ pub struct ConsumeParams {
     pub item: Option<String>,
 }
 
+/// The items to throw, how many and which way.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct TossParams {
     pub bot: BotId,
@@ -129,6 +137,7 @@ pub struct TossParams {
     pub toward: Option<Vec3>,
 }
 
+/// How many items `bot.toss` threw.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct TossResult {
     pub tossed: u32,

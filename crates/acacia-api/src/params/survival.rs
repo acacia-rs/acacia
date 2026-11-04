@@ -15,6 +15,7 @@ pub struct EquipBestToolParams {
     pub z: i32,
 }
 
+/// What `bot.equipBestTool` holds now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct EquipBestToolResult {
     /// The hotbar slot now held; null when nothing in the inventory beats the bare hand (the held item is kept).
@@ -40,6 +41,7 @@ pub struct AutoEatPolicy {
     pub from_inventory: Option<bool>,
 }
 
+/// Which food auto-eat picks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum FoodPreference {
@@ -49,6 +51,7 @@ pub enum FoodPreference {
     NoWaste,
 }
 
+/// Auto-eat on (with its policy) or off.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct SetAutoEatParams {
     pub bot: BotId,

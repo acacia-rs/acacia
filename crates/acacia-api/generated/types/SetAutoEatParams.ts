@@ -2,6 +2,9 @@
 import type { BotId } from "./BotId";
 import type { FoodPreference } from "./FoodPreference";
 
+/**
+ * Auto-eat on (with its policy) or off.
+ */
 export type SetAutoEatParams = { bot: BotId, 
 /**
  * On or off.
