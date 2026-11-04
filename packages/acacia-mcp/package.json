@@ -31,7 +31,7 @@
     "test": "node --test --test-reporter=spec 'test/*.test.mjs'"
   },
   "dependencies": {
-    "@acacia-rs/bot": "file:../acacia-bot",
+    "@acacia-rs/bot": "^0.1.0",
     "@modelcontextprotocol/server": "2.4.0"
   },
   "devDependencies": {

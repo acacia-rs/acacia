@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish @acacia-rs/bot to npm under the `next` dist-tag (see packages/RELEASING.md)
+        description: Publish @acacia-rs/bot and @acacia-rs/mcp to npm under the `next` dist-tag (see packages/RELEASING.md)
         type: boolean
         default: false
 
@@ -57,6 +57,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22, 24]
     runs-on: ${{ matrix.os }}
     env:
       # The package scripts use POSIX env prefixes and quoted globs; cmd.exe can't run them.
@@ -67,20 +68,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
-          cache-dependency-path: packages/*/package-lock.json
+          cache-dependency-path: packages/package-lock.json
+      # One workspace (packages/package.json): @acacia-rs/mcp links the local @acacia-rs/bot.
       - run: npm ci
-        working-directory: packages/acacia-bot
-      - run: npm ci
-        working-directory: packages/acacia-mcp
+        working-directory: packages
       # Builds @acacia-rs/bot (debug, test-server) first, then the MCP package.
       - run: npm run build:test
         working-directory: packages/acacia-mcp
+      # ws-e2e.test.mjs runs against the daemon.
+      - run: cargo build -p acacia-daemon
       - run: npm test
         working-directory: packages/acacia-bot
       - run: npm test
         working-directory: packages/acacia-mcp
+      # The tarballs npm would publish, installed into an empty project and loaded.
+      - run: bash scripts/pack-smoke.sh
+        working-directory: packages
 
   build:
     if: github.event_name != 'pull_request'
@@ -114,9 +119,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: packages/acacia-bot/package-lock.json
+          cache-dependency-path: packages/package-lock.json
       - run: npm ci
-        working-directory: packages/acacia-bot
+        working-directory: packages
       # Before the build: the generated loader hardcodes the platform package names.
       - name: Rename to the release scope
         if: env.NPM_SCOPE != '@acacia-rs'
@@ -160,6 +165,7 @@ jobs:
       # Trusted publishing needs npm >= 11.5.1; Node 22 ships 10.x, which fails with a misleading E404.
       - run: npm install -g npm@11
       - run: npm ci
+        working-directory: packages
       - uses: actions/download-artifact@v4
         with:
           pattern: bindings-*
@@ -187,3 +193,11 @@ jobs:
           npm_config_tag: next
           npm_config_provenance: true
       - run: npm publish --tag next --provenance --access public
+      # After the bot it depends on (by version range). Its sources import @acacia-rs/bot, so it ships only under
+      # that scope.
+      - name: Publish @acacia-rs/mcp
+        if: env.NPM_SCOPE == '@acacia-rs'
+        working-directory: packages/acacia-mcp
+        run: |
+          npm run build:ts
+          npm publish --tag next --provenance --access public

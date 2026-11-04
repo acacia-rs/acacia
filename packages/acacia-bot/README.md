@@ -1,8 +1,20 @@
 # @acacia-rs/bot
 
-Minecraft Bedrock bots for Node.js (≥ 22), running on acacia's Rust client in-process through a Node-API addon
+Minecraft Bedrock bots for Node.js, running on acacia's Rust client in-process through a Node-API addon
 (`crates/acacia-node`), or on an acacia daemon over WebSocket (`crates/acacia-daemon`) with the same API.
-Pre-release: nothing is published yet.
+Pre-release: published under the `next` tag while the API settles.
+
+```sh
+npm i @acacia-rs/bot@next
+```
+
+- **Node** ≥ 22.12, ESM (CommonJS can `require()` it; see Packaging below).
+- **Platforms** with a prebuilt addon: Linux x64 and arm64 (glibc), Linux x64 (musl), macOS x64 and arm64, Windows
+  x64 and arm64. npm installs the one binary for your platform. Elsewhere the package still runs bots on an acacia
+  daemon over WebSocket (`via: 'ws://...'`).
+- **Servers.** `auth: 'offline'` (the default) joins servers with `online-mode=false`: LAN worlds, most test
+  servers, a local BDS. `auth: 'microsoft'` signs an Xbox account in by device code and joins online-mode servers
+  (Sign-in, below). Realms and friend joins are not supported yet.
 
 ```js
 import { createBot, goals } from '@acacia-rs/bot'
@@ -18,12 +30,15 @@ bot.on('chat', async ({ sender, plain }) => {
 })
 ```
 
-`examples/hello.mjs` is the full hello world: `node examples/hello.mjs 127.0.0.1:19132 Sprout`.
+[`examples/hello.mjs`](examples/hello.mjs) is the full hello world: `node examples/hello.mjs 127.0.0.1:19132 Sprout`.
+For LLM agents, [`@acacia-rs/mcp`](../acacia-mcp) serves these bots over MCP.
 
 ## Build and test
 
+From a checkout (Rust stable and Node ≥ 22.12). The two packages are one npm workspace: install from `packages/`.
+
 ```sh
-npm install
+(cd .. && npm install)
 npm run build        # release addon (napi build, cargo -j 2, this crate only) + tsc
 npm run build:test   # debug addon with the `test-server` feature (TestServer for the end-to-end tests) + tsc
 npm test             # node:test: test/*.test.mjs over a fake transport (test/fake.mjs), e2e.test.mjs over FakeServer,

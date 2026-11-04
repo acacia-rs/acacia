@@ -1,0 +1,9 @@
+{
+  "name": "acacia-js-packages",
+  "private": true,
+  "description": "npm workspace of acacia's JS packages: one lockfile, @acacia-rs/mcp linked to the local @acacia-rs/bot",
+  "workspaces": [
+    "acacia-bot",
+    "acacia-mcp"
+  ]
+}

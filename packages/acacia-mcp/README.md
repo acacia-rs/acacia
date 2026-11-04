@@ -2,11 +2,12 @@
 
 An [MCP](https://modelcontextprotocol.io) server that lets LLM agents (Claude Desktop, Claude Code, Mindcraft-style
 setups) play Minecraft Bedrock through acacia bots. It runs on [`@acacia-rs/bot`](../acacia-bot) in-process and
-speaks MCP over stdio with the official TypeScript SDK (v2, `@modelcontextprotocol/server`). Pre-release: nothing
-is published yet.
+speaks MCP over stdio with the official TypeScript SDK (v2, `@modelcontextprotocol/server`). Pre-release, published
+under the `next` tag; Node ≥ 22.12 on the platforms `@acacia-rs/bot` ships binaries for (Linux x64/arm64 glibc,
+Linux x64 musl, macOS x64/arm64, Windows x64/arm64).
 
 ```sh
-npx @acacia-rs/mcp --host 127.0.0.1 --port 19132 --username Bot --offline
+npx -y @acacia-rs/mcp@next --host 127.0.0.1 --port 19132 --username Bot --offline
 ```
 
 With `--host` and `--username` the bot connects at start (`--no-connect` waits for the `connect` tool, which also
@@ -19,18 +20,27 @@ commands); it is off by default, and there is no raw packet tool.
 
 ## Setup
 
-Claude Desktop (`claude_desktop_config.json`) or Claude Code (`.mcp.json`, or `claude mcp add`):
+Claude Code:
+
+```sh
+claude mcp add minecraft -- npx -y @acacia-rs/mcp@next --host 127.0.0.1 --port 19132 --username Bot --offline
+```
+
+Claude Desktop (`claude_desktop_config.json`), or a project's `.mcp.json` for Claude Code:
 
 ```json
 {
   "mcpServers": {
     "minecraft": {
       "command": "npx",
-      "args": ["@acacia-rs/mcp", "--host", "127.0.0.1", "--port", "19132", "--username", "Bot", "--offline"]
+      "args": ["-y", "@acacia-rs/mcp@next", "--host", "127.0.0.1", "--port", "19132", "--username", "Bot", "--offline"]
     }
   }
 }
 ```
+
+For an online-mode server use `--auth microsoft` instead of `--offline`: the first `connect` returns a device code
+and the page to enter it on, and the tokens are cached for later runs.
 
 From a checkout, use `"command": "node"` with `"args": ["<repo>/packages/acacia-mcp/dist/cli.js", ...]`, or
 `claude mcp add minecraft -- node <repo>/packages/acacia-mcp/dist/cli.js --host 127.0.0.1 --username Bot`.
@@ -98,7 +108,7 @@ is `findBlocks` + `dig`, building `equip` + `placeBlock`, and crafting `craft` (
 ## Build and test
 
 ```sh
-npm install
+(cd .. && npm install)   # one workspace with @acacia-rs/bot, linked locally
 npm run build        # @acacia-rs/bot's release build, then sync-methods + tsc
 npm run build:test   # @acacia-rs/bot's debug addon with TestServer, then sync-methods + tsc
 npm test             # node:test: tool generation and calls over a fake transport; e2e.test.mjs over FakeServer
