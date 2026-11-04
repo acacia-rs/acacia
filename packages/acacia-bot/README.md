@@ -48,7 +48,8 @@ acacia-host's; the addon: acacia-node's).
 - **Calls** resolve or reject from their `done` record, which comes after every event the bot raised before the call
   ended: listeners see what happened during `goto` before `await bot.goto()` returns. A refusal (`BUSY`,
   `UNKNOWN_BOT`, `CLOSED`, ...) rejects at once. `goto`, `follow`, `lookAt`, `attack`, `equip`, `placeBlock`, `dig`,
-  `craft`, `recipesFor`, the container verbs, `smelt`, `consume`, `toss`, `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
+  `craft`, `recipesFor`, the container verbs, `smelt`, `consume`, `toss`, the activation and hand verbs, `respawn`,
+  `answerForm` and `waitForTicks` queue per bot and run in call order; `chat`, `command`, `setEvents`,
   `setControlState`, `clearControlStates`, `snapshot` and `close` run at once, mid-action too.
   `bot.request(method, params, options)` calls any table method by name with the bot's id filled in, for generic
   callers such as `@acacia-rs/mcp`.
@@ -126,6 +127,12 @@ acacia-host's; the addon: acacia-node's).
   destination = 'hand')` moves an item there; `placeBlock(referenceBlock, face = 'up')` resolves once the server
   shows a block in the target cell (`REJECTED` after three tries). Item arguments take a name (`stone` or
   `minecraft:stone`) or an `inventory` entry throughout.
+- **Activation and hands** (mineflayer's names). `activateBlock(pos, face = 'up')` right-clicks a block in reach
+  (doors, buttons, levers, beds) and `activateEntity(entity)` an entity (trade, mount, feed), each facing it first and
+  resolving once the click is sent, not once the world changed. `activateItem()` uses the held item in the air;
+  a bow or shield stays in use until `deactivateItem()`. `swingArm()`, `setQuickBarSlot(0-8)`. `respawn()` presses
+  respawn after death (`NOT_POSSIBLE` while alive); bots do it on their own about 2 s after dying unless
+  `createBot({ autoRespawn: false })`. All queue behind a running action.
 - **Crafting.** `craft(item, count = 1, { table })` crafts through the recipe book from the inventory, in the own
   2x2 grid or at the crafting table at `table` (within reach), and resolves with how many items were made: at least
   `count` (a craft makes the recipe's whole output), fewer only when the ingredients ran out after one craft.

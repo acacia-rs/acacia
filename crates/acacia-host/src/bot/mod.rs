@@ -52,6 +52,7 @@ pub(crate) async fn run(spawn: Spawn) {
     let config = BotConfig {
         trackers: Trackers { entities: params.entities.unwrap_or(false), ..Trackers::default() },
         physics: params.physics.unwrap_or(false),
+        auto_respawn: params.auto_respawn.unwrap_or(true),
         events: convert::events(params.events.as_deref().unwrap_or_default()),
         event_sink: Some(sink),
         snapshots,

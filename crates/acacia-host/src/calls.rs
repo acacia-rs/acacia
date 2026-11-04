@@ -2,6 +2,7 @@
 
 mod containers;
 mod crafting;
+mod interact;
 mod items;
 
 use std::future::Future;
@@ -45,11 +46,24 @@ pub(crate) fn action(bot: &mut Bot, method: Method) -> Action<'_> {
         Method::Smelt(p) => Box::pin(async move { answer(crafting::smelt(bot, p).await, Reply::Smelt) }),
         Method::Consume(p) => Box::pin(async move { done(Reply::Consume(()))(items::consume(bot, p).await) }),
         Method::Toss(p) => Box::pin(async move { answer(items::toss(bot, p).await, Reply::Toss) }),
+        Method::ActivateBlock(p) => Box::pin(async move { done(Reply::ActivateBlock(()))(interact::activate_block(bot, p).await) }),
+        Method::ActivateItem(_) => now(bot, Bot::use_item, Reply::ActivateItem(())),
+        Method::DeactivateItem(_) => now(bot, Bot::release_item, Reply::DeactivateItem(())),
+        Method::ActivateEntity(p) => Box::pin(async move { done(Reply::ActivateEntity(()))(bot.interact_entity(p.entity.0).await) }),
+        Method::SwingArm(_) => now(bot, Bot::swing, Reply::SwingArm(())),
+        Method::SetQuickBarSlot(p) => Box::pin(async move { done(Reply::SetQuickBarSlot(()))(bot.select_hotbar(p.slot)) }),
+        Method::Respawn(_) => Box::pin(async move { done(Reply::Respawn(()))(interact::respawn(bot)) }),
         other => {
             let name = other.name();
             Box::pin(async move { Err(ApiError::new(ErrorCode::Internal, format!("{name} is not a queued method"))) })
         }
     }
+}
+
+/// A sync bot verb as an action that cannot fail.
+fn now(bot: &mut Bot, verb: fn(&mut Bot), reply: Reply) -> Action<'_> {
+    verb(bot);
+    Box::pin(async move { Ok(reply) })
 }
 
 fn answer<T>(r: Result<T, ActionError>, wrap: fn(T) -> Reply) -> Result<Reply, ApiError> {

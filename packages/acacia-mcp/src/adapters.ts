@@ -100,6 +100,12 @@ export const ADAPTERS: Partial<Record<string, Adapter>> = {
     params: entityRef,
     timeout: () => 10_000,
   },
+  'bot.activateEntity': {
+    schema: (base) => withProps(base, { entity: ENTITY_PARAM }),
+    params: entityRef,
+    timeout: () => 10_000,
+  },
+  'bot.activateBlock': { timeout: () => 10_000 },
   'bot.answerForm': {
     schema: (base) => ({
       type: 'object',

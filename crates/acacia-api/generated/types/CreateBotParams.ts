@@ -39,6 +39,11 @@ physics?: boolean,
  */
 entities?: boolean, 
 /**
+ * Press "respawn" about 2 s after dying, as a player reading the death screen would (default true; off, call
+ * `bot.respawn`).
+ */
+autoRespawn?: boolean, 
+/**
  * Event groups reported from the start (default none; `bot.setEvents` changes them).
  */
 events?: Array<EventGroup>, };

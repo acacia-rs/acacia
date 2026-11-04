@@ -59,10 +59,12 @@ Every tool but `connect` takes an optional `bot` (a username), needed only while
 | `containerContents`, `deposit`, `withdraw` | Read a chest (or barrel, ...) at `x, y, z`; put items in; take items out |
 | `smelt`, `consume`, `toss`, `giveToPlayer` | Run a furnace at `x, y, z`; eat or drink; throw items (`toward` an entity); walk to a player and throw them items |
 | `lookAt`, `attack`, `waitForTicks`, `answerForm` | Look at a point; hit an entity; let ticks pass; answer a server form |
+| `activateBlock`, `activateEntity` | Right-click a block at `x, y, z` (doors, buttons, beds) / an entity (trade, mount, feed) |
+| `activateItem`, `deactivateItem`, `setQuickBarSlot`, `respawn` | Use the held item in the air / release it (bows, shields); select a hotbar slot; respawn after death |
 | `command` | Runs a slash command (only with `--allow-commands`) |
 
 `status` is the place to start: it is what an agent needs to pick its next action. Entity params (`follow`,
-`attack`) take an id from `nearbyEntities`, a player's name, or a kind (`zombie`) for the nearest one. Collecting
+`attack`, `activateEntity`) take an id from `nearbyEntities`, a player's name, or a kind (`zombie`) for the nearest one. Collecting
 is `findBlocks` + `dig`, building `equip` + `placeBlock`, and crafting `craft` (walk to a crafting table first for
 3x3 recipes).
 

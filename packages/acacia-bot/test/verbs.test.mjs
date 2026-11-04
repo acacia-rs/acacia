@@ -51,3 +51,23 @@ test('request calls a method by name with the bot filled in', async () => {
   assert.deepEqual(via.answer('bot.findBlocks', { ok: { blocks: [] } }).params, { bot: 'bot-1', matching: ['stone'] })
   assert.deepEqual(await finding, { blocks: [] })
 })
+
+test('activation, hand and respawn verbs send flat params; entities go by id', async () => {
+  const { via, bot } = await connected({ autoRespawn: false })
+  assert.equal(via.last('createBot').params.autoRespawn, false)
+  const cases = [
+    [() => bot.activateBlock({ x: 1, y: 2, z: 3 }), 'bot.activateBlock', { x: 1, y: 2, z: 3 }],
+    [() => bot.activateBlock({ x: 1, y: 2, z: 3 }, 'north'), 'bot.activateBlock', { x: 1, y: 2, z: 3, face: 'north' }],
+    [() => bot.activateItem(), 'bot.activateItem', {}],
+    [() => bot.deactivateItem(), 'bot.deactivateItem', {}],
+    [() => bot.activateEntity(entity('9', 'minecraft:villager_v2', vec(0, 0, 0))), 'bot.activateEntity', { entity: '9' }],
+    [() => bot.swingArm(), 'bot.swingArm', {}],
+    [() => bot.setQuickBarSlot(4), 'bot.setQuickBarSlot', { slot: 4 }],
+    [() => bot.respawn(), 'bot.respawn', {}],
+  ]
+  for (const [run, method, params] of cases) {
+    const running = run()
+    assert.deepEqual(via.answer(method).params, { bot: 'bot-1', ...params }, method)
+    await running
+  }
+})

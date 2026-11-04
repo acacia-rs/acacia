@@ -39,6 +39,11 @@ pub struct CreateBotParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub entities: Option<bool>,
+    /// Press "respawn" about 2 s after dying, as a player reading the death screen would (default true; off, call
+    /// `bot.respawn`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub auto_respawn: Option<bool>,
     /// Event groups reported from the start (default none; `bot.setEvents` changes them).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

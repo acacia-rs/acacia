@@ -59,6 +59,13 @@
             ],
             "description": "Default `offline`."
           },
+          "autoRespawn": {
+            "description": "Press \"respawn\" about 2 s after dying, as a player reading the death screen would (default true; off, call\n`bot.respawn`).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "entities": {
             "description": "Track entities and other players, needed for their positions, entity events, `follow` and `attack`\n(default false: on busy servers it is most of the decode work).",
             "type": [
@@ -2368,6 +2375,283 @@
         ],
         "title": "TossResult",
         "type": "object"
+      }
+    },
+    {
+      "description": "Right-clicks a block with the held item, facing it first: opens doors, gates and trapdoors, presses buttons\nand levers, uses beds, crafting tables and containers. Resolves once the click is sent, without waiting for\nthe block to change. `NOT_POSSIBLE` out of reach, `NOT_VISIBLE` when blocks hide it.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.activateBlock",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Face": {
+            "enum": [
+              "down",
+              "up",
+              "north",
+              "south",
+              "west",
+              "east"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block cell `x, y, z` to right-click.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "face": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Face"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The face to click when the bot sees it, else one it sees; `up` when absent."
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "ActivateBlockParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Uses the held item in the air: eats, drinks, throws, draws a bow, raises a shield. Food finishes on its own;\na bow, crossbow or shield stays in use until `bot.deactivateItem`.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.activateItem",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Releases the item in use: shoots a drawn bow, lowers a shield.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.deactivateItem",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Right-clicks a tracked entity in reach, facing it first: trades with a villager, mounts, feeds, shears, names.\n`NOT_POSSIBLE` out of reach or untracked, `NOT_VISIBLE` behind blocks.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.activateEntity",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "entity": {
+            "$ref": "#/$defs/EntityId",
+            "description": "A tracked entity's id (players included)."
+          }
+        },
+        "required": [
+          "bot",
+          "entity"
+        ],
+        "title": "ActivateEntityParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Swings the main hand, as a click on nothing does.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.swingArm",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Selects a hotbar slot (0-8) as the held item. `NOT_POSSIBLE` past 8.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.setQuickBarSlot",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "slot": {
+            "description": "The hotbar slot to select, 0-8.",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "slot"
+        ],
+        "title": "SetQuickBarSlotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Presses \"respawn\" on the death screen; a `respawn` event follows once the server has moved the bot. Bots\nrespawn on their own unless created with `autoRespawn: false`. `NOT_POSSIBLE` while alive.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.respawn",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
       }
     }
   ],

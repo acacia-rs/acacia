@@ -73,4 +73,23 @@ api! {
     "bot.consume" => Consume(ConsumeParams) -> (), Queued [mcp];
     /// Throws items out of the inventory, a stack at a time. `NOT_POSSIBLE` when it has none.
     "bot.toss" => Toss(TossParams) -> TossResult, Queued [mcp];
+    /// Right-clicks a block with the held item, facing it first: opens doors, gates and trapdoors, presses buttons
+    /// and levers, uses beds, crafting tables and containers. Resolves once the click is sent, without waiting for
+    /// the block to change. `NOT_POSSIBLE` out of reach, `NOT_VISIBLE` when blocks hide it.
+    "bot.activateBlock" => ActivateBlock(ActivateBlockParams) -> (), Queued [mcp];
+    /// Uses the held item in the air: eats, drinks, throws, draws a bow, raises a shield. Food finishes on its own;
+    /// a bow, crossbow or shield stays in use until `bot.deactivateItem`.
+    "bot.activateItem" => ActivateItem(BotParams) -> (), Queued [mcp];
+    /// Releases the item in use: shoots a drawn bow, lowers a shield.
+    "bot.deactivateItem" => DeactivateItem(BotParams) -> (), Queued [mcp];
+    /// Right-clicks a tracked entity in reach, facing it first: trades with a villager, mounts, feeds, shears, names.
+    /// `NOT_POSSIBLE` out of reach or untracked, `NOT_VISIBLE` behind blocks.
+    "bot.activateEntity" => ActivateEntity(ActivateEntityParams) -> (), Queued [mcp];
+    /// Swings the main hand, as a click on nothing does.
+    "bot.swingArm" => SwingArm(BotParams) -> (), Queued [];
+    /// Selects a hotbar slot (0-8) as the held item. `NOT_POSSIBLE` past 8.
+    "bot.setQuickBarSlot" => SetQuickBarSlot(SetQuickBarSlotParams) -> (), Queued [mcp];
+    /// Presses "respawn" on the death screen; a `respawn` event follows once the server has moved the bot. Bots
+    /// respawn on their own unless created with `autoRespawn: false`. `NOT_POSSIBLE` while alive.
+    "bot.respawn" => Respawn(BotParams) -> (), Queued [mcp];
 }

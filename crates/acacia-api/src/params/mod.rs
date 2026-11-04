@@ -5,6 +5,7 @@ mod actions;
 mod containers;
 mod crafting;
 mod host;
+mod interact;
 mod items;
 mod moves;
 
@@ -12,5 +13,6 @@ pub use actions::*;
 pub use containers::*;
 pub use crafting::*;
 pub use host::*;
+pub use interact::*;
 pub use items::*;
 pub use moves::*;

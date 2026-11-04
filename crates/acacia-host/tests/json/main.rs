@@ -5,6 +5,7 @@ mod common;
 mod containers;
 mod crafting;
 mod entities;
+mod interact;
 mod items;
 mod moves;
 mod survival;

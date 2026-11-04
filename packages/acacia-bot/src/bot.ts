@@ -66,6 +66,40 @@ export class Bot extends BotItems {
     return this.call('bot.answerForm', { form: typeof form === 'number' ? form : form.id, answer }, options)
   }
 
+  /** Right-clicks the block at `pos` with the held item (doors, buttons, levers, beds), on `face` (default `up`) when it shows. */
+  activateBlock(pos: BlockPos, face?: Face, options?: CallOptions): Promise<void> {
+    const { x, y, z } = pos
+    return this.call('bot.activateBlock', { x, y, z, ...(face === undefined ? {} : { face }) }, options)
+  }
+
+  /** Uses the held item in the air (eat, throw, draw a bow, raise a shield); `deactivateItem` releases a bow or shield. */
+  activateItem(options?: CallOptions): Promise<void> {
+    return this.call('bot.activateItem', {}, options)
+  }
+
+  deactivateItem(options?: CallOptions): Promise<void> {
+    return this.call('bot.deactivateItem', {}, options)
+  }
+
+  /** Right-clicks an entity in reach: trade, mount, feed, shear. */
+  activateEntity(entity: EntityRef, options?: CallOptions): Promise<void> {
+    return this.call('bot.activateEntity', { entity: idOf(entity) }, options)
+  }
+
+  swingArm(options?: CallOptions): Promise<void> {
+    return this.call('bot.swingArm', {}, options)
+  }
+
+  /** Selects hotbar slot `slot` (0-8) as the held item. */
+  setQuickBarSlot(slot: number, options?: CallOptions): Promise<void> {
+    return this.call('bot.setQuickBarSlot', { slot }, options)
+  }
+
+  /** Presses "respawn" after dying (needed with `createBot({ autoRespawn: false })`). */
+  respawn(options?: CallOptions): Promise<void> {
+    return this.call('bot.respawn', {}, options)
+  }
+
   /** Lets `ticks` ticks (50 ms each) pass while the bot keeps playing. */
   waitForTicks(ticks: number, options?: CallOptions): Promise<void> {
     return this.call('bot.waitForTicks', { ticks }, options)
