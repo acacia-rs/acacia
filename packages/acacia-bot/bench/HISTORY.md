@@ -1,4 +1,4 @@
-# @acacia-rs/bot benchmark history (2026-11-03)
+# @acacia-rs/bot benchmark history (2026-11-03, appended 2026-11-04)
 
 Superseded runs, kept as they were recorded: the first runs (before the batch-limit fix and the latency and read
 fixes), the fixes' before/after, and the entity-delta A/B. Current numbers and the method: `RESULTS.md`. Rows are
@@ -179,3 +179,25 @@ without reading, read `bot.hot` once, then timed one `bot.entities`, 60 changes 
 
 The after-side ~85 µs is no larger than the first `bot.hot` read after the same 150 ms idle, so it is this box's
 cost of a first read after idling (at load ~80), not delta work. A read right after it costs 2–3 µs.
+
+## Event throughput and per-tick reads before the 2026-11-04 profile
+
+Moved from `RESULTS.md` when the profile and its fixes replaced them (their rows: untagged and `delta-after`).
+
+- Throughput (first runs): 300 bots delivered ~11.3k events/s (`physicsTick` at 19.4/bot/s, 113k entity moves/s
+  in `entityMoved`) for ~17% of the JS thread, ~1.5 µs per moved entity. Loop delay p50 0.06 ms. `lagged` was 0
+  in every run.
+- A per-tick `bot.hot` read cost ~7 µs in aggregate (`READ=hot`, 300 bots: JS thread 17.3% → 21.6%), when it
+  still crossed as JSON.
+
+Per-tick entity reads after the entity deltas (load 77–122, 2 reps; JS thread % with churn, spawns + removals per
+second across the bots, in parentheses):
+
+| bots, read | JS thread % (churn/s) | loop p99 ms |
+|---|---|---|
+| 100, entities | 12.0 (315), 13.7 (199) | 5.8, 6.4 |
+| 100, positions | 15.9 (165), 16.9 (155) | 7.1, 10.4 |
+| 300, entities | 14.2 (1247), 18.6 (1757) | 17, 34 |
+| 300, positions | 35.5 (1314), 40.9 (725) | 139, 144 |
+
+`positions` builds a fresh `Vec3` for each of ~600 entities per bot per tick, ~3.6 M objects/s at 300 bots.

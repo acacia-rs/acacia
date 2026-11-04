@@ -82,23 +82,76 @@ Calls, `READ=none` (median of 2 reps, load 10–27; idle = 1 bot, `CLOCKS=0 MOBS
 | 100 | 0.44 / 10.3 | 51.7 / 65.6 | 401 | 9.4% |
 | 300 | 1.41 / 30.9 | 54.0 / 113 | 311 | 16.1% |
 
-- Throughput (first runs, not re-run since): 300 bots deliver ~11.3k events/s (`physicsTick` at 19.4/bot/s,
-  113k entity moves/s in `entityMoved`) for ~17% of the JS thread, ~1.5 µs per moved entity. Loop delay p50
-  0.06 ms. `lagged` was 0 in every run.
-- A per-tick `bot.hot` read costs ~7 µs in aggregate (`READ=hot`, 300 bots: JS thread 17.3% → 21.6%).
+Steady state with a per-tick reader (`READ=entities`: each `physicsTick` reads `bot.hot` and `bot.entities`),
+300 bots, after the two fixes below (2026-11-04, 3 reps, load 43–49): ~10.9k events/s (`physicsTick` 19.4/bot/s,
+94–105k entity moves/s in `entityMoved`), JS thread 26–28%, shard threads 173–180%, forwarder 0.3%, immediate
+RTT p50 2.6–3.0 ms, loop delay p99 ~6 ms, `lagged` 0. Per bot that is ~0.59% of a core on the shards and
+~0.09% on the JS thread. A read costs what changed since the last one (entity deltas, contract in the package
+README). Earlier per-tick read tables (2026-11-03, before later commits; today's base gave a JS thread of
+27–29% where they show 14–19%) are in `HISTORY.md`.
 
-Per-tick entity reads (load 77–122, 2 reps; JS thread % with churn, spawns + removals per second across the
-bots, in parentheses):
+## Profile (2026-11-04)
 
-| bots, read | JS thread % (churn/s) | loop p99 ms |
+`bench:events` with ticks, entities and `READ=entities`, the release code with line tables (`--profile
+profiling`, `CARGO_PROFILE_PROFILING_DEBUG=line-tables-only`). Native: `perf record -F 499 -g -p <node>` over 15 s
+of the window; JS: `CPU_PROF=<file>` (the inspector's profiler over the window). Self time; the release build
+has no frame pointers, so perf's call chains (fp and DWARF alike) don't unwind and inclusive figures are JS-only.
+
+CPU split (% of one core, base = js/cancel before the fixes, load 41–58):
+
+| bots | shard threads (4) | JS thread | forwarder | sapling server |
+|---|---|---|---|---|
+| 100 | 60.7 | 14.4 | 0.5 | 39 |
+| 300 | 199–202 | 27–29 | 0.4 | 70 |
+
+Shard threads, 300 bots, top self frames (% of shard samples), before → after fix 1:
+
+| frame | before | after |
 |---|---|---|
-| 100, entities | 12.0 (315), 13.7 (199) | 5.8, 6.4 |
-| 100, positions | 15.9 (165), 16.9 (155) | 7.1, 10.4 |
-| 300, entities | 14.2 (1247), 18.6 (1757) | 17, 34 |
-| 300, positions | 35.5 (1314), 40.9 (725) | 139, 144 |
+| `RandomState::hash_one<&str>` + `sip::Hasher::write` (snapshot interner) | 27.2 | 2.3 |
+| `ListBuilder::build` closure + `EntityInfo::of` + list `Vec` build/drop | ~10 | ~28 |
+| `acacia_nbt` decode and drop (`drop_glue<Value>`, `read_payload`, `read_str`) | 7.9 | 8.9 |
+| malloc / free / memmove | 6.0 | 7.7 |
+| `acacia_bot::state` (`Entity::solid_box` 1.7, `Bot::apply` 2.3, ...) | 6.3 | ~7 |
+| session decode + inflate / proto reads / raknet | 3.1 / 2.2 / 0.7 | similar |
+| acacia-host (`play` select poll 1.4–1.7) + serde_json batch encoding | 1.9 + 2.0 | similar |
 
-- A read costs what changed since the last one (entity deltas, contract in the package README). `positions`
-  builds a fresh `Vec3` for each of ~600 entities per bot per tick, ~3.6 M objects/s at 300 bots.
+The interner's share moved into the per-tick list rebuild itself, which is now the top shard frame: ~600
+`EntityInfo`s per bot per tick, rebuilt whenever any entity packet arrived (Not done, below). At 100 bots the
+interner was 18.4% of shard samples.
+
+JS thread, 300 bots (% of busy samples; busy = 25% of the window before, 21% after):
+
+| frame | before | after fix 2 |
+|---|---|---|
+| `NativeTransport #receive`: `JSON.parse` of the record batches (self) | 44.3 | 47.3 |
+| addon calls (`NativeHost`, self) | 16.6 | 14.3 |
+| bench listener (`Object.keys(bot.entities)`) | 13.7 | 14.9 |
+| `bot.hot` (inclusive) | 11.8 | ~2 (`NativeHot.read` 1.5 self) |
+| `bot.entities` delta read (inclusive) | 13.0 | 13.8 |
+| GC | 3.9 | 3.9 |
+
+Natively the JS thread is 78% libnode (JSON parser, string-to-double) and 11% addon. `entityMoved` is ~95% of the
+batch bytes: each moved entity is a ~200-byte `Entity` object.
+
+## Fixes (2026-11-04)
+
+Interleaved A/B on the same box, 300 bots, `READ=entities`, `perf stat -e instructions,cycles --per-thread` over a
+15 s window, 3 reps a side (6 for fix 1's after side, which is also fix 2's before side). Each side ran from its own copy of
+the package; rows in `results/events.jsonl` tagged `prof-base` / `prof-fix1` / `prof-fix2` (the profile runs
+included; the stat counts themselves are not in the rows).
+
+| fix | metric | before | after |
+|---|---|---|---|
+| 1. snapshot lists reuse the entity strings at the same index (acacia-bot `snapshot/slots.rs`) | shard instructions, median | 107.9 G (107.6–108.5) | **98.7 G** (97.4–100.5) |
+| | shard cycles, median | 145.3 G | **124.9 G** |
+| | shard CPU | 199–202% | **170–180%** |
+| 2. `bot.hot` through a `Float64Array` instead of JSON (acacia-node `hot.rs`, `native-hot.ts`) | JS instructions, corrected for entity moves | – | **−1.4 / −1.8 / −2.3 G** (~5.6%) |
+| | `bot.hot` share of the busy JS thread | 11.8% | ~2% |
+
+- Fix 2's JS instructions scale with entity moves (0.196 G per 1k moves/s, fitted on the six fix-1 runs), so each
+  after run is compared to that fit at its own move rate; raw medians were 32.6 G before and 31.9 G after.
+- Load averages: 41–62 across the A/B runs, both sides alike.
 
 ## Sync reads (`bench:reads`)
 
@@ -133,9 +186,20 @@ long-lived entity state adds write barriers and promotions on every miss.
 
 ## Open
 
+- **Per-tick entity list rebuild** (the top shard frame, ~28% of shard samples at 300 bots): `Publisher` rebuilds
+  every `EntityInfo` whenever `Entities::version` moved, and it moves on every entity packet, in-view or not. A
+  per-entity change stamp set where the tracker applies a packet (`state/entities/apply.rs`, `moves.rs`) would let
+  `ListBuilder` copy unchanged entries and visit only the touched ones. Not done here: it reaches into the
+  tracker, outside this branch's snapshot code.
+- **`entityMoved` as JSON objects** (~95% of batch bytes; `JSON.parse` is ~45% of the busy JS thread at 300
+  bots). A `node` microbench (45 records of 24 entities): parsing `Entity` objects costs 1.33–1.46 µs per
+  entity, rows (`[id, uniqueId, kind, username, x, y, z, vx, vy, vz, yaw, pitch, health]`) expanded to the same
+  objects in JS 0.63–0.70 µs, with 38% fewer bytes. That changes the wire schema (acacia-api `Event::EntityMoved`,
+  the daemon, TS types), so it waits for a decision.
 - No heaptrack attribution of the extra ~0.8 MB/bot; arenas are the lead.
-- RakNet `BadSplit` losses: 3–4 across the 300-bot runs, and 7 join `DISCONNECTED` failures at load 50–66. Not
-  investigated.
+- RakNet `BadSplit` losses (3–4 across the earlier 300-bot runs; none in the 18 runs of 2026-11-04):
+  diagnosis and fix for the raknet owner in `research/js-measure/badsplit-diagnosis.md`. Out-of-scope hot
+  spots for other owners: `research/js-measure/hotspots-for-owners.md`.
 - The Rust (`memory_bench`, branch js/measure) and bedrock-protocol baselines are quoted from memory-results.md.
 
 ## Reproduce
@@ -143,7 +207,8 @@ long-lived entity state adds write barriers and promotions on every miss.
 ```sh
 npm run build                       # events, memory (npm run build:bench for reads and READ=)
 npm run bench:memory -- 100         # one run, one JSON line on stdout; env in the script header
-npm run bench:events -- 300        # READ=none|hot|entities|positions; TAG=<label> tags the row
+npm run bench:events -- 300        # READ=none|hot|entities|positions; TAG=<label> tags the row;
+                                    # CPU_PROF=x.cpuprofile profiles the JS thread over the window
 npm run bench:reads
 bash bench/matrix.sh memory 3       # the matrix, rows to results/<bench>.jsonl
 node bench/summarize.mjs            # median tables

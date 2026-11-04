@@ -2,7 +2,10 @@
 // `entitySpawn`/`entityGone` and `entityMoved` listeners, measured over a window after the joins (RESULTS.md).
 // usage: node bench/events.mjs <bots>
 // env: CLOCKS=225 MOBS=300 (the world), JOIN_MS=500, SETTLE=10, WINDOW=20 (s), PORT=19620, SHARDS (host default),
-//      PROBE_GAP=10 (ms between round-trip probes), READ=none|hot|entities|positions, SAPLING / ADDRESS (common.mjs)
+//      PROBE_GAP=10 (ms between round-trip probes), READ=none|hot|entities|positions, SAPLING / ADDRESS (common.mjs),
+//      CPU_PROF=<file> (the JS thread's .cpuprofile over the window)
+import { writeFileSync } from 'node:fs'
+import { Session } from 'node:inspector/promises'
 import { monitorEventLoopDelay } from 'node:perf_hooks'
 
 import { createBot, NativeTransport } from '@acacia-rs/bot'
@@ -102,6 +105,12 @@ async function probe(call, until) {
   return { calls: ms.length, errors, failedBots: failedBots.size, ...Object.fromEntries(Object.entries(percentiles(ms, [50, 99])).map(([k, v]) => [k, v === null ? null : round(v, 3)])) }
 }
 
+const cpuProf = env('CPU_PROF', null) && new Session()
+if (cpuProf) {
+  cpuProf.connect()
+  await cpuProf.post('Profiler.enable')
+  await cpuProf.post('Profiler.start')
+}
 reset()
 const delay = monitorEventLoopDelay({ resolution: 1 })
 delay.enable()
@@ -118,6 +127,7 @@ const cpu = process.cpuUsage(cpu0)
 const threads = threadCpu(threads0, threadTicks(), seconds)
 const serverCpu = server.pid ? round((pidTicks(server.pid) - server0) / seconds) : null
 delay.disable()
+if (cpuProf) writeFileSync(env('CPU_PROF'), JSON.stringify((await cpuProf.post('Profiler.stop')).profile))
 const window_ = { ...counts, ...wire }
 
 const perS = (v) => round(v / seconds)
