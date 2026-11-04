@@ -5,6 +5,7 @@ mod crafting;
 mod creative;
 mod grid;
 mod hand;
+mod held_grid;
 mod stations;
 mod trade;
 
