@@ -1,4 +1,5 @@
 import type { Command } from './generated/methods.js'
+import type { BlockName } from './generated/names.js'
 import type { BotId } from './generated/types/BotId.js'
 import type { Block } from './generated/types/Block.js'
 import type { BlockAtCursorParams } from './generated/types/BlockAtCursorParams.js'
@@ -37,7 +38,7 @@ export interface SyncReads {
   blockAtCursor(bot: BotId, query: Omit<BlockAtCursorParams, 'bot'>): CursorHit | null
 }
 
-export type FindBlocksQuery = Omit<FindBlocksParams, 'bot'>
+export type FindBlocksQuery = Omit<FindBlocksParams, 'bot' | 'matching'> & { matching: BlockName[] }
 
 /**
  * Moves commands to an acacia host and its records back (contract: the package README). `NativeTransport` runs the

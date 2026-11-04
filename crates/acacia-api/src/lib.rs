@@ -22,8 +22,10 @@
 //! - **Versions.** [`PROTOCOL_VERSION`] changes only on a breaking change; within it, changes are additive (new
 //!   methods, events and optional fields), so consumers keep a catch-all arm.
 //! - **Generated files.** `generated/methods.json` (each method's JSON Schemas, for MCP), `generated/methods.ts`
-//!   (the typed `Methods` map) and `generated/types/*.ts` (ts-rs) are committed. `tests/generated.rs` fails when
-//!   they drift; `ACACIA_API_REGEN=1 cargo test -p acacia-api --test generated` rewrites them.
+//!   (the typed `Methods` map), `generated/types/*.ts` (ts-rs) and `generated/names.ts` (`BlockName` / `ItemName`
+//!   unions from acacia-world's block table and the bundled BDS item registry, [`export::names_ts`]) are committed.
+//!   `tests/generated.rs` fails when they drift; `ACACIA_API_REGEN=1 cargo test -p acacia-api --test generated`
+//!   rewrites them.
 
 mod entity;
 mod error;

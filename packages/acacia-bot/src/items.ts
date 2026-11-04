@@ -1,14 +1,15 @@
 import { AcaciaError } from './errors.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ContainerItem } from './generated/types/ContainerItem.js'
+import type { ItemName } from './generated/names.js'
 import type { EquipDestination } from './generated/types/EquipDestination.js'
 import type { Recipe } from './generated/types/Recipe.js'
 import type { Vec3 } from './generated/types/Vec3.js'
 import { BotReads, type Item } from './reads.js'
 import type { CallOptions } from './session.js'
 
-/** An item name (`stone` or `minecraft:stone`) or an `inventory` entry. */
-export type ItemRef = string | Item
+/** An item name (`stone` or `minecraft:stone`; vanilla names autocomplete) or an `inventory` entry. */
+export type ItemRef = ItemName | Item
 
 function nameOf(item: ItemRef): string {
   const name = typeof item === 'string' ? item : item.name

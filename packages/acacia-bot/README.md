@@ -158,7 +158,9 @@ acacia-host's; the addon: acacia-node's).
   at 1024 (the `bot.findBlocks` method is the same read for transports without sync reads). `equip(item,
   destination = 'hand')` moves an item there; `placeBlock(referenceBlock, face = 'up')` resolves once the server
   shows a block in the target cell (`REJECTED` after three tries). Item arguments take a name (`stone` or
-  `minecraft:stone`) or an `inventory` entry throughout.
+  `minecraft:stone`) or an `inventory` entry throughout. Names are typed `ItemName` / `BlockName` (findBlocks'
+  `matching`): unions of the vanilla names, bare and namespaced, that editors autocomplete, plus `string & {}` so
+  custom names still compile (generated into acacia-api's `generated/names.ts`).
 - **Activation and hands** (mineflayer's names). `activateBlock(pos, face = 'up')` right-clicks a block in reach
   (doors, buttons, levers, beds) and `activateEntity(entity)` an entity (trade, mount, feed), each facing it first and
   resolving once the click is sent, not once the world changed. `activateItem()` uses the held item in the air;

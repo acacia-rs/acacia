@@ -38,6 +38,9 @@ dependencies = [
 name = "acacia-api"
 version = "0.1.0"
 dependencies = [
+ "acacia-proto",
+ "acacia-testserver",
+ "acacia-world",
  "schemars",
  "serde",
  "serde_json",
