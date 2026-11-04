@@ -1,4 +1,4 @@
-use acacia_proto::packets::{InventoryTransaction, Text, TextCategory, TextContent, TextContentChat, TextType};
+use acacia_proto::packets::{InventoryTransaction, Text, TextCategory, TextContent, TextContentChat, TextContentWhisper, TextType};
 use acacia_proto::types::WindowType;
 use acacia_proto::Packet;
 use acacia_testserver::{FakeServer, InventoryServer, Script};
@@ -38,11 +38,21 @@ impl TestServer {
     /// Sends a player's chat line to the client, with the `§r` suffix BDS puts on sender names.
     #[napi]
     pub fn chat(&self, sender: String, message: String) -> Result<()> {
+        self.text(TextType::Chat, TextContent::Chat(TextContentChat { source_name: format!("{sender}§r"), message }))
+    }
+
+    /// Sends a whisper (`/tell`) from `sender` to the client.
+    #[napi]
+    pub fn whisper(&self, sender: String, message: String) -> Result<()> {
+        self.text(TextType::Whisper, TextContent::Whisper(TextContentWhisper { source_name: format!("{sender}§r"), message }))
+    }
+
+    fn text(&self, kind: TextType, content: TextContent) -> Result<()> {
         self.server()?.send(&Text {
             needs_translation: false,
             category: TextCategory::Authored,
-            r#type: TextType::Chat,
-            content: TextContent::Chat(TextContentChat { source_name: format!("{sender}§r"), message }),
+            r#type: kind,
+            content,
             xuid: String::new(),
             platform_chat_id: String::new(),
             has_filtered_message: false,

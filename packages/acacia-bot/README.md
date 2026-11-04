@@ -94,6 +94,12 @@ acacia-host's; the addon: acacia-node's).
   was forced with `createBot({ events })`; changes go out once per microtask. `spawn`, `end`, `lagged` and `error`
   always come. `entitySpawn` / `entityGone` carry an `Entity`; `entityMoved` is high-rate, one event per tick batch
   listing every entity that moved (`entities`), and is lossy like `physicsTick`.
+  Mineflayer's names are derived from these: `kicked(reason, end)` before an `end` whose reason is `kicked`;
+  `whisper(username, message, line)` for a chat line of kind `whisper` that names its sender; and `chat:<name>(groups,
+  line)` whenever a line's `plain` text matches the pattern of `bot.addChatPattern(name, regex, { repeat = true })`
+  (capture groups, `''` for one that took no part; `repeat: false` drops it after the first match;
+  `removeChatPattern(name)`). Listeners for `whisper` and `chat:*` turn the `chat` group on. `spawn`, `health`,
+  `death` and `end` are mineflayer's names already, with the record as payload.
   Events a bot raises before `createBot` resolves are not delivered; records after it wait one macrotask so the
   caller can attach listeners. `bot.events(name, { signal })` iterates one event and ends with the bot. A listener
   that throws does not stop the batch; its error is rethrown as an uncaught exception afterwards.

@@ -1,5 +1,6 @@
 import { EventEmitter, on, once } from 'node:events'
 
+import { ChatPatterns, type ChatPatternOptions } from './chat-patterns.js'
 import { AcaciaError } from './errors.js'
 import { Subscriptions, type BotEvents } from './events.js'
 import type { MethodName, Params, Result } from './generated/methods.js'
@@ -21,6 +22,7 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
   #ended = false
   readonly #subscriptions: Subscriptions
   #groupsSent: Promise<void> = Promise.resolve()
+  readonly #chatPatterns = new ChatPatterns()
 
   /** @internal Use `createBot`. */
   constructor(session: Session, id: BotId, username: string, forcedEvents: readonly EventGroup[]) {
@@ -45,14 +47,37 @@ export class BotCore extends EventEmitter<BotEvents> implements BotSink {
 
   /** @internal Called by the session for each of this bot's events. */
   event(event: Event): void {
-    if (event.type === 'end') this.#ended = true
-    if (event.type !== 'error') {
-      this.emit(event.type, event as never)
-      return
+    switch (event.type) {
+      case 'error': {
+        const error = new AcaciaError('INTERNAL', event.message)
+        if (this.listenerCount('error') > 0) this.emit('error', error)
+        else process.emitWarning(error)
+        return
+      }
+      case 'end':
+        this.#ended = true
+        if (event.reason === 'kicked') this.emit('kicked', event.message, event)
+        break
+      case 'chat':
+        this.emit('chat', event)
+        if (event.kind === 'whisper' && event.sender) this.emit('whisper', event.sender, event.plain, event)
+        for (const [name, groups] of this.#chatPatterns.match(event.plain)) this.emit(`chat:${name}`, groups, event)
+        return
     }
-    const error = new AcaciaError('INTERNAL', event.message)
-    if (this.listenerCount('error') > 0) this.emit('error', error)
-    else process.emitWarning(error)
+    this.emit(event.type, event as never)
+  }
+
+  /**
+   * Emits `chat:<name>` with the capture groups whenever a chat line's `plain` text matches `regex` (mineflayer's
+   * `addChatPattern`); adding a name again replaces its pattern.
+   */
+  addChatPattern(name: string, regex: RegExp, options?: ChatPatternOptions): void {
+    this.#chatPatterns.add(name, regex, options)
+  }
+
+  /** Stops matching the pattern `name`; false when there was none. */
+  removeChatPattern(name: string): boolean {
+    return this.#chatPatterns.remove(name)
   }
 
   /** Whether the bot has ended (an `end` event came). */

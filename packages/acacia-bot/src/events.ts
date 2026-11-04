@@ -6,12 +6,24 @@ export type EventName = Event['type']
 /** The event of type `K`, as the bot emits it (the record's `event`, `type` included). */
 export type EventOf<K extends EventName> = Extract<Event, { type: K }>
 
+/** The mineflayer-named events derived from the ones above (README, Events). */
+export interface DerivedEvents {
+  /** The server kicked the bot: `end`'s message; `end` follows. */
+  kicked: [reason: string, end: EventOf<'end'>]
+  /** A whisper (`/tell`) to the bot, from a sender the packet names. */
+  whisper: [username: string, message: string, line: EventOf<'chat'>]
+}
+
+/** `chat:<name>`: a chat line matched the `addChatPattern` named `name`; its capture groups. */
+export type ChatPatternEvents = Record<`chat:${string}`, [groups: string[], line: EventOf<'chat'>]>
+
 /** `bot.on(name, (payload) => ...)`: one payload per event. `error` carries an `Error`, as Node expects. */
-export type BotEvents = { [K in Exclude<EventName, 'error'>]: [EventOf<K>] } & { error: [Error] }
+export type BotEvents = { [K in Exclude<EventName, 'error'>]: [EventOf<K>] } & { error: [Error] } & DerivedEvents & ChatPatternEvents
 
 /** The group a listener for `name` needs enabled; events not listed (spawn, end, error, lagged, ...) always come. */
 const GROUP_OF: Partial<Record<string, EventGroup>> = {
   chat: 'chat',
+  whisper: 'chat',
   form: 'forms',
   health: 'health',
   death: 'health',
@@ -68,7 +80,7 @@ export class Subscriptions {
   }
 
   #change(name: string | symbol, by: number): void {
-    const group = typeof name === 'string' ? GROUP_OF[name] : undefined
+    const group = typeof name !== 'string' ? undefined : name.startsWith('chat:') ? 'chat' : GROUP_OF[name]
     if (!group) return
     this.#listeners.set(group, Math.max(0, (this.#listeners.get(group) ?? 0) + by))
     if (this.#scheduled) return
