@@ -3,7 +3,7 @@
 Superseded runs, kept as they were recorded: the first runs (before the batch-limit fix and the latency and read
 fixes), the fixes' before/after, and the entity-delta A/B. Current numbers and the method: `RESULTS.md`. Rows are
 in `results/*.jsonl`: untagged rows are the first runs, `after` / `after-v1` the fixes, `delta-before` /
-`delta-after` the delta A/B; `results/before-batch-limit/` holds the runs the batch-limit bug invalidated.
+`delta-after` the delta A/B, `prof-*` the first profile round; `results/before-batch-limit/` holds the runs the batch-limit bug invalidated.
 
 ## First runs
 
@@ -201,3 +201,47 @@ second across the bots, in parentheses):
 | 300, positions | 35.5 (1314), 40.9 (725) | 139, 144 |
 
 `positions` builds a fresh `Vec3` for each of ~600 entities per bot per tick, ~3.6 M objects/s at 300 bots.
+
+## Profile and fixes, first round (2026-11-04)
+
+Moved from `RESULTS.md` when the second round's fixes replaced them (rows tagged `prof-base` / `prof-fix1` /
+`prof-fix2`). Steady state after this round, 300 bots, `READ=entities`, load 43–49: ~10.9k events/s, 94–105k
+entity moves/s, JS thread 26–28%, shard threads 173–180%, immediate RTT p50 2.6–3.0 ms.
+
+Shard threads, 300 bots, top self frames (% of shard samples), before → after fix 1:
+
+| frame | before | after |
+|---|---|---|
+| `RandomState::hash_one<&str>` + `sip::Hasher::write` (snapshot interner) | 27.2 | 2.3 |
+| `ListBuilder::build` closure + `EntityInfo::of` + list `Vec` build/drop | ~10 | ~28 |
+| `acacia_nbt` decode and drop (`drop_glue<Value>`, `read_payload`, `read_str`) | 7.9 | 8.9 |
+| malloc / free / memmove | 6.0 | 7.7 |
+| `acacia_bot::state` (`Entity::solid_box` 1.7, `Bot::apply` 2.3, ...) | 6.3 | ~7 |
+| session decode + inflate / proto reads / raknet | 3.1 / 2.2 / 0.7 | similar |
+| acacia-host (`play` select poll 1.4–1.7) + serde_json batch encoding | 1.9 + 2.0 | similar |
+
+JS thread, 300 bots (% of busy samples; busy = 25% of the window before, 21% after):
+
+| frame | before | after fix 2 |
+|---|---|---|
+| `NativeTransport #receive`: `JSON.parse` of the record batches (self) | 44.3 | 47.3 |
+| addon calls (`NativeHost`, self) | 16.6 | 14.3 |
+| bench listener (`Object.keys(bot.entities)`) | 13.7 | 14.9 |
+| `bot.hot` (inclusive) | 11.8 | ~2 (`NativeHot.read` 1.5 self) |
+| `bot.entities` delta read (inclusive) | 13.0 | 13.8 |
+| GC | 3.9 | 3.9 |
+
+Natively the JS thread was 78% libnode (JSON parser, string-to-double) and 11% addon; `entityMoved` was ~95% of
+the batch bytes, each moved entity a ~200-byte `Entity` object.
+
+| fix | metric | before | after |
+|---|---|---|---|
+| 1. snapshot lists reuse the entity strings at the same index (acacia-bot `snapshot/slots.rs`) | shard instructions, median | 107.9 G (107.6–108.5) | **98.7 G** (97.4–100.5) |
+| | shard cycles, median | 145.3 G | **124.9 G** |
+| | shard CPU | 199–202% | **170–180%** |
+| 2. `bot.hot` through a `Float64Array` instead of JSON (acacia-node `hot.rs`, `native-hot.ts`) | JS instructions, corrected for entity moves | – | **−1.4 / −1.8 / −2.3 G** (~5.6%) |
+| | `bot.hot` share of the busy JS thread | 11.8% | ~2% |
+
+Fix 2's JS instructions scale with entity moves (0.196 G per 1k moves/s, fitted on the six fix-1 runs), so each
+after run was compared to that fit at its own move rate; raw medians were 32.6 G before and 31.9 G after. Load
+averages 41–62.

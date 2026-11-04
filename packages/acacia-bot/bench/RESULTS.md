@@ -6,7 +6,7 @@ are in `results/*.jsonl`, one JSON line per run (`TAG=` env tags a row). `node b
 median tables.
 
 This file holds the current numbers. Superseded runs (the first runs, the batch-limit bug, the fixes' and the
-entity deltas' before/after A/Bs) are in `HISTORY.md`.
+entity deltas' before/after A/Bs, the first profile round) are in `HISTORY.md`.
 
 ## Method
 
@@ -25,7 +25,7 @@ entity deltas' before/after A/Bs) are in `HISTORY.md`.
   interleaved, detached under sshd.
 - `bench:memory`: standing bots, a 25 s settle after the last spawn, then `process.memoryUsage()` and
   `/proc/self/smaps_rollup` after `gc()`.
-- `bench:events`: listeners on `physicsTick`, `entitySpawn`, `entityGone` and `entityMoved` for every bot; a 10 s
+- `bench:events`: listeners on `physicsTick`, `entitySpawn`, `entityGone` and `entityMoves` for every bot; a 10 s
   settle, then a 20 s window. JS CPU is the main thread's utime+stime from `/proc/self/task`. Two probes run in
   the window, round-robin over the bots, 10 ms apart: `clearControlStates()` (immediate) and `waitForTicks(1)`
   (queued). `READ=hot|entities|positions` makes each `physicsTick` listener read `bot.hot`, `bot.entities`, or
@@ -83,10 +83,10 @@ Calls, `READ=none` (median of 2 reps, load 10–27; idle = 1 bot, `CLOCKS=0 MOBS
 | 300 | 1.41 / 30.9 | 54.0 / 113 | 311 | 16.1% |
 
 Steady state with a per-tick reader (`READ=entities`: each `physicsTick` reads `bot.hot` and `bot.entities`),
-300 bots, after the two fixes below (2026-11-04, 3 reps, load 43–49): ~10.9k events/s (`physicsTick` 19.4/bot/s,
-94–105k entity moves/s in `entityMoved`), JS thread 26–28%, shard threads 173–180%, forwarder 0.3%, immediate
-RTT p50 2.6–3.0 ms, loop delay p99 ~6 ms, `lagged` 0. Per bot that is ~0.59% of a core on the shards and
-~0.09% on the JS thread. A read costs what changed since the last one (entity deltas, contract in the package
+300 bots, after both fix rounds below (2026-11-04, 3 reps, load 34–44): ~10.9k events/s (`physicsTick`
+19.4/bot/s, 86–102k entity moves/s in `entityMoves`), JS thread 18–19%, shard threads 106–108%, forwarder 0.3%,
+immediate RTT p50 1.1–1.2 ms, `lagged` 0. Per bot that is ~0.36% of a core on the shards and ~0.06% on the JS
+thread (the profiling build; the plain release one is the same code). A read costs what changed since the last one (entity deltas, contract in the package
 README). Earlier per-tick read tables (2026-11-03, before later commits; today's base gave a JS thread of
 27–29% where they show 14–19%) are in `HISTORY.md`.
 
@@ -94,64 +94,67 @@ README). Earlier per-tick read tables (2026-11-03, before later commits; today's
 
 `bench:events` with ticks, entities and `READ=entities`, the release code with line tables (`--profile
 profiling`, `CARGO_PROFILE_PROFILING_DEBUG=line-tables-only`). Native: `perf record -F 499 -g -p <node>` over 15 s
-of the window; JS: `CPU_PROF=<file>` (the inspector's profiler over the window). Self time; the release build
-has no frame pointers, so perf's call chains (fp and DWARF alike) don't unwind and inclusive figures are JS-only.
+of the window; JS: `CPU_PROF=<file>` (the inspector's profiler over the window). Self time: without frame
+pointers perf's call chains (fp and DWARF alike) don't unwind. For callers, build the addon with `RUSTFLAGS="-C
+force-frame-pointers=yes"` into its own target dir, record with `-g`, and read `perf script --no-inline` (plain
+`perf report` resolving inlines took minutes).
 
-CPU split (% of one core, base = js/cancel before the fixes, load 41–58):
+CPU split (% of one core; 300 bots, load 34–58):
 
-| bots | shard threads (4) | JS thread | forwarder | sapling server |
+| code | shard threads (4) | JS thread | forwarder | sapling server |
 |---|---|---|---|---|
-| 100 | 60.7 | 14.4 | 0.5 | 39 |
-| 300 | 199–202 | 27–29 | 0.4 | 70 |
+| js/cancel before the fixes (100 bots: 60.7 / 14.4) | 199–202 | 27–29 | 0.4 | 70 |
+| after the first round | 170–180 | 26–28 | 0.3 | – |
+| after the second round | 106–108 | 18–19 | 0.3 | – |
 
-Shard threads, 300 bots, top self frames (% of shard samples), before → after fix 1:
+Shard threads, 300 bots, top self frames after the second round (% of shard samples, `lazy-300-perf-1`):
 
-| frame | before | after |
-|---|---|---|
-| `RandomState::hash_one<&str>` + `sip::Hasher::write` (snapshot interner) | 27.2 | 2.3 |
-| `ListBuilder::build` closure + `EntityInfo::of` + list `Vec` build/drop | ~10 | ~28 |
-| `acacia_nbt` decode and drop (`drop_glue<Value>`, `read_payload`, `read_str`) | 7.9 | 8.9 |
-| malloc / free / memmove | 6.0 | 7.7 |
-| `acacia_bot::state` (`Entity::solid_box` 1.7, `Bot::apply` 2.3, ...) | 6.3 | ~7 |
-| session decode + inflate / proto reads / raknet | 3.1 / 2.2 / 0.7 | similar |
-| acacia-host (`play` select poll 1.4–1.7) + serde_json batch encoding | 1.9 + 2.0 | similar |
+| frame | % |
+|---|---|
+| kernel (unresolved) | 13.0 |
+| `Entity::solid_box` (physics collision boxes over every entity) | 8.7 |
+| `bytes` `shared_clone` + `shared_drop` (packet buffers' refcounts) | 8.9 |
+| entity list rebuild on a spawn or removal (`ListBuilder::build`, `EntityInfo::of`, `Vec` collect) | 6.2 |
+| `ListBuilder::patch` (the per-tick entity numbers) | 2.7 |
+| SipHash `hash_one` + `Hasher::write` (`Entity::health`, `block_entities`' position maps) | 3.5 |
+| `Bot::apply` / host `play` poll / `World::get` | 3.3 / 3.2 / 2.8 |
+| malloc / free / memmove | ~7 |
+| NBT (`acacia_nbt`) | < 0.5 |
 
-The interner's share moved into the per-tick list rebuild itself, which is now the top shard frame: ~600
-`EntityInfo`s per bot per tick, rebuilt whenever any entity packet arrived (Not done, below). At 100 bots the
-interner was 18.4% of shard samples.
-
-JS thread, 300 bots (% of busy samples; busy = 25% of the window before, 21% after):
-
-| frame | before | after fix 2 |
-|---|---|---|
-| `NativeTransport #receive`: `JSON.parse` of the record batches (self) | 44.3 | 47.3 |
-| addon calls (`NativeHost`, self) | 16.6 | 14.3 |
-| bench listener (`Object.keys(bot.entities)`) | 13.7 | 14.9 |
-| `bot.hot` (inclusive) | 11.8 | ~2 (`NativeHot.read` 1.5 self) |
-| `bot.entities` delta read (inclusive) | 13.0 | 13.8 |
-| GC | 3.9 | 3.9 |
-
-Natively the JS thread is 78% libnode (JSON parser, string-to-double) and 11% addon. `entityMoved` is ~95% of the
-batch bytes: each moved entity is a ~200-byte `Entity` object.
+First round's frame tables (the interner, `bot.hot` as JSON, the JS-thread split): `HISTORY.md`. No JS profile
+was taken after `entityMoves` rows; its instructions are below.
 
 ## Fixes (2026-11-04)
 
 Interleaved A/B on the same box, 300 bots, `READ=entities`, `perf stat -e instructions,cycles --per-thread` over a
-15 s window, 3 reps a side (6 for fix 1's after side, which is also fix 2's before side). Each side ran from its own copy of
-the package; rows in `results/events.jsonl` tagged `prof-base` / `prof-fix1` / `prof-fix2` (the profile runs
-included; the stat counts themselves are not in the rows).
+15 s window, 3 reps a side, each side from its own copy of the package and its own profiling addon. Fixes 3–5 are
+the second round, each against the one before it (rows in `results/events.jsonl` tagged `r2base` / `rows` /
+`stamp` / `lazy`, `fp` the frame-pointer profile; the stat counts themselves are not in the rows). The first round (fixes 1–2) is in `HISTORY.md`:
+shard instructions 107.9 → 98.7 G from reusing entity strings, ~5.6% of the JS thread from `bot.hot` as a
+`Float64Array`.
 
 | fix | metric | before | after |
 |---|---|---|---|
-| 1. snapshot lists reuse the entity strings at the same index (acacia-bot `snapshot/slots.rs`) | shard instructions, median | 107.9 G (107.6–108.5) | **98.7 G** (97.4–100.5) |
-| | shard cycles, median | 145.3 G | **124.9 G** |
-| | shard CPU | 199–202% | **170–180%** |
-| 2. `bot.hot` through a `Float64Array` instead of JSON (acacia-node `hot.rs`, `native-hot.ts`) | JS instructions, corrected for entity moves | – | **−1.4 / −1.8 / −2.3 G** (~5.6%) |
-| | `bot.hot` share of the busy JS thread | 11.8% | ~2% |
+| 3. `entityMoves` as `[id, x, y, z, vx, vy, vz, yaw, pitch, health]` rows instead of `Entity` objects (acacia-api `EntityRow`, `reads.ts`) | JS instructions, median | 31.4 G (31.2–33.4) | **17.9 G** (16.8–18.1) |
+| | JS thread CPU | 27–28% | **18–19%** |
+| | shard instructions (serde writes less) | 101.6 G | **96.8 G** |
+| 4. entity change stamps: the published list patches only the entities a packet changed (acacia-bot `state/entities/stamps.rs`, `snapshot/publish.rs`) | shard instructions, median | 96.2 G (95.5–96.9) | **88.6 G** (88.0–90.1) |
+| | shard cycles, median | 121.4 G | **95.3 G** |
+| | shard CPU | 166–173% | **135–137%** |
+| 5. block entity NBT kept undecoded until read (acacia-bot `state/block_entities.rs`) | shard instructions, median | 89.5 G (89.1–89.6) | **61.4 G** (61.3–62.5) |
+| | shard cycles, median | 96.4 G | **75.5 G** |
+| | shard CPU | 134–137% | **106–108%** |
 
-- Fix 2's JS instructions scale with entity moves (0.196 G per 1k moves/s, fitted on the six fix-1 runs), so each
-  after run is compared to that fit at its own move rate; raw medians were 32.6 G before and 31.9 G after.
-- Load averages: 41–62 across the A/B runs, both sides alike.
+- The after sides of fixes 3 and 5 ran at equal or lower move rates (fix 4's at a higher one, 102–110k vs
+  89–98k/s), so none of the gains come from fewer moves. Immediate RTT p50 fell 2.1–2.5 → 1.1–1.2 ms over the round.
+- Fix 5's callers came from a frame-pointer build (`fp-300-perf-1`): `acacia_nbt` was under 21% of shard samples,
+  all in acacia-bot's own state code, none in proto or session. `BlockEntities::block_entity` decoding every
+  `BlockActorData` 11.3%, its `insert` dropping the replaced tree 5.2%, `on_block_update` dropping on removal 3.3%,
+  `Containers::block_entity` walking for `CustomName` 1.2%. The `mixed` world's 225 clocks each drive a sticky
+  piston, which sends its block entity (piston arm, moving block) on every move, and physics bots keep all block
+  entities (`BlockEntityTracking::All`). Kept entries now hold the bytes and decode on the first `get`/`iter`;
+  containers skip the walk without `CustomName` in the bytes.
+- Load averages: 34–44 across the second round's runs, both sides alike.
 
 ## Sync reads (`bench:reads`)
 
@@ -186,18 +189,15 @@ long-lived entity state adds write barriers and promotions on every miss.
 
 ## Open
 
-- **Per-tick entity list rebuild** (the top shard frame, ~28% of shard samples at 300 bots): `Publisher` rebuilds
-  every `EntityInfo` whenever `Entities::version` moved, and it moves on every entity packet, in-view or not. A
-  per-entity change stamp set where the tracker applies a packet (`state/entities/apply.rs`, `moves.rs`) would let
-  `ListBuilder` copy unchanged entries and visit only the touched ones. Not done here: it reaches into the
-  tracker, outside this branch's snapshot code.
-- **`entityMoved` as JSON objects** (~95% of batch bytes; `JSON.parse` is ~45% of the busy JS thread at 300
-  bots). A `node` microbench (45 records of 24 entities): parsing `Entity` objects costs 1.33–1.46 µs per
-  entity, rows (`[id, uniqueId, kind, username, x, y, z, vx, vy, vz, yaw, pitch, health]`) expanded to the same
-  objects in JS 0.63–0.70 µs, with 38% fewer bytes. That changes the wire schema (acacia-api `Event::EntityMoved`,
-  the daemon, TS types), so it waits for a decision.
+- **Full entity list rebuilds on spawns and removals** (~6% of shard samples): mobs strolling in and out of view
+  rebuild all ~600 entries; slot reassignment could patch in place too, appending and swap-removing entries.
+- **`Entity::solid_box`** (8.7%) and the packet buffers' refcounts (8.9%): owners and leads in
+  `research/js-measure/hotspots-for-owners.md`.
+- **`entityMoves` still crosses as JSON** (a `node` microbench, 45 records of 24 entities: rows parse in
+  ~0.6 µs per entity, `Entity` objects ~1.5, flat `ids` + `numbers` arrays ~0.55). Writing the rows into a
+  `Float64Array` in-process, as `bot.hot` does, would take most of the rest off the JS thread.
 - No heaptrack attribution of the extra ~0.8 MB/bot; arenas are the lead.
-- RakNet `BadSplit` losses (3–4 across the earlier 300-bot runs; none in the 18 runs of 2026-11-04):
+- RakNet `BadSplit` losses (3–4 across the earlier 300-bot runs; none in the 38 runs of 2026-11-04):
   diagnosis and fix for the raknet owner in `research/js-measure/badsplit-diagnosis.md`. Out-of-scope hot
   spots for other owners: `research/js-measure/hotspots-for-owners.md`.
 - The Rust (`memory_bench`, branch js/measure) and bedrock-protocol baselines are quoted from memory-results.md.
