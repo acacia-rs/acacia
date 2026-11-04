@@ -1,4 +1,4 @@
-use acacia_api::{ColdSnapshot, Effect, Entity, EntityId, EntityList, HotSnapshot, PlayerInfo, Snapshot, Stack, UniqueId};
+use acacia_api::{ColdSnapshot, Effect, Entity, EntityId, EntityList, EntityRow, HotSnapshot, PlayerInfo, Snapshot, Stack, UniqueId};
 use acacia_bot::snapshot::{self as bot, BotSnapshot, EntityInfo};
 use acacia_bot::state::{ItemStack, PlayerListEntry};
 
@@ -18,6 +18,11 @@ pub(crate) fn entity(e: &EntityInfo) -> Entity {
         pitch: e.pitch,
         health: e.health,
     }
+}
+
+pub(crate) fn entity_row(e: &EntityInfo) -> EntityRow {
+    let ([x, y, z], [vx, vy, vz]) = (e.position, e.velocity);
+    EntityRow(EntityId(e.runtime_id), x, y, z, vx, vy, vz, e.yaw, e.pitch, e.health)
 }
 
 pub(crate) fn entities(list: &bot::EntityList) -> EntityList {

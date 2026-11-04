@@ -38,7 +38,7 @@ pub mod params;
 mod snapshot;
 pub mod table;
 
-pub use entity::{Entity, EntityList};
+pub use entity::{Entity, EntityList, EntityRow};
 pub use error::{ApiError, ErrorCode};
 pub use event::{ChatKind, ChatLine, EndReason, Event, TitleKind, Window};
 pub use form::{Form, FormAnswer, FormBody, FormButton, FormElement, FormValue};

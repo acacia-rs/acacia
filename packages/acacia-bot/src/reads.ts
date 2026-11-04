@@ -4,6 +4,7 @@ import type { Block } from './generated/types/Block.js'
 import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ColdSnapshot } from './generated/types/ColdSnapshot.js'
 import type { Entity } from './generated/types/Entity.js'
+import type { Event } from './generated/types/Event.js'
 import type { EntityTable } from './entity-table.js'
 import type { HotSnapshot } from './generated/types/HotSnapshot.js'
 import type { ItemTable } from './generated/types/ItemTable.js'
@@ -54,6 +55,17 @@ const NO_ENTITIES: Readonly<Record<string, Entity>> = Object.freeze({})
 export class BotReads extends BotCore {
   readonly #players = new Derived((cold: ColdSnapshot | null, table: EntityTable | null, _members: number) => players(cold, table))
   readonly #inventory = new Derived(inventory)
+
+  /** @internal Adds the per-entity `entityMoved`, built only while it has a listener. */
+  override event(event: Event): void {
+    super.event(event)
+    if (event.type !== 'entityMoves' || this.listenerCount('entityMoved') === 0) return
+    const byId = this.entities
+    for (const row of event.rows) {
+      const entity = byId[row[0]]
+      if (entity) this.emit('entityMoved', entity)
+    }
+  }
 
   /** The per-tick state; null before the first tick. */
   get hot(): HotSnapshot | null {

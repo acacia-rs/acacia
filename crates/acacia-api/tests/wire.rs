@@ -54,6 +54,18 @@ fn records_are_tagged_camel_case_objects() {
 }
 
 #[test]
+fn entity_moves_are_rows() {
+    let row = |id, health| EntityRow(EntityId(id), 1.5, 64.0, -2.0, 0.0, -0.08, 0.0, 90.0, 0.0, health);
+    let event = Event::EntityMoves { rows: vec![row(7, Some(10.0)), row(8, None)] };
+    let json = serde_json::to_value(&event).unwrap();
+    assert_eq!(
+        json,
+        json!({"type": "entityMoves", "rows": [["7", 1.5, 64.0, -2.0, 0.0, -0.08f32, 0.0, 90.0, 0.0, 10.0], ["8", 1.5, 64.0, -2.0, 0.0, -0.08f32, 0.0, 90.0, 0.0, null]]})
+    );
+    assert_eq!(serde_json::from_value::<Event>(json).unwrap(), event, "round trip");
+}
+
+#[test]
 fn every_method_has_a_doc_and_a_bot_except_host_ones() {
     for m in METHODS {
         assert!(!m.doc.trim().is_empty(), "{} has no doc", m.name);

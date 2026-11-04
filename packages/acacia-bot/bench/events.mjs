@@ -1,5 +1,5 @@
 // End-to-end event delivery through @acacia-rs/bot: N bots against a fresh load-server world with `physicsTick`,
-// `entitySpawn`/`entityGone` and `entityMoved` listeners, measured over a window after the joins (RESULTS.md).
+// `entitySpawn`/`entityGone` and `entityMoves` listeners, measured over a window after the joins (RESULTS.md).
 // usage: node bench/events.mjs <bots>
 // env: CLOCKS=225 MOBS=300 (the world), JOIN_MS=500, SETTLE=10, WINDOW=20 (s), PORT=19620, SHARDS (host default),
 //      PROBE_GAP=10 (ms between round-trip probes), READ=none|hot|entities|positions, SAPLING / ADDRESS (common.mjs),
@@ -56,9 +56,9 @@ function listen(bot, first) {
   })
   bot.on('entitySpawn', () => counts.entitySpawn++)
   bot.on('entityGone', () => counts.entityGone++)
-  bot.on('entityMoved', (e) => {
+  bot.on('entityMoves', (e) => {
     counts.entityMoved++
-    counts.movedEntities += e.entities.length
+    counts.movedEntities += e.rows.length
   })
   bot.on('end', (e) => {
     counts.end++

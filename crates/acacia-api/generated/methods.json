@@ -22,7 +22,7 @@
             ]
           },
           "EventGroup": {
-            "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (`entityMoved`, once per tick batch); `entities` and `entityMoves` need `entities`.",
+            "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (once per tick batch); `entities` and `entityMoves` need `entities`.",
             "enum": [
               "chat",
               "forms",
@@ -722,7 +722,7 @@
             "type": "string"
           },
           "EventGroup": {
-            "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (`entityMoved`, once per tick batch); `entities` and `entityMoves` need `entities`.",
+            "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (once per tick batch); `entities` and `entityMoves` need `entities`.",
             "enum": [
               "chat",
               "forms",

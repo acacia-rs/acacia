@@ -84,6 +84,22 @@ test('entity listeners turn their groups on', async () => {
   assert.deepEqual(seen, ['7'])
 })
 
+test('entityMoves carries rows; entityMoved gives each listed entity its live object', async () => {
+  const { via, bot } = await connected()
+  const table = new EntityTable()
+  table.apply({ version: 1, full: true, added: [[0, '5', '-5', 'minecraft:pig', null]], numbers: [[0, 2, 64, 0, 0, 0, 0, 0, 0, 10]] })
+  via.state['bot-1'] = { hot: hot(vec(0, 64, 0)), entities: table }
+  const [batches, moved] = [[], []]
+  bot.on('entityMoves', (e) => batches.push(e.rows.map((r) => r[0])))
+  bot.on('entityMoved', (e) => moved.push(e))
+  await tick()
+  assert.deepEqual(via.last('bot.setEvents').params.events, ['entityMoves'])
+  const row = (id) => [id, 2, 64, 0, 0, 0, 0, 0, 0, 10]
+  via.push(via.event({ type: 'entityMoves', rows: [row('5'), row('9')] }, 2))
+  assert.deepEqual(batches, [['5', '9']])
+  assert.deepEqual(moved, [bot.entities['5']], 'an unlisted id is skipped')
+})
+
 test('ready waits for the first tick and for the listeners\' groups, then turns ticks off again', async () => {
   const { via, bot } = await connected()
   bot.on('chat', () => {})

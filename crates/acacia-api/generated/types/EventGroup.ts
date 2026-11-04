@@ -2,6 +2,6 @@
 
 /**
  * A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a
- * second) and `entityMoves` (`entityMoved`, once per tick batch); `entities` and `entityMoves` need `entities`.
+ * second) and `entityMoves` (once per tick batch); `entities` and `entityMoves` need `entities`.
  */
 export type EventGroup = "chat" | "forms" | "health" | "players" | "windows" | "titles" | "sleep" | "ticks" | "entities" | "entityMoves";

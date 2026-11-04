@@ -1,3 +1,4 @@
+import type { Entity } from './generated/types/Entity.js'
 import type { Event } from './generated/types/Event.js'
 import type { EventGroup } from './generated/types/EventGroup.js'
 
@@ -12,6 +13,8 @@ export interface DerivedEvents {
   kicked: [reason: string, end: EventOf<'end'>]
   /** A whisper (`/tell`) to the bot, from a sender the packet names. */
   whisper: [username: string, message: string, line: EventOf<'chat'>]
+  /** Per entity of an `entityMoves` batch that is in `bot.entities`: its live object (README, Events). */
+  entityMoved: [entity: Entity]
 }
 
 /** `chat:<name>`: a chat line matched the `addChatPattern` named `name`; its capture groups. */
@@ -40,6 +43,7 @@ const GROUP_OF: Partial<Record<string, EventGroup>> = {
   physicsTick: 'ticks',
   entitySpawn: 'entities',
   entityGone: 'entities',
+  entityMoves: 'entityMoves',
   entityMoved: 'entityMoves',
 }
 

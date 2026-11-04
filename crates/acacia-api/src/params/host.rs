@@ -89,7 +89,7 @@ pub enum Transport {
 }
 
 /// A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a
-/// second) and `entityMoves` (`entityMoved`, once per tick batch); `entities` and `entityMoves` need `entities`.
+/// second) and `entityMoves` (once per tick batch); `entities` and `entityMoves` need `entities`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum EventGroup {

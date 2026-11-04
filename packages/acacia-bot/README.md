@@ -107,8 +107,11 @@ acacia-host's; the addon: acacia-node's).
   except `error`, which carries an `AcaciaError` (a warning when nobody listens). A group (`chat`, `forms`, `health`,
   `players`, `windows`, `titles`, `sleep`, `ticks`, `entities`, `entityMoves`) is reported while it has a listener or
   was forced with `createBot({ events })`; changes go out once per microtask. `spawn`, `end`, `lagged` and `error`
-  always come. `entitySpawn` / `entityGone` carry an `Entity`; `entityMoved` is high-rate, one event per tick batch
-  listing every entity that moved (`entities`), and is lossy like `physicsTick`.
+  always come. `entitySpawn` / `entityGone` carry an `Entity`. `entityMoves` is high-rate, one event per tick batch
+  listing every entity that moved as `rows` of `[id, x, y, z, vx, vy, vz, yaw, pitch, health | null]` (acacia-api's
+  `EntityRow`: half the bytes of `Entity` objects, twice as fast to parse), and is lossy like `physicsTick`.
+  `entityMoved(entity)` is mineflayer's per-entity form of it: for each row whose entity is in `bot.entities`, that
+  live object (its numbers as of the read, which can be newer than the row); it costs nothing without a listener.
   Mineflayer's names are derived from these: `kicked(reason, end)` before an `end` whose reason is `kicked`;
   `whisper(username, message, line)` for a chat line of kind `whisper` that names its sender; and `chat:<name>(groups,
   line)` whenever a line's `plain` text matches the pattern of `bot.addChatPattern(name, regex, { repeat = true })`
