@@ -3,6 +3,7 @@
 mod chunks;
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use acacia_client::proto::nbt::{self, root_string, Nbt, Network, Value};
 use acacia_client::proto::packets::{
@@ -58,7 +59,30 @@ impl BlockEntityTracking {
     }
 }
 
-type Column = HashMap<[i32; 3], Nbt>;
+type Column = HashMap<[i32; 3], Kept>;
+
+/// A kept block entity: its network NBT as sent, decoded on the first read. Pistons resend theirs on every move
+/// and nothing reads them; decoding each into a tree and dropping the last was the swarm's top NBT cost.
+#[derive(Debug)]
+struct Kept {
+    raw: Box<[u8]>,
+    nbt: OnceLock<Option<Nbt>>,
+}
+
+impl Kept {
+    fn raw(raw: &[u8]) -> Self {
+        Kept { raw: raw.into(), nbt: OnceLock::new() }
+    }
+
+    fn decoded(nbt: Nbt) -> Self {
+        Kept { raw: Box::default(), nbt: OnceLock::from(Some(nbt)) }
+    }
+
+    /// `None` for a document that does not parse.
+    fn nbt(&self) -> Option<&Nbt> {
+        self.nbt.get_or_init(|| nbt::read::<Network>(&mut &self.raw[..]).ok()).as_ref()
+    }
+}
 
 /// Block entities by position, grouped by chunk column.
 #[derive(Debug, Default)]
@@ -114,7 +138,7 @@ impl BlockEntities {
 
     /// The block entity's NBT at `pos`, if the server sent it and it is kept.
     pub fn get(&self, pos: [i32; 3]) -> Option<&Nbt> {
-        self.columns.get(&column(pos))?.get(&pos)
+        self.columns.get(&column(pos))?.get(&pos)?.nbt()
     }
 
     /// The sign (or hanging sign) block entity at `pos`.
@@ -132,7 +156,7 @@ impl BlockEntities {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&[i32; 3], &Nbt)> {
-        self.columns.values().flatten()
+        self.columns.values().flatten().filter_map(|(pos, kept)| Some((pos, kept.nbt()?)))
     }
 
     pub fn len(&self) -> usize {
@@ -143,20 +167,21 @@ impl BlockEntities {
         self.columns.values().all(HashMap::is_empty)
     }
 
-    pub(crate) fn block_entity(&mut self, position: BlockCoordinates, mut nbt: &[u8]) -> Result<(), DecodeError> {
-        // A piston or hopper sends this every move: look at the id before decoding it all, and when only signs
-        // are kept, skip a document without "Sign" anywhere (every one has an `id`, so its walk always ran).
-        if self.tracking != BlockEntityTracking::All && memchr::memmem::find(nbt, b"Sign").is_none() {
+    /// A piston or hopper sends this every move: kept undecoded (see [`Kept`]). When only signs are kept, a
+    /// document without "Sign" anywhere is skipped before its id is walked (every one has an `id`).
+    pub(crate) fn block_entity(&mut self, position: BlockCoordinates, nbt: &[u8]) -> Result<(), DecodeError> {
+        if self.tracking != BlockEntityTracking::All
+            && (memchr::memmem::find(nbt, b"Sign").is_none() || !self.keeps_id(root_string::<Network>(nbt, "id")?.as_deref()))
+        {
             return Ok(());
         }
-        if self.keeps_id(root_string::<Network>(nbt, "id")?.as_deref()) {
-            self.insert(coords(position), nbt::read::<Network>(&mut nbt)?);
-        }
+        let pos = coords(position);
+        self.columns.entry(column(pos)).or_default().insert(pos, Kept::raw(nbt));
         Ok(())
     }
 
     pub(crate) fn insert(&mut self, pos: [i32; 3], nbt: Nbt) {
-        self.columns.entry(column(pos)).or_default().insert(pos, nbt);
+        self.columns.entry(column(pos)).or_default().insert(pos, Kept::decoded(nbt));
     }
 
     fn keeps(&self, nbt: &Nbt) -> bool {

@@ -101,6 +101,16 @@ fn sign_tracking_keeps_only_signs() {
 }
 
 #[test]
+fn block_entity_data_decodes_on_first_read_and_a_bad_document_reads_as_none() {
+    let mut e = tracker(BlockEntityTracking::All);
+    e.apply(&raw(&BlockEntityData { position: BlockCoordinates { x: 19, y: 64, z: 2 }, nbt: chest([19, 64, 2]).into() })).unwrap();
+    e.block_entity(BlockCoordinates { x: 20, y: 64, z: 2 }, &[10, 0, 8]).unwrap();
+    assert_eq!(e.get([19, 64, 2]), Some(&chest([19, 64, 2])));
+    assert_eq!((e.get([20, 64, 2]), e.len()), (None, 2), "kept, unreadable");
+    assert_eq!(positions(&e), [[19, 64, 2]]);
+}
+
+#[test]
 fn sub_chunks_with_and_without_the_blob_cache() {
     let mut e = tracker(BlockEntityTracking::All);
     let mut inline = section(4);
