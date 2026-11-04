@@ -21,7 +21,7 @@ export interface AttachResult {
 }
 
 export interface CallOptions {
-  /** Aborting cancels the call (`cancel`); it then rejects with `signal.reason` once the bot has stopped. */
+  /** Aborting cancels the call (`cancel`, or `cancelCall` for `createBot` / `signIn`); it then rejects with `signal.reason` once the host has stopped it. */
   signal?: AbortSignal
 }
 
@@ -30,8 +30,12 @@ export type MsaCodePrompt = Omit<MsaCode, 'call'>
 
 /** `createBot` / `signIn` options of a call: where its sign-in prompt goes. */
 export interface HostCallOptions extends CallOptions {
+  /** `auth: 'microsoft'`: shows a device code to a person when the account is not signed in (default `logMsaCode`). */
   onMsaCode?: (prompt: MsaCodePrompt) => void
 }
+
+/** Host calls with no bot to name, cancelled by call id. */
+const HOST_CANCELLABLE: ReadonlySet<string> = new Set(['createBot', 'signIn'])
 
 /** Where a bot's events go. */
 export interface BotSink {
@@ -87,8 +91,11 @@ export class Session {
       return Promise.reject(e)
     }
     this.#updateKeepAlive()
-    if (signal && 'bot' in params) {
-      const cancel = () => this.call('cancel', { bot: params.bot, call }).catch(() => {})
+    const cancel =
+      'bot' in params ? () => this.call('cancel', { bot: params.bot, call }).catch(() => {})
+      : HOST_CANCELLABLE.has(method) ? () => this.call('cancelCall', { call }).catch(() => {})
+      : undefined
+    if (signal && cancel) {
       signal.addEventListener('abort', cancel, { once: true })
       const cleanup = () => signal.removeEventListener('abort', cancel)
       promise.then(cleanup, cleanup)

@@ -4,6 +4,7 @@ import type { ActivateEntityParams } from "./types/ActivateEntityParams";
 import type { AnswerFormParams } from "./types/AnswerFormParams";
 import type { AttackParams } from "./types/AttackParams";
 import type { BotParams } from "./types/BotParams";
+import type { CancelCallParams } from "./types/CancelCallParams";
 import type { CancelParams } from "./types/CancelParams";
 import type { ChatParams } from "./types/ChatParams";
 import type { CommandParams } from "./types/CommandParams";
@@ -61,6 +62,11 @@ export interface Methods {
    * Cancels call `call`: removed if still queued, ended within a tick if running. Fails with `CANCELLED`.
    */
   "cancel": { params: CancelParams; result: null; lane: "immediate" };
+  /**
+   * Cancels a `createBot` or `signIn` call that has no bot yet (signing in, connecting or retrying its join): it
+   * fails with `CANCELLED`. A call that has already settled, or whose bot has spawned, is left alone.
+   */
+  "cancelCall": { params: CancelCallParams; result: null; lane: "host" };
   /**
    * The bot's state now, built on demand.
    */

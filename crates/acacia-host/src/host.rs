@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use acacia_api::{ApiError, BotId, Command, ErrorCode, Method};
+use acacia_api::{ApiError, BotId, CallId, CancelParams, Command, ErrorCode, Method, Reply};
 use acacia_bot::snapshot::SnapshotReader;
 use acacia_bot::swarm::{BotId as ShardJobId, Job, JoinQueue, OnPanic, Shard};
 use acacia_bot::world::SharedWorlds;
@@ -121,6 +121,7 @@ impl Host {
         let params = match method {
             Method::CreateBot(params) => params,
             Method::SignIn(params) => return self.sign_ins.sign_in(call, params),
+            Method::CancelCall(p) => return self.cancel_call(call, p.call),
             method => {
                 let bot = method.bot().cloned().ok_or_else(|| ApiError::new(ErrorCode::BadParams, "no bot named"))?;
                 return self.registry.lock().send(&bot, call, method);
@@ -146,6 +147,23 @@ impl Host {
         if !submitted {
             self.registry.lock().remove(&acacia_api::BotId(id.0));
             return Err(ApiError::new(ErrorCode::Closed, "the host has shut down"));
+        }
+        Ok(())
+    }
+
+    /// `cancelCall` (contract: the crate docs, "Cancelling host calls").
+    fn cancel_call(&self, call: CallId, target: CallId) -> Result<(), ApiError> {
+        if self.sign_ins.cancel(target) {
+            self.sign_ins.answer(call, Ok(Reply::CancelCall(())));
+            return Ok(());
+        }
+        let registry = self.registry.lock();
+        let sent = registry.created_by(target).is_some_and(|bot| {
+            let cancel = Method::Cancel(CancelParams { bot: bot.clone(), call: target });
+            registry.send(&bot, call, cancel).is_ok()
+        });
+        if !sent {
+            self.sign_ins.answer(call, Ok(Reply::CancelCall(())));
         }
         Ok(())
     }

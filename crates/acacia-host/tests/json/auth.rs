@@ -57,6 +57,23 @@ async fn sign_in_caches_without_connecting_and_answers_with_no_bot() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_call_abandons_a_sign_in_and_a_signing_in_create_bot() {
+    let mut d = fake_host(60_000);
+    d.call(1, "signIn", json!({ "username": "Slow", "profilesFolder": "/nonexistent/a" }));
+    d.until("the msaCode", msa_code(1)).await;
+    d.ok(2, "cancelCall", json!({ "call": 1 })).await;
+    assert_eq!(code(&d.done(1).await.1), "CANCELLED");
+
+    let params = json!({ "host": "127.0.0.1", "port": 1, "username": "Slower", "auth": "microsoft", "profilesFolder": "/nonexistent/b" });
+    d.call(3, "createBot", params);
+    d.until("the msaCode", msa_code(3)).await;
+    d.ok(4, "cancelCall", json!({ "call": 3 })).await;
+    assert_eq!(code(&d.done(3).await.1), "CANCELLED");
+    d.ok(5, "cancelCall", json!({ "call": 3 })).await;
+    d.host.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shutdown_answers_a_sign_in_still_waiting_on_a_person() {
     let mut d = fake_host(60_000);
     d.call(1, "signIn", json!({ "username": "Late", "profilesFolder": "/nonexistent/fake" }));

@@ -3,6 +3,7 @@
 // outlives its script.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import { createSocket } from 'node:dgram'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -35,6 +36,22 @@ test('hello world over the daemon: the same script with ACACIA_VIA=ws://...', { 
   const daemon = await startDaemon()
   t.after(daemon.stop)
   await runHello(native, { ACACIA_VIA: daemon.url })
+})
+
+test('aborting a createBot still joining a silent server cancels it on the daemon', { skip, timeout: 30_000 }, async (t) => {
+  const daemon = await startDaemon()
+  const silent = createSocket('udp4')
+  await new Promise((resolve) => silent.bind(0, '127.0.0.1', resolve))
+  const via = new WsTransport(daemon.url)
+  t.after(async () => {
+    await via.close()
+    silent.close()
+    daemon.stop()
+  })
+  const started = Date.now()
+  const joining = createBot({ host: '127.0.0.1', port: silent.address().port, username: 'Joiner', transport: 'raknet', via, signal: AbortSignal.timeout(500) })
+  await assert.rejects(joining, { name: 'TimeoutError' })
+  assert.ok(Date.now() - started < 3_000, `the join stopped ${Date.now() - started} ms in`)
 })
 
 test('a persisted bot outlives its connection and a new script attaches to it', { skip, timeout: 60_000 }, async (t) => {

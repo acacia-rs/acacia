@@ -41,6 +41,9 @@
 //!   work runs on one sign-in thread of the host's ([`HostConfig::sign_in`] picks the provider: acacia-auth's flow,
 //!   or a test's `FakeSignIn`, feature `fake-sign-in`), so a shard never waits on it; `cancel` and `bot.close` of a
 //!   signing-in `createBot` abandon it. Shutdown answers open `signIn` calls `CLOSED`.
+//! - **Cancelling host calls.** A caller does not know a `createBot`'s bot until it resolves, so `cancelCall {call}`
+//!   names the call instead: a `createBot` still signing in, connecting or between join retries fails `CANCELLED`
+//!   (it reaches the bot's task as `cancel`), and so does an open `signIn`. Otherwise it does nothing.
 //!
 //! Not yet: reconnects through the swarm supervisor, Realms and friend joins.
 

@@ -62,7 +62,9 @@ acacia-host's; the addon: acacia-node's).
   (`AbortError`, or `TimeoutError` from `AbortSignal.timeout`) once the bot's action has ended, within a tick. Keys
   are released then, but a moving bot keeps its momentum: a cancelled `goto` or `follow` coasts about 1.5-2 blocks
   over some 8 ticks before it stands still. A signal that is already aborted rejects without sending anything.
-  `createBot` cannot be cancelled yet.
+  `createBot({ signal })` and `signIn({ signal })` send `cancelCall` instead (they have no bot to name yet): an
+  abort while signing in, connecting or between join retries rejects with `signal.reason`; one that loses the race
+  to the spawn closes the new bot before rejecting.
 - **Pacing.** Screen actions move at a player's pace: a `craft` takes 3-6 s, container verbs a few seconds
   (acacia-bot's `human.rs`). `ACACIA_HUMAN_SCALE=0.1` in the environment scales every such delay (0 removes them).
 - **Joins.** Joins to one address are spaced 500 ± 250 ms apart and BDS's `RecentlyConnected` refusal is retried

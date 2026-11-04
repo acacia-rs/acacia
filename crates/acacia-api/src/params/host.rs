@@ -123,6 +123,12 @@ pub struct CancelParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct CancelCallParams {
+    /// The `createBot` or `signIn` call to cancel.
+    pub call: CallId,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct SetEventsParams {
     pub bot: BotId,
     pub events: Vec<EventGroup>,

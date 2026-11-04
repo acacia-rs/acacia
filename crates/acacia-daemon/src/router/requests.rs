@@ -1,6 +1,6 @@
 //! Requests from a connection: `hello`, the daemon's own methods and acacia-api's (contract: the crate docs).
 
-use acacia_api::{ApiError, BotId, BotParams, ErrorCode, Method, METHODS, PROTOCOL_VERSION};
+use acacia_api::{ApiError, BotId, BotParams, CancelCallParams, CancelParams, ErrorCode, Method, METHODS, PROTOCOL_VERSION};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -115,9 +115,9 @@ impl Router {
         if let Some(bot) = method.bot().filter(|b| !self.subscribed(conn, b)) {
             return Err(ApiError::new(ErrorCode::UnknownBot, format!("no bot {bot} on this connection")));
         }
-        if let Method::Cancel(p) = &mut method {
-            let known = self.conns.get(&conn).and_then(|c| c.calls.get(&p.call.0).copied());
-            p.call = known.unwrap_or_else(|| self.fresh_call());
+        if let Method::Cancel(CancelParams { call, .. }) | Method::CancelCall(CancelCallParams { call }) = &mut method {
+            let known = self.conns.get(&conn).and_then(|c| c.calls.get(&call.0).copied());
+            *call = known.unwrap_or_else(|| self.fresh_call());
         }
         let kind = match &method {
             Method::CreateBot(p) => Kind::CreateBot { username: p.username.clone(), persist },

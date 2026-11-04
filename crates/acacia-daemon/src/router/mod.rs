@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
-use acacia_api::{BotId, BotParams, CallId, CancelParams, Command, Method};
+use acacia_api::{BotId, BotParams, CallId, CancelCallParams, CancelParams, Command, Method};
 use acacia_host::{Host, Outbound};
 use serde_json::Value;
 use tokio::sync::mpsc;
@@ -188,6 +188,15 @@ impl Router {
             if self.bots.get(&bot).is_some_and(|e| e.persist) {
                 self.internal(Method::Cancel(CancelParams { bot, call }));
             }
+        }
+        let connecting: Vec<CallId> = self
+            .calls
+            .iter()
+            .filter(|(_, c)| c.conn == conn && matches!(c.kind, Kind::CreateBot { persist: false, .. }))
+            .map(|(id, _)| *id)
+            .collect();
+        for call in connecting {
+            self.internal(Method::CancelCall(CancelCallParams { call }));
         }
     }
 }

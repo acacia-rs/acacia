@@ -7,7 +7,7 @@ use acacia_host::{FakeSignIn, HostConfig, FAKE_USER_CODE};
 use acacia_testserver::{FakeServer, Script};
 use serde_json::json;
 
-use super::common::{daemon_on, Client};
+use super::common::{daemon_on, error_code, Client};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn msa_codes_go_to_the_calling_connection_under_its_request_id() {
@@ -34,5 +34,17 @@ async fn msa_codes_go_to_the_calling_connection_under_its_request_id() {
 
     let refused = other.err("signIn", json!({ "username": "Online", "profilesFolder": "/tmp/elsewhere" })).await;
     assert_eq!(refused, "BAD_PARAMS", "clients cannot pick where tokens are written");
+    d.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_call_names_a_signing_in_create_bot_by_its_request_id() {
+    let host = HostConfig { sign_in: Some(Arc::new(FakeSignIn::new(Duration::from_secs(60)))), ..HostConfig::default() };
+    let d = daemon_on(host, None).await;
+    let mut c = Client::greeted(d.local_addr(), json!({})).await;
+    let id = c.request("createBot", json!({ "host": "127.0.0.1", "port": 1, "username": "Waiting", "auth": "microsoft" })).await;
+    c.until("the msaCode", |r| r["type"] == "msaCode").await;
+    c.ok("cancelCall", json!({ "call": id })).await;
+    assert_eq!(error_code(&c.response(id).await.1), "CANCELLED");
     d.shutdown().await;
 }

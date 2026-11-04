@@ -1,11 +1,11 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use acacia_api::{ApiError, CallId, CallResult, ErrorCode, MsaCode, Out, Reply, SignInParams, SignInResult};
 use parking_lot::Mutex;
 use tokio::runtime::Runtime;
-use tokio::task::JoinHandle;
+use tokio::task::{AbortHandle, JoinHandle};
 
 use super::{default_profiles_folder, DeviceCode, MsaAccount, OnlineLogin, Prompt, SignIn};
 use crate::outbound::ShardBuf;
@@ -18,7 +18,8 @@ pub(crate) struct SignIns {
     /// `None` before the first sign-in and after [`SignIns::close`] (then `closed`).
     runtime: Mutex<Option<Runtime>>,
     closed: Mutex<bool>,
-    open: Arc<Mutex<HashSet<CallId>>>,
+    /// Open `signIn` calls, with their task once it is spawned.
+    open: Arc<Mutex<HashMap<CallId, Option<AbortHandle>>>>,
     /// Where `signIn` records go (they name no bot, so no bot's shard).
     buf: Arc<ShardBuf>,
 }
@@ -46,24 +47,47 @@ impl SignIns {
         let buf = self.buf.clone();
         let login = self.provider.login(account, Box::new(move |code| buf.push(msa_code(call, code))));
         let (open, buf) = (self.open.clone(), self.buf.clone());
-        open.lock().insert(call);
+        open.lock().insert(call, None);
         let spawned = self.spawn(async move {
             let result = login.await.map(|l| Reply::SignIn(SignInResult { display_name: l.credentials.display_name, xuid: l.credentials.xuid }));
-            if open.lock().remove(&call) {
+            if open.lock().remove(&call).is_some() {
                 buf.push(Out::Done { bot: None, call, result: result.map_or_else(CallResult::Err, |r| CallResult::ok(&r)) });
             }
         });
-        spawned.map(drop).inspect_err(|_| {
-            self.open.lock().remove(&call);
-        })
+        match spawned {
+            Ok(task) => {
+                if let Some(slot) = self.open.lock().get_mut(&call) {
+                    *slot = Some(task.abort_handle());
+                }
+                Ok(())
+            }
+            Err(e) => {
+                self.open.lock().remove(&call);
+                Err(e)
+            }
+        }
+    }
+
+    /// Abandons open `signIn` call `call`, answering it `CANCELLED`; false when no such call is open.
+    pub(crate) fn cancel(&self, call: CallId) -> bool {
+        let Some(task) = self.open.lock().remove(&call) else { return false };
+        if let Some(task) = task {
+            task.abort();
+        }
+        self.answer(call, Err(ApiError::new(ErrorCode::Cancelled, "cancelled while signing in")));
+        true
+    }
+
+    /// A `done` naming no bot, on the sign-in records' shard.
+    pub(crate) fn answer(&self, call: CallId, result: Result<Reply, ApiError>) {
+        self.buf.push(Out::Done { bot: None, call, result: result.map_or_else(CallResult::Err, |r| CallResult::ok(&r)) });
     }
 
     /// Answers the open `signIn` calls `CLOSED` and stops the sign-in thread; later sign-ins are refused.
     pub(crate) fn close(&self) {
         *self.closed.lock() = true;
-        for call in std::mem::take(&mut *self.open.lock()) {
-            let result = CallResult::Err(ApiError::new(ErrorCode::Closed, "the host shut down during the sign-in"));
-            self.buf.push(Out::Done { bot: None, call, result });
+        for call in std::mem::take(&mut *self.open.lock()).into_keys() {
+            self.answer(call, Err(ApiError::new(ErrorCode::Closed, "the host shut down during the sign-in")));
         }
         if let Some(runtime) = self.runtime.lock().take() {
             runtime.shutdown_background();

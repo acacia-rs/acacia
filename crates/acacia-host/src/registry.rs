@@ -72,6 +72,8 @@ struct Entry {
     tx: mpsc::UnboundedSender<Msg>,
     out: Arc<BotOut>,
     shard: usize,
+    /// Its `createBot` call, for `cancelCall`.
+    created_by: CallId,
     /// Set once the bot has spawned, if the host publishes snapshots.
     reader: Option<SnapshotReader>,
 }
@@ -103,8 +105,13 @@ impl Registry {
         out.open.lock().insert(call);
         let (tx, rx) = mpsc::unbounded_channel();
         self.loads[shard] += 1;
-        self.bots.insert(id, Entry { tx, out: out.clone(), shard, reader: None });
+        self.bots.insert(id, Entry { tx, out: out.clone(), shard, created_by: call, reader: None });
         Ok((shard, out, rx))
+    }
+
+    /// The bot that `createBot` call `call` made, still registered.
+    pub(crate) fn created_by(&self, call: CallId) -> Option<BotId> {
+        self.bots.iter().find(|(_, e)| e.created_by == call).map(|(id, _)| id.clone())
     }
 
     /// Hands a call to its bot's task.

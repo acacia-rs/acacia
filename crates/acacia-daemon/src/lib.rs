@@ -14,8 +14,8 @@
 //!   action errors, -32010 `CANCELLED`, -32020.. host, -32030.. connect, -32040 `VERSION_MISMATCH`, -32041
 //!   `UNAUTHORIZED`, -32601 `UNKNOWN_METHOD`, -32602 `BAD_PARAMS`, -32603 `INTERNAL`, -32700/-32600 for frames that
 //!   are not a request). A refused call (`BUSY`, `UNKNOWN_BOT`, ...) is answered at once. A request without `id` (a
-//!   notification) runs and is not answered. Batches (arrays) are refused. `cancel {bot, call}` names the request
-//!   `id` of the call to cancel (numeric ids only).
+//!   notification) runs and is not answered. Batches (arrays) are refused. `cancel {bot, call}` and `cancelCall {call}`
+//!   name the request `id` of the call to cancel (numeric ids only).
 //! - **Events.** The daemon sends `out` notifications, `{"method": "out", "params": {"records": [...]}}`, holding
 //!   acacia-api `Out` records (`event`, `lagged`) and `mirror` records, at most one per host batch and connection.
 //!   A response comes after the `out` holding the events raised before its call ended, so the host's ordering
@@ -27,8 +27,8 @@
 //!   someone signed in there. Params naming `profilesFolder` are refused `BAD_PARAMS`, so clients cannot pick
 //!   where token files are written.
 //! - **Ownership.** A bot belongs to the connections that created or attached to it: only they can call it or get
-//!   its events, and `bot.close` from any of them closes it. When a connection drops, its bots close, and its open
-//!   calls on persisted bots are cancelled. `createBot {..., persist: true}` keeps the bot running with no
+//!   its events, and `bot.close` from any of them closes it. When a connection drops, its bots close, its open
+//!   calls on persisted bots are cancelled, and so are its `createBot` calls still connecting (unless `persist`). `createBot {..., persist: true}` keeps the bot running with no
 //!   connection; `attach {bot | username}` subscribes a connection to a persisted bot (or its own) and answers
 //!   `{bot, username, persist, snapshot}` with a fresh `bot.snapshot`. Events raised while no connection is
 //!   attached are dropped. `bots` lists every bot: `{bots: [{bot, username, persist, attached, mine}]}`.

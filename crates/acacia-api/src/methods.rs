@@ -16,6 +16,9 @@ api! {
     "bot.close" => Close(BotParams) -> (), Immediate [];
     /// Cancels call `call`: removed if still queued, ended within a tick if running. Fails with `CANCELLED`.
     "cancel" => Cancel(CancelParams) -> (), Immediate [];
+    /// Cancels a `createBot` or `signIn` call that has no bot yet (signing in, connecting or retrying its join): it
+    /// fails with `CANCELLED`. A call that has already settled, or whose bot has spawned, is left alone.
+    "cancelCall" => CancelCall(CancelCallParams) -> (), Host [];
     /// The bot's state now, built on demand.
     "bot.snapshot" => Snapshot(BotParams) -> Snapshot, Immediate [];
     /// Changes the event groups the bot reports.

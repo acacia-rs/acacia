@@ -73,8 +73,9 @@ impl NativeHost {
         config.join_jitter = options.join_jitter_ms.map_or(config.join_jitter, ms);
         config.max_batch_bytes = options.max_batch_bytes.map_or(config.max_batch_bytes, |b| b as usize);
         #[cfg(feature = "test-server")]
-        if std::env::var_os("ACACIA_FAKE_SIGN_IN").is_some() {
-            config.sign_in = Some(Arc::new(acacia_host::FakeSignIn::new(Duration::from_millis(300))));
+        if let Ok(fake) = std::env::var("ACACIA_FAKE_SIGN_IN") {
+            let ms = fake.parse().ok().filter(|&ms: &u64| ms > 1).unwrap_or(300);
+            config.sign_in = Some(Arc::new(acacia_host::FakeSignIn::new(Duration::from_millis(ms))));
         }
         let (host, outbound) = Host::start(config).map_err(|e| Error::from_reason(format!("host threads: {e}")))?;
         let host = Arc::new(host);
