@@ -235,6 +235,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "acacia-registry"
+version = "0.1.0"
+
+[[package]]
 name = "acacia-render"
 version = "0.1.0"
 dependencies = [
@@ -346,6 +350,7 @@ name = "acacia-world"
 version = "0.1.0"
 dependencies = [
  "acacia-proto",
+ "acacia-registry",
  "bytes",
  "parking_lot",
  "rustc-hash 2.1.3",

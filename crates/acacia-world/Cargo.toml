@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 acacia-proto.workspace = true
+acacia-registry.workspace = true
 bytes = "1"
 parking_lot = "0.12"
 rustc-hash = "2"

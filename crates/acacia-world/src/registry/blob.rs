@@ -98,6 +98,8 @@ pub(super) fn vanilla_states() -> Vec<BlockState> {
     let mut r = Reader { blob: BLOB, pos: blob.states_at };
     let n = r.u32();
     assert_eq!(n, selections.len(), "selection.bin is stale: regenerate it with tools/gen-selection.py");
+    let neutral = &super::neutral::TABLES.to_neutral;
+    assert_eq!(n, neutral.len(), "neutral.bin is stale: regenerate it with acacia-registry's tools/gen.mjs");
     (0..n)
         .map(|i| {
             let name = blob.strings[r.u16() as usize];
@@ -123,6 +125,8 @@ pub(super) fn vanilla_states() -> Vec<BlockState> {
                 mining,
                 light_emission: light >> 4,
                 light_filter: light & 15,
+                neutral: acacia_registry::BlockState::from_id(neutral[i].0),
+                neutral_flags: neutral[i].1,
             }
         })
         .collect()

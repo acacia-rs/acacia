@@ -77,6 +77,9 @@ pub struct BlockState {
     pub light_emission: u8,
     /// Extra light lost passing through, on top of 1 per block step; 15 blocks all light, 0 is clear.
     pub light_filter: u8,
+    /// The edition-neutral state; `None` for custom blocks.
+    pub neutral: Option<acacia_registry::BlockState>,
+    pub neutral_flags: super::neutral::NeutralFlags,
 }
 
 impl BlockState {
