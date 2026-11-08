@@ -140,6 +140,7 @@ name = "acacia-java-client"
 version = "0.1.0"
 dependencies = [
  "acacia-java-proto",
+ "acacia-registry",
  "flate2",
  "md-5",
  "thiserror 2.0.21",

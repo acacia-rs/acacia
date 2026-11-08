@@ -4,6 +4,7 @@ use md5::{Digest, Md5};
 use tokio::net::TcpStream;
 
 use crate::frame::{Connection, Error};
+use crate::world::World;
 
 /// Chunks per tick the client says it can take, as a client with time to spare does.
 const CHUNKS_PER_TICK: f32 = 20.0;
@@ -52,6 +53,7 @@ pub struct Client {
     pub uuid: u128,
     pub name: String,
     pub pose: Pose,
+    pub world: World,
     loaded_sent: bool,
 }
 
@@ -64,7 +66,7 @@ impl Client {
         c.send(ids::login::serverbound::HELLO, &LoginHello { name: name.to_owned(), uuid: offline_uuid(name) }).await?;
         let profile = login(&mut c).await?;
         configure(&mut c).await?;
-        Ok(Self { connection: c, uuid: profile.uuid, name: profile.name, pose: Pose::default(), loaded_sent: false })
+        Ok(Self { connection: c, uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), loaded_sent: false })
     }
 
     /// The next packet, after sending any reply the protocol requires for it.
@@ -88,6 +90,7 @@ impl Client {
             from::DISCONNECT => return Err(Error::Disconnected(format!("{body:02x?}"))),
             _ => {}
         }
+        self.world.apply(id, &body)?;
         Ok(Packet { id, body })
     }
 }

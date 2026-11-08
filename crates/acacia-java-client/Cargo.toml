@@ -15,4 +15,5 @@ thiserror = "2"
 tokio = { version = "1.53.1", features = ["net", "io-util", "rt", "time", "macros"] }
 
 [dev-dependencies]
+acacia-registry = { path = "../acacia-registry" }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }

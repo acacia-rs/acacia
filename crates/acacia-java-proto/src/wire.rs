@@ -8,6 +8,23 @@ pub enum Error {
     NegativeLength(i32),
     #[error("string is not UTF-8")]
     BadUtf8,
+    #[error("palette index {0} is out of range")]
+    BadPaletteIndex(u32),
+    #[error("{0} bits per entry")]
+    BadBits(u32),
+}
+
+pub fn read_varlong(input: &mut &[u8]) -> Result<i64, Error> {
+    let mut value = 0u64;
+    for i in 0..10 {
+        let (&byte, rest) = input.split_first().ok_or(Error::Eof)?;
+        *input = rest;
+        value |= u64::from(byte & 0x7f) << (7 * i);
+        if byte & 0x80 == 0 {
+            return Ok(value as i64);
+        }
+    }
+    Err(Error::VarIntTooLong)
 }
 
 /// A value's layout on the wire.

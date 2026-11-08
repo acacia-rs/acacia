@@ -2,6 +2,7 @@
 
 mod frame;
 mod join;
+pub mod world;
 
 pub use frame::{Connection, Error};
 pub use join::{Client, Packet, Pose, offline_uuid};
