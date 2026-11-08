@@ -40,4 +40,5 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
 
 - Vanilla 26.3 server jar for codec round-trips and behaviour.
 - Real 26.3 client (Fabric, Xvfb, `acacia-java-bridge/tools/client-shot.sh` pattern) for physics traces.
-- Paper + Grim as an anticheat gate once physics lands.
+- Paper + Grim as an anticheat gate: `tools/grim-gate.sh` drives `acacia-java-client`'s `java_gate` example over key
+  scripts; judge by server corrections and Grim's verbose flags. `ACACIA_GATE_CHEAT=1` is the control that must fail.
