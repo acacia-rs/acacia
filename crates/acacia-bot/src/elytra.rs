@@ -9,13 +9,13 @@ use acacia_client::proto::packets::SetEntityData;
 use acacia_client::proto::types::{MetadataDictionaryItemValue, MetadataFlags1};
 use acacia_client::proto::{Packet, RawPacket};
 
+use acacia_world::neutral::Item;
+
 use crate::human::HOTBAR_SWITCH;
 use crate::survival::Destination;
 use crate::state::Inventory;
 use crate::{ActionError, Bot};
 
-const ELYTRA: &str = "minecraft:elytra";
-const FIREWORK: &str = "minecraft:firework_rocket";
 /// Armor slot of the chestplate.
 const CHEST: u8 = 1;
 /// How long the server has to confirm a glide with the `GLIDING` actor flag.
@@ -27,13 +27,12 @@ impl Bot {
         if self.wears_elytra() {
             return Ok(());
         }
-        let from = self.find_item(ELYTRA).ok_or_else(|| ActionError::NotPossible("no elytra in the inventory".into()))?;
+        let from = self.find_item(Item::Elytra).ok_or_else(|| ActionError::NotPossible("no elytra in the inventory".into()))?;
         self.equip(from, Destination::Chest).await
     }
 
     pub fn wears_elytra(&self) -> bool {
-        let id = self.state.items.id(ELYTRA);
-        self.state.inventory.armor.get(usize::from(CHEST)).is_some_and(|s| !s.is_empty() && Some(s.network_id) == id)
+        self.state.inventory.armor.get(usize::from(CHEST)).is_some_and(|s| self.state.item(s) == Some(Item::Elytra))
     }
 
     /// Opens the elytra mid-air as vanilla does on a jump press while falling: the press plus
@@ -94,9 +93,8 @@ impl Bot {
     /// Selects a hotbar slot with firework rockets, after a human pause if it was not selected. A flight does it
     /// before taking off: switched mid-glide, the pause costs the boost's timing (live: a takeoff rocket came too late).
     pub async fn hold_fireworks(&mut self) -> Result<(), ActionError> {
-        let id = self.state.items.id(FIREWORK);
-        let hotbar = self.state.inventory.main.iter().take(usize::from(Inventory::HOTBAR_SLOTS));
-        let slot = id.and_then(|id| hotbar.clone().position(|s| s.network_id == id && !s.is_empty()));
+        let mut hotbar = self.state.inventory.main.iter().take(usize::from(Inventory::HOTBAR_SLOTS));
+        let slot = hotbar.position(|s| self.state.item(s) == Some(Item::FireworkRocket));
         let slot = slot.ok_or_else(|| ActionError::NotPossible("no firework rocket in the hotbar".into()))?;
         if usize::from(self.state.inventory.selected_hotbar_slot) != slot {
             self.select_hotbar(slot as u8)?;

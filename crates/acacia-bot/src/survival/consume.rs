@@ -31,13 +31,14 @@ impl Bot {
         if self.survival.item_use.is_some() {
             return Err(ActionError::NotPossible("already using an item".into()));
         }
-        let held = self.state.inventory.held();
-        let name = self.state.items.name(held.network_id).unwrap_or_default();
-        let ticks = use_ticks(name).ok_or_else(|| ActionError::NotPossible(format!("cannot eat or drink {name:?}")))?;
+        let held = self.state.item(self.state.inventory.held());
+        let Some((held, ticks)) = held.and_then(|i| Some((i, use_ticks(i)?))) else {
+            return Err(ActionError::NotPossible(format!("cannot eat or drink {held:?}")));
+        };
         let p = &self.state.player;
         let hungry = p.hunger < 20.0 || !matches!(p.game_mode, GameMode::Survival | GameMode::Adventure);
-        if !hungry && !always_consumable(name) {
-            return Err(ActionError::NotPossible(format!("not hungry enough to eat {name}")));
+        if !hungry && !always_consumable(held) {
+            return Err(ActionError::NotPossible(format!("not hungry enough to eat {held}")));
         }
         let release = self.human.ticks_between(USE_RELEASE);
         let slot = self.state.inventory.selected_hotbar_slot;

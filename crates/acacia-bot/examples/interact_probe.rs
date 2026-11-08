@@ -30,7 +30,7 @@ async fn run(bot: &mut Bot, pad: &Pad, cmds: &[String]) -> Result<(), Error> {
 
 async fn hold(bot: &mut Bot, pad: &Pad, item: &str) -> Result<(), Error> {
     run(bot, pad, &["/clear @s".into(), format!("/give @s {item} 64")]).await?;
-    if let Some(slot) = bot.find_item(&format!("minecraft:{item}")) {
+    if let Some(slot) = bot.find_item_named(&format!("minecraft:{item}")) {
         bot.equip(slot, Destination::Hand).await?;
     }
     Ok(())

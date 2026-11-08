@@ -29,7 +29,7 @@ pub struct GotoOpts {
     /// How close to the final node's centre (horizontally, blocks) counts as arrived.
     pub tolerance: f32,
     /// Item identifiers of the throwaway blocks bridging and pillaring may use, in preference order.
-    pub scaffold: Vec<String>,
+    pub scaffold: Vec<acacia_world::neutral::Item>,
     /// Run straight at nodes further on over flat ground instead of the path's 8-direction staircase.
     pub shortcuts: bool,
     /// Seeds the followers' aim jitter (`Human`); random when `None`.
@@ -42,8 +42,7 @@ pub struct GotoOpts {
 
 impl Default for GotoOpts {
     fn default() -> Self {
-        let scaffold = DEFAULT_SCAFFOLD.iter().map(|s| s.to_string()).collect();
-        Self { search: SearchOpts::default(), max_replans: 10, tolerance: 0.25, scaffold, shortcuts: true, seed: None, give_up_ticks: Some(600), settle: false }
+        Self { search: SearchOpts::default(), max_replans: 10, tolerance: 0.25, scaffold: DEFAULT_SCAFFOLD.to_vec(), shortcuts: true, seed: None, give_up_ticks: Some(600), settle: false }
     }
 }
 

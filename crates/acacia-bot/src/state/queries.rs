@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 
+use acacia_world::neutral::Item;
+
 use super::{GameState, ItemStack, Recipe};
 
 impl GameState {
@@ -14,13 +16,20 @@ impl GameState {
         self.inventory.held()
     }
 
-    /// First stack of the given identifier as `(window, slot, stack)`: the player's own windows
-    /// first, then the open container.
-    pub fn find_item(&self, name: &str) -> Option<(i32, usize, &ItemStack)> {
-        let id = self.items.id(name)?;
-        self.inventory.find(|s| s.network_id == id).or_else(|| {
+    /// The stack's neutral item; `None` when empty, unregistered or only on Bedrock.
+    pub fn item(&self, stack: &ItemStack) -> Option<Item> {
+        if stack.is_empty() {
+            return None;
+        }
+        self.items.item(stack.network_id, stack.metadata)
+    }
+
+    /// First stack of `item` as `(window, slot, stack)`: the player's own windows first, then the open
+    /// container.
+    pub fn find_item(&self, item: Item) -> Option<(i32, usize, &ItemStack)> {
+        self.inventory.find(|s| self.item(s) == Some(item)).or_else(|| {
             let open = self.containers.open.as_ref()?;
-            open.iter().find(|(_, s)| s.network_id == id).map(|(slot, s)| (open.window_id, slot, s))
+            open.iter().find(|(_, s)| self.item(s) == Some(item)).map(|(slot, s)| (open.window_id, slot, s))
         })
     }
 

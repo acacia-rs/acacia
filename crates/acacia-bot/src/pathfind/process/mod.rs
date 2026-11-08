@@ -47,8 +47,8 @@ pub enum Want {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Act {
-    /// Place a block into `pos` (an air or liquid cell): the first of `blocks` (item identifiers) the bot holds.
-    Fill { pos: BlockPos, blocks: Vec<String> },
+    /// Place a block into `pos` (an air or liquid cell): the first of `blocks` the bot holds.
+    Fill { pos: BlockPos, blocks: Vec<acacia_world::neutral::Item> },
     /// Place `item` against `face` of `against`, clicked at `click` (relative to its minimum corner).
     Place { item: String, against: BlockPos, face: Face, click: Vec3 },
     /// Break the block at `pos` with the best tool held.

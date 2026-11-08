@@ -1,5 +1,6 @@
 //! What the bot carries that the search may use: tools to dig with, blocks to build with.
 
+use acacia_world::neutral::Item;
 use acacia_world::{Mining, Tool};
 
 use crate::interact::breaking::{enchantment_level, EFFICIENCY};
@@ -8,18 +9,18 @@ use crate::items::SlotRef;
 use crate::Bot;
 
 /// Throwaway blocks [`GotoOpts::scaffold`](super::GotoOpts::scaffold) starts with.
-pub const DEFAULT_SCAFFOLD: &[&str] = &[
-    "minecraft:dirt",
-    "minecraft:cobblestone",
-    "minecraft:cobbled_deepslate",
-    "minecraft:netherrack",
-    "minecraft:stone",
-    "minecraft:andesite",
-    "minecraft:diorite",
-    "minecraft:granite",
-    "minecraft:tuff",
-    "minecraft:blackstone",
-    "minecraft:end_stone",
+pub const DEFAULT_SCAFFOLD: &[Item] = &[
+    Item::Dirt,
+    Item::Cobblestone,
+    Item::CobbledDeepslate,
+    Item::Netherrack,
+    Item::Stone,
+    Item::Andesite,
+    Item::Diorite,
+    Item::Granite,
+    Item::Tuff,
+    Item::Blackstone,
+    Item::EndStone,
 ];
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -40,8 +41,8 @@ impl Kit {
 }
 
 impl Bot {
-    /// The tools and the `scaffold` blocks (item identifiers) in the main inventory.
-    pub fn path_kit(&self, scaffold: &[String]) -> Kit {
+    /// The tools and the `scaffold` blocks in the main inventory.
+    pub fn path_kit(&self, scaffold: &[Item]) -> Kit {
         let mut kit = Kit::default();
         for stack in self.state.inventory.main.iter().filter(|s| !s.is_empty()) {
             let Some(name) = self.state.items.name(stack.network_id) else { continue };
@@ -50,7 +51,7 @@ impl Bot {
                 if !kit.tools.contains(&entry) {
                     kit.tools.push(entry);
                 }
-            } else if scaffold.iter().any(|s| s == name) {
+            } else if self.state.item(stack).is_some_and(|i| scaffold.contains(&i)) {
                 kit.blocks += u32::from(stack.count);
             }
         }
@@ -58,7 +59,7 @@ impl Bot {
     }
 
     /// The first slot holding any of the `scaffold` blocks.
-    pub(crate) fn scaffold_slot(&self, scaffold: &[String]) -> Option<SlotRef> {
-        scaffold.iter().find_map(|name| self.find_item(name))
+    pub(crate) fn scaffold_slot(&self, scaffold: &[Item]) -> Option<SlotRef> {
+        scaffold.iter().find_map(|&item| self.find_item(item))
     }
 }

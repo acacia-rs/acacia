@@ -96,3 +96,24 @@ fn state_flags_match_the_name_rules_but_for_anvils() {
     // Anvils fall like `rules::gravity` says; the name list left them out.
     assert_eq!(differ, BTreeSet::from(["minecraft:anvil", "minecraft:chipped_anvil", "minecraft:damaged_anvil"]));
 }
+
+#[test]
+fn backfill_substitutes_match_the_name_rule() {
+    use acacia_world::neutral::{Block, Item};
+
+    use crate::pathfind::process::substitutes;
+    for block in Block::all() {
+        let n = block.name();
+        let by_name: &[Item] = match n {
+            "minecraft:stone" => &[Item::Cobblestone],
+            "minecraft:deepslate" => &[Item::CobbledDeepslate],
+            "minecraft:grass_block" | "minecraft:podzol" | "minecraft:mycelium" | "minecraft:dirt_path" | "minecraft:farmland" => &[Item::Dirt],
+            b if b.starts_with("minecraft:deepslate_") && b.ends_with("_ore") => &[Item::CobbledDeepslate],
+            b if b.ends_with("_ore") => &[Item::Cobblestone],
+            _ => &[],
+        };
+        assert_eq!(substitutes(block), by_name, "{n}");
+    }
+    assert_eq!(Block::from_name("grass_path").map(substitutes), Some(&[Item::Dirt][..]));
+    assert_eq!(Block::from_name("lit_deepslate_redstone_ore").map(substitutes), Some(&[Item::CobbledDeepslate][..]));
+}

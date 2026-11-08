@@ -172,7 +172,7 @@ async fn reset(bot: &mut Bot, pad: &Pad, case: &Case) -> Result<(), Error> {
 }
 
 async fn use_on(bot: &mut Bot, pad: &Pad, at: [i32; 3], face: Face, item: &str) -> String {
-    let Some(slot) = bot.find_item(&format!("minecraft:{item}")) else { return "no item".into() };
+    let Some(slot) = bot.find_item_named(&format!("minecraft:{item}")) else { return "no item".into() };
     if let Err(e) = bot.equip(slot, Destination::Hand).await {
         return format!("equip: {e}");
     }
@@ -185,7 +185,7 @@ async fn use_on(bot: &mut Bot, pad: &Pad, at: [i32; 3], face: Face, item: &str) 
 }
 
 async fn put(bot: &mut Bot, pad: &Pad, against: [i32; 3], face: Face, click: [f32; 3], item: &str) -> String {
-    let Some(slot) = bot.find_item(&format!("minecraft:{item}")) else { return "no item".into() };
+    let Some(slot) = bot.find_item_named(&format!("minecraft:{item}")) else { return "no item".into() };
     if let Err(e) = bot.equip(slot, Destination::Hand).await {
         return format!("equip: {e}");
     }

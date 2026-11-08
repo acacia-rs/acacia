@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 
 use acacia_client::proto::packets::ItemRegistry as ItemRegistryPacket;
+use acacia_world::neutral::Item;
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 use bytes::Bytes;
 
@@ -50,6 +51,18 @@ impl ItemRegistry {
 
     pub fn id(&self, name: &str) -> Option<i32> {
         self.0.ids.get(name).copied()
+    }
+
+    /// The neutral item of a network id and its metadata (which tells bed and banner colours apart);
+    /// `None` for items only Bedrock has.
+    pub fn item(&self, network_id: i32, metadata: u32) -> Option<Item> {
+        Item::from_bedrock(self.name(network_id)?, i16::try_from(metadata).unwrap_or(-1))
+    }
+
+    /// The network id and metadata this server uses for `item`.
+    pub fn network_id(&self, item: Item) -> Option<(i32, u32)> {
+        let (name, data) = item.bedrock();
+        Some((self.id(name)?, data as u32))
     }
 
     pub fn len(&self) -> usize {

@@ -19,13 +19,13 @@ pub struct BuildJob {
     /// Only place into empty cells; leave cells holding another block as they are (reported as kept).
     #[serde(default)]
     pub fill_only: bool,
-    /// Item identifiers for temporary blocks (pillars, supports, liquid seals), in preference order.
+    /// Temporary blocks (pillars, supports, liquid seals), in preference order.
     #[serde(default = "default_scaffold")]
-    pub scaffold: Vec<String>,
+    pub scaffold: Vec<acacia_world::neutral::Item>,
 }
 
-fn default_scaffold() -> Vec<String> {
-    DEFAULT_SCAFFOLD.iter().map(|s| s.to_string()).collect()
+fn default_scaffold() -> Vec<acacia_world::neutral::Item> {
+    DEFAULT_SCAFFOLD.to_vec()
 }
 
 impl BuildJob {

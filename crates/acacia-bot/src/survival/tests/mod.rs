@@ -5,6 +5,7 @@ use acacia_client::proto::packets::InventoryTransaction;
 use acacia_client::proto::types::{
     TransactionTransactionData as Data, TransactionUseItemActionType, TransactionUseItemTriggerType,
 };
+use acacia_world::neutral::Item;
 use acacia_world::{BlockRegistry, Mining};
 
 use super::auto_eat::{Act, AutoEater, Ctx, Delay};
@@ -19,29 +20,29 @@ use crate::ActionError;
 
 #[test]
 fn food_values_and_durations() {
-    assert_eq!(food("minecraft:cooked_beef").map(|f| (f.hunger, f.saturation)), Some((8, 12.8)));
-    assert!(food("minecraft:rotten_flesh").unwrap().harmful);
-    assert!(food("minecraft:golden_apple").unwrap().precious);
-    assert_eq!(food("minecraft:stone"), None);
-    assert_eq!(use_ticks("minecraft:bread"), Some(32));
-    assert_eq!(use_ticks("minecraft:dried_kelp"), Some(16));
-    assert_eq!(use_ticks("minecraft:honey_bottle"), Some(40));
-    assert_eq!(use_ticks("minecraft:potion"), Some(32));
-    assert_eq!(use_ticks("minecraft:splash_potion"), None);
-    assert!(always_consumable("minecraft:milk_bucket") && always_consumable("minecraft:golden_apple"));
-    assert!(!always_consumable("minecraft:bread"));
+    assert_eq!(food(Item::CookedBeef).map(|f| (f.hunger, f.saturation)), Some((8, 12.8)));
+    assert!(food(Item::RottenFlesh).unwrap().harmful);
+    assert!(food(Item::GoldenApple).unwrap().precious);
+    assert_eq!(food(Item::Stone), None);
+    assert_eq!(use_ticks(Item::Bread), Some(32));
+    assert_eq!(use_ticks(Item::DriedKelp), Some(16));
+    assert_eq!(use_ticks(Item::HoneyBottle), Some(40));
+    assert_eq!(use_ticks(Item::Potion), Some(32));
+    assert_eq!(use_ticks(Item::SplashPotion), None);
+    assert!(always_consumable(Item::MilkBucket) && always_consumable(Item::GoldenApple));
+    assert!(!always_consumable(Item::Bread));
 }
 
 #[test]
 fn food_choice() {
-    let hotbar = || [(0, "minecraft:rotten_flesh"), (1, "minecraft:bread"), (2, "minecraft:cooked_beef"), (3, "minecraft:golden_apple")].into_iter();
+    let hotbar = || [(0, Item::RottenFlesh), (1, Item::Bread), (2, Item::CookedBeef), (3, Item::GoldenApple)].into_iter();
     assert_eq!(choose_food(hotbar(), 10.0, FoodChoice::Saturation), Some(2));
     // Beef (8) would overflow a bar missing 6; bread (5) fits.
     assert_eq!(choose_food(hotbar(), 6.0, FoodChoice::NoWaste), Some(1));
     assert_eq!(choose_food(hotbar(), 9.0, FoodChoice::NoWaste), Some(2));
     // Nothing fits: the smallest meal wastes least.
     assert_eq!(choose_food(hotbar(), 2.0, FoodChoice::NoWaste), Some(1));
-    assert_eq!(choose_food([(0, "minecraft:spider_eye"), (4, "minecraft:enchanted_golden_apple")].into_iter(), 10.0, FoodChoice::Saturation), None);
+    assert_eq!(choose_food([(0, Item::SpiderEye), (4, Item::EnchantedGoldenApple)].into_iter(), 10.0, FoodChoice::Saturation), None);
 }
 
 fn snapshot(count: u16, hunger: f32) -> Snapshot {
@@ -159,13 +160,20 @@ fn auto_eat_waits_for_a_free_bot_and_backs_off_without_food() {
 
 #[test]
 fn armour_slots_and_hotbar_target() {
-    assert_eq!(armor_slot("minecraft:iron_helmet"), Some(0));
-    assert_eq!(armor_slot("minecraft:turtle_helmet"), Some(0));
-    assert_eq!(armor_slot("minecraft:carved_pumpkin"), Some(0));
-    assert_eq!(armor_slot("minecraft:elytra"), Some(1));
-    assert_eq!(armor_slot("minecraft:netherite_leggings"), Some(2));
-    assert_eq!(armor_slot("minecraft:leather_boots"), Some(3));
-    assert_eq!(armor_slot("minecraft:diamond_sword"), None);
+    assert_eq!(armor_slot(Item::IronHelmet), Some(0));
+    assert_eq!(armor_slot(Item::TurtleHelmet), Some(0));
+    assert_eq!(armor_slot(Item::CarvedPumpkin), Some(0));
+    assert_eq!(armor_slot(Item::CreeperHead), Some(0));
+    assert_eq!(armor_slot(Item::Elytra), Some(1));
+    assert_eq!(armor_slot(Item::NetheriteLeggings), Some(2));
+    assert_eq!(armor_slot(Item::LeatherBoots), Some(3));
+    assert_eq!(armor_slot(Item::DiamondSword), None);
+    // The suffix rule this replaced counted every `*_head` and `*_skull` item; the tag must agree.
+    for item in Item::all() {
+        let n = &item.name()[10..];
+        let by_name = n.ends_with("_helmet") || n == "carved_pumpkin" || n.ends_with("_head") || n.ends_with("_skull");
+        assert_eq!(armor_slot(item) == Some(0), by_name, "{item}");
+    }
 
     let mut inv = Inventory { selected_hotbar_slot: 4, ..Inventory::default() };
     for slot in 0..3 {

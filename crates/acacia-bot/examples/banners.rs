@@ -102,7 +102,7 @@ async fn make(bot: &mut Bot, [x, y, z]: [i32; 3], loom: [i32; 3], spec: Option<&
 /// The slot of item `name`, waiting up to three seconds for the server to hand it over.
 async fn find(bot: &mut Bot, name: &str) -> Result<SlotRef, Error> {
     for _ in 0..60 {
-        if let Some(slot) = bot.find_item(&format!("minecraft:{name}")) {
+        if let Some(slot) = bot.find_item_named(&format!("minecraft:{name}")) {
             return Ok(slot);
         }
         bot.wait_ticks(1).await?;

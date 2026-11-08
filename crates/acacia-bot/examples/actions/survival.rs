@@ -44,7 +44,7 @@ pub async fn best_tool(bot: &mut Bot, s: &Scene) -> Check {
         "minecraft:diamond_pickaxe" => Ok(format!("holding the diamond pickaxe from {slot:?}")),
         other => {
             let picks: Vec<_> = ["minecraft:diamond_pickaxe", "minecraft:iron_pickaxe"]
-                .map(|p| (p, bot.find_item(p), bot.find_item(p).and_then(|s| stack(bot, s)).map(|s| s.nbt.clone())))
+                .map(|p| (p, bot.find_item_named(p), bot.find_item_named(p).and_then(|s| stack(bot, s)).map(|s| s.nbt.clone())))
                 .into();
             let server = crate::server_inv(bot, "").await?;
             let server: Vec<&str> = server.split("},{").filter(|s| s.contains("pickaxe")).collect();

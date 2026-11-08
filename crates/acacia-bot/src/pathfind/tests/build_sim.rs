@@ -146,7 +146,7 @@ fn watched(p: BlockPos) -> bool {
 /// A builder for `s` with its minimum corner at `origin`, run alone.
 pub fn builder(s: &Structure, origin: BlockPos, stations: &[BlockPos]) -> (Builder, StatusHandle) {
     let mut job = BuildJob::new("sim.mcstructure", Transform { origin, ..Transform::default() });
-    (job.stations, job.scaffold) = (stations.to_vec(), vec!["minecraft:dirt".into()]);
+    (job.stations, job.scaffold) = (stations.to_vec(), vec![acacia_world::neutral::Item::Dirt]);
     let b = Builder::with_structure(job, s);
     let status = b.status();
     (b, status)

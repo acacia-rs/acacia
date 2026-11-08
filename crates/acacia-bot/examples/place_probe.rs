@@ -272,7 +272,7 @@ async fn pair(bot: &mut Bot, pad: &Pad, item: &str) -> Result<(), Error> {
 }
 
 async fn place(bot: &mut Bot, pad: &Pad, against: [i32; 3], face: Face, click: [f32; 3], item: &str) -> String {
-    let Some(slot) = bot.find_item(&format!("minecraft:{item}")) else { return "no item".into() };
+    let Some(slot) = bot.find_item_named(&format!("minecraft:{item}")) else { return "no item".into() };
     if let Err(e) = bot.equip(slot, Destination::Hand).await {
         return format!("equip: {e}");
     }

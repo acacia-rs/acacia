@@ -21,7 +21,7 @@ const EDGE_TICKS: u32 = 30;
 /// Ticks for a pillar jump to clear the cell.
 const RISE_TICKS: u32 = 12;
 
-pub(super) async fn perform(bot: &mut Bot, node: &PathNode, scaffold: &[String], profile: MovementProfile) -> Result<(), ActionError> {
+pub(super) async fn perform(bot: &mut Bot, node: &PathNode, scaffold: &[acacia_world::neutral::Item], profile: MovementProfile) -> Result<(), ActionError> {
     bot.stop_pathing();
     for step in node.work.steps() {
         match step {
@@ -60,7 +60,7 @@ async fn door(bot: &mut Bot, pos: BlockPos, open: bool) -> Result<(), ActionErro
     bot.door_confirmed(pos, open).await
 }
 
-async fn place(bot: &mut Bot, kind: MoveKind, against: BlockPos, face: Face, scaffold: &[String]) -> Result<(), ActionError> {
+async fn place(bot: &mut Bot, kind: MoveKind, against: BlockPos, face: Face, scaffold: &[acacia_world::neutral::Item]) -> Result<(), ActionError> {
     let target = face.adjacent(against);
     if bot.block_at(target).is_some_and(|(_, s)| !s.is_air() && !s.is_liquid()) {
         return Ok(());

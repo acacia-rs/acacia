@@ -208,7 +208,7 @@ fn seals_a_liquid_before_breaking_next_to_it() {
     run(&mut w, [0.5, 1.0, 0.5], &mut arb, id, 3000);
     let st = status.lock().unwrap().clone();
     assert_eq!(arb.outcome(id), Some(&Ok(())), "status {st:?}");
-    let seal = w.log.iter().position(|a| *a == Act::Fill { pos: water, blocks: vec!["minecraft:dirt".into()] });
+    let seal = w.log.iter().position(|a| *a == Act::Fill { pos: water, blocks: vec![acacia_world::neutral::Item::Dirt] });
     let dig = w.log.iter().position(|a| *a == Act::Break { pos: ORIGIN });
     assert!(seal.is_some() && seal < dig, "sealed first: {:?}", w.log);
     assert_eq!(view(&g, ORIGIN).0, "minecraft:air");

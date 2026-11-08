@@ -167,7 +167,7 @@ async fn case(bot: &mut Bot, pad: &Pad, hold: &str, support: &str, extra: &[([i3
     let o = pad.block([0, 0, 0]);
     let (dx, dz) = (t[0] as f32 + 0.5 - (o[0] as f32 + feet[0]), t[2] as f32 + 0.5 - (o[2] as f32 + feet[2]));
     pad.teleport(bot, feet, (-dx).atan2(dz).to_degrees()).await?;
-    let Some(slot) = bot.find_item(&format!("minecraft:{hold}")) else { return Ok("no item".into()) };
+    let Some(slot) = bot.find_item_named(&format!("minecraft:{hold}")) else { return Ok("no item".into()) };
     if let Err(e) = bot.equip(slot, Destination::Hand).await {
         return Ok(format!("equip: {e}"));
     }

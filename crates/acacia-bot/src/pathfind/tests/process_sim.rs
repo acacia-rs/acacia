@@ -53,10 +53,10 @@ fn fill(g: &Grid, m: &Movement, act: &Act, held: &[&str]) -> Result<(), ActionEr
         look.solid(against) == Some(true) && block_distance(eye, against) <= BLOCK_REACH
     });
     let inside = (feet[0] - 0.3 < (pos[0] + 1) as f32 && feet[0] + 0.3 > pos[0] as f32) && (feet[2] - 0.3 < (pos[2] + 1) as f32 && feet[2] + 0.3 > pos[2] as f32) && (feet[1] < (pos[1] + 1) as f32 && feet[1] + 1.8 > pos[1] as f32);
-    let block = blocks.iter().find(|b| held.contains(&b.as_str()));
+    let block = blocks.iter().find(|b| held.contains(&b.name()));
     match block {
         Some(b) if reach && !inside => {
-            g.set_state(*pos, b.trim_start_matches("minecraft:"), "");
+            g.set_state(*pos, b.name().trim_start_matches("minecraft:"), "");
             Ok(())
         }
         _ => Err(ActionError::NotPossible(format!("cannot fill {pos:?} from {feet:?} (reach {reach}, inside {inside})"))),

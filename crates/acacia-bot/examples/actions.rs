@@ -47,7 +47,7 @@ pub fn count(bot: &Bot, name: &str) -> u32 {
 }
 
 pub fn find(bot: &Bot, name: &str) -> Result<SlotRef, Box<dyn Error>> {
-    bot.find_item(name).ok_or_else(|| format!("no {name} in the inventory").into())
+    bot.find_item_named(name).ok_or_else(|| format!("no {name} in the inventory").into())
 }
 
 pub fn stack(bot: &Bot, slot: SlotRef) -> Option<&ItemStack> {

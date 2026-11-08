@@ -51,7 +51,7 @@ async fn main() -> Result<(), Error> {
         if *item == "empty_map" {
             bot.use_item();
             bot.wait_ticks(30).await?;
-            let filled = bot.find_item(FILLED).ok_or_else(|| format!("no filled map: {:?}", bot.state().inventory_summary()))?;
+            let filled = bot.find_item_named(FILLED).ok_or_else(|| format!("no filled map: {:?}", bot.state().inventory_summary()))?;
             if filled != SlotRef::Main(0) {
                 bot.move_item(filled, SlotRef::Main(0), 1).await?;
             }

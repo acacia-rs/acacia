@@ -151,7 +151,7 @@ async fn wear(bot: &mut Bot, pad: &Pad, piece: &str) -> Result<(), Error> {
     pad.run(bot, &format!("/give @s {item}"));
     bot.wait_ticks(20).await?;
     if let (Some(enchantment), Some(level)) = (parts.next(), parts.next()) {
-        let given = bot.find_item(&name).ok_or_else(|| format!("{item} was not given"))?;
+        let given = bot.find_item_named(&name).ok_or_else(|| format!("{item} was not given"))?;
         bot.equip(given, Destination::Hand).await?;
         bot.wait_ticks(10).await?;
         pad.run(bot, &format!("/enchant @s {enchantment} {level}"));
@@ -163,7 +163,7 @@ async fn wear(bot: &mut Bot, pad: &Pad, piece: &str) -> Result<(), Error> {
         i if i.ends_with("_boots") => Destination::Feet,
         _ => Destination::Chest,
     };
-    let from = bot.find_item(&name).ok_or_else(|| format!("{item} was not given"))?;
+    let from = bot.find_item_named(&name).ok_or_else(|| format!("{item} was not given"))?;
     let method = if std::env::var_os("FUZZ_EQUIP_USE").is_some() { EquipMethod::Use } else { EquipMethod::Inventory };
     bot.equip_by(from, to, method).await?;
     bot.wait_ticks(20).await?;

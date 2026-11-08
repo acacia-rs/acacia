@@ -25,7 +25,7 @@ async fn main() -> Result<(), Error> {
         a.wait_ticks(4).await?;
     }
     pad.teleport(&mut a, [0.5, 0.0, 0.5], 0.0).await?;
-    let slot = a.find_item(BLOCK).ok_or("no cobblestone")?;
+    let slot = a.find_item_named(BLOCK).ok_or("no cobblestone")?;
     a.equip(slot, Destination::Hand).await?;
     a.wait_ticks(5).await?;
 

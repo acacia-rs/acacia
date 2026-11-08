@@ -1,6 +1,8 @@
 //! Vanilla food and drink values: hunger and saturation as Java 1.21 and Dragonfly
 //! (`server/item/*.go`), use durations from Dragonfly (`DefaultConsumeDuration` 1.61 s).
 
+use acacia_world::neutral::Item;
+
 /// What eating one item restores.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Food {
@@ -32,58 +34,57 @@ const fn harmful(hunger: u8, saturation: f32) -> Food {
     Food { harmful: true, ..plain(hunger, saturation) }
 }
 
-/// Food values of an item identifier (`minecraft:bread`); `None` if it is not food.
-pub fn food(name: &str) -> Option<Food> {
-    let name = name.strip_prefix("minecraft:").unwrap_or(name);
-    Some(match name {
-        "apple" => plain(4, 2.4),
-        "baked_potato" | "bread" | "cooked_cod" | "cooked_rabbit" => plain(5, 6.0),
-        "beef" | "porkchop" | "rabbit" => plain(3, 1.8),
-        "cooked_beef" | "cooked_porkchop" => plain(8, 12.8),
-        "beetroot" => plain(1, 1.2),
-        "beetroot_soup" | "mushroom_stew" | "cooked_chicken" => plain(6, 7.2),
-        "carrot" => plain(3, 3.6),
-        "cod" | "salmon" | "cookie" | "sweet_berries" | "glow_berries" => plain(2, 0.4),
-        "cooked_mutton" | "cooked_salmon" => plain(6, 9.6),
-        "dried_kelp" | "tropical_fish" => plain(1, 0.2),
-        "golden_carrot" => plain(6, 14.4),
-        "honey_bottle" => Food { always_edible: true, ..plain(6, 1.2) },
-        "melon_slice" | "mutton" => plain(2, 1.2),
-        "potato" => plain(1, 0.6),
-        "pumpkin_pie" => plain(8, 4.8),
-        "rabbit_stew" => plain(10, 12.0),
-        "golden_apple" | "enchanted_golden_apple" => Food { always_edible: true, precious: true, ..plain(4, 9.6) },
-        "chicken" | "poisonous_potato" => harmful(2, 1.2),
-        "pufferfish" => harmful(1, 0.2),
-        "rotten_flesh" => harmful(4, 0.8),
-        "spider_eye" => harmful(2, 3.2),
-        "suspicious_stew" => Food { always_edible: true, ..harmful(6, 7.2) },
-        "chorus_fruit" => Food { always_edible: true, ..harmful(4, 2.4) },
+/// What eating `item` restores; `None` if it is not food.
+pub fn food(item: Item) -> Option<Food> {
+    use Item::*;
+    Some(match item {
+        Apple => plain(4, 2.4),
+        BakedPotato | Bread | CookedCod | CookedRabbit => plain(5, 6.0),
+        Beef | Porkchop | Rabbit => plain(3, 1.8),
+        CookedBeef | CookedPorkchop => plain(8, 12.8),
+        Beetroot => plain(1, 1.2),
+        BeetrootSoup | MushroomStew | CookedChicken => plain(6, 7.2),
+        Carrot => plain(3, 3.6),
+        Cod | Salmon | Cookie | SweetBerries | GlowBerries => plain(2, 0.4),
+        CookedMutton | CookedSalmon => plain(6, 9.6),
+        DriedKelp | TropicalFish => plain(1, 0.2),
+        GoldenCarrot => plain(6, 14.4),
+        HoneyBottle => Food { always_edible: true, ..plain(6, 1.2) },
+        MelonSlice | Mutton => plain(2, 1.2),
+        Potato => plain(1, 0.6),
+        PumpkinPie => plain(8, 4.8),
+        RabbitStew => plain(10, 12.0),
+        GoldenApple | EnchantedGoldenApple => Food { always_edible: true, precious: true, ..plain(4, 9.6) },
+        Chicken | PoisonousPotato => harmful(2, 1.2),
+        Pufferfish => harmful(1, 0.2),
+        RottenFlesh => harmful(4, 0.8),
+        SpiderEye => harmful(2, 3.2),
+        SuspiciousStew => Food { always_edible: true, ..harmful(6, 7.2) },
+        ChorusFruit => Food { always_edible: true, ..harmful(4, 2.4) },
         _ => return None,
     })
 }
 
-/// Ticks "use" is held before the item is consumed; `None` for anything that is not a food or drink.
-pub fn use_ticks(name: &str) -> Option<u32> {
-    match name.strip_prefix("minecraft:").unwrap_or(name) {
-        "dried_kelp" => Some(16),
-        "honey_bottle" => Some(40),
-        "potion" | "milk_bucket" | "ominous_bottle" => Some(32),
+/// Ticks "use" is held before `item` is consumed; `None` for anything that is not a food or drink.
+pub fn use_ticks(item: Item) -> Option<u32> {
+    match item {
+        Item::DriedKelp => Some(16),
+        Item::HoneyBottle => Some(40),
+        Item::Potion | Item::MilkBucket | Item::OminousBottle => Some(32),
         other => food(other).map(|_| 32),
     }
 }
 
 /// Consumable with a full hunger bar (drinks and `always_edible` food).
-pub(crate) fn always_consumable(name: &str) -> bool {
-    let bare = name.strip_prefix("minecraft:").unwrap_or(name);
-    matches!(bare, "potion" | "milk_bucket" | "ominous_bottle") || food(bare).is_some_and(|f| f.always_edible)
+pub(crate) fn always_consumable(item: Item) -> bool {
+    matches!(item, Item::Potion | Item::MilkBucket | Item::OminousBottle) || food(item).is_some_and(|f| f.always_edible)
 }
 
-/// The slot of the food to eat among `candidates` (`(slot, identifier)`), skipping harmful and
-/// precious food; `missing` is how many hunger points the bar lacks. Ties go to the earlier slot.
-pub(crate) fn choose_food<'a>(candidates: impl Iterator<Item = (u8, &'a str)>, missing: f32, choice: FoodChoice) -> Option<u8> {
+/// The slot of the food to eat among `candidates` (`(slot, item)`), skipping harmful and precious food;
+/// `missing` is how many hunger points the bar lacks. Ties go to the earlier slot.
+pub(crate) fn choose_food(candidates: impl Iterator<Item = (u8, Item)>, missing: f32, choice: FoodChoice) -> Option<u8> {
     let edible: Vec<(u8, Food)> = candidates
-        .filter_map(|(slot, name)| food(name).map(|f| (slot, f)))
+        .filter_map(|(slot, item)| food(item).map(|f| (slot, f)))
         .filter(|(_, f)| !f.harmful && !f.precious)
         .collect();
     let better = |a: &Food, b: &Food| match choice {
