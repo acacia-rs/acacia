@@ -22,10 +22,10 @@ const MAX_STACK: u16 = 64;
 pub(crate) type Placement = (SlotRef, SlotRef, u8);
 
 impl Bot {
-    pub(super) async fn grid_craft_loop(&mut self, name: &str, count: u32, table: bool) -> Result<u32, ActionError> {
+    pub(super) async fn grid_craft_loop(&mut self, item: acacia_world::neutral::Item, count: u32, table: bool) -> Result<u32, ActionError> {
         let mut made = 0;
         while made < count {
-            let batch = pick_recipe(&self.state, name, table).and_then(|r| Ok((r.clone(), grid_batch(&self.state, r, table, count - made)?)));
+            let batch = pick_recipe(&self.state, item, table).and_then(|r| Ok((r.clone(), grid_batch(&self.state, r, table, count - made)?)));
             let (recipe, (times, placements)) = match batch {
                 Ok(batch) => batch,
                 Err(ActionError::NotPossible(_)) if made > 0 => break,

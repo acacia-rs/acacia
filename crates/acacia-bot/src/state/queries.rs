@@ -33,10 +33,10 @@ impl GameState {
         })
     }
 
-    /// Recipes that make item `name` (`minecraft:stick`). The first lookup decodes `CraftingData`.
-    pub fn recipes_for(&self, name: &str) -> Vec<&Recipe> {
-        let Some(id) = self.items.id(name) else { return Vec::new() };
-        self.recipes.book().producing(id).collect()
+    /// Recipes that make `item`. The first lookup decodes `CraftingData`.
+    pub fn recipes_for(&self, item: Item) -> Vec<&Recipe> {
+        let Some((id, _)) = self.items.network_id(item) else { return Vec::new() };
+        self.recipes.book().producing(id).filter(|r| r.outputs.first().is_some_and(|o| self.item(o) == Some(item))).collect()
     }
 
     /// Total count per identifier across the player's own windows, sorted by identifier. Items

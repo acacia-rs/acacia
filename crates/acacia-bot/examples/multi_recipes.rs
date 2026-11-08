@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (uuid, id) in multi {
         println!("multi {uuid} = {id}");
     }
-    for recipe in bot.recipes_for(&item) {
+    for recipe in bot.recipes_for(item.parse()?) {
         println!("{item}: {} at {} ({:?}) from {:?}", recipe.id, recipe.block, recipe.kind, recipe.inputs);
     }
     Ok(())

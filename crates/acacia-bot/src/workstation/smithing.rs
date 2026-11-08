@@ -3,6 +3,7 @@
 
 use acacia_client::proto::types::WindowType;
 use acacia_physics::BlockPos;
+use acacia_world::neutral::Item;
 
 use super::{matching_slots, named, occupied};
 use crate::items::craft::{Craft, CraftAction};
@@ -14,10 +15,10 @@ use crate::{ActionError, Bot};
 const MAX_STACK: u16 = 64;
 
 impl Bot {
-    /// Cuts at least `count` of item `name` at the stonecutter at `pos`. Returns how many were made
+    /// Cuts at least `count` of `item` at the stonecutter at `pos`. Returns how many were made
     /// (fewer only if the input ran out after the first cut).
-    pub async fn stonecut(&mut self, pos: BlockPos, name: &str, count: u32) -> Result<u32, ActionError> {
-        let recipe = stonecutter_recipe(&self.state, name)?;
+    pub async fn stonecut(&mut self, pos: BlockPos, item: Item, count: u32) -> Result<u32, ActionError> {
+        let recipe = stonecutter_recipe(&self.state, item)?;
         let network_id = recipe.network_id;
         let (from, available) = matching_slots(&self.state, |n, m| recipe.inputs[0].accepts(n, m))[0];
         self.open_station_and_look(pos, &[WindowType::Stonecutter]).await?;
@@ -49,14 +50,14 @@ impl Bot {
     }
 }
 
-/// A stonecutter recipe for `name` whose input the inventory holds.
-fn stonecutter_recipe<'a>(state: &'a GameState, name: &str) -> Result<&'a Recipe, ActionError> {
+/// A stonecutter recipe for `item` whose input the inventory holds.
+fn stonecutter_recipe<'a>(state: &'a GameState, item: Item) -> Result<&'a Recipe, ActionError> {
     state
-        .recipes_for(name)
+        .recipes_for(item)
         .into_iter()
         .filter(|r| r.block == "stonecutter" && r.inputs.len() == 1)
         .find(|r| !matching_slots(state, |n, m| r.inputs[0].accepts(n, m)).is_empty())
-        .ok_or_else(|| ActionError::NotPossible(format!("no stonecutter recipe for {name} with the items at hand")))
+        .ok_or_else(|| ActionError::NotPossible(format!("no stonecutter recipe for {item} with the items at hand")))
 }
 
 /// As many cuts as `wanted` items need, the input allows and one inventory stack holds.

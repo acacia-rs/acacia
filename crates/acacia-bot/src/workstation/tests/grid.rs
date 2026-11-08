@@ -20,7 +20,7 @@ fn planks(count: u16, stack_id: i32) -> ItemStack {
 #[test]
 fn grid_craft_lays_out_then_shift_clicks_all_crafts() {
     let mut state = with_recipes(&[(0, planks(10, 7))]);
-    let recipe = pick_recipe(&state, "minecraft:stick", false).unwrap().clone();
+    let recipe = pick_recipe(&state, acacia_world::neutral::Item::Stick, false).unwrap().clone();
     let (times, clicks) = grid_batch(&state, &recipe, false, 8).unwrap();
     assert_eq!(times, 2, "two crafts of four sticks");
     assert_eq!(clicks, [(SlotRef::Main(0), SlotRef::Ui(28), 2), (SlotRef::Main(0), SlotRef::Ui(30), 2)], "a 1x2 recipe fills the left column");
@@ -58,11 +58,11 @@ fn grid_craft_lays_out_then_shift_clicks_all_crafts() {
 fn table_grid_takes_cells_from_several_stacks() {
     let mut state = with_recipes(&[(3, planks(5, 7)), (20, planks(4, 8))]);
     open(&mut state, WindowType::Workbench);
-    let sticks = pick_recipe(&state, "minecraft:stick", true).unwrap().clone();
+    let sticks = pick_recipe(&state, acacia_world::neutral::Item::Stick, true).unwrap().clone();
     let cells: Vec<SlotRef> = grid_layout(&sticks, true).unwrap().into_iter().map(|(cell, _)| cell).collect();
     assert_eq!(cells, [SlotRef::Ui(32), SlotRef::Ui(35)]);
 
-    let table = pick_recipe(&state, "minecraft:crafting_table", true).unwrap().clone();
+    let table = pick_recipe(&state, acacia_world::neutral::Item::CraftingTable, true).unwrap().clone();
     let (times, clicks) = grid_batch(&state, &table, true, 1).unwrap();
     assert_eq!((times, clicks.len()), (1, 9));
     assert_eq!((clicks[0], clicks[8]), ((SlotRef::Main(3), SlotRef::Ui(32), 1), (SlotRef::Main(20), SlotRef::Ui(40), 1)));

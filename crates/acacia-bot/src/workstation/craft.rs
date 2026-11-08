@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use acacia_client::proto::types::WindowType;
 use acacia_physics::BlockPos;
+use acacia_world::neutral::Item;
 
 use super::named;
 use crate::cancel::Claim;
@@ -32,21 +33,21 @@ pub enum CraftMode {
 }
 
 impl Bot {
-    /// Recipes that make item `name` (`minecraft:stick`). The first lookup decodes `CraftingData`.
-    pub fn recipes_for(&self, name: &str) -> Vec<&Recipe> {
-        self.state.recipes_for(name)
+    /// Recipes that make `item`. The first lookup decodes `CraftingData`.
+    pub fn recipes_for(&self, item: Item) -> Vec<&Recipe> {
+        self.state.recipes_for(item)
     }
 
-    /// Crafts at least `count` of item `name` through the recipe book: in the own 2x2 grid, or at
+    /// Crafts at least `count` of `item` through the recipe book: in the own 2x2 grid, or at
     /// the crafting table at `table`. Returns how many items were made, which falls short of
     /// `count` only when the ingredients ran out after at least one craft.
-    pub async fn craft(&mut self, name: &str, count: u32, table: Option<BlockPos>) -> Result<u32, ActionError> {
-        self.craft_with(name, count, table, CraftMode::RecipeBook).await
+    pub async fn craft(&mut self, item: Item, count: u32, table: Option<BlockPos>) -> Result<u32, ActionError> {
+        self.craft_with(item, count, table, CraftMode::RecipeBook).await
     }
 
     /// [`Bot::craft`] choosing between the recipe book and laying the ingredients out by hand.
-    pub async fn craft_with(&mut self, name: &str, count: u32, table: Option<BlockPos>, mode: CraftMode) -> Result<u32, ActionError> {
-        pick_recipe(&self.state, name, table.is_some())?;
+    pub async fn craft_with(&mut self, item: Item, count: u32, table: Option<BlockPos>, mode: CraftMode) -> Result<u32, ActionError> {
+        pick_recipe(&self.state, item, table.is_some())?;
         if table.is_none() && self.state.containers.open.as_ref().is_some_and(|c| !is_own_screen(c)) {
             return Err(ActionError::NotPossible("the 2x2 grid needs the open container closed first".into()));
         }
@@ -64,8 +65,8 @@ impl Bot {
             }
         };
         let result = match mode {
-            CraftMode::RecipeBook => self.craft_loop(name, count, table.is_some()).await,
-            CraftMode::Grid => self.grid_craft_loop(name, count, table.is_some()).await,
+            CraftMode::RecipeBook => self.craft_loop(item, count, table.is_some()).await,
+            CraftMode::Grid => self.grid_craft_loop(item, count, table.is_some()).await,
         };
         let back = self.take_back(&grid_cells(table.is_some())).await;
         if table.is_some() {
@@ -78,10 +79,10 @@ impl Bot {
         back.map(|()| made)
     }
 
-    async fn craft_loop(&mut self, name: &str, count: u32, table: bool) -> Result<u32, ActionError> {
+    async fn craft_loop(&mut self, item: Item, count: u32, table: bool) -> Result<u32, ActionError> {
         let mut made = 0;
         while made < count {
-            let plan = pick_recipe(&self.state, name, table)
+            let plan = pick_recipe(&self.state, item, table)
                 .and_then(|recipe| auto_craft_plan(&self.state, recipe, book_crafts(&self.state, recipe, count - made)));
             let plan = match plan {
                 Ok(plan) => plan,
@@ -119,23 +120,23 @@ pub(crate) fn grid_cells(table: bool) -> Vec<SlotRef> {
     (first..first + len).map(SlotRef::Ui).collect()
 }
 
-/// The first grid recipe for `name` that fits the grid and whose ingredients the inventory holds.
-pub(crate) fn pick_recipe<'a>(state: &'a GameState, name: &str, table: bool) -> Result<&'a Recipe, ActionError> {
+/// The first grid recipe for `item` that fits the grid and whose ingredients the inventory holds.
+pub(crate) fn pick_recipe<'a>(state: &'a GameState, item: Item, table: bool) -> Result<&'a Recipe, ActionError> {
     let candidates: Vec<&Recipe> = state
-        .recipes_for(name)
+        .recipes_for(item)
         .into_iter()
         .filter(|r| r.block == "crafting_table" && matches!(r.kind, RecipeKind::Shaped { .. } | RecipeKind::Shapeless))
         .filter(|r| table || r.fits_2x2())
         .collect();
     if candidates.is_empty() {
         let grid = if table { "a crafting table" } else { "the 2x2 grid" };
-        return Err(ActionError::NotPossible(format!("no recipe for {name} in {grid}")));
+        return Err(ActionError::NotPossible(format!("no recipe for {item} in {grid}")));
     }
     candidates
         .iter()
         .find(|r| consumes(state, r, 1).is_ok())
         .copied()
-        .ok_or_else(|| ActionError::NotPossible(format!("missing ingredients for {name}")))
+        .ok_or_else(|| ActionError::NotPossible(format!("missing ingredients for {item}")))
 }
 
 /// How many crafts one recipe-book click makes toward `wanted` items: everything the inventory
