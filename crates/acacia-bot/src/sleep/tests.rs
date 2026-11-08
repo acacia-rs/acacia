@@ -91,11 +91,20 @@ fn sleeping_follows_either_flag() {
 #[test]
 fn sleeping_position_is_the_clicked_block_raised_by_the_bed_height() {
     use super::tick::lying_in;
+    let r = acacia_world::BlockRegistry::vanilla();
+    let state = |name, props| r.get(r.find(name, props).unwrap()).unwrap();
     let at = |x, y, z| acacia_client::proto::types::Vec3f { x, y, z };
     // Live on BDS: clicking the scene's bed at (2, -60, 0) put the eye at (2.5, -59.09375, 0.5).
-    let bed = lying_in("minecraft:bed", "direction=3,head_piece_bit=0,occupied_bit=0", [2, -60, 0]);
+    let bed = lying_in(state("minecraft:bed", "direction=3,head_piece_bit=0,occupied_bit=0"), [2, -60, 0]);
     assert_eq!(bed, Some((at(2.5, -60.0 + 0.90625, 0.5), -90.0)));
-    let straw = lying_in("minecraft:straw_bed", "direction=0,head_piece_bit=0", [0, 64, 0]);
+    // Straw beds face by `minecraft:cardinal_direction`; the old `direction=` parse never found it.
+    let straw = lying_in(state("minecraft:straw_bed", "head_piece_bit=0,minecraft:cardinal_direction=south,occupied_bit=0"), [0, 64, 0]);
     assert_eq!(straw, Some((at(0.5, 64.59375, 0.5), 0.0)));
-    assert_eq!(lying_in("minecraft:stone", "", [0, 64, 0]), None);
+    assert_eq!(lying_in(state("minecraft:stone", ""), [0, 64, 0]), None);
+    // Bedrock's `direction` 0..3 is the yaw table [0, 90, -180, -90].
+    for (direction, yaw) in [0.0, 90.0, -180.0, -90.0].into_iter().enumerate() {
+        let props = format!("direction={direction},head_piece_bit=0,occupied_bit=0");
+        let s = r.get(r.find("minecraft:bed", &props).unwrap()).unwrap();
+        assert_eq!(lying_in(s, [0, 0, 0]).map(|l| l.1), Some(yaw), "direction {direction}");
+    }
 }

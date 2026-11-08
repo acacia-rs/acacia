@@ -48,10 +48,10 @@ impl Bot {
             return Ok(());
         }
         if let Some((_, block)) = self.block_at(pos) {
-            if !block.name.ends_with("bed") {
+            if !tick::is_bed(block) {
                 return Err(ActionError::NotPossible(format!("{} at {pos:?} is not a bed", block.name)));
             }
-            self.bed.lying = tick::lying_in(block.name, block.properties, pos);
+            self.bed.lying = tick::lying_in(block, pos);
         }
         self.bed.clicked_from = Some(self.state.player.position.clone());
         let face = facing_face(self.eye_position(), pos);
