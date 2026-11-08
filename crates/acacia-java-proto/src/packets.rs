@@ -23,6 +23,8 @@ macro_rules! packet {
 packet!(Intention { protocol: VarInt, host: String, port: u16, intent: VarInt });
 packet!(LoginHello { name: String, uuid: u128 });
 packet!(LoginCompression { threshold: VarInt });
+packet!(EncryptionHello { server_id: String, public_key: Vec<u8>, challenge: Vec<u8>, should_authenticate: bool });
+packet!(EncryptionKey { secret: Vec<u8>, challenge: Vec<u8> });
 // The profile's properties follow; nothing reads them yet.
 packet!(LoginFinished { uuid: u128, name: String });
 packet!(Empty {});

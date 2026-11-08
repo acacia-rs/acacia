@@ -1,8 +1,10 @@
-use acacia_java_proto::packets::{AcceptTeleportation, ChunkBatchReceived, Empty, INTENT_LOGIN, Intention, KeepAlive, LoginCompression, LoginFinished, LoginHello, Ping, PlayerPosition, SelectKnownPacks};
+use acacia_auth::{Account, JavaProfile};
+use acacia_java_proto::packets::{AcceptTeleportation, ChunkBatchReceived, Empty, EncryptionHello, EncryptionKey, INTENT_LOGIN, Intention, KeepAlive, LoginCompression, LoginFinished, LoginHello, Ping, PlayerPosition, SelectKnownPacks};
 use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids};
 use md5::{Digest, Md5};
 use tokio::net::TcpStream;
 
+use crate::crypto::{random_secret, rsa_encrypt, server_hash};
 use crate::frame::{Connection, Error};
 use crate::world::World;
 
@@ -60,11 +62,22 @@ pub struct Client {
 impl Client {
     /// Joins an offline-mode server as `name`.
     pub async fn join_offline(host: &str, port: u16, name: &str) -> Result<Self, Error> {
+        Self::join(host, port, name, offline_uuid(name), None).await
+    }
+
+    /// Joins any server as the account's Java profile.
+    pub async fn join_online(host: &str, port: u16, account: &Account) -> Result<Self, Error> {
+        let player = account.java_profile().await?;
+        let uuid = u128::from_str_radix(&player.uuid, 16).map_err(|e| Error::Crypto(format!("profile id {}: {e}", player.uuid)))?;
+        Self::join(host, port, &player.name.clone(), uuid, Some((account, &player))).await
+    }
+
+    async fn join(host: &str, port: u16, name: &str, uuid: u128, session: Session<'_>) -> Result<Self, Error> {
         let mut c = Connection::new(TcpStream::connect((host, port)).await?);
         let intention = Intention { protocol: VarInt(PROTOCOL_VERSION), host: host.to_owned(), port, intent: VarInt(INTENT_LOGIN) };
         c.send(ids::handshake::serverbound::INTENTION, &intention).await?;
-        c.send(ids::login::serverbound::HELLO, &LoginHello { name: name.to_owned(), uuid: offline_uuid(name) }).await?;
-        let profile = login(&mut c).await?;
+        c.send(ids::login::serverbound::HELLO, &LoginHello { name: name.to_owned(), uuid }).await?;
+        let profile = login(&mut c, session).await?;
         configure(&mut c).await?;
         Ok(Self { connection: c, uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), loaded_sent: false })
     }
@@ -95,12 +108,29 @@ impl Client {
     }
 }
 
-async fn login(c: &mut Connection) -> Result<LoginFinished, Error> {
+/// The account and profile to authenticate with; `None` joins offline.
+type Session<'a> = Option<(&'a Account, &'a JavaProfile)>;
+
+/// Answers the server's encryption request and turns encryption on.
+async fn encrypt(c: &mut Connection, hello: EncryptionHello, session: Session<'_>) -> Result<(), Error> {
+    let secret = random_secret();
+    if hello.should_authenticate {
+        let (account, player) = session.ok_or(Error::NeedsAccount)?;
+        account.join_java_session(player, &server_hash(&hello.server_id, &secret, &hello.public_key)).await?;
+    }
+    let key = EncryptionKey { secret: rsa_encrypt(&hello.public_key, &secret)?, challenge: rsa_encrypt(&hello.public_key, &hello.challenge)? };
+    c.send(ids::login::serverbound::KEY, &key).await?;
+    c.enable_encryption(&secret);
+    Ok(())
+}
+
+async fn login(c: &mut Connection, session: Session<'_>) -> Result<LoginFinished, Error> {
     use ids::login::{clientbound as from, serverbound as to};
     loop {
         let (id, body) = c.read().await?;
         let mut input = &body[..];
         match id {
+            from::HELLO => encrypt(c, EncryptionHello::read(&mut input)?, session).await?,
             from::LOGIN_COMPRESSION => c.set_compression(LoginCompression::read(&mut input)?.threshold.0),
             from::LOGIN_FINISHED => {
                 let profile = LoginFinished::read(&mut input)?;
@@ -132,6 +162,10 @@ async fn configure(c: &mut Connection) -> Result<(), Error> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "join_tests.rs"]
+mod join_tests;
 
 #[cfg(test)]
 mod tests {

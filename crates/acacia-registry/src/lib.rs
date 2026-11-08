@@ -1,6 +1,7 @@
 //! Edition-neutral blocks and items: one `Block`, `BlockState` and `Item` for Java and Bedrock (README.md).
 
 mod block;
+mod collision;
 mod generated;
 mod item;
 pub mod prop;
@@ -13,6 +14,7 @@ pub mod value {
 }
 
 pub use block::{Block, ParseBlockError};
+pub use collision::CollisionBox;
 pub use item::{Item, ParseItemError};
 pub use state::{BlockState, ParseStateError};
 pub use tag::{BlockTag, ItemTag};

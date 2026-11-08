@@ -139,10 +139,14 @@ dependencies = [
 name = "acacia-java-client"
 version = "0.1.0"
 dependencies = [
+ "acacia-auth",
  "acacia-java-proto",
  "acacia-registry",
+ "aes",
  "flate2",
  "md-5",
+ "rsa",
+ "sha1 0.10.7",
  "thiserror 2.0.21",
  "tokio",
 ]

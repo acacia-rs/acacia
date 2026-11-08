@@ -7,6 +7,8 @@ use flate2::write::ZlibEncoder;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
+use crate::crypto::Cfb8;
+
 /// Vanilla's `Varint21LengthFieldPrepender` limit, and its cap on an inflated packet.
 const MAX_FRAME: usize = (1 << 21) - 1;
 const MAX_INFLATED: usize = 1 << 23;
@@ -23,17 +25,37 @@ pub enum Error {
     Disconnected(String),
     #[error("packet {0:#x} is not expected during {1}")]
     Unexpected(i32, &'static str),
+    #[error("encryption: {0}")]
+    Crypto(String),
+    #[error("the server is in online mode; join with an account")]
+    NeedsAccount,
+    #[error(transparent)]
+    Auth(#[from] acacia_auth::Error),
 }
 
 /// Length-prefixed frames over TCP, zlib-compressed once the server sets a threshold.
 pub struct Connection {
     stream: BufReader<TcpStream>,
     threshold: Option<usize>,
+    cipher: Option<(Cfb8, Cfb8)>,
 }
 
 impl Connection {
     pub fn new(stream: TcpStream) -> Self {
-        Self { stream: BufReader::new(stream), threshold: None }
+        Self { stream: BufReader::new(stream), threshold: None, cipher: None }
+    }
+
+    /// Everything after this call is encrypted in both directions.
+    pub(crate) fn enable_encryption(&mut self, secret: &[u8; 16]) {
+        self.cipher = Some((Cfb8::new(secret), Cfb8::new(secret)));
+    }
+
+    async fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), Error> {
+        self.stream.read_exact(buf).await?;
+        if let Some((decrypt, _)) = &mut self.cipher {
+            decrypt.decrypt(buf);
+        }
+        Ok(())
     }
 
     pub fn set_compression(&mut self, threshold: i32) {
@@ -43,7 +65,7 @@ impl Connection {
     async fn read_frame_length(&mut self) -> Result<usize, Error> {
         let mut bytes = [0u8; 3];
         for i in 0..bytes.len() {
-            bytes[i] = self.stream.read_u8().await?;
+            self.read_bytes(&mut bytes[i..=i]).await?;
             if bytes[i] & 0x80 == 0 {
                 return Ok(read_varint(&mut &bytes[..=i])? as usize);
             }
@@ -58,7 +80,7 @@ impl Connection {
             return Err(Error::BadFrame(len));
         }
         let mut frame = vec![0; len];
-        self.stream.read_exact(&mut frame).await?;
+        self.read_bytes(&mut frame).await?;
         let mut data = if self.threshold.is_some() { inflate(&frame)? } else { frame };
         let mut body = &data[..];
         let id = read_varint(&mut body)?;
@@ -78,6 +100,9 @@ impl Connection {
         let mut frame = Vec::with_capacity(content.len() + 3);
         write_varint(content.len() as i32, &mut frame);
         frame.extend_from_slice(&content);
+        if let Some((_, encrypt)) = &mut self.cipher {
+            encrypt.encrypt(&mut frame);
+        }
         self.stream.write_all(&frame).await?;
         Ok(())
     }

@@ -35,6 +35,10 @@ impl Account {
         &self.id
     }
 
+    pub(super) fn http(&self) -> &super::http::Http {
+        self.client.http()
+    }
+
     /// True if the cache holds an MSA token, i.e. no interactive login is needed.
     pub async fn is_signed_in(&self) -> Result<bool> {
         Ok(self.cache.load(&self.id).await?.is_some_and(|v| v.tokens.msa.is_some()))
