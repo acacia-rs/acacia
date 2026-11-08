@@ -152,6 +152,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "acacia-java-physics"
+version = "0.1.0"
+dependencies = [
+ "acacia-registry",
+]
+
+[[package]]
 name = "acacia-java-proto"
 version = "0.1.0"
 dependencies = [
