@@ -46,6 +46,21 @@ fn interactive_matches_the_name_fragments_but_for_their_misfires() {
 }
 
 #[test]
+fn half_slabs_exclude_double_slabs() {
+    use acacia_world::neutral::value::SlabType;
+
+    use crate::pathfind::process::BlockView;
+    let view = |name, props| {
+        let r = BlockRegistry::vanilla();
+        BlockView::of(r.get(r.find(name, props).unwrap()).unwrap())
+    };
+    assert_eq!(view("minecraft:oak_slab", "minecraft:vertical_half=top").half_slab(), Some(SlabType::Top));
+    assert_eq!(view("minecraft:oak_slab", "minecraft:vertical_half=bottom").half_slab(), Some(SlabType::Bottom));
+    assert_eq!(view("minecraft:oak_double_slab", "minecraft:vertical_half=bottom").half_slab(), None);
+    assert_eq!(view("minecraft:stone", "").half_slab(), None);
+}
+
+#[test]
 fn toggling_open_lands_on_the_bedrock_open_bit_twin() {
     use acacia_world::neutral::prop;
     let r = BlockRegistry::vanilla();

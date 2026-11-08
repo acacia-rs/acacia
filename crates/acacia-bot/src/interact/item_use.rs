@@ -2,6 +2,8 @@ use std::time::Instant;
 
 use acacia_client::proto::types::Action;
 use acacia_physics::{BlockPos, Vec3};
+use acacia_world::neutral::prop;
+use acacia_world::neutral::value::SlabType;
 
 use super::confirm::{unpredict, Confirm, Expect, Verdict};
 use super::geometry::{block_distance, block_min, relative, BLOCK_REACH};
@@ -136,7 +138,8 @@ impl Bot {
             && !s.is_air()
             && !s.is_liquid()
         {
-            if !s.name.ends_with("_slab") && !adds_to(s.name, self.held_name()) {
+            let single_slab = matches!(s.get(prop::SlabType), Some(SlabType::Bottom | SlabType::Top));
+            if !single_slab && !adds_to(s.name, self.held_name()) {
                 return Err(ActionError::NotPossible(format!("{target:?} is occupied by {}", s.name)));
             }
             half_slab = Some(id);

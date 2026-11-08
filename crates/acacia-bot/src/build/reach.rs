@@ -2,6 +2,7 @@
 //! player's facing (see `rules`), so a cell is placed from a spot whose eye makes the click give the target.
 
 use acacia_physics::{BlockPos, Vec3};
+use acacia_world::neutral::value::SlabType;
 use acacia_world::{BlockAccess, BlockRegistry};
 
 use super::rules;
@@ -59,7 +60,7 @@ impl Stand {
 }
 
 fn bottom_slab(b: &BlockView) -> bool {
-    b.name.ends_with("_slab") && b.prop("minecraft:vertical_half") == Some("bottom")
+    b.half_slab() == Some(SlabType::Bottom)
 }
 
 pub fn in_reach(eye: Vec3, p: BlockPos) -> bool {
@@ -95,15 +96,14 @@ fn points(face: Face, against: &BlockView) -> Vec<Vec3> {
         let at = move |h: f32, y: f32| if ox != 0.0 { [c[0], y, h] } else { [h, y, c[2]] };
         ys.iter().map(|&y| at(0.5, y)).chain(GRID.iter().flat_map(|&h| more.iter().map(move |&y| at(h, y)))).collect()
     };
-    let slab = against.name.ends_with("_slab").then(|| against.prop("minecraft:vertical_half")).flatten();
-    match (face, slab) {
+    match (face, against.half_slab()) {
         (Face::Up | Face::Down, None) if rules::post(against) => vec![c],
         (Face::Up, None) if !against.full => rules::redstone::top(against.name).map(|y| vec![[c[0], y, c[2]]]).unwrap_or_default(),
         (_, None) if !against.full => Vec::new(),
         (Face::Up | Face::Down, None) => GRID.iter().flat_map(|&x| GRID.iter().map(move |&z| [x, c[1], z])).collect(),
         (_, None) => side(&[0.25, 0.75], &[0.15, 0.4, 0.6, 0.85]),
         (Face::Up | Face::Down, _) => Vec::new(),
-        (_, Some("top")) => side(&[0.75], &[0.6, 0.9]),
+        (_, Some(SlabType::Top)) => side(&[0.75], &[0.6, 0.9]),
         (_, Some(_)) => side(&[0.25], &[0.1, 0.4]),
     }
 }
@@ -246,7 +246,7 @@ fn footing(look: &dyn Look, cell: BlockPos) -> Option<Stand> {
             // A pillar's first block is clicked onto this one: a click on a container opens it instead (live:
             // dirt onto a station barrel refused 3 times over).
             _ if n > 0 && b.interactive => return None,
-            _ if b.solid() && (b.full || b.name.ends_with("_slab")) => return Some(Stand { feet: cell, lift: 0.0, pillar: n }),
+            _ if b.solid() && (b.full || b.half_slab().is_some()) => return Some(Stand { feet: cell, lift: 0.0, pillar: n }),
             _ if b.solid() => return None,
             _ => {}
         }
