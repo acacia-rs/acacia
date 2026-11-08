@@ -53,8 +53,12 @@ impl World {
         self.chunks.get(&(x >> 4, z >> 4))?.get(section).map(|s| s.blocks.get(index))
     }
 
+    pub fn min_y(&self) -> i32 {
+        min_y(&self.dimension)
+    }
+
     fn locate(&self, [x, y, z]: [i32; 3]) -> Option<(usize, usize)> {
-        let section = usize::try_from((y - min_y(&self.dimension)) >> 4).ok()?;
+        let section = usize::try_from((y - self.min_y()) >> 4).ok()?;
         Some((section, Section::index((x & 15) as usize, (y & 15) as usize, (z & 15) as usize)))
     }
 

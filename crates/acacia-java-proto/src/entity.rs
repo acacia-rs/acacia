@@ -44,18 +44,26 @@ pub fn read_path_end(input: &mut &[u8]) -> Result<[f64; 3], Error> {
     }
 }
 
-/// `LpVec3`, skipped: nothing reads an entity's spawn velocity yet.
-pub fn skip_lp_vec3(input: &mut &[u8]) -> Result<(), Error> {
+/// `LpVec3.read`.
+pub fn read_lp_vec3(input: &mut &[u8]) -> Result<[f64; 3], Error> {
     let lowest = u8::read(input)?;
     if lowest == 0 {
-        return Ok(());
+        return Ok([0.0; 3]);
     }
-    u8::read(input)?;
-    i32::read(input)?;
+    let middle = u8::read(input)?;
+    let highest = i32::read(input)? as u32 as u64;
+    let buffer = highest << 16 | u64::from(middle) << 8 | u64::from(lowest);
+    let mut scale = u64::from(lowest & 3);
     if lowest & 4 != 0 {
-        read_varint(input)?;
+        scale |= u64::from(read_varint(input)? as u32) << 2;
     }
-    Ok(())
+    let unpack = |bits: u64| (bits & 32767).min(32766) as f64 * 2.0 / 32766.0 - 1.0;
+    Ok([3, 18, 33].map(|shift| unpack(buffer >> shift) * scale as f64))
+}
+
+/// An `LpVec3` nothing reads, such as an entity's spawn velocity.
+pub fn skip_lp_vec3(input: &mut &[u8]) -> Result<(), Error> {
+    read_lp_vec3(input).map(|_| ())
 }
 
 #[cfg(test)]

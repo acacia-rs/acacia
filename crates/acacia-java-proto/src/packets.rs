@@ -36,6 +36,21 @@ packet!(PositionMoveRotation { x: f64, y: f64, z: f64, delta_x: f64, delta_y: f6
 packet!(PlayerPosition { id: VarInt, change: PositionMoveRotation, relatives: i32 });
 packet!(AcceptTeleportation { id: VarInt, x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32 });
 packet!(ChunkBatchReceived { chunks_per_tick: f32 });
+// `flags` on the move packets: 1 on ground, 2 horizontal collision.
+packet!(MovePlayerPos { x: f64, y: f64, z: f64, flags: u8 });
+packet!(MovePlayerPosRot { x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32, flags: u8 });
+packet!(MovePlayerRot { y_rot: f32, x_rot: f32, flags: u8 });
+packet!(MovePlayerStatusOnly { flags: u8 });
+// Bits in `Input` order: forward, backward, left, right, jump, shift, sprint.
+packet!(PlayerInput { flags: u8 });
+packet!(PlayerCommand { entity: VarInt, action: VarInt, data: VarInt });
+packet!(ServerboundAbilities { flags: u8 });
+packet!(ClientboundAbilities { flags: u8, flying_speed: f32, walking_speed: f32 });
+
+/// `ServerboundPlayerCommandPacket.Action` ordinals.
+pub const COMMAND_START_SPRINTING: i32 = 1;
+pub const COMMAND_STOP_SPRINTING: i32 = 2;
+pub const COMMAND_START_FALL_FLYING: i32 = 6;
 
 /// `ClientIntent` for joining.
 pub const INTENT_LOGIN: i32 = 2;

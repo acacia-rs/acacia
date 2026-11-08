@@ -17,4 +17,4 @@ mod travel;
 pub use aabb::Aabb;
 pub use collide::Blocks;
 pub use input::{Keys, Pose};
-pub use player::{Effects, Player};
+pub use player::{Effects, ItemUse, Player};

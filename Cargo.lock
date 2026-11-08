@@ -140,6 +140,7 @@ name = "acacia-java-client"
 version = "0.1.0"
 dependencies = [
  "acacia-auth",
+ "acacia-java-physics",
  "acacia-java-proto",
  "acacia-registry",
  "aes",

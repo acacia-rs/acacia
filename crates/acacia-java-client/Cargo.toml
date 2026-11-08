@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 acacia-auth = { path = "../acacia-auth" }
+acacia-java-physics = { path = "../acacia-java-physics" }
 acacia-java-proto = { path = "../acacia-java-proto" }
 aes = "0.8"
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }

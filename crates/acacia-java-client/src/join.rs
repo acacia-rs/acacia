@@ -6,6 +6,7 @@ use tokio::net::TcpStream;
 
 use crate::crypto::{random_secret, rsa_encrypt, server_hash};
 use crate::frame::{Connection, Error};
+use crate::movement::Movement;
 use crate::world::World;
 
 /// Chunks per tick the client says it can take, as a client with time to spare does.
@@ -51,11 +52,12 @@ impl Pose {
 
 /// A client in the play state.
 pub struct Client {
-    connection: Connection,
+    pub(crate) connection: Connection,
     pub uuid: u128,
     pub name: String,
     pub pose: Pose,
     pub world: World,
+    pub movement: Movement,
     loaded_sent: bool,
 }
 
@@ -79,7 +81,7 @@ impl Client {
         c.send(ids::login::serverbound::HELLO, &LoginHello { name: name.to_owned(), uuid }).await?;
         let profile = login(&mut c, session).await?;
         configure(&mut c).await?;
-        Ok(Self { connection: c, uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), loaded_sent: false })
+        Ok(Self { connection: c, uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), loaded_sent: false })
     }
 
     /// The next packet, after sending any reply the protocol requires for it.
@@ -94,6 +96,7 @@ impl Client {
             from::PLAYER_POSITION => {
                 let packet = PlayerPosition::read(&mut input)?;
                 self.pose = self.pose.teleported(&packet);
+                self.movement.teleported(self.pose, &packet);
                 let Pose { position: [x, y, z], y_rot, x_rot } = self.pose;
                 self.connection.send(to::ACCEPT_TELEPORTATION, &AcceptTeleportation { id: packet.id, x, y, z, y_rot, x_rot }).await?;
                 if !std::mem::replace(&mut self.loaded_sent, true) {
@@ -104,7 +107,17 @@ impl Client {
             _ => {}
         }
         self.world.apply(id, &body)?;
+        self.movement.apply(id, &body, self.world.player_id)?;
         Ok(Packet { id, body })
+    }
+
+    /// Waits until [`Client::next`] has something to read. Safe to cancel, unlike `next`.
+    pub async fn readable(&mut self) -> Result<(), Error> {
+        self.connection.readable().await
+    }
+
+    pub(crate) fn loaded(&self) -> bool {
+        self.loaded_sent
     }
 }
 

@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use acacia_java_physics::{Aabb, Blocks, Effects, Keys, Player};
+use acacia_java_physics::{Aabb, Blocks, Effects, ItemUse, Keys, Player};
 use acacia_registry::{Block, BlockState};
 
 fn parse_state(text: &str) -> BlockState {
@@ -79,6 +79,7 @@ struct Line {
     effects: Effects,
     nearby: Vec<Nearby>,
     speed_add: f64,
+    item_use: Option<ItemUse>,
 }
 
 fn f64_at(cols: &[&str], i: usize) -> f64 {
@@ -160,6 +161,10 @@ fn parse(line: &str) -> Line {
         effects: parse_effects(cols[21]),
         nearby: parse_nearby(cols[22]),
         speed_add: if cols.len() > 23 { f64_at(&cols, 23) } else { 0.0 },
+        item_use: cols.get(24).and_then(|c| c.split_once(':')).map(|(speed, sprint)| ItemUse {
+            speed: f32::from_bits(u32::from_str_radix(speed, 16).expect("float bits")),
+            can_sprint: sprint == "true",
+        }),
     }
 }
 
@@ -196,6 +201,7 @@ fn apply_server_state(player: &mut Player, previous: &Line, line: &Line) {
     player.flying_speed = line.flying_speed;
     player.effects = line.effects.clone();
     player.speed_add = line.speed_add;
+    player.using_item = line.item_use;
     player.solid_entities = line.nearby.iter().filter(|n| n.solid).map(|n| n.bounds).collect();
     if !line.mobility.contains('F') {
         player.fall_flying = false;

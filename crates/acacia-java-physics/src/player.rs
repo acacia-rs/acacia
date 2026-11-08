@@ -12,6 +12,13 @@ pub const STEP_HEIGHT: f32 = 0.6;
 pub(crate) const BELOW_MOVEMENT_OFFSET: f32 = 0.500001;
 const FIT_MARGIN: f64 = 1.0E-7;
 
+/// The held item's `use_effects` component while it is being used; vanilla's default is speed 0.2, no sprinting.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ItemUse {
+    pub speed: f32,
+    pub can_sprint: bool,
+}
+
 /// Potion effects that change movement, as amplifiers.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Effects {
@@ -46,6 +53,7 @@ pub struct Player {
     pub has_food: bool,
     pub fast_lava: bool,
     pub effects: Effects,
+    pub using_item: Option<ItemUse>,
     /// Sum of the server's flat `movement_speed` modifiers; the powder snow freeze slowdown arrives this way.
     pub speed_add: f64,
     /// Boxes of nearby entities the player can't walk through, such as boats and shulkers.

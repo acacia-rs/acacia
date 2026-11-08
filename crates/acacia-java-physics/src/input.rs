@@ -85,6 +85,9 @@ impl Player {
         let mut input = self.move_vector;
         if input[0] * input[0] + input[1] * input[1] != 0.0 {
             input = input.map(|v| v * 0.98);
+            if let Some(using) = self.using_item {
+                input = input.map(|v| v * using.speed);
+            }
             if self.moving_slowly() {
                 input = input.map(|v| v * 0.3_f64 as f32);
             }
@@ -92,6 +95,10 @@ impl Player {
         }
         self.xxa = input[0];
         self.zza = input[1];
+    }
+
+    fn slow_from_item(&self) -> bool {
+        self.using_item.is_some_and(|using| !using.can_sprint)
     }
 
     fn shallow_water(&self) -> bool {
@@ -106,6 +113,7 @@ impl Player {
         !self.sprinting
             && self.has_forward_impulse()
             && self.sprint_possible(self.flying)
+            && !self.slow_from_item()
             && (!self.fall_flying || self.under_water())
             && (!self.moving_slowly() || self.under_water())
     }
@@ -121,7 +129,7 @@ impl Player {
     }
 
     pub(crate) fn update_sprint(&mut self, was_shift: bool, had_forward: bool) {
-        if was_shift || self.keys.backward {
+        if was_shift || self.slow_from_item() || self.keys.backward {
             self.sprint_trigger = 0;
         }
         if self.can_start_sprinting() {

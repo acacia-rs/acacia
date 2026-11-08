@@ -4,7 +4,7 @@ use acacia_java_proto::{Wire, read_varint, write_varint};
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
 use crate::crypto::Cfb8;
@@ -71,6 +71,12 @@ impl Connection {
             }
         }
         Err(Error::BadFrame(MAX_FRAME + 1))
+    }
+
+    /// Waits until a packet has started arriving. Unlike [`Connection::read`], safe to cancel.
+    pub async fn readable(&mut self) -> Result<(), Error> {
+        self.stream.fill_buf().await?;
+        Ok(())
     }
 
     /// The next packet's id and body.
