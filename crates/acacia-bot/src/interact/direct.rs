@@ -5,6 +5,7 @@
 use acacia_client::proto::types::{Action, GameMode};
 use acacia_physics::BlockPos;
 use acacia_world::BlockState;
+use acacia_world::neutral::{Block, BlockTag};
 
 use super::break_time::{break_ticks, Progress};
 use super::geometry::{block_distance, BLOCK_REACH};
@@ -31,19 +32,26 @@ fn cannot_destroy_in_creative(name: &str) -> bool {
     name.ends_with("_sword") || name == "trident" || name == "mace"
 }
 
-/// Name fragments of blocks a click uses instead of building against: containers, doors, switches,
-/// workstations. A sneaking player builds against them anyway.
-const INTERACTIVE: &[&str] = &[
-    "chest", "barrel", "shulker_box", "door", "gate", "button", "lever", "crafting_table", "furnace", "smoker",
-    "anvil", "enchanting_table", "brewing_stand", "beacon", "hopper", "dispenser", "dropper", "loom", "stonecutter",
-    "grindstone", "cartography_table", "smithing_table", "bed", "bell", "note_block", "repeater", "comparator",
-    "daylight_detector", "cake", "campfire", "lectern", "composter", "jukebox", "respawn_anchor", "crafter",
+/// Blocks a click uses instead of building against: containers, doors, switches, workstations.
+/// A sneaking player builds against them anyway.
+const INTERACTIVE: &[Block] = &[
+    Block::Chest, Block::TrappedChest, Block::EnderChest, Block::Barrel, Block::Lever, Block::CraftingTable,
+    Block::Furnace, Block::BlastFurnace, Block::Smoker, Block::EnchantingTable, Block::BrewingStand, Block::Beacon,
+    Block::Hopper, Block::Dispenser, Block::Dropper, Block::Loom, Block::Stonecutter, Block::LegacyStonecutter,
+    Block::Grindstone, Block::CartographyTable, Block::SmithingTable, Block::Bell, Block::NoteBlock, Block::Repeater,
+    Block::Comparator, Block::DaylightDetector, Block::Cake, Block::Lectern, Block::Composter, Block::Jukebox,
+    Block::RespawnAnchor, Block::Crafter, Block::StrawBed, Block::DeprecatedAnvil,
+];
+const INTERACTIVE_TAGS: &[BlockTag] = &[
+    BlockTag::ShulkerBoxes, BlockTag::CopperChests, BlockTag::Doors, BlockTag::Trapdoors, BlockTag::FenceGates, BlockTag::Buttons,
+    BlockTag::Anvil, BlockTag::Beds, BlockTag::CandleCakes, BlockTag::Campfires, BlockTag::AllSigns,
 ];
 
 /// Whether a plain right-click on this block uses it rather than placing the held block against it.
 pub fn is_interactive(state: &BlockState) -> bool {
-    let name = state.name.strip_prefix("minecraft:").unwrap_or(state.name);
-    INTERACTIVE.iter().any(|part| name.contains(part)) || name.ends_with("_sign")
+    let Some(block) = state.kind() else { return false };
+    !matches!(block, Block::IronDoor | Block::IronTrapdoor)
+        && (INTERACTIVE.contains(&block) || INTERACTIVE_TAGS.iter().any(|t| block.is(*t)))
 }
 
 impl Bot {

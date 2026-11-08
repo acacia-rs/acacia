@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use acacia_physics::BlockPos;
 use acacia_physics::constants::DEFAULT_PLAYER_HEIGHT;
+use acacia_world::neutral::prop;
 use acacia_world::{Aabb, BlockAccess, BlockRegistry, BlockState, ChunkView};
 
 pub use super::cell::Cell;
@@ -162,13 +163,11 @@ impl<'r, B: Blocks> Terrain<'r, B> {
         self.registry.get(self.cell(p).block)
     }
 
-    /// Boxes of the cell's door, gate or trapdoor once toggled (`open_bit` flipped).
+    /// Boxes of the cell's door, gate or trapdoor once toggled.
     pub(crate) fn toggled_boxes(&self, block: u32) -> Option<&'r [Aabb]> {
         let id = *self.toggled.borrow_mut().entry(block).or_insert_with(|| {
-            let s = self.registry.get(block)?;
-            let open = s.property("open_bit")?;
-            let flipped = s.properties.replace(&format!("open_bit={open}"), if open == "1" { "open_bit=0" } else { "open_bit=1" });
-            self.registry.find(s.name, &flipped)
+            let n = self.registry.get(block)?.neutral?;
+            self.registry.runtime_id_of(n.with(prop::Open, !n.get(prop::Open)?)?)
         });
         Some(self.registry.get(id?)?.boxes)
     }

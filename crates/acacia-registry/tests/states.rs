@@ -62,6 +62,17 @@ fn names_parse_in_either_edition() {
 }
 
 #[test]
+fn tags_resolve_nested_tags() {
+    use acacia_registry::BlockTag;
+    assert!(Block::OakFence.is(BlockTag::Fences));
+    assert!(Block::NetherBrickFence.is(BlockTag::Fences));
+    assert!(!Block::OakFenceGate.is(BlockTag::Fences));
+    assert!(Block::Stone.is(BlockTag::MineablePickaxe));
+    assert_eq!(BlockTag::MineablePickaxe.name(), "minecraft:mineable/pickaxe");
+    assert!(!Block::HardGlass.is(BlockTag::Impermeable));
+}
+
+#[test]
 fn bedrock_only_states_follow_java() {
     let tnt = state("underwater_tnt[explode_bit=1]");
     assert_eq!(tnt.get(prop::BedrockExplodeBit), Some(true));

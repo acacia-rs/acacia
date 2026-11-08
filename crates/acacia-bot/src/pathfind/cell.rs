@@ -1,6 +1,7 @@
 //! One block cell as the search sees it: its collision boxes and traits, and the footprint
 //! rectangles the player's box covers inside a cell.
 
+use acacia_world::neutral::{Block, BlockTag};
 use acacia_world::{Aabb, BlockFlags, BlockState};
 
 use super::terrain::EPS;
@@ -118,15 +119,17 @@ pub(crate) fn state_flags(s: &BlockState) -> u16 {
     if s.flags.intersects(BlockFlags(BlockFlags::COBWEB.0 | BlockFlags::SWEET_BERRY.0 | BlockFlags::POWDER_SNOW.0)) {
         f |= AVOID;
     }
-    let name = s.name.trim_start_matches("minecraft:");
-    match name {
-        "fire" | "soul_fire" => f |= AVOID | DANGER_NEAR,
-        "campfire" | "soul_campfire" | "wither_rose" => f |= AVOID,
-        "cactus" => f |= DANGER_NEAR,
-        "magma" => f |= HURT_FLOOR,
-        "sand" | "red_sand" | "gravel" | "suspicious_sand" | "suspicious_gravel" => f |= FALLS,
-        _ if name.ends_with("concrete_powder") => f |= FALLS,
-        _ if (name.ends_with("door") || name.ends_with("fence_gate")) && !name.starts_with("iron_") => f |= OPENABLE,
+    let Some(block) = s.neutral.map(|n| n.block()) else { return f };
+    match block {
+        Block::Fire | Block::SoulFire => f |= AVOID | DANGER_NEAR,
+        Block::WitherRose => f |= AVOID,
+        _ if block.is(BlockTag::Campfires) => f |= AVOID,
+        Block::Cactus => f |= DANGER_NEAR,
+        Block::MagmaBlock => f |= HURT_FLOOR,
+        Block::Sand | Block::RedSand | Block::Gravel | Block::SuspiciousSand | Block::SuspiciousGravel => f |= FALLS,
+        _ if block.is(BlockTag::ConcretePowders) || block.is(BlockTag::Anvil) => f |= FALLS,
+        Block::IronDoor | Block::IronTrapdoor => {}
+        _ if block.is(BlockTag::Doors) || block.is(BlockTag::Trapdoors) || block.is(BlockTag::FenceGates) => f |= OPENABLE,
         _ => {}
     }
     f

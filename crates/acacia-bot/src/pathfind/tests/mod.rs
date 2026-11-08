@@ -26,6 +26,7 @@ mod leap;
 mod leaps;
 mod leaps_shaped;
 mod macro_start;
+mod neutral_kinds;
 mod perf;
 mod pilot_sim;
 mod pipeline_sim;

@@ -141,6 +141,17 @@ impl BlockState {
         }
     }
 
+    /// The edition-neutral block kind; `None` for custom blocks.
+    pub fn kind(&self) -> Option<acacia_registry::Block> {
+        self.neutral.map(|n| n.block())
+    }
+
+    /// A typed property of the neutral state (see `neutral_flags` for what Bedrock can't tell).
+    pub fn get<P: acacia_registry::prop::Property>(&self, prop: P) -> Option<P::Value> {
+        self.neutral?.get(prop)
+    }
+
+    /// Bedrock's own property string; prefer [`BlockState::get`] outside Bedrock protocol code.
     pub fn property(&self, key: &str) -> Option<&'static str> {
         self.properties
             .split(',')

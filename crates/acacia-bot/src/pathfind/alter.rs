@@ -3,6 +3,8 @@
 //! offered only where the plain moves found no way.
 
 use acacia_physics::BlockPos;
+use acacia_world::neutral::prop;
+use acacia_world::neutral::value::DoubleBlockHalf;
 
 use super::cell::{Cell, AVOID, FALLS, LIQUID, OPENABLE, Rect, UNLOADED};
 use super::costs::{self, BREAK_PENALTY, CENTER_AFTER_FALL, DOOR, MAX_DIG_TICKS, SNEAK, WALK};
@@ -54,7 +56,7 @@ impl<'c, 'k> Clearing<'c, 'k> {
     /// Opens the cell if toggling it frees `span`, else breaks it if digging is allowed.
     fn clear<B: Blocks>(&mut self, t: &Terrain<B>, q: BlockPos, c: Cell, span: Span) -> bool {
         if self.ctx.doors && c.has(OPENABLE) && t.toggled_boxes(c.block).is_some_and(|b| !span.hits(b)) {
-            let open = t.state(q).and_then(|s| s.property("open_bit")) != Some("1");
+            let open = t.state(q).and_then(|s| s.get(prop::Open)) != Some(true);
             if self.work.push(Step::Door { pos: door_base(t, q), open }) {
                 self.cost += DOOR;
             }
@@ -72,7 +74,7 @@ impl<'c, 'k> Clearing<'c, 'k> {
 fn door_base<B: Blocks>(t: &Terrain<B>, q: BlockPos) -> BlockPos {
     let below = offset(q, 0, -1, 0);
     match (t.state(q), t.state(below)) {
-        (Some(s), Some(b)) if s.property("upper_block_bit") == Some("1") && b.name == s.name => below,
+        (Some(s), Some(b)) if s.get(prop::DoubleBlockHalf) == Some(DoubleBlockHalf::Upper) && b.kind() == s.kind() => below,
         _ => q,
     }
 }

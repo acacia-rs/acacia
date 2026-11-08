@@ -232,6 +232,39 @@ for (const p of props) {
 }
 fs.writeFileSync(path.join(GEN, 'props.rs'), out);
 
+// ---- Java block tags (unzipped from the server jar into tags/), one bitset over `Block` each ----
+const TAG_DIR = path.join(CACHE, 'tags', 'data', 'minecraft', 'tags', 'block');
+const tagFiles = fs.readdirSync(TAG_DIR, { recursive: true }).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\\/g, '/').slice(0, -5)).sort();
+const tagMembers = new Map();
+const resolveTag = (name) => {
+  if (tagMembers.has(name)) return tagMembers.get(name);
+  const set = new Set();
+  for (const v of JSON.parse(fs.readFileSync(path.join(TAG_DIR, `${name}.json`), 'utf8')).values) {
+    const id = typeof v === 'string' ? v : v.id;
+    if (id.startsWith('#')) resolveTag(id.slice(1).replace('minecraft:', '')).forEach((b) => set.add(b));
+    else if (javaNames.has(id)) set.add(id);
+    else if (typeof v === 'string' || v.required !== false) fail(`tag ${name}: unknown ${id}`);
+  }
+  tagMembers.set(name, set);
+  return set;
+};
+const words = Math.ceil(blocks.length / 64);
+const blockIndex = new Map(blocks.map((b, i) => [b.name, i]));
+out = `${HEADER}use crate::tag::Tag;\n\n`;
+out += '/// Java 26.3 block tags, resolved (nested tags expanded). Bedrock-only blocks belong to none.\n';
+out += '#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\n#[repr(u16)]\npub enum BlockTag {\n';
+out += tagFiles.map((t) => `    ${camel(t.replace(/\//g, '_'))},\n`).join('');
+out += '}\n\n';
+out += `pub(crate) const TAG_WORDS: usize = ${words};\n`;
+out += `pub(crate) static TAGS: [Tag; ${tagFiles.length}] = [\n`;
+for (const t of tagFiles) {
+  const bits = Array.from({ length: words }, () => 0n);
+  for (const b of resolveTag(t)) { const i = blockIndex.get(b); bits[i >> 6] |= 1n << BigInt(i & 63); }
+  out += `    Tag { name: ${str(`minecraft:${t}`)}, bits: [${bits.map((w) => `0x${w.toString(16)}`).join(', ')}] },\n`;
+}
+out += '];\n';
+fs.writeFileSync(path.join(GEN, 'tags.rs'), out);
+
 // neutral.bin, parsed by acacia-world src/neutral.rs. Little endian:
 //   magic "ANB1"; u32 n, n×(u32 neutral state, u8 flags) by Bedrock runtime id; u32 m, m×u32 Bedrock runtime id by neutral state
 const buf = Buffer.alloc(4 + 4 + bedrock.length * 5 + 4 + stateCount * 4);

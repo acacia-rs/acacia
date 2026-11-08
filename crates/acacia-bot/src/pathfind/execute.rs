@@ -2,6 +2,7 @@
 //! the best tool, [`Bot::place_block`] with a scaffold block, [`Bot::use_item_on_block`] on doors.
 
 use acacia_physics::BlockPos;
+use acacia_world::neutral::prop;
 
 use super::boat::BoatOpts;
 use super::follow::Sense;
@@ -50,10 +51,9 @@ async fn dig(bot: &mut Bot, pos: BlockPos) -> Result<(), ActionError> {
 }
 
 async fn door(bot: &mut Bot, pos: BlockPos, open: bool) -> Result<(), ActionError> {
-    let want = if open { "1" } else { "0" };
-    let state = |bot: &Bot| bot.block_at(pos).and_then(|(_, s)| s.property("open_bit"));
+    let state = |bot: &Bot| bot.block_at(pos).and_then(|(_, s)| s.get(prop::Open));
     match state(bot) {
-        Some(v) if v == want => return Ok(()),
+        Some(v) if v == open => return Ok(()),
         None => return Err(ActionError::NotPossible(format!("no door at {pos:?}"))),
         Some(_) => {}
     }
