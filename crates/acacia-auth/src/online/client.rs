@@ -151,7 +151,7 @@ impl AuthClient {
             return Ok(t.clone());
         }
         let (key, device, sisu) = self.xbox_session(state).await?;
-        let t = xbox::xsts(&self.http, self.cfg.title, &key, relying_party, &device, &sisu).await?;
+        let t = xbox::xsts(&self.http, self.cfg.title, &key, relying_party, &device, &sisu.title, &sisu.user).await?;
         state.xsts.insert(relying_party.to_owned(), t.clone());
         Ok(t)
     }
@@ -164,14 +164,7 @@ impl AuthClient {
         let title = self.cfg.title;
         let msa = self.valid_msa(state).await?;
         let key = state.xbox_key();
-        let device = match state.device_token.clone().filter(XboxToken::is_valid) {
-            Some(d) => d,
-            None => {
-                let d = xbox::device_token(&self.http, title, &key).await?;
-                state.device_token = Some(d.clone());
-                d
-            }
-        };
+        let device = self.valid_device(state, &key).await?;
         let sisu = match state.sisu.clone().filter(|s| s.is_valid()) {
             Some(s) => s,
             None => {
@@ -185,7 +178,16 @@ impl AuthClient {
         Ok((key, device, sisu))
     }
 
-    async fn valid_msa(&self, state: &mut CachedTokens) -> Result<MsaToken> {
+    pub(super) async fn valid_device(&self, state: &mut CachedTokens, key: &XboxKey) -> Result<XboxToken> {
+        if let Some(d) = state.device_token.clone().filter(XboxToken::is_valid) {
+            return Ok(d);
+        }
+        let d = xbox::device_token(&self.http, self.cfg.title, key).await?;
+        state.device_token = Some(d.clone());
+        Ok(d)
+    }
+
+    pub(super) async fn valid_msa(&self, state: &mut CachedTokens) -> Result<MsaToken> {
         let msa = state.msa.clone().ok_or_else(|| Error::OAuth {
             code: "no_msa_token".into(),
             description: "account has no Microsoft token; run the device code flow".into(),

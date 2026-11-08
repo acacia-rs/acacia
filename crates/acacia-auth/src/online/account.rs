@@ -35,8 +35,8 @@ impl Account {
         &self.id
     }
 
-    pub(super) fn http(&self) -> &super::http::Http {
-        self.client.http()
+    pub(super) fn client(&self) -> &AuthClient {
+        &self.client
     }
 
     /// True if the cache holds an MSA token, i.e. no interactive login is needed.
@@ -151,7 +151,7 @@ impl Account {
     }
 
     /// Runs `f` on the cached tokens and writes back whatever it refreshed, even if it failed.
-    async fn with_tokens<T>(&self, f: impl AsyncFnOnce(&mut CachedTokens) -> Result<T>) -> Result<T> {
+    pub(super) async fn with_tokens<T>(&self, f: impl AsyncFnOnce(&mut CachedTokens) -> Result<T>) -> Result<T> {
         let read = self.load().await?;
         let mut tokens = read.tokens.clone();
         let result = f(&mut tokens).await;

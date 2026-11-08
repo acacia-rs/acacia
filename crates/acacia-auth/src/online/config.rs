@@ -75,6 +75,8 @@ pub(crate) mod endpoints {
     pub const LIVE_TOKEN: &str = "https://login.live.com/oauth20_token.srf";
     pub const LIVE_SCOPE: &str = "service::user.auth.xboxlive.com::MBI_SSL";
     pub const DEVICE_AUTH: &str = "https://device.auth.xboxlive.com/device/authenticate";
+    pub const TITLE_AUTH: &str = "https://title.auth.xboxlive.com/title/authenticate";
+    pub const USER_AUTH: &str = "https://user.auth.xboxlive.com/user/authenticate";
     pub const SISU_AUTHORIZE: &str = "https://sisu.xboxlive.com/authorize";
     pub const XSTS_AUTHORIZE: &str = "https://xsts.auth.xboxlive.com/xsts/authorize";
     pub const NSAL_TITLES: &str = "https://title.mgt.xboxlive.com/titles";
