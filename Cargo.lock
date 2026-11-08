@@ -136,6 +136,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "acacia-java-client"
+version = "0.1.0"
+dependencies = [
+ "acacia-java-proto",
+ "flate2",
+ "md-5",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
+name = "acacia-java-proto"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "acacia-mitm"
 version = "0.1.0"
 dependencies = [
