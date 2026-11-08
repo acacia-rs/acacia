@@ -98,6 +98,21 @@ fn state_flags_match_the_name_rules_but_for_anvils() {
 }
 
 #[test]
+fn landing_hazards_differ_from_the_name_rule_only_where_intended() {
+    use crate::pathfind::flight::HURTS;
+    const FRAGMENTS: [&str; 7] = ["lava", "magma", "fire", "cactus", "sweet_berry", "powder_snow", "pointed_dripstone"];
+    let r = BlockRegistry::vanilla();
+    let differ: BTreeSet<_> = (0..r.len() as u32)
+        .map(|id| r.get(id).unwrap())
+        .filter(|s| s.kind().is_some_and(|k| HURTS.contains(&k)) != FRAGMENTS.iter().any(|f| s.name.contains(f)))
+        .map(|s| s.name)
+        .collect();
+    // Substring accidents, plus the lava-filled states of Bedrock's one `cauldron`.
+    let intended = |n: &str| n.contains("fire_coral") || matches!(n, "minecraft:firefly_bush" | "minecraft:cactus_flower" | "minecraft:cauldron");
+    assert!(differ.iter().all(|n| intended(n)), "{differ:?}");
+}
+
+#[test]
 fn backfill_substitutes_match_the_name_rule() {
     use acacia_world::neutral::{Block, Item};
 

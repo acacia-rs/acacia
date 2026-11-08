@@ -256,7 +256,10 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::Creative { id, count } => bot.take_creative(id, count).await,
         Command::Beacon(primary, secondary) => bot.take_beacon(primary, secondary).await,
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
-        Command::Craft { name, table } => bot.craft(&name, 1, table).await.map(|_| ()),
+        Command::Craft { name, table } => match acacia_world::neutral::Item::from_name(&name).or_else(|| acacia_world::neutral::Item::from_bedrock(&name, 0)) {
+            Some(item) => bot.craft(item, 1, table).await.map(|_| ()),
+            None => Err(acacia_bot::ActionError::NotPossible(format!("no item called {name}"))),
+        },
         Command::DropCursor { one } => bot.drop_cursor(one).await,
         Command::DestroyCursor => bot.destroy_cursor().await,
         Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),

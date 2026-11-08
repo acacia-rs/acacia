@@ -10,6 +10,8 @@ mod tests;
 
 pub use pilot::{FlightPilot, Order};
 pub use surface::{ChunkSurface, Surface, TopCache};
+#[cfg(test)]
+pub(crate) use surface::HURTS;
 
 use super::profile::MovementProfile;
 
