@@ -28,7 +28,8 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
 2. **Java client, read-only.** `acacia-java-proto`; TCP + zlib + AES-CFB8 transport; login → configuration →
    play; Java auth via acacia-auth (Minecraft-services XSTS). A bot that joins and fills a Java world from
    chunk and entity packets. Java collision shapes come from the jar, not BDS.
-3. **Java physics.** Port and fit against client traces until bit-exact.
+3. **Java physics.** Port and fit against client traces until bit-exact. Crate `acacia-java-physics`; recordings
+   in its `tests/traces`, made with the bridge's `tools/move-trace.sh` (branch `java-physics-trace`).
 4. **Backend split.** Move the ~97 `acacia-bot` files that touch Bedrock packets behind edition backends
    (movement, interaction, inventory). Java bots path, dig and place.
 5. **Inventory and crafting.** Java container clicks (state ids, carried item) behind the same API as

@@ -20,6 +20,10 @@ pub fn floor(v: f64) -> i32 {
     v.floor() as i32
 }
 
+pub fn ceil(v: f64) -> i32 {
+    v.ceil() as i32
+}
+
 pub fn sqrt(v: f32) -> f32 {
     (v as f64).sqrt() as f32
 }
@@ -30,4 +34,18 @@ pub fn length_sqr(v: [f64; 3]) -> f64 {
 
 pub fn horizontal_sqr(v: [f64; 3]) -> f64 {
     v[0] * v[0] + v[2] * v[2]
+}
+
+pub fn normalize(v: [f64; 3]) -> [f64; 3] {
+    let length = length_sqr(v).sqrt();
+    if length < 1.0E-5_f32 as f64 { [0.0; 3] } else { v.map(|c| c / length) }
+}
+
+/// `Entity.calculateViewVector`.
+pub fn look_vector(pitch: f32, yaw: f32) -> [f64; 3] {
+    let x = pitch * DEG_TO_RAD;
+    let y = -yaw * DEG_TO_RAD;
+    let (y_cos, y_sin) = (cos(y as f64), sin(y as f64));
+    let (x_cos, x_sin) = (cos(x as f64), sin(x as f64));
+    [(y_sin * x_cos) as f64, -x_sin as f64, (y_cos * x_cos) as f64]
 }

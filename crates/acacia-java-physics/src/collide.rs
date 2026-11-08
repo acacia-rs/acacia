@@ -1,9 +1,15 @@
-use acacia_registry::{BlockState, CollisionBox};
+use acacia_registry::prop::{Bottom, StabilityDistance};
+use acacia_registry::{Block, BlockState, CollisionBox};
 
 use crate::aabb::Aabb;
-use crate::mth::{floor, horizontal_sqr};
+use crate::fluid::Face;
+use crate::mth::{floor, horizontal_sqr, length_sqr};
 
 const EPS: f64 = 1.0E-7;
+const ABOVE_MARGIN: f64 = 1.0E-5_f32 as f64;
+static FULL_BLOCK: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]];
+static FALLING_SNOW: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 0.9_f32 as f64, 1.0]];
+static SCAFFOLD_BOTTOM: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 0.125, 1.0]];
 
 pub trait Blocks {
     /// The Java state id at a position; `None` when the chunk isn't loaded.
@@ -22,12 +28,77 @@ pub trait Blocks {
     }
 }
 
+/// `EntityCollisionContext`: what scaffolding and powder snow ask about the player.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Context {
+    pub feet: f64,
+    pub descending: bool,
+    pub fall_distance: f64,
+    pub snow_boots: bool,
+}
+
+impl Context {
+    fn is_above(&self, y: i32, shape_top: f64) -> bool {
+        self.feet > y as f64 + shape_top - ABOVE_MARGIN
+    }
+
+    fn boxes(&self, state: BlockState, y: i32) -> Option<&'static [CollisionBox]> {
+        match state.block() {
+            Block::PowderSnow => Some(self.powder_snow(y)),
+            Block::Scaffolding => Some(self.scaffolding(state, y)?),
+            _ => state.java_collision(),
+        }
+    }
+
+    fn powder_snow(&self, y: i32) -> &'static [CollisionBox] {
+        if self.fall_distance > 2.5 {
+            &FALLING_SNOW
+        } else if self.snow_boots && self.is_above(y, 1.0) && !self.descending {
+            &FULL_BLOCK
+        } else {
+            &[]
+        }
+    }
+
+    fn scaffolding(&self, state: BlockState, y: i32) -> Option<&'static [CollisionBox]> {
+        if self.is_above(y, 1.0) && !self.descending {
+            return state.java_collision();
+        }
+        let hanging = state.get(StabilityDistance) != Some(0) && state.get(Bottom) == Some(true);
+        Some(if hanging && self.is_above(y, 0.0) { &SCAFFOLD_BOTTOM } else { &[] })
+    }
+}
+
+/// A rough `isFaceSturdy` from collision boxes: one box must cover the whole face.
+pub fn full_face(state: BlockState, face: Face) -> bool {
+    let Some(boxes) = state.java_collision() else { return false };
+    boxes.iter().any(|b| match face {
+        Face::Down => b[1] == 0.0 && b[0] == 0.0 && b[3] == 1.0 && b[2] == 0.0 && b[5] == 1.0,
+        Face::North => b[2] == 0.0 && b[0] == 0.0 && b[3] == 1.0 && b[1] == 0.0 && b[4] == 1.0,
+        Face::South => b[5] == 1.0 && b[0] == 0.0 && b[3] == 1.0 && b[1] == 0.0 && b[4] == 1.0,
+        Face::West => b[0] == 0.0 && b[2] == 0.0 && b[5] == 1.0 && b[1] == 0.0 && b[4] == 1.0,
+        Face::East => b[3] == 1.0 && b[2] == 0.0 && b[5] == 1.0 && b[1] == 0.0 && b[4] == 1.0,
+    })
+}
+
+enum Boxes {
+    Block(&'static [CollisionBox]),
+    Entity([CollisionBox; 1]),
+}
+
 pub struct Shape {
     pub pos: [i32; 3],
-    boxes: &'static [CollisionBox],
+    boxes: Boxes,
 }
 
 impl Shape {
+    fn boxes(&self) -> &[CollisionBox] {
+        match &self.boxes {
+            Boxes::Block(b) => b,
+            Boxes::Entity(b) => b,
+        }
+    }
+
     fn offset(&self) -> [f64; 3] {
         self.pos.map(|v| v as f64)
     }
@@ -38,8 +109,8 @@ impl Shape {
         }
         let at = self.offset();
         let (b, c) = ((axis + 1) % 3, (axis + 2) % 3);
-        for shape_box in self.boxes {
-            let (lo, hi) = (shape_box.split_at(3).0, shape_box.split_at(3).1);
+        for part in self.boxes() {
+            let (lo, hi) = part.split_at(3);
             let overlaps = |o: usize| lo[o] + at[o] < moving.max[o] - EPS && hi[o] + at[o] > moving.min[o] + EPS;
             if !overlaps(b) || !overlaps(c) {
                 continue;
@@ -61,46 +132,110 @@ impl Shape {
 
     fn intersects(&self, area: &Aabb) -> bool {
         let at = self.offset();
-        self.boxes.iter().any(|b| {
-            let shape_box = Aabb {
+        self.boxes().iter().any(|b| {
+            let part = Aabb {
                 min: [b[0] + at[0], b[1] + at[1], b[2] + at[2]],
                 max: [b[3] + at[0], b[4] + at[1], b[5] + at[2]],
             };
-            shape_box.intersects(area)
+            part.intersects(area)
         })
     }
 
     fn y_coords(&self) -> Vec<f64> {
-        let mut ys: Vec<f64> = self.boxes.iter().flat_map(|b| [b[1], b[4]]).collect();
+        let mut ys: Vec<f64> = self.boxes().iter().flat_map(|b| [b[1], b[4]]).collect();
         ys.sort_by(f64::total_cmp);
         ys.dedup();
         ys.iter().map(|y| y + self.pos[1] as f64).collect()
     }
 }
 
-/// Block shapes touching `area`, in the order vanilla's cursor visits them: x fastest, then y, then z.
-pub fn shapes_in(world: &impl Blocks, area: &Aabb) -> Vec<Shape> {
-    let low = area.min.map(|v| floor(v - EPS) - 1);
-    let high = area.max.map(|v| floor(v + EPS) + 1);
-    let mut shapes = Vec::new();
-    for z in low[2]..=high[2] {
-        for y in low[1]..=high[1] {
-            for x in low[0]..=high[0] {
-                let Some(boxes) = world.state(x, y, z).and_then(BlockState::from_id).and_then(BlockState::java_collision) else {
-                    continue;
-                };
-                let shape = Shape { pos: [x, y, z], boxes };
-                if !boxes.is_empty() && shape.intersects(area) {
-                    shapes.push(shape);
+/// Everything solid the player runs into, for one collision query.
+#[derive(Clone, Copy)]
+pub struct Colliders<'a, W: Blocks> {
+    pub world: &'a W,
+    pub context: Context,
+    pub entities: &'a [Aabb],
+}
+
+impl<W: Blocks> Colliders<'_, W> {
+    /// Block shapes touching `area`, in the order vanilla's cursor visits them: x fastest, then y, then z.
+    fn blocks_in(&self, area: &Aabb) -> Vec<Shape> {
+        let low = area.min.map(|v| floor(v - EPS) - 1);
+        let high = area.max.map(|v| floor(v + EPS) + 1);
+        let mut shapes = Vec::new();
+        for z in low[2]..=high[2] {
+            for y in low[1]..=high[1] {
+                for x in low[0]..=high[0] {
+                    let state = self.world.state(x, y, z).and_then(BlockState::from_id);
+                    let Some(boxes) = state.and_then(|s| self.context.boxes(s, y)) else { continue };
+                    let shape = Shape { pos: [x, y, z], boxes: Boxes::Block(boxes) };
+                    if !boxes.is_empty() && shape.intersects(area) {
+                        shapes.push(shape);
+                    }
                 }
             }
         }
+        shapes
     }
-    shapes
-}
 
-pub fn no_collision(world: &impl Blocks, area: &Aabb) -> bool {
-    shapes_in(world, area).is_empty()
+    fn shapes_in(&self, area: &Aabb) -> Vec<Shape> {
+        let mut shapes: Vec<Shape> = self
+            .entities
+            .iter()
+            .filter(|e| e.intersects(area))
+            .map(|e| Shape {
+                pos: [0; 3],
+                boxes: Boxes::Entity([[e.min[0], e.min[1], e.min[2], e.max[0], e.max[1], e.max[2]]]),
+            })
+            .collect();
+        shapes.extend(self.blocks_in(area));
+        shapes
+    }
+
+    pub fn no_collision(&self, area: &Aabb) -> bool {
+        self.shapes_in(area).is_empty()
+    }
+
+    /// `Entity.collide`: the movement left after collisions, including stepping up.
+    pub fn collide(&self, area: Aabb, movement: [f64; 3], on_ground: bool, max_step: f32) -> [f64; 3] {
+        let step = if length_sqr(movement) == 0.0 {
+            movement
+        } else {
+            collide_with_shapes(movement, &area, &self.shapes_in(&area.expanded_towards(movement)))
+        };
+        let blocked = |axis: usize| movement[axis] != step[axis];
+        let landed = blocked(1) && movement[1] < 0.0;
+        if max_step <= 0.0 || !(landed || on_ground) || !(blocked(0) || blocked(2)) {
+            return step;
+        }
+        let ground = if landed { area.moved([0.0, step[1], 0.0]) } else { area };
+        let mut reach = ground.expanded_towards([movement[0], max_step as f64, movement[2]]);
+        if !landed {
+            reach = reach.expanded_towards([0.0, (-1.0E-5_f32) as f64, 0.0]);
+        }
+        let shapes = self.shapes_in(&reach);
+        for height in step_heights(&ground, &shapes, max_step, step[1] as f32) {
+            let stepped = collide_with_shapes([movement[0], height as f64, movement[2]], &ground, &shapes);
+            if horizontal_sqr(stepped) > horizontal_sqr(step) {
+                return [stepped[0], stepped[1] - (area.min[1] - ground.min[1]), stepped[2]];
+            }
+        }
+        step
+    }
+
+    /// `CollisionGetter.findSupportingBlock`: the closest block under `area`, ties to the greater position.
+    pub fn supporting_block(&self, area: &Aabb, pos: [f64; 3]) -> Option<[i32; 3]> {
+        let mut best: Option<([i32; 3], f64)> = None;
+        for shape in self.blocks_in(area) {
+            let p = shape.pos;
+            let d = (0..3).map(|a| (p[a] as f64 + 0.5 - pos[a]).powi(2)).sum::<f64>();
+            let rank = |v: [i32; 3]| (v[1], v[2], v[0]);
+            if best.is_none_or(|(q, e)| d < e || (d == e && rank(q) < rank(p))) {
+                best = Some((p, d));
+            }
+        }
+        best.map(|(p, _)| p)
+    }
 }
 
 fn collide_axis(axis: usize, moving: &Aabb, shapes: &[Shape], mut distance: f64) -> f64 {
@@ -145,45 +280,4 @@ fn step_heights(ground: &Aabb, shapes: &[Shape], max_step: f32, skip: f32) -> Ve
     }
     candidates.sort_by(f32::total_cmp);
     candidates
-}
-
-/// `Entity.collide`: the movement left after blocks, including stepping up.
-pub fn collide(world: &impl Blocks, area: Aabb, movement: [f64; 3], on_ground: bool, max_step: f32) -> [f64; 3] {
-    let step = if crate::mth::length_sqr(movement) == 0.0 {
-        movement
-    } else {
-        collide_with_shapes(movement, &area, &shapes_in(world, &area.expanded_towards(movement)))
-    };
-    let blocked = |axis: usize| movement[axis] != step[axis];
-    let landed = blocked(1) && movement[1] < 0.0;
-    if max_step <= 0.0 || !(landed || on_ground) || !(blocked(0) || blocked(2)) {
-        return step;
-    }
-    let ground = if landed { area.moved([0.0, step[1], 0.0]) } else { area };
-    let mut reach = ground.expanded_towards([movement[0], max_step as f64, movement[2]]);
-    if !landed {
-        reach = reach.expanded_towards([0.0, (-1.0E-5_f32) as f64, 0.0]);
-    }
-    let shapes = shapes_in(world, &reach);
-    for height in step_heights(&ground, &shapes, max_step, step[1] as f32) {
-        let stepped = collide_with_shapes([movement[0], height as f64, movement[2]], &ground, &shapes);
-        if horizontal_sqr(stepped) > horizontal_sqr(step) {
-            return [stepped[0], stepped[1] - (area.min[1] - ground.min[1]), stepped[2]];
-        }
-    }
-    step
-}
-
-/// `CollisionGetter.findSupportingBlock`: the closest block under `area`, ties to the greater position.
-pub fn supporting_block(world: &impl Blocks, area: &Aabb, pos: [f64; 3]) -> Option<[i32; 3]> {
-    let mut best: Option<([i32; 3], f64)> = None;
-    for shape in shapes_in(world, area) {
-        let p = shape.pos;
-        let d = (0..3).map(|a| (p[a] as f64 + 0.5 - pos[a]).powi(2)).sum::<f64>();
-        let rank = |v: [i32; 3]| (v[1], v[2], v[0]);
-        if best.is_none_or(|(q, e)| d < e || (d == e && rank(q) < rank(p))) {
-            best = Some((p, d));
-        }
-    }
-    best.map(|(p, _)| p)
 }

@@ -1,4 +1,14 @@
-use acacia_registry::Block;
+use acacia_registry::{Block, BlockTag};
+
+pub fn bounce(block: Block) -> f32 {
+    if block == Block::SlimeBlock {
+        1.0
+    } else if block.is(BlockTag::Beds) {
+        0.75
+    } else {
+        0.0
+    }
+}
 
 pub fn friction(block: Block) -> f32 {
     match block {

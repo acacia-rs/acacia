@@ -1,26 +1,28 @@
-use acacia_registry::BlockTag;
+use acacia_registry::{BlockTag, prop};
 
 use crate::aabb::Aabb;
 use crate::block_factors::jump_factor;
-use crate::collide::{no_collision, Blocks};
-use crate::mth::{cos, floor, sin, sqrt, DEG_TO_RAD};
+use crate::collide::{Blocks, Colliders, Context};
+use crate::fluid::FluidContact;
+use crate::input::{Keys, Pose};
+use crate::mth::{cos, floor, sin, DEG_TO_RAD};
 
-const SPRINT_WINDOW: i32 = 7;
-const WIDTH: f32 = 0.6;
-const STANDING_HEIGHT: f32 = 1.8;
-const CROUCHING_HEIGHT: f32 = 1.5;
+pub const WIDTH: f32 = 0.6;
 pub const STEP_HEIGHT: f32 = 0.6;
+pub(crate) const BELOW_MOVEMENT_OFFSET: f32 = 0.500001;
 const FIT_MARGIN: f64 = 1.0E-7;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Keys {
-    pub forward: bool,
-    pub backward: bool,
-    pub left: bool,
-    pub right: bool,
-    pub jump: bool,
-    pub shift: bool,
-    pub sprint: bool,
+/// Potion effects that change movement, as amplifiers.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Effects {
+    pub speed: Option<u8>,
+    pub slowness: Option<u8>,
+    pub jump_boost: Option<u8>,
+    pub levitation: Option<u8>,
+    pub slow_falling: bool,
+    pub dolphins_grace: bool,
+    pub blindness: bool,
+    pub weaving: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -35,51 +37,68 @@ pub struct Player {
     pub vertical_collision: bool,
     pub sprinting: bool,
     pub keys: Keys,
+    pub flying: bool,
+    pub may_fly: bool,
+    pub flying_speed: f32,
+    pub fall_flying: bool,
+    pub has_glider: bool,
+    pub snow_boots: bool,
+    pub has_food: bool,
+    pub fast_lava: bool,
+    pub effects: Effects,
+    /// Sum of the server's flat `movement_speed` modifiers; the powder snow freeze slowdown arrives this way.
+    pub speed_add: f64,
+    /// Boxes of nearby entities the player can't walk through, such as boats and shulkers.
+    pub solid_entities: Vec<Aabb>,
+    pub in_water: bool,
+    pub swimming: bool,
+    pub(crate) fluids: FluidContact,
+    pub(crate) was_eye_in_water: bool,
+    pub(crate) pose: Pose,
     pub(crate) crouching: bool,
-    pub(crate) crouch_pose: bool,
     pub(crate) move_vector: [f32; 2],
     pub(crate) xxa: f32,
     pub(crate) zza: f32,
     pub(crate) supporting: Option<[i32; 3]>,
     pub(crate) on_ground_no_blocks: bool,
     pub(crate) fall_distance: f64,
-    no_jump_delay: i32,
-    sprint_trigger: i32,
-}
-
-fn impulse(positive: bool, negative: bool) -> f32 {
-    match (positive, negative) {
-        (true, false) => 1.0,
-        (false, true) => -1.0,
-        _ => 0.0,
-    }
-}
-
-fn square_input(input: [f32; 2]) -> [f32; 2] {
-    let length = sqrt(input[0] * input[0] + input[1] * input[1]);
-    if length <= 0.0 {
-        return input;
-    }
-    let scale = 1.0 / length;
-    let dir = [input[0] * scale, input[1] * scale];
-    let (x, y) = (dir[0].abs(), dir[1].abs());
-    let tan = if y > x { x / y } else { y / x };
-    let modified = (length * sqrt(1.0 + tan * tan)).min(1.0);
-    [dir[0] * modified, dir[1] * modified]
+    pub(crate) stuck: [f64; 3],
+    pub(crate) in_powder_snow: bool,
+    pub(crate) was_in_powder_snow: bool,
+    pub(crate) moves: Vec<([f64; 3], [f64; 3], [f64; 3])>,
+    pub(crate) no_jump_delay: i32,
+    pub(crate) sprint_trigger: i32,
+    pub jump_trigger: i32,
 }
 
 impl Player {
     pub fn at(pos: [f64; 3]) -> Player {
-        Player { pos, ..Player::default() }
+        Player { pos, has_food: true, flying_speed: 0.05, ..Player::default() }
     }
 
     pub fn bounding_box(&self) -> Aabb {
-        let height = if self.crouch_pose { CROUCHING_HEIGHT } else { STANDING_HEIGHT };
-        Aabb::of_entity(self.pos, WIDTH, height)
+        Aabb::of_entity(self.pos, WIDTH, self.pose.height())
     }
 
-    fn fits(&self, world: &impl Blocks, height: f32) -> bool {
-        no_collision(world, &Aabb::of_entity(self.pos, WIDTH, height).deflated(FIT_MARGIN))
+    pub(crate) fn eye_y(&self) -> f64 {
+        self.pos[1] + self.pose.eye_height() as f64
+    }
+
+    pub(crate) fn colliders<'a, W: Blocks>(&'a self, world: &'a W) -> Colliders<'a, W> {
+        Colliders {
+            world,
+            context: Context {
+                feet: self.pos[1],
+                descending: self.keys.shift,
+                fall_distance: self.fall_distance,
+                snow_boots: self.snow_boots,
+            },
+            entities: &self.solid_entities,
+        }
+    }
+
+    pub(crate) fn fits(&self, world: &impl Blocks, pose: Pose) -> bool {
+        self.colliders(world).no_collision(&Aabb::of_entity(self.pos, WIDTH, pose.height()).deflated(FIT_MARGIN))
     }
 
     pub(crate) fn block_pos(&self) -> [i32; 3] {
@@ -97,61 +116,65 @@ impl Player {
         if keeps_support { support } else { [support[0], below, support[2]] }
     }
 
+    /// The `movement_speed` attribute as a float.
     pub(crate) fn speed(&self) -> f32 {
-        let base = 0.1_f32 as f64;
-        (if self.sprinting { base * (1.0 + 0.3_f32 as f64) } else { base }) as f32
-    }
-
-    fn has_forward_impulse(&self) -> bool {
-        self.move_vector[1] > 1.0E-5
-    }
-
-    fn read_keys(&mut self, keys: Keys) {
-        self.keys = keys;
-        let v = [impulse(keys.left, keys.right), impulse(keys.forward, keys.backward)];
-        let length = sqrt(v[0] * v[0] + v[1] * v[1]);
-        self.move_vector = if length < 1.0E-4 { [0.0, 0.0] } else { [v[0] / length, v[1] / length] };
-    }
-
-    fn apply_input(&mut self) {
-        let mut input = self.move_vector;
-        if input[0] * input[0] + input[1] * input[1] != 0.0 {
-            input = input.map(|v| v * 0.98);
-            if self.crouching {
-                input = input.map(|v| v * 0.3_f64 as f32);
-            }
-            input = square_input(input);
+        let mut value = 0.1_f32 as f64 + self.speed_add;
+        if self.sprinting {
+            value *= 1.0 + 0.3_f32 as f64;
         }
-        self.xxa = input[0];
-        self.zza = input[1];
+        if let Some(amp) = self.effects.speed {
+            value *= 1.0 + 0.2_f32 as f64 * (amp as f64 + 1.0);
+        }
+        if let Some(amp) = self.effects.slowness {
+            value *= 1.0 + -0.15_f32 as f64 * (amp as f64 + 1.0);
+        }
+        value.max(0.0) as f32
     }
 
-    fn update_sprint(&mut self, was_shift: bool, had_forward: bool) {
-        if was_shift || self.keys.backward {
-            self.sprint_trigger = 0;
-        }
-        if !self.sprinting && self.has_forward_impulse() && !self.crouching {
-            if !had_forward {
-                if self.sprint_trigger > 0 {
-                    self.sprinting = true;
-                } else {
-                    self.sprint_trigger = SPRINT_WINDOW;
-                }
-            }
-            if self.keys.sprint {
-                self.sprinting = true;
-            }
-        }
-        if self.sprinting && (!self.has_forward_impulse() || (self.horizontal_collision && !self.minor_horizontal_collision)) {
-            self.sprinting = false;
-        }
+    /// `Vec3.add(0, y, 0)`: adding zero turns a negative zero positive, which the bit comparison sees.
+    pub(crate) fn add_y(&mut self, y: f64) {
+        self.delta = [self.delta[0] + 0.0, self.delta[1] + y, self.delta[2] + 0.0];
     }
 
-    fn jump_from_ground(&mut self, world: &impl Blocks) {
+    pub(crate) fn gravity(&self) -> f64 {
+        if self.delta[1] <= 0.0 && self.effects.slow_falling { 0.08_f64.min(0.01) } else { 0.08 }
+    }
+
+    pub(crate) fn in_lava(&self) -> bool {
+        self.fluids.height(true) > 0.0
+    }
+
+    pub(crate) fn under_water(&self) -> bool {
+        self.was_eye_in_water && self.in_water
+    }
+
+    pub(crate) fn jump_threshold(&self) -> f64 {
+        if (self.pose.eye_height() as f64) < 0.4 { 0.0 } else { 0.4 }
+    }
+
+    pub(crate) fn on_climbable(&self, world: &impl Blocks) -> bool {
+        let here = self.block_pos();
+        let state = world.block_state(here);
+        let block = state.block();
+        if self.fall_flying && block.is(BlockTag::CanGlideThrough) {
+            return false;
+        }
+        if block.is(BlockTag::Climbable) {
+            return true;
+        }
+        if !block.is(BlockTag::Trapdoors) || state.get(prop::Open) != Some(true) {
+            return false;
+        }
+        let below = world.block_state([here[0], here[1] - 1, here[2]]);
+        below.block() == acacia_registry::Block::Ladder && below.get(prop::HorizontalFacing) == state.get(prop::HorizontalFacing)
+    }
+
+    pub(crate) fn jump_from_ground(&mut self, world: &impl Blocks) {
         let here = jump_factor(world.block_state(self.block_pos()).block());
-        let below = jump_factor(world.block_state(self.on_pos(world, 0.500001)).block());
+        let below = jump_factor(world.block_state(self.on_pos(world, BELOW_MOVEMENT_OFFSET)).block());
         let factor = if here as f64 == 1.0 { below } else { here };
-        let power = 0.42_f32 * 1.0 * factor;
+        let boost = self.effects.jump_boost.map_or(0.0, |amp| 0.1_f32 * (amp as f32 + 1.0));
+        let power = 0.42_f32 * 1.0 * factor + boost;
         if power <= 1.0E-5 {
             return;
         }
@@ -163,42 +186,22 @@ impl Player {
         }
     }
 
-    /// One client tick: `LocalPlayer.aiStep` down to `travel`, then the pose update.
-    // TODO: fluids, climbing, flight, gliding, effects, cobweb, moveTowardsClosestSpace.
-    pub fn tick(&mut self, world: &impl Blocks, keys: Keys) {
-        if self.sprint_trigger > 0 {
-            self.sprint_trigger -= 1;
+    /// `Entity.push` from an entity overlapping the player; call before `tick`, as vanilla mobs do in their own tick.
+    pub fn pushed_by(&mut self, other: [f64; 3]) {
+        let (mut xa, mut za) = (other[0] - self.pos[0], other[2] - self.pos[2]);
+        let mut dd = xa.abs().max(za.abs());
+        if dd < 0.01_f32 as f64 {
+            return;
         }
-        let was_shift = self.keys.shift;
-        let had_forward = self.has_forward_impulse();
-        self.crouching = self.fits(world, CROUCHING_HEIGHT) && (was_shift || !self.fits(world, STANDING_HEIGHT));
-        self.read_keys(keys);
-        self.update_sprint(was_shift, had_forward);
-
-        if self.no_jump_delay > 0 {
-            self.no_jump_delay -= 1;
-        }
-        if self.delta[0] * self.delta[0] + self.delta[2] * self.delta[2] < 9.0E-6 {
-            self.delta[0] = 0.0;
-            self.delta[2] = 0.0;
-        }
-        if self.delta[1].abs() < 0.003 {
-            self.delta[1] = 0.0;
-        }
-        self.apply_input();
-        if !keys.jump {
-            self.no_jump_delay = 0;
-        } else if self.on_ground && self.no_jump_delay == 0 {
-            self.jump_from_ground(world);
-            self.no_jump_delay = 10;
-        }
-        self.travel_in_air(world);
-        self.update_pose(world);
-    }
-
-    fn update_pose(&mut self, world: &impl Blocks) {
-        let standing_fits = self.fits(world, STANDING_HEIGHT);
-        let crouch_fits = self.fits(world, CROUCHING_HEIGHT);
-        self.crouch_pose = (self.keys.shift || !standing_fits) && crouch_fits;
+        dd = dd.sqrt();
+        xa /= dd;
+        za /= dd;
+        let pow = (1.0 / dd).min(1.0);
+        xa *= pow;
+        za *= pow;
+        xa *= 0.05_f32 as f64;
+        za *= 0.05_f32 as f64;
+        self.delta[0] += -xa;
+        self.delta[2] += -za;
     }
 }
