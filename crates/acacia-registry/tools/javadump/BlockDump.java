@@ -1,6 +1,7 @@
-// Dumps Java 26.x blocks for gen.mjs: per block its properties (as the static field that declares each,
-// so same-named properties with different values stay apart), default state and first state id; per state
-// its collision boxes with an empty context at the origin. Run: see ../../README.md "Data sources".
+// Dumps Java 26.x blocks and items for gen.mjs: per block its properties (as the static field that declares
+// each, so same-named properties with different values stay apart), default state and first state id; per item
+// the block it places; per state its collision boxes with an empty context at the origin.
+// Run: see ../../README.md "Data sources".
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
@@ -13,6 +14,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -76,6 +79,17 @@ public class BlockDump {
                 out.append("]}");
             }
             out.append("]}");
+        }
+        out.append("],\"items\":[");
+        boolean firstItem = true;
+        for (Item item : BuiltInRegistries.ITEM) {
+            if (!firstItem) out.append(",");
+            firstItem = false;
+            out.append("{\"name\":").append(json(BuiltInRegistries.ITEM.getKey(item).toString()));
+            if (item instanceof BlockItem b) {
+                out.append(",\"block\":").append(json(BuiltInRegistries.BLOCK.getKey(b.getBlock()).toString()));
+            }
+            out.append("}");
         }
         out.append("],\"collision\":[");
         for (int id = 0; id < Block.BLOCK_STATE_REGISTRY.size(); id++) {
