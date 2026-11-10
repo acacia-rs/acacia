@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use crate::chunks::Chunks;
+use crate::mount_data::Synced;
 use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
 pub use crate::entity::{Entity, Mover};
 
@@ -29,6 +30,8 @@ pub struct World {
     pub entities: HashMap<i32, Entity>,
     /// The vehicle the player drives: the client simulates it, so the server's moves only set its codec base.
     pub(crate) driven: Option<i32>,
+    /// `getGameTime`: set by `SetTime`, counted on each tick.
+    pub game_time: i64,
 }
 
 /// Lowest y of a vanilla dimension. The client claims the vanilla packs, so a custom dimension type would be
@@ -72,6 +75,7 @@ impl World {
     /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick. An unridden boat's tick zeroes
     /// its motion too.
     pub fn tick_entities(&mut self) {
+        self.game_time += 1;
         for e in self.entities.values_mut() {
             e.lerp.interpolate(&mut e.position);
             e.motion = [0.0; 3];
@@ -160,12 +164,15 @@ impl World {
                 let id = read_varint(input)?;
                 let Some(e) = self.entities.get_mut(&id) else { return Ok(()) };
                 e.read_body_data(input)?;
+                e.mount.apply(Synced::read(e.kind, input)?);
                 if is_rocket(e.kind) {
                     read_rocket_target(input)?.inspect(|&target| e.attached_to = target);
                 } else if has_mob_flags(e.kind) {
                     read_mob_flags(input)?.inspect(|flags| e.aggressive = flags & MOB_AGGRESSIVE != 0);
                 }
             }
+            from::SET_EQUIPMENT | from::UPDATE_ATTRIBUTES => self.apply_mount_packet(id, input)?,
+            from::SET_TIME => self.game_time = i64::read(input)?,
             from::MOVE_ENTITY_ROT => {
                 let entity = read_varint(input)?;
                 let on_ground = bool::read(input)?;

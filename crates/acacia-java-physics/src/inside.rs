@@ -6,10 +6,11 @@ use acacia_registry::prop::Drag;
 use acacia_registry::{Block, BlockState, BlockTag};
 
 use crate::aabb::Aabb;
+use crate::block_path::for_each_cell_between;
 use crate::collide::Blocks;
 use crate::fluid::fluid_of;
 use crate::mth::{floor, length_sqr};
-use crate::player::{Player, WIDTH};
+use crate::player::Player;
 use crate::support::LEGACY_ON_POS;
 
 const TARGET_MARGIN: f64 = 1.0E-5_f32 as f64;
@@ -88,7 +89,8 @@ pub(crate) trait InsideBody {
     }
 
     /// `applyEffectsFromBlocks(movements)`: slime's `stepOn`, then every block the moves pass through.
-    /// TODO: paths over a block long skip the cells between both ends.
+    /// TODO: blocks with their own inside shape (cauldrons, tripwire, end portals, falling into powder snow) count
+    /// as full cubes, and fluids' own `entityInside` isn't run.
     fn apply_effects_from_blocks(&mut self, world: &impl Blocks, moves: &[Move])
     where
         Self: Sized,
@@ -106,46 +108,48 @@ pub(crate) trait InsideBody {
         let mut seen = HashSet::new();
         for &(from, to, original) in moves {
             let travel = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+            let mut budget = MAX_ITERATIONS;
             if original == [0.0; 3] || length_sqr(travel) == 0.0 {
-                visit_step(self, world, from, to, &mut seen);
-                continue;
+                budget -= visit_step(self, world, from, to, &mut seen, MAX_ITERATIONS);
+            } else {
+                let mut at = from;
+                let order = if original[0].abs() < original[2].abs() { [1, 2, 0] } else { [1, 0, 2] };
+                for axis in order.into_iter().filter(|&a| travel[a] != 0.0) {
+                    let mut next = at;
+                    next[axis] = to[axis];
+                    budget -= visit_step(self, world, at, next, &mut seen, budget);
+                    at = next;
+                }
             }
-            let mut at = from;
-            let order = if original[0].abs() < original[2].abs() { [1, 2, 0] } else { [1, 0, 2] };
-            for axis in order.into_iter().filter(|&a| travel[a] != 0.0) {
-                let mut next = at;
-                next[axis] = to[axis];
-                visit_step(self, world, at, next, &mut seen);
-                at = next;
+            if budget <= 0 {
+                visit_step(self, world, to, to, &mut seen, 1);
             }
         }
     }
 }
 
-fn visit_step(body: &mut impl InsideBody, world: &impl Blocks, from: [f64; 3], to: [f64; 3], seen: &mut HashSet<[i32; 3]>) {
+/// `checkInsideBlocks` for one move.
+const MAX_ITERATIONS: i32 = 16;
+
+/// `checkInsideBlocks(from, to, ..., budget)`: returns the iterations it used.
+fn visit_step(body: &mut impl InsideBody, world: &impl Blocks, from: [f64; 3], to: [f64; 3], seen: &mut HashSet<[i32; 3]>, budget: i32) -> i32 {
     let (width, height) = body.size();
     let target = Aabb::of_entity(to, width, height).deflated(TARGET_MARGIN);
     let travel = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
     let far = length_sqr(travel) > 0.9999900000002526_f64.powi(2);
-    visit_box(body, world, target.moved(travel.map(|v| -v)), &target, far, seen);
-    visit_box(body, world, target, &target, far, seen);
-}
-
-fn visit_box(body: &mut impl InsideBody, world: &impl Blocks, area: Aabb, target: &Aabb, far: bool, seen: &mut HashSet<[i32; 3]>) {
-    let low = area.min.map(floor);
-    let high = area.max.map(floor);
-    for x in low[0]..=high[0] {
-        for y in low[1]..=high[1] {
-            for z in low[2]..=high[2] {
-                let pos = [x, y, z];
-                if world.block_state(pos).is_air() || !seen.insert(pos) {
-                    continue;
-                }
-                let cell = Aabb { min: pos.map(|v| v as f64), max: pos.map(|v| v as f64 + 1.0) };
-                body.entity_inside(world, pos, far || target.intersects(&cell));
-            }
+    let mut last = 0;
+    for_each_cell_between(from, to, &target, |pos, iteration| {
+        if iteration as i32 >= budget {
+            return false;
         }
-    }
+        last = iteration as i32;
+        if !world.block_state(pos).is_air() && seen.insert(pos) {
+            let cell = Aabb { min: pos.map(f64::from), max: pos.map(|v| f64::from(v) + 1.0) };
+            body.entity_inside(world, pos, far || target.intersects(&cell));
+        }
+        true
+    });
+    last + 1
 }
 
 impl Player {
@@ -174,7 +178,7 @@ impl InsideBody for Player {
     }
 
     fn size(&self) -> (f32, f32) {
-        (WIDTH, self.pose.height())
+        Player::size(self)
     }
 
     fn grounded(&self) -> bool {

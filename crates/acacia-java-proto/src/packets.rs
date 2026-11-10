@@ -100,6 +100,8 @@ impl Wire for UnsignedChat {
 /// `ServerboundPlayerCommandPacket.Action` ordinals.
 pub const COMMAND_START_SPRINTING: i32 = 1;
 pub const COMMAND_STOP_SPRINTING: i32 = 2;
+/// Its data is the released jump charge, out of 100.
+pub const COMMAND_START_RIDING_JUMP: i32 = 3;
 pub const COMMAND_START_FALL_FLYING: i32 = 6;
 
 /// `ClientIntent` for joining.

@@ -13,7 +13,7 @@ const CLIMB_LIMIT: f64 = 0.15_f32 as f64;
 
 impl Player {
     pub(crate) fn move_relative(&mut self, speed: f32) {
-        let input = [self.xxa as f64, 0.0, self.zza as f64];
+        let input = self.mount.map_or([self.xxa as f64, 0.0, self.zza as f64], |m| m.input);
         let length = length_sqr(input);
         if length < 1.0E-7 {
             self.delta = self.delta.map(|v| v + 0.0);
@@ -51,7 +51,9 @@ impl Player {
     }
 
     fn air_speed(&self) -> f32 {
-        if self.flying {
+        if let Some(mount) = &self.mount {
+            mount.speed * 0.1
+        } else if self.flying {
             if self.sprinting { self.flying_speed * 2.0 } else { self.flying_speed }
         } else if self.sprinting {
             0.025999999

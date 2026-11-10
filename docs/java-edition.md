@@ -43,9 +43,18 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    71/72, which Grim doesn't model (1 Simulation alert, 0 corrections, as a vanilla client would get). Vehicles
    collide with solid and pushable entities, the player with solid ones (sizes and kinds from
    `acacia-java-proto/tools/EntityDump.java`); a boat stops at a NoAI pig, 0 alerts. The driven boat is never
-   pushed (it carries a rider). A teleport of it interpolates over three ticks (`boat_lerp.rs`); Grim flags a
-   tp of a ridden boat whether it snaps or interpolates. Boarding's teleport isn't a setback. Not modelled:
-   the scale attribute and per-type shapes (slimes, pufferfish, shulker peeks), other vehicles; babies (the dump's
+   pushed (it carries a rider). A teleport of it interpolates over three ticks (`lerp.rs`); Grim flags a
+   tp of a ridden boat whether it snaps or interpolates. Boarding's teleport isn't a setback. Mounts the player
+   controls (saddled horses, camels, nautili; pigs and striders with their stick in hand; a harnessed happy
+   ghast not holding still) are driven too: `acacia-java-physics` `mount.rs` runs `travelRidden` on the player
+   body with the mount's size, step, speed and input, a tick before the rider; the client sends the jump bar's
+   `START_RIDING_JUMP`, then input, look and `MoveVehicle` (`acacia-java-client` `mount_drive.rs`). Example
+   `java_mount` (ahead, a turn, a charged jump or dash, reversing): pig, horse, camel, strider on lava and happy
+   ghast all 0 alerts, 0 corrections; a strider's rider stepping off onto lava gets 1 (the player's own lava
+   moves, gone with `ACACIA_STAY`). Other vehicles seat the player at the type's passenger attachment. Not
+   modelled: the scale attribute and per-type shapes (slimes, pufferfish, shulker peeks), the mount's own
+   effects, a rearing horse's or bobbing strider's seat, a camel rider's sprint rules, seats past the first;
+   babies (the dump's
    `BABY_DIMENSIONS` or age scale), player poses and a still happy ghast are sized. Every teleport goes through
    `acacia-java-physics` `Placement::teleported`, `ROTATE_DELTA` included. Elytra flight too: a jump in the air
    with a usable elytra worn starts the glide (`START_FALL_FLYING`), and each firework rocket attached to the

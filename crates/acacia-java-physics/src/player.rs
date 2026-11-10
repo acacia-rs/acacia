@@ -5,6 +5,7 @@ use crate::block_factors::jump_factor;
 use crate::collide::{Blocks, Colliders, Context};
 use crate::fluid::FluidContact;
 use crate::input::{Keys, Pose};
+use crate::mount_body::MountBody;
 use crate::mth::{cos, floor, sin, DEG_TO_RAD};
 use crate::support::{Support, BELOW_MOVEMENT_OFFSET};
 
@@ -76,6 +77,8 @@ pub struct Player {
     pub(crate) no_jump_delay: i32,
     pub(crate) sprint_trigger: i32,
     pub jump_trigger: i32,
+    /// Set when this body is a ridden mount rather than the player.
+    pub(crate) mount: Option<MountBody>,
 }
 
 impl Player {
@@ -111,11 +114,12 @@ impl Player {
     }
 
     pub fn bounding_box(&self) -> Aabb {
-        Aabb::of_entity(self.pos, WIDTH, self.pose.height())
+        let (width, height) = self.size();
+        Aabb::of_entity(self.pos, width, height)
     }
 
     pub(crate) fn eye_y(&self) -> f64 {
-        self.pos[1] + self.pose.eye_height() as f64
+        self.pos[1] + self.eye_height() as f64
     }
 
     pub(crate) fn colliders<'a, W: Blocks>(&'a self, world: &'a W) -> Colliders<'a, W> {
@@ -126,6 +130,7 @@ impl Player {
                 descending: self.keys.shift,
                 fall_distance: self.fall_distance,
                 snow_boots: self.snow_boots,
+                stands_on_lava: self.mount.is_some_and(|m| m.stands_on_lava),
             },
             entities: &self.solid_entities,
         }
@@ -145,6 +150,9 @@ impl Player {
 
     /// The `movement_speed` attribute as a float.
     pub(crate) fn speed(&self) -> f32 {
+        if let Some(mount) = &self.mount {
+            return mount.speed;
+        }
         let mut value = 0.1_f32 as f64 + self.speed_add;
         if self.sprinting {
             value *= 1.0 + 0.3_f32 as f64;
@@ -176,10 +184,13 @@ impl Player {
     }
 
     pub(crate) fn jump_threshold(&self) -> f64 {
-        if (self.pose.eye_height() as f64) < 0.4 { 0.0 } else { 0.4 }
+        if (self.eye_height() as f64) < 0.4 { 0.0 } else { 0.4 }
     }
 
     pub(crate) fn on_climbable(&self, world: &impl Blocks) -> bool {
+        if self.mount.is_some_and(|m| !m.climbs) {
+            return false;
+        }
         let here = self.block_pos();
         let state = world.block_state(here);
         let block = state.block();
@@ -196,12 +207,21 @@ impl Player {
         below.block() == acacia_registry::Block::Ladder && below.get(prop::HorizontalFacing) == state.get(prop::HorizontalFacing)
     }
 
-    pub(crate) fn jump_from_ground(&mut self, world: &impl Blocks) {
+    /// `getBlockJumpFactor`.
+    pub(crate) fn block_jump_factor(&self, world: &impl Blocks) -> f32 {
         let here = jump_factor(world.block_state(self.block_pos()).block());
         let below = jump_factor(world.block_state(self.on_pos(world, BELOW_MOVEMENT_OFFSET)).block());
-        let factor = if here as f64 == 1.0 { below } else { here };
+        if here as f64 == 1.0 { below } else { here }
+    }
+
+    /// `getJumpPower(multiplier)` for a jump strength.
+    pub(crate) fn jump_power(&self, world: &impl Blocks, strength: f32, multiplier: f32) -> f32 {
         let boost = self.effects.jump_boost.map_or(0.0, |amp| 0.1_f32 * (amp as f32 + 1.0));
-        let power = 0.42_f32 * 1.0 * factor + boost;
+        strength * multiplier * self.block_jump_factor(world) + boost
+    }
+
+    pub(crate) fn jump_from_ground(&mut self, world: &impl Blocks) {
+        let power = self.jump_power(world, 0.42, 1.0);
         if power <= 1.0E-5 {
             return;
         }

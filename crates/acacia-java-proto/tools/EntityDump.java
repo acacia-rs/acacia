@@ -11,6 +11,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.world.entity.EntityAttachment;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
@@ -20,6 +21,7 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.monster.Shulker;
 import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
 import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
+import net.minecraft.world.phys.Vec3;
 
 public class EntityDump {
     // `canBeCollidedWith` → solid; `isPushable` (as a client sees a live mob off ladders) → pushable.
@@ -62,6 +64,12 @@ public class EntityDump {
         return ",\"baby\":[" + w + "," + h + "],\"babyData\":" + flag.id();
     }
 
+    // The first passenger's attachment point, unturned; types without one seat at their height.
+    static String seat(EntityType<?> t) {
+        Vec3 p = t.getDimensions().attachments().getClamped(EntityAttachment.PASSENGER, 0, 0.0F);
+        return "[" + p.x + "," + p.y + "," + p.z + "]";
+    }
+
     public static void main(String[] args) throws Exception {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
@@ -83,6 +91,7 @@ public class EntityDump {
                 .append(",\"width\":").append(t.getWidth())
                 .append(",\"height\":").append(t.getHeight())
                 .append(",\"collision\":\"").append(collision(c)).append("\"")
+                .append(",\"seat\":").append(seat(t))
                 .append(baby(c, t)).append("}");
         }
         Files.writeString(Path.of(args[0]), out.append("]").toString());

@@ -75,6 +75,10 @@ name = "java_boat"
 required-features = ["java"]
 
 [[example]]
+name = "java_mount"
+required-features = ["java"]
+
+[[example]]
 name = "java_dialogs"
 required-features = ["java"]
 

@@ -8,6 +8,7 @@ use acacia_java_proto::{Error, Wire, read_varint, read_varlong};
 use acacia_java_physics::Aabb;
 
 use crate::interpolation::Lerp;
+use crate::mount_data::MountData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entity {
@@ -31,6 +32,7 @@ pub struct Entity {
     pub attached_to: Option<i32>,
     /// Riders by entity id, the controlling one first.
     pub passengers: Vec<i32>,
+    pub mount: MountData,
     /// The last `SetEntityMotion` since the last tick, which a boat boarded now starts with.
     pub(crate) motion: [f64; 3],
     /// `VecDeltaCodec` base: the server's last position, which relative moves decode from.
@@ -44,7 +46,7 @@ const SNAP_DISTANCE_SQR: f64 = 4096.0;
 impl Entity {
     pub fn new(uuid: u128, kind: i32, position: [f64; 3], y_rot: f32, x_rot: f32) -> Self {
         let name = usize::try_from(kind).ok().and_then(|k| ENTITY_TYPES.get(k)).copied().unwrap_or("");
-        Entity { uuid, kind, position, y_rot, x_rot, on_ground: false, aggressive: false, pose: 0, baby: false, stays_still: false, attached_to: None, passengers: Vec::new(), motion: [0.0; 3], base: position, lerp: Lerp::for_kind(name) }
+        Entity { uuid, kind, position, y_rot, x_rot, on_ground: false, aggressive: false, pose: 0, baby: false, stays_still: false, attached_to: None, passengers: Vec::new(), mount: MountData::default(), motion: [0.0; 3], base: position, lerp: Lerp::for_kind(name) }
     }
 
     /// `getDimensions` and how movers collide with it.
@@ -177,7 +179,7 @@ fn read_flag(body: &[u8], index: u8) -> Result<Option<bool>, Error> {
 
 /// Moves `input` to data item `wanted`'s value, skipping the items before it, and returns its serializer; `None` if
 /// absent or behind a value this does not size.
-fn seek_data(input: &mut &[u8], wanted: u8) -> Result<Option<i32>, Error> {
+pub(crate) fn seek_data(input: &mut &[u8], wanted: u8) -> Result<Option<i32>, Error> {
     loop {
         let index = u8::read(input)?;
         if index == 0xff || index > wanted {

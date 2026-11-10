@@ -7,9 +7,9 @@ use crate::block_factors::bounce;
 use crate::collide::{Blocks, Colliders, Context};
 use crate::fluid::FluidScan;
 use crate::input::Keys;
-use crate::boat_lerp::BoatLerp;
+use crate::lerp::Lerp;
 use crate::inside::Move;
-use crate::mth::{cos, length_sqr, sin, DEG_TO_RAD};
+use crate::mth::{cos, length_sqr, sin, wrap_degrees, DEG_TO_RAD};
 use crate::support::{Support, LEGACY_ON_POS};
 
 pub const WIDTH: f32 = 1.375;
@@ -53,7 +53,7 @@ pub struct Boat {
     pub(crate) stuck: [f64; 3],
     pub(crate) old_pos: [f64; 3],
     pub(crate) moves: Vec<Move>,
-    pub(crate) lerp: BoatLerp,
+    pub(crate) lerp: Lerp,
 }
 
 impl Boat {
@@ -222,18 +222,6 @@ impl Boat {
             (0.0, 1.0)
         };
         self.delta[1] = (gravity - current[1]) * drag * restitution;
-    }
-}
-
-/// `Mth.wrapDegrees`: into [-180, 180).
-fn wrap_degrees(d: f32) -> f32 {
-    let d = d % 360.0;
-    if d >= 180.0 {
-        d - 360.0
-    } else if d < -180.0 {
-        d + 360.0
-    } else {
-        d
     }
 }
 

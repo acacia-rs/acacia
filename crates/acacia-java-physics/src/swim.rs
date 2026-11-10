@@ -26,7 +26,7 @@ impl Player {
     }
 
     fn travel_in_water(&mut self, world: &impl Blocks, gravity: f64, falling: bool, old_y: f64) {
-        let mut slow = if self.sprinting { 0.9 } else { WATER_SLOWDOWN };
+        let mut slow = if self.sprinting { 0.9 } else { self.mount.map_or(WATER_SLOWDOWN, |m| m.water_slowdown) };
         if self.effects.dolphins_grace {
             slow = 0.96;
         }

@@ -2,7 +2,7 @@ use acacia_registry::prop::{Bottom, StabilityDistance};
 use acacia_registry::{Block, BlockState, CollisionBox};
 
 use crate::aabb::Aabb;
-use crate::fluid::Face;
+use crate::fluid::{fluid_of, Face};
 use crate::mth::{floor, horizontal_sqr, length_sqr};
 
 const EPS: f64 = 1.0E-7;
@@ -10,6 +10,7 @@ const ABOVE_MARGIN: f64 = 1.0E-5_f32 as f64;
 static FULL_BLOCK: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]];
 static FALLING_SNOW: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 0.9_f32 as f64, 1.0]];
 static SCAFFOLD_BOTTOM: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 0.125, 1.0]];
+static LAVA_SURFACE: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]];
 
 pub trait Blocks {
     /// The Java state id at a position; `None` when the chunk isn't loaded.
@@ -35,6 +36,8 @@ pub struct Context {
     pub descending: bool,
     pub fall_distance: f64,
     pub snow_boots: bool,
+    /// A strider: lava sources under open air carry it on their lower half.
+    pub stands_on_lava: bool,
 }
 
 impl Context {
@@ -158,6 +161,17 @@ pub struct Colliders<'a, W: Blocks> {
 }
 
 impl<W: Blocks> Colliders<'_, W> {
+    /// `LiquidBlock.getCollisionShape` for a strider, else the context's shapes.
+    fn boxes(&self, state: BlockState, pos: [i32; 3]) -> Option<&'static [CollisionBox]> {
+        let lava_source = |s: BlockState| fluid_of(s).filter(|f| f.lava);
+        if self.context.stands_on_lava && lava_source(state).is_some_and(|f| f.source) {
+            let above = self.world.block_state([pos[0], pos[1] + 1, pos[2]]);
+            let stands = self.context.is_above(pos[1], 0.5) && lava_source(above).is_none();
+            return Some(if stands { &LAVA_SURFACE } else { &[] });
+        }
+        self.context.boxes(state, pos[1])
+    }
+
     /// Block shapes touching `area`, in the order vanilla's cursor visits them: x fastest, then y, then z.
     fn blocks_in(&self, area: &Aabb) -> Vec<Shape> {
         let low = area.min.map(|v| floor(v - EPS) - 1);
@@ -167,7 +181,7 @@ impl<W: Blocks> Colliders<'_, W> {
             for y in low[1]..=high[1] {
                 for x in low[0]..=high[0] {
                     let state = self.world.state(x, y, z).and_then(BlockState::from_id);
-                    let Some(boxes) = state.and_then(|s| self.context.boxes(s, y)) else { continue };
+                    let Some(boxes) = state.and_then(|s| self.boxes(s, [x, y, z])) else { continue };
                     let shape = Shape { pos: [x, y, z], boxes: Boxes::Block(boxes) };
                     if !boxes.is_empty() && shape.intersects(area) {
                         shapes.push(shape);

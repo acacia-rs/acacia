@@ -3,7 +3,7 @@ use crate::input::{Keys, Pose};
 use crate::player::Player;
 
 impl Player {
-    fn base_tick(&mut self, world: &impl Blocks) {
+    pub(crate) fn base_tick(&mut self, world: &impl Blocks) {
         self.was_in_powder_snow = self.in_powder_snow;
         self.in_powder_snow = false;
         self.was_eye_in_water = self.fluids.eyes_in_water();
