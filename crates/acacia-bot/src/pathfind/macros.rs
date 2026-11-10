@@ -6,7 +6,7 @@ use std::cell::Cell;
 use std::sync::Arc;
 use std::time::Instant;
 
-use acacia_physics::{BlockPos, PlayerState};
+use acacia_physics::BlockPos;
 
 use super::cache::{Counts, Store};
 use super::cell::AVOID;
@@ -20,7 +20,8 @@ use super::node::{Entry, Momentum, run_entry};
 use super::profile::MovementProfile;
 use super::solve::{Miss, Solved, Solver};
 use super::terrain::{Blocks, Spot, SpotKind, Terrain};
-use crate::movement::{Controls, Rollout};
+use super::rollout::PlanSim;
+use crate::movement::{Controls, Motion, Sim};
 
 /// Macro rollouts may take this share (1/n) of a search's time budget. The default tick budget alone takes about the
 /// whole budget, so a slowed search ran out of time just after it, and the partial path it fell back to led into the
@@ -43,14 +44,14 @@ pub struct MacroStats {
 }
 
 /// What the search's macro moves need.
-pub(crate) struct Macros<'a> {
+pub(crate) struct Macros<'a, S> {
     pub profile: MovementProfile,
     /// Gap leaps (`SearchOpts::parkour`).
     pub leaps: bool,
     /// Sprint-jumps along flat ground (`SearchOpts::hops`).
     pub hops: bool,
     /// The live state: attributes, effects and equipment of every rollout.
-    pub base: &'a PlayerState,
+    pub base: &'a S,
     pub cache: Arc<Store>,
     /// Rollout ticks the search may simulate (`SearchOpts::max_rollout_ticks`).
     pub budget: u64,
@@ -65,14 +66,14 @@ fn can_start(entry: Entry, from: Spot) -> bool {
 }
 
 /// Runs `f` with a solver from `mom` at `p` and books what it simulated; `None` once the budget or time is spent.
-fn simulate<B: Blocks, R>(t: &Terrain<B>, p: BlockPos, mom: &Momentum, m: &Macros, f: impl FnOnce(&Rollout, &mut Solver<Terrain<B>>, (&Store, &mut Counts)) -> R) -> Option<R> {
+fn simulate<B: Blocks, S: PlanSim<B>, R>(t: &Terrain<B>, p: BlockPos, mom: &Momentum, m: &Macros<S>, f: impl FnOnce(&S, &mut Solver<Terrain<B>>, (&Store, &mut Counts)) -> R) -> Option<R> {
     let mut stats = m.stats.get();
     if stats.ticks >= m.budget || Instant::now() >= m.deadline {
         stats.exhausted = true;
         m.stats.set(stats);
         return None;
     }
-    let start = Rollout::new(mom.synth(p, m.base));
+    let start = mom.synth(p, m.base);
     let avoid = |q: BlockPos| t.cell(q).has(AVOID);
     let safe = |q: BlockPos| t.spot(q).is_some_and(|s| s.kind == SpotKind::Stand && !s.wet && s.feet == q[1] as f32);
     let mut solver = Solver::new(t, &avoid, &safe, m.profile, true, Controls::default());
@@ -90,7 +91,7 @@ fn simulate<B: Blocks, R>(t: &Terrain<B>, p: BlockPos, mom: &Momentum, m: &Macro
 }
 
 /// Runs and hops from `p`; leaps are offered lazily ([`leap_candidates`], [`leap`]).
-pub(crate) fn successors<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (entry, mom): (Entry, &Momentum), m: &Macros, out: &mut Vec<Edge>) {
+pub(crate) fn successors<B: Blocks, S: PlanSim<B>>(t: &Terrain<B>, p: BlockPos, from: Spot, (entry, mom): (Entry, &Momentum), m: &Macros<S>, out: &mut Vec<Edge>) {
     if !can_start(entry, from) {
         return;
     }
@@ -109,17 +110,17 @@ pub(crate) fn successors<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (en
 }
 
 /// Leap targets from `p`, to be solved when the search reaches them.
-pub(crate) fn leap_candidates<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (entry, mom): (Entry, &Momentum), m: &Macros) -> Vec<LeapCand> {
+pub(crate) fn leap_candidates<B: Blocks, S: Sim>(t: &Terrain<B>, p: BlockPos, from: Spot, (entry, mom): (Entry, &Momentum), m: &Macros<S>) -> Vec<LeapCand> {
     let stats = m.stats.get();
     if !m.leaps || !can_start(entry, from) || stats.exhausted {
         return Vec::new();
     }
-    leap_moves::candidates(t, p, from, &Rollout::new(mom.synth(p, m.base)))
+    leap_moves::candidates(t, p, from, &mom.synth(p, m.base))
 }
 
 /// The leap from `p` to `c` as an edge, if it lands; `Err(Miss::Other)` once the budget is spent.
 /// `real_yaw`: keep the momentum's facing (the live start) rather than face the leap.
-pub(crate) fn leap<B: Blocks>(t: &Terrain<B>, p: BlockPos, mom: &Momentum, c: LeapCand, real_yaw: bool, m: &Macros) -> Result<Edge, Miss> {
+pub(crate) fn leap<B: Blocks, S: PlanSim<B>>(t: &Terrain<B>, p: BlockPos, mom: &Momentum, c: LeapCand, real_yaw: bool, m: &Macros<S>) -> Result<Edge, Miss> {
     let solved = simulate(t, p, mom, m, |start, solver, cache| leap_moves::solve(t, p, (mom, real_yaw), start, c, solver, cache)).unwrap_or(Err(Miss::Other))?;
     let mut out = Vec::with_capacity(1);
     push_leap(t, &mut out, c.q, c.to, solved, MoveKind::Parkour, m.profile);
@@ -135,7 +136,7 @@ fn push_leap<B: Blocks>(t: &Terrain<B>, out: &mut Vec<Edge>, pos: BlockPos, to: 
 }
 
 #[allow(clippy::too_many_arguments)]
-fn push<B: Blocks>(t: &Terrain<B>, out: &mut Vec<Edge>, pos: BlockPos, to: Spot, kind: MoveKind, mut cost: f32, end: &PlayerState, mac: Macro) {
+fn push<B: Blocks>(t: &Terrain<B>, out: &mut Vec<Edge>, pos: BlockPos, to: Spot, kind: MoveKind, mut cost: f32, end: &Motion, mac: Macro) {
     if t.danger_near(pos) {
         cost += DANGER_NEAR;
     }

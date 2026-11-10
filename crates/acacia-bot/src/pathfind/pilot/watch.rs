@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use super::Pilot;
 use crate::governor::SETTLE_TICKS;
-use crate::movement::Movement;
+use crate::movement::{Live, Sim};
 use crate::pathfind::{PathNode, Step};
 use crate::ActionError;
 
@@ -22,16 +22,16 @@ impl Pilot {
     }
 
     /// Within [`SETTLE_TICKS`] of a setback: stops the controls (dropping the path on a new one); true while holding.
-    pub(super) fn hold_after_setback(&mut self, movement: &mut Movement) -> bool {
+    pub(super) fn hold_after_setback(&mut self, movement: &mut impl Live) -> bool {
         match self.watch.setback(movement.setback_age()) {
             Hold::No => return false,
             Hold::Started => {
-                tracing::debug!(pos = ?movement.position(), "server setback; holding before re-planning");
+                tracing::debug!(pos = ?movement.base().map(|s| s.body().pos), "server setback; holding before re-planning");
                 self.interrupt();
             }
             Hold::Holding => {}
         }
-        movement.controls.stop();
+        movement.controls().stop();
         true
     }
 }

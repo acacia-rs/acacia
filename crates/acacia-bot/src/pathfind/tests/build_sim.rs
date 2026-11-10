@@ -13,7 +13,7 @@ use super::alter::blocks;
 use super::grid::Grid;
 use super::sim::perform;
 use crate::build::{BuildJob, Builder, Structure, StatusHandle, Transform};
-use crate::movement::Movement;
+use crate::movement::{Movement, Rollout};
 use crate::pathfind::process::{Act, Arbiter, BlockView, Decision, Look, ProcId, Target};
 use crate::pathfind::{NavStatus, SearchJob, Step};
 use crate::ActionError;
@@ -186,7 +186,7 @@ pub fn step(w: &mut World, m: &mut Movement, arb: &mut Arbiter, tick: u32) -> u3
             let pilot = arb.pilot_mut().expect("routed");
             let opts = pilot.search_opts(Some(blocks(64)), 20.0);
             let (terrain, mut held) = (w.g.terrain(), Vec::new());
-            let result = pilot.drive(&terrain, m, opts, &mut |job: SearchJob| {
+            let result = pilot.drive(&terrain, m, opts, &mut |job: SearchJob<Rollout>| {
                 let (tx, rx) = tokio::sync::oneshot::channel();
                 held.push((now + SEARCH_TICKS, tx, job.run(&terrain)));
                 rx

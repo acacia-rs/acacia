@@ -14,6 +14,7 @@ use super::kit::Kit;
 use super::macros::MacroStats;
 use super::profile::MovementProfile;
 use super::PathNode;
+use crate::movement::Envelope;
 
 #[derive(Debug, Clone)]
 pub struct SearchOpts {
@@ -83,11 +84,11 @@ impl Default for SearchOpts {
 impl SearchOpts {
     /// The heuristic's speed: macro moves sprint-jump, and change height on the way; a boat may cross water
     /// faster still (design decision 7).
-    pub(crate) fn speed(&self) -> Speed {
+    pub(crate) fn speed(&self, env: &'static Envelope) -> Speed {
         let mut s = if self.macros {
-            Speed { per_block: costs::macro_ticks_per_block(self.profile), startup: costs::MACRO_STARTUP, overlap: true }
+            Speed { per_block: costs::macro_ticks_per_block(env, self.profile), startup: costs::MACRO_STARTUP, overlap: true, env }
         } else {
-            Speed::CLASSIC
+            Speed::classic(env)
         };
         if self.plans_boats() {
             s.per_block = s.per_block.min(HEURISTIC_FLOOR);

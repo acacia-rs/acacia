@@ -13,12 +13,14 @@ mod lifecycle;
 mod packets;
 mod rewind;
 mod rotation_noise;
+mod sim;
 #[cfg(test)]
 mod tests;
 
 pub use controls::Controls;
 pub(crate) use controls::{attach_actions, VehicleCorrection};
-pub use fork::Rollout;
+pub use fork::{BEDROCK, Rollout};
+pub use sim::{Body, Envelope, Live, Motion, Sim, SimWorld, StepIn, Traits};
 pub use idle::Idle;
 
 use acacia_client::proto::packets::{PlayerAuthInput, PlayerAuthInputBlockActionItem, PlayerAuthInputInputMode, PlayerAuthInputInteractionModel};

@@ -14,7 +14,7 @@ use super::kit::DEFAULT_SCAFFOLD;
 use super::pilot::Pilot;
 use super::terrain::Terrain;
 use super::{Follower, SearchOpts};
-use crate::movement::Movement;
+use crate::movement::{Live, Movement, Sim};
 use crate::state::GameState;
 use crate::{ActionError, Bot};
 
@@ -139,7 +139,7 @@ fn perceive(pilot: &mut Pilot, state: &GameState, movement: &Movement, view: &Ch
     let threats = hazard::Threats::near(&state.entities, st.pos, hazard::FIELD_RADIUS);
     let blocks = Terrain::new(view, registry);
     let sees = |a, b| hazard::clear_line(&blocks, a, b);
-    let eye = [st.pos[0], st.pos[1] + acacia_physics::constants::DEFAULT_PLAYER_HEIGHT_OFFSET, st.pos[2]];
+    let eye = [st.pos[0], st.pos[1] + <Movement as Live>::Sim::envelope().eye_height, st.pos[2]];
     pilot.perceive(threats, &hazard::View { eye, yaw: st.yaw, health: state.player.health, sees: &sees })
 }
 

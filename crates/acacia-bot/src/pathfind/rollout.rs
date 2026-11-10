@@ -1,10 +1,16 @@
-//! What a controller sees of the player each tick, in rollouts and live alike, and running a controller
-//! forward on a fork of the simulation.
-
-use acacia_physics::{PlayerState, Vec3, WorldView};
+//! Running a controller forward on a fork of the simulation, and what a controller sees of the player
+//! ([`Body`], in rollouts and live alike).
 
 use super::control::{Controller, Phase};
-use crate::movement::{Controls, Rollout};
+use super::reach::Flat;
+use super::terrain::Terrain;
+pub use crate::movement::Body;
+use crate::movement::{Controls, Sim, StepIn};
+
+/// A simulation the planner steps on its own [`Terrain`] (and on the flat ground leap floors are measured on).
+pub trait PlanSim<B>: Sim + StepIn<Flat> + for<'r> StepIn<Terrain<'r, B>> {}
+
+impl<B, S: Sim + StepIn<Flat> + for<'r> StepIn<Terrain<'r, B>>> PlanSim<B> for S {}
 
 /// A controller's run: `bodies[0]` is the start, one more per simulated tick.
 #[derive(Debug, Clone)]
@@ -16,8 +22,8 @@ pub struct Trace {
 }
 
 /// Runs `ctl` on `r` from controls `c` until it finishes, fails or `max` ticks pass.
-pub fn run(r: &mut Rollout, ctl: &mut impl Controller, mut c: Controls, max: u32, w: &(impl WorldView + ?Sized)) -> Trace {
-    let mut bodies = vec![Body::of(&r.st)];
+pub fn run<S: StepIn<W>, W: ?Sized>(r: &mut S, ctl: &mut impl Controller, mut c: Controls, max: u32, w: &W) -> Trace {
+    let mut bodies = vec![r.body()];
     loop {
         let b = bodies[bodies.len() - 1];
         let phase = ctl.step(&b, &mut |pc: &Controls| peek(r, pc, w), &mut c);
@@ -26,7 +32,7 @@ pub fn run(r: &mut Rollout, ctl: &mut impl Controller, mut c: Controls, max: u32
             return Trace { bodies, landed: phase == Phase::Done, ticks };
         }
         r.step(&c, w);
-        bodies.push(Body::of(&r.st));
+        bodies.push(r.body());
     }
 }
 
@@ -57,50 +63,8 @@ impl Spend {
 }
 
 /// The body one tick after `r` with `c` held; `r` is left as it was.
-pub fn peek(r: &Rollout, c: &Controls, w: &(impl WorldView + ?Sized)) -> Body {
+pub fn peek<S: StepIn<W>, W: ?Sized>(r: &S, c: &Controls, w: &W) -> Body {
     let mut f = r.clone();
     f.step(c, w);
-    Body::of(&f.st)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Body {
-    /// Feet.
-    pub pos: Vec3,
-    pub vel: Vec3,
-    /// Degrees, as last sent.
-    pub yaw: f32,
-    pub on_ground: bool,
-    pub h_collision: bool,
-    /// Hit a ceiling this tick.
-    pub bonk: bool,
-    /// Blocks fallen since last on the ground.
-    pub fall: f32,
-}
-
-impl Body {
-    pub fn of(st: &PlayerState) -> Self {
-        Self {
-            pos: st.pos,
-            vel: st.vel,
-            yaw: st.yaw,
-            on_ground: st.on_ground,
-            h_collision: st.collide_x || st.collide_z,
-            bonk: st.collide_y && !st.on_ground,
-            fall: st.fall_distance,
-        }
-    }
-
-    pub fn h_speed(&self) -> f32 {
-        self.vel[0].hypot(self.vel[2])
-    }
-
-    pub fn cell(&self) -> [i32; 2] {
-        [self.pos[0].floor() as i32, self.pos[2].floor() as i32]
-    }
-
-    /// Largest per-axis position difference.
-    pub fn error(&self, other: &Body) -> f32 {
-        (0..3).map(|i| (self.pos[i] - other.pos[i]).abs()).fold(0.0, f32::max)
-    }
+    f.body()
 }

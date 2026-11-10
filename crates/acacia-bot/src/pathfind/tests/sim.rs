@@ -2,11 +2,11 @@
 
 use acacia_physics::Vec3;
 
-use super::grid::Grid;
+use super::grid::{Grid, search};
 use super::search::{ORIGIN, ladder_course, opts};
 use crate::movement::Movement;
 use crate::pathfind::maneuver;
-use crate::pathfind::{FollowStatus, Follower, Goal, MoveKind, PathNode, SearchOpts, Sense, Step, search};
+use crate::pathfind::{FollowStatus, Follower, Goal, MoveKind, PathNode, SearchOpts, Sense, Step};
 use crate::world::PhysicsWorld;
 
 pub struct Run {

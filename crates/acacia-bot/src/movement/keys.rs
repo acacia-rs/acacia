@@ -9,7 +9,7 @@ use super::{Controls, auth_input, flight};
 const DOUBLE_TAP_TICKS: u32 = 7;
 
 /// Key state carried between ticks.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct KeyLatch {
     /// Ticks left in which pressing forward again starts a sprint (double tap).
     sprint_trigger: u32,

@@ -5,15 +5,15 @@
 use std::sync::LazyLock;
 
 use acacia_physics::BlockPos;
-use acacia_physics::constants::DEFAULT_MOVEMENT_SPEED;
 
 use super::cache::{Counts, Store, feet_key};
 use super::cell::Rect;
 use super::moves::offset;
 use super::node::Momentum;
+use super::rollout::PlanSim;
 use super::solve::{Miss, STRAIGHT, Shape, Solved, Solver, WIDE};
 use super::terrain::{Blocks, Spot, SpotKind, Terrain};
-use crate::movement::Rollout;
+use crate::movement::Sim;
 
 /// Farthest cardinal leap (blocks to the landing cell): from rest a 4-gap needs a two-block run-up.
 const MAX_CARDINAL: i32 = 7;
@@ -113,7 +113,7 @@ impl LeapCand {
 }
 
 /// The leap targets from `p` (standing at `from`, starting as `start`) that pass the geometric prefilters.
-pub(crate) fn candidates<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, start: &Rollout) -> Vec<LeapCand> {
+pub(crate) fn candidates<B: Blocks, S: Sim>(t: &Terrain<B>, p: BlockPos, from: Spot, start: &S) -> Vec<LeapCand> {
     let mut found = Vec::new();
     // Per crossed cell: no floor at the start's level; per cell and lane shape: body clear at takeoff and jump height.
     const W: i32 = 2 * MAX_CARDINAL + 1;
@@ -129,8 +129,9 @@ pub(crate) fn candidates<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, sta
         let rect = if diagonal { Rect::lane(1, 1) } else { Rect::lane(dx.signum(), dz.signum()) };
         *clears[at((dx, dz))][usize::from(diagonal)].get_or_insert_with(|| t.body_clear(q, rect, from.feet) && t.body_clear(q, rect, from.feet + 1.0))
     };
-    let plain = start.st.effects.jump_boost.is_none() && start.st.movement_attribute <= DEFAULT_MOVEMENT_SPEED;
-    let [vx, _, vz] = start.st.vel;
+    let traits = start.traits();
+    let plain = !traits.jump_boost && traits.speed <= S::envelope().movement_speed;
+    let [vx, _, vz] = start.body().vel;
     let running = vx.hypot(vz) >= RUNNING;
     for (i, off) in OFFSETS.iter().enumerate() {
         // A runner leaps ahead or aside; a leap back starts from a stop, which the node standing here offers.
@@ -151,7 +152,7 @@ pub(crate) fn candidates<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, sta
 
 /// The leap to `c` from `p`, solved from `start` (or the cache); `real_yaw`: from the momentum's facing, not turned to
 /// the leap.
-pub(crate) fn solve<B: Blocks>(t: &Terrain<B>, p: BlockPos, (mom, real_yaw): (&Momentum, bool), start: &Rollout, c: LeapCand, solver: &mut Solver<Terrain<B>>, (cache, n): (&Store, &mut Counts)) -> Result<Solved, Miss> {
+pub(crate) fn solve<B: Blocks, S: PlanSim<B>>(t: &Terrain<B>, p: BlockPos, (mom, real_yaw): (&Momentum, bool), start: &S, c: LeapCand, solver: &mut Solver<Terrain<B>>, (cache, n): (&Store, &mut Counts)) -> Result<Solved, Miss> {
     let (off, q, to) = (&OFFSETS[usize::from(c.off)], c.q, c.to);
     let key = (*mom, ((off.to.0, off.to.1, q[1] - p[1]), feet_key(to.feet, p), to.wet, real_yaw));
     cache.leaps.get_or(t, p, key, n, || {
@@ -176,10 +177,11 @@ fn widest_gap(crossed: &[(i32, i32)], gap: &mut impl FnMut((i32, i32)) -> bool) 
 
 /// `start` turned towards `(dx, dz)` if it stands still: a standing player faces where it goes next (a `Human`
 /// aim eases from the facing, so it shapes the leap).
-fn facing(start: &Rollout, dx: f32, dz: f32) -> Rollout {
+fn facing<S: Sim>(start: &S, dx: f32, dz: f32) -> S {
     let mut r = start.clone();
-    if r.st.vel[0] == 0.0 && r.st.vel[2] == 0.0 {
-        r.st.yaw = (-dx).atan2(dz).to_degrees();
+    let b = r.body();
+    if b.vel[0] == 0.0 && b.vel[2] == 0.0 {
+        r.set_motion(b.pos, b.vel, (-dx).atan2(dz).to_degrees());
     }
     r
 }

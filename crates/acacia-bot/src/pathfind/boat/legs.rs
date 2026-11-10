@@ -15,6 +15,7 @@ use crate::pathfind::node::{Entry, Momentum};
 use crate::pathfind::profile::MovementProfile;
 use crate::pathfind::terrain::{Blocks, Spot, SpotKind, Terrain};
 use crate::pathfind::work::{Step, Work};
+use crate::movement::Envelope;
 
 /// The fastest a boat goes (cruise 0.378 blocks a tick) over the most the heuristic's octile distance overstates a
 /// straight line (8.24% at 22.5°): the heuristic stays admissible over water at this many ticks a block.
@@ -58,6 +59,8 @@ struct Body {
 /// The boat legs one search may plan.
 pub(crate) struct BoatLegs {
     goal: Goal,
+    /// The walker's, for the goal heuristic.
+    env: &'static Envelope,
     human: bool,
     source: BoatSource,
     bodies: RefCell<Vec<Body>>,
@@ -67,9 +70,10 @@ pub(crate) struct BoatLegs {
 
 impl BoatLegs {
     /// `None` with nothing to board.
-    pub fn new(goal: &Goal, profile: MovementProfile, source: &BoatSource) -> Option<Self> {
+    pub fn new(goal: &Goal, env: &'static Envelope, profile: MovementProfile, source: &BoatSource) -> Option<Self> {
         source.any().then(|| Self {
             goal: goal.clone(),
+            env,
             human: profile == MovementProfile::Human,
             source: source.clone(),
             bodies: RefCell::default(),
@@ -152,7 +156,7 @@ impl BoatLegs {
                     continue;
                 }
                 let Some(spot) = t.spot(bank).filter(|s| s.kind == SpotKind::Stand && !s.wet && s.feet == bank[1] as f32) else { continue };
-                let score = self.goal.heuristic(bank);
+                let score = self.goal.heuristic(bank, self.env);
                 if landing.is_none_or(|(s, ..)| score < s) {
                     landing = Some((score, bank, spot, (x, z)));
                 }

@@ -1,7 +1,7 @@
 //! Executing a macro move live: the follower hands the move's controller the live body every tick and
 //! checks it against the prediction made when the move started.
 
-use acacia_physics::{BlockPos, Vec3, WorldView};
+use acacia_physics::{BlockPos, Vec3};
 
 use super::PathNode;
 use super::node::Entry;
@@ -9,10 +9,9 @@ use super::control::{Controller, Phase};
 use super::mac::Macro;
 use super::rollout::{self, Body, Spend};
 use super::shortcut::ShortcutCtl;
-use super::retry::live_hazard;
 use super::solve::{STRAIGHT, Solver, WIDE};
 use crate::cadence::splitmix;
-use crate::movement::{Controls, Rollout};
+use crate::movement::{Controls, SimWorld, StepIn};
 
 /// Prediction horizon; controllers fail long before it.
 const MAX_TICKS: u32 = 120;
@@ -76,7 +75,7 @@ impl MacroRunner {
 
     /// Runs the move under way, else starts the macro move of `path[index]` if due, setting `c` for the tick
     /// after `live`.
-    pub fn tick(&mut self, path: &[PathNode], index: usize, live: Option<&Rollout>, w: &dyn WorldView, c: &mut Controls, spend: &mut Spend) -> MacroStep {
+    pub fn tick<S: StepIn<W>, W: SimWorld + ?Sized>(&mut self, path: &[PathNode], index: usize, live: Option<&S>, w: &W, c: &mut Controls, spend: &mut Spend) -> MacroStep {
         let Some(live) = live else { return MacroStep::Idle };
         let exec = match &mut self.exec {
             Some(e) => e,
@@ -84,7 +83,7 @@ impl MacroRunner {
                 let Some(mac) = path[index].mac.filter(|_| self.done != Some(index)) else { return MacroStep::Idle };
                 // Planned from standing on the node before: a classic jump onto it still in the air (an Ascend counts as
                 // reached mid-air) lands first, steered classically.
-                if !live.st.on_ground {
+                if !live.body().on_ground {
                     return MacroStep::Idle;
                 }
                 let mac = mac.reseeded(splitmix(&mut self.rng));
@@ -134,7 +133,7 @@ const ARRIVAL_SLOP: f32 = 0.03;
 impl Exec {
     /// Predicts `ctl` from the live state; solves it again if it does not finish from there, or arrives
     /// too far from the planned velocity `want`.
-    fn start(ctl: Macro, want: Option<Vec3>, last: usize, live: &Rollout, c: Controls, w: &dyn WorldView, spend: &mut Spend) -> Option<Self> {
+    fn start<S: StepIn<W>, W: SimWorld + ?Sized>(ctl: Macro, want: Option<Vec3>, last: usize, live: &S, c: Controls, w: &W, spend: &mut Spend) -> Option<Self> {
         let off = |p: &(Macro, Vec<Body>)| {
             let end = p.1[p.1.len() - 1].vel;
             want.map_or(0.0, |v| (end[0] - v[0]).hypot(end[2] - v[2]))
@@ -150,8 +149,8 @@ impl Exec {
 
     /// Steps the controller on the live body, predicting again from it when it left the tolerance.
     /// `Failed` when nothing from the live body finishes the move.
-    fn tick(&mut self, live: &Rollout, w: &dyn WorldView, c: &mut Controls, spend: &mut Spend) -> Phase {
-        let b = Body::of(&live.st);
+    fn tick<S: StepIn<W>, W: SimWorld + ?Sized>(&mut self, live: &S, w: &W, c: &mut Controls, spend: &mut Spend) -> Phase {
+        let b = live.body();
         let err = self.predicted.get(self.t).map_or(f32::INFINITY, |p| p.error(&b));
         if err > self.tolerance {
             let again = predict(self.ctl, live, *c, w, spend).or_else(|| resolve(&self.ctl, self.want, live, *c, w, spend));
@@ -172,7 +171,7 @@ impl Exec {
 }
 
 /// `ctl` run on from the live state, if it finishes (and the budget allows the run).
-fn predict(mut ctl: Macro, live: &Rollout, c: Controls, w: &dyn WorldView, spend: &mut Spend) -> Option<(Macro, Vec<Body>)> {
+fn predict<S: StepIn<W>, W: ?Sized>(mut ctl: Macro, live: &S, c: Controls, w: &W, spend: &mut Spend) -> Option<(Macro, Vec<Body>)> {
     if !spend.affords(u64::from(MAX_TICKS)) {
         return None;
     }
@@ -184,8 +183,8 @@ fn predict(mut ctl: Macro, live: &Rollout, c: Controls, w: &dyn WorldView, spend
 
 /// Another way to finish `ctl`'s move from the live state, arriving near velocity `want`: a leap's other
 /// timings or coasts.
-fn resolve(ctl: &Macro, want: Option<Vec3>, live: &Rollout, held: Controls, w: &dyn WorldView, spend: &mut Spend) -> Option<(Macro, Vec<Body>)> {
-    let avoid = |p: BlockPos| live_hazard(w, p);
+fn resolve<S: StepIn<W>, W: SimWorld + ?Sized>(ctl: &Macro, want: Option<Vec3>, live: &S, held: Controls, w: &W, spend: &mut Spend) -> Option<(Macro, Vec<Body>)> {
+    let avoid = |p: BlockPos| w.hazard(p);
     match ctl {
         Macro::Leap(l) => {
             let profile = l.aim.profile;

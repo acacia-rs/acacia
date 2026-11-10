@@ -3,9 +3,9 @@
 use acacia_physics::{BlockPos, Vec3};
 use acacia_world::Tool;
 
-use super::grid::Grid;
+use super::grid::{Grid, search};
 use super::search::{ORIGIN, kinds, opts};
-use crate::pathfind::{Goal, Kit, MoveKind, Path, SearchOpts, Step, search};
+use crate::pathfind::{Goal, Kit, MoveKind, Path, SearchOpts, Step};
 
 pub fn with(dig: bool, bridge: bool, kit: Kit) -> SearchOpts {
     SearchOpts { allow_dig: dig, allow_bridge: bridge, kit, ..opts(false) }

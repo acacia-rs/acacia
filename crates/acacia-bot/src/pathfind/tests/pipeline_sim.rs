@@ -14,7 +14,7 @@ use crate::cadence::splitmix;
 use crate::interact::confirm::{Confirm, Expect};
 use crate::interact::pipeline::{Pipeline, Undo};
 use crate::interact::{block_distance, BLOCK_REACH};
-use crate::movement::Movement;
+use crate::movement::{Movement, Rollout};
 use crate::pathfind::process::{Act, Arbiter, BlockView, Decision, Look, Target};
 use crate::pathfind::{answered, NavStatus, SearchJob};
 use crate::ActionError;
@@ -163,7 +163,7 @@ fn pipelined_placements_build_block_exact_through_refusals_and_losses() {
             Decision::Go => {
                 let pilot = arb.pilot_mut().expect("routed");
                 let opts = pilot.search_opts(Some(super::alter::blocks(64)), 20.0);
-                let result = pilot.drive(&toy.client.terrain(), &mut m, opts, &mut |job: SearchJob| answered(job.run(&toy.client.terrain())));
+                let result = pilot.drive(&toy.client.terrain(), &mut m, opts, &mut |job: SearchJob<Rollout>| answered(job.run(&toy.client.terrain())));
                 assert_ne!(result, Ok(NavStatus::Working), "the scene needs no path work");
                 if !matches!(result, Ok(NavStatus::Searching | NavStatus::Moving)) {
                     m.controls.stop();

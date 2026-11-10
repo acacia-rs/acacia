@@ -3,7 +3,8 @@
 use super::drive::{PROFILES, Style, assert_arrived, drive, macro_opts, plan, plan_and_follow, seeds, standing};
 use super::grid::Grid;
 use crate::pathfind::shortcut::over_floor;
-use crate::pathfind::{Body, Goal, MovementProfile, SearchOpts};
+use crate::movement::{Rollout, Sim};
+use crate::pathfind::{Goal, MovementProfile, SearchOpts};
 
 /// Ticks to [15, 1, 6] under every execution seed.
 fn follow(g: &Grid, opts: &SearchOpts, shortcuts: bool) -> Vec<u32> {
@@ -40,7 +41,7 @@ fn human_shortcuts_keep_off_pit_edges() {
             let mut over_air = Vec::new();
             let o = drive(&g, &mut m, path.nodes.clone(), &goal, &opts, Style { seed, shortcuts: true }, |t, m| {
                 let st = m.state().expect("started");
-                if st.on_ground && !over_floor(&g.physics(), &Body::of(st)) {
+                if st.on_ground && !over_floor(&g.physics(), &Rollout::new(st.clone()).body()) {
                     over_air.push((t, st.pos));
                 }
             });

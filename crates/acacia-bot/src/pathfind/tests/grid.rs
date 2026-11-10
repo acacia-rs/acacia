@@ -2,11 +2,17 @@
 
 use std::sync::Arc;
 
-use acacia_physics::BlockPos;
+use acacia_physics::{BlockPos, Vec3};
 use acacia_world::{BlockAccess, BlockIds, BlockRegistry, ChunkView, World};
 
-use crate::pathfind::Terrain;
+use crate::movement::Rollout;
+use crate::pathfind::{Blocks, Goal, Path, SearchOpts, Terrain};
 use crate::world::PhysicsWorld;
+
+/// [`crate::pathfind::search`] for a Bedrock player.
+pub fn search<B: Blocks>(t: &Terrain<B>, feet: Vec3, goal: &Goal, opts: &SearchOpts) -> Path {
+    crate::pathfind::search::<Rollout, B>(t, feet, goal, opts)
+}
 
 /// Chunks -R..=R on both axes are loaded (x, z in -32..48 for R = 2).
 const R: i32 = 2;

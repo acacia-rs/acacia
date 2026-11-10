@@ -9,7 +9,9 @@ use std::hash::{BuildHasher, BuildHasherDefault, Hash};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use acacia_physics::{BlockPos, PlayerState};
+use std::any::Any;
+
+use acacia_physics::BlockPos;
 
 use super::hop::Ran;
 use super::node::Momentum;
@@ -17,6 +19,7 @@ use super::profile::MovementProfile;
 use super::shift::{Shift, add};
 use super::solve::{Miss, Solved};
 use super::terrain::{Blocks, PosHasher, Spot, Terrain};
+use crate::movement::Sim;
 
 /// Results kept per key; more means the same move from the same momentum met that many surroundings.
 const PER_KEY: usize = 32;
@@ -119,8 +122,8 @@ pub(crate) type Hopped = (BlockPos, Spot, Solved);
 /// The results for one movement profile and player.
 #[derive(Default)]
 pub(crate) struct Store {
-    /// The player the results hold for: its state at rest at the origin.
-    owner: Option<(MovementProfile, PlayerState)>,
+    /// The player the results hold for: its simulation at rest at the origin.
+    owner: Option<(MovementProfile, Box<dyn Any + Send + Sync>)>,
     pub off: bool,
     pub runs: Memo<(Momentum, u8, i32, i16), Option<Ran>>,
     pub hops: Memo<(Momentum, u8), Option<Hopped>>,
@@ -144,11 +147,12 @@ pub struct RolloutCache {
 impl RolloutCache {
     /// The results for `profile` and the player `base`: the held ones, or a fresh store if they were found for
     /// another player or the cache is full (a search still using the old store keeps it).
-    pub(crate) fn claim(&self, profile: MovementProfile, base: &PlayerState) -> Arc<Store> {
-        let owner = (profile, Momentum::default().synth([0, 0, 0], base));
+    pub(crate) fn claim<S: Sim>(&self, profile: MovementProfile, base: &S) -> Arc<Store> {
+        let player = Momentum::default().synth([0, 0, 0], base);
         let mut store = lock(&self.store);
-        if store.owner.as_ref() != Some(&owner) || store.len() > MAX_RESULTS {
-            *store = Arc::new(Store { owner: Some(owner), off: self.off, ..Store::default() });
+        let held = store.owner.as_ref().is_some_and(|(p, s)| *p == profile && s.downcast_ref::<S>() == Some(&player));
+        if !held || store.len() > MAX_RESULTS {
+            *store = Arc::new(Store { owner: Some((profile, Box::new(player))), off: self.off, ..Store::default() });
         }
         store.clone()
     }

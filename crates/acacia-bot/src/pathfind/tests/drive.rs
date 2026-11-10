@@ -8,7 +8,7 @@ use acacia_physics::{BlockPos, Vec3};
 
 use super::grid::Grid;
 use super::sim::sense;
-use crate::movement::Movement;
+use crate::movement::{Movement, Rollout};
 use crate::pathfind::{FollowStatus, Follower, Goal, MacroReport, MovementProfile, Path, PathNode, ROLLOUT_BUDGET, SearchOpts, search_from};
 
 pub const PROFILES: [MovementProfile; 2] = [MovementProfile::Optimal, MovementProfile::Human];
@@ -36,7 +36,7 @@ pub fn standing(feet: Vec3) -> Movement {
 /// Searches from `m`'s live state, logging the search's size.
 pub fn plan(g: &Grid, m: &Movement, goal: &Goal, opts: &SearchOpts) -> Path {
     let t0 = Instant::now();
-    let p = search_from(&g.terrain(), m.state().expect("started"), goal, opts);
+    let p = search_from(&g.terrain(), &Rollout::new(m.state().expect("started").clone()), goal, opts);
     let ms = t0.elapsed().as_secs_f32() * 1000.0;
     eprintln!("plan {:?}: {} nodes, {} visited, {ms:.1} ms, complete {}, cost {:.1}, {:?}", opts.profile, p.nodes.len(), p.visited, p.complete, p.cost, p.macro_stats);
     if std::env::var("PLAN_NODES").is_ok() {

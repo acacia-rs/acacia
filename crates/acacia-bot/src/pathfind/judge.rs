@@ -1,17 +1,15 @@
 //! Judging a solved leap under the profile's perturbations (`docs/pathfind-plan.md` "Macro moves").
 
-use acacia_physics::WorldView;
-
 use super::control::centre;
 use super::leap::{JumpAt, LeapCtl};
 use super::profile::Perturbation;
 use super::solve::{Attempt, Solved, Solver};
-use crate::movement::Rollout;
+use crate::movement::{Sim, StepIn};
 
-impl<W: WorldView + ?Sized> Solver<'_, W> {
+impl<W: ?Sized> Solver<'_, W> {
     /// The nominal landing `a` under the profile's perturbations: worst ticks, least margin, or `None`
     /// if one of them fails.
-    pub(super) fn judge(&mut self, start: &Rollout, a: Attempt) -> Option<Solved> {
+    pub(super) fn judge<S: StepIn<W>>(&mut self, start: &S, a: Attempt) -> Option<Solved> {
         let (mut ticks, mut least) = (a.ticks(), self.margin(&a.last(), a.ctl.target));
         let perturbations = if self.perturb { self.profile.perturbations() } else { &[] };
         // The perturbation that failed last goes first: neighbouring solves tend to fail alike.
@@ -31,7 +29,7 @@ impl<W: WorldView + ?Sized> Solver<'_, W> {
 }
 
 /// The start and controller of one perturbed execution.
-fn perturbed(start: &Rollout, mut ctl: LeapCtl, takeoff: Option<u16>, p: &Perturbation) -> (Rollout, LeapCtl) {
+fn perturbed<S: Sim>(start: &S, mut ctl: LeapCtl, takeoff: Option<u16>, p: &Perturbation) -> (S, LeapCtl) {
     if let Some(k) = takeoff.filter(|_| p.jump != 0) {
         ctl.jump = JumpAt::Tick((i32::from(k) + i32::from(p.jump)).clamp(0, i32::from(u8::MAX)) as u8);
     }
@@ -39,10 +37,13 @@ fn perturbed(start: &Rollout, mut ctl: LeapCtl, takeoff: Option<u16>, p: &Pertur
     let mut from = start.clone();
     if p.start != 0.0 {
         let [tx, tz] = centre(ctl.target);
-        let (dx, dz) = (tx - from.st.pos[0], tz - from.st.pos[2]);
+        let b = from.body();
+        let mut pos = b.pos;
+        let (dx, dz) = (tx - pos[0], tz - pos[2]);
         let len = dx.hypot(dz).max(1e-3);
-        from.st.pos[0] -= dx / len * p.start;
-        from.st.pos[2] -= dz / len * p.start;
+        pos[0] -= dx / len * p.start;
+        pos[2] -= dz / len * p.start;
+        from.set_motion(pos, b.vel, b.yaw);
     }
     (from, ctl)
 }

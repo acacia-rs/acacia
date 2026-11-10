@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use acacia_physics::{BlockPos, Vec3};
 
-use super::grid::Grid;
-use crate::pathfind::{Goal, MoveKind, Path, SearchOpts, search};
+use super::grid::{Grid, search};
+use crate::pathfind::{Goal, MoveKind, Path, SearchOpts};
 
 pub fn opts(parkour: bool) -> SearchOpts {
     SearchOpts { max_nodes: 50_000, budget: Duration::from_secs(5), parkour, macros: false, ..SearchOpts::default() }

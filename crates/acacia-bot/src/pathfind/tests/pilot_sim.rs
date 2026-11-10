@@ -8,7 +8,7 @@ use tokio::sync::oneshot;
 
 use super::grid::Grid;
 use super::sim::perform;
-use crate::movement::Movement;
+use crate::movement::{Movement, Rollout};
 use crate::pathfind::hazard::{self, Body, Threats, View};
 use crate::pathfind::{Blocks, Goal, GotoOpts, NavStatus, Path, Pilot, SearchJob, SearchOpts, Terrain, answered};
 
@@ -113,7 +113,7 @@ pub fn fly_with(g: &Grid, m: &mut Movement, goal: Goal, opts: GotoOpts, sky: Sky
         let hazards = pilot.perceive(threats, &View { eye, yaw, health, sees: &sees });
         let terrain = Terrain::new(blocks, &g.registry).with_hazards(hazards.clone());
         let opts = SearchOpts { hazards, ..pilot.search_opts(None, 20.0) };
-        let mut spawn = |job: SearchJob| {
+        let mut spawn = |job: SearchJob<Rollout>| {
             let path = job.run(&Terrain::new(blocks, &g.registry).with_hazards(job.opts.hazards.clone()));
             if sky.delay == 0 {
                 return answered(path);

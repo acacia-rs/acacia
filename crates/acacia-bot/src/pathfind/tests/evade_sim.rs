@@ -7,6 +7,7 @@ use super::entity_scenarios::goto_opts;
 use super::entity_sim::{Brain, Crowd, Harm, Mob};
 use super::grid::Grid;
 use super::process_sim::SimLook;
+use crate::movement::Rollout;
 use crate::pathfind::hazard::{self, View};
 use crate::pathfind::process::{Arbiter, Decision};
 use crate::pathfind::{Evade, Goal, Goto, MovementProfile, NavStatus, SearchJob, SearchOpts, answered};
@@ -50,7 +51,7 @@ pub fn run(g: &Grid, mobs: Vec<Mob>, goal: Goal, profile: MovementProfile, seed:
                 let hazards = pilot.perceive(threats.clone(), &view);
                 let terrain = g.terrain().with_hazards(hazards.clone());
                 let opts = SearchOpts { hazards, ..pilot.search_opts(None, 20.0) };
-                let spawn = &mut |job: SearchJob| answered(job.run(&g.terrain().with_hazards(job.opts.hazards.clone())));
+                let spawn = &mut |job: SearchJob<Rollout>| answered(job.run(&g.terrain().with_hazards(job.opts.hazards.clone())));
                 let result = pilot.drive(&terrain, &mut m, opts, spawn);
                 if !matches!(result, Ok(NavStatus::Searching | NavStatus::Moving)) {
                     m.controls.stop();

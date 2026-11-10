@@ -2,7 +2,7 @@
 //! state rebuilt from quantized momentum stays close to the real one.
 
 use super::grid::Grid;
-use crate::movement::{Controls, Movement};
+use crate::movement::{Controls, Movement, Sim};
 use crate::pathfind::Momentum;
 
 /// Fidelity bound for a synthesized state (plan: 1/512 block over 30 ticks).
@@ -74,7 +74,7 @@ fn synthesized_momentum_tracks_the_real_state() {
             let p = real.st.pos;
             let at = [p[0].floor() as i32, (p[1] + 1e-3).floor() as i32, p[2].floor() as i32];
             let mut synth = real.clone();
-            synth.st = Momentum::snap(&real.st, at).synth(at, &real.st);
+            synth.st = Momentum::snap(&real.motion(), at).synth(at, &real).st;
             for k in 0..30 {
                 real.step(&script(t + k), &terrain);
                 synth.step(&script(t + k), &terrain);

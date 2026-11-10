@@ -8,7 +8,7 @@ use acacia_physics::{BlockPos, Vec3};
 use super::alter::{tool, with};
 use super::grid::Grid;
 use super::sim::perform;
-use crate::movement::{Movement, EYE_HEIGHT};
+use crate::movement::{Movement, Rollout, EYE_HEIGHT};
 use crate::pathfind::{Goal, GotoOpts, NavStatus, Pilot, SearchJob, Step, answered};
 use crate::state::queries::test_support::raw;
 use crate::state::Me;
@@ -45,7 +45,7 @@ fn drive(g: &Grid, start: Vec3, pilot: Pilot, max_ticks: u32, mut server: impl F
         server(tick, &mut m);
         d.track.push(m.position().expect("started"));
         let opts = d.pilot.search_opts(None, 20.0);
-        match d.pilot.drive(&g.terrain(), &mut m, opts, &mut |job: SearchJob| answered(job.run(&g.terrain()))) {
+        match d.pilot.drive(&g.terrain(), &mut m, opts, &mut |job: SearchJob<Rollout>| answered(job.run(&g.terrain()))) {
             Ok(NavStatus::Arrived) => {
                 d.result = Ok(());
                 break;
