@@ -38,6 +38,10 @@ impl Bot {
         self.put(item, SlotRef::Ui(ui::ENCHANTING_INPUT), 1).await?;
         let lapis: u16 = super::matching_slots(&self.state, |name, _| name == LAPIS).iter().map(|(_, n)| *n).sum();
         self.put_matching(|name, _| name == LAPIS, lapis.min(64), SlotRef::Ui(ui::ENCHANTING_LAPIS)).await?;
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_enchant(option).await;
+        }
         let offered = |bot: &Bot, _: &RawPacket| (!bot.state.stations.enchant_options.is_empty()).then_some(());
         self.wait_until(OPTIONS_TIMEOUT, offered).await?;
         let plan = enchant_plan(&self.state, option)?;

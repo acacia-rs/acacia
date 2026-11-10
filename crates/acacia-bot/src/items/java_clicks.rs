@@ -15,7 +15,7 @@ use acacia_java_client::inventory::{ARMOUR_HEAD, HOTBAR_START, OFFHAND};
 const MAIN_ROWS: u8 = 27;
 
 use super::{Op, SlotRef, ui};
-use crate::state::java_inventory::{CRAFTING_MENU, GRID_START};
+use crate::state::java_inventory::{station_slots, CRAFTING_MENU, GRID_START};
 use crate::bot::Backend;
 use crate::{ActionError, Bot};
 
@@ -30,6 +30,10 @@ pub(crate) fn plan(inventory: &Inventory, ops: &[Op]) -> Result<Vec<Click>, Acti
 
 /// `slot`'s index in the open menu: window 0, or a container of `own` slots followed by the player's.
 fn window(inv: &Inventory, slot: SlotRef) -> Result<i16, ActionError> {
+    let station = inv.window.as_ref().and_then(|w| station_slots(w.menu).iter().position(|&s| SlotRef::Ui(s) == slot));
+    if let Some(i) = station {
+        return i16::try_from(i).map_err(|_| not_possible("slot out of range"));
+    }
     let i = match (inv.window.as_ref().map(|w| w.slots.len()), slot) {
         (None, SlotRef::Main(i @ 0..9)) => HOTBAR_START + usize::from(i),
         (None, SlotRef::Main(i @ 9..36)) => usize::from(i),
@@ -202,10 +206,11 @@ impl Bot {
         self.java_clicks(|client| clicks.into_iter().try_for_each(|c| client.click(c))).await
     }
 
-    /// Shift-clicks the open menu's result slot (crafting). Only the server knows what that makes, so the click
+    /// Shift-clicks the open menu's result `slot` (crafting, stations). Only the server knows what that makes, so the click
     /// predicts nothing and the server sends back every slot it changed.
-    pub(crate) async fn java_take_result(&mut self) -> Result<(), ActionError> {
-        self.java_clicks(|client| client.click_unpredicted(Click::quick_move(0))).await
+    pub(crate) async fn java_take_result(&mut self, slot: usize) -> Result<(), ActionError> {
+        let slot = i16::try_from(slot).map_err(|_| not_possible("slot out of range"))?;
+        self.java_clicks(|client| client.click_unpredicted(Click::quick_move(slot))).await
     }
 
     /// Stands for a tick with no input, then sends what `send` queues and, in the own inventory unless crafting holds

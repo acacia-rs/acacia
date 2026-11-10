@@ -5,7 +5,7 @@ use acacia_client::proto::nbt::{List, Nbt, Value};
 use acacia_client::proto::types::WindowType;
 use acacia_physics::BlockPos;
 
-use super::{named, occupied};
+use super::{named, occupied, StationStep};
 use crate::items::craft::{Craft, CraftAction};
 use crate::items::{to_inventory_ops, ui, Op, SlotRef};
 use crate::state::{GameState, ItemStack};
@@ -46,7 +46,7 @@ impl Bot {
     /// `banner` at the loom at `pos`; `pattern_item` is the banner pattern some designs need.
     pub async fn loom(&mut self, pos: BlockPos, banner: SlotRef, dye: SlotRef, pattern: &str, pattern_item: Option<SlotRef>) -> Result<(), ActionError> {
         let slots = [ui::LOOM_BANNER, ui::LOOM_DYE, ui::LOOM_PATTERN].map(SlotRef::Ui);
-        self.workstation_craft(pos, WindowType::Loom, &[Some(banner), Some(dye), pattern_item], &slots, |state| loom_plan(state, pattern)).await
+        self.workstation_craft(pos, WindowType::Loom, &[Some(banner), Some(dye), pattern_item], &slots, |state| loom_plan(state, pattern), StationStep::Unsupported("loom patterns on Java")).await
     }
 }
 

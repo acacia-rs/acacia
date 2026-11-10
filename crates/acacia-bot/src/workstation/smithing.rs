@@ -5,7 +5,7 @@ use acacia_client::proto::types::WindowType;
 use acacia_physics::BlockPos;
 use acacia_world::neutral::Item;
 
-use super::{matching_slots, named, occupied};
+use super::{matching_slots, named, occupied, StationStep};
 use crate::items::craft::{Craft, CraftAction};
 use crate::items::{to_inventory_ops, ui, Op, SlotRef};
 use crate::state::{GameState, ItemStack, Recipe, RecipeKind};
@@ -46,7 +46,7 @@ impl Bot {
     pub async fn smith(&mut self, pos: BlockPos, base: SlotRef, addition: SlotRef, template: SlotRef) -> Result<(), ActionError> {
         // Vanilla filled template, material, then base (2026-10-02 capture).
         let slots = [SlotRef::Ui(ui::SMITHING_TEMPLATE), SlotRef::Ui(ui::SMITHING_MATERIAL), SlotRef::Ui(ui::SMITHING_INPUT)];
-        self.workstation_craft(pos, WindowType::SmithingTable, &[Some(template), Some(addition), Some(base)], &slots, smithing_plan).await
+        self.workstation_craft(pos, WindowType::SmithingTable, &[Some(template), Some(addition), Some(base)], &slots, smithing_plan, StationStep::Take).await
     }
 }
 

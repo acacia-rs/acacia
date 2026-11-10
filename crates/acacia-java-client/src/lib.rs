@@ -12,6 +12,7 @@ pub mod inventory;
 mod join;
 mod link;
 mod movement;
+mod station;
 pub mod window;
 pub mod world;
 

@@ -64,6 +64,43 @@ pub(crate) fn mirror(inventory: &mut Inventory, java: &JavaInventory) {
     for i in 0..9 {
         inventory.ui[usize::from(ui::CRAFTING_3X3) + i] = stack(table.and_then(|w| w.slots.get(GRID_START + i)?.as_ref()));
     }
+    for &slot in STATION_UI {
+        inventory.ui[usize::from(slot)] = ItemStack::default();
+    }
+    if let Some(window) = &java.window {
+        for (i, &slot) in station_slots(window.menu).iter().enumerate() {
+            inventory.ui[usize::from(slot)] = stack(window.slots.get(i).and_then(Option::as_ref));
+        }
+    }
+}
+
+/// Every Bedrock UI slot some Java station menu fills.
+const STATION_UI: &[u8] = &[
+    ui::ANVIL_INPUT, ui::ANVIL_MATERIAL, ui::STONECUTTER_INPUT, ui::TRADE_INGREDIENT_1, ui::TRADE_INGREDIENT_2, ui::LOOM_BANNER,
+    ui::LOOM_DYE, ui::LOOM_PATTERN, ui::CARTOGRAPHY_INPUT, ui::CARTOGRAPHY_ADDITIONAL, ui::ENCHANTING_INPUT, ui::ENCHANTING_LAPIS,
+    ui::GRINDSTONE_INPUT, ui::GRINDSTONE_ADDITIONAL, ui::BEACON_PAYMENT, ui::SMITHING_TEMPLATE, ui::SMITHING_INPUT, ui::SMITHING_MATERIAL,
+];
+
+/// A Java station menu's input slots, in menu order, as Bedrock's UI slots.
+pub(crate) fn station_slots(menu: i32) -> &'static [u8] {
+    match window_type(menu) {
+        WindowType::Anvil => &[ui::ANVIL_INPUT, ui::ANVIL_MATERIAL],
+        WindowType::Beacon => &[ui::BEACON_PAYMENT],
+        WindowType::Enchantment => &[ui::ENCHANTING_INPUT, ui::ENCHANTING_LAPIS],
+        WindowType::Grindstone => &[ui::GRINDSTONE_INPUT, ui::GRINDSTONE_ADDITIONAL],
+        WindowType::Loom => &[ui::LOOM_BANNER, ui::LOOM_DYE, ui::LOOM_PATTERN],
+        WindowType::Trading => &[ui::TRADE_INGREDIENT_1, ui::TRADE_INGREDIENT_2],
+        WindowType::SmithingTable => &[ui::SMITHING_TEMPLATE, ui::SMITHING_INPUT, ui::SMITHING_MATERIAL],
+        WindowType::Cartography => &[ui::CARTOGRAPHY_INPUT, ui::CARTOGRAPHY_ADDITIONAL],
+        WindowType::Stonecutter => &[ui::STONECUTTER_INPUT],
+        _ => &[],
+    }
+}
+
+/// The menu slot the server puts a station's result in (right after its inputs); `None` for stations without one.
+pub(crate) fn result_slot(menu: i32) -> Option<usize> {
+    let inputs = station_slots(menu).len();
+    (inputs > 0 && !matches!(window_type(menu), WindowType::Beacon | WindowType::Enchantment)).then_some(inputs)
 }
 
 /// The Java container screen as the bot's open container; the opener fills in the block position.

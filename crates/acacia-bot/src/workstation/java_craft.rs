@@ -16,7 +16,7 @@ use crate::state::GameState;
 use crate::{ActionError, Bot};
 
 /// How long the server has to answer the result click with the grid emptied.
-const RESULT_TIMEOUT: Duration = Duration::from_secs(3);
+pub(super) const RESULT_TIMEOUT: Duration = Duration::from_secs(3);
 
 impl Bot {
     /// [`Bot::craft_with`] on Java, whatever the mode.
@@ -54,7 +54,7 @@ impl Bot {
             }
             self.click_pause().await?;
             let before = held(&self.state, item);
-            self.java_take_result().await?;
+            self.java_take_result(0).await?;
             let emptied = |bot: &Bot, _: &_| cells.iter().all(|c| c.stack(&bot.state).is_none_or(|s| s.is_empty())).then_some(());
             self.wait_until(RESULT_TIMEOUT, emptied).await?;
             let output = held(&self.state, item).saturating_sub(before);

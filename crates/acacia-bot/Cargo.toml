@@ -58,6 +58,10 @@ name = "java_smelt"
 required-features = ["java"]
 
 [[example]]
+name = "java_stations"
+required-features = ["java"]
+
+[[example]]
 name = "java_eat"
 required-features = ["java"]
 
