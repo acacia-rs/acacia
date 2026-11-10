@@ -30,12 +30,45 @@ pub struct BreakConditions {
 /// Ticks from `StartBreak` until the block breaks (1 = instantly); `None` if it cannot be broken
 /// or its hardness is unknown (custom blocks).
 pub fn break_ticks(mining: &Mining, c: &BreakConditions) -> Option<u32> {
+    let (speed, divisor) = match damage(mining, c)? {
+        Damage::Instant => return Some(1),
+        Damage::Per { speed, divisor } => (speed, divisor),
+    };
+    let ticks = f64::from(mining.hardness) * divisor / f64::from(speed);
+    // Hardnesses like 0.6 are not exact in f32; the epsilon keeps 18.0000007 from rounding up to 19.
+    Some((ticks - 1e-4).ceil().max(1.0) as u32)
+}
+
+/// Java's dig in ticks after `START_DESTROY_BLOCK`, 0 when the start breaks it: `MultiPlayerGameMode` sums each
+/// tick's `getDestroyProgress` in f32 and stops at 1, so stone by hand takes 151, not 150.
+pub fn java_dig_ticks(mining: &Mining, c: &BreakConditions) -> Option<u32> {
+    let per_tick = match damage(mining, c)? {
+        Damage::Instant => return Some(0),
+        Damage::Per { speed, divisor } => speed / mining.hardness / divisor as f32,
+    };
+    if per_tick >= 1.0 {
+        return Some(0);
+    }
+    let (mut done, mut ticks) = (0.0_f32, 0);
+    while done < 1.0 {
+        done += per_tick;
+        ticks += 1;
+    }
+    Some(ticks)
+}
+
+enum Damage {
+    Instant,
+    Per { speed: f32, divisor: f64 },
+}
+
+fn damage(mining: &Mining, c: &BreakConditions) -> Option<Damage> {
     let hardness = mining.hardness;
     if hardness.is_nan() || mining.is_unbreakable() {
         return None;
     }
     let harvestable = mining.can_harvest(c.tool);
-    let Some(mut speed) = tool_speed(mining.material, c.tool) else { return Some(1) };
+    let Some(mut speed) = tool_speed(mining.material, c.tool) else { return Some(Damage::Instant) };
     if !harvestable {
         speed = 1.0;
     }
@@ -57,11 +90,9 @@ pub fn break_ticks(mining: &Mining, c: &BreakConditions) -> Option<u32> {
         speed /= 5.0;
     }
     if hardness == 0.0 {
-        return Some(1);
+        return Some(Damage::Instant);
     }
-    let ticks = f64::from(hardness) * if harvestable { 30.0 } else { 100.0 } / f64::from(speed);
-    // Hardnesses like 0.6 are not exact in f32; the epsilon keeps 18.0000007 from rounding up to 19.
-    Some((ticks - 1e-4).ceil().max(1.0) as u32)
+    Some(Damage::Per { speed, divisor: if harvestable { 30.0 } else { 100.0 } })
 }
 
 /// Mining speed of `tool` on `material`, `None` when it breaks the block instantly.
@@ -148,6 +179,15 @@ mod tests {
         assert_eq!(ticks("minecraft:obsidian", "minecraft:diamond_pickaxe", |_| {}), Some(188));
         assert_eq!(ticks("minecraft:oak_log", "minecraft:stone_axe", |_| {}), Some(15));
         assert_eq!(ticks("minecraft:dirt", "minecraft:iron_shovel", |_| {}), Some(3));
+    }
+
+    #[test]
+    fn java_sums_progress_in_f32() {
+        let java = |block: &str, tool: &str| java_dig_ticks(&mining(block), &BreakConditions { tool: Tool::from_identifier(tool), on_ground: true, ..BreakConditions::default() });
+        assert_eq!(java("minecraft:dirt", ""), Some(15));
+        assert_eq!(java("minecraft:grass_block", ""), Some(18));
+        assert_eq!(java("minecraft:stone", ""), Some(151));
+        assert_eq!(java("minecraft:short_grass", ""), Some(0));
     }
 
     #[test]
