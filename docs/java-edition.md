@@ -33,8 +33,7 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    in its `tests/traces`, made with the bridge's `tools/move-trace.sh` (branch `java-physics-trace`).
 4. **Backend split.** Move the ~97 `acacia-bot` files that touch Bedrock packets behind edition backends
    (movement, interaction, inventory). Java bots path, dig and place. Done 2026-11-10 for goto with digging and
-   bridging (`acacia-bot` example `java_goto`); still Bedrock-only: enchantments on Java stacks, forms, boats,
-   elytra flight. Item use in the air came 2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
+   bridging (`acacia-bot` example `java_goto`); still Bedrock-only: forms, boats, elytra flight. Item use in the air came 2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
    `java_eat`, 0 alerts while walking. Threat perception too: the Java client's entities mirror into
    `state.entities` each tick (Bedrock kind names; proto `entity_types.rs` from `tools/gen_entity_types.mjs`), and
    Java goto perceives hazards from them (example `java_avoid` swerves 4 blocks round a zombie, 0 alerts).
@@ -51,8 +50,12 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    usable recipes, so `Recipes::java()` serves 26.3's vanilla ones (acacia-registry `recipe`), and every craft lays
    the grid out by hand and shift-clicks the result unpredicted (`workstation/java_craft.rs`; example `java_craft`
    makes planks, sticks and a pickaxe at a table with 0 alerts). Furnaces need nothing Java-specific (example `java_smelt`); their
-   timers mirror into `containers.data` under Bedrock's numbering. Still to do: other workstations (furnace,
-   anvil, ...), recipe-book placement for unlocked recipes, enchantment and custom-name hashes.
+   timers mirror into `containers.data` under Bedrock's numbering. Enchantments and plain custom names too: they
+   are hashed with `HashOps` (map and string encodings) against the enchantment registry's names from
+   configuration, and mirrored into Bedrock's `ench` list (so Efficiency counts for digging). Live: 0 hash misses
+   moving an enchanted, named shovel, against 1 with the name hash broken on purpose (`Inventory::resent` counts
+   misses). Still to do: other workstations (stonecutter, anvil, ...) and recipe-book placement for unlocked
+   recipes.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
 
 ## Test servers

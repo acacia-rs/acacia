@@ -24,7 +24,7 @@ fn left_picks_up_and_places_reporting_changed_slots() {
     assert_eq!(packet.changed, vec![(MAIN0 as i16, None)]);
     assert_eq!(packet.carried.as_ref().map(|c| c.count), Some(10));
     let packet = inv.click(Click::left(HOT0 as i16));
-    assert_eq!(packet.changed, vec![(HOT0 as i16, item("dirt", 10).as_ref().map(HashedStack::of))]);
+    assert_eq!(packet.changed, vec![(HOT0 as i16, item("dirt", 10).as_ref().map(|s| HashedStack::of(s, &[])))]);
     assert_eq!((packet.carried, &inv.cursor), (None, &None));
 }
 

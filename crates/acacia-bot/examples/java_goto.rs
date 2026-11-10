@@ -24,6 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let inv = &bot.state().inventory;
     let name = |s: &acacia_bot::state::ItemStack| bot.state().items.name(s.network_id).map(|n| format!("{n}x{}", s.count));
     println!("held {:?}, main 9 {:?}", name(inv.held()), name(&inv.main[9]));
+    let resent = bot.java().map_or(0, |j| j.client().inventory.resent);
+    println!("held enchantments {:?}, name {:?}; slots resent unchanged {resent}", inv.held().enchantments(), inv.held().custom_name);
     bot.disconnect().await;
     Ok(())
 }

@@ -11,7 +11,7 @@ pub(super) fn book() -> RecipeBook {
     let mut book = RecipeBook::default();
     for (i, r) in crafting().iter().enumerate() {
         let kind = r.shape.map_or(RecipeKind::Shapeless, |(width, height)| RecipeKind::Shaped { width, height });
-        let output = stack(Some(&JavaStack::new(i32::from(r.result.java_id()), i32::from(r.count))));
+        let output = stack(Some(&JavaStack::new(i32::from(r.result.java_id()), i32::from(r.count))), &[]);
         book.push(Recipe {
             network_id: i as u32,
             id: format!("minecraft:{}", r.id),

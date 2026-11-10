@@ -9,6 +9,7 @@ use acacia_client::proto::types::WindowType;
 use acacia_world::neutral::Item;
 
 use super::{Container, Containers, Inventory, ItemStack};
+use crate::workstation::enchants::{bedrock_id, with_enchant_list};
 use crate::items::ui;
 
 /// Window 0's slots: armour from 5 (helmet first), the main rows from 9, the hotbar from 36.
@@ -20,13 +21,15 @@ pub(crate) const GRID_START: usize = 1;
 pub(crate) const CRAFTING_MENU: i32 = 12;
 
 // TODO: enchantments; their ids are the server's synced registry order, not fixed.
-pub(crate) fn stack(java: Option<&JavaStack>) -> ItemStack {
+/// `java` in Bedrock's terms; `enchantments` names the enchantment ids (the registry's order), which become
+/// Bedrock's `ench` list.
+pub(crate) fn stack(java: Option<&JavaStack>, enchantments: &[String]) -> ItemStack {
     let Some(s) = java.filter(|s| s.count > 0) else { return ItemStack::default() };
     let item = u16::try_from(s.item).ok().and_then(Item::from_java_id);
     let metadata = item.map_or(0, |i| i.bedrock().1.max(0) as u32);
     let block_runtime_id = item.and_then(Item::block).and_then(|b| b.default_state().java_id()).unwrap_or(0);
     let nbt = s.components.damage.map(|d| Nbt { name: String::new(), value: Value::Compound(vec![("Damage".into(), Value::Int(d))]) });
-    ItemStack {
+    let stack = ItemStack {
         network_id: s.item,
         count: u16::try_from(s.count).unwrap_or(u16::MAX),
         metadata,
@@ -34,11 +37,15 @@ pub(crate) fn stack(java: Option<&JavaStack>) -> ItemStack {
         custom_name: s.components.custom_name_text(),
         nbt,
         ..ItemStack::default()
-    }
+    };
+    let named = |&(id, level): &(i32, i32)| Some((bedrock_id(enchantments.get(usize::try_from(id).ok()?)?)?, i16::try_from(level).ok()?));
+    let ench: Vec<_> = s.components.enchantments.iter().filter_map(named).collect();
+    if ench.is_empty() { stack } else { with_enchant_list(&stack, &ench) }
 }
 
 /// Copies every slot, the cursor and the crafting grids; the selected slot is the bot's own and is left alone.
 pub(crate) fn mirror(inventory: &mut Inventory, java: &JavaInventory) {
+    let stack = |s: Option<&JavaStack>| stack(s, &java.enchantments);
     for i in 0..Inventory::HOTBAR_SLOTS as usize {
         inventory.main[i] = stack(java.hotbar(i));
     }
@@ -65,7 +72,7 @@ pub(crate) fn mirror_window(containers: &mut Containers, java: &JavaInventory) {
         containers.open = None;
         return;
     };
-    let slots = window.slots.iter().map(|s| stack(s.as_ref())).collect();
+    let slots = window.slots.iter().map(|s| stack(s.as_ref(), &java.enchantments)).collect();
     containers.contents += 1;
     match containers.open.as_mut().filter(|c| c.window_id == window.id) {
         Some(open) => open.slots = slots,
@@ -116,5 +123,20 @@ fn window_type(menu: i32) -> WindowType {
         23 => WindowType::Cartography,
         24 => WindowType::Stonecutter,
         _ => WindowType::None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interact::breaking::{enchantment_level, EFFICIENCY};
+
+    #[test]
+    fn java_enchantments_become_bedrock_ench_entries() {
+        let names: Vec<String> = ["minecraft:sweeping_edge", "minecraft:efficiency"].map(String::from).to_vec();
+        let mut pickaxe = JavaStack::new(1052, 1);
+        pickaxe.components.enchantments = vec![(1, 4), (0, 2), (7, 1)];
+        let mirrored = stack(Some(&pickaxe), &names);
+        assert_eq!((enchantment_level(&mirrored, EFFICIENCY), mirrored.enchantments().len()), (4, 1));
     }
 }

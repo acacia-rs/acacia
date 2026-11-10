@@ -188,17 +188,21 @@ impl Inventory {
         let before = menu.slots.clone();
         menu.click(click);
         let mut changed = Vec::new();
+        self.predicted.clear();
         for (i, (old, new)) in before.into_iter().zip(menu.slots).enumerate() {
             if old != new {
-                changed.push((i as i16, new.as_ref().map(HashedStack::of)));
+                changed.push((i as i16, new.as_ref().map(|s| HashedStack::of(s, &self.enchantments))));
                 if let Some(at) = self.locate(i) {
+                    if let crate::window::At::Player(p) = at {
+                        self.predicted.push(p);
+                    }
                     self.put(at, new);
                 }
             }
         }
         self.cursor = menu.cursor;
         let (container, state_id) = self.menu_ids();
-        let carried = self.cursor.as_ref().map(HashedStack::of);
+        let carried = self.cursor.as_ref().map(|s| HashedStack::of(s, &self.enchantments));
         ContainerClick { container, state_id, slot: click.slot, button: click.button, input: click.input, changed, carried }
     }
 
@@ -206,7 +210,7 @@ impl Inventory {
     /// every slot it changes comes back from the server.
     pub fn unpredicted(&self, click: Click) -> ContainerClick {
         let (container, state_id) = self.menu_ids();
-        let carried = self.cursor.as_ref().map(HashedStack::of);
+        let carried = self.cursor.as_ref().map(|s| HashedStack::of(s, &self.enchantments));
         ContainerClick { container, state_id, slot: click.slot, button: click.button, input: click.input, changed: Vec::new(), carried }
     }
 }

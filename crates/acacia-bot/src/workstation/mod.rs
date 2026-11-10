@@ -17,7 +17,7 @@ mod craft;
 mod craftable;
 mod creative;
 mod enchant;
-mod enchants;
+pub(crate) mod enchants;
 mod furnace;
 mod grid;
 mod grindstone;

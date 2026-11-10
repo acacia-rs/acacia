@@ -26,11 +26,17 @@ pub struct Inventory {
     state_id: i32,
     /// The container screen the server opened, if any.
     pub window: Option<Window>,
+    /// The enchantment registry's names by network id, from configuration.
+    pub enchantments: std::sync::Arc<[String]>,
+    /// Slots the last click predicted, by window-0 index.
+    pub(crate) predicted: Vec<usize>,
+    /// Predicted own-inventory slots the server re-sent unchanged: each is a click hash that missed.
+    pub resent: u32,
 }
 
 impl Default for Inventory {
     fn default() -> Self {
-        Self { slots: std::array::from_fn(|_| None), selected: 0, cursor: None, state_id: 0, window: None }
+        Self { slots: std::array::from_fn(|_| None), selected: 0, cursor: None, state_id: 0, window: None, enchantments: std::sync::Arc::from([]), predicted: Vec::new(), resent: 0 }
     }
 }
 
@@ -96,6 +102,7 @@ impl Inventory {
                     self.set_window_slot(packet);
                 } else {
                     if let Ok(slot) = usize::try_from(packet.slot) {
+                        self.resent += u32::from(self.predicted.contains(&slot) && self.slots.get(slot) == Some(&packet.item));
                         self.set_slot(slot, packet.item);
                     }
                     self.state_id = packet.state_id.0;

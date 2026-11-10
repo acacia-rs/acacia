@@ -3,7 +3,7 @@
 
 use crc::{CRC_32_ISCSI, Crc};
 
-use crate::item::{DAMAGE, ItemStack, MAX_DAMAGE, MAX_STACK_SIZE, UNBREAKABLE};
+use crate::item::{CUSTOM_NAME, DAMAGE, ENCHANTMENTS, ItemStack, MAX_DAMAGE, MAX_STACK_SIZE, UNBREAKABLE};
 use crate::nbt;
 use crate::wire::read_len;
 use crate::{Error, VarInt, Wire, write_varint};
@@ -13,6 +13,7 @@ const CRC32C: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 const TAG_MAP_START: u8 = 2;
 const TAG_MAP_END: u8 = 3;
 const TAG_INT: u8 = 8;
+const TAG_STRING: u8 = 12;
 
 /// `ContainerInput`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,7 +37,30 @@ fn hash_int(v: i32) -> i32 {
 
 /// A `Unit` encodes as an empty map.
 fn hash_unit() -> i32 {
-    CRC32C.checksum(&[TAG_MAP_START, TAG_MAP_END]) as i32
+    hash_map(Vec::new())
+}
+
+/// `HashOps.createString`: the tag, the length in UTF-16 units, then the units (`putUnencodedChars`), little-endian.
+fn hash_string(s: &str) -> i32 {
+    let units: Vec<u16> = s.encode_utf16().collect();
+    let mut digest = CRC32C.digest();
+    digest.update(&[TAG_STRING]);
+    digest.update(&(units.len() as i32).to_le_bytes());
+    units.iter().for_each(|u| digest.update(&u.to_le_bytes()));
+    digest.finalize() as i32
+}
+
+/// `HashOps.createMap`: entries' (key, value) hashes sorted as unsigned ints (`padToLong`), key first.
+fn hash_map(mut entries: Vec<(i32, i32)>) -> i32 {
+    entries.sort_by_key(|&(k, v)| (k as u32, v as u32));
+    let mut digest = CRC32C.digest();
+    digest.update(&[TAG_MAP_START]);
+    for (k, v) in entries {
+        digest.update(&k.to_le_bytes());
+        digest.update(&v.to_le_bytes());
+    }
+    digest.update(&[TAG_MAP_END]);
+    digest.finalize() as i32
 }
 
 /// `HashedStack.ActualItem`; `None` on the wire is the empty stack.
@@ -50,15 +74,23 @@ pub struct HashedStack {
 }
 
 impl HashedStack {
-    /// The stack as the client would hash it. Components the client does not decode are left out, so such a
-    /// stack's hash misses and the server resends it.
-    // TODO: hash custom names and enchantments (`HashOps` over their codecs).
-    pub fn of(stack: &ItemStack) -> HashedStack {
+    /// The stack as the client would hash it, with `enchantments` the enchantment registry's names by id.
+    /// Components the client does not decode (or a styled name) are left out, so such a stack's hash misses and the
+    /// server resends it.
+    pub fn of(stack: &ItemStack, enchantments: &[String]) -> HashedStack {
         let c = &stack.components;
         let ints = [(MAX_STACK_SIZE, c.max_stack_size), (MAX_DAMAGE, c.max_damage), (DAMAGE, c.damage)];
         let mut added: Vec<_> = ints.iter().filter_map(|&(id, v)| Some((id, hash_int(v?)))).collect();
         if c.unbreakable {
             added.push((UNBREAKABLE, hash_unit()));
+        }
+        // A plain name's codec collapses it to a string; enchantments are a map of registry key to level.
+        if let Some(name) = c.custom_name_text() {
+            added.push((CUSTOM_NAME, hash_string(&name)));
+        }
+        let named = |&(id, level): &(i32, i32)| Some((hash_string(enchantments.get(usize::try_from(id).ok()?)?), hash_int(level)));
+        if let Some(entries) = c.enchantments.iter().map(named).collect::<Option<Vec<_>>>().filter(|e| !e.is_empty()) {
+            added.push((ENCHANTMENTS, hash_map(entries)));
         }
         HashedStack { item: stack.item, count: stack.count, added, removed: c.removed.clone() }
     }
@@ -180,6 +212,23 @@ mod tests {
         // Guava: Hashing.crc32c().newHasher().putByte(8).putInt(5).hash().asInt()
         assert_eq!(hash_int(5), CRC32C.checksum(&[8, 5, 0, 0, 0]) as i32);
         assert_eq!(CRC32C.checksum(b"123456789"), 0xE306_9283);
+        assert_eq!(hash_string("ab"), CRC32C.checksum(&[12, 2, 0, 0, 0, b'a', 0, b'b', 0]) as i32);
+    }
+
+    #[test]
+    fn enchantments_hash_as_a_map_sorted_by_unsigned_key_hash() {
+        let names = ["minecraft:efficiency".to_owned(), "minecraft:unbreaking".to_owned()];
+        let mut pickaxe = ItemStack::new(1052, 1);
+        pickaxe.components.enchantments = vec![(1, 3), (0, 5)];
+        let entries = [(hash_string(&names[0]), hash_int(5)), (hash_string(&names[1]), hash_int(3))];
+        let mut sorted = entries.to_vec();
+        sorted.sort_by_key(|&(k, _)| k as u32);
+        let mut bytes = vec![TAG_MAP_START];
+        sorted.iter().for_each(|(k, v)| bytes.extend(k.to_le_bytes().into_iter().chain(v.to_le_bytes())));
+        bytes.push(TAG_MAP_END);
+        assert_eq!(HashedStack::of(&pickaxe, &names).added, vec![(ENCHANTMENTS, CRC32C.checksum(&bytes) as i32)]);
+        // An id the registry does not name leaves the component out: the server resends the slot.
+        assert!(HashedStack::of(&pickaxe, &names[..1]).added.is_empty());
     }
 
     #[test]
@@ -205,7 +254,7 @@ mod tests {
             button: 0,
             input: ContainerInput::Pickup,
             changed: vec![(36, None)],
-            carried: Some(HashedStack::of(&pickaxe)),
+            carried: Some(HashedStack::of(&pickaxe, &[])),
         };
         let mut buf = Vec::new();
         click.write(&mut buf);

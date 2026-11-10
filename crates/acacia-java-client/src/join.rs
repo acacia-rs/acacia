@@ -1,6 +1,6 @@
 use acacia_auth::{Account, JavaProfile};
 use acacia_java_proto::packets::{AcceptTeleportation, Empty, EncryptionHello, EncryptionKey, INTENT_LOGIN, Intention, KeepAlive, LoginCompression, LoginFinished, LoginHello, Ping, PlayerPosition, SelectKnownPacks};
-use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids};
+use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids, read_varint};
 use md5::{Digest, Md5};
 use tokio::net::TcpStream;
 
@@ -75,8 +75,10 @@ impl Client {
         c.send(ids::handshake::serverbound::INTENTION, &intention).await?;
         c.send(ids::login::serverbound::HELLO, &LoginHello { name: name.to_owned(), uuid }).await?;
         let profile = login(&mut c, session).await?;
-        configure(&mut c).await?;
-        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), actions: Actions::default(), inventory: Inventory::default(), loaded_sent: false })
+        let enchantments = configure(&mut c).await?;
+        let mut inventory = Inventory::default();
+        inventory.enchantments = enchantments.into();
+        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), actions: Actions::default(), inventory, loaded_sent: false })
     }
 
     /// The next packet, already applied to the world and movement. Cancel-safe.
@@ -171,8 +173,10 @@ async fn login(c: &mut Connection, session: Session<'_>) -> Result<LoginFinished
     }
 }
 
-async fn configure(c: &mut Connection) -> Result<(), Error> {
+/// The configuration phase; returns the enchantment registry's entry names by network id.
+async fn configure(c: &mut Connection) -> Result<Vec<String>, Error> {
     use ids::configuration::{clientbound as from, serverbound as to};
+    let mut enchantments = Vec::new();
     loop {
         let (id, body) = c.read().await?;
         let mut input = &body[..];
@@ -181,14 +185,34 @@ async fn configure(c: &mut Connection) -> Result<(), Error> {
             from::PING => c.send(to::PONG, &Ping::read(&mut input)?).await?,
             // Claiming the server's own packs means it omits the vanilla registry contents.
             from::SELECT_KNOWN_PACKS => c.send(to::SELECT_KNOWN_PACKS, &SelectKnownPacks::read(&mut input)?).await?,
+            from::REGISTRY_DATA => {
+                if String::read(&mut input)? == ENCHANTMENT_REGISTRY {
+                    enchantments = registry_entries(&mut input)?;
+                }
+            }
             from::FINISH_CONFIGURATION => {
                 c.send(to::FINISH_CONFIGURATION, &Empty {}).await?;
-                return Ok(());
+                return Ok(enchantments);
             }
             from::DISCONNECT => return Err(Error::Disconnected(format!("{body:02x?}"))),
             _ => {}
         }
     }
+}
+
+const ENCHANTMENT_REGISTRY: &str = "minecraft:enchantment";
+
+/// `RegistryData` entries after the registry key: ids in network order, each with optional data (absent for packs
+/// both sides know).
+fn registry_entries(input: &mut &[u8]) -> Result<Vec<String>, Error> {
+    let mut names = Vec::new();
+    for _ in 0..read_varint(input)? {
+        names.push(String::read(input)?);
+        if bool::read(input)? {
+            acacia_java_proto::nbt::skip_tag(input)?;
+        }
+    }
+    Ok(names)
 }
 
 #[cfg(test)]
