@@ -32,7 +32,9 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
 3. **Java physics.** Port and fit against client traces until bit-exact. Crate `acacia-java-physics`; recordings
    in its `tests/traces`, made with the bridge's `tools/move-trace.sh` (branch `java-physics-trace`).
 4. **Backend split.** Move the ~97 `acacia-bot` files that touch Bedrock packets behind edition backends
-   (movement, interaction, inventory). Java bots path, dig and place.
+   (movement, interaction, inventory). Java bots path, dig and place. Done 2026-11-10 for goto with digging and
+   bridging (`acacia-bot` example `java_goto`); still Bedrock-only: threat perception (Java entities untracked),
+   enchantments on Java stacks, entity actions, item use in the air, forms, boats, elytra flight.
 5. **Inventory and crafting.** Java container clicks (state ids, carried item) behind the same API as
    Bedrock's ItemStackRequest.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
@@ -43,3 +45,5 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
 - Real 26.3 client (Fabric, Xvfb, `acacia-java-bridge/tools/client-shot.sh` pattern) for physics traces.
 - Paper + Grim as an anticheat gate: `tools/grim-gate.sh` drives `acacia-java-client`'s `java_gate` example over key
   scripts; judge by server corrections and Grim's verbose flags. `ACACIA_GATE_CHEAT=1` is the control that must fail.
+  Other examples run through it behind a wrapper that keeps `<host> <port>` and drops the gate's other arguments
+  (e.g. `java_goto` with `ACACIA_DIG`/`ACACIA_BRIDGE`).
