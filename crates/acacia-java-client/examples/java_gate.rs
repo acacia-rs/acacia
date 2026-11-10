@@ -1,10 +1,12 @@
 //! Walks a key script on an offline server for the anticheat gate (tools/grim-gate.sh):
 //! `java_gate <host> <port> <settle_seconds> <glider:0|1> [steps]`. Steps are xkeys.py's: `w=3`, `Control_L+w=2`,
-//! `wait=1`, `down=w`, `up=w`, `look=dx,dy`; mouse and hotbar steps only pass the time.
+//! `wait=1`, `down=w`, `up=w`, `look=dx,dy`, plus `dig=N`: dig the block underfoot, finishing on the Nth tick after
+//! the start; mouse and hotbar steps only pass the time.
 use std::time::Duration;
 
 use acacia_java_client::Client;
 use acacia_java_physics::Keys;
+use acacia_java_proto::actions::Direction;
 use acacia_java_proto::ids;
 use tokio::time::{Instant, timeout_at};
 
@@ -26,10 +28,25 @@ fn press(keys: &mut Keys, name: &str, on: bool) {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Dig {
+    None,
+    Start,
+    Continue,
+    Stop,
+}
+
 #[derive(Clone, Copy)]
 struct Tick {
     keys: Keys,
     turn: [f32; 2],
+    dig: Dig,
+}
+
+impl Tick {
+    fn held(keys: Keys) -> Self {
+        Tick { keys, turn: [0.0; 2], dig: Dig::None }
+    }
 }
 
 fn expand(steps: &[String]) -> Vec<Tick> {
@@ -45,16 +62,36 @@ fn expand(steps: &[String]) -> Vec<Tick> {
             "look" => {
                 let (dx, dy) = value.split_once(',').expect("look=dx,dy");
                 let per_tick = |pixels: &str| pixels.parse::<f32>().expect("pixels") * DEGREES_PER_PIXEL / LOOK_TICKS as f32;
-                ticks.extend(std::iter::repeat_n(Tick { keys: held, turn: [per_tick(dx), per_tick(dy)] }, LOOK_TICKS as usize));
+                ticks.extend(std::iter::repeat_n(Tick { turn: [per_tick(dx), per_tick(dy)], ..Tick::held(held) }, LOOK_TICKS as usize));
+            }
+            "dig" => {
+                let n: usize = value.parse().expect("dig=ticks");
+                ticks.push(Tick { dig: Dig::Start, ..Tick::held(held) });
+                ticks.extend(std::iter::repeat_n(Tick { dig: Dig::Continue, ..Tick::held(held) }, n.saturating_sub(1)));
+                ticks.push(Tick { dig: Dig::Stop, ..Tick::held(held) });
             }
             _ => {
                 let mut keys = held;
                 name.split('+').for_each(|k| press(&mut keys, k, true));
-                ticks.extend(std::iter::repeat_n(Tick { keys, turn: [0.0; 2] }, count));
+                ticks.extend(std::iter::repeat_n(Tick::held(keys), count));
             }
         }
     }
     ticks
+}
+
+/// `MultiPlayerGameMode`'s order: actions before the player's tick, a punch with each.
+fn dig(client: &mut Client, step: Dig, pos: [i32; 3]) -> Result<(), acacia_java_client::Error> {
+    match step {
+        Dig::None => return Ok(()),
+        Dig::Start => drop(client.start_destroy(pos, Direction::Up, false)?),
+        Dig::Continue => {}
+        Dig::Stop => {
+            client.stop_destroy(pos, Direction::Up)?;
+            println!("dug {pos:?}");
+        }
+    }
+    client.punch()
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -68,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         client.chat(&text)?;
         client.command(&format!("say {text}"))?;
     }
-    let mut script = vec![Tick { keys: Keys::default(), turn: [0.0; 2] }; settle];
+    let mut script = vec![Tick::held(Keys::default()); settle];
     script.extend(expand(&args[4..]));
     let (mut corrections, total) = (0, script.len());
     let mut next = Instant::now() + TICK;
@@ -87,6 +124,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let player = &mut client.movement.player;
                 player.yaw += tick.turn[0];
                 player.pitch = (player.pitch + tick.turn[1]).clamp(-90.0, 90.0);
+                let underfoot = player.pos.map(|c| c.floor() as i32);
+                dig(&mut client, tick.dig, [underfoot[0], underfoot[1] - 1, underfoot[2]])?;
                 client.step(tick.keys)?;
                 // Control run: proves the gate can fail.
                 if cheat && at > settle {

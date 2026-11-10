@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use acacia_java_proto::actions::BlockPos;
 use acacia_java_proto::chunk::{Section, read_chunk_header, read_sections};
 use acacia_java_proto::entity::{read_move, read_path_end, skip_lp_vec3};
 use acacia_java_proto::packets::PositionMoveRotation;
@@ -62,7 +63,7 @@ impl World {
         Some((section, Section::index((x & 15) as usize, (y & 15) as usize, (z & 15) as usize)))
     }
 
-    fn set_block(&mut self, pos: [i32; 3], state: u32) {
+    pub(crate) fn set_block(&mut self, pos: [i32; 3], state: u32) {
         let Some((section, index)) = self.locate(pos) else { return };
         if let Some(s) = self.chunks.get_mut(&(pos[0] >> 4, pos[2] >> 4)).and_then(|c| c.get_mut(section)) {
             s.set_block(index, state);
@@ -93,7 +94,7 @@ impl World {
                 self.chunks.remove(&(packed as i32, (packed >> 32) as i32));
             }
             from::BLOCK_UPDATE => {
-                let pos = unpack_block_pos(i64::read(input)?);
+                let BlockPos(pos) = BlockPos::read(input)?;
                 self.set_block(pos, read_varint(input)? as u32);
             }
             from::SECTION_BLOCKS_UPDATE => {
@@ -183,11 +184,6 @@ impl World {
     }
 }
 
-/// `BlockPos.asLong`: x 26 bits, z 26, y 12.
-fn unpack_block_pos(v: i64) -> [i32; 3] {
-    [(v >> 38) as i32, (v << 52 >> 52) as i32, (v << 26 >> 38) as i32]
-}
-
 /// `SectionPos.asLong`: x 22 bits, z 22, y 20.
 fn unpack_section_pos(v: i64) -> [i32; 3] {
     [(v >> 42) as i32, (v << 44 >> 44) as i32, (v << 22 >> 42) as i32]
@@ -198,9 +194,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn packed_positions_keep_their_sign() {
-        let pack = |x: i64, y: i64, z: i64| (x & 0x3ff_ffff) << 38 | (z & 0x3ff_ffff) << 12 | (y & 0xfff);
-        assert_eq!(unpack_block_pos(pack(-5, -64, 77)), [-5, -64, 77]);
+    fn packed_sections_keep_their_sign() {
         let section = |x: i64, y: i64, z: i64| (x & 0x3f_ffff) << 42 | (z & 0x3f_ffff) << 20 | (y & 0xf_ffff);
         assert_eq!(unpack_section_pos(section(-3, -4, 9)), [-3, -4, 9]);
     }

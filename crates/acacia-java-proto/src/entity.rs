@@ -61,6 +61,44 @@ pub fn read_lp_vec3(input: &mut &[u8]) -> Result<[f64; 3], Error> {
     Ok([3, 18, 33].map(|shift| unpack(buffer >> shift) * scale as f64))
 }
 
+/// `LpVec3.write`.
+pub fn write_lp_vec3(v: [f64; 3], out: &mut Vec<u8>) {
+    let v = v.map(|c| if c.is_nan() { 0.0 } else { c.clamp(-LP_ABS_MAX, LP_ABS_MAX) });
+    let longest = v.iter().fold(0.0_f64, |m, c| m.max(c.abs()));
+    if longest < LP_ABS_MIN {
+        out.push(0);
+        return;
+    }
+    let scale = longest.ceil() as u64;
+    let partial = scale & 3 != scale;
+    let markers = if partial { scale & 3 | 4 } else { scale };
+    let pack = |c: f64| ((c / scale as f64 * 0.5 + 0.5) * 32766.0).round() as u64;
+    let buffer = markers | pack(v[0]) << 3 | pack(v[1]) << 18 | pack(v[2]) << 33;
+    out.push(buffer as u8);
+    out.push((buffer >> 8) as u8);
+    ((buffer >> 16) as u32 as i32).write(out);
+    if partial {
+        VarInt((scale >> 2) as i32).write(out);
+    }
+}
+
+const LP_ABS_MAX: f64 = 1.7179869183E10;
+const LP_ABS_MIN: f64 = 3.051944088384301E-5;
+
+/// A vector in `LpVec3`'s encoding, as a packet field.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct LpVec3(pub [f64; 3]);
+
+impl Wire for LpVec3 {
+    fn read(input: &mut &[u8]) -> Result<Self, Error> {
+        read_lp_vec3(input).map(LpVec3)
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        write_lp_vec3(self.0, out);
+    }
+}
+
 /// An `LpVec3` nothing reads, such as an entity's spawn velocity.
 pub fn skip_lp_vec3(input: &mut &[u8]) -> Result<(), Error> {
     read_lp_vec3(input).map(|_| ())
@@ -97,5 +135,16 @@ mod tests {
         let mut partial: &[u8] = &[4, 0, 0, 0, 0, 0, 1, 9];
         skip_lp_vec3(&mut partial).unwrap();
         assert_eq!(partial, [9]);
+    }
+
+    #[test]
+    fn lp_vec3_round_trips_within_a_step() {
+        for v in [[0.0; 3], [0.5, -0.25, 0.125], [3.7, 0.0, -9.2], [-120.0, 64.5, 1.0]] {
+            let mut buf = Vec::new();
+            write_lp_vec3(v, &mut buf);
+            let back = read_lp_vec3(&mut &buf[..]).unwrap();
+            let step = v.iter().fold(1.0_f64, |m, c| m.max(c.abs().ceil())) * 2.0 / 32766.0;
+            assert!(v.iter().zip(back).all(|(a, b)| (a - b).abs() <= step), "{v:?} came back as {back:?}");
+        }
     }
 }

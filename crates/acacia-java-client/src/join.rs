@@ -4,6 +4,7 @@ use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids};
 use md5::{Digest, Md5};
 use tokio::net::TcpStream;
 
+use crate::actions::Actions;
 use crate::crypto::{random_secret, rsa_encrypt, server_hash};
 use crate::frame::{Connection, Error};
 use crate::link::{Link, Packet};
@@ -49,6 +50,7 @@ pub struct Client {
     pub pose: Pose,
     pub world: World,
     pub movement: Movement,
+    pub actions: Actions,
     loaded_sent: bool,
 }
 
@@ -72,7 +74,7 @@ impl Client {
         c.send(ids::login::serverbound::HELLO, &LoginHello { name: name.to_owned(), uuid }).await?;
         let profile = login(&mut c, session).await?;
         configure(&mut c).await?;
-        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), loaded_sent: false })
+        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), actions: Actions::default(), loaded_sent: false })
     }
 
     /// The next packet, already applied to the world and movement. Cancel-safe.
@@ -116,6 +118,7 @@ impl Client {
         }
         self.world.apply(id, body)?;
         self.movement.apply(id, body, self.world.player_id)?;
+        self.actions.apply(id, body)?;
         Ok(())
     }
 

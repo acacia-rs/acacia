@@ -19,6 +19,7 @@ macro_rules! packet {
         }
     };
 }
+pub(crate) use packet;
 
 packet!(Intention { protocol: VarInt, host: String, port: u16, intent: VarInt });
 packet!(LoginHello { name: String, uuid: u128 });

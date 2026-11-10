@@ -12,6 +12,8 @@ pub enum Error {
     BadPaletteIndex(u32),
     #[error("{0} bits per entry")]
     BadBits(u32),
+    #[error("no such {0}")]
+    Invalid(&'static str),
 }
 
 pub fn read_varlong(input: &mut &[u8]) -> Result<i64, Error> {

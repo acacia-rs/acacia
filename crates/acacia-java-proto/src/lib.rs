@@ -1,6 +1,7 @@
 //! Minecraft: Java Edition 26.3 packet codecs, network-free. Layouts are hand-written from the 26.3 codec classes;
 //! packet ids are generated (`tools/gen_ids.mjs`).
 
+pub mod actions;
 pub mod chunk;
 pub mod entity;
 pub mod ids;
