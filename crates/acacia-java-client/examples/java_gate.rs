@@ -70,10 +70,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut next = Instant::now() + TICK;
     let mut at = 0;
     while at < total {
-        match timeout_at(next, client.readable()).await {
-            Ok(ready) => {
-                ready?;
-                let packet = client.next().await?;
+        match timeout_at(next, client.next()).await {
+            Ok(packet) => {
+                let packet = packet?;
                 if packet.id == ids::play::clientbound::PLAYER_POSITION && at > settle {
                     corrections += 1;
                     println!("server moved the bot at tick {at} to {:?}", client.pose.position);
@@ -84,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let player = &mut client.movement.player;
                 player.yaw += tick.turn[0];
                 player.pitch = (player.pitch + tick.turn[1]).clamp(-90.0, 90.0);
-                client.step(tick.keys).await?;
+                client.step(tick.keys)?;
                 // Control run: proves the gate can fail.
                 if cheat && at > settle {
                     let delta = &mut client.movement.player.delta;

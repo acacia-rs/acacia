@@ -1,16 +1,14 @@
 use acacia_auth::{Account, JavaProfile};
-use acacia_java_proto::packets::{AcceptTeleportation, ChunkBatchReceived, Empty, EncryptionHello, EncryptionKey, INTENT_LOGIN, Intention, KeepAlive, LoginCompression, LoginFinished, LoginHello, Ping, PlayerPosition, SelectKnownPacks};
+use acacia_java_proto::packets::{AcceptTeleportation, Empty, EncryptionHello, EncryptionKey, INTENT_LOGIN, Intention, KeepAlive, LoginCompression, LoginFinished, LoginHello, Ping, PlayerPosition, SelectKnownPacks};
 use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids};
 use md5::{Digest, Md5};
 use tokio::net::TcpStream;
 
 use crate::crypto::{random_secret, rsa_encrypt, server_hash};
 use crate::frame::{Connection, Error};
+use crate::link::{Link, Packet};
 use crate::movement::Movement;
 use crate::world::World;
-
-/// Chunks per tick the client says it can take, as a client with time to spare does.
-const CHUNKS_PER_TICK: f32 = 20.0;
 
 /// The id an offline-mode server gives `name`: a v3 UUID of `OfflinePlayer:<name>`.
 pub fn offline_uuid(name: &str) -> u128 {
@@ -18,13 +16,6 @@ pub fn offline_uuid(name: &str) -> u128 {
     hash[6] = hash[6] & 0x0f | 0x30;
     hash[8] = hash[8] & 0x3f | 0x80;
     u128::from_be_bytes(hash)
-}
-
-/// A packet in the play state that [`Client::next`] did not answer by itself.
-#[derive(Debug)]
-pub struct Packet {
-    pub id: i32,
-    pub body: Vec<u8>,
 }
 
 /// Where the server last put the player.
@@ -52,7 +43,7 @@ impl Pose {
 
 /// A client in the play state.
 pub struct Client {
-    pub(crate) connection: Connection,
+    link: Link,
     pub uuid: u128,
     pub name: String,
     pub pose: Pose,
@@ -81,39 +72,51 @@ impl Client {
         c.send(ids::login::serverbound::HELLO, &LoginHello { name: name.to_owned(), uuid }).await?;
         let profile = login(&mut c, session).await?;
         configure(&mut c).await?;
-        Ok(Self { connection: c, uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), loaded_sent: false })
+        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), loaded_sent: false })
     }
 
-    /// The next packet, after sending any reply the protocol requires for it.
+    /// The next packet, already applied to the world and movement. Cancel-safe.
     pub async fn next(&mut self) -> Result<Packet, Error> {
+        let packet = self.link.recv().await.ok_or(Error::Closed)??;
+        self.apply(&packet)?;
+        Ok(packet)
+    }
+
+    /// Like [`Client::next`] for a packet that has already arrived.
+    pub fn try_next(&mut self) -> Option<Result<Packet, Error>> {
+        let packet = match self.link.try_recv()? {
+            Ok(packet) => packet,
+            Err(e) => return Some(Err(e)),
+        };
+        Some(self.apply(&packet).map(|()| packet))
+    }
+
+    /// Queues a play packet; [`Error::Closed`] once the connection is gone.
+    pub fn send(&self, id: i32, body: &impl Wire) -> Result<(), Error> {
+        self.link.send(id, body).then_some(()).ok_or(Error::Closed)
+    }
+
+    fn apply(&mut self, packet: &Packet) -> Result<(), Error> {
         use ids::play::{clientbound as from, serverbound as to};
-        let (id, body) = self.connection.read().await?;
-        let mut input = &body[..];
+        let (id, body) = (packet.id, &packet.body[..]);
         match id {
-            from::KEEP_ALIVE => self.connection.send(to::KEEP_ALIVE, &KeepAlive::read(&mut input)?).await?,
-            from::PING => self.connection.send(to::PONG, &Ping::read(&mut input)?).await?,
-            from::CHUNK_BATCH_FINISHED => self.connection.send(to::CHUNK_BATCH_RECEIVED, &ChunkBatchReceived { chunks_per_tick: CHUNKS_PER_TICK }).await?,
+            from::PING => self.send(to::PONG, &Ping::read(&mut &body[..])?)?,
             from::PLAYER_POSITION => {
-                let packet = PlayerPosition::read(&mut input)?;
-                self.pose = self.pose.teleported(&packet);
-                self.movement.teleported(self.pose, &packet);
+                let position = PlayerPosition::read(&mut &body[..])?;
+                self.pose = self.pose.teleported(&position);
+                self.movement.teleported(self.pose, &position);
                 let Pose { position: [x, y, z], y_rot, x_rot } = self.pose;
-                self.connection.send(to::ACCEPT_TELEPORTATION, &AcceptTeleportation { id: packet.id, x, y, z, y_rot, x_rot }).await?;
+                self.send(to::ACCEPT_TELEPORTATION, &AcceptTeleportation { id: position.id, x, y, z, y_rot, x_rot })?;
                 if !std::mem::replace(&mut self.loaded_sent, true) {
-                    self.connection.send(to::PLAYER_LOADED, &Empty {}).await?;
+                    self.send(to::PLAYER_LOADED, &Empty {})?;
                 }
             }
             from::DISCONNECT => return Err(Error::Disconnected(format!("{body:02x?}"))),
             _ => {}
         }
-        self.world.apply(id, &body)?;
-        self.movement.apply(id, &body, self.world.player_id)?;
-        Ok(Packet { id, body })
-    }
-
-    /// Waits until [`Client::next`] has something to read. Safe to cancel, unlike `next`.
-    pub async fn readable(&mut self) -> Result<(), Error> {
-        self.connection.readable().await
+        self.world.apply(id, body)?;
+        self.movement.apply(id, body, self.world.player_id)?;
+        Ok(())
     }
 
     pub(crate) fn loaded(&self) -> bool {

@@ -17,6 +17,9 @@ use ids::play::{clientbound as from, serverbound as to};
 const ABILITY_FLYING: u8 = 2;
 const ABILITY_MAY_FLY: u8 = 4;
 const ATTRIBUTE_MOVEMENT_SPEED: i32 = 26;
+const DATA_SHARED_FLAGS: u8 = 0;
+const SERIALIZER_BYTE: i32 = 0;
+const FLAG_FALL_FLYING: u8 = 1 << 7;
 const OPERATION_ADD_VALUE: i32 = 0;
 const MIN_MOVE_SQUARED: f64 = 2.0E-4 * 2.0E-4;
 const POSITION_REMINDER_TICKS: u32 = 20;
@@ -78,6 +81,8 @@ impl Movement {
     pub(crate) fn apply(&mut self, id: i32, mut input: &[u8], player_id: i32) -> Result<(), WireError> {
         if id == from::SET_ENTITY_MOTION && read_varint(&mut input)? == player_id {
             self.player.delta = read_lp_vec3(&mut input)?;
+        } else if id == from::SET_ENTITY_DATA && read_varint(&mut input)? == player_id {
+            self.read_shared_flags(&mut input)?;
         } else if id == from::UPDATE_ATTRIBUTES && read_varint(&mut input)? == player_id {
             self.read_attributes(&mut input)?;
         } else if id == from::PLAYER_ABILITIES {
@@ -86,6 +91,15 @@ impl Movement {
             self.player.may_fly = abilities.flags & ABILITY_MAY_FLY != 0;
             self.player.flying_speed = abilities.flying_speed;
             self.sent_flying = self.player.flying;
+        }
+        Ok(())
+    }
+
+    /// Only the server ends a glide: the client glides on, landed or not, until the shared flags say otherwise.
+    /// Items are sent in index order, so the flags byte (index 0) can only come first.
+    fn read_shared_flags(&mut self, input: &mut &[u8]) -> Result<(), WireError> {
+        if u8::read(input)? == DATA_SHARED_FLAGS && read_varint(input)? == SERIALIZER_BYTE {
+            self.player.fall_flying = u8::read(input)? & FLAG_FALL_FLYING != 0;
         }
         Ok(())
     }
@@ -122,51 +136,48 @@ fn input_flags(k: Keys) -> u8 {
 impl Client {
     /// One client tick: simulates the player with `keys` and sends what changed. Does nothing before the first
     /// teleport or while the player's chunk is missing.
-    pub async fn step(&mut self, keys: Keys) -> Result<(), Error> {
+    pub fn step(&mut self, keys: Keys) -> Result<(), Error> {
         let at = self.movement.player.pos.map(|v| v.floor() as i32);
         if !self.loaded() || !self.world.has_chunk(at) {
             return Ok(());
         }
         self.movement.player.tick(&self.world, keys);
-        let player = &mut self.movement.player;
-        if player.fall_flying && (player.on_ground || player.in_water) {
-            player.fall_flying = false;
-        }
+        let player = &self.movement.player;
         self.pose.position = player.pos;
         self.pose.y_rot = player.yaw;
         self.pose.x_rot = player.pitch;
-        self.send_changes().await?;
-        self.connection.send(to::CLIENT_TICK_END, &Empty {}).await
+        self.send_changes()?;
+        self.send(to::CLIENT_TICK_END, &Empty {})
     }
 
-    async fn send_command(&mut self, action: i32) -> Result<(), Error> {
+    fn send_command(&mut self, action: i32) -> Result<(), Error> {
         let packet = PlayerCommand { entity: VarInt(self.world.player_id), action: VarInt(action), data: VarInt(0) };
-        self.connection.send(to::PLAYER_COMMAND, &packet).await
+        self.send(to::PLAYER_COMMAND, &packet)
     }
 
-    async fn send_changes(&mut self) -> Result<(), Error> {
+    fn send_changes(&mut self) -> Result<(), Error> {
         let (keys, sprinting, flying, gliding) = (self.movement.player.keys, self.movement.player.sprinting, self.movement.player.flying, self.movement.player.fall_flying);
         // Vanilla sends these two from aiStep, so they arrive before the tick's input; Grim's ElytraB relies on it.
         if flying != self.movement.sent_flying {
-            self.connection.send(to::PLAYER_ABILITIES, &ServerboundAbilities { flags: if flying { ABILITY_FLYING } else { 0 } }).await?;
+            self.send(to::PLAYER_ABILITIES, &ServerboundAbilities { flags: if flying { ABILITY_FLYING } else { 0 } })?;
             self.movement.sent_flying = flying;
         }
         if gliding && !self.movement.sent_gliding {
-            self.send_command(COMMAND_START_FALL_FLYING).await?;
+            self.send_command(COMMAND_START_FALL_FLYING)?;
         }
         self.movement.sent_gliding = gliding;
         if keys != self.movement.sent_keys {
-            self.connection.send(to::PLAYER_INPUT, &PlayerInput { flags: input_flags(keys) }).await?;
+            self.send(to::PLAYER_INPUT, &PlayerInput { flags: input_flags(keys) })?;
             self.movement.sent_keys = keys;
         }
         if sprinting != self.movement.sent_sprinting {
-            self.send_command(if sprinting { COMMAND_START_SPRINTING } else { COMMAND_STOP_SPRINTING }).await?;
+            self.send_command(if sprinting { COMMAND_START_SPRINTING } else { COMMAND_STOP_SPRINTING })?;
             self.movement.sent_sprinting = sprinting;
         }
-        self.send_position().await
+        self.send_position()
     }
 
-    async fn send_position(&mut self) -> Result<(), Error> {
+    fn send_position(&mut self) -> Result<(), Error> {
         let m = &mut self.movement;
         let [x, y, z] = m.player.pos;
         let (y_rot, x_rot) = (m.player.yaw, m.player.pitch);
@@ -184,10 +195,10 @@ impl Client {
         m.sent_on_ground = m.player.on_ground;
         m.sent_collision = m.player.horizontal_collision;
         match (send_pos, send_rot) {
-            (true, true) => self.connection.send(to::MOVE_PLAYER_POS_ROT, &MovePlayerPosRot { x, y, z, y_rot, x_rot, flags }).await,
-            (true, false) => self.connection.send(to::MOVE_PLAYER_POS, &MovePlayerPos { x, y, z, flags }).await,
-            (false, true) => self.connection.send(to::MOVE_PLAYER_ROT, &MovePlayerRot { y_rot, x_rot, flags }).await,
-            (false, false) if status_changed => self.connection.send(to::MOVE_PLAYER_STATUS_ONLY, &MovePlayerStatusOnly { flags }).await,
+            (true, true) => self.send(to::MOVE_PLAYER_POS_ROT, &MovePlayerPosRot { x, y, z, y_rot, x_rot, flags }),
+            (true, false) => self.send(to::MOVE_PLAYER_POS, &MovePlayerPos { x, y, z, flags }),
+            (false, true) => self.send(to::MOVE_PLAYER_ROT, &MovePlayerRot { y_rot, x_rot, flags }),
+            (false, false) if status_changed => self.send(to::MOVE_PLAYER_STATUS_ONLY, &MovePlayerStatusOnly { flags }),
             (false, false) => Ok(()),
         }
     }

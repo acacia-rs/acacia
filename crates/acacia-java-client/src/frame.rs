@@ -4,8 +4,9 @@ use acacia_java_proto::{Wire, read_varint, write_varint};
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 use crate::crypto::Cfb8;
 
@@ -31,35 +32,79 @@ pub enum Error {
     NeedsAccount,
     #[error(transparent)]
     Auth(#[from] acacia_auth::Error),
+    #[error("the connection is closed")]
+    Closed,
 }
 
-/// Length-prefixed frames over TCP, zlib-compressed once the server sets a threshold.
-pub struct Connection {
-    stream: BufReader<TcpStream>,
+/// The receiving half: length-prefixed frames, decrypted and inflated.
+pub struct FrameReader {
+    stream: BufReader<OwnedReadHalf>,
     threshold: Option<usize>,
-    cipher: Option<(Cfb8, Cfb8)>,
+    cipher: Option<Cfb8>,
+}
+
+/// The sending half.
+pub struct FrameWriter {
+    stream: OwnedWriteHalf,
+    threshold: Option<usize>,
+    cipher: Option<Cfb8>,
+}
+
+/// Both halves during login and configuration, before [`crate::Link`] takes them over.
+pub struct Connection {
+    reader: FrameReader,
+    writer: FrameWriter,
 }
 
 impl Connection {
     pub fn new(stream: TcpStream) -> Self {
-        Self { stream: BufReader::new(stream), threshold: None, cipher: None }
+        let (read, write) = stream.into_split();
+        Self {
+            reader: FrameReader { stream: BufReader::new(read), threshold: None, cipher: None },
+            writer: FrameWriter { stream: write, threshold: None, cipher: None },
+        }
     }
 
     /// Everything after this call is encrypted in both directions.
     pub(crate) fn enable_encryption(&mut self, secret: &[u8; 16]) {
-        self.cipher = Some((Cfb8::new(secret), Cfb8::new(secret)));
-    }
-
-    async fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), Error> {
-        self.stream.read_exact(buf).await?;
-        if let Some((decrypt, _)) = &mut self.cipher {
-            decrypt.decrypt(buf);
-        }
-        Ok(())
+        self.reader.cipher = Some(Cfb8::new(secret));
+        self.writer.cipher = Some(Cfb8::new(secret));
     }
 
     pub fn set_compression(&mut self, threshold: i32) {
-        self.threshold = usize::try_from(threshold).ok();
+        let threshold = usize::try_from(threshold).ok();
+        self.reader.threshold = threshold;
+        self.writer.threshold = threshold;
+    }
+
+    pub async fn read(&mut self) -> Result<(i32, Vec<u8>), Error> {
+        self.reader.read().await
+    }
+
+    pub async fn send(&mut self, id: i32, body: &impl Wire) -> Result<(), Error> {
+        self.writer.write(encode(id, body)).await
+    }
+
+    pub(crate) fn into_halves(self) -> (FrameReader, FrameWriter) {
+        (self.reader, self.writer)
+    }
+}
+
+/// A packet as sent: id, then body.
+pub(crate) fn encode(id: i32, body: &impl Wire) -> Vec<u8> {
+    let mut packet = Vec::new();
+    write_varint(id, &mut packet);
+    body.write(&mut packet);
+    packet
+}
+
+impl FrameReader {
+    async fn read_bytes(&mut self, buf: &mut [u8]) -> Result<(), Error> {
+        self.stream.read_exact(buf).await?;
+        if let Some(decrypt) = &mut self.cipher {
+            decrypt.decrypt(buf);
+        }
+        Ok(())
     }
 
     async fn read_frame_length(&mut self) -> Result<usize, Error> {
@@ -73,13 +118,7 @@ impl Connection {
         Err(Error::BadFrame(MAX_FRAME + 1))
     }
 
-    /// Waits until a packet has started arriving. Unlike [`Connection::read`], safe to cancel.
-    pub async fn readable(&mut self) -> Result<(), Error> {
-        self.stream.fill_buf().await?;
-        Ok(())
-    }
-
-    /// The next packet's id and body.
+    /// The next packet's id and body. Not cancel-safe: a dropped call loses its partial frame.
     pub async fn read(&mut self) -> Result<(i32, Vec<u8>), Error> {
         let len = self.read_frame_length().await?;
         if len == 0 || len > MAX_FRAME {
@@ -94,11 +133,11 @@ impl Connection {
         data.drain(..start);
         Ok((id, data))
     }
+}
 
-    pub async fn send(&mut self, id: i32, body: &impl Wire) -> Result<(), Error> {
-        let mut packet = Vec::new();
-        write_varint(id, &mut packet);
-        body.write(&mut packet);
+impl FrameWriter {
+    /// Writes an [`encode`]d packet.
+    pub async fn write(&mut self, packet: Vec<u8>) -> Result<(), Error> {
         let content = match self.threshold {
             Some(threshold) => compress(packet, threshold)?,
             None => packet,
@@ -106,7 +145,7 @@ impl Connection {
         let mut frame = Vec::with_capacity(content.len() + 3);
         write_varint(content.len() as i32, &mut frame);
         frame.extend_from_slice(&content);
-        if let Some((_, encrypt)) = &mut self.cipher {
+        if let Some(encrypt) = &mut self.cipher {
             encrypt.encrypt(&mut frame);
         }
         self.stream.write_all(&frame).await?;

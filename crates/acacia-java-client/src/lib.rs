@@ -3,9 +3,11 @@
 mod crypto;
 mod frame;
 mod join;
+mod link;
 mod movement;
 pub mod world;
 
 pub use frame::{Connection, Error};
-pub use join::{Client, Packet, Pose, offline_uuid};
+pub use join::{Client, Pose, offline_uuid};
+pub use link::{Link, Packet};
 pub use movement::Movement;
