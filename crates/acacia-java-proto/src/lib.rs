@@ -5,6 +5,9 @@ pub mod actions;
 pub mod chunk;
 pub mod entity;
 pub mod ids;
+pub mod inventory;
+pub mod item;
+pub mod nbt;
 pub mod packets;
 mod wire;
 

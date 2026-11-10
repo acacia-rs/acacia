@@ -14,6 +14,8 @@ pub enum Error {
     BadBits(u32),
     #[error("no such {0}")]
     Invalid(&'static str),
+    #[error("nested deeper than {0}")]
+    TooDeep(u32),
 }
 
 pub fn read_varlong(input: &mut &[u8]) -> Result<i64, Error> {
@@ -57,13 +59,13 @@ pub fn write_varint(value: i32, out: &mut Vec<u8>) {
     out.push(v as u8);
 }
 
-fn take<'a>(input: &mut &'a [u8], n: usize) -> Result<&'a [u8], Error> {
+pub(crate) fn take<'a>(input: &mut &'a [u8], n: usize) -> Result<&'a [u8], Error> {
     let (head, rest) = input.split_at_checked(n).ok_or(Error::Eof)?;
     *input = rest;
     Ok(head)
 }
 
-fn read_len(input: &mut &[u8]) -> Result<usize, Error> {
+pub(crate) fn read_len(input: &mut &[u8]) -> Result<usize, Error> {
     let len = read_varint(input)?;
     usize::try_from(len).map_err(|_| Error::NegativeLength(len))
 }
