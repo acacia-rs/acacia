@@ -19,7 +19,7 @@ impl Bot {
                 b.client.send(&request);
             }
             let rejected = world.rejected.drain(..).filter(|_| b.strict);
-            self.pending.extend(rejected.map(BotEvent::Violation));
+            self.out.extend(rejected.map(BotEvent::Violation));
         }
         if let Some(packet) = b.lag.as_mut().and_then(|l| l.pop_due(tokio::time::Instant::now())) {
             self.apply(&packet);
@@ -37,8 +37,12 @@ impl Bot {
             event = b.client.recv() => self.on_event(event?),
             // In an async block: select! builds a disabled branch's future too, and a bare sleep looks up the timer.
             _ = async { tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)).await }, if lagged.is_some() => Some(Step::Idle),
+            Some(request) = self.inbox.rx.recv() => {
+                self.on_immediate(request);
+                Some(Step::Idle)
+            }
             ticks = self.ticker.wait() => {
-                (0..ticks).for_each(|_| self.on_tick());
+                self.run_ticks(ticks);
                 Some(Step::Tick)
             }
         }
@@ -55,7 +59,7 @@ impl Bot {
                 Some(Step::Packet(packet))
             }
             Event::Violation(violation) => {
-                self.pending.push_back(BotEvent::Violation(violation));
+                self.out.push(BotEvent::Violation(violation));
                 Some(Step::Idle)
             }
             Event::Disconnected(reason) => {
@@ -98,6 +102,7 @@ impl Bot {
         self.auto_respawn(packet, was_alive);
         self.reflex_packet(packet);
         self.on_fetch_packet(packet);
-        self.events.on_packet(packet, &mut self.state, &mut self.pending);
+        self.publish_entity_changes();
+        self.events.on_packet(packet, &mut self.state, &mut self.out);
     }
 }

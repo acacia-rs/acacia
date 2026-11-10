@@ -21,12 +21,13 @@ use tokio::sync::{broadcast, watch};
 
 pub use builder::SwarmBuilder;
 pub use events::{BotInfo, BotStatus, Snapshot, SwarmEvent};
+pub use join_queue::JoinQueue;
 pub use lease::{AccountLease, Lease, LeaseError, LocalLeases};
 pub use policy::{Decision, DisconnectHook, Policy};
 pub use spec::{BotId, BotSpec, Login, Target};
 
 use registry::Take;
-use shard::{Job, Shard};
+pub use shard::{Job, OnPanic, Shard};
 use supervisor::Ctx;
 
 type Spawn<S> = dyn Fn(BotSpec<S>, watch::Receiver<bool>) -> Job + Send + Sync;

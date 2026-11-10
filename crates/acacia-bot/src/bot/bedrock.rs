@@ -5,8 +5,9 @@ use std::sync::Arc;
 use acacia_client::proto::types::InputData;
 use acacia_client::{Client, ClientBuilder, ConnectError, MemoryBlobStore, PacketFilter, PacketTraceSummary};
 
+use super::Assembly;
 use super::dimension::{self, Travel};
-use crate::events::EventSource;
+use crate::events::{EventOut, EventSource};
 use crate::interact::closing::PendingClose;
 use crate::interact::pipeline::{Pipeline, StackUndo};
 use crate::items::RequestIds;
@@ -51,8 +52,7 @@ impl Bedrock {
     /// Connects and spawns. Tracked packets are added to `builder`'s subscription automatically.
     pub(super) async fn connect(builder: ClientBuilder, mut config: BotConfig) -> Result<Bot, ConnectError> {
         config.trackers.block_entities = config.trackers.block_entities.resolve(config.physics);
-        let events = EventSource::new(config.events, config.chat_patterns);
-        let mut tracked: PacketFilter = config.trackers.packet_ids().into_iter().chain(events.packet_ids()).collect();
+        let mut tracked: PacketFilter = config.trackers.packet_ids().into_iter().collect();
         tracked = PredictionSync::PACKETS.iter().chain(crate::sleep::PACKETS).chain(dimension::PACKETS).fold(tracked, |f, &id| f.with(id));
         tracked = WorldTracker::PACKETS.iter().fold(tracked, |f, &id| f.with(id));
         let mode = if config.physics { Movement::PACKETS } else { SubChunkRequester::PACKETS };
@@ -67,7 +67,8 @@ impl Bedrock {
             builder = builder.blob_store(Arc::new(MemoryBlobStore::with_payloads()));
         }
         // The bot sends SetLocalPlayerAsInitialized itself, when it leaves the loading screen (spawn.rs).
-        let client = builder.filter(tracked.union(&config.subscribe)).initialize_on_spawn(false).strict(config.strict).connect().await?;
+        let events = EventSource::new(config.events, config.chat_patterns).with_base(tracked.union(&config.subscribe));
+        let client = builder.filter(events.filter()).initialize_on_spawn(false).strict(config.strict).connect().await?;
         let state = GameState::new(config.trackers, client.runtime_entity_id());
         let recorder = config.record.as_deref().filter(|_| config.physics).and_then(|path| {
             Recorder::create(path).inspect_err(|e| tracing::warn!(error = %e, "cannot record trace")).ok()
@@ -102,7 +103,8 @@ impl Bedrock {
             closing: None,
             lag: config.lag.map(LagLine::new),
         };
-        Ok(Bot::assemble(Backend::Bedrock(Box::new(bedrock)), state, events, config.auto_respawn, config.auto_eat))
+        let assembly = Assembly { auto_respawn: config.auto_respawn, auto_eat: config.auto_eat, snapshots: config.snapshots };
+        Ok(Bot::assemble(Backend::Bedrock(Box::new(bedrock)), state, events, EventOut::new(config.event_sink), assembly))
     }
 
     pub fn client(&self) -> &Client {

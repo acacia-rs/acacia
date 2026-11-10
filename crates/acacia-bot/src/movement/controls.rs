@@ -38,7 +38,39 @@ pub struct Controls {
     pub pitch: f32,
 }
 
+/// A movement key held or released from outside an action ([`crate::Immediate::Key`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Key {
+    Forward,
+    Back,
+    Left,
+    Right,
+    Jump,
+    Sneak,
+    Sprint,
+}
+
 impl Controls {
+    /// Holds or releases `key`; of two opposite keys the last one pressed wins, as on a keyboard.
+    pub fn set_key(&mut self, key: Key, down: bool) {
+        let axis = |v: &mut f32, sign: f32| {
+            if down {
+                *v = sign;
+            } else if *v == sign {
+                *v = 0.0;
+            }
+        };
+        match key {
+            Key::Forward => axis(&mut self.forward, 1.0),
+            Key::Back => axis(&mut self.forward, -1.0),
+            Key::Left => axis(&mut self.strafe, 1.0),
+            Key::Right => axis(&mut self.strafe, -1.0),
+            Key::Jump => self.jump = down,
+            Key::Sneak => self.sneak = down,
+            Key::Sprint => self.sprint = down,
+        }
+    }
+
     pub fn stop(&mut self) {
         (self.forward, self.strafe, self.jump, self.sprint) = (0.0, 0.0, false, false);
     }

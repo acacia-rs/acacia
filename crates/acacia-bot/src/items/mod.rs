@@ -19,9 +19,9 @@ mod slot;
 pub mod ui;
 
 pub(crate) use plan::Plan;
-pub(crate) use quick::{onto_cursor, to_inventory_ops, to_inventory_ops_after};
+pub(crate) use quick::{onto_cursor, quick_move_up_to_ops, to_inventory_ops, to_inventory_ops_after};
 pub(crate) use request::{beacon_payment, response_for, RequestIds};
-pub(crate) use slot::is_own_screen;
+pub(crate) use slot::{is_own_screen, open_container};
 #[cfg(test)]
 pub(crate) use slot::{BlockKind, Screen};
 pub use click::Click;

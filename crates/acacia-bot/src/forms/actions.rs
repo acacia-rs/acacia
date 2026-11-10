@@ -54,20 +54,20 @@ impl Bot {
     }
 
     /// Waits for the next form the server shows (one already open doesn't count). The form is
-    /// taken out of the event queue, so it isn't returned by [`Bot::next`] as well.
+    /// taken out of the event queue, so it isn't returned by [`Bot::next`] as well (an event sink has it already).
     pub async fn wait_form(&mut self, timeout: Duration) -> Result<Form, ActionError> {
         #[cfg(feature = "java")]
         if self.java().is_some() {
             let before = self.state.forms.latest().map(|f| f.id);
             let id = self.wait_until(timeout, |bot, _| bot.state.forms.latest().map(|f| f.id).filter(|&id| Some(id) != before)).await?;
-            self.pending.retain(|e| !matches!(e, BotEvent::Form(f) if f.id == id));
+            self.out.retain(|e| !matches!(e, BotEvent::Form(f) if f.id == id));
             return self.open_form(id);
         }
         let id = self
             .wait_until(timeout, |_, p| (p.id == ModalFormRequest::ID).then(|| p.decode::<ModalFormRequest>().ok()).flatten())
             .await?
             .form_id;
-        self.pending.retain(|e| !matches!(e, BotEvent::Form(f) if f.id == id));
+        self.out.retain(|e| !matches!(e, BotEvent::Form(f) if f.id == id));
         self.open_form(id)
     }
 

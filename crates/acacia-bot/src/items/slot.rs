@@ -48,6 +48,7 @@ impl SlotRef {
 
     pub(crate) fn stack_mut(self, state: &mut GameState) -> Option<&mut ItemStack> {
         let inv = &mut state.inventory;
+        inv.touch();
         match self {
             SlotRef::Main(i) => inv.main.get_mut(usize::from(i)),
             SlotRef::Armor(i) => inv.armor.get_mut(usize::from(i)),

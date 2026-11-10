@@ -24,7 +24,7 @@ pub use java_sim::{JAVA, JavaSim, JavaView};
 #[cfg(feature = "java")]
 pub(crate) use java_sim::keys as java_keys;
 
-pub use controls::Controls;
+pub use controls::{Controls, Key};
 pub(crate) use controls::{attach_actions, VehicleCorrection};
 pub use fork::{BEDROCK, Rollout};
 pub use sim::{Body, Envelope, Live, Motion, Sim, SimWorld, StepIn, Traits};
@@ -159,6 +159,11 @@ impl Movement {
     /// The simulation's on-ground flag (false before movement starts).
     pub fn on_ground(&self) -> bool {
         self.physics.as_ref().is_some_and(|p| p.on_ground)
+    }
+
+    /// Simulated velocity, blocks per tick.
+    pub fn velocity(&self) -> Option<Vec3> {
+        self.physics.as_ref().map(|p| p.vel)
     }
 
     pub fn eye_position(&self) -> Option<Vec3> {

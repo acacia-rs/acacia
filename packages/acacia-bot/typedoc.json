@@ -1,0 +1,31 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@acacia-rs/bot",
+  "entryPoints": ["src/index.ts"],
+  "tsconfig": "tsconfig.json",
+  "out": "docs-site",
+  "readme": "README.md",
+  "includeVersion": true,
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "modifierTags": [
+    "@mcp", "@privileged",
+    "@alpha", "@beta", "@eventProperty", "@experimental", "@internal", "@override", "@packageDocumentation", "@public",
+    "@readonly", "@sealed", "@virtual", "@abstract", "@class", "@disableGroups", "@enum", "@event", "@expand", "@hidden",
+    "@hideCategories", "@hideconstructor", "@hideGroups", "@ignore", "@inline", "@interface", "@namespace", "@function",
+    "@overload", "@private", "@protected", "@reexport", "@showCategories", "@showGroups", "@useDeclaredType",
+    "@primaryExport"
+  ],
+  "sort":["kind", "instance-first", "source-order"],
+  "requiredToBeDocumented": ["Enum", "Variable", "Function", "Class", "Interface", "Method", "Accessor", "TypeAlias"],
+  "intentionallyNotExported": ["src/entity-table.ts:Store", "src/core.ts:Voided", "src/core.ts:BotParams", "JsonValue"],
+  "treatWarningsAsErrors": true,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "rewrittenLink": true,
+    "notDocumented": true,
+    "unusedMergeModuleWith": true
+  }
+}

@@ -1,11 +1,10 @@
-use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::time::Duration;
 
 use acacia_client::proto::{Packet, RawPacket};
 use acacia_client::{ClientBuilder, ConnectError, DisconnectReason};
 use crate::cadence::Ticker;
-use crate::events::{BotEvent, EventSource, Events};
+use crate::events::{BotEvent, EventOut, EventSource, Events};
 use crate::governor::Governor;
 use crate::human::Human;
 use crate::movement::Controls;
@@ -46,11 +45,11 @@ pub struct Bot {
     pub(crate) auto_respawn: bool,
     /// Ticks until the scheduled respawn (respawn.rs).
     pub(crate) respawn_in: Option<u32>,
-    events: EventSource,
+    pub(crate) events: EventSource,
     pub(crate) human: Human,
     pub(crate) survival: Survival,
-    /// Events not yet returned by [`Bot::next`] (queued while stepping or while an action waited).
-    pub(crate) pending: VecDeque<BotEvent>,
+    /// Events not yet returned by [`Bot::next`], or the sink they go to (see [`crate::events`]).
+    pub(crate) out: EventOut,
     pub(crate) ride: Ride,
     pub(crate) bed: Bed,
     pub(crate) reflexes: Reflexes,
@@ -59,6 +58,8 @@ pub struct Bot {
     pub(crate) governor: Governor,
     pub(crate) act_timing: crate::act_timing::ActTiming,
     pub(crate) cancel: crate::cancel::CancelState,
+    pub(crate) inbox: crate::inbox::InboxState,
+    pub(crate) snapshots: Option<crate::snapshot::Publisher>,
 }
 
 impl Bot {
@@ -67,17 +68,17 @@ impl Bot {
         Bedrock::connect(builder, config).await
     }
 
-    fn assemble(backend: Backend, state: GameState, events: EventSource, auto_respawn: bool, auto_eat: Option<AutoEat>) -> Bot {
+    fn assemble(backend: Backend, state: GameState, events: EventSource, out: EventOut, config: Assembly) -> Bot {
         Bot {
             backend,
             state,
             ticker: Ticker::new(),
-            auto_respawn,
+            auto_respawn: config.auto_respawn,
             respawn_in: None,
             events,
             human: Human::default(),
-            survival: Survival::new(auto_eat),
-            pending: VecDeque::new(),
+            survival: Survival::new(config.auto_eat),
+            out,
             ride: Ride::default(),
             bed: Bed::default(),
             reflexes: Reflexes::default(),
@@ -86,6 +87,8 @@ impl Bot {
             governor: Governor::default(),
             act_timing: Default::default(),
             cancel: Default::default(),
+            inbox: Default::default(),
+            snapshots: config.snapshots.then(Default::default),
         }
     }
 
@@ -168,29 +171,38 @@ impl Bot {
     }
 
     /// Processes incoming packets and ticks until an event (typed or a subscribed packet) is ready or
-    /// the connection ends. Must be polled continuously for state, input and movement to run.
+    /// the connection ends. Must be polled continuously for state, input and movement to run. With an
+    /// event sink it returns only `None`, once the connection is gone (see [`crate::events`]).
     pub async fn next(&mut self) -> Option<BotEvent> {
         self.idle_again();
         loop {
-            if let Some(event) = self.pending.pop_front() {
+            if let Some(event) = self.out.pop() {
                 return Some(event);
             }
             self.survival.idle = true;
             match self.step().await? {
                 Step::Packet(packet) => self.keep_for_caller(packet),
-                Step::Tick if self.events.wants(Events::TICKS) => return Some(BotEvent::Tick),
+                Step::Tick if !self.out.is_sink() && self.events.wants(Events::TICKS) => return Some(BotEvent::Tick),
                 Step::Tick | Step::Idle => {}
-                Step::Disconnected(reason) => return Some(BotEvent::Disconnected(reason)),
+                Step::Disconnected(reason) => return self.out.hand_over(BotEvent::Disconnected(reason)),
             }
         }
     }
 
     /// Handles one incoming packet or movement tick, updating state. `None` once the connection is gone.
     pub(crate) async fn step(&mut self) -> Option<Step> {
+        self.drain_inbox();
         match self.backend {
             Backend::Bedrock(_) => self.bedrock_step().await,
             #[cfg(feature = "java")]
             Backend::Java(_) => self.java_step().await,
         }
     }
+}
+
+/// The edition-neutral parts of [`BotConfig`] every backend's connect hands to [`Bot::assemble`].
+pub(crate) struct Assembly {
+    pub auto_respawn: bool,
+    pub auto_eat: Option<AutoEat>,
+    pub snapshots: bool,
 }

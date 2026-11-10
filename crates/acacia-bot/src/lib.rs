@@ -17,6 +17,7 @@ mod fishing;
 pub mod forms;
 pub mod governor;
 mod human;
+pub mod inbox;
 mod lag;
 pub mod interact;
 pub mod items;
@@ -26,6 +27,7 @@ mod prediction_sync;
 mod reflex;
 mod respawn;
 pub mod signs;
+pub mod snapshot;
 mod sleep;
 mod riding;
 mod spawn;
@@ -42,6 +44,8 @@ pub mod text;
 pub mod trace;
 
 pub use acacia_client::{self as client, proto, ConnectError, DisconnectReason, Reason, Violation};
+#[cfg(feature = "java")]
+pub use acacia_java_client as java_client;
 pub use bot::{Bedrock, Bot};
 #[cfg(feature = "java")]
 pub use bot::Java;
@@ -49,4 +53,5 @@ pub use cancel::CancelHandle;
 pub use config::BotConfig;
 pub use lag::Lag;
 pub use events::{BotEvent, Events};
+pub use inbox::{Immediate, Inbox};
 pub use state::GameState;

@@ -13,6 +13,7 @@ mod java;
 mod moves;
 mod properties;
 mod solids;
+mod stamps;
 
 pub use equipment::Equipment;
 pub use properties::{Property, Values as PropertyValues};
@@ -43,6 +44,8 @@ pub struct Entity {
     pub motion: Vec3f,
     /// [`Entities::now`] when the position last changed (spawn included).
     pub moved_at: u64,
+    /// [`Entities::listed_version`] when a field the snapshot list carries last changed.
+    pub(crate) listed_at: u64,
     pub on_ground: bool,
     /// Players only; the key into [`super::PlayerList`] and [`super::Skins`].
     pub uuid: Option<Uuid>,
@@ -72,6 +75,7 @@ impl Entity {
             motion: velocity.clone(),
             velocity,
             moved_at: 0,
+            listed_at: 0,
             on_ground: false,
             uuid: None,
             metadata: Metadata::default(),
@@ -116,9 +120,26 @@ pub struct Entities {
     now: u64,
     /// Lean tracking ([`super::Trackers::hazards`]): only what hazard avoidance reads is kept.
     pub(crate) lean: bool,
+    /// Moves on every entity packet applied (a cheap over-approximation of "something changed").
+    version: u64,
+    stamps: stamps::Stamps,
+    /// Spawns and removals since the event source last took them (full tracking only).
+    pub(crate) changes: Vec<EntityChange>,
+}
+
+/// One spawn or removal, for the entity events.
+#[derive(Debug)]
+pub(crate) enum EntityChange {
+    Spawned(u64),
+    Gone(Box<Entity>),
 }
 
 impl Entities {
+    /// Moves whenever an entity packet was applied (snapshots follow [`Entities::listed_version`]).
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
     pub fn get(&self, runtime_id: u64) -> Option<&Entity> {
         self.by_runtime.get(&runtime_id).map(|e| &**e)
     }
@@ -136,9 +157,11 @@ impl Entities {
     /// send moves for).
     pub(crate) fn set_pose(&mut self, runtime_id: u64, feet: [f32; 3], yaw: f32, pitch: f32) {
         if let Some(e) = self.by_runtime.get_mut(&runtime_id) {
+            self.version += 1;
             let [x, y, z] = feet;
             e.position = Vec3f { x, y, z };
             (e.yaw, e.pitch) = (yaw, pitch);
+            self.stamps.touch(e);
         }
     }
 

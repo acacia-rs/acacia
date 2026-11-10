@@ -26,6 +26,7 @@ pub(crate) enum Command {
     Send(Bytes),
     Respawn,
     RespawnDone,
+    Filter(PacketFilter),
     Close,
 }
 
@@ -143,6 +144,7 @@ impl Driver {
                         Some(Command::Send(packet)) => self.session.send_raw(packet),
                         Some(Command::Respawn) => self.session.respawn(),
                         Some(Command::RespawnDone) => self.session.send_respawn_done(),
+                        Some(Command::Filter(filter)) => self.filter = filter,
                         Some(Command::Close) | None => self.session.close(Instant::now()),
                     }
                     None

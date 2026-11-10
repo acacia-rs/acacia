@@ -1,0 +1,12 @@
+{
+  "name": "acacia-js-api-docs",
+  "private": true,
+  "description": "TypeDoc for @acacia-rs/bot (npm run docs there). Its own workspace because TypeDoc needs TypeScript <= 6.0 as a peer and the packages build with 7.",
+  "scripts": {
+    "bot": "typedoc --options ../acacia-bot/typedoc.json"
+  },
+  "devDependencies": {
+    "typedoc": "0.28.20",
+    "typescript": "6.0.3"
+  }
+}

@@ -6,7 +6,7 @@ use acacia_client::proto::packets::{
 };
 use acacia_client::proto::{DecodeError, Packet, RawPacket};
 
-use super::{Entities, Entity, Equipment, ITEM_KIND, PLAYER_KIND};
+use super::{Entities, Entity, EntityChange, Equipment, ITEM_KIND, PLAYER_KIND};
 use crate::state::Me;
 
 impl Entities {
@@ -43,6 +43,7 @@ impl Entities {
 
     pub fn apply(&mut self, packet: &RawPacket, me: &Me) -> Result<(), DecodeError> {
         let now = self.now;
+        self.version += 1;
         match packet.id {
             MoveEntityDelta::ID => self.move_delta(&packet.decode()?),
             MoveEntity::ID => self.move_absolute(&packet.decode()?),
@@ -52,6 +53,7 @@ impl Entities {
                 if let Some(e) = self.by_runtime.get_mut(&p.runtime_entity_id) {
                     e.motion = p.velocity.clone();
                     e.velocity = p.velocity;
+                    self.stamps.touch(e);
                 }
             }
             SetEntityData::ID => {
@@ -70,6 +72,7 @@ impl Entities {
             UpdateAttributes::ID if !self.lean => {
                 if let Some(e) = crate::state::leading_entity(packet).and_then(|id| self.by_runtime.get_mut(&id)) {
                     e.attributes.extend(packet.decode::<UpdateAttributes>()?.attributes.into_iter().map(|a| (a.name, a.current)));
+                    self.stamps.touch(e);
                 }
             }
             MobEffect::ID if !self.lean => {
@@ -127,13 +130,17 @@ impl Entities {
             }
             RemoveEntity::ID => {
                 let unique = packet.decode::<RemoveEntity>()?.entity_id_self;
-                if let Some(runtime) = self.runtime_by_unique.remove(&unique) {
-                    self.by_runtime.remove(&runtime);
+                if let Some(gone) = self.runtime_by_unique.remove(&unique).and_then(|r| self.by_runtime.remove(&r)) {
+                    self.stamps.members_changed();
+                    self.gone(gone);
                 }
             }
             // The client drops every entity on a dimension change; the server re-adds what is in view.
             ChangeDimension::ID => {
-                self.by_runtime.clear();
+                self.stamps.members_changed();
+                for (_, gone) in std::mem::take(&mut self.by_runtime) {
+                    self.gone(gone);
+                }
                 self.runtime_by_unique.clear();
             }
             _ => {}
@@ -149,6 +156,16 @@ impl Entities {
             self.runtime_by_unique.remove(&old.unique_id);
         }
         self.runtime_by_unique.insert(entity.unique_id, entity.runtime_id);
+        self.stamps.members_changed();
+        if !self.lean {
+            self.changes.push(EntityChange::Spawned(entity.runtime_id));
+        }
         self.by_runtime.insert(entity.runtime_id, Box::new(entity));
+    }
+
+    fn gone(&mut self, entity: Box<Entity>) {
+        if !self.lean {
+            self.changes.push(EntityChange::Gone(entity));
+        }
     }
 }

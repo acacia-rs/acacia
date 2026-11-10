@@ -1,0 +1,24 @@
+[package]
+name = "acacia-daemon"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Serves acacia-host over WebSocket (JSON-RPC 2.0), so bots outlive the scripts that drive them"
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+acacia-api = { version = "0.1.0", path = "../acacia-api" }
+acacia-host = { version = "0.1.0", path = "../acacia-host" }
+futures-util = { version = "0.3.34", default-features = false, features = ["sink"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+subtle = "2.6"
+tokio ={ version = "1.53.1", features = ["rt-multi-thread", "net", "time", "macros", "sync", "signal"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
+
+[dev-dependencies]
+acacia-host = { path = "../acacia-host", features = ["fake-sign-in"] }
+acacia-proto.workspace = true
+acacia-testserver = { path = "../acacia-testserver" }

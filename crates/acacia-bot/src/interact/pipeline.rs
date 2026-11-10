@@ -195,6 +195,7 @@ impl Bot {
                     let main = &mut self.state.inventory.main[usize::from(s.slot)];
                     if let Some(back) = give_back(main, &s.predicted, &s.before) {
                         *main = back;
+                        self.state.inventory.touch();
                     }
                 }
                 let target = d.target;

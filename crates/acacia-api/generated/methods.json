@@ -1,0 +1,3401 @@
+{
+  "methods": [
+    {
+      "description": "Connects a bot and resolves once it has spawned. The `done` record names the new bot.",
+      "flags": [],
+      "lane": "host",
+      "name": "createBot",
+      "params": {
+        "$defs": {
+          "Auth": {
+            "description": "How a bot logs in.",
+            "oneOf": [
+              {
+                "const": "offline",
+                "description": "No account: servers with `online-mode=false` (LAN, most test servers).",
+                "type": "string"
+              },
+              {
+                "const": "microsoft",
+                "description": "A Microsoft account signed in by device code, its tokens cached per `username` (an `msaCode` record asks a\nperson to sign in when the cache has none).",
+                "type": "string"
+              }
+            ]
+          },
+          "AutoEatPolicy": {
+            "description": "How auto-eat picks its moment and its food; every field has a default.",
+            "properties": {
+              "below": {
+                "description": "Eat when the hunger bar (0-20) drops below this; 14 when absent.",
+                "format": "float",
+                "maximum": 20,
+                "minimum": 1,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "fromInventory": {
+                "description": "Move food into the hotbar from the main inventory when the hotbar has none; true when absent.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "prefer": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FoodPreference"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Which food to pick; `saturation` when absent."
+              }
+            },
+            "type": "object"
+          },
+          "Edition": {
+            "description": "The game a server runs.",
+            "oneOf": [
+              {
+                "enum": [
+                  "bedrock"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "java",
+                "description": "Java Edition 26.3.",
+                "type": "string"
+              }
+            ]
+          },
+          "EventGroup": {
+            "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (once per tick batch); `entities` and `entityMoves` need `entities`.",
+            "enum": [
+              "chat",
+              "forms",
+              "health",
+              "players",
+              "windows",
+              "titles",
+              "sleep",
+              "ticks",
+              "entities",
+              "entityMoves"
+            ],
+            "type": "string"
+          },
+          "FoodPreference": {
+            "description": "Which food auto-eat picks.",
+            "oneOf": [
+              {
+                "const": "saturation",
+                "description": "The most saturation.",
+                "type": "string"
+              },
+              {
+                "const": "noWaste",
+                "description": "The most hunger points that still fit in the bar, else the fewest.",
+                "type": "string"
+              }
+            ]
+          },
+          "Transport": {
+            "description": "The network protocol a bot connects over.",
+            "enum": [
+              "auto",
+              "raknet",
+              "nethernet"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The server to join and what the bot tracks there.",
+        "properties": {
+          "auth": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Auth"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default `offline`."
+          },
+          "autoEat": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AutoEatPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Eat when hungry, from the start (default off; `bot.setAutoEat` changes it). `{}` takes the defaults."
+          },
+          "autoRespawn": {
+            "description": "Press \"respawn\" about 2 s after dying, as a player reading the death screen would (default true; off, call\n`bot.respawn`).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "edition": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Edition"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default `bedrock`."
+          },
+          "entities": {
+            "description": "Track entities and other players, needed for their positions, entity events, `follow` and `attack`\n(default false: on busy servers it is most of the decode work).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "events": {
+            "description": "Event groups reported from the start (default none; `bot.setEvents` changes them).",
+            "items": {
+              "$ref": "#/$defs/EventGroup"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "host": {
+            "description": "Server host name or address.",
+            "type": "string"
+          },
+          "physics": {
+            "description": "Simulate movement and track terrain, needed to walk (default false; Java bots always do).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "port": {
+            "description": "Default 19132 (Bedrock) or 25565 (Java).",
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profilesFolder": {
+            "description": "`microsoft` only: the token cache directory (see [`SignInParams::profiles_folder`]).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transport": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Transport"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bedrock only. Default `auto`: RakNet if the server answers a ping, else NetherNet."
+          },
+          "username": {
+            "description": "The player name (`offline`), or the account's key in the token cache (`microsoft`: the server sees the\nXbox gamertag, or the Java profile's name).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "username"
+        ],
+        "title": "CreateBotParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The new bot's id.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "CreateBotResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Signs a Microsoft account in without connecting, so later `createBot` calls find its tokens cached: an\n`msaCode` record asks a person to sign in when the cache has none. Fails `AUTH` (see the code).",
+      "flags": [],
+      "lane": "host",
+      "name": "signIn",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The Microsoft account to sign in.",
+        "properties": {
+          "profilesFolder": {
+            "description": "Where tokens are cached, one `<username>.json` each (default `~/.acacia/auth` of the host's user). Holds\nrefresh tokens: keep it private. acacia-daemon sets it itself and refuses this.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "description": "The account's key in the token cache, as `createBot`'s `username`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "title": "SignInParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The Xbox profile a sign-in reached.",
+        "properties": {
+          "displayName": {
+            "description": "The Xbox gamertag servers will see.",
+            "type": "string"
+          },
+          "xuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "xuid"
+        ],
+        "title": "SignInResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Disconnects the bot (waiting up to 2 s for the server to free the session). The running call is\ncancelled and queued ones fail with `DISCONNECTED`; an `end` event comes before this resolves.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.close",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Cancels call `call`: removed if still queued, ended within a tick if running. Fails with `CANCELLED`.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "cancel",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "CallId": {
+            "description": "The caller's id for one call, echoed in its `done` record. A plain number: the caller picks it (below 2^53).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A bot's call to cancel.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "call": {
+            "$ref": "#/$defs/CallId",
+            "description": "The call to cancel."
+          }
+        },
+        "required": [
+          "bot",
+          "call"
+        ],
+        "title": "CancelParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Cancels a `createBot` or `signIn` call that has no bot yet (signing in, connecting or retrying its join): it\nfails with `CANCELLED`. A call that has already settled, or whose bot has spawned, is left alone.",
+      "flags": [],
+      "lane": "host",
+      "name": "cancelCall",
+      "params": {
+        "$defs": {
+          "CallId": {
+            "description": "The caller's id for one call, echoed in its `done` record. A plain number: the caller picks it (below 2^53).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A host call (no bot yet) to cancel.",
+        "properties": {
+          "call": {
+            "$ref": "#/$defs/CallId",
+            "description": "The `createBot` or `signIn` call to cancel."
+          }
+        },
+        "required": [
+          "call"
+        ],
+        "title": "CancelCallParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "The bot's state now, built on demand.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.snapshot",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "ColdSnapshot": {
+            "description": "Changes on inventory, effect and player-list updates.",
+            "properties": {
+              "cursor": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Stack"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effects": {
+                "items": {
+                  "$ref": "#/$defs/Effect"
+                },
+                "type": "array"
+              },
+              "inventory": {
+                "items": {
+                  "$ref": "#/$defs/Stack"
+                },
+                "type": "array"
+              },
+              "players": {
+                "items": {
+                  "$ref": "#/$defs/PlayerInfo"
+                },
+                "type": "array"
+              },
+              "version": {
+                "description": "Moves exactly when the cold part is rebuilt (0 in an on-demand snapshot), so readers can cache on it.",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "inventory",
+              "effects",
+              "players"
+            ],
+            "type": "object"
+          },
+          "Effect": {
+            "description": "A status effect on the bot, by the protocol's effect id.",
+            "properties": {
+              "amplifier": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "duration": {
+                "description": "Ticks left.",
+                "format": "int32",
+                "type": "integer"
+              },
+              "id": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "amplifier",
+              "duration"
+            ],
+            "type": "object"
+          },
+          "Entity": {
+            "description": "A tracked entity or other player (acacia-bot's `EntityInfo`). `kind`, not `type`: events are tagged by `type`.",
+            "properties": {
+              "health": {
+                "description": "When the server sent it (mobs; players' health is not broadcast).",
+                "format": "float",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "id": {
+                "$ref": "#/$defs/EntityId",
+                "description": "The runtime id actions take."
+              },
+              "kind": {
+                "description": "`minecraft:zombie`; `minecraft:player` for players, `minecraft:item` for dropped items.",
+                "type": "string"
+              },
+              "pitch": {
+                "format": "float",
+                "type": "number"
+              },
+              "position": {
+                "$ref": "#/$defs/Vec3",
+                "description": "Feet, players included."
+              },
+              "uniqueId": {
+                "$ref": "#/$defs/UniqueId",
+                "description": "The id player lists and containers name."
+              },
+              "username": {
+                "description": "Players only.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "velocity": {
+                "$ref": "#/$defs/Vec3",
+                "description": "The last velocity the server sent."
+              },
+              "yaw": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "uniqueId",
+              "kind",
+              "position",
+              "velocity",
+              "yaw",
+              "pitch"
+            ],
+            "type": "object"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          },
+          "HotSnapshot": {
+            "description": "Changes nearly every tick.",
+            "properties": {
+              "air": {
+                "format": "int16",
+                "maximum": 32767,
+                "minimum": -32768,
+                "type": "integer"
+              },
+              "alive": {
+                "type": "boolean"
+              },
+              "dimension": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "flying": {
+                "type": "boolean"
+              },
+              "food": {
+                "format": "float",
+                "type": "number"
+              },
+              "gameMode": {
+                "description": "The protocol's game mode number (0 survival, 1 creative, 2 adventure, 6 spectator).",
+                "format": "int32",
+                "type": "integer"
+              },
+              "gliding": {
+                "type": "boolean"
+              },
+              "health": {
+                "format": "float",
+                "type": "number"
+              },
+              "heldSlot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxHealth": {
+                "format": "float",
+                "type": "number"
+              },
+              "onGround": {
+                "type": "boolean"
+              },
+              "openWindow": {
+                "format": "int32",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "pitch": {
+                "format": "float",
+                "type": "number"
+              },
+              "position": {
+                "$ref": "#/$defs/Vec3"
+              },
+              "riding": {
+                "type": "boolean"
+              },
+              "saturation": {
+                "format": "float",
+                "type": "number"
+              },
+              "sleeping": {
+                "type": "boolean"
+              },
+              "tick": {
+                "description": "Client ticks since the bot connected (0 when the bot does not publish snapshots).",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "velocity": {
+                "$ref": "#/$defs/Vec3",
+                "description": "Physics bots only (zero otherwise), like `onGround` and `gliding`."
+              },
+              "xpLevel": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "xpProgress": {
+                "format": "float",
+                "type": "number"
+              },
+              "yaw": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "tick",
+              "position",
+              "velocity",
+              "yaw",
+              "pitch",
+              "onGround",
+              "health",
+              "maxHealth",
+              "food",
+              "saturation",
+              "xpLevel",
+              "xpProgress",
+              "air",
+              "alive",
+              "gameMode",
+              "dimension",
+              "heldSlot",
+              "flying",
+              "sleeping",
+              "riding",
+              "gliding"
+            ],
+            "type": "object"
+          },
+          "PlayerInfo": {
+            "description": "A player-list entry.",
+            "properties": {
+              "uniqueId": {
+                "$ref": "#/$defs/UniqueId"
+              },
+              "username": {
+                "type": "string"
+              },
+              "uuid": {
+                "type": "string"
+              },
+              "xuid": {
+                "description": "Empty for offline players.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "username",
+              "xuid",
+              "uniqueId"
+            ],
+            "type": "object"
+          },
+          "Stack": {
+            "description": "A non-empty stack, summarised. `networkId` is the server's item id; names come from its item table.",
+            "properties": {
+              "count": {
+                "format": "uint16",
+                "maximum": 65535,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "customName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metadata": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "networkId": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "stackId": {
+                "format": "int32",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot",
+              "networkId",
+              "count",
+              "metadata"
+            ],
+            "type": "object"
+          },
+          "UniqueId": {
+            "description": "An entity's unique id (the one player lists and containers name), as a decimal string.",
+            "type": "string"
+          },
+          "Vec3": {
+            "description": "A point (feet position, velocity).",
+            "properties": {
+              "x": {
+                "format": "float",
+                "type": "number"
+              },
+              "y": {
+                "format": "float",
+                "type": "number"
+              },
+              "z": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot's state at one moment.",
+        "properties": {
+          "cold": {
+            "$ref": "#/$defs/ColdSnapshot"
+          },
+          "entities": {
+            "description": "Empty unless the bot tracks entities.",
+            "items": {
+              "$ref": "#/$defs/Entity"
+            },
+            "type": "array"
+          },
+          "hot": {
+            "$ref": "#/$defs/HotSnapshot"
+          }
+        },
+        "required": [
+          "hot",
+          "cold",
+          "entities"
+        ],
+        "title": "Snapshot",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Changes the event groups the bot reports.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.setEvents",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EventGroup": {
+            "description": "A group of events a bot can report (acacia-bot's `Events`). Opt-in and high-rate: `ticks` (`physicsTick`, 20 a\nsecond) and `entityMoves` (once per tick batch); `entities` and `entityMoves` need `entities`.",
+            "enum": [
+              "chat",
+              "forms",
+              "health",
+              "players",
+              "windows",
+              "titles",
+              "sleep",
+              "ticks",
+              "entities",
+              "entityMoves"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The event groups the bot reports from now on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/$defs/EventGroup"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "bot",
+          "events"
+        ],
+        "title": "SetEventsParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Sends a chat line.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "immediate",
+      "name": "bot.chat",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A chat line to send.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "message": {
+            "description": "The line everyone sees.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "message"
+        ],
+        "title": "ChatParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Runs a slash command (the leading `/` is optional).",
+      "flags": [
+        "mcp",
+        "privileged"
+      ],
+      "lane": "immediate",
+      "name": "bot.command",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A slash command to run.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "command": {
+            "description": "The command line, e.g. `/time set day`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "command"
+        ],
+        "title": "CommandParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Walks to a goal (physics bots only). Fails with `NOT_POSSIBLE` when there is no path.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.goto",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Goal": {
+            "description": "Where `bot.goto` walks to; `range` is Euclidean, in blocks.",
+            "oneOf": [
+              {
+                "description": "Feet in this cell.",
+                "properties": {
+                  "type": {
+                    "const": "block",
+                    "type": "string"
+                  },
+                  "x": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "y": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "z": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Within `range` of the cell.",
+                "properties": {
+                  "range": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "type": {
+                    "const": "near",
+                    "type": "string"
+                  },
+                  "x": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "y": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "z": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "x",
+                  "y",
+                  "z",
+                  "range"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Any height in this column.",
+                "properties": {
+                  "type": {
+                    "const": "xz",
+                    "type": "string"
+                  },
+                  "x": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "z": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "x",
+                  "z"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Feet at this height.",
+                "properties": {
+                  "type": {
+                    "const": "y",
+                    "type": "string"
+                  },
+                  "y": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "y"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "At least `range` from the cell: fleeing it.",
+                "properties": {
+                  "range": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "type": {
+                    "const": "away",
+                    "type": "string"
+                  },
+                  "x": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "y": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "z": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "x",
+                  "y",
+                  "z",
+                  "range"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Whichever goal is reached first.",
+                "properties": {
+                  "goals": {
+                    "items": {
+                      "$ref": "#/$defs/Goal"
+                    },
+                    "type": "array"
+                  },
+                  "type": {
+                    "const": "any",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "goals"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The goal to walk to.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "goal": {
+            "$ref": "#/$defs/Goal"
+          }
+        },
+        "required": [
+          "bot",
+          "goal"
+        ],
+        "title": "GotoParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Breaks the block at a cell, as a player would (reach, tool, mining time).",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.dig",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block cell `x, y, z` to break.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "equipBestTool": {
+            "description": "Hold the fastest tool for the block first, as `bot.equipBestTool` does (default false: the held item).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "DigParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Answers an open form after a human reading delay.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.answerForm",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "FormAnswer": {
+            "description": "An answer to an open form; one that does not fit the form is refused before anything is sent.",
+            "oneOf": [
+              {
+                "description": "Simple form: the button index (buttons only, not labels or headers).",
+                "properties": {
+                  "index": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "type": {
+                    "const": "button",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "index"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Modal form.",
+                "properties": {
+                  "type": {
+                    "const": "modal",
+                    "type": "string"
+                  },
+                  "yes": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type",
+                  "yes"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Custom form: one value per input element, in order.",
+                "properties": {
+                  "type": {
+                    "const": "custom",
+                    "type": "string"
+                  },
+                  "values": {
+                    "items": {
+                      "$ref": "#/$defs/FormValue"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "type",
+                  "values"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "Java dialog: the button pressed and one value per input element, in order.",
+                "properties": {
+                  "button": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "type": {
+                    "const": "dialog",
+                    "type": "string"
+                  },
+                  "values": {
+                    "items": {
+                      "$ref": "#/$defs/FormValue"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "type",
+                  "button",
+                  "values"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "The X button.",
+                "properties": {
+                  "type": {
+                    "const": "close",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "FormValue": {
+            "description": "A custom form answer's value for one input element.",
+            "oneOf": [
+              {
+                "properties": {
+                  "type": {
+                    "const": "text",
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "toggle",
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "slider",
+                    "type": "string"
+                  },
+                  "value": {
+                    "format": "double",
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "A dropdown option or step-slider step.",
+                "properties": {
+                  "type": {
+                    "const": "choice",
+                    "type": "string"
+                  },
+                  "value": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "An open form and the answer to it.",
+        "properties": {
+          "answer": {
+            "$ref": "#/$defs/FormAnswer"
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "form": {
+            "description": "The form's id, from its `form` event.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "form",
+          "answer"
+        ],
+        "title": "AnswerFormParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Lets ticks pass (50 ms each) while the bot keeps playing.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.waitForTicks",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many ticks to let pass.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "ticks": {
+            "description": "20 a second.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "ticks"
+        ],
+        "title": "WaitForTicksParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Keeps within `range` of a tracked entity, walking after it, until cancelled (physics and entity tracking).\nNever resolves on its own: it ends with `CANCELLED`, or `DISCONNECTED`.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.follow",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The entity to keep close to.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "entity": {
+            "$ref": "#/$defs/EntityId",
+            "description": "A tracked entity's id (players included)."
+          },
+          "range": {
+            "description": "Blocks (Euclidean) to keep within; 2 when absent.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot",
+          "entity"
+        ],
+        "title": "FollowParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Turns the bot's eyes to a point.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.lookAt",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A world point the bot turns its eyes to.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "x": {
+            "format": "float",
+            "type": "number"
+          },
+          "y": {
+            "format": "float",
+            "type": "number"
+          },
+          "z": {
+            "format": "float",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "LookAtParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Swings at a tracked entity in reach. `NOT_POSSIBLE` out of reach or unknown, `NOT_VISIBLE` behind blocks.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.attack",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The entity to swing at.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "entity": {
+            "$ref": "#/$defs/EntityId",
+            "description": "A tracked entity's id (players included)."
+          }
+        },
+        "required": [
+          "bot",
+          "entity"
+        ],
+        "title": "AttackParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Holds or releases a movement key (physics bots). An action that moves the bot overrides the keys while it\nruns, and every queued call releases them when it ends.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.setControlState",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Control": {
+            "description": "A movement key (mineflayer's control names).",
+            "enum": [
+              "forward",
+              "back",
+              "left",
+              "right",
+              "jump",
+              "sneak",
+              "sprint"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "A movement key to hold (`state` true) or release.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "control": {
+            "$ref": "#/$defs/Control"
+          },
+          "state": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bot",
+          "control",
+          "state"
+        ],
+        "title": "SetControlStateParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Releases every movement key.",
+      "flags": [],
+      "lane": "immediate",
+      "name": "bot.clearControlStates",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Moves an item from the main inventory to the hand (selected in the hotbar), an armour slot or the off hand.\n`NOT_POSSIBLE` when the inventory has none.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.equip",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EquipDestination": {
+            "description": "Where `bot.equip` puts an item (mineflayer's names).",
+            "oneOf": [
+              {
+                "enum": [
+                  "head",
+                  "torso",
+                  "legs",
+                  "feet",
+                  "offHand"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "hand",
+                "description": "Into the hotbar, selected.",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The item to move and where to.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/EquipDestination"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`hand` when absent."
+          },
+          "item": {
+            "description": "An item name (`minecraft:stone`, or just `stone`) in the main inventory.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "item"
+        ],
+        "title": "EquipParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Places the held block against a face of a block, waiting until the server shows it (`REJECTED` if it never\ndoes).",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.placeBlock",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Face": {
+            "description": "A block face, by the direction it points.",
+            "enum": [
+              "down",
+              "up",
+              "north",
+              "south",
+              "west",
+              "east"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Places the held block against `face` of the block at `x, y, z`.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "face": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Face"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`up` when absent: on top of the block."
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "PlaceBlockParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "The nearest loaded blocks with any of the names, read from the bot's terrain without waiting for an action.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "immediate",
+      "name": "bot.findBlocks",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block names to look for around the bot, and how far and how many.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many to return, nearest first; 1 when absent, at most 1024.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "matching": {
+            "description": "Block names (`minecraft:oak_log` or `oak_log`), any state.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxDistance": {
+            "description": "Blocks from the bot's feet (Euclidean); 16 when absent, at most 64.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot",
+          "matching"
+        ],
+        "title": "FindBlocksParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "BlockPos": {
+            "description": "A block cell.",
+            "properties": {
+              "x": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "y": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "z": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The cells `bot.findBlocks` found.",
+        "properties": {
+          "blocks": {
+            "description": "Nearest first.",
+            "items": {
+              "$ref": "#/$defs/BlockPos"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "blocks"
+        ],
+        "title": "FindBlocksResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Crafts an item from the inventory through the recipe book, in the bot's own 2x2 grid or at a crafting table\n(`table`, within reach). `NOT_POSSIBLE` when no recipe fits the grid or ingredients are missing.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.craft",
+      "params": {
+        "$defs": {
+          "BlockPos": {
+            "description": "A block cell.",
+            "properties": {
+              "x": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "y": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "z": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          },
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The item to craft, how many and where.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many items at least; 1 when absent. A craft makes a recipe's whole output (4 sticks), so more may come.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item to make (`minecraft:stick`, or just `stick`).",
+            "type": "string"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/BlockPos"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The crafting table to use, within reach; the bot's own 2x2 grid when absent."
+          }
+        },
+        "required": [
+          "bot",
+          "item"
+        ],
+        "title": "CraftParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many items `bot.craft` made.",
+        "properties": {
+          "crafted": {
+            "description": "Items made: `count` or more, fewer only when the ingredients ran out after at least one craft.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "crafted"
+        ],
+        "title": "CraftResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "The server's recipes that make an item, with what each uses up and where it is made.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.recipesFor",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The item to list recipes for.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "item": {
+            "description": "The item to make (`minecraft:stick`, or just `stick`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "item"
+        ],
+        "title": "RecipesForParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "ItemCount": {
+            "description": "An item (or item tag) and a count.",
+            "properties": {
+              "count": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "item": {
+                "description": "An item name, `#tag` for any item with that tag (`#minecraft:planks`), or a MoLang item expression.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "item",
+              "count"
+            ],
+            "type": "object"
+          },
+          "Recipe": {
+            "description": "One server recipe, its ingredients summed over the grid.",
+            "properties": {
+              "fits2x2": {
+                "description": "Fits the bot's own 2x2 grid (no crafting table needed).",
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "inputs": {
+                "description": "What one craft uses up.",
+                "items": {
+                  "$ref": "#/$defs/ItemCount"
+                },
+                "type": "array"
+              },
+              "outputs": {
+                "description": "What one craft makes.",
+                "items": {
+                  "$ref": "#/$defs/ItemCount"
+                },
+                "type": "array"
+              },
+              "station": {
+                "description": "Where it is made: `crafting_table` (a 2x2 recipe too), `furnace`, `stonecutter`, `smithing_table`, ...",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "station",
+              "fits2x2",
+              "inputs",
+              "outputs"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The server's recipes for an item.",
+        "properties": {
+          "recipes": {
+            "items": {
+              "$ref": "#/$defs/Recipe"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "recipes"
+        ],
+        "title": "RecipesForResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "What a chest, barrel or other container holds: opens it (within reach), reads it and closes it.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.containerContents",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The container block cell `x, y, z` to read.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "ContainerParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "ContainerItem": {
+            "description": "One non-empty container slot.",
+            "properties": {
+              "count": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "item": {
+                "description": "The item's name, or `#<network id>` for one missing from the server's item table.",
+                "type": "string"
+              },
+              "slot": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "slot",
+              "item",
+              "count"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What a container held when it was read.",
+        "properties": {
+          "items": {
+            "description": "The non-empty slots, in slot order.",
+            "items": {
+              "$ref": "#/$defs/ContainerItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ContainerContents",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Puts items from the inventory into a chest, barrel or other container (within reach). `NOT_POSSIBLE` when the\ninventory has none of the item or the container is full.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.deposit",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Moves items of one kind between the container at `x, y, z` and the bot's main inventory.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many at most; all there are when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item (`minecraft:cobblestone`, or just `cobblestone`).",
+            "type": "string"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "item"
+        ],
+        "title": "TransferParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How a `bot.deposit` or `bot.withdraw` went.",
+        "properties": {
+          "moved": {
+            "description": "Items moved: fewer than `count` once the source has no more or the other side is full.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "moved"
+        ],
+        "title": "TransferResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Takes items out of a chest, barrel or other container (within reach) into the inventory. `NOT_POSSIBLE` when\nthe container has none of the item or the inventory is full.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.withdraw",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Moves items of one kind between the container at `x, y, z` and the bot's main inventory.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many at most; all there are when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item (`minecraft:cobblestone`, or just `cobblestone`).",
+            "type": "string"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "item"
+        ],
+        "title": "TransferParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How a `bot.deposit` or `bot.withdraw` went.",
+        "properties": {
+          "moved": {
+            "description": "Items moved: fewer than `count` once the source has no more or the other side is full.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "moved"
+        ],
+        "title": "TransferResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Smelts items at a furnace, blast furnace or smoker (within reach): puts them and any fuel in, waits until they\nare done (10 s an item in a furnace, 5 s otherwise), takes the output and closes it.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.smelt",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Smelts items in the furnace, blast furnace or smoker at `x, y, z` (within reach).",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many, 1 to 64; 1 when absent.",
+            "format": "uint8",
+            "maximum": 64,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "fuel": {
+            "description": "Fuel to add (`coal`); none when absent, for a furnace that still burns.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fuelCount": {
+            "description": "How much fuel; 1 when absent (one coal smelts 8 items).",
+            "format": "uint8",
+            "maximum": 64,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item to smelt (`minecraft:raw_iron`, or just `raw_iron`).",
+            "type": "string"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "item"
+        ],
+        "title": "SmeltParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many items `bot.smelt` took out.",
+        "properties": {
+          "smelted": {
+            "description": "Items taken out of the output slot.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "smelted"
+        ],
+        "title": "SmeltResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Eats or drinks: the held item, or `item` taken into the hand first. Resolves once the server has consumed it.\n`NOT_POSSIBLE` for something inedible, or food while not hungry.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.consume",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What to eat or drink.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "item": {
+            "description": "A food or drink to take into the hand first; the held item when absent.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "ConsumeParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Throws items out of the inventory, a stack at a time. `NOT_POSSIBLE` when it has none.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.toss",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Vec3": {
+            "description": "A point (feet position, velocity).",
+            "properties": {
+              "x": {
+                "format": "float",
+                "type": "number"
+              },
+              "y": {
+                "format": "float",
+                "type": "number"
+              },
+              "z": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The items to throw, how many and which way.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many at most; all the inventory has when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item (`minecraft:dirt`, or just `dirt`).",
+            "type": "string"
+          },
+          "toward": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Vec3"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A point to look at first, so the items fly that way (a player's eyes); where the bot looks when absent."
+          }
+        },
+        "required": [
+          "bot",
+          "item"
+        ],
+        "title": "TossParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many items `bot.toss` threw.",
+        "properties": {
+          "tossed": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tossed"
+        ],
+        "title": "TossResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Right-clicks a block with the held item, facing it first: opens doors, gates and trapdoors, presses buttons\nand levers, uses beds, crafting tables and containers. Resolves once the click is sent, without waiting for\nthe block to change. `NOT_POSSIBLE` out of reach, `NOT_VISIBLE` when blocks hide it.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.activateBlock",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "Face": {
+            "description": "A block face, by the direction it points.",
+            "enum": [
+              "down",
+              "up",
+              "north",
+              "south",
+              "west",
+              "east"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block cell `x, y, z` to right-click.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "face": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Face"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The face to click when the bot sees it, else one it sees; `up` when absent."
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "ActivateBlockParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Uses the held item in the air: eats, drinks, throws, draws a bow, raises a shield. Food finishes on its own;\na bow, crossbow or shield stays in use until `bot.deactivateItem`.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.activateItem",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Releases the item in use: shoots a drawn bow, lowers a shield.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.deactivateItem",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Right-clicks a tracked entity in reach, facing it first: trades with a villager, mounts, feeds, shears, names.\n`NOT_POSSIBLE` out of reach or untracked, `NOT_VISIBLE` behind blocks.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.activateEntity",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The entity to right-click.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "entity": {
+            "$ref": "#/$defs/EntityId",
+            "description": "A tracked entity's id (players included)."
+          }
+        },
+        "required": [
+          "bot",
+          "entity"
+        ],
+        "title": "ActivateEntityParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Swings the main hand, as a click on nothing does.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.swingArm",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Selects a hotbar slot (0-8) as the held item. `NOT_POSSIBLE` past 8.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.setQuickBarSlot",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The hotbar slot to hold.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "slot": {
+            "description": "The hotbar slot to select, 0-8.",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "slot"
+        ],
+        "title": "SetQuickBarSlotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Presses \"respawn\" on the death screen; a `respawn` event follows once the server has moved the bot. Bots\nrespawn on their own unless created with `autoRespawn: false`. `NOT_POSSIBLE` while alive.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.respawn",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Holds the inventory's fastest tool for the block at a cell (main inventory, moved into the hotbar if needed),\nskipping tools about to break; keeps the held item when nothing beats the bare hand. Physics bots only:\n`NOT_POSSIBLE` for an unloaded cell.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.equipBestTool",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block cell `x, y, z` to pick the tool for.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "EquipBestToolParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What `bot.equipBestTool` holds now.",
+        "properties": {
+          "slot": {
+            "description": "The hotbar slot now held; null when nothing in the inventory beats the bare hand (the held item is kept).",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "slot"
+        ],
+        "title": "EquipBestToolResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Turns auto-eat on or off: when hunger drops below `below` and the bot is idle (no queued call running, no\nwindow open) it eats from the hotbar, moving food up from the inventory if needed, and switches back.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.setAutoEat",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "FoodPreference": {
+            "description": "Which food auto-eat picks.",
+            "oneOf": [
+              {
+                "const": "saturation",
+                "description": "The most saturation.",
+                "type": "string"
+              },
+              {
+                "const": "noWaste",
+                "description": "The most hunger points that still fit in the bar, else the fewest.",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Auto-eat on (with its policy) or off.",
+        "properties": {
+          "below": {
+            "description": "Eat when the hunger bar (0-20) drops below this; 14 when absent.",
+            "format": "float",
+            "maximum": 20,
+            "minimum": 1,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "enabled": {
+            "description": "On or off.",
+            "type": "boolean"
+          },
+          "fromInventory": {
+            "description": "Move food into the hotbar from the main inventory when the hotbar has none; true when absent.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "prefer": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FoodPreference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which food to pick; `saturation` when absent."
+          }
+        },
+        "required": [
+          "bot",
+          "enabled"
+        ],
+        "title": "SetAutoEatParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Lies down in a bed (within reach) and resolves once the server shows the bot asleep. `REJECTED` with the\nserver's reason (daytime, monsters nearby, occupied), `NOT_POSSIBLE` for a block that is not a bed.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.sleep",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bed at `x, y, z` (either half).",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "SleepParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Leaves the bed and resolves once the server shows the bot awake. `NOT_POSSIBLE` when not sleeping.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.wake",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Writes a sign (within reach): clicks it unless its editor is open (as after placing one), types at a\nperson's pace and closes the editor. `NOT_POSSIBLE` for a waxed sign, too much text, or when the server\nopened the other side.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.writeSign",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Writes one side of the sign at `x, y, z` (within reach).",
+        "properties": {
+          "back": {
+            "description": "The back side; the front when absent. The server opens the side the bot faces, so stand on that side.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "lines": {
+            "description": "Up to 4 lines, 256 bytes in all.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "type": "array"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "lines"
+        ],
+        "title": "WriteSignParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "The items the inventory can craft now through the recipe book, in the bot's own 2x2 grid or (`table`) at a\ncrafting table. Ingredients are matched greedily, so a recipe whose tags overlap can be missed.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "queued",
+      "name": "bot.craftableItems",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Which grid `bot.craftableItems` counts.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "table": {
+            "description": "Count 3x3 recipes too, as at a crafting table; only the bot's own 2x2 grid when absent.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "CraftableItemsParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "ItemCount": {
+            "description": "An item (or item tag) and a count.",
+            "properties": {
+              "count": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "item": {
+                "description": "An item name, `#tag` for any item with that tag (`#minecraft:planks`), or a MoLang item expression.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "item",
+              "count"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The items the inventory can craft now.",
+        "properties": {
+          "items": {
+            "description": "One entry per item, in the server's recipe order, with what one craft of its first fitting recipe makes.",
+            "items": {
+              "$ref": "#/$defs/ItemCount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CraftableItemsResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "The block the bot is looking at: the first block shape its line of sight enters (collision or selection box,\nas the crosshair and anticheats see it), read from its terrain without waiting for an action.",
+      "flags": [
+        "mcp"
+      ],
+      "lane": "immediate",
+      "name": "bot.blockAtCursor",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How far `bot.blockAtCursor` looks.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "maxDistance": {
+            "description": "Blocks from the eyes; 6 when absent, at most 64.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BlockAtCursorParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "Block": {
+            "description": "One block of a bot's world, read without a call (`blockAt`).",
+            "properties": {
+              "name": {
+                "description": "Namespaced, e.g. `minecraft:stone`.",
+                "type": "string"
+              },
+              "stateId": {
+                "description": "The runtime id in this connection's block palette (custom blocks shift it, so never compare across servers).",
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "states": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "The state's properties as Bedrock names them; booleans are `\"0\"` / `\"1\"`.",
+                "type": "object"
+              }
+            },
+            "required": [
+              "name",
+              "states",
+              "stateId"
+            ],
+            "type": "object"
+          },
+          "BlockPos": {
+            "description": "A block cell.",
+            "properties": {
+              "x": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "y": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "z": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          },
+          "CursorHit": {
+            "description": "The first block shape the bot's line of sight enters.",
+            "properties": {
+              "block": {
+                "$ref": "#/$defs/Block"
+              },
+              "distance": {
+                "description": "From the eyes, in blocks.",
+                "format": "float",
+                "type": "number"
+              },
+              "face": {
+                "$ref": "#/$defs/Face",
+                "description": "The face the ray entered through."
+              },
+              "point": {
+                "$ref": "#/$defs/Vec3",
+                "description": "Where it entered."
+              },
+              "position": {
+                "$ref": "#/$defs/BlockPos"
+              }
+            },
+            "required": [
+              "position",
+              "block",
+              "face",
+              "point",
+              "distance"
+            ],
+            "type": "object"
+          },
+          "Face": {
+            "description": "A block face, by the direction it points.",
+            "enum": [
+              "down",
+              "up",
+              "north",
+              "south",
+              "west",
+              "east"
+            ],
+            "type": "string"
+          },
+          "Vec3": {
+            "description": "A point (feet position, velocity).",
+            "properties": {
+              "x": {
+                "format": "float",
+                "type": "number"
+              },
+              "y": {
+                "format": "float",
+                "type": "number"
+              },
+              "z": {
+                "format": "float",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The block the bot looks at, if any.",
+        "properties": {
+          "hit": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CursorHit"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the ray meets no block within the distance (or only unloaded chunks)."
+          }
+        },
+        "required": [
+          "hit"
+        ],
+        "title": "BlockAtCursorResult",
+        "type": "object"
+      }
+    }
+  ],
+  "protocolVersion": 1
+}

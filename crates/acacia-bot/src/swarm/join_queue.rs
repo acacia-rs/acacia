@@ -8,13 +8,24 @@ use crate::cadence::{seed, splitmix};
 
 /// Spaces joins to the same target `delay ± jitter` apart, across every shard, so a swarm start or a
 /// server restart does not land as one burst. Different targets do not wait for each other.
-pub(crate) struct JoinQueue {
+pub struct JoinQueue {
     delay: Duration,
     jitter: Duration,
     next: Mutex<HashMap<String, Instant>>,
 }
 
+impl Default for JoinQueue {
+    fn default() -> Self {
+        Self::new(Self::DELAY, Self::JITTER)
+    }
+}
+
 impl JoinQueue {
+    /// The default gap, `DELAY ± JITTER`: BDS refuses a second join from one IP within moments
+    /// (RakNet `RecentlyConnected`); 400 ms apart was enough for 10 bots on a live BDS.
+    pub const DELAY: Duration = Duration::from_millis(500);
+    pub const JITTER: Duration = Duration::from_millis(250);
+
     pub fn new(delay: Duration, jitter: Duration) -> Self {
         Self { delay, jitter: jitter.min(delay), next: Mutex::new(HashMap::new()) }
     }

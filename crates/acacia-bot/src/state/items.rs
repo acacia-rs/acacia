@@ -8,7 +8,7 @@ use bytes::Bytes;
 
 /// Network item id <-> identifier (`minecraft:diamond`), from the server's `ItemRegistry`. Bots that
 /// receive the same registry share one copy (~300 KB each).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ItemRegistry(Arc<Maps>);
 
 #[derive(Debug, Default)]
@@ -85,6 +85,16 @@ impl ItemRegistry {
             return Some((i32::from(item.java_id()), data as u32));
         }
         Some((self.id(name)?, data as u32))
+    }
+
+    /// Whether both are the same table (one `ItemRegistry` packet), without comparing entries.
+    pub fn same(&self, other: &ItemRegistry) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+
+    /// Every `(network id, name)`, in no order.
+    pub fn iter(&self) -> impl Iterator<Item = (i32, &str)> {
+        self.0.names.iter().map(|(id, name)| (*id, &**name))
     }
 
     pub fn len(&self) -> usize {

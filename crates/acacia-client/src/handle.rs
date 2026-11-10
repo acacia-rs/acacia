@@ -1,23 +1,22 @@
 use std::sync::Arc;
 
 use acacia_session::blob_store::BlobStore;
-use acacia_session::proto::{encode_packet, Packet};
-use bytes::{Bytes, BytesMut};
-use tokio::sync::mpsc;
+use acacia_session::proto::Packet;
+use bytes::Bytes;
 
 use crate::client::ClientBuilder;
 use crate::driver::Command;
 use crate::event_queue::EventReceiver;
-use crate::login::Identity;
+use crate::filter::PacketFilter;
 use crate::packet_trace::PacketTrace;
+use crate::sender::ClientSender;
 use crate::Event;
 
 /// A spawned connection. Dropping it disconnects.
 pub struct Client {
-    pub(crate) commands: mpsc::UnboundedSender<Command>,
+    pub(crate) sender: ClientSender,
     pub(crate) events: EventReceiver,
     pub(crate) runtime_entity_id: u64,
-    pub(crate) identity: Identity,
     pub(crate) blob_store: Option<Arc<dyn BlobStore>>,
     pub(crate) trace: PacketTrace,
 }
@@ -36,13 +35,18 @@ impl Client {
         self.runtime_entity_id
     }
 
+    /// A handle that sends on this connection from other threads (chat while the owner is busy).
+    pub fn sender(&self) -> ClientSender {
+        self.sender.clone()
+    }
+
     pub fn display_name(&self) -> &str {
-        &self.identity.display_name
+        self.sender.display_name()
     }
 
     /// Empty for offline logins.
     pub fn xuid(&self) -> &str {
-        &self.identity.xuid
+        self.sender.xuid()
     }
 
     /// Next packet or the final disconnect; `None` once the connection is gone.
@@ -57,16 +61,17 @@ impl Client {
 
     /// Queues a packet; returns false if the connection has closed.
     pub fn send<T: Packet + std::fmt::Debug>(&self, packet: &T) -> bool {
-        tracing::trace!(target: "acacia_client::send", ?packet);
-        // Fits a PlayerAuthInput, the packet sent every tick.
-        let mut buf = BytesMut::with_capacity(128);
-        encode_packet(packet, &mut buf);
-        self.send_raw(buf.freeze())
+        self.sender.send(packet)
     }
 
     /// Queues an already-encoded packet (header + body).
     pub fn send_raw(&self, packet: Bytes) -> bool {
-        self.command_raw(Command::Send(packet))
+        self.sender.send_raw(packet)
+    }
+
+    /// Replaces the filter set at connect ([`ClientBuilder::filter`]); packets already queued passed the old one.
+    pub fn set_filter(&self, filter: PacketFilter) -> bool {
+        self.command_raw(Command::Filter(filter))
     }
 
     pub fn close(&self) {
@@ -74,6 +79,13 @@ impl Client {
     }
 
     pub(crate) fn command_raw(&self, command: Command) -> bool {
-        self.commands.send(command).is_ok()
+        self.sender.command_raw(command)
+    }
+}
+
+impl Drop for Client {
+    // Senders may outlive the client, so the command channel alone would not close.
+    fn drop(&mut self) {
+        self.close();
     }
 }

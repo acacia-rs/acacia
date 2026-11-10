@@ -1,0 +1,30 @@
+[package]
+name = "acacia-host"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Runs acacia bots on shard threads for a transport: JSON commands in, one ordered JSON record stream out"
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+acacia-api = { version = "0.1.0", path = "../acacia-api" }
+acacia-bot = { version = "0.1.0", path = "../acacia-bot", features = ["java"] }
+acacia-client.workspace = true
+acacia-raknet.workspace = true
+acacia-world.workspace = true
+p384 = { version = "0.13", features = ["ecdsa"] }
+parking_lot = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1.53.1", features = ["rt", "rt-multi-thread", "time", "macros", "sync"] }
+
+[features]
+# `FakeSignIn`, a `SignIn` that needs no Microsoft account; tests only.
+fake-sign-in = []
+
+[dev-dependencies]
+acacia-host = { path = ".", features = ["fake-sign-in"] }
+acacia-testserver = { path = "../acacia-testserver" }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }

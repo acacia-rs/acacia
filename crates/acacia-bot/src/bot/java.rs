@@ -8,7 +8,8 @@ use acacia_java_proto::ids::play::clientbound::PLAYER_POSITION;
 
 use super::bedrock::Backend;
 use super::Step;
-use crate::events::EventSource;
+use super::Assembly;
+use crate::events::{EventOut, EventSource};
 use crate::movement::{java_keys, Controls, JavaSim, Live};
 use crate::state::GameState;
 use crate::{Bot, BotConfig};
@@ -71,13 +72,22 @@ impl Live for Java {
 impl Bot {
     /// Joins an offline-mode Java server as `name`. Only `config`'s edition-neutral settings apply.
     pub async fn connect_java_offline(host: &str, port: u16, name: &str, config: BotConfig) -> Result<Bot, Error> {
-        let client = Client::join_offline(host, port, name).await?;
+        Ok(Self::java_bot(Client::join_offline(host, port, name).await?, config))
+    }
+
+    /// Joins any Java server as `account`'s Java profile. Only `config`'s edition-neutral settings apply.
+    pub async fn connect_java(host: &str, port: u16, account: &acacia_client::auth::Account, config: BotConfig) -> Result<Bot, Error> {
+        Ok(Self::java_bot(Client::join_online(host, port, account).await?, config))
+    }
+
+    fn java_bot(client: Client, config: BotConfig) -> Bot {
         let events = EventSource::new(config.events, config.chat_patterns);
         let mut state = GameState::new(config.trackers, 0);
         state.items = crate::state::ItemRegistry::java();
         state.recipes = crate::state::Recipes::java();
         let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, teleports: 0, last_setback: None };
-        Ok(Bot::assemble(Backend::Java(Box::new(java)), state, events, config.auto_respawn, config.auto_eat))
+        let assembly = Assembly { auto_respawn: config.auto_respawn, auto_eat: config.auto_eat, snapshots: config.snapshots };
+        Bot::assemble(Backend::Java(Box::new(java)), state, events, EventOut::new(config.event_sink), assembly)
     }
 
     /// The Java side, for Java bots.
@@ -101,8 +111,12 @@ impl Bot {
         }
         tokio::select! {
             result = java.client.next() => Some(self.on_java_packet(result)),
+            Some(request) = self.inbox.rx.recv() => {
+                self.on_immediate(request);
+                Some(Step::Idle)
+            }
             ticks = self.ticker.wait() => {
-                (0..ticks).for_each(|_| self.java_tick());
+                self.run_ticks(ticks);
                 Some(Step::Tick)
             }
         }
@@ -153,7 +167,7 @@ impl Bot {
         if matches!(id, from::SHOW_DIALOG | from::CLEAR_DIALOG)
             && let Some(form) = self.state.forms.set_java(java.client.dialog.as_ref())
         {
-            self.pending.push_back(crate::BotEvent::Form(form));
+            self.out.push(crate::BotEvent::Form(form));
         }
     }
 
@@ -180,7 +194,7 @@ impl Bot {
         }
     }
 
-    fn java_tick(&mut self) {
+    pub(super) fn java_tick(&mut self) {
         self.governor.tick(None);
         self.tick_survival();
         let Backend::Java(java) = &mut self.backend else { return };

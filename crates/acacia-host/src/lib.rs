@@ -1,0 +1,65 @@
+//! Runs acacia bots for a transport: [`acacia_api::Command`] JSON in, one ordered stream of [`acacia_api::Out`]
+//! batches out. The napi addon and a WebSocket server both sit on it and add only framing. The one place the
+//! host's contract is written down (the wire format itself: acacia-api's crate docs):
+//!
+//! - **Threads.** [`Host`] owns K shard threads ([`acacia_bot::swarm::Shard`]: a current-thread runtime and a
+//!   `LocalSet` each). A new bot goes to the shard with the fewest bots and never moves.
+//! - **Calls.** [`Host::call`] takes a command from any thread and only enqueues it. A refusal (bad JSON, unknown
+//!   bot, `BUSY` past [`HostConfig::max_open_calls`], `CLOSED`) comes back at once and gets no `done`.
+//! - **Per bot**, one task owns the bot. Queued calls run one at a time in order, and each is followed by
+//!   `abandon_action` (acacia_bot::cancel), so a cancelled or failed call leaves nothing held. Immediate calls go
+//!   through the bot's `ClientSender` and `Inbox`, so they run while a queued call does. Between calls the task
+//!   keeps polling `Bot::next` (auto-eat needs it). `cancel` removes a queued call or cancels the running one,
+//!   re-firing the cancel until the action has started waiting.
+//! - **Stream.** The bot's events leave through its event sink as they happen (`acacia_bot::events::channel`),
+//!   are converted and numbered, and a call's `done` is written only after the events raised before it ended.
+//!   Each shard buffers its bots' records and sends them as one JSON array at most once per
+//!   [`HostConfig::flush_every`], or at once when a `done` is buffered. When the outbound channel is full the shard keeps them and merges them into
+//!   its next batch, dropping lossy events (counted in `lagged`) past [`HostConfig::max_held`].
+//! - **Joins.** BDS refuses a join from an IP that joined moments ago (RakNet `RecentlyConnected`), so the host
+//!   spaces joins to one address [`HostConfig::join_spacing`] ± [`HostConfig::join_jitter`] apart (default
+//!   `500 ± 250 ms`, acacia_bot::swarm::JoinQueue) and retries that refusal 4
+//!   times, 1-8 s apart; past that `createBot` fails `DISCONNECTED`. Many `createBot` calls at once just queue.
+//! - **Lifecycle.** `createBot` answers once the bot has spawned, after a `spawn` event. `bot.close` cancels the
+//!   running call, disconnects (at most 2 s), emits `end`, fails queued calls `DISCONNECTED` and then answers.
+//!   A server disconnect fails the running call (`DISCONNECTED` from the action) and the queued ones the same
+//!   way, after `end`. A panicking bot task emits `error`, fails its open calls `INTERNAL` and ends; the shard
+//!   lives on. [`Host::shutdown`] closes every bot, flushes and joins the shards.
+//! - **Consumers.** [`Outbound`] yields each batch as a `String`: a napi addon hands one per call to its sink
+//!   threadsafe function from a thread blocked in [`Outbound::blocking_recv`]; a socket server sends each as a
+//!   frame. The same bytes either way.
+//!
+//! - **Reads.** With [`HostConfig::snapshots`] each bot publishes its state per tick (acacia_bot::snapshot), and
+//!   [`Host::hot`], [`Host::cold`], [`Host::entities`] and [`Host::block_at`] read it and the bot's terrain from
+//!   any thread without a call or a `done`. Readers that keep a copy of the entity list take [`Host::entity_delta`]
+//!   instead: changes since their cursor.
+//!
+//! - **Sign-in.** `createBot {auth: "microsoft"}` signs `username` in before it joins: from the token cache in
+//!   `profilesFolder` ([`HostConfig::profiles_folder`], else [`default_profiles_folder`]), or by device code, sent
+//!   as an `msaCode` record of the call for a person to enter, then waits until they have (or the code lapses:
+//!   `AUTH`). `signIn` does the same without joining; its records name no bot and go out on the first shard. The
+//!   work runs on one sign-in thread of the host's ([`HostConfig::sign_in`] picks the provider: acacia-auth's flow,
+//!   or a test's `FakeSignIn`, feature `fake-sign-in`), so a shard never waits on it; `cancel` and `bot.close` of a
+//!   signing-in `createBot` abandon it. Shutdown answers open `signIn` calls `CLOSED`.
+//! - **Cancelling host calls.** A caller does not know a `createBot`'s bot until it resolves, so `cancelCall {call}`
+//!   names the call instead: a `createBot` still signing in, connecting or between join retries fails `CANCELLED`
+//!   (it reaches the bot's task as `cancel`), and so does an open `signIn`. Otherwise it does nothing.
+//!
+//! Not yet: reconnects through the swarm supervisor, Realms and friend joins.
+
+mod bot;
+mod calls;
+mod convert;
+mod entity_delta;
+mod host;
+mod outbound;
+mod reads;
+mod registry;
+mod sign_in;
+
+pub use host::{Host, HostConfig};
+#[cfg(feature = "fake-sign-in")]
+pub use sign_in::{FakeSignIn, FAKE_USER_CODE};
+pub use sign_in::{default_profiles_folder, DeviceCode, LoginFuture, MicrosoftSignIn, MsaAccount, OnlineLogin, Prompt, SignIn};
+pub use outbound::Outbound;
+pub use entity_delta::{EntityDelta, ENTITY_NUMBERS};

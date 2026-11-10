@@ -41,8 +41,7 @@ fn add_then_remove() {
     assert_eq!(pl.len(), 2);
 
     let alice = pl.get(&Uuid([1; 16])).unwrap();
-    assert_eq!(alice.username, "Alice");
-    assert_eq!(alice.xuid, "xuid-Alice");
+    assert_eq!((&*alice.username, &*alice.xuid), ("Alice", "xuid-Alice"));
     assert_eq!(alice.entity_unique_id, -1);
     assert_eq!(alice.build_platform, 7);
     assert_eq!(pl.by_name("bob").unwrap().uuid, Uuid([2; 16]));
@@ -51,7 +50,7 @@ fn add_then_remove() {
     assert_eq!(pl.len(), 1);
     assert!(pl.get(&Uuid([1; 16])).is_none());
     assert!(pl.by_name("Alice").is_none());
-    assert_eq!(pl.iter().map(|p| p.username.as_str()).collect::<Vec<_>>(), ["Bob"]);
+    assert_eq!(pl.iter().map(|p| &*p.username).collect::<Vec<_>>(), ["Bob"]);
 }
 
 #[test]
@@ -60,7 +59,7 @@ fn re_add_replaces_entry() {
     pl.apply(&list(vec![add(1, "Old")])).unwrap();
     pl.apply(&list(vec![add(1, "New")])).unwrap();
     assert_eq!(pl.len(), 1);
-    assert_eq!(pl.get(&Uuid([1; 16])).unwrap().username, "New");
+    assert_eq!(&*pl.get(&Uuid([1; 16])).unwrap().username, "New");
 }
 
 #[test]

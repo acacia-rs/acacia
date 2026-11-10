@@ -5,9 +5,37 @@ use acacia_session::proto::packets::{CommandRequest, Text, TextCategory, TextCon
 use acacia_session::proto::types::CommandOrigin;
 
 use crate::driver::Command;
-use crate::Client;
+use crate::{Client, ClientSender};
 
 impl Client {
+    /// See [`ClientSender::chat`].
+    pub fn chat(&self, message: impl Into<String>) -> bool {
+        self.sender.chat(message)
+    }
+
+    /// See [`ClientSender::command`].
+    pub fn command(&self, command: &str) -> bool {
+        self.sender.command(command)
+    }
+
+    /// See [`ClientSender::whisper`].
+    pub fn whisper(&self, to: &str, message: &str) -> bool {
+        self.sender.whisper(to, message)
+    }
+
+    /// Requests a respawn after death (see `acacia_session::Session::respawn`). Harmless while alive.
+    pub fn respawn(&self) -> bool {
+        self.command_raw(Command::Respawn)
+    }
+
+    /// Sends what vanilla sends once it is back in the world after a respawn (see
+    /// `acacia_session::Session::send_respawn_done`); [`Client::respawn`] sends it on its own.
+    pub fn respawn_done(&self) -> bool {
+        self.command_raw(Command::RespawnDone)
+    }
+}
+
+impl ClientSender {
     /// Sends a chat message as this player. Returns false if the connection has closed.
     pub fn chat(&self, message: impl Into<String>) -> bool {
         self.send(&Text {
@@ -39,17 +67,6 @@ impl Client {
     pub fn whisper(&self, to: &str, message: &str) -> bool {
         let to = if to.contains(' ') { format!("\"{to}\"") } else { to.to_owned() };
         self.command(&format!("tell {to} {message}"))
-    }
-
-    /// Requests a respawn after death (see `acacia_session::Session::respawn`). Harmless while alive.
-    pub fn respawn(&self) -> bool {
-        self.command_raw(Command::Respawn)
-    }
-
-    /// Sends what vanilla sends once it is back in the world after a respawn (see
-    /// `acacia_session::Session::send_respawn_done`); [`Client::respawn`] sends it on its own.
-    pub fn respawn_done(&self) -> bool {
-        self.command_raw(Command::RespawnDone)
     }
 }
 

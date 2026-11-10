@@ -5,7 +5,34 @@ use acacia_physics::Vec3;
 use super::bedrock::Backend;
 use crate::movement::Controls;
 
+/// The simulated body as a snapshot shows it; velocity in blocks per tick.
+pub(crate) struct Motion {
+    pub position: Vec3,
+    pub velocity: Vec3,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub on_ground: bool,
+    pub gliding: bool,
+}
+
 impl Backend {
+    /// The simulated body once movement has started; `None` for Bedrock bots without physics.
+    pub(crate) fn motion(&self) -> Option<Motion> {
+        match self {
+            Backend::Bedrock(b) => {
+                let m = b.movement.as_ref()?;
+                let (yaw, pitch) = (m.controls.yaw, m.controls.pitch);
+                Some(Motion { position: m.position()?, velocity: m.velocity().unwrap_or_default(), yaw, pitch, on_ground: m.on_ground(), gliding: m.gliding() })
+            }
+            #[cfg(feature = "java")]
+            Backend::Java(j) => {
+                let p = &j.client.movement.player;
+                let (position, velocity) = (p.pos.map(|c| c as f32), p.delta.map(|c| c as f32));
+                j.started().then_some(Motion { position, velocity, yaw: p.yaw, pitch: p.pitch, on_ground: p.on_ground, gliding: p.fall_flying })
+            }
+        }
+    }
+
     /// The bot simulates its own movement (a physics bot on Bedrock; always on Java).
     pub(crate) fn moves(&self) -> bool {
         match self {

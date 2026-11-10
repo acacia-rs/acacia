@@ -43,10 +43,23 @@ pub struct Effect {
 }
 
 /// Active effects of one entity, in arrival order.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Effects(Vec<Effect>);
+#[derive(Debug, Clone, Default)]
+pub struct Effects(Vec<Effect>, u64);
+
+impl PartialEq for Effects {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for Effects {}
 
 impl Effects {
+    /// Moves on every change (see [`crate::snapshot`]).
+    pub fn version(&self) -> u64 {
+        self.1
+    }
+
     pub fn get(&self, id: i32) -> Option<&Effect> {
         self.0.iter().find(|e| e.id == id)
     }
@@ -65,6 +78,7 @@ impl Effects {
     }
 
     pub(crate) fn apply(&mut self, p: &MobEffect) {
+        self.1 += 1;
         self.0.retain(|e| e.id != p.effect_id);
         if p.event_id != MobEffectEventId::Remove {
             self.0.push(Effect {
@@ -79,6 +93,7 @@ impl Effects {
     }
 
     pub(crate) fn clear(&mut self) {
+        self.1 += 1;
         self.0.clear();
     }
 }

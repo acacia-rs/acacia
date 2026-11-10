@@ -1,0 +1,107 @@
+import { AcaciaError, type BlockPos, type ContainerItem, type ItemCount, type Recipe } from '@acacia-rs/bot'
+
+import type { BotHandle } from './bots.js'
+import { ENTITY_PARAM, eyesOf } from './entities.js'
+import { fmtPos, ok, withProps, type Adapter, type Args, type JsonSchema, type ToolResult } from './tool.js'
+
+/** Blocks from the bot's feet within which a crafting table counts as in reach. */
+const TABLE_REACH = 4
+
+const nearestTable = (handle: BotHandle): BlockPos | undefined =>
+  handle.bot.findBlocks({ matching: ['crafting_table'], maxDistance: TABLE_REACH, count: 1 })[0]
+
+const CONTAINER_NOTE = 'Walk within reach of it first (goto with range 3).'
+
+const TOWARD_PARAM: JsonSchema = { ...ENTITY_PARAM, description: `Throw toward this entity or player (giveToPlayer also walks there). ${ENTITY_PARAM.description}` }
+
+function moved(result: unknown, where: string, params: Args): ToolResult {
+  const { moved } = result as { moved: number }
+  return ok(`${moved} ${params.item} ${where}`, { moved })
+}
+
+const counted = (items: ItemCount[]) => items.map((i) => `${i.item} x${i.count}`).join(', ')
+
+function recipeText(r: Recipe): string {
+  const where = r.station !== 'crafting_table' ? r.station : r.fits2x2 ? '2x2 grid' : 'crafting table'
+  return `${counted(r.outputs)} from ${counted(r.inputs)} (${where})`
+}
+
+/** Adapters of the inventory, crafting and container methods (see `Adapter`). */
+export const ITEM_ADAPTERS: Partial<Record<string, Adapter>> = {
+  'bot.craft': {
+    schema: (base) =>
+      withProps(base, {
+        table: {
+          type: 'boolean',
+          description:
+            'true: at the nearest crafting table within reach; false: in the bot\'s own 2x2 grid; absent: the table when one is in reach, else the grid.',
+        },
+      }),
+    note: 'Walk within reach of a crafting table first for 3x3 recipes (findBlocks + goto).',
+    params: ({ table, ...args }, handle) => {
+      const pos = table === false ? undefined : nearestTable(handle)
+      if (table === true && !pos) throw new AcaciaError('NOT_POSSIBLE', `no crafting table within ${TABLE_REACH} blocks`)
+      return pos ? { ...args, table: pos } : args
+    },
+    timeout: () => 60_000,
+    done: (result, params) => {
+      const { crafted } = result as { crafted: number }
+      const table = params.table as BlockPos | undefined
+      return ok(`crafted ${crafted} ${params.item}${table ? ` at the crafting table at ${fmtPos(table)}` : ''}`, { crafted })
+    },
+  },
+  'bot.containerContents': {
+    note: CONTAINER_NOTE,
+    done: (result) => {
+      const { items } = result as { items: ContainerItem[] }
+      return ok(items.map((i) => `slot ${i.slot}: ${i.item} x${i.count}`).join('\n') || 'empty', { items })
+    },
+  },
+  'bot.deposit': {
+    note: CONTAINER_NOTE,
+    done: (result, params) => moved(result, `put into the container at ${fmtPos(params as BlockPos)}`, params),
+  },
+  'bot.withdraw': {
+    note: CONTAINER_NOTE,
+    done: (result, params) => moved(result, `taken from the container at ${fmtPos(params as BlockPos)}`, params),
+  },
+  'bot.smelt': {
+    note: CONTAINER_NOTE,
+    timeout: (args) => ((args.count as number | undefined) ?? 1) * 10_000 + 30_000,
+    done: (result, params) => {
+      const { smelted } = result as { smelted: number }
+      return ok(`smelted ${params.item}: took ${smelted} items out of the furnace at ${fmtPos(params as BlockPos)}`, { smelted })
+    },
+  },
+  'bot.consume': {
+    timeout: () => 15_000,
+    done: (_, params, handle) => ok(`consumed ${params.item ?? 'the held item'}; food now ${handle.bot.food ?? '?'}`),
+  },
+  'bot.toss': {
+    schema: (base) => withProps(base, { toward: TOWARD_PARAM }),
+    params: ({ toward, ...args }, handle) => (toward === undefined ? args : { ...args, toward: eyesOf(handle, String(toward)) }),
+    done: (result, params) => {
+      const { tossed } = result as { tossed: number }
+      return ok(`tossed ${tossed} ${params.item}`, { tossed })
+    },
+  },
+  'bot.recipesFor': {
+    done: (result, params) => {
+      const { recipes } = result as { recipes: Recipe[] }
+      return ok(recipes.length ? recipes.map(recipeText).join('\n') : `no recipe makes ${params.item}`, { recipes })
+    },
+  },
+  'bot.craftableItems': {
+    done: (result, params) => {
+      const { items } = result as { items: ItemCount[] }
+      const where = params.table ? 'at a crafting table' : 'in the 2x2 grid'
+      return ok(items.length ? `craftable ${where}: ${counted(items)}` : `nothing is craftable ${where}`, { items })
+    },
+  },
+  'bot.equipBestTool': {
+    done: (result) => {
+      const { slot } = result as { slot: number | null }
+      return ok(slot === null ? 'nothing beats the bare hand; kept the held item' : `holding the best tool in hotbar slot ${slot}`, { slot })
+    },
+  },
+}

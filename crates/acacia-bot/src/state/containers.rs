@@ -152,6 +152,10 @@ impl Containers {
 
     /// A block entity's update: remembers its `CustomName` for titling windows.
     pub(crate) fn block_entity(&mut self, position: &BlockCoordinates, nbt: &[u8]) -> Result<(), DecodeError> {
+        // Most never carry a name (a piston's on every move): skip the walk.
+        if memchr::memmem::find(nbt, b"CustomName").is_none() {
+            return Ok(());
+        }
         if let Some(name) = root_string::<Network>(nbt, "CustomName")? {
             self.name_block(position, &name);
         }

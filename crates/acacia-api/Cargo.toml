@@ -1,0 +1,21 @@
+[package]
+name = "acacia-api"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Transport-agnostic command, event and snapshot schema for driving acacia bots from other languages"
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+schemars = "1.2.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ts-rs = { version = "12.0.1", features = ["serde-json-impl", "no-serde-warnings"] }
+
+[dev-dependencies]
+# The name unions' sources (tests/generated.rs); the library itself stays off the bot stack.
+acacia-proto.workspace = true
+acacia-testserver = { path = "../acacia-testserver" }
+acacia-world.workspace = true

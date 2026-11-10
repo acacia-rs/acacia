@@ -36,6 +36,7 @@ mod pick;
 mod repair;
 mod shield;
 mod smithing;
+mod storage;
 mod trade;
 
 #[cfg(test)]

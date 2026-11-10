@@ -34,6 +34,7 @@ mod raw;
 #[cfg(feature = "online")]
 mod realm;
 mod route;
+mod sender;
 mod signaling;
 mod socks5;
 #[cfg(test)]
@@ -49,6 +50,7 @@ pub use blob_cache::DiskBlobStore;
 pub use pack_cache::DiskPackStore;
 pub use client::{ClientBuilder, Login, TransportKind};
 pub use handle::Client;
+pub use sender::ClientSender;
 pub use acacia_nethernet::lan::ServerData as LanServerData;
 pub use filter::PacketFilter;
 pub use friend::FriendJoin;

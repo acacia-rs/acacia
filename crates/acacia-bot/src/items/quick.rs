@@ -15,9 +15,15 @@ const MAX_STACK: u16 = 64;
 /// Ops that move the whole stack in `from` to the other side: container or workstation → player
 /// inventory, player → open container, or hotbar ↔ inventory when no container is open.
 pub(crate) fn quick_move_ops(state: &GameState, from: SlotRef) -> Result<Vec<Op>, ActionError> {
-    let stack = from.stack(state).filter(|s| !s.is_empty()).ok_or_else(|| ActionError::NotPossible(format!("{from:?} is empty")))?;
+    quick_move_up_to_ops(state, from, u16::MAX)
+}
+
+/// [`quick_move_ops`] for at most `count` of the stack's items.
+pub(crate) fn quick_move_up_to_ops(state: &GameState, from: SlotRef, count: u16) -> Result<Vec<Op>, ActionError> {
+    let mut stack = from.stack(state).filter(|s| !s.is_empty()).ok_or_else(|| ActionError::NotPossible(format!("{from:?} is empty")))?.clone();
+    stack.count = stack.count.min(count);
     let targets: Vec<(SlotRef, ItemStack)> = targets(state, from).into_iter().filter_map(|t| t.stack(state).map(|s| (t, s.clone()))).collect();
-    let ops = move_ops(from, stack, &targets);
+    let ops = move_ops(from, &stack, &targets);
     if ops.is_empty() {
         return Err(ActionError::NotPossible("no room for the stack".into()));
     }

@@ -149,7 +149,7 @@ pub fn build_cold(state: &GameState, names: bool) -> Cold {
     let players = state
         .player_list
         .iter()
-        .map(|p| Player { uuid: p.uuid, username: p.username.clone(), xuid: p.xuid.clone(), entity_unique_id: p.entity_unique_id })
+        .map(|p| Player { uuid: p.uuid, username: p.username.to_string(), xuid: p.xuid.to_string(), entity_unique_id: p.entity_unique_id })
         .collect();
     Cold { inventory, cursor, effects, players, open_window: state.containers.open.as_ref().map(|c| c.window_id) }
 }

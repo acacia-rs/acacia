@@ -9,7 +9,7 @@ const OFFLINE: &str = "Player Offline";
 pub fn sidebar(bot: &Bot) -> Option<Sidebar> {
     let state = bot.state();
     let objective = state.scoreboard.sidebar()?;
-    let name = |id: Option<i64>| id.and_then(|id| state.player_list.iter().find(|p| p.entity_unique_id == id)).map(|p| p.username.clone());
+    let name = |id: Option<i64>| id.and_then(|id| state.player_list.iter().find(|p| p.entity_unique_id == id)).map(|p| p.username.to_string());
     let lines = objective
         .sorted()
         .into_iter()

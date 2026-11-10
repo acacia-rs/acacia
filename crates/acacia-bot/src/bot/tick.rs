@@ -12,6 +12,23 @@ const SPAWN_WAIT_TICKS: u32 = 100;
 const SOLID_REACH: f32 = 4.0;
 
 impl Bot {
+    /// The client ticks that came due, then the snapshot, entity moves and a [`crate::BotEvent::Tick`] for a sink
+    /// (see [`crate::snapshot`], [`crate::events`]).
+    pub(super) fn run_ticks(&mut self, ticks: u32) {
+        for _ in 0..ticks {
+            match self.backend {
+                super::Backend::Bedrock(_) => self.on_tick(),
+                #[cfg(feature = "java")]
+                super::Backend::Java(_) => self.java_tick(),
+            }
+        }
+        self.publish_snapshot(ticks);
+        self.events.on_ticks(&self.state, &mut self.out);
+        if self.out.is_sink() && self.events.wants(crate::Events::TICKS) {
+            self.out.push(crate::BotEvent::Tick);
+        }
+    }
+
     /// One Bedrock client tick: scheduled actions, then idle input or the physics simulation.
     pub(super) fn on_tick(&mut self) {
         self.governor.tick(self.backend.movement().and_then(|m| m.setback_age()));

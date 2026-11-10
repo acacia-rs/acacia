@@ -10,11 +10,15 @@
 //! ```
 
 pub mod capture;
+mod inventory;
 pub mod load;
 mod peer;
+mod scene;
 mod script;
 mod server;
 
+pub use inventory::InventoryServer;
 pub use peer::Received;
+pub use scene::bds_block_id;
 pub use script::{Script, Step};
 pub use server::{FakeServer, WAIT_TIMEOUT};

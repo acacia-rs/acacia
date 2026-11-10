@@ -1,0 +1,60 @@
+{
+  "name": "@acacia-rs/bot",
+  "version": "0.1.0",
+  "description": "Minecraft Bedrock and Java Edition bots for Node.js on acacia's native Rust client",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/acacia-rs/acacia.git",
+    "directory": "packages/acacia-bot"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "native/index.js",
+    "native/index.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "napi": {
+    "binaryName": "acacia-bot",
+    "packageName": "@acacia-rs/bot",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "aarch64-pc-windows-msvc"
+    ]
+  },
+  "scripts": {
+    "build": "npm run build:native -- --release && npm run build:ts",
+    "build:test": "npm run build:native -- --features test-server && npm run build:ts",
+    "build:native": "CARGO_BUILD_JOBS=2 napi build --platform --esm --manifest-path ../../crates/acacia-node/Cargo.toml --output-dir native",
+    "build:ts": "node scripts/sync-types.mjs && tsc -p tsconfig.json",
+    "test": "node --test --test-reporter=spec 'test/*.test.mjs'",
+    "docs": "node scripts/sync-types.mjs && npm --prefix ../api-docs run bot",
+    "build:bench": "npm run build:native -- --release --features test-server && npm run build:ts",
+    "bench:events": "node bench/events.mjs",
+    "bench:reads": "node bench/reads.mjs",
+    "bench:memory": "node --expose-gc bench/memory.mjs"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "3.10.9",
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2"
+  }
+}

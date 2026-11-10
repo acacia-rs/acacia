@@ -22,7 +22,7 @@ use crate::lan::LanServer;
 use crate::signaling::SignalingTarget;
 use crate::socks5::Socks5Proxy;
 use crate::transport::resolve;
-use crate::{Client, ConnectError};
+use crate::{Client, ClientSender, ConnectError};
 
 /// Which transport to join over.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -320,7 +320,13 @@ impl ClientBuilder {
 
         let result = tokio::time::timeout(self.login_timeout, spawn_rx).await;
         match result {
-            Ok(Ok(Ok(runtime_entity_id))) => Ok(Client { commands: cmd_tx, events: ev_rx, runtime_entity_id, identity, blob_store, trace }),
+            Ok(Ok(Ok(runtime_entity_id))) => Ok(Client {
+                sender: ClientSender { commands: cmd_tx, identity: Arc::new(identity) },
+                events: ev_rx,
+                runtime_entity_id,
+                blob_store,
+                trace,
+            }),
             Ok(Ok(Err(reason))) => Err(ConnectError::Disconnected(reason)),
             Ok(Err(_)) => Err(ConnectError::Disconnected(DisconnectReason::LocalClose)),
             Err(_) => {

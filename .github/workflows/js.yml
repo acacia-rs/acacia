@@ -1,0 +1,209 @@
+name: JS
+
+on:
+  push:
+    branches: [master]
+    paths: &paths
+      - crates/acacia-api/**
+      - crates/acacia-host/**
+      - crates/acacia-node/**
+      - crates/acacia-bot/**
+      - crates/acacia-client/**
+      - crates/acacia-world/**
+      - crates/acacia-physics/**
+      - crates/acacia-proto/**
+      - crates/acacia-session/**
+      - crates/acacia-raknet/**
+      - crates/acacia-nethernet/**
+      - crates/acacia-auth/**
+      - crates/acacia-nbt/**
+      - crates/acacia-testserver/**
+      - Cargo.lock
+      - packages/**
+      - .github/workflows/js.yml
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish @acacia-rs/bot and @acacia-rs/mcp to npm under the `next` dist-tag (see packages/RELEASING.md)
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # The publish job renames the packages to this scope when it differs from package.json's (packages/RELEASING.md).
+  NPM_SCOPE: '@acacia-rs'
+
+concurrency:
+  group: js-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  api-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p acacia-api --test generated
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    env:
+      # The package scripts use POSIX env prefixes and quoted globs; cmd.exe can't run them.
+      NPM_CONFIG_SCRIPT_SHELL: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: packages/package-lock.json
+      # One workspace (packages/package.json): @acacia-rs/mcp links the local @acacia-rs/bot.
+      - run: npm ci
+        working-directory: packages
+      # Builds @acacia-rs/bot (debug, test-server) first, then the MCP package.
+      - run: npm run build:test
+        working-directory: packages/acacia-mcp
+      # The API reference (TypeDoc, into packages/acacia-bot/docs-site); any TypeDoc warning fails it. It needs the
+      # addon's generated typings, so it runs after the build.
+      # TODO(user): publishing it (actions/upload-pages-artifact + actions/deploy-pages to GitHub Pages) is your call.
+      - run: npm run docs
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+        working-directory: packages/acacia-bot
+      # ws-e2e.test.mjs runs against the daemon.
+      - run: cargo build -p acacia-daemon
+      - run: npm test
+        working-directory: packages/acacia-bot
+      - run: npm test
+        working-directory: packages/acacia-mcp
+      # The tarballs npm would publish, installed into an empty project and loaded.
+      - run: bash scripts/pack-smoke.sh
+        working-directory: packages
+
+  build:
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-latest, cross: --use-napi-cross }
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, cross: -x }
+          - { target: x86_64-apple-darwin, os: macos-latest }
+          - { target: aarch64-apple-darwin, os: macos-latest }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          - { target: aarch64-pc-windows-msvc, os: windows-latest }
+    runs-on: ${{ matrix.os }}
+    env:
+      NPM_CONFIG_SCRIPT_SHELL: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: mlugg/setup-zig@v2
+        if: matrix.cross == '-x'
+        with:
+          version: 0.14.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/package-lock.json
+      - run: npm ci
+        working-directory: packages
+      # Before the build: the generated loader hardcodes the platform package names.
+      - name: Rename to the release scope
+        if: env.NPM_SCOPE != '@acacia-rs'
+        run: node scripts/set-scope.mjs "$NPM_SCOPE"
+        working-directory: packages/acacia-bot
+      - run: npm run build:native -- --release --target ${{ matrix.target }} ${{ matrix.cross }}
+        working-directory: packages/acacia-bot
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.target }}
+          path: packages/acacia-bot/native/*.node
+          if-no-files-found: error
+      # The generated loader is target-independent; the publish job ships this copy.
+      - uses: actions/upload-artifact@v4
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        with:
+          name: loader
+          path: |
+            packages/acacia-bot/native/index.js
+            packages/acacia-bot/native/index.d.ts
+          if-no-files-found: error
+
+  # TODO(user): add a trusted publisher per package on npmjs.com first (packages/RELEASING.md).
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: [api-drift, test, build]
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/acacia-bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1; Node 22 ships 10.x, which fails with a misleading E404.
+      - run: npm install -g npm@11
+      - run: npm ci
+        working-directory: packages
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bindings-*
+          path: packages/acacia-bot/artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: loader
+          path: packages/acacia-bot/native
+      - name: Rename to the release scope
+        if: env.NPM_SCOPE != '@acacia-rs'
+        run: node scripts/set-scope.mjs "$NPM_SCOPE"
+      - run: npx napi create-npm-dirs
+      - run: npx napi artifacts --output-dir artifacts --npm-dir npm
+      # create-npm-dirs makes one dir per napi target; publishing with any of them empty ships a broken install.
+      - name: Every napi target has a binary
+        run: |
+          missing=0
+          for d in npm/*/; do ls "$d"*.node >/dev/null 2>&1 || { echo "::error::no binary in $d"; missing=1; }; done
+          exit $missing
+      - run: npm run build:ts
+      # Platform packages first (prepublish), then the main package; npm has no atomic multi-package publish.
+      - run: npx napi prepublish -t npm --no-gh-release
+        env:
+          npm_config_tag: next
+          npm_config_provenance: true
+      - run: npm publish --tag next --provenance --access public
+      # After the bot it depends on (by version range). Its sources import @acacia-rs/bot, so it ships only under
+      # that scope.
+      - name: Publish @acacia-rs/mcp
+        if: env.NPM_SCOPE == '@acacia-rs'
+        working-directory: packages/acacia-mcp
+        run: |
+          npm run build:ts
+          npm publish --tag next --provenance --access public
