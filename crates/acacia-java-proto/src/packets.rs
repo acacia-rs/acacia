@@ -47,6 +47,43 @@ packet!(PlayerCommand { entity: VarInt, action: VarInt, data: VarInt });
 packet!(ServerboundAbilities { flags: u8 });
 packet!(ClientboundAbilities { flags: u8, flying_speed: f32, walking_speed: f32 });
 
+packet!(ChatCommand { command: String });
+
+/// `ServerboundChatPacket` with no signature and nothing acknowledged, as servers without chat sessions take it.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct UnsignedChat {
+    pub message: String,
+    pub timestamp_millis: i64,
+    pub salt: i64,
+}
+
+/// `LastSeenMessages.Update`'s acknowledged set: a fixed 20-bit set.
+const ACKNOWLEDGED_BYTES: usize = 3;
+const SIGNATURE_BYTES: usize = 256;
+
+impl Wire for UnsignedChat {
+    fn read(input: &mut &[u8]) -> Result<Self, Error> {
+        let (message, timestamp_millis, salt) = (String::read(input)?, i64::read(input)?, i64::read(input)?);
+        let skip = if bool::read(input)? { SIGNATURE_BYTES } else { 0 };
+        VarInt::read(input)?;
+        for _ in 0..skip + ACKNOWLEDGED_BYTES + 1 {
+            u8::read(input)?;
+        }
+        Ok(Self { message, timestamp_millis, salt })
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        self.message.write(out);
+        self.timestamp_millis.write(out);
+        self.salt.write(out);
+        false.write(out);
+        VarInt(0).write(out);
+        out.extend([0; ACKNOWLEDGED_BYTES]);
+        // Checksum 0: `LastSeenMessages.Update.IGNORE_CHECKSUM`.
+        out.push(0);
+    }
+}
+
 /// `ServerboundPlayerCommandPacket.Action` ordinals.
 pub const COMMAND_START_SPRINTING: i32 = 1;
 pub const COMMAND_STOP_SPRINTING: i32 = 2;

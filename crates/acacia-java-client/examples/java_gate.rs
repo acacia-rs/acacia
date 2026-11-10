@@ -64,6 +64,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cheat = std::env::var_os("ACACIA_GATE_CHEAT").is_some();
     let mut client = Client::join_offline(&args[0], args[1].parse()?, "AcaciaGate").await?;
     client.movement.player.has_glider = args[3] == "1";
+    if let Ok(text) = std::env::var("ACACIA_GATE_SAY") {
+        client.chat(&text)?;
+        client.command(&format!("say {text}"))?;
+    }
     let mut script = vec![Tick { keys: Keys::default(), turn: [0.0; 2] }; settle];
     script.extend(expand(&args[4..]));
     let (mut corrections, total) = (0, script.len());
