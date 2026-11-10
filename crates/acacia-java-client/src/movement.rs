@@ -138,6 +138,7 @@ impl Client {
     /// teleport or while the player's chunk is missing.
     pub fn step(&mut self, keys: Keys) -> Result<(), Error> {
         self.send_actions()?;
+        self.world.tick_entities();
         let at = self.movement.player.pos.map(|v| v.floor() as i32);
         if !self.loaded() || !self.world.has_chunk(at) {
             return Ok(());

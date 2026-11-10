@@ -11,7 +11,7 @@ use super::goto::NavStatus;
 use super::job::{Answer, SearchJob};
 use super::pilot::Pilot;
 use super::terrain::{Blocks, Terrain};
-use super::hazard::{self, Hazards};
+use super::hazard::{self, Body, Hazards};
 use crate::bot::{Backend, Java};
 use crate::movement::{JavaSim, Live, Sim};
 use crate::state::GameState;
@@ -36,13 +36,26 @@ fn spawn(job: SearchJob<JavaSim>, chunks: Chunks) -> Answer {
 }
 
 /// The steering half of [`super::goto::step`] on Java, with the threats [`perceive`]d from the mirrored entities.
-/// Striking back is still Bedrock's.
 pub(super) fn drive(pilot: &mut Pilot, bot: &mut Bot, mut opts: SearchOpts) -> Result<NavStatus, ActionError> {
     let Backend::Java(java) = &mut bot.backend else { return Ok(NavStatus::Searching) };
     let chunks = java.client.world.chunks().clone();
     opts.hazards = perceive(pilot, &bot.state, java.as_ref(), &chunks);
     let terrain = Terrain::new(&chunks, BlockRegistry::java()).with_hazards(opts.hazards.clone());
     pilot.drive(&terrain, java.as_mut(), opts, &mut |job| spawn(job, chunks.clone()))
+}
+
+/// [`super::goto`]'s strike-back on Java: the same striker, fed from the Java body.
+pub(super) fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
+    let eye = bot.eye_position();
+    let tick = bot.state.entities.now();
+    let Backend::Java(java) = &bot.backend else { return };
+    let Some(st) = java.base().map(|b| b.body()) else { return };
+    let (mut controls, me) = (java.controls, i64::from(java.client.world.player_id));
+    let blocks = Terrain::new(java.client.world.chunks(), BlockRegistry::java());
+    let sees = |a, b| hazard::clear_line(&blocks, a, b);
+    let body = Body { eye, feet: st.pos, vel: st.vel, me, tick, sees: &sees };
+    let id = pilot.strike(&body, &mut controls);
+    super::goto::strike(bot, controls, id);
 }
 
 /// The pilot's field this tick from the entities around the bot, as Bedrock's `goto::perceive`.

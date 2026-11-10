@@ -52,8 +52,14 @@ impl Bot {
         }
         tracing::debug!(runtime_id, attack, ?hit, eye = ?self.eye_position(), "entity click");
         if attack {
-            self.swing_from(Some(SwingSource::Attack));
             self.reflexes.attack_ready = Some(Instant::now() + self.human.between(ATTACK_GAP));
+        }
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_click_entity(runtime_id, attack, hit);
+        }
+        if attack {
+            self.swing_from(Some(SwingSource::Attack));
         }
         self.send_bedrock(&wire::use_on_entity(self.hand(), runtime_id, attack, hit));
         if !attack {

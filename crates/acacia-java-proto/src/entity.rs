@@ -9,37 +9,58 @@ pub fn apply_delta(base: [f64; 3], delta: [i16; 3]) -> [f64; 3] {
     std::array::from_fn(|i| if delta[i] == 0 { base[i] } else { ((base[i] * DELTA_SCALE).round() + f64::from(delta[i])) / DELTA_SCALE })
 }
 
-/// `MoveEntity.Pos`/`PosRot` after the entity id: on-ground flag, then the final position from `base`.
-pub fn read_move(input: &mut &[u8], base: [f64; 3]) -> Result<(bool, [f64; 3]), Error> {
+/// `PositionPath`: one move over the receiver's own interpolation steps, or steps of their own tick counts.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PositionPath {
+    Linear([f64; 3]),
+    Stepped(Vec<([f64; 3], u32)>),
+}
+
+impl PositionPath {
+    pub fn end(&self) -> [f64; 3] {
+        match self {
+            PositionPath::Linear(end) => *end,
+            PositionPath::Stepped(steps) => steps.last().map_or([0.0; 3], |s| s.0),
+        }
+    }
+}
+
+/// `MoveEntity.Pos`/`PosRot` after the entity id: on-ground flag, then the path, each step decoded from the one before
+/// (the first from `base`).
+pub fn read_move(input: &mut &[u8], base: [f64; 3]) -> Result<(bool, PositionPath), Error> {
     let properties = read_varint(input)?;
-    let steps = (properties as u32) >> 1;
-    let mut position = base;
-    if steps == 0 {
-        position = apply_delta(base, read_delta(input)?);
-    }
-    for _ in 0..steps {
-        VarInt::read(input)?;
-        position = apply_delta(position, read_delta(input)?);
-    }
-    Ok((properties & 1 != 0, position))
+    let count = (properties as u32) >> 1;
+    let path = if count == 0 {
+        PositionPath::Linear(apply_delta(base, read_delta(input)?))
+    } else {
+        let mut at = base;
+        let mut steps = Vec::with_capacity(count.min(64) as usize);
+        for _ in 0..count {
+            let ticks = read_varint(input)? as u32;
+            at = apply_delta(at, read_delta(input)?);
+            steps.push((at, ticks));
+        }
+        PositionPath::Stepped(steps)
+    };
+    Ok((properties & 1 != 0, path))
 }
 
 fn read_delta(input: &mut &[u8]) -> Result<[i16; 3], Error> {
     Ok([i16::read(input)?, i16::read(input)?, i16::read(input)?])
 }
 
-/// `PositionPath`'s final position.
-pub fn read_path_end(input: &mut &[u8]) -> Result<[f64; 3], Error> {
+/// `PositionPath` in full precision, as `EntityPositionSync` carries it.
+pub fn read_path(input: &mut &[u8]) -> Result<PositionPath, Error> {
     let vec3 = |input: &mut &[u8]| -> Result<[f64; 3], Error> { Ok([f64::read(input)?, f64::read(input)?, f64::read(input)?]) };
     match read_varint(input)? {
-        0 => vec3(input),
+        0 => vec3(input).map(PositionPath::Linear),
         _ => {
-            let mut end = [0.0; 3];
-            for _ in 0..read_varint(input)? {
-                end = vec3(input)?;
-                VarInt::read(input)?;
+            let count = read_varint(input)?;
+            let mut steps = Vec::with_capacity(count.clamp(0, 64) as usize);
+            for _ in 0..count {
+                steps.push((vec3(input)?, read_varint(input)? as u32));
             }
-            Ok(end)
+            Ok(PositionPath::Stepped(steps))
         }
     }
 }
@@ -124,7 +145,8 @@ mod tests {
             0i16.write(&mut buf);
             0i16.write(&mut buf);
         }
-        assert_eq!(read_move(&mut &buf[..], [1.0, 2.0, 3.0]), Ok((true, [2.5, 2.0, 3.0])));
+        let path = PositionPath::Stepped(vec![([2.0, 2.0, 3.0], 3), ([2.5, 2.0, 3.0], 3)]);
+        assert_eq!(read_move(&mut &buf[..], [1.0, 2.0, 3.0]), Ok((true, path)));
     }
 
     #[test]

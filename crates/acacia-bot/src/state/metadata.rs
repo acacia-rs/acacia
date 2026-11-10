@@ -15,6 +15,11 @@ impl Metadata {
         self.0.get(&key)
     }
 
+    #[cfg(feature = "java")]
+    pub(crate) fn set(&mut self, key: Key, value: Value) {
+        self.0.insert(key, value);
+    }
+
     /// Plain (non-flag) value of `key`.
     pub fn plain(&self, key: Key) -> Option<&Plain> {
         match self.get(key)? {

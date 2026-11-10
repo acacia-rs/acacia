@@ -153,6 +153,10 @@ pub(super) fn sense(pilot: &mut Pilot, bot: &Bot) {
 
 /// After the steering: aims at a chaser closing in and attacks it when due ([`Pilot::strike`]).
 fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
+    #[cfg(feature = "java")]
+    if bot.java().is_some() {
+        return super::java_goto::strike_back(pilot, bot);
+    }
     let Some((world, movement)) = bot.backend.physics() else { return };
     let (Some(view), Some(registry), Some(st)) = (world.view(), world.registry(), movement.state()) else { return };
     let mut controls = movement.controls;
@@ -162,8 +166,13 @@ fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
         let body = Body { eye: bot.eye_position(), feet: st.pos, vel: st.vel, me: bot.state.player.unique_entity_id, tick: bot.state.entities.now(), sees: &sees };
         pilot.strike(&body, &mut controls)
     };
-    if let Some(m) = bot.backend.movement_mut() {
-        m.controls = controls;
+    strike(bot, controls, id);
+}
+
+/// Applies the striker's aim and clicks its target, if it chose one.
+pub(super) fn strike(bot: &mut Bot, controls: crate::movement::Controls, id: Option<u64>) {
+    if let Some(c) = bot.backend.controls_mut() {
+        *c = controls;
     }
     if let Some(id) = id {
         if let Err(e) = bot.click_entity_aimed(id, true) {

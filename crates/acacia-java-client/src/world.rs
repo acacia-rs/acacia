@@ -3,10 +3,12 @@
 use std::collections::HashMap;
 
 use crate::chunks::Chunks;
+use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, read_mob_flags};
+pub use crate::entity::Entity;
 
 use acacia_java_proto::actions::BlockPos;
 use acacia_java_proto::chunk::{read_chunk_header, read_sections};
-use acacia_java_proto::entity::{read_move, read_path_end, skip_lp_vec3};
+use acacia_java_proto::entity::{PositionPath, read_move, read_path, skip_lp_vec3};
 use acacia_java_proto::packets::PositionMoveRotation;
 use acacia_java_proto::{Error, VarInt, Wire, ids, read_varint, read_varlong};
 
@@ -15,17 +17,6 @@ use ids::play::clientbound as from;
 /// A byte angle in degrees.
 fn degrees(angle: i8) -> f32 {
     f32::from(angle) * 360.0 / 256.0
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Entity {
-    pub uuid: u128,
-    /// `entity_type` registry id.
-    pub kind: i32,
-    pub position: [f64; 3],
-    pub y_rot: f32,
-    pub x_rot: f32,
-    pub on_ground: bool,
 }
 
 #[derive(Debug, Default)]
@@ -67,6 +58,13 @@ impl World {
     /// Writes a block ahead of the server, as vanilla's prediction does; the server's update overwrites it.
     pub fn set_block(&mut self, pos: [i32; 3], state: u32) {
         self.chunks.set_block(pos, state);
+    }
+
+    /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick.
+    pub fn tick_entities(&mut self) {
+        for e in self.entities.values_mut() {
+            e.lerp.interpolate(&mut e.position);
+        }
     }
 
     fn enter_level(&mut self, dimension: String) {
@@ -112,19 +110,27 @@ impl World {
             from::TELEPORT_ENTITY => self.teleport_entity(input)?,
             from::ENTITY_POSITION_SYNC => {
                 let id = read_varint(input)?;
-                let position = read_path_end(input)?;
+                let path = read_path(input)?;
                 let (y_rot, x_rot, on_ground) = (f32::read(input)?, f32::read(input)?, bool::read(input)?);
                 if let Some(e) = self.entities.get_mut(&id) {
-                    (e.position, e.y_rot, e.x_rot, e.on_ground) = (position, y_rot, x_rot, on_ground);
+                    e.base = path.end();
+                    e.move_to(Some(path), Some((y_rot, x_rot)), true);
+                    e.on_ground = on_ground;
                 }
             }
             from::MOVE_ENTITY_POS | from::MOVE_ENTITY_POS_ROT => {
                 let id2 = read_varint(input)?;
                 let Some(e) = self.entities.get_mut(&id2) else { return Ok(()) };
-                let (on_ground, position) = read_move(input, e.position)?;
-                (e.on_ground, e.position) = (on_ground, position);
-                if id == from::MOVE_ENTITY_POS_ROT {
-                    (e.y_rot, e.x_rot) = (degrees(i8::read(input)?), degrees(i8::read(input)?));
+                let (on_ground, path) = read_move(input, e.base)?;
+                let rot = if id == from::MOVE_ENTITY_POS_ROT { Some((degrees(i8::read(input)?), degrees(i8::read(input)?))) } else { None };
+                e.base = path.end();
+                e.move_to(Some(path), rot, false);
+                e.on_ground = on_ground;
+            }
+            from::SET_ENTITY_DATA => {
+                let id = read_varint(input)?;
+                if let Some(e) = self.entities.get_mut(&id).filter(|e| has_mob_flags(e.kind)) {
+                    read_mob_flags(input)?.inspect(|flags| e.aggressive = flags & MOB_AGGRESSIVE != 0);
                 }
             }
             from::MOVE_ENTITY_ROT => {
@@ -132,7 +138,8 @@ impl World {
                 let on_ground = bool::read(input)?;
                 let (y_rot, x_rot) = (degrees(i8::read(input)?), degrees(i8::read(input)?));
                 if let Some(e) = self.entities.get_mut(&entity) {
-                    (e.on_ground, e.y_rot, e.x_rot) = (on_ground, y_rot, x_rot);
+                    e.move_to(None, Some((y_rot, x_rot)), false);
+                    e.on_ground = on_ground;
                 }
             }
             _ => {}
@@ -162,7 +169,7 @@ impl World {
         let position = [f64::read(input)?, f64::read(input)?, f64::read(input)?];
         skip_lp_vec3(input)?;
         let (x_rot, y_rot) = (degrees(i8::read(input)?), degrees(i8::read(input)?));
-        self.entities.insert(id, Entity { uuid, kind, position, y_rot, x_rot, on_ground: false });
+        self.entities.insert(id, Entity::new(uuid, kind, position, y_rot, x_rot));
         Ok(())
     }
 
@@ -175,9 +182,9 @@ impl World {
         let Some(e) = self.entities.get_mut(&id) else { return Ok(()) };
         let is = |bit: u32| relatives & (1 << bit) != 0;
         let [x, y, z] = e.position;
-        e.position = [c.x + if is(0) { x } else { 0.0 }, c.y + if is(1) { y } else { 0.0 }, c.z + if is(2) { z } else { 0.0 }];
-        e.y_rot = c.y_rot + if is(3) { e.y_rot } else { 0.0 };
-        e.x_rot = c.x_rot + if is(4) { e.x_rot } else { 0.0 };
+        let to = [c.x + if is(0) { x } else { 0.0 }, c.y + if is(1) { y } else { 0.0 }, c.z + if is(2) { z } else { 0.0 }];
+        let rot = (c.y_rot + if is(3) { e.y_rot } else { 0.0 }, c.x_rot + if is(4) { e.x_rot } else { 0.0 });
+        e.move_to(Some(PositionPath::Linear(to)), Some(rot), true);
         e.on_ground = on_ground;
         Ok(())
     }

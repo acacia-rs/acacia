@@ -26,6 +26,8 @@ impl Bot {
 
     pub(crate) fn swing_from(&mut self, source: Option<SwingSource>) {
         self.send_bedrock(&wire::swing(self.runtime_id(), source));
+        #[cfg(feature = "java")]
+        self.java_swing();
     }
 
     /// Uses the held item in the air (`UseItem` ClickAir): eat, drink, throw, draw a bow, raise a

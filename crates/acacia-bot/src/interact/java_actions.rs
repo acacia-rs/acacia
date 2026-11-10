@@ -104,6 +104,30 @@ impl Bot {
         self.set_java_using_item(false);
     }
 
+    /// `ATTACK` then the swing (`gameMode.attack`, `player.swing`), or `INTERACT` at `hit` relative to the
+    /// entity's feet with the swing left to [`crate::reflex::Reflex::Swing`]; queued for the next tick.
+    pub(super) fn java_click_entity(&mut self, runtime_id: u64, attack: bool, hit: [f32; 3]) -> Result<(), ActionError> {
+        let feet = self.state.entities.get(runtime_id).map(|e| e.feet()).ok_or(ActionError::NotPossible("entity left".into()))?;
+        let entity = i32::try_from(runtime_id).map_err(|_| ActionError::NotPossible(format!("entity {runtime_id} is not a Java id")))?;
+        let Backend::Java(java) = &mut self.backend else { return Err(ActionError::Unsupported("Java actions")) };
+        let sent = if attack {
+            java.client.attack(entity).and_then(|()| java.client.punch())
+        } else {
+            let at = [hit[0] - feet.x, hit[1] - feet.y, hit[2] - feet.z].map(f64::from);
+            java.client.interact(entity, Hand::Main, at, false)
+        };
+        sent.map_err(|_| ActionError::Disconnected)
+    }
+
+    /// `SWING` (Java's punch packet), sent with the next tick; nothing on Bedrock.
+    pub(crate) fn java_swing(&mut self) {
+        if let Backend::Java(java) = &mut self.backend
+            && let Err(e) = java.client.punch()
+        {
+            tracing::debug!(error = %e, "java swing not queued");
+        }
+    }
+
     /// The physics' using-item slowdown: vanilla's default `use_effects` (0.2 speed, no sprinting).
     pub(crate) fn set_java_using_item(&mut self, on: bool) {
         if let Backend::Java(java) = &mut self.backend {

@@ -169,14 +169,28 @@ impl Bot {
         let Backend::Java(java) = &mut self.backend else { return };
         java.ticks += 1;
         let player = &mut java.client.movement.player;
-        (player.yaw, player.pitch) = (java.controls.yaw, java.controls.pitch.clamp(-90.0, 90.0));
+        // Turned by the shorter way and never wrapped, as a mouse turns it: Grim's AimModulo360 flags a 360° jump.
+        player.yaw += wrap_degrees(java.controls.yaw - player.yaw);
+        player.pitch = java.controls.pitch.clamp(-90.0, 90.0);
         if let Err(e) = java.client.step(java_keys(&java.controls)) {
             tracing::debug!(error = %e, "java movement not sent");
         }
         if self.state.keeps_entities() {
             self.state.entities.advance();
-            self.state.entities.mirror_java(&java.client.world.entities);
+            self.state.entities.mirror_java(&java.client.world.entities, i64::from(java.client.world.player_id));
         }
+    }
+}
+
+/// `Mth.wrapDegrees`: into [-180, 180).
+fn wrap_degrees(d: f32) -> f32 {
+    let d = d % 360.0;
+    if d >= 180.0 {
+        d - 360.0
+    } else if d < -180.0 {
+        d + 360.0
+    } else {
+        d
     }
 }
 
