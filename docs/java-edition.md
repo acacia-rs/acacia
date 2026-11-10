@@ -15,6 +15,7 @@ survival logic are shared. Decisions settled with the user on 2026-11-07.
 | Codecs | Own `acacia-java-proto`, stable Rust, network-free like `acacia-proto` | azalea's 26.3 branch needs nightly-2026-08-15, git deps block crates.io, and its layouts were wrong (Login game mode, LevelParticles) |
 | Codec source | Packet ids and registries from the 26.3 server jar's data-generator reports; layouts hand-written, checked with `javap -p -c` on the codec classes, round-tripped against a vanilla server and client | Reports don't carry field layouts |
 | Physics | Bit-exact against the vanilla client: port LocalPlayer/Entity movement from the unobfuscated 26.3 jar (doubles where Java uses doubles); judged per tick against traces recorded by a mixin in the acacia-java-bridge Fabric mod under Xvfb | Exact positions keep Grim-style anticheats quiet; same bar as the Bedrock side |
+| Bedrock-typed accessors | `client()`, `movement()`, `world()` move to `bot.bedrock()` (2026-11-10); no shims | Nothing outside depends on them yet; the JS branch (`js/cancel`) and the bridge's pinned rev update when they next take this branch |
 | Shared logic | Pathfinding, build and survival plan against edition-neutral world + a physics trait; costs (jump/sprint reach) come from the edition's physics | Movement envelopes differ between editions |
 | Licence | MIT; Mojang's jar is read for behaviour, not copied; GPL sources (Pumpkin, ViaBedrock) only as reference | Same rule as DESIGN.md |
 
