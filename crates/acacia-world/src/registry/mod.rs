@@ -5,6 +5,7 @@
 //! into that sort; see [`BlockRegistry::with_custom_blocks`].
 
 mod blob;
+mod java;
 mod mining;
 mod neutral;
 mod offset;
@@ -30,6 +31,8 @@ pub struct BlockRegistry {
     by_name: OnceLock<FxHashMap<&'static str, Range<u32>>>,
     /// Vanilla palette index → runtime id, for registries with custom blocks merged in.
     from_vanilla: OnceLock<Vec<u32>>,
+    /// Ids are neutral state ids ([`BlockRegistry::java`]).
+    ids_are_neutral: bool,
 }
 
 /// A block from `StartGame.block_properties`. `state_count` is the product of the value counts of
@@ -78,11 +81,14 @@ impl BlockRegistry {
             .iter()
             .position(|s| s.name == "minecraft:air")
             .expect("palette has minecraft:air") as u32;
-        BlockRegistry { states, air, by_hash: OnceLock::new(), by_name: OnceLock::new(), from_vanilla: OnceLock::new() }
+        BlockRegistry { states, air, by_hash: OnceLock::new(), by_name: OnceLock::new(), from_vanilla: OnceLock::new(), ids_are_neutral: false }
     }
 
     /// The runtime id of an edition-neutral state. `None` past the neutral range.
     pub fn runtime_id_of(&self, state: acacia_registry::BlockState) -> Option<u32> {
+        if self.ids_are_neutral {
+            return (state.id() < self.states.len() as u32).then_some(state.id());
+        }
         let vanilla = *neutral::TABLES.from_neutral.get(state.id() as usize)?;
         let from_vanilla = self.from_vanilla.get_or_init(|| {
             (0u32..).zip(&self.states).filter(|(_, s)| s.neutral.is_some()).map(|(id, _)| id).collect()
