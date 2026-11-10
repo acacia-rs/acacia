@@ -31,7 +31,11 @@ impl Grid {
 
     /// Chunks -r..=r on both axes loaded.
     pub fn sized(r: i32) -> Self {
-        let registry = BlockRegistry::vanilla_arc();
+        Self::with_registry(BlockRegistry::vanilla_arc(), r)
+    }
+
+    /// Chunks -r..=r loaded, ids native to `registry` ([`BlockRegistry::java_arc`] for a Java world).
+    pub fn with_registry(registry: Arc<BlockRegistry>, r: i32) -> Self {
         let mut view = ChunkView::new(World::new(registry.clone(), 0, BlockIds::Runtime));
         for cx in -r..=r {
             for cz in -r..=r {

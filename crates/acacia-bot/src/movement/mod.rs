@@ -13,9 +13,14 @@ mod lifecycle;
 mod packets;
 mod rewind;
 mod rotation_noise;
+#[cfg(feature = "java")]
+mod java_sim;
 mod sim;
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "java")]
+pub use java_sim::{JAVA, JavaSim, JavaView};
 
 pub use controls::Controls;
 pub(crate) use controls::{attach_actions, VehicleCorrection};

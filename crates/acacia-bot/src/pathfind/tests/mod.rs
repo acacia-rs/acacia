@@ -21,6 +21,8 @@ mod entity_sim;
 mod evade_sim;
 mod hazards;
 mod hops;
+#[cfg(feature = "java")]
+mod java_sim;
 mod drive;
 mod leap;
 mod leaps;

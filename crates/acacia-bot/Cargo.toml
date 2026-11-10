@@ -13,9 +13,12 @@ exclude = ["tests/traces", "tests/trace_regression.rs"]
 [features]
 # Sign-in through the game connection's SOCKS5 proxy (see acacia-client's `socks`).
 socks = ["acacia-client/socks"]
+# Java Edition servers (docs/java-edition.md).
+java = ["dep:acacia-java-physics"]
 
 [dependencies]
 acacia-client.workspace = true
+acacia-java-physics = { path = "../acacia-java-physics", optional = true }
 acacia-molang.workspace = true
 acacia-physics = { workspace = true, features = ["acacia-world"] }
 acacia-world.workspace = true

@@ -130,6 +130,12 @@ impl<'r, B: Blocks, P: Palette + ?Sized> Terrain<'r, B, P> {
         Self { blocks, palette, cells, spots, toggled, unloaded, hazards: None }
     }
 
+    /// The native ids underneath, for an edition engine that reads them itself.
+    #[cfg(feature = "java")]
+    pub(crate) fn blocks(&self) -> &B {
+        &self.blocks
+    }
+
     /// The same terrain with the cells `hazards`' solid entities reach into closed ([`ENTITY`] and `AVOID`).
     /// Set it before the first read: cells are classified once.
     pub fn with_hazards(self, hazards: Option<Arc<Hazards>>) -> Self {

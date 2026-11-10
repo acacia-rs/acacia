@@ -166,7 +166,7 @@ impl Accumulator {
 }
 
 /// What the last `updateFluidInteraction` saw.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FluidContact {
     heights: [f64; 4],
     eyes: [bool; 4],

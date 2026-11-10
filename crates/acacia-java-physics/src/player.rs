@@ -32,7 +32,7 @@ pub struct Effects {
     pub weaving: bool,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Player {
     pub pos: [f64; 3],
     pub delta: [f64; 3],
@@ -82,6 +82,33 @@ pub struct Player {
 impl Player {
     pub fn at(pos: [f64; 3]) -> Player {
         Player { pos, has_food: true, flying_speed: 0.05, ..Player::default() }
+    }
+
+    pub fn fall_distance(&self) -> f64 {
+        self.fall_distance
+    }
+
+    /// Ticks before the next jump on the ground.
+    pub fn jump_delay(&self) -> i32 {
+        self.no_jump_delay
+    }
+
+    pub fn set_jump_delay(&mut self, ticks: i32) {
+        self.no_jump_delay = ticks;
+    }
+
+    pub fn crouching(&self) -> bool {
+        self.crouching
+    }
+
+    pub fn pose(&self) -> Pose {
+        self.pose
+    }
+
+    /// Starts crouched (or standing), as if shift had been held (or not) on the last tick.
+    pub fn set_crouching(&mut self, on: bool) {
+        self.crouching = on;
+        self.pose = if on { Pose::Crouching } else { Pose::Standing };
     }
 
     pub fn bounding_box(&self) -> Aabb {

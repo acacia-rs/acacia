@@ -81,6 +81,8 @@ pub use kit::{DEFAULT_SCAFFOLD, Kit};
 pub use moves::MoveKind;
 pub use node::{Entry, Mode, Momentum, NodeKey, speed_bin};
 pub use profile::{Aim, MovementProfile, Perturbation};
+#[cfg(feature = "java")]
+pub(crate) use reach::Flat;
 pub use rollout::{Body, PlanSim, Spend, Trace, peek, run};
 pub use snapshot::WorldBlocks;
 pub use terrain::{Blocks, Cell, Palette, Spot, SpotKind, Terrain};

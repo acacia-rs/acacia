@@ -16,6 +16,13 @@ use crate::movement::{Controls, Sim, SimWorld, StepIn};
 /// A floor under y 0 of the given friction, air above.
 pub struct Flat(f32);
 
+#[cfg(feature = "java")]
+impl Flat {
+    pub(crate) fn friction(&self) -> f32 {
+        self.0
+    }
+}
+
 impl WorldView for Flat {
     fn block_collisions(&self, pos: BlockPos, out: &mut Vec<Aabb>) {
         if pos[1] < 0 {
