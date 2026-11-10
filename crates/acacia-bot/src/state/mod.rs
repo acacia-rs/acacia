@@ -11,6 +11,8 @@ mod fishing;
 mod hurts;
 mod inventory;
 mod items;
+#[cfg(feature = "java")]
+pub(crate) mod java_inventory;
 mod kept;
 mod metadata;
 mod player;

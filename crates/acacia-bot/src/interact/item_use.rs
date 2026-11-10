@@ -189,7 +189,7 @@ impl Bot {
                 None => confirm.insert(self.confirmation(target, expect, MAX_TRIES).predicted()),
             };
             self.click_block(against, face, click, SwingSource::Build)?;
-            let predict = before.block_runtime_id != 0 && half_slab.is_none() && self.backend.bedrock().is_some();
+            let predict = before.block_runtime_id != 0 && half_slab.is_none();
             let replaced = predict.then(|| self.predict_block(target, before.block_runtime_id)).flatten();
             let predicted = self.state.inventory.held().clone();
             let verdict = self.await_confirm(target, c, Instant::now()).await?;

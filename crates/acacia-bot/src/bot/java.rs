@@ -70,7 +70,8 @@ impl Bot {
     pub async fn connect_java_offline(host: &str, port: u16, name: &str, config: BotConfig) -> Result<Bot, Error> {
         let client = Client::join_offline(host, port, name).await?;
         let events = EventSource::new(config.events, config.chat_patterns);
-        let state = GameState::new(config.trackers, 0);
+        let mut state = GameState::new(config.trackers, 0);
+        state.items = crate::state::ItemRegistry::java();
         let java = Java { client, controls: Controls::default(), awaiting: 0, ticks: 0, teleports: 0, last_setback: None };
         Ok(Bot::assemble(Backend::Java(Box::new(java)), state, events, config.auto_respawn, config.auto_eat))
     }
@@ -117,6 +118,7 @@ impl Bot {
                     }
                     java.teleports += 1;
                 }
+                self.on_java_inventory(packet.id);
                 Step::Idle
             }
             Err(e) => {
@@ -124,6 +126,20 @@ impl Bot {
                 self.closed = Some(reason.clone());
                 Step::Disconnected(reason)
             }
+        }
+    }
+
+    /// Mirrors the Java inventory after a packet that changed it; a server-set held slot is taken as the bot's.
+    fn on_java_inventory(&mut self, id: i32) {
+        use acacia_java_proto::ids::play::clientbound as from;
+        let Backend::Java(java) = &self.backend else { return };
+        let inventory = &java.client.inventory;
+        match id {
+            from::CONTAINER_SET_CONTENT | from::CONTAINER_SET_SLOT | from::SET_PLAYER_INVENTORY => {
+                crate::state::java_inventory::mirror(&mut self.state.inventory, inventory);
+            }
+            from::SET_HELD_SLOT => self.state.inventory.select(inventory.selected),
+            _ => {}
         }
     }
 

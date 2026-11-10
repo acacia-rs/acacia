@@ -40,6 +40,7 @@ pub fn break_ticks(mining: &Mining, c: &BreakConditions) -> Option<u32> {
 }
 
 /// Java's `getDestroyProgress`: the share of the block one tick of digging takes, 1 or more when the start breaks it.
+#[cfg(any(test, feature = "java"))]
 pub fn java_progress(mining: &Mining, c: &BreakConditions) -> Option<f32> {
     Some(match damage(mining, c)? {
         Damage::Instant => 1.0,

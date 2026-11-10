@@ -23,7 +23,8 @@ impl Bot {
     pub(crate) fn equip_now(&mut self) {
         #[cfg(feature = "java")]
         if let crate::bot::Backend::Java(java) = &mut self.backend {
-            java.client.actions.selected = self.state.inventory.selected_hotbar_slot;
+            let slot = self.state.inventory.selected_hotbar_slot;
+            (java.client.actions.selected, java.client.inventory.selected) = (slot, slot);
             return;
         }
         let inv = &self.state.inventory;

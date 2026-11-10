@@ -64,7 +64,8 @@ impl World {
         self.chunks.min_y()
     }
 
-    pub(crate) fn set_block(&mut self, pos: [i32; 3], state: u32) {
+    /// Writes a block ahead of the server, as vanilla's prediction does; the server's update overwrites it.
+    pub fn set_block(&mut self, pos: [i32; 3], state: u32) {
         self.chunks.set_block(pos, state);
     }
 

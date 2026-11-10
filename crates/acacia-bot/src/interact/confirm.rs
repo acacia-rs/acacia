@@ -142,7 +142,13 @@ impl Bot {
     /// Writes block `wire` (the server's id form) into the tracked world at `pos` ahead of the server, as the
     /// vanilla client does when it places: physics then agrees with a server that already has it. Returns the
     /// block it replaced (wire id), for [`Bot::unpredict_block`].
-    pub(crate) fn predict_block(&self, pos: BlockPos, wire: u32) -> Option<u32> {
+    pub(crate) fn predict_block(&mut self, pos: BlockPos, wire: u32) -> Option<u32> {
+        #[cfg(feature = "java")]
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            let old = java.client.world.block(pos)?;
+            java.client.world.set_block(pos, wire);
+            return Some(old);
+        }
         let view = self.backend.world()?.view()?;
         let (id, _) = self.block_at(pos)?;
         let old = view.world().wire_id(id);
@@ -151,7 +157,12 @@ impl Bot {
     }
 
     /// Puts back the block a refused or unanswered prediction replaced (no ghost block stays behind).
-    pub(crate) fn unpredict_block(&self, pos: BlockPos, old: u32) {
+    pub(crate) fn unpredict_block(&mut self, pos: BlockPos, old: u32) {
+        #[cfg(feature = "java")]
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            java.client.world.set_block(pos, old);
+            return;
+        }
         if let Some(view) = self.backend.world().and_then(|w| w.view()) {
             view.set_block(pos[0], pos[1], pos[2], 0, old);
         }
