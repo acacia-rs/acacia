@@ -6,7 +6,9 @@ use crate::chunks::Chunks;
 use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
 pub use crate::entity::Entity;
 
+use acacia_java_physics::Aabb;
 use acacia_java_proto::actions::BlockPos;
+use acacia_java_proto::entity_types::{ENTITY_SHAPES, EntityCollision};
 use acacia_java_proto::chunk::{read_chunk_header, read_sections};
 use acacia_java_proto::entity::{PositionPath, read_lp_vec3, read_move, read_path, skip_lp_vec3};
 use acacia_java_proto::packets::{PositionMoveRotation, SetPassengers};
@@ -55,6 +57,17 @@ impl World {
 
     pub fn min_y(&self) -> i32 {
         self.chunks.min_y()
+    }
+
+    /// Boxes of the entities that block a mover: solid ones, and pushable ones too for a `vehicle`, minus `skip`
+    /// (the mover and whoever rides with it). TODO: babies, slime sizes and player poses get the type's default size.
+    pub fn collision_boxes(&self, vehicle: bool, skip: &[i32]) -> Vec<Aabb> {
+        let blocks = |c: EntityCollision| c == EntityCollision::Solid || vehicle && c == EntityCollision::Pushable;
+        let boxed = |e: &Entity| {
+            let &(width, height, collision) = ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?;
+            blocks(collision).then(|| Aabb::of_entity(e.position, width, height))
+        };
+        self.entities.iter().filter(|(id, _)| !skip.contains(id)).filter_map(|(_, e)| boxed(e)).collect()
     }
 
     /// Writes a block ahead of the server, as vanilla's prediction does; the server's update overwrites it.

@@ -67,6 +67,67 @@ fn a_boat_on_stone_slides_with_its_friction() {
     assert!((boat.delta[0] - 0.06).abs() < 1.0E-6, "slid {:?}", boat.delta);
 }
 
+/// `floor` at y -1; `ahead` at y 0 where x >= 2.
+struct Field {
+    floor: Block,
+    ahead: Block,
+}
+
+impl Blocks for Field {
+    fn state(&self, x: i32, y: i32, _: i32) -> Option<u32> {
+        let block = match y {
+            -1 => self.floor,
+            0 if x >= 2 => self.ahead,
+            _ => Block::Air,
+        };
+        Some(block.default_state().id())
+    }
+
+    fn min_y(&self) -> i32 {
+        -64
+    }
+}
+
+#[test]
+fn a_cobweb_holds_the_boat_on_its_next_move() {
+    let web = Field { floor: Block::Stone, ahead: Block::Cobweb };
+    let mut boat = Boat::new(&web, [0.5, 0.0, 0.5], 0.0, false);
+    boat.on_ground = true;
+    boat.delta = [2.0, 0.0, 0.0];
+    boat.tick(&web, Keys::default());
+    assert_eq!(boat.stuck, [0.25, 0.05_f32 as f64, 0.25]);
+    let (x, dx) = (boat.pos[0], boat.delta[0]);
+    boat.tick(&web, Keys::default());
+    assert_eq!(boat.stuck, [0.25, 0.05_f32 as f64, 0.25]);
+    assert!((boat.pos[0] - x - dx * 0.6 * 0.25).abs() < 1.0E-6,"moved {} from {x}", boat.pos[0]);
+    assert_eq!(boat.delta[0], 0.0);
+}
+
+#[test]
+fn slime_scales_a_grounded_boat_once_per_effects_pass() {
+    let slime = Field { floor: Block::SlimeBlock, ahead: Block::Air };
+    let mut boat = Boat::new(&slime, [0.5, 0.0, 0.5], 0.0, false);
+    boat.tick(&slime, Keys::default());
+    boat.delta = [0.1, 0.0, 0.0];
+    boat.tick(&slime, Keys::default());
+    let friction = boat.land_friction as f64 * 2.0;
+    assert!((boat.delta[0] - 0.1 * friction * 0.4 * 0.4).abs() < 1.0E-9, "slid {:?} at friction {friction}", boat.delta);
+}
+
+#[test]
+fn a_teleport_moves_the_boat_over_three_ticks() {
+    let mut boat = floating();
+    let start = boat.pos;
+    boat.interpolate_to([start[0] + 3.0, start[1], start[2]], 90.0, 0.0);
+    let mut xs = Vec::new();
+    for _ in 0..4 {
+        boat.tick(&Pool, Keys::default());
+        xs.push(boat.pos[0] - start[0]);
+    }
+    assert_eq!(xs, [1.0, 2.0, 3.0, 3.0]);
+    assert_eq!(boat.yaw, 90.0);
+}
+
 #[test]
 fn the_rider_turns_with_the_boat_within_105_degrees() {
     let mut boat = floating();

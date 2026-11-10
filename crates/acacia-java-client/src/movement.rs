@@ -153,6 +153,7 @@ impl Client {
         if self.movement.riding.is_some() {
             self.ride_step(keys)?;
         } else {
+            self.movement.player.solid_entities = self.world.collision_boxes(false, &[]);
             self.movement.player.tick(&self.world, keys);
             self.send_changes()?;
             let me = self.world.player_id;

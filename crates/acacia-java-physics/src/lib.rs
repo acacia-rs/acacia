@@ -4,6 +4,8 @@
 mod aabb;
 mod block_factors;
 mod boat;
+mod boat_inside;
+mod boat_lerp;
 mod boat_status;
 mod collide;
 mod fluid;

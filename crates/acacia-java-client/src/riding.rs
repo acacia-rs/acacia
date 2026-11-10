@@ -45,6 +45,14 @@ impl Client {
                     boat.delta = motion;
                 }
             }
+            from::ENTITY_EVENT => {
+                let input = &mut &body[..];
+                let (id, event) = (i32::read(input)?, i8::read(input)?);
+                let boat = self.movement.riding.as_mut().and_then(|r| r.boat.as_mut()).filter(|_| self.world.driven == Some(id));
+                if let (Some(boat), 71 | 72) = (boat, event) {
+                    boat.bubble_column_effect(event == 71);
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -99,7 +107,7 @@ impl Client {
         self.send(to::MOVE_VEHICLE, &echo)
     }
 
-    /// A teleport of the driven boat snaps it; vanilla interpolates it over three ticks instead.
+    /// `handleTeleportEntity` on the driven boat: interpolated over three ticks, snapped beyond 64 blocks.
     fn vehicle_teleported(&mut self, input: &mut &[u8]) -> Result<(), Error> {
         let id = read_varint(input)?;
         let Some(boat) = self.movement.riding.as_mut().and_then(|r| r.boat.as_mut()).filter(|_| self.world.driven == Some(id)) else {
@@ -108,10 +116,15 @@ impl Client {
         let c = PositionMoveRotation::read(input)?;
         let relatives = i32::read(input)?;
         let base = |bit: u32, v: f64| if relatives & (1 << bit) != 0 { v } else { 0.0 };
-        boat.pos = [base(0, boat.pos[0]) + c.x, base(1, boat.pos[1]) + c.y, base(2, boat.pos[2]) + c.z];
+        let pos = [base(0, boat.pos[0]) + c.x, base(1, boat.pos[1]) + c.y, base(2, boat.pos[2]) + c.z];
         boat.delta = [base(5, boat.delta[0]) + c.delta_x, base(6, boat.delta[1]) + c.delta_y, base(7, boat.delta[2]) + c.delta_z];
-        boat.yaw = base(3, boat.yaw as f64) as f32 + c.y_rot;
-        boat.pitch = base(4, boat.pitch as f64) as f32 + c.x_rot;
+        let yaw = base(3, boat.yaw as f64) as f32 + c.y_rot;
+        let pitch = base(4, boat.pitch as f64) as f32 + c.x_rot;
+        if (0..3).map(|a| (pos[a] - boat.pos[a]).powi(2)).sum::<f64>() > 4096.0 {
+            (boat.pos, boat.yaw, boat.pitch) = (pos, yaw, pitch);
+        } else {
+            boat.interpolate_to(pos, yaw, pitch);
+        }
         boat.on_ground = bool::read(input)?;
         Ok(())
     }
@@ -123,6 +136,8 @@ impl Client {
         let player = &mut self.movement.player;
         let mut sent = None;
         if let Some(boat) = riding.boat.as_mut() {
+            let passengers = self.world.entities.get(&riding.vehicle).map_or(&[][..], |e| &e.passengers);
+            boat.solid_entities = self.world.collision_boxes(true, &[&[riding.vehicle][..], passengers].concat());
             let [left, right] = boat.tick(&self.world, riding.keys);
             sent = Some((PaddleBoat { left, right }, boat.clone()));
             if let Some(e) = self.world.entities.get_mut(&riding.vehicle) {

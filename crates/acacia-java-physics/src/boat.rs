@@ -1,5 +1,4 @@
 //! `AbstractBoat.tick` as the client runs it for the boat its player drives.
-// TODO: block effects (bubble columns, cobwebs, honey, slime), entity collisions and pushes are not modelled.
 
 use acacia_registry::{Block, BlockTag};
 
@@ -8,6 +7,8 @@ use crate::block_factors::bounce;
 use crate::collide::{Blocks, Colliders, Context};
 use crate::fluid::FluidScan;
 use crate::input::Keys;
+use crate::boat_lerp::BoatLerp;
+use crate::inside::Move;
 use crate::mth::{cos, length_sqr, sin, DEG_TO_RAD};
 use crate::support::{Support, LEGACY_ON_POS};
 
@@ -40,13 +41,19 @@ pub struct Boat {
     pub status: BoatStatus,
     /// Bamboo rafts seat their rider higher.
     pub raft: bool,
+    /// Boxes of nearby entities a vehicle can't pass: solid ones and pushable mobs (`canVehicleCollide`).
+    pub solid_entities: Vec<Aabb>,
     pub(crate) old_status: BoatStatus,
     pub(crate) out_of_control: f32,
     pub(crate) water_level: f64,
     pub(crate) land_friction: f32,
     pub(crate) last_yd: f64,
     vertical_collision: bool,
-    support: Support,
+    pub(crate) support: Support,
+    pub(crate) stuck: [f64; 3],
+    pub(crate) old_pos: [f64; 3],
+    pub(crate) moves: Vec<Move>,
+    pub(crate) lerp: BoatLerp,
 }
 
 impl Boat {
@@ -77,6 +84,8 @@ impl Boat {
 
     /// One tick driven with `keys` (the rider's keys of the previous tick); returns the paddles [left, right].
     pub fn tick(&mut self, world: &impl Blocks, keys: Keys) -> [bool; 2] {
+        self.old_pos = self.pos;
+        self.interpolate(world);
         self.old_status = self.status;
         self.status = self.read_status(world);
         let under = matches!(self.status, BoatStatus::UnderWater | BoatStatus::UnderFlowingWater);
@@ -85,11 +94,12 @@ impl Boat {
         self.float(world);
         let paddles = self.control(keys);
         self.move_self(world);
+        self.apply_block_effects(world);
         paddles
     }
 
-    fn colliders<'a, W: Blocks>(&self, world: &'a W) -> Colliders<'a, W> {
-        Colliders { world, context: Context { feet: self.pos[1], ..Context::default() }, entities: &[] }
+    pub(crate) fn colliders<'a, W: Blocks>(&'a self, world: &'a W) -> Colliders<'a, W> {
+        Colliders { world, context: Context { feet: self.pos[1], ..Context::default() }, entities: &self.solid_entities }
     }
 
     /// `floatBoat`.
@@ -152,13 +162,22 @@ impl Boat {
 
     /// `Entity.move` for `MoverType.SELF`, with the boat's `checkFallDamage`.
     fn move_self(&mut self, world: &impl Blocks) {
-        let delta = self.delta;
+        let mut delta = self.delta;
+        if length_sqr(self.stuck) > 1.0E-7 {
+            for axis in 0..3 {
+                delta[axis] *= self.stuck[axis];
+            }
+            self.stuck = [0.0; 3];
+            self.delta = [0.0; 3];
+        }
         let movement = self.colliders(world).collide(self.bounding_box(), delta, self.on_ground, 0.0);
         let moved = length_sqr(movement);
         if moved > 1.0E-7 || length_sqr(delta) - moved < 1.0E-7 {
+            let from = self.pos;
             for axis in 0..3 {
                 self.pos[axis] += movement[axis];
             }
+            self.moves.push((from, self.pos, delta));
         }
         let close = |a: f64, b: f64| (b - a).abs() < 1.0E-5_f32 as f64;
         let (x_hit, z_hit) = (!close(delta[0], movement[0]), !close(delta[2], movement[2]));

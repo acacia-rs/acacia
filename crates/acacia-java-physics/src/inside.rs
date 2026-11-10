@@ -1,3 +1,5 @@
+//! `Entity.applyEffectsFromBlocks`, shared by the player and the boat it drives.
+
 use std::collections::HashSet;
 
 use acacia_registry::prop::Drag;
@@ -11,6 +13,9 @@ use crate::player::{Player, WIDTH};
 use crate::support::LEGACY_ON_POS;
 
 const TARGET_MARGIN: f64 = 1.0E-5_f32 as f64;
+
+/// `Entity.Movement`: from, to, and the movement asked for; a zero ask visits the path in one step.
+pub(crate) type Move = ([f64; 3], [f64; 3], [f64; 3]);
 
 /// Close to `isSuffocating`: full-cube collision, except the see-through blocks vanilla exempts.
 fn suffocating(state: BlockState) -> bool {
@@ -35,44 +40,153 @@ fn new_delta_y(y: f64) -> f64 {
     (y - 0.08) * 0.98_f32 as f64
 }
 
-impl Player {
-    fn honey_sliding(&self, pos: [i32; 3]) -> bool {
-        if self.on_ground || self.pos[1] > pos[1] as f64 + 0.9375 - 1.0E-7 || old_delta_y(self.delta[1]) >= -0.08 {
+/// `BubbleColumnBlock.entityInside`'s test: nothing collides or flows above the column.
+pub(crate) fn nothing_above(world: &impl Blocks, pos: [i32; 3]) -> bool {
+    let above = world.block_state([pos[0], pos[1] + 1, pos[2]]);
+    above.java_collision().is_some_and(<[_]>::is_empty) && fluid_of(above).is_none()
+}
+
+/// `Entity.handleOnInsideBubbleColumn`.
+pub(crate) fn inside_bubble_column(delta: &mut [f64; 3], state: BlockState) {
+    delta[1] = if state.get(Drag) == Some(true) { (-0.3_f64).max(delta[1] - 0.03) } else { 0.7_f64.min(delta[1] + 0.06) };
+}
+
+/// What `applyEffectsFromBlocks` reads and changes on a body.
+pub(crate) trait InsideBody {
+    fn feet(&self) -> [f64; 3];
+    fn velocity(&mut self) -> &mut [f64; 3];
+    /// Width and height.
+    fn size(&self) -> (f32, f32);
+    fn grounded(&self) -> bool;
+    fn stepping_carefully(&self) -> bool;
+    /// `getOnPosLegacy`.
+    fn effect_pos(&self, world: &impl Blocks) -> [i32; 3];
+    /// `Block.entityInside` for the blocks that move this body.
+    fn entity_inside(&mut self, world: &impl Blocks, pos: [i32; 3], precise: bool);
+
+    /// `HoneyBlock.isSlidingDown`, then `doSlideMovement`; true when it slid.
+    fn slide_on_honey(&mut self, pos: [i32; 3]) -> bool {
+        let (feet, width, grounded) = (self.feet(), self.size().0, self.grounded());
+        let delta = self.velocity();
+        let old = old_delta_y(delta[1]);
+        if grounded || feet[1] > pos[1] as f64 + 0.9375 - 1.0E-7 || old >= -0.08 {
             return false;
         }
-        let dx = (pos[0] as f64 + 0.5 - self.pos[0]).abs();
-        let dz = (pos[2] as f64 + 0.5 - self.pos[2]).abs();
-        let overlap = 0.4375 + (WIDTH / 2.0) as f64;
-        dx + 1.0E-7 > overlap || dz + 1.0E-7 > overlap
-    }
-
-    fn slide_on_honey(&mut self) {
-        let old = old_delta_y(self.delta[1]);
+        let overlap = 0.4375 + (width / 2.0) as f64;
+        let dx = (pos[0] as f64 + 0.5 - feet[0]).abs();
+        let dz = (pos[2] as f64 + 0.5 - feet[2]).abs();
+        if dx + 1.0E-7 <= overlap && dz + 1.0E-7 <= overlap {
+            return false;
+        }
         if old < -0.13 {
             let reduce = -0.05 / old;
-            self.delta[0] *= reduce;
-            self.delta[2] *= reduce;
+            delta[0] *= reduce;
+            delta[2] *= reduce;
         }
-        self.delta[1] = new_delta_y(-0.05);
-        self.fall_distance = 0.0;
+        delta[1] = new_delta_y(-0.05);
+        true
     }
 
+    /// `applyEffectsFromBlocks(movements)`: slime's `stepOn`, then every block the moves pass through.
+    /// TODO: paths over a block long skip the cells between both ends.
+    fn apply_effects_from_blocks(&mut self, world: &impl Blocks, moves: &[Move])
+    where
+        Self: Sized,
+    {
+        if self.grounded() && world.block_state(self.effect_pos(world)).block() == Block::SlimeBlock {
+            let careful = self.stepping_carefully();
+            let delta = self.velocity();
+            let abs_y = delta[1].abs();
+            if abs_y < 0.1 && !careful {
+                let scale = 0.4 + abs_y * 0.2;
+                delta[0] *= scale;
+                delta[2] *= scale;
+            }
+        }
+        let mut seen = HashSet::new();
+        for &(from, to, original) in moves {
+            let travel = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+            if original == [0.0; 3] || length_sqr(travel) == 0.0 {
+                visit_step(self, world, from, to, &mut seen);
+                continue;
+            }
+            let mut at = from;
+            let order = if original[0].abs() < original[2].abs() { [1, 2, 0] } else { [1, 0, 2] };
+            for axis in order.into_iter().filter(|&a| travel[a] != 0.0) {
+                let mut next = at;
+                next[axis] = to[axis];
+                visit_step(self, world, at, next, &mut seen);
+                at = next;
+            }
+        }
+    }
+}
+
+fn visit_step(body: &mut impl InsideBody, world: &impl Blocks, from: [f64; 3], to: [f64; 3], seen: &mut HashSet<[i32; 3]>) {
+    let (width, height) = body.size();
+    let target = Aabb::of_entity(to, width, height).deflated(TARGET_MARGIN);
+    let travel = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+    let far = length_sqr(travel) > 0.9999900000002526_f64.powi(2);
+    visit_box(body, world, target.moved(travel.map(|v| -v)), &target, far, seen);
+    visit_box(body, world, target, &target, far, seen);
+}
+
+fn visit_box(body: &mut impl InsideBody, world: &impl Blocks, area: Aabb, target: &Aabb, far: bool, seen: &mut HashSet<[i32; 3]>) {
+    let low = area.min.map(floor);
+    let high = area.max.map(floor);
+    for x in low[0]..=high[0] {
+        for y in low[1]..=high[1] {
+            for z in low[2]..=high[2] {
+                let pos = [x, y, z];
+                if world.block_state(pos).is_air() || !seen.insert(pos) {
+                    continue;
+                }
+                let cell = Aabb { min: pos.map(|v| v as f64), max: pos.map(|v| v as f64 + 1.0) };
+                body.entity_inside(world, pos, far || target.intersects(&cell));
+            }
+        }
+    }
+}
+
+impl Player {
     fn make_stuck(&mut self, speed: [f64; 3]) {
         self.fall_distance = 0.0;
         self.stuck = speed;
     }
 
-    fn bubble_column(&mut self, world: &impl Blocks, state: BlockState, pos: [i32; 3]) {
-        let down = state.get(Drag) == Some(true);
-        let above = world.block_state([pos[0], pos[1] + 1, pos[2]]);
-        let open = above.java_collision().is_some_and(<[_]>::is_empty) && fluid_of(above).is_none();
-        self.delta[1] = match (open, down) {
-            (true, true) => (-0.9_f64).max(self.delta[1] - 0.03),
-            (true, false) => 1.8_f64.min(self.delta[1] + 0.1),
-            (false, true) => (-0.3_f64).max(self.delta[1] - 0.03),
-            (false, false) => 0.7_f64.min(self.delta[1] + 0.06),
-        };
-        self.fall_distance = 0.0;
+    /// `Entity.applyEffectsFromBlocks()` after the tick's moves.
+    pub(crate) fn apply_block_effects(&mut self, world: &impl Blocks) {
+        let mut moves = std::mem::take(&mut self.moves);
+        if moves.is_empty() {
+            moves.push((self.pos, self.pos, [0.0; 3]));
+        }
+        self.apply_effects_from_blocks(world, &moves);
+    }
+}
+
+impl InsideBody for Player {
+    fn feet(&self) -> [f64; 3] {
+        self.pos
+    }
+
+    fn velocity(&mut self) -> &mut [f64; 3] {
+        &mut self.delta
+    }
+
+    fn size(&self) -> (f32, f32) {
+        (WIDTH, self.pose.height())
+    }
+
+    fn grounded(&self) -> bool {
+        self.on_ground
+    }
+
+    fn stepping_carefully(&self) -> bool {
+        self.keys.shift
+    }
+
+    fn effect_pos(&self, world: &impl Blocks) -> [i32; 3] {
+        self.on_pos(world, LEGACY_ON_POS)
     }
 
     fn entity_inside(&mut self, world: &impl Blocks, pos: [i32; 3], precise: bool) {
@@ -89,70 +203,21 @@ impl Player {
                 }
                 self.in_powder_snow = true;
             }
-            Block::HoneyBlock if self.honey_sliding(pos) => self.slide_on_honey(),
-            Block::BubbleColumn if precise => self.bubble_column(world, state, pos),
+            Block::HoneyBlock => {
+                if self.slide_on_honey(pos) {
+                    self.fall_distance = 0.0;
+                }
+            }
+            Block::BubbleColumn if precise => {
+                if nothing_above(world, pos) {
+                    let y = self.delta[1];
+                    self.delta[1] = if state.get(Drag) == Some(true) { (-0.9_f64).max(y - 0.03) } else { 1.8_f64.min(y + 0.1) };
+                } else {
+                    inside_bubble_column(&mut self.delta, state);
+                }
+                self.fall_distance = 0.0;
+            }
             _ => {}
         }
-    }
-
-    fn visit_box(&mut self, world: &impl Blocks, area: Aabb, target: &Aabb, far: bool, seen: &mut HashSet<[i32; 3]>) {
-        let low = area.min.map(floor);
-        let high = area.max.map(floor);
-        for x in low[0]..=high[0] {
-            for y in low[1]..=high[1] {
-                for z in low[2]..=high[2] {
-                    let pos = [x, y, z];
-                    if world.block_state(pos).is_air() || !seen.insert(pos) {
-                        continue;
-                    }
-                    let cell = Aabb { min: pos.map(|v| v as f64), max: pos.map(|v| v as f64 + 1.0) };
-                    self.entity_inside(world, pos, far || target.intersects(&cell));
-                }
-            }
-        }
-    }
-
-    /// `Entity.applyEffectsFromBlocks`. TODO: paths over a block long skip the cells between both ends.
-    pub(crate) fn apply_block_effects(&mut self, world: &impl Blocks) {
-        if self.on_ground {
-            let below = self.on_pos(world, LEGACY_ON_POS);
-            if world.block_state(below).block() == Block::SlimeBlock {
-                let abs_y = self.delta[1].abs();
-                if abs_y < 0.1 && !self.keys.shift {
-                    let scale = 0.4 + abs_y * 0.2;
-                    self.delta[0] *= scale;
-                    self.delta[2] *= scale;
-                }
-            }
-        }
-        let mut moves = std::mem::take(&mut self.moves);
-        if moves.is_empty() {
-            moves.push((self.pos, self.pos, [0.0; 3]));
-        }
-        let mut seen = HashSet::new();
-        for (from, to, original) in moves {
-            let mut at = from;
-            let order = if original[0].abs() < original[2].abs() { [1, 2, 0] } else { [1, 0, 2] };
-            for axis in order {
-                if to[axis] != from[axis] {
-                    let mut next = at;
-                    next[axis] = to[axis];
-                    self.visit_step(world, at, next, &mut seen);
-                    at = next;
-                }
-            }
-            if length_sqr([to[0] - from[0], to[1] - from[1], to[2] - from[2]]) == 0.0 {
-                self.visit_step(world, to, to, &mut seen);
-            }
-        }
-    }
-
-    fn visit_step(&mut self, world: &impl Blocks, from: [f64; 3], to: [f64; 3], seen: &mut HashSet<[i32; 3]>) {
-        let height = self.pose.height();
-        let target = Aabb::of_entity(to, WIDTH, height).deflated(TARGET_MARGIN);
-        let travel = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
-        let far = length_sqr(travel) > 0.9999900000002526_f64.powi(2);
-        self.visit_box(world, target.moved(travel.map(|v| -v)), &target, far, seen);
-        self.visit_box(world, target, &target, far, seen);
     }
 }

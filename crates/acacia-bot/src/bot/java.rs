@@ -25,6 +25,8 @@ pub struct Java {
     ticks: u64,
     teleports: u32,
     last_setback: Option<u64>,
+    /// `last_setback` before the latest teleport, restored when that teleport only seated the player.
+    setback_before: Option<u64>,
 }
 
 impl Java {
@@ -76,7 +78,7 @@ impl Bot {
         let mut state = GameState::new(config.trackers, 0);
         state.items = crate::state::ItemRegistry::java();
         state.recipes = crate::state::Recipes::java();
-        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, teleports: 0, last_setback: None };
+        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, teleports: 0, last_setback: None, setback_before: None };
         Ok(Bot::assemble(Backend::Java(Box::new(java)), state, events, config.auto_respawn, config.auto_eat))
     }
 
@@ -118,15 +120,19 @@ impl Bot {
                     let player = &java.client.movement.player;
                     (java.controls.yaw, java.controls.pitch) = (player.yaw, player.pitch);
                     if java.teleports > 0 {
+                        java.setback_before = java.last_setback;
                         java.last_setback = Some(java.ticks);
                     }
                     java.teleports += 1;
                 }
-                // Boarding a boat turns the player to the boat's yaw.
+                // Boarding a boat turns the player to the boat's yaw; `startRiding`'s teleport just before isn't a setback.
                 if packet.id == SET_PASSENGERS
                     && let Backend::Java(java) = &mut self.backend
                 {
                     java.controls.yaw = java.client.movement.player.yaw;
+                    if java.client.movement.riding.is_some() && java.last_setback == Some(java.ticks) {
+                        java.last_setback = java.setback_before;
+                    }
                 }
                 self.on_java_inventory(packet.id);
                 self.on_java_health(&packet);
