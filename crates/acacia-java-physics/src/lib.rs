@@ -4,6 +4,8 @@
 mod aabb;
 mod block_factors;
 mod boat;
+mod boat_inside;
+mod boat_lerp;
 mod boat_status;
 mod collide;
 mod fluid;
@@ -14,6 +16,7 @@ mod mth;
 mod player;
 mod support;
 mod swim;
+mod teleport;
 mod tick;
 mod travel;
 
@@ -22,3 +25,4 @@ pub use boat::{Boat, BoatStatus};
 pub use collide::Blocks;
 pub use input::{Keys, Pose};
 pub use player::{Effects, ItemUse, Player};
+pub use teleport::Placement;

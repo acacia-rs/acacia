@@ -2,7 +2,8 @@
 //! `tools/gate-datapack` (`function acacia:dialog_<name>`), then answers it. In the server's log of player commands:
 //! the confirmation answered yes runs `tellraw @a "yes"`, and the inputs dialog's template runs
 //! `tellraw @a "acacia yes red 7"`. The menu's second button sends a custom click, which leaves no log line. Closing
-//! the notice runs its button's `tellraw @a "closed"`.
+//! the notice runs its button's `tellraw @a "closed"`; the registry dialog (`acacia:registry`) runs
+//! `tellraw @a "registry"`.
 //! `cargo run -p acacia-bot --features java --example java_dialogs -- <host> <port> [name]`
 
 use std::time::Duration;
@@ -26,6 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("inputs", FormReply::Dialog { button: 0, values: input_values }),
         ("multi", FormReply::Button(1)),
         ("notice", FormReply::Close),
+        ("registry", FormReply::Button(0)),
     ];
     for (dialog, reply) in steps {
         bot.command(&format!("function acacia:dialog_{dialog}"));

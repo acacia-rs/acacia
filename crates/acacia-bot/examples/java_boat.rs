@@ -2,6 +2,7 @@
 //! backwards, coasting), printing the boat every 10 ticks and the server's corrections, then gets off.
 //! Put it next to a boat with ~35 blocks of open water ahead (south); a boat on the bank paddles over land and drops in.
 //! `cargo run -p acacia-bot --features java --example java_boat -- <host> <port> [name]`
+//! `ACACIA_MID_COMMAND` (e.g. a `tp` of the boat) runs as a command 40 ticks into the course.
 
 use acacia_bot::{Bot, BotConfig};
 
@@ -10,6 +11,7 @@ const FIND_TICKS: u32 = 400;
 const REACH: f32 = 3.0;
 /// Ticks for a summoned boat to come to rest before boarding.
 const SETTLE_TICKS: u32 = 60;
+const MID_COMMAND_TICK: u32 = 40;
 /// (ticks, strafe, forward): strafe > 0 is left.
 const COURSE: [(u32, f32, f32); 6] = [(80, 0.0, 1.0), (30, 1.0, 1.0), (20, 0.0, 1.0), (20, -1.0, 0.0), (15, 0.0, -1.0), (30, 0.0, 0.0)];
 
@@ -41,6 +43,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for _ in 0..ticks {
             bot.wait_ticks(1).await?;
             t += 1;
+            if t == MID_COMMAND_TICK
+                && let Ok(command) = std::env::var("ACACIA_MID_COMMAND")
+            {
+                bot.command(&command);
+            }
             let now = bot.java_boat().map(|b| b.status);
             if t % 10 == 0 || now != status {
                 print_boat(&bot, t);

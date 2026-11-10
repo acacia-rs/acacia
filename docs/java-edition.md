@@ -37,8 +37,17 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    (`acacia-java-client` `riding.rs`); a driver ticks the boat (`acacia-java-physics` `boat.rs`, `AbstractBoat.tick`
    on the previous tick's keys), then sends `PaddleBoat`, `MovePlayerRot` and `MoveVehicle`; holding shift
    dismounts. Example `java_boat` (paddling over grass, a drop into a pool, turns, reversing): 0 alerts, 0
-   `MoveVehicle` corrections; 0.042 for the 0.04 paddle push gives 63 Simulation alerts. Not modelled: boat block
-   effects (bubble columns, cobwebs, honey, slime), entity collisions, other vehicles. Elytra flight too: a jump in the air
+   `MoveVehicle` corrections; 0.042 for the 0.04 paddle push gives 63 Simulation alerts. Boat block effects run
+   twice a tick as vanilla's do (`boat_inside.rs`, sharing `inside.rs` with the player): a cobweb row stops the
+   boat with 0 alerts, against 1 alert and an eject without them. Bubble-column launches come as entity events
+   71/72, which Grim doesn't model (1 Simulation alert, 0 corrections, as a vanilla client would get). Vehicles
+   collide with solid and pushable entities, the player with solid ones (sizes and kinds from
+   `acacia-java-proto/tools/EntityDump.java`); a boat stops at a NoAI pig, 0 alerts. The driven boat is never
+   pushed (it carries a rider). A teleport of it interpolates over three ticks (`boat_lerp.rs`); Grim flags a
+   tp of a ridden boat whether it snaps or interpolates. Boarding's teleport isn't a setback. Not modelled:
+   the scale attribute and per-type shapes (slimes, pufferfish, shulker peeks), other vehicles; babies (the dump's
+   `BABY_DIMENSIONS` or age scale), player poses and a still happy ghast are sized. Every teleport goes through
+   `acacia-java-physics` `Placement::teleported`, `ROTATE_DELTA` included. Elytra flight too: a jump in the air
    with a usable elytra worn starts the glide (`START_FALL_FLYING`), and each firework rocket attached to the
    player (entity data 9) boosts the physics after the player's tick (example `java_elytra`: two boosts, ~930
    blocks, 0 alerts). Dialogs answer as forms (see "Forms" below). Item use in the air came 2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
@@ -91,7 +100,8 @@ Java dialogs (`ShowDialog`, inline or a registry entry) are `Bot` forms. Confirm
 Inputs map to Bedrock elements: text → Input, boolean → Toggle, single_option → Dropdown, number_range → Slider
 (snapped to its step). A button sends a command (unsigned `ChatCommand`, templates filled as vanilla does) or a
 `CustomClickAction`; `Close` runs the cancel action (notice → its button, confirmation → no, else `exit_action`)
-when escape may close it. Registry dialogs aren't read from configuration yet, so they show as a form with no buttons titled by registry index.
+when escape may close it. Registry dialogs come from configuration's `minecraft:dialog` data; the built-in ones
+(sent without data, since the client claims the vanilla packs) show as a form with no buttons titled by index.
 Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
 
 ## Test servers
