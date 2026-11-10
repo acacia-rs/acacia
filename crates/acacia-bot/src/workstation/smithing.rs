@@ -18,6 +18,10 @@ impl Bot {
     /// Cuts at least `count` of `item` at the stonecutter at `pos`. Returns how many were made
     /// (fewer only if the input ran out after the first cut).
     pub async fn stonecut(&mut self, pos: BlockPos, item: Item, count: u32) -> Result<u32, ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_stonecut(pos, item, count).await;
+        }
         let recipe = stonecutter_recipe(&self.state, item)?;
         let network_id = recipe.network_id;
         let (from, available) = matching_slots(&self.state, |n, m| recipe.inputs[0].accepts(n, m))[0];

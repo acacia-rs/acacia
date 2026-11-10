@@ -11,6 +11,7 @@ pub mod inventory;
 pub mod item;
 pub mod nbt;
 pub mod packets;
+pub mod recipes;
 mod wire;
 
 pub use wire::{Error, VarInt, Wire, read_varint, read_varlong, write_varint};

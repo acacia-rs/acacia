@@ -81,6 +81,6 @@ impl Bot {
 }
 
 /// How many of `item` the main inventory holds.
-fn held(state: &GameState, item: Item) -> u32 {
+pub(super) fn held(state: &GameState, item: Item) -> u32 {
     state.inventory.main.iter().filter(|s| !s.is_empty() && state.item(s) == Some(item)).map(|s| u32::from(s.count)).sum()
 }

@@ -2,9 +2,14 @@
 //! server fills the result slot itself, and that is shift-clicked out unpredicted. Nothing is predicted: Java's
 //! anvil and XP rules are the server's, and it offering nothing is the refusal.
 
-use super::java_craft::RESULT_TIMEOUT;
+use acacia_client::proto::types::WindowType;
+use acacia_physics::BlockPos;
+use acacia_world::neutral::Item;
+
+use super::java_craft::{held, RESULT_TIMEOUT};
 use super::StationStep;
 use crate::bot::Backend;
+use crate::items::{ui, SlotRef};
 use crate::state::java_inventory::result_slot;
 use crate::{ActionError, Bot};
 
@@ -17,6 +22,7 @@ impl Bot {
         let sent = match step {
             StationStep::Take => Ok(()),
             StationStep::Rename(name) => java.client.rename_item(name),
+            StationStep::Button(button) => java.client.menu_button(button),
             StationStep::Unsupported(what) => return Err(ActionError::Unsupported(what)),
         };
         sent.map_err(|_| ActionError::Disconnected)?;
@@ -29,6 +35,31 @@ impl Bot {
         self.java_take_result(slot).await?;
         let taken = |bot: &Bot, _: &_| (result_count(bot, slot) == Some(0)).then_some(());
         self.wait_until(RESULT_TIMEOUT, taken).await
+    }
+
+    /// [`Bot::stonecut`] on Java: the server's recipe order gives the button; only the input the cuts need goes in,
+    /// and one shift-click on the result cuts it all.
+    pub(super) async fn java_stonecut(&mut self, pos: BlockPos, item: Item, count: u32) -> Result<u32, ActionError> {
+        let java = self.java().ok_or(ActionError::Disconnected)?.client();
+        let result = i32::from(item.java_id());
+        let choice = self.state.inventory.main.iter().enumerate().find_map(|(i, s)| {
+            let button = java.stonecutter_button(s.network_id, result).filter(|_| !s.is_empty())?;
+            let per_cut = java.stonecutter.iter().filter(|r| r.input.accepts(s.network_id)).nth(button as usize)?.result?.1.max(1) as u32;
+            let needed = count.div_ceil(per_cut).min(u32::from(s.count));
+            Some((SlotRef::Main(u8::try_from(i).ok()?), button, needed as u8))
+        });
+        let (from, button, needed) = choice.ok_or_else(|| ActionError::NotPossible(format!("nothing in the inventory cuts into {item}")))?;
+        let before = held(&self.state, item);
+        self.open_station_and_look(pos, &[WindowType::Stonecutter]).await?;
+        let input = SlotRef::Ui(ui::STONECUTTER_INPUT);
+        let mut done = self.put(from, input, needed).await;
+        if done.is_ok() {
+            done = self.java_station_step(StationStep::Button(button)).await;
+        }
+        let back = self.take_back(&[input]).await;
+        self.close_station().await?;
+        done.and(back)?;
+        Ok(held(&self.state, item).saturating_sub(before))
     }
 
     /// Enchanting option `option` once the table offers it (its level cost, menu data 0-2, is above 0); done when the

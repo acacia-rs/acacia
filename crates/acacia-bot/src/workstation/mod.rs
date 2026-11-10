@@ -56,6 +56,7 @@ use crate::{ActionError, Bot};
 pub(super) enum StationStep<'a> {
     Take,
     Rename(&'a str),
+    Button(i32),
     Unsupported(&'static str),
 }
 

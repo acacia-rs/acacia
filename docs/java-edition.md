@@ -56,9 +56,10 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    moving an enchanted, named shovel, against 1 with the name hash broken on purpose (`Inventory::resent` counts
    misses). Stations too (`workstation/java_station.rs`): inputs go in by clicks, then the station's own packet
    (anvil rename; an enchanting option as a menu button), and the result the server fills in is shift-clicked out
-   unpredicted. Bedrock's plans are skipped, since Java's anvil and XP rules are the server's. Example
-   `java_stations`: anvil rename, grindstone, netherite upgrade and enchanting, 0 alerts. Still to do: stonecutter,
-   loom, cartography, trading, beacon, and recipe-book placement for unlocked recipes.
+   unpredicted. Bedrock's plans are skipped, since Java's anvil and XP rules are the server's. The stonecutter's
+   button is the recipe's index among those accepting the input, in `UpdateRecipes` order (`java-proto/recipes.rs`).
+   Example `java_stations`: anvil rename, grindstone, netherite upgrade, enchanting and 4 stone slabs, 0 alerts.
+   Still to do: loom, cartography, trading, beacon, and recipe-book placement for unlocked recipes.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
 
 ## Test servers

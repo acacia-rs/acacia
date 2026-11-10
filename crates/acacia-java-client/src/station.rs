@@ -19,6 +19,12 @@ impl Client {
         self.queue(to::CONTAINER_BUTTON_CLICK, &ContainerButtonClick { container: VarInt(container), button: VarInt(button) })
     }
 
+    /// The stonecutter button that turns `input` into `result`: its index among the recipes taking `input`.
+    pub fn stonecutter_button(&self, input: i32, result: i32) -> Option<i32> {
+        let mut choices = self.stonecutter.iter().filter(|r| r.input.accepts(input));
+        choices.position(|r| r.result.is_some_and(|(item, _)| item == result)).and_then(|i| i32::try_from(i).ok())
+    }
+
     /// Picks a villager's offer: the server moves its cost from the inventory into the trade slots.
     pub fn select_trade(&mut self, offer: i32) -> Result<(), Error> {
         self.queue(to::SELECT_TRADE, &SelectTrade { offer: VarInt(offer) })

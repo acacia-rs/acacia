@@ -1,5 +1,6 @@
 use acacia_auth::{Account, JavaProfile};
 use acacia_java_proto::packets::{AcceptTeleportation, Empty, EncryptionHello, EncryptionKey, INTENT_LOGIN, Intention, KeepAlive, LoginCompression, LoginFinished, LoginHello, Ping, PlayerPosition, SelectKnownPacks};
+use acacia_java_proto::recipes::{StonecutterRecipe, read_update_recipes};
 use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids, read_varint};
 use md5::{Digest, Md5};
 use tokio::net::TcpStream;
@@ -53,6 +54,8 @@ pub struct Client {
     pub movement: Movement,
     pub actions: Actions,
     pub inventory: Inventory,
+    /// The stonecutter's recipes in the server's order (its button order), from the last `UpdateRecipes`.
+    pub stonecutter: Vec<StonecutterRecipe>,
     loaded_sent: bool,
 }
 
@@ -78,7 +81,7 @@ impl Client {
         let enchantments = configure(&mut c).await?;
         let mut inventory = Inventory::default();
         inventory.enchantments = enchantments.into();
-        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), actions: Actions::default(), inventory, loaded_sent: false })
+        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), actions: Actions::default(), inventory, stonecutter: Vec::new(), loaded_sent: false })
     }
 
     /// The next packet, already applied to the world and movement. Cancel-safe.
@@ -122,6 +125,7 @@ impl Client {
                     self.send(to::PLAYER_LOADED, &Empty {})?;
                 }
             }
+            from::UPDATE_RECIPES => self.stonecutter = read_update_recipes(&mut &body[..])?,
             from::DISCONNECT => return Err(Error::Disconnected(format!("{body:02x?}"))),
             _ => {}
         }

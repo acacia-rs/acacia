@@ -1,11 +1,13 @@
-//! Java bot by four workstations: renames a diamond sword "Blade" at the anvil at (2, -60, 2), strips an enchanted iron
+//! Java bot by five workstations: renames a diamond sword "Blade" at the anvil at (2, -60, 2), strips an enchanted iron
 //! sword at the grindstone at (-2, -60, 2), upgrades a diamond pickaxe at the smithing table at (2, -60, -2) and
-//! enchants an iron pickaxe (option 0) at the table at (-2, -60, -2). Give it those items, the netherite upgrade
-//! template and ingot, 3 lapis and some levels first; it prints each step and the inventory.
+//! enchants an iron pickaxe (option 0) at the table at (-2, -60, -2) and cuts 4 stone slabs at the stonecutter at
+//! (0, -60, 3). Give it those items, the netherite upgrade template and ingot, 3 lapis, some stone and some levels
+//! first; it prints each step and the inventory.
 //! `cargo run -p acacia-bot --features java --example java_stations -- <host> <port> [name]`
 
 use acacia_bot::items::SlotRef;
 use acacia_bot::{Bot, BotConfig};
+use acacia_world::neutral::Item;
 
 fn describe(bot: &Bot, s: &acacia_bot::state::ItemStack) -> String {
     let name = bot.state().items.name(s.network_id).unwrap_or("?");
@@ -41,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("smithing {:?}", bot.smith([2, -60, -2], pickaxe, ingot, template).await);
     let plain = slot(&bot, "minecraft:iron_pickaxe", Some(false)).ok_or("no iron pickaxe")?;
     println!("enchant {:?}", bot.enchant([-2, -60, -2], plain, 0).await);
+    println!("stonecut {:?}", bot.stonecut([0, -60, 3], Item::StoneSlab, 4).await);
     bot.wait_ticks(10).await?;
     for s in bot.state().inventory.main.iter().filter(|s| !s.is_empty()) {
         println!("  {}", describe(&bot, s));
