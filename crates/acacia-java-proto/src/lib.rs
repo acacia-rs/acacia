@@ -4,6 +4,7 @@
 pub mod actions;
 pub mod chunk;
 pub mod container;
+pub mod dialog;
 pub mod entity_types;
 pub mod entity;
 pub mod ids;
@@ -13,6 +14,7 @@ pub mod merchant;
 pub mod nbt;
 pub mod packets;
 pub mod recipes;
+pub mod tag;
 mod wire;
 
 pub use wire::{Error, VarInt, Wire, read_varint, read_varlong, write_varint};

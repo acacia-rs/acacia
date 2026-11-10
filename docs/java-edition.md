@@ -33,7 +33,10 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    in its `tests/traces`, made with the bridge's `tools/move-trace.sh` (branch `java-physics-trace`).
 4. **Backend split.** Move the ~97 `acacia-bot` files that touch Bedrock packets behind edition backends
    (movement, interaction, inventory). Java bots path, dig and place. Done 2026-11-10 for goto with digging and
-   bridging (`acacia-bot` example `java_goto`); still Bedrock-only: forms, boats, elytra flight. Item use in the air came 2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
+   bridging (`acacia-bot` example `java_goto`); still Bedrock-only: boats. Elytra flight too: a jump in the air
+   with a usable elytra worn starts the glide (`START_FALL_FLYING`), and each firework rocket attached to the
+   player (entity data 9) boosts the physics after the player's tick (example `java_elytra`: two boosts, ~930
+   blocks, 0 alerts). Dialogs answer as forms (see "Forms" below). Item use in the air came 2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
    `java_eat`, 0 alerts while walking. Threat perception too: the Java client's entities mirror into
    `state.entities` each tick (Bedrock kind names; proto `entity_types.rs` from `tools/gen_entity_types.mjs`), and
    Java goto perceives hazards from them (example `java_avoid` swerves 4 blocks round a zombie, 0 alerts).
@@ -68,6 +71,16 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    server's stale cursor resend lands after the next predicted click. `java_stations` runs all nine stations with 0
    alerts. Still to do: recipe-book placement for unlocked recipes.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
+
+## Forms
+
+Java dialogs (`ShowDialog`, inline or a registry entry) are `Bot` forms. Confirmation → `Modal`; no inputs →
+`Simple` (buttons in order); inputs → `FormKind::Dialog`, answered with `FormReply::Dialog { button, values }`.
+Inputs map to Bedrock elements: text → Input, boolean → Toggle, single_option → Dropdown, number_range → Slider
+(snapped to its step). A button sends a command (unsigned `ChatCommand`, templates filled as vanilla does) or a
+`CustomClickAction`; `Close` runs the cancel action (notice → its button, confirmation → no, else `exit_action`)
+when escape may close it. Registry dialogs aren't read from configuration yet, so they show as a form with no buttons titled by registry index.
+Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
 
 ## Test servers
 

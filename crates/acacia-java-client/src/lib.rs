@@ -5,6 +5,7 @@ mod chat;
 mod chunks;
 pub mod clicks;
 mod crypto;
+pub mod dialog;
 mod entity;
 mod frame;
 pub mod interpolation;

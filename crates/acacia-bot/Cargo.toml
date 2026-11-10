@@ -66,6 +66,14 @@ name = "java_trade"
 required-features = ["java"]
 
 [[example]]
+name = "java_elytra"
+required-features = ["java"]
+
+[[example]]
+name = "java_dialogs"
+required-features = ["java"]
+
+[[example]]
 name = "java_eat"
 required-features = ["java"]
 

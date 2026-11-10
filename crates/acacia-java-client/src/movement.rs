@@ -149,6 +149,10 @@ impl Client {
         self.pose.y_rot = player.yaw;
         self.pose.x_rot = player.pitch;
         self.send_changes()?;
+        let me = self.world.player_id;
+        for _ in self.world.entities.values().filter(|e| e.attached_to == Some(me)) {
+            self.movement.player.firework_boost();
+        }
         self.send(to::CLIENT_TICK_END, &Empty {})
     }
 

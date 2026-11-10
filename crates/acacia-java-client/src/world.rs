@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use crate::chunks::Chunks;
-use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, read_mob_flags};
+use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
 pub use crate::entity::Entity;
 
 use acacia_java_proto::actions::BlockPos;
@@ -129,8 +129,14 @@ impl World {
             }
             from::SET_ENTITY_DATA => {
                 let id = read_varint(input)?;
-                if let Some(e) = self.entities.get_mut(&id).filter(|e| has_mob_flags(e.kind)) {
-                    read_mob_flags(input)?.inspect(|flags| e.aggressive = flags & MOB_AGGRESSIVE != 0);
+                match self.entities.get_mut(&id) {
+                    Some(e) if is_rocket(e.kind) => {
+                        read_rocket_target(input)?.inspect(|&target| e.attached_to = target);
+                    }
+                    Some(e) if has_mob_flags(e.kind) => {
+                        read_mob_flags(input)?.inspect(|flags| e.aggressive = flags & MOB_AGGRESSIVE != 0);
+                    }
+                    _ => {}
                 }
             }
             from::MOVE_ENTITY_ROT => {

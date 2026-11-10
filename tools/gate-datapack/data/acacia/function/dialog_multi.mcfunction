@@ -1,0 +1,1 @@
+dialog show @s {type:"minecraft:multi_action",title:"Menu",columns:1,actions:[{label:"A",action:{type:"minecraft:run_command",command:"tellraw @a \"A\""}},{label:"B",action:{type:"minecraft:custom",id:"acacia:b",payload:{n:1b}}}],exit_action:{label:"Back"}}

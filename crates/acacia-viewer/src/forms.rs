@@ -88,6 +88,11 @@ pub fn spec(form: &Form) -> (Spec, Vec<Option<String>>) {
         }
         FormKind::Modal { content, yes, no } => (Spec::Modal { content: content.clone(), yes: yes.clone(), no: no.clone() }, Vec::new()),
         FormKind::Custom { elements } => (Spec::Custom { elements: elements.iter().map(widget).collect(), submit: acacia_ui::form::SUBMIT.into() }, Vec::new()),
+        // A Java dialog submits with its first button, which `FormReply::Custom` presses.
+        FormKind::Dialog { elements, buttons, .. } => {
+            let submit = buttons.first().map_or_else(|| acacia_ui::form::SUBMIT.into(), |b| b.text.clone());
+            (Spec::Custom { elements: elements.iter().map(widget).collect(), submit }, Vec::new())
+        }
     }
 }
 

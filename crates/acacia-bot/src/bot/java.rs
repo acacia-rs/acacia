@@ -124,6 +124,7 @@ impl Bot {
                 }
                 self.on_java_inventory(packet.id);
                 self.on_java_health(&packet);
+                self.on_java_dialog(packet.id);
                 Step::Idle
             }
             Err(e) => {
@@ -142,6 +143,17 @@ impl Bot {
         match acacia_java_proto::packets::SetHealth::read(&mut &packet.body[..]) {
             Ok(h) => self.state.player.set_vitals(h.health, h.food.0 as f32, h.saturation),
             Err(e) => tracing::debug!(error = %e, "bad SetHealth"),
+        }
+    }
+
+    /// Mirrors the open dialog into `state.forms`; a new one is also a [`BotEvent::Form`].
+    fn on_java_dialog(&mut self, id: i32) {
+        use acacia_java_proto::ids::play::clientbound as from;
+        let Backend::Java(java) = &self.backend else { return };
+        if matches!(id, from::SHOW_DIALOG | from::CLEAR_DIALOG)
+            && let Some(form) = self.state.forms.set_java(java.client.dialog.as_ref())
+        {
+            self.pending.push_back(crate::BotEvent::Form(form));
         }
     }
 
@@ -177,6 +189,7 @@ impl Bot {
         // Turned by the shorter way and never wrapped, as a mouse turns it: Grim's AimModulo360 flags a 360° jump.
         player.yaw += wrap_degrees(java.controls.yaw - player.yaw);
         player.pitch = java.controls.pitch.clamp(-90.0, 90.0);
+        player.has_glider = usable_elytra(java.client.inventory.slot(CHEST_SLOT));
         if let Err(e) = java.client.step(java_keys(&java.controls)) {
             tracing::debug!(error = %e, "java movement not sent");
         }
@@ -185,6 +198,18 @@ impl Bot {
             self.state.entities.mirror_java(&java.client.world.entities, i64::from(java.client.world.player_id));
         }
     }
+}
+
+/// Window 0's chest armour slot.
+const CHEST_SLOT: usize = 6;
+const ELYTRA_DURABILITY: i32 = 432;
+
+/// An elytra that will not break on its next use (`LivingEntity.canGlideUsing`).
+fn usable_elytra(chest: Option<&acacia_java_proto::item::ItemStack>) -> bool {
+    chest.is_some_and(|s| {
+        let max = s.components.max_damage.unwrap_or(ELYTRA_DURABILITY);
+        i32::from(acacia_world::neutral::Item::Elytra.java_id()) == s.item && s.components.damage.unwrap_or(0) < max - 1
+    })
 }
 
 /// `Mth.wrapDegrees`: into [-180, 180).

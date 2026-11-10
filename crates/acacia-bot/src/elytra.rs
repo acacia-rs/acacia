@@ -16,6 +16,10 @@ use crate::survival::Destination;
 use crate::state::Inventory;
 use crate::{ActionError, Bot};
 
+#[cfg(feature = "java")]
+#[path = "elytra_java.rs"]
+mod java;
+
 /// Armor slot of the chestplate.
 const CHEST: u8 = 1;
 /// How long the server has to confirm a glide with the `GLIDING` actor flag.
@@ -39,6 +43,10 @@ impl Bot {
     /// `StartGliding` and `WantUp` in the next `PlayerAuthInput`, no `PlayerAction`. Waits for the
     /// server's `GLIDING` flag (`Rejected` without it). Physics bots only, airborne with an elytra worn.
     pub async fn start_gliding(&mut self) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_start_gliding().await;
+        }
         let Some(movement) = self.backend.movement().filter(|m| m.is_started()) else {
             return Err(ActionError::NotPossible("gliding needs a physics bot".into()));
         };
@@ -63,6 +71,10 @@ impl Bot {
     /// Closes the elytra (physics bots only). In the air vanilla does it on a jump press (`StopGliding`
     /// + the press flags); landing ends a glide by itself.
     pub async fn stop_gliding(&mut self) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_stop_gliding().await;
+        }
         let Some(movement) = self.backend.movement().filter(|m| m.is_started()) else {
             return Err(ActionError::NotPossible("gliding needs a physics bot".into()));
         };
@@ -76,13 +88,24 @@ impl Bot {
 
     /// Whether the simulation is gliding (physics bots).
     pub fn is_gliding(&self) -> bool {
+        #[cfg(feature = "java")]
+        if let Some(java) = self.java() {
+            return java.client().movement.player.fall_flying;
+        }
         self.backend.movement().is_some_and(|m| m.gliding())
     }
 
     /// Uses a firework rocket from the hotbar like vanilla: `Animate` "useitem" + `UseItem` ClickAir,
-    /// no `StartUsingItem`. Selecting the rocket first takes a human pause.
+    /// no `StartUsingItem`. Selecting the rocket first takes a human pause. On Java the server's rocket entity
+    /// boosts the glide (see `acacia_java_physics::Player::firework_boost`).
     pub async fn boost_with_firework(&mut self) -> Result<(), ActionError> {
         self.hold_fireworks().await?;
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            self.java_use_item();
+            self.java_swing();
+            return Ok(());
+        }
         self.use_item_like_vanilla();
         if let Some(movement) = self.backend.movement_mut() {
             movement.predict_glide_boost();
@@ -112,8 +135,8 @@ impl Bot {
 
     /// Holds jump for one tick, then releases it.
     async fn press_jump(&mut self) -> Result<(), ActionError> {
-        let Some(movement) = self.backend.movement_mut() else { return Ok(()) };
-        let held = std::mem::replace(&mut movement.controls.jump, true);
+        let Some(controls) = self.backend.controls_mut() else { return Ok(()) };
+        let held = std::mem::replace(&mut controls.jump, true);
         let press = self.claim(crate::cancel::Held::Jump(held));
         let ticked = self.next_tick(|_, _| false).await;
         self.release(press);

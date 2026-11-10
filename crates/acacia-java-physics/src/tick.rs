@@ -28,6 +28,18 @@ impl Player {
         }
     }
 
+    /// One tick of a firework rocket attached to the player (`FireworkRocketEntity.tick`): the client ticks the rocket
+    /// after the player, so this runs after [`Player::tick`] for every rocket alive that tick.
+    pub fn firework_boost(&mut self) {
+        if !self.fall_flying {
+            return;
+        }
+        let look = crate::mth::look_vector(self.pitch, self.yaw);
+        for (axis, l) in look.into_iter().enumerate() {
+            self.delta[axis] += l * 0.1 + (l * 1.5 - self.delta[axis]) * 0.5;
+        }
+    }
+
     fn apply_flight_input(&mut self) {
         if !self.flying {
             return;

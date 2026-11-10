@@ -1,5 +1,6 @@
 use acacia_auth::{Account, JavaProfile};
 use acacia_java_proto::packets::{AcceptTeleportation, Empty, EncryptionHello, EncryptionKey, INTENT_LOGIN, Intention, KeepAlive, LoginCompression, LoginFinished, LoginHello, Ping, PlayerPosition, SelectKnownPacks};
+use acacia_java_proto::dialog::{Shown, read_show_dialog};
 use acacia_java_proto::recipes::{StonecutterRecipe, read_update_recipes};
 use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids, read_varint};
 use md5::{Digest, Md5};
@@ -56,6 +57,8 @@ pub struct Client {
     pub inventory: Inventory,
     /// The stonecutter's recipes in the server's order (its button order), from the last `UpdateRecipes`.
     pub stonecutter: Vec<StonecutterRecipe>,
+    /// The open dialog; a new one replaces it and `ClearDialog` closes it.
+    pub dialog: Option<Shown>,
     loaded_sent: bool,
 }
 
@@ -81,7 +84,7 @@ impl Client {
         let enchantments = configure(&mut c).await?;
         let mut inventory = Inventory::default();
         inventory.enchantments = enchantments.into();
-        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), actions: Actions::default(), inventory, stonecutter: Vec::new(), loaded_sent: false })
+        Ok(Self { link: Link::spawn(c), uuid: profile.uuid, name: profile.name, pose: Pose::default(), world: World::default(), movement: Movement::default(), actions: Actions::default(), inventory, stonecutter: Vec::new(), dialog: None, loaded_sent: false })
     }
 
     /// The next packet, already applied to the world and movement. Cancel-safe.
@@ -126,6 +129,8 @@ impl Client {
                 }
             }
             from::UPDATE_RECIPES => self.stonecutter = read_update_recipes(&mut &body[..])?,
+            from::SHOW_DIALOG => self.dialog = Some(read_show_dialog(&mut &body[..])?),
+            from::CLEAR_DIALOG => self.dialog = None,
             from::DISCONNECT => return Err(Error::Disconnected(format!("{body:02x?}"))),
             _ => {}
         }
