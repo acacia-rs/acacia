@@ -2,8 +2,10 @@
 
 use std::collections::HashMap;
 
+use crate::chunks::Chunks;
+
 use acacia_java_proto::actions::BlockPos;
-use acacia_java_proto::chunk::{Section, read_chunk_header, read_sections};
+use acacia_java_proto::chunk::{read_chunk_header, read_sections};
 use acacia_java_proto::entity::{read_move, read_path_end, skip_lp_vec3};
 use acacia_java_proto::packets::PositionMoveRotation;
 use acacia_java_proto::{Error, VarInt, Wire, ids, read_varint, read_varlong};
@@ -30,7 +32,7 @@ pub struct Entity {
 pub struct World {
     pub dimension: String,
     pub player_id: i32,
-    chunks: HashMap<(i32, i32), Vec<Section>>,
+    chunks: Chunks,
     pub entities: HashMap<i32, Entity>,
 }
 
@@ -48,31 +50,27 @@ impl World {
         self.chunks.len()
     }
 
+    /// The loaded blocks; clone it for a snapshot.
+    pub fn chunks(&self) -> &Chunks {
+        &self.chunks
+    }
+
     /// The state id at a position, `None` outside the loaded sections.
-    pub fn block(&self, [x, y, z]: [i32; 3]) -> Option<u32> {
-        let (section, index) = self.locate([x, y, z])?;
-        self.chunks.get(&(x >> 4, z >> 4))?.get(section).map(|s| s.blocks.get(index))
+    pub fn block(&self, pos: [i32; 3]) -> Option<u32> {
+        self.chunks.block(pos)
     }
 
     pub fn min_y(&self) -> i32 {
-        min_y(&self.dimension)
-    }
-
-    fn locate(&self, [x, y, z]: [i32; 3]) -> Option<(usize, usize)> {
-        let section = usize::try_from((y - self.min_y()) >> 4).ok()?;
-        Some((section, Section::index((x & 15) as usize, (y & 15) as usize, (z & 15) as usize)))
+        self.chunks.min_y()
     }
 
     pub(crate) fn set_block(&mut self, pos: [i32; 3], state: u32) {
-        let Some((section, index)) = self.locate(pos) else { return };
-        if let Some(s) = self.chunks.get_mut(&(pos[0] >> 4, pos[2] >> 4)).and_then(|c| c.get_mut(section)) {
-            s.set_block(index, state);
-        }
+        self.chunks.set_block(pos, state);
     }
 
     fn enter_level(&mut self, dimension: String) {
+        self.chunks = Chunks::new(min_y(&dimension));
         self.dimension = dimension;
-        self.chunks.clear();
         self.entities.clear();
     }
 
@@ -87,11 +85,11 @@ impl World {
             }
             from::LEVEL_CHUNK_WITH_LIGHT => {
                 let (x, z, buffer) = read_chunk_header(input)?;
-                self.chunks.insert((x, z), read_sections(&buffer)?);
+                self.chunks.insert(x, z, read_sections(&buffer)?);
             }
             from::FORGET_LEVEL_CHUNK => {
                 let packed = i64::read(input)?;
-                self.chunks.remove(&(packed as i32, (packed >> 32) as i32));
+                self.chunks.remove(packed as i32, (packed >> 32) as i32);
             }
             from::BLOCK_UPDATE => {
                 let BlockPos(pos) = BlockPos::read(input)?;

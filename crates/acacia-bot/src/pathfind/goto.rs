@@ -174,6 +174,10 @@ fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
 
 /// Drives `pilot` for one tick (without letting it pass) and does any work due; also returns what the work changed.
 pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus, ActionError>, Worked) {
+    #[cfg(feature = "java")]
+    if bot.java().is_some() {
+        return super::java_goto::step(pilot, bot);
+    }
     if bot.backend.movement().is_none() {
         return (Err(ActionError::NotPossible("pathfinding needs a physics bot (BotConfig.physics)".into())), Worked::default());
     }

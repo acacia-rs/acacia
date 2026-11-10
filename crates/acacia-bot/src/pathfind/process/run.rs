@@ -76,14 +76,13 @@ impl Processes {
     /// Gives control to one process for a tick and lets the tick pass (not once every process has finished).
     /// Errors only when the bot cannot move or is disconnected; processes' own failures are their outcomes.
     pub async fn tick(&mut self, bot: &mut Bot) -> Result<Status, ActionError> {
-        let Some(movement) = bot.backend.movement() else {
+        if !bot.backend.moves() {
             return Err(ActionError::NotPossible("processes need a physics bot (BotConfig.physics)".into()));
-        };
-        let Some(live) = movement.state() else {
+        }
+        let Some((pos, on_ground)) = bot.backend.feet() else {
             bot.next_tick(|_, _| false).await?;
             return Ok(Status::Idle);
         };
-        let (pos, on_ground) = (live.pos, movement.on_ground());
         for (target, result) in bot.settle_placements() {
             if let Some((id, act)) = self.sent.remove(&target) {
                 self.arbiter.acted(id, &act, &result);

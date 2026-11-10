@@ -18,6 +18,7 @@ use crate::BotConfig;
 
 mod bedrock;
 mod bedrock_step;
+mod body;
 mod dimension;
 #[cfg(feature = "java")]
 mod java;
@@ -108,11 +109,7 @@ impl Bot {
 
     /// Movement intent (physics bots and Java bots); applied from the next tick on.
     pub fn controls(&mut self) -> Option<&mut Controls> {
-        match &mut self.backend {
-            Backend::Bedrock(b) => b.movement.as_mut().map(|m| &mut m.controls),
-            #[cfg(feature = "java")]
-            Backend::Java(java) => Some(&mut java.controls),
-        }
+        self.backend.controls_mut()
     }
 
     /// The player's name on the server.

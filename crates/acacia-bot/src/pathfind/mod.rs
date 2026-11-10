@@ -32,6 +32,8 @@ mod goal;
 mod goto;
 pub mod hazard;
 mod hop;
+#[cfg(feature = "java")]
+mod java_goto;
 mod job;
 mod judge;
 mod kit;

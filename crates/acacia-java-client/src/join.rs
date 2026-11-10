@@ -127,7 +127,8 @@ impl Client {
         Ok(())
     }
 
-    pub(crate) fn loaded(&self) -> bool {
+    /// The server has placed the player: its first position arrived.
+    pub fn loaded(&self) -> bool {
         self.loaded_sent
     }
 }

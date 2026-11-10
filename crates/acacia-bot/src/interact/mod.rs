@@ -88,7 +88,7 @@ impl Bot {
         if let Some(seat) = self.seat_eye() {
             return seat;
         }
-        if let Some(eye) = self.backend.movement().and_then(|m| m.eye_position()) {
+        if let Some(eye) = self.backend.eye() {
             return eye;
         }
         let e = self.state.player.eye_position();

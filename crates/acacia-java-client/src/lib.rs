@@ -2,6 +2,7 @@
 
 mod actions;
 mod chat;
+mod chunks;
 mod crypto;
 mod frame;
 mod join;
@@ -10,6 +11,7 @@ mod movement;
 pub mod world;
 
 pub use actions::Actions;
+pub use chunks::Chunks;
 pub use frame::{Connection, Error};
 pub use join::{Client, Pose, offline_uuid};
 pub use link::{Link, Packet};

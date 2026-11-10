@@ -41,6 +41,10 @@ tracing = "0.1.44"
 name = "java_walk"
 required-features = ["java"]
 
+[[example]]
+name = "java_goto"
+required-features = ["java"]
+
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "test-util"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }

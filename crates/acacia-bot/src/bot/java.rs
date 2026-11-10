@@ -3,12 +3,13 @@
 
 use acacia_client::DisconnectReason;
 use acacia_java_client::{Client, Error, Packet};
+use acacia_java_physics::Keys;
 use acacia_java_proto::ids::play::clientbound::PLAYER_POSITION;
 
 use super::bedrock::Backend;
 use super::Step;
 use crate::events::EventSource;
-use crate::movement::{java_keys, Controls};
+use crate::movement::{java_keys, Controls, JavaSim, Live};
 use crate::state::GameState;
 use crate::{Bot, BotConfig};
 
@@ -16,11 +17,49 @@ use crate::{Bot, BotConfig};
 pub struct Java {
     pub(crate) client: Client,
     pub(crate) controls: Controls,
+    ticks: u64,
+    teleports: u32,
+    last_setback: Option<u64>,
 }
 
 impl Java {
     pub fn client(&self) -> &Client {
         &self.client
+    }
+
+    pub(crate) fn started(&self) -> bool {
+        self.client.loaded()
+    }
+}
+
+/// Every server position after the first is a setback.
+impl Live for Java {
+    type Sim = JavaSim;
+
+    fn base(&self) -> Option<JavaSim> {
+        let mut player = self.client.movement.player.clone();
+        player.keys = Keys::default();
+        self.started().then_some(JavaSim(player))
+    }
+
+    fn fork(&self) -> Option<JavaSim> {
+        self.started().then(|| JavaSim(self.client.movement.player.clone()))
+    }
+
+    fn on_ground(&self) -> bool {
+        self.client.movement.player.on_ground
+    }
+
+    fn teleports(&self) -> u32 {
+        self.teleports
+    }
+
+    fn setback_age(&self) -> Option<u64> {
+        self.last_setback.map(|t| self.ticks.saturating_sub(t))
+    }
+
+    fn controls(&mut self) -> &mut Controls {
+        &mut self.controls
     }
 }
 
@@ -30,7 +69,7 @@ impl Bot {
         let client = Client::join_offline(host, port, name).await?;
         let events = EventSource::new(config.events, config.chat_patterns);
         let state = GameState::new(config.trackers, 0);
-        let java = Java { client, controls: Controls::default() };
+        let java = Java { client, controls: Controls::default(), ticks: 0, teleports: 0, last_setback: None };
         Ok(Bot::assemble(Backend::Java(Box::new(java)), state, events, config.auto_respawn, config.auto_eat))
     }
 
@@ -71,6 +110,10 @@ impl Bot {
                 {
                     let player = &java.client.movement.player;
                     (java.controls.yaw, java.controls.pitch) = (player.yaw, player.pitch);
+                    if java.teleports > 0 {
+                        java.last_setback = Some(java.ticks);
+                    }
+                    java.teleports += 1;
                 }
                 Step::Idle
             }
@@ -85,6 +128,7 @@ impl Bot {
     fn java_tick(&mut self) {
         self.governor.tick(None);
         let Backend::Java(java) = &mut self.backend else { return };
+        java.ticks += 1;
         let player = &mut java.client.movement.player;
         (player.yaw, player.pitch) = (java.controls.yaw, java.controls.pitch.clamp(-90.0, 90.0));
         if let Err(e) = java.client.step(java_keys(&java.controls)) {

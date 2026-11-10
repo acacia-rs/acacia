@@ -30,7 +30,7 @@ impl Bot {
 
     /// Feet block position of a physics bot (for building goals).
     pub fn block_position(&self) -> Option<BlockPos> {
-        let p = self.backend.movement()?.position()?;
+        let (p, _) = self.backend.feet()?;
         Some([p[0].floor() as i32, (p[1] + 0.01).floor() as i32, p[2].floor() as i32])
     }
 }

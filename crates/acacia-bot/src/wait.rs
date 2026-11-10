@@ -94,7 +94,6 @@ impl Bot {
     /// Processes packets up to and including the next movement tick; true if `check` matched any
     /// packet on the way. Bedrock physics bots only (others never tick).
     pub(crate) async fn next_tick(&mut self, mut check: impl FnMut(&Bot, &RawPacket) -> bool) -> Result<bool, ActionError> {
-        self.backend.require("waiting for Bedrock packets")?;
         let mut hit = false;
         loop {
             match self.progress().await? {
