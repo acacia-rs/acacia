@@ -33,7 +33,12 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    in its `tests/traces`, made with the bridge's `tools/move-trace.sh` (branch `java-physics-trace`).
 4. **Backend split.** Move the ~97 `acacia-bot` files that touch Bedrock packets behind edition backends
    (movement, interaction, inventory). Java bots path, dig and place. Done 2026-11-10 for goto with digging and
-   bridging (`acacia-bot` example `java_goto`); still Bedrock-only: boats. Elytra flight too: a jump in the air
+   bridging (`acacia-bot` example `java_goto`). Boats too: `SetPassengers` seats the player
+   (`acacia-java-client` `riding.rs`); a driver ticks the boat (`acacia-java-physics` `boat.rs`, `AbstractBoat.tick`
+   on the previous tick's keys), then sends `PaddleBoat`, `MovePlayerRot` and `MoveVehicle`; holding shift
+   dismounts. Example `java_boat` (paddling over grass, a drop into a pool, turns, reversing): 0 alerts, 0
+   `MoveVehicle` corrections; 0.042 for the 0.04 paddle push gives 63 Simulation alerts. Not modelled: boat block
+   effects (bubble columns, cobwebs, honey, slime), entity collisions, other vehicles. Elytra flight too: a jump in the air
    with a usable elytra worn starts the glide (`START_FALL_FLYING`), and each firework rocket attached to the
    player (entity data 9) boosts the physics after the player's tick (example `java_elytra`: two boosts, ~930
    blocks, 0 alerts). Dialogs answer as forms (see "Forms" below). Item use in the air came 2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example

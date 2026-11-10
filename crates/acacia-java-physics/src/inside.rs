@@ -8,8 +8,8 @@ use crate::collide::Blocks;
 use crate::fluid::fluid_of;
 use crate::mth::{floor, length_sqr};
 use crate::player::{Player, WIDTH};
+use crate::support::LEGACY_ON_POS;
 
-const LEGACY_ON_POS: f32 = 0.2;
 const TARGET_MARGIN: f64 = 1.0E-5_f32 as f64;
 
 /// Close to `isSuffocating`: full-cube collision, except the see-through blocks vanilla exempts.

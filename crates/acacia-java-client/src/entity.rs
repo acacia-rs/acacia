@@ -21,6 +21,10 @@ pub struct Entity {
     pub aggressive: bool,
     /// A firework rocket's attached entity, which it boosts while that one glides.
     pub attached_to: Option<i32>,
+    /// Riders by entity id, the controlling one first.
+    pub passengers: Vec<i32>,
+    /// The last `SetEntityMotion` since the last tick, which a boat boarded now starts with.
+    pub(crate) motion: [f64; 3],
     /// `VecDeltaCodec` base: the server's last position, which relative moves decode from.
     pub(crate) base: [f64; 3],
     pub(crate) lerp: Lerp,
@@ -32,7 +36,7 @@ const SNAP_DISTANCE_SQR: f64 = 4096.0;
 impl Entity {
     pub fn new(uuid: u128, kind: i32, position: [f64; 3], y_rot: f32, x_rot: f32) -> Self {
         let name = usize::try_from(kind).ok().and_then(|k| ENTITY_TYPES.get(k)).copied().unwrap_or("");
-        Entity { uuid, kind, position, y_rot, x_rot, on_ground: false, aggressive: false, attached_to: None, base: position, lerp: Lerp::for_kind(name) }
+        Entity { uuid, kind, position, y_rot, x_rot, on_ground: false, aggressive: false, attached_to: None, passengers: Vec::new(), motion: [0.0; 3], base: position, lerp: Lerp::for_kind(name) }
     }
 
     /// `moveOrInterpolateTo`; positions farther than vanilla interpolates snap when `may_snap`.

@@ -2,7 +2,8 @@ use crate::aabb::Aabb;
 use crate::block_factors::friction;
 use crate::collide::Blocks;
 use crate::mth::{cos, length_sqr, look_vector, sin, DEG_TO_RAD};
-use crate::player::{Player, BELOW_MOVEMENT_OFFSET};
+use crate::player::Player;
+use crate::support::BELOW_MOVEMENT_OFFSET;
 
 pub(crate) fn modified_friction(friction: f32, modifier: f32) -> f32 {
     (1.0 - (1.0 - friction) * modifier).clamp(0.0, 1.0)

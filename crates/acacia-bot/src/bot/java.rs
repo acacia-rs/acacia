@@ -4,7 +4,7 @@
 use acacia_client::DisconnectReason;
 use acacia_java_client::{Client, Error, Packet};
 use acacia_java_physics::Keys;
-use acacia_java_proto::ids::play::clientbound::PLAYER_POSITION;
+use acacia_java_proto::ids::play::clientbound::{PLAYER_POSITION, SET_PASSENGERS};
 
 use super::bedrock::Backend;
 use super::Step;
@@ -122,6 +122,12 @@ impl Bot {
                     }
                     java.teleports += 1;
                 }
+                // Boarding a boat turns the player to the boat's yaw.
+                if packet.id == SET_PASSENGERS
+                    && let Backend::Java(java) = &mut self.backend
+                {
+                    java.controls.yaw = java.client.movement.player.yaw;
+                }
                 self.on_java_inventory(packet.id);
                 self.on_java_health(&packet);
                 self.on_java_dialog(packet.id);
@@ -183,6 +189,7 @@ impl Bot {
     fn java_tick(&mut self) {
         self.governor.tick(None);
         self.tick_survival();
+        let dismounting = self.java_dismounting();
         let Backend::Java(java) = &mut self.backend else { return };
         java.ticks += 1;
         let player = &mut java.client.movement.player;
@@ -190,13 +197,20 @@ impl Bot {
         player.yaw += wrap_degrees(java.controls.yaw - player.yaw);
         player.pitch = java.controls.pitch.clamp(-90.0, 90.0);
         player.has_glider = usable_elytra(java.client.inventory.slot(CHEST_SLOT));
-        if let Err(e) = java.client.step(java_keys(&java.controls)) {
+        let mut keys = java_keys(&java.controls);
+        keys.shift |= dismounting;
+        if let Err(e) = java.client.step(keys) {
             tracing::debug!(error = %e, "java movement not sent");
+        }
+        // A boat turns its rider with it.
+        if java.client.movement.riding.is_some() {
+            java.controls.yaw = java.client.movement.player.yaw;
         }
         if self.state.keeps_entities() {
             self.state.entities.advance();
             self.state.entities.mirror_java(&java.client.world.entities, i64::from(java.client.world.player_id));
         }
+        self.mirror_java_riding();
     }
 }
 

@@ -52,6 +52,11 @@ packet!(MovePlayerStatusOnly { flags: u8 });
 // Bits in `Input` order: forward, backward, left, right, jump, shift, sprint.
 packet!(PlayerInput { flags: u8 });
 packet!(PlayerCommand { entity: VarInt, action: VarInt, data: VarInt });
+// Clientbound `MoveVehicle`: where the server puts the driven vehicle.
+packet!(VehiclePose { x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32 });
+packet!(MoveVehicle { pose: VehiclePose, on_ground: bool });
+packet!(PaddleBoat { left: bool, right: bool });
+packet!(SetPassengers { vehicle: VarInt, passengers: Vec<VarInt> });
 packet!(ServerboundAbilities { flags: u8 });
 packet!(ClientboundAbilities { flags: u8, flying_speed: f32, walking_speed: f32 });
 

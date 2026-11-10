@@ -87,6 +87,11 @@ impl BoatSim {
 impl Bot {
     /// Corrections of boats this bot drove: (height only, horizontal), counted since it connected.
     pub fn boat_corrections(&self) -> (u32, u32) {
+        #[cfg(feature = "java")]
+        if let Some(java) = self.java() {
+            let [height, horizontal] = java.client().movement.vehicle_corrections;
+            return (height, horizontal);
+        }
         let [height, horizontal] = self.ride.boat_corrections;
         (height, horizontal)
     }

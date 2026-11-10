@@ -65,7 +65,7 @@ pub fn fluid_of(state: BlockState) -> Option<Fluid> {
     (state.get(Waterlogged) == Some(true)).then_some(SOURCE_WATER)
 }
 
-fn fluid_at(world: &impl Blocks, pos: [i32; 3]) -> Option<Fluid> {
+pub(crate) fn fluid_at(world: &impl Blocks, pos: [i32; 3]) -> Option<Fluid> {
     fluid_of(world.block_state(pos))
 }
 
@@ -79,7 +79,8 @@ fn offset(pos: [i32; 3], by: [i32; 3]) -> [i32; 3] {
     [pos[0] + by[0], pos[1] + by[1], pos[2] + by[2]]
 }
 
-fn height(world: &impl Blocks, pos: [i32; 3], fluid: Fluid) -> f32 {
+/// `FluidState.getHeight`.
+pub(crate) fn height(world: &impl Blocks, pos: [i32; 3], fluid: Fluid) -> f32 {
     let above = fluid_at(world, offset(pos, [0, 1, 0]));
     if above.is_some_and(|a| a.lava == fluid.lava) { 1.0 } else { fluid.own_height() }
 }
@@ -183,73 +184,95 @@ impl FluidContact {
     }
 }
 
-impl Player {
-    fn chunks_loaded(&self, world: &impl Blocks, low: [i32; 3], high: [i32; 3]) -> bool {
-        [low[0], high[0]].iter().all(|&x| [low[2], high[2]].iter().all(|&z| world.has_chunk([x, low[1], z])))
-    }
+fn chunks_loaded(world: &impl Blocks, low: [i32; 3], high: [i32; 3]) -> bool {
+    [low[0], high[0]].iter().all(|&x| [low[2], high[2]].iter().all(|&z| world.has_chunk([x, low[1], z])))
+}
 
-    /// `Entity.updateFluidInteraction`, including the push from currents.
-    pub(crate) fn update_fluids(&mut self, world: &impl Blocks) {
-        self.fluids = FluidContact::default();
-        let area = self.bounding_box().deflated(0.001);
+/// One `EntityFluidInteraction.update`: the contact and, for an entity fluids push, the currents.
+pub(crate) struct FluidScan {
+    pub contact: FluidContact,
+    currents: [Accumulator; 2],
+}
+
+impl FluidScan {
+    /// `bbox` is the entity's box; `eye` its eye height and block column, for the eye-in-fluid flags.
+    pub(crate) fn of(world: &impl Blocks, bbox: Aabb, eye: Option<(f64, [i32; 3])>, pushed: bool) -> FluidScan {
+        let mut scan = FluidScan { contact: FluidContact::default(), currents: [Accumulator::default(); 2] };
+        let area = bbox.deflated(0.001);
         let low = area.min.map(floor);
         let high = area.max.map(|v| ceil(v) - 1);
-        let mut currents = [Accumulator::default(); 2];
-        if self.chunks_loaded(world, [low[0] - 1, low[1], low[2] - 1], [high[0] + 1, high[1], high[2] + 1]) {
-            let (entity_y, eye_y, here) = (self.bounding_box().min[1], self.eye_y(), self.block_pos());
-            let pushed = !self.flying;
-            for x in low[0]..=high[0] {
-                for y in low[1]..=high[1] {
-                    for z in low[2]..=high[2] {
-                        let pos = [x, y, z];
-                        let Some(fluid) = fluid_at(world, pos) else { continue };
-                        let bottom = y as f64;
-                        let top = bottom + height(world, pos, fluid) as f64;
-                        if top < area.min[1] {
-                            continue;
+        if !chunks_loaded(world, [low[0] - 1, low[1], low[2] - 1], [high[0] + 1, high[1], high[2] + 1]) {
+            return scan;
+        }
+        let fluids = &mut scan.contact;
+        for x in low[0]..=high[0] {
+            for y in low[1]..=high[1] {
+                for z in low[2]..=high[2] {
+                    let pos = [x, y, z];
+                    let Some(fluid) = fluid_at(world, pos) else { continue };
+                    let bottom = y as f64;
+                    let top = bottom + height(world, pos, fluid) as f64;
+                    if top < area.min[1] {
+                        continue;
+                    }
+                    let tracker = fluid.tracker();
+                    if let Some((eye_y, here)) = eye
+                        && x == here[0]
+                        && z == here[2]
+                        && eye_y >= bottom
+                        && eye_y <= bottom + camera_height(world, pos, fluid) as f64
+                    {
+                        fluids.eyes[tracker] = true;
+                    }
+                    fluids.heights[tracker] = (top - bbox.min[1]).max(fluids.heights[tracker]);
+                    if pushed {
+                        let current = &mut scan.currents[fluid.lava as usize];
+                        let mut push = flow(world, pos, fluid);
+                        current.height = fluids.heights[tracker].max(current.height);
+                        if current.height < 0.4 {
+                            push = push.map(|v| v * current.height);
                         }
-                        let tracker = fluid.tracker();
-                        if x == here[0] && z == here[2] && eye_y >= bottom && eye_y <= bottom + camera_height(world, pos, fluid) as f64 {
-                            self.fluids.eyes[tracker] = true;
+                        for axis in 0..3 {
+                            current.total[axis] += push[axis];
                         }
-                        self.fluids.heights[tracker] = (top - entity_y).max(self.fluids.heights[tracker]);
-                        if pushed {
-                            let current = &mut currents[fluid.lava as usize];
-                            let mut push = flow(world, pos, fluid);
-                            current.height = self.fluids.heights[tracker].max(current.height);
-                            if current.height < 0.4 {
-                                push = push.map(|v| v * current.height);
-                            }
-                            for axis in 0..3 {
-                                current.total[axis] += push[axis];
-                            }
-                            current.count += 1;
-                        }
+                        current.count += 1;
                     }
                 }
             }
         }
-        let in_water = self.fluids.height(false) > 0.0;
-        let in_lava = self.fluids.height(true) > 0.0;
-        if in_water {
-            self.fall_distance = 0.0;
-        }
-        self.in_water = in_water;
-        if !self.flying {
-            if in_water {
-                self.add_current(currents[0], WATER_CURRENT);
-            }
-            if in_lava {
-                self.add_current(currents[1], if self.fast_lava { FAST_LAVA_CURRENT } else { LAVA_CURRENT });
-            }
-        }
+        scan
     }
 
-    fn add_current(&mut self, current: Accumulator, scale: f64) {
-        if let Some(impulse) = current.impulse(self.delta, scale) {
-            for axis in 0..3 {
-                self.delta[axis] += impulse[axis];
-            }
+    /// The pushes `updateFluidInteraction` gives an entity fluids push: water's, then lava's.
+    pub(crate) fn push(&self, delta: &mut [f64; 3], fast_lava: bool) {
+        if self.contact.height(false) > 0.0 {
+            add_current(delta, self.currents[0], WATER_CURRENT);
+        }
+        if self.contact.height(true) > 0.0 {
+            add_current(delta, self.currents[1], if fast_lava { FAST_LAVA_CURRENT } else { LAVA_CURRENT });
+        }
+    }
+}
+
+fn add_current(delta: &mut [f64; 3], current: Accumulator, scale: f64) {
+    if let Some(impulse) = current.impulse(*delta, scale) {
+        for axis in 0..3 {
+            delta[axis] += impulse[axis];
+        }
+    }
+}
+
+impl Player {
+    /// `Entity.updateFluidInteraction`, including the push from currents.
+    pub(crate) fn update_fluids(&mut self, world: &impl Blocks) {
+        let scan = FluidScan::of(world, self.bounding_box(), Some((self.eye_y(), self.block_pos())), !self.flying);
+        self.fluids = scan.contact;
+        self.in_water = self.fluids.height(false) > 0.0;
+        if self.in_water {
+            self.fall_distance = 0.0;
+        }
+        if !self.flying {
+            scan.push(&mut self.delta, self.fast_lava);
         }
     }
 
