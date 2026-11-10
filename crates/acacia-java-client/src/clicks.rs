@@ -43,6 +43,11 @@ impl Click {
         Click { slot, button, input: ContainerInput::Swap }
     }
 
+    /// Shift-click on `slot`.
+    pub fn quick_move(slot: i16) -> Self {
+        Click { slot, button: 0, input: ContainerInput::QuickMove }
+    }
+
     /// Q over `slot`; `all` is ctrl+Q.
     pub fn throw(slot: i16, all: bool) -> Self {
         Click { slot, button: i8::from(all), input: ContainerInput::Throw }
@@ -196,12 +201,26 @@ impl Inventory {
         let carried = self.cursor.as_ref().map(HashedStack::of);
         ContainerClick { container, state_id, slot: click.slot, button: click.button, input: click.input, changed, carried }
     }
+
+    /// `click` as a packet that predicts nothing, for clicks the server alone can work out (taking a crafting result):
+    /// every slot it changes comes back from the server.
+    pub fn unpredicted(&self, click: Click) -> ContainerClick {
+        let (container, state_id) = self.menu_ids();
+        let carried = self.cursor.as_ref().map(HashedStack::of);
+        ContainerClick { container, state_id, slot: click.slot, button: click.button, input: click.input, changed: Vec::new(), carried }
+    }
 }
 
 impl Client {
     /// Predicts `click` in the open menu and queues it for the next [`Client::step`].
     pub fn click(&mut self, click: Click) -> Result<(), Error> {
         let packet = self.inventory.click(click);
+        self.queue(to::CONTAINER_CLICK, &packet)
+    }
+
+    /// Queues `click` without predicting it (see [`Inventory::unpredicted`]).
+    pub fn click_unpredicted(&mut self, click: Click) -> Result<(), Error> {
+        let packet = self.inventory.unpredicted(click);
         self.queue(to::CONTAINER_CLICK, &packet)
     }
 

@@ -7,14 +7,15 @@
 //! clicks and, in the own inventory, closes it (Grim treats clicks in window 0 as an open inventory until the close).
 //! A container screen stays open for [`Bot::close_container`].
 
-use acacia_java_client::Inventory;
+use acacia_java_client::{Client, Error as ClientError, Inventory};
 use acacia_java_client::clicks::{Click, OFFHAND_BUTTON, OUTSIDE};
 use acacia_java_client::inventory::{ARMOUR_HEAD, HOTBAR_START, OFFHAND};
 
 /// The player's slots below a container's: 27 main, then 9 hotbar.
 const MAIN_ROWS: u8 = 27;
 
-use super::{Op, SlotRef};
+use super::{Op, SlotRef, ui};
+use crate::state::java_inventory::{CRAFTING_MENU, GRID_START};
 use crate::bot::Backend;
 use crate::{ActionError, Bot};
 
@@ -37,6 +38,10 @@ fn window(inv: &Inventory, slot: SlotRef) -> Result<i16, ActionError> {
         (Some(own), SlotRef::Main(i @ 0..9)) => own + usize::from(MAIN_ROWS + i),
         (Some(own), SlotRef::Main(i @ 9..36)) => own + usize::from(i - 9),
         (Some(own), SlotRef::Container(i)) if usize::from(i) < own => usize::from(i),
+        (None, SlotRef::Ui(i @ ui::CRAFTING_2X2..ui::CRAFTING_3X3)) => GRID_START + usize::from(i - ui::CRAFTING_2X2),
+        (Some(_), SlotRef::Ui(i @ ui::CRAFTING_3X3..=ui::CRAFTING_3X3_LAST)) if inv.window.as_ref().is_some_and(|w| w.menu == CRAFTING_MENU) => {
+            GRID_START + usize::from(i - ui::CRAFTING_3X3)
+        }
         (_, other) => return Err(not_possible(&format!("{other:?} is not in the open Java menu"))),
     };
     i16::try_from(i).map_err(|_| not_possible("slot out of range"))
@@ -194,11 +199,23 @@ impl Bot {
     pub(crate) async fn java_item_ops(&mut self, ops: &[Op]) -> Result<(), ActionError> {
         let Backend::Java(java) = &self.backend else { return Err(ActionError::Unsupported("Java item moves")) };
         let clicks = plan(&java.client.inventory, ops)?;
+        self.java_clicks(|client| clicks.into_iter().try_for_each(|c| client.click(c))).await
+    }
+
+    /// Shift-clicks the open menu's result slot (crafting). Only the server knows what that makes, so the click
+    /// predicts nothing and the server sends back every slot it changed.
+    pub(crate) async fn java_take_result(&mut self) -> Result<(), ActionError> {
+        self.java_clicks(|client| client.click_unpredicted(Click::quick_move(0))).await
+    }
+
+    /// Stands for a tick with no input, then sends what `send` queues and, in the own inventory unless crafting holds
+    /// it open ([`crate::bot::Java::inventory_held`]), closes it.
+    async fn java_clicks(&mut self, send: impl FnOnce(&mut Client) -> Result<(), ClientError>) -> Result<(), ActionError> {
         let held = self.backend.controls_mut().map(std::mem::take).unwrap_or_default();
         self.next_tick(|_, _| false).await?;
         let Backend::Java(java) = &mut self.backend else { return Err(ActionError::Disconnected) };
-        let own = java.client.inventory.window.is_none();
-        let sent = clicks.into_iter().try_for_each(|c| java.client.click(c)).and_then(|()| if own { java.client.close_screen() } else { Ok(()) });
+        let close = java.client.inventory.window.is_none() && !java.inventory_held;
+        let sent = send(&mut java.client).and_then(|()| if close { java.client.close_screen() } else { Ok(()) });
         crate::state::java_inventory::mirror(&mut self.state.inventory, &java.client.inventory);
         crate::state::java_inventory::mirror_window(&mut self.state.containers, &java.client.inventory);
         sent.map_err(|_| ActionError::Disconnected)?;

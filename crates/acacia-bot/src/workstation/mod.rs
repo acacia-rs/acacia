@@ -22,6 +22,8 @@ mod furnace;
 mod grid;
 mod grindstone;
 mod held_grid;
+#[cfg(feature = "java")]
+mod java_craft;
 mod hand;
 mod loom;
 mod pick;

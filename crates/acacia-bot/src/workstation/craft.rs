@@ -51,6 +51,10 @@ impl Bot {
         if table.is_none() && self.state.containers.open.as_ref().is_some_and(|c| !is_own_screen(c)) {
             return Err(ActionError::NotPossible("the 2x2 grid needs the open container closed first".into()));
         }
+        #[cfg(feature = "java")]
+        if self.backend.bedrock().is_none() {
+            return self.java_craft(item, count, table).await;
+        }
         let own_screen = match table {
             Some(pos) => {
                 self.open_station_and_look(pos, &[WindowType::Workbench]).await?;
@@ -215,7 +219,7 @@ fn consumes(state: &GameState, recipe: &Recipe, times: u8) -> Result<(Vec<Op>, V
             return Err(ActionError::NotPossible(format!("missing ingredient {cell:?} for {}", recipe.id)));
         }
         cells.push(match (cell, used) {
-            (Ingredient::Tag { count, .. } | Ingredient::Molang { count, .. }, Some((name, metadata))) => {
+            (Ingredient::Tag { count, .. } | Ingredient::Molang { count, .. } | Ingredient::AnyOf { count, .. }, Some((name, metadata))) => {
                 Ingredient::Item { name: name.to_owned(), metadata: Some(metadata as i32), count: *count }
             }
             _ => cell.clone(),

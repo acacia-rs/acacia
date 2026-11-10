@@ -9,10 +9,15 @@ use acacia_client::proto::types::WindowType;
 use acacia_world::neutral::Item;
 
 use super::{Container, Containers, Inventory, ItemStack};
+use crate::items::ui;
 
 /// Window 0's slots: armour from 5 (helmet first), the main rows from 9, the hotbar from 36.
 const ARMOR_START: usize = 5;
 const MAIN_START: usize = 9;
+/// The crafting grid's first slot, in window 0 and in a crafting table's menu; slot 0 is the result.
+pub(crate) const GRID_START: usize = 1;
+/// `minecraft:crafting`'s menu id.
+pub(crate) const CRAFTING_MENU: i32 = 12;
 
 // TODO: enchantments; their ids are the server's synced registry order, not fixed.
 pub(crate) fn stack(java: Option<&JavaStack>) -> ItemStack {
@@ -32,7 +37,7 @@ pub(crate) fn stack(java: Option<&JavaStack>) -> ItemStack {
     }
 }
 
-/// Copies every slot and the cursor; the selected slot is the bot's own and is left alone.
+/// Copies every slot, the cursor and the crafting grids; the selected slot is the bot's own and is left alone.
 pub(crate) fn mirror(inventory: &mut Inventory, java: &JavaInventory) {
     for i in 0..Inventory::HOTBAR_SLOTS as usize {
         inventory.main[i] = stack(java.hotbar(i));
@@ -45,6 +50,13 @@ pub(crate) fn mirror(inventory: &mut Inventory, java: &JavaInventory) {
     }
     inventory.offhand = stack(java.offhand());
     inventory.ui[0] = stack(java.cursor.as_ref());
+    for i in 0..4 {
+        inventory.ui[usize::from(ui::CRAFTING_2X2) + i] = stack(java.slot(GRID_START + i));
+    }
+    let table = java.window.as_ref().filter(|w| w.menu == CRAFTING_MENU);
+    for i in 0..9 {
+        inventory.ui[usize::from(ui::CRAFTING_3X3) + i] = stack(table.and_then(|w| w.slots.get(GRID_START + i)?.as_ref()));
+    }
 }
 
 /// The Java container screen as the bot's open container; the opener fills in the block position.

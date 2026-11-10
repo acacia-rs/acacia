@@ -37,6 +37,9 @@ assert_eq!("noteblock".parse::<Block>(), Ok(Block::NoteBlock)); // Bedrock spell
 
 Collision boxes: `node crates/acacia-registry/tools/collision.mjs crates/acacia-registry/tools/.cache`.
 
+Crafting recipes (`recipe::crafting()`, shaped and shapeless only): `node crates/acacia-registry/tools/recipes.mjs
+crates/acacia-registry/tools/.cache`, over `recipes/`: `unzip <server jar> 'data/minecraft/recipe/*' -d recipes`.
+
 Regenerate with `node crates/acacia-registry/tools/gen.mjs crates/acacia-registry/tools/.cache`. It writes
 `src/generated/*.rs` and `crates/acacia-world/data/neutral.bin`. The cache holds:
 

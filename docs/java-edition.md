@@ -39,8 +39,11 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    Bedrock's ItemStackRequest. Own-inventory moves done 2026-11-10: `Bot`'s item moves become window-0 clicks
    predicted as `doClick` (`acacia-java-client` `clicks.rs`, bot `items/java_clicks.rs`); live, goto pulls a tool
    from the main inventory with 0 Grim alerts. Containers too (`OpenScreen` → `state.containers.open`; example
-   `java_chest` opens, fills, empties and reopens a chest with 0 alerts). Still to do: crafting and workstation
-   result slots, enchantment and custom-name hashes.
+   `java_chest` opens, fills, empties and reopens a chest with 0 alerts). Crafting too: Java servers send no
+   usable recipes, so `Recipes::java()` serves 26.3's vanilla ones (acacia-registry `recipe`), and every craft lays
+   the grid out by hand and shift-clicks the result unpredicted (`workstation/java_craft.rs`; example `java_craft`
+   makes planks, sticks and a pickaxe at a table with 0 alerts). Still to do: other workstations (furnace,
+   anvil, ...), recipe-book placement for unlocked recipes, enchantment and custom-name hashes.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
 
 ## Test servers

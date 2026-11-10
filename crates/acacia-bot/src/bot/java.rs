@@ -19,6 +19,9 @@ pub struct Java {
     pub(crate) controls: Controls,
     /// Sequence of the predicting action awaiting the server's answer, 0 for none.
     pub(crate) awaiting: i32,
+    /// Keeps the own inventory open between item moves, as crafting in its grid needs: closing it hands the grid
+    /// back.
+    pub(crate) inventory_held: bool,
     ticks: u64,
     teleports: u32,
     last_setback: Option<u64>,
@@ -72,7 +75,8 @@ impl Bot {
         let events = EventSource::new(config.events, config.chat_patterns);
         let mut state = GameState::new(config.trackers, 0);
         state.items = crate::state::ItemRegistry::java();
-        let java = Java { client, controls: Controls::default(), awaiting: 0, ticks: 0, teleports: 0, last_setback: None };
+        state.recipes = crate::state::Recipes::java();
+        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, teleports: 0, last_setback: None };
         Ok(Bot::assemble(Backend::Java(Box::new(java)), state, events, config.auto_respawn, config.auto_eat))
     }
 

@@ -5,6 +5,7 @@ mod collision;
 mod generated;
 mod item;
 pub mod prop;
+pub mod recipe;
 mod state;
 mod tag;
 

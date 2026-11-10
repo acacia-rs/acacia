@@ -160,7 +160,7 @@ fn descriptor(name: &str, stack: &ItemStack) -> ItemStackRequestInstanceDescript
 
 fn ingredient(i: &Ingredient) -> RecipeIngredient2 {
     let (kind, content) = match i {
-        Ingredient::Empty => (RecipeIngredient2Type::Invalid, RecipeIngredient2Content::Invalid),
+        Ingredient::Empty | Ingredient::AnyOf { .. } => (RecipeIngredient2Type::Invalid, RecipeIngredient2Content::Invalid),
         Ingredient::Item { name, metadata, .. } => (
             RecipeIngredient2Type::Name,
             RecipeIngredient2Content::Name(RecipeIngredient2ContentName { name: name.clone(), metadata: metadata.unwrap_or(ANY_METADATA) }),
