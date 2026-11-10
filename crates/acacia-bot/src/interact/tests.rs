@@ -37,7 +37,7 @@ fn enchanted_pickaxe() -> ItemStack {
 }
 
 fn hand() -> Hand {
-    Hand { slot: 2, item: to_wire(&enchanted_pickaxe()), eye: [1.5, 65.62, -2.5] }
+    Hand::main(2, to_wire(&enchanted_pickaxe()), [1.5, 65.62, -2.5])
 }
 
 #[test]
@@ -107,6 +107,21 @@ fn click_air_and_release() {
     assert_eq!(transaction.transaction_type, TransactionTransactionType::ItemRelease);
     let Data::ItemRelease(r) = transaction.transaction_data else { panic!() };
     assert_eq!((r.hotbar_slot, r.head_pos.y), (2, 65.62));
+}
+
+#[test]
+fn offhand_use_carries_the_offhand_stack_and_hand() {
+    use acacia_client::proto::types::TransactionUseItemHand as WireHand;
+    let shield = ItemStack { network_id: 513, count: 1, ..ItemStack::default() };
+    let offhand = Hand::offhand(2, to_wire(&shield), [1.5, 65.62, -2.5]);
+    let InventoryTransaction { transaction } = round_trip(&wire::click_air(offhand));
+    let Data::ItemUse(u) = transaction.transaction_data else { panic!() };
+    assert_eq!((u.hand, u.held_item.network_id, u.hotbar_slot), (WireHand::OffHand, 513, 2));
+    assert_eq!(u.action_type, TransactionUseItemActionType::ClickAir);
+
+    let InventoryTransaction { transaction } = round_trip(&wire::click_air(hand()));
+    let Data::ItemUse(u) = transaction.transaction_data else { panic!() };
+    assert_eq!((u.hand, u.held_item.network_id), (WireHand::MainHand, 330));
 }
 
 #[test]

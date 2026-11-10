@@ -107,7 +107,7 @@ fn item_use_without_server_reply_is_rejected_and_interruptions_end_it() {
 fn eating_wire() {
     assert_eq!(eating_data(257, 0), 257 << 16);
     assert_eq!(eating_data(300, 2), (300 << 16) | 2);
-    let hand = || Hand { slot: 4, item: to_wire(&ItemStack { network_id: 257, count: 3, ..ItemStack::default() }), eye: [0.0, 65.62, 0.0] };
+    let hand = || Hand::main(4, to_wire(&ItemStack { network_id: 257, count: 3, ..ItemStack::default() }), [0.0, 65.62, 0.0]);
     let check = |tx: InventoryTransaction, trigger| {
         let Data::ItemUse(u) = tx.transaction.transaction_data else { panic!("not a use-item transaction") };
         assert_eq!((u.action_type, u.trigger_type, u.face, u.hotbar_slot), (TransactionUseItemActionType::ClickAir, trigger, 255, 4));

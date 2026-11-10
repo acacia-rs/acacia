@@ -2,7 +2,7 @@ use acacia_client::proto::packets::{CraftingData, ItemStackResponse};
 use acacia_client::proto::types::{
     ContainerSlotType as T, ItemStackRequestActionsItemContent as Content, ItemStackRequestActionsItemTypeId as TypeId,
     ItemStackResponsesItem, ItemStackResponsesItemContainersItem, ItemStackResponsesItemContainersItemSlotsItem,
-    ItemStackResponsesItemStatus, RecipeIngredient2Content, SmithingTransformRecipe, WindowType,
+    ItemStackResponsesItemStatus, RecipeIngredient2Content, SmithingTransformRecipe, SmithingTrimRecipe, WindowType,
 };
 
 use super::*;
@@ -17,6 +17,7 @@ pub(super) const TABLE: u32 = 22;
 const FENCE: u32 = 659;
 const SLABS: u32 = 30;
 const NETHERITE: u32 = 40;
+const TRIM: u32 = 41;
 
 pub(super) fn recipes() -> CraftingData {
     let planks = || ingredient("#minecraft:planks", 1);
@@ -34,6 +35,15 @@ pub(super) fn recipes() -> CraftingData {
         result: legacy_item(id("minecraft:netherite_sword"), 1),
         tag: "smithing_table".into(),
         network_id: NETHERITE,
+    }];
+    // BDS 1.26 announces exactly one trim recipe, by tags (2026-11-10, examples/trim_probe.rs)
+    data.smithing_trim_recipes = vec![SmithingTrimRecipe {
+        recipe_id: "minecraft:smithing_armor_trim".into(),
+        template: ingredient("#minecraft:trim_templates", 1),
+        input: ingredient("#minecraft:trimmable_armors", 1),
+        addition: ingredient("#minecraft:trim_materials", 1),
+        block: "smithing_table".into(),
+        network_id: TRIM,
     }];
     data
 }
@@ -181,4 +191,25 @@ fn smithing_upgrade_consumes_all_three_slots() {
     assert_eq!(sources, [T::SmithingTableTemplate, T::SmithingTableInput, T::SmithingTableMaterial], "vanilla's order");
     let Content::ResultsDeprecated(results) = &request.actions[1].content else { panic!() };
     assert_eq!(results.result_items[0].content.as_ref().unwrap().name, "minecraft:netherite_sword");
+}
+
+#[test]
+fn smithing_trim_finds_its_recipe_by_tags_and_keeps_the_base() {
+    let mut state = with_recipes(&[]);
+    open(&mut state, WindowType::SmithingTable);
+    for (slot, name) in [
+        (ui::SMITHING_INPUT, "minecraft:iron_chestplate"),
+        (ui::SMITHING_MATERIAL, "minecraft:copper_ingot"),
+        (ui::SMITHING_TEMPLATE, "minecraft:sentry_armor_trim_smithing_template"),
+    ] {
+        state.inventory.ui[usize::from(slot)] = stack(name, 1, i32::from(slot));
+    }
+    let request = encode(&state, &smithing_plan(&state).unwrap());
+    let Content::CraftRecipe(craft) = &request.actions[0].content else { panic!() };
+    assert_eq!(craft.recipe_network_id, TRIM);
+    let Content::ResultsDeprecated(results) = &request.actions[1].content else { panic!() };
+    assert_eq!(results.result_items[0].content.as_ref().unwrap().name, "minecraft:iron_chestplate");
+
+    state.inventory.ui[usize::from(ui::SMITHING_MATERIAL)] = stack("minecraft:coal", 1, 9);
+    assert!(smithing_plan(&state).is_err(), "coal is no trim material");
 }
