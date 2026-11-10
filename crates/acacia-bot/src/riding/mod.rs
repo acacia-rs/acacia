@@ -39,6 +39,8 @@ pub(crate) struct Ride {
     leaving_feet: Option<[f32; 3]>,
     /// Physics bots: the horse being driven.
     horse: Option<horse::HorseSim>,
+    /// Whether the jump key was held on the last seated tick of a mount the server moves (a camel's dash needs the release edge).
+    jump_held: bool,
     /// Physics bots: the boat being paddled.
     boat: Option<boat::BoatSim>,
     /// Added once to the next reported vehicle position ([`Bot::offset_vehicle_report`]).
