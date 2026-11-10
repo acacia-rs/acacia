@@ -34,11 +34,15 @@ impl Bot {
     /// [`crate::movement::Controls`] a tick before.
     pub fn use_item(&mut self) {
         self.send_bedrock(&wire::click_air(self.hand()));
+        #[cfg(feature = "java")]
+        self.java_use_item();
     }
 
     /// Releases the item in use (`ReleaseItem` Release): shoots a drawn bow.
     pub fn release_item(&mut self) {
         self.send_bedrock(&wire::release(self.hand()));
+        #[cfg(feature = "java")]
+        self.java_release_item();
     }
 
     /// Right-clicks the block at `pos` with the held item (`UseItem` ClickBlock): opens doors, presses

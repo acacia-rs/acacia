@@ -81,7 +81,7 @@ fn crafting_grids_are_menu_slots_one_on() {
     let to_grid = |cell| [Op::Transfer { from: SlotRef::Main(0), to: SlotRef::Ui(cell), count: 1 }];
     assert_eq!(run(&inv, &to_grid(ui::CRAFTING_2X2 + 2)).0, vec![Click::left(36), Click::right(3), Click::left(36)]);
     assert!(plan(&inv, &to_grid(ui::CRAFTING_3X3)).is_err());
-    inv.window = Some(acacia_java_client::window::Window { id: 4, menu: CRAFTING_MENU, title: None, slots: vec![None; 10], state_id: 1 });
+    inv.window = Some(acacia_java_client::window::Window { id: 4, menu: CRAFTING_MENU, title: None, slots: vec![None; 10], state_id: 1, data: Vec::new() });
     assert_eq!(run(&inv, &to_grid(ui::CRAFTING_3X3 + 4)).0, vec![Click::left(10 + 27), Click::right(5), Click::left(10 + 27)]);
 }
 
@@ -90,7 +90,7 @@ fn chest_moves_number_the_player_slots_after_the_chest() {
     let mut inv = inventory(&[(SlotRef::Main(0), stack("dirt", 4)), (SlotRef::Main(10), stack("cobblestone", 8))]);
     let mut chest = vec![None; 27];
     chest[5] = stack("stone_shovel", 1);
-    inv.window = Some(acacia_java_client::window::Window { id: 2, menu: 2, title: None, slots: chest, state_id: 1 });
+    inv.window = Some(acacia_java_client::window::Window { id: 2, menu: 2, title: None, slots: chest, state_id: 1, data: Vec::new() });
     let ops = [
         Op::Transfer { from: SlotRef::Main(0), to: SlotRef::Container(0), count: 4 },
         Op::Transfer { from: SlotRef::Main(10), to: SlotRef::Container(1), count: 8 },

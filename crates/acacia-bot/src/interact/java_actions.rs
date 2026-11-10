@@ -83,3 +83,32 @@ impl Bot {
         }
     }
 }
+
+impl Bot {
+    /// `UseItem` with the main hand, sent with the next tick; nothing on Bedrock.
+    pub(crate) fn java_use_item(&mut self) {
+        if let Backend::Java(java) = &mut self.backend
+            && let Err(e) = java.client.use_item(Hand::Main)
+        {
+            tracing::debug!(error = %e, "java use item not queued");
+        }
+    }
+
+    /// `RELEASE_USE_ITEM`, sent with the next tick; nothing on Bedrock.
+    pub(crate) fn java_release_item(&mut self) {
+        if let Backend::Java(java) = &mut self.backend
+            && let Err(e) = java.client.release_use_item()
+        {
+            tracing::debug!(error = %e, "java release not queued");
+        }
+        self.set_java_using_item(false);
+    }
+
+    /// The physics' using-item slowdown: vanilla's default `use_effects` (0.2 speed, no sprinting).
+    pub(crate) fn set_java_using_item(&mut self, on: bool) {
+        if let Backend::Java(java) = &mut self.backend {
+            let using = acacia_java_physics::ItemUse { speed: 0.2, can_sprint: false };
+            java.client.movement.player.using_item = on.then_some(using);
+        }
+    }
+}

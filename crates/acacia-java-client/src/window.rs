@@ -1,7 +1,7 @@
 //! A container screen the server opened (chest, furnace, ...). Its menu lists the container's own slots, then the
 //! player's 27 main slots and 9 hotbar slots, which are the player's inventory itself.
 
-use acacia_java_proto::container::OpenScreen;
+use acacia_java_proto::container::{ContainerSetData, OpenScreen};
 use acacia_java_proto::inventory::{ContainerSetContent, ContainerSetSlot};
 use acacia_java_proto::item::ItemStack;
 
@@ -22,6 +22,8 @@ pub struct Window {
     pub slots: Vec<Option<ItemStack>>,
     /// What clicks in this window echo.
     pub state_id: i32,
+    /// `ContainerSetData` properties by id (`AbstractFurnaceMenu`: 0 fuel left, 1 fuel total, 2 cooked, 3 cook time).
+    pub data: Vec<(i16, i16)>,
 }
 
 /// Where a menu slot lives.
@@ -34,12 +36,20 @@ pub(crate) enum At {
 
 impl Inventory {
     pub(crate) fn open(&mut self, screen: &OpenScreen) {
-        self.window = Some(Window { id: screen.container, menu: screen.menu, title: screen.title_text(), slots: Vec::new(), state_id: 0 });
+        self.window = Some(Window { id: screen.container, menu: screen.menu, title: screen.title_text(), slots: Vec::new(), state_id: 0, data: Vec::new() });
     }
 
     pub(crate) fn close(&mut self, id: i32) {
         if self.window.as_ref().is_some_and(|w| w.id == id) {
             self.window = None;
+        }
+    }
+
+    pub(crate) fn set_window_data(&mut self, packet: ContainerSetData) {
+        let Some(window) = self.window.as_mut().filter(|w| w.id == packet.container.0) else { return };
+        match window.data.iter_mut().find(|(id, _)| *id == packet.id) {
+            Some(entry) => entry.1 = packet.value,
+            None => window.data.push((packet.id, packet.value)),
         }
     }
 

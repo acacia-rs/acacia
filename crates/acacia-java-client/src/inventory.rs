@@ -2,7 +2,7 @@
 
 use acacia_java_proto::ids::play::clientbound as from;
 use acacia_java_proto::inventory::{ContainerSetContent, ContainerSetSlot, PLAYER_CONTAINER, SetCursorItem, SetHeldSlot, SetPlayerInventory};
-use acacia_java_proto::container::{ContainerClose, OpenScreen};
+use acacia_java_proto::container::{ContainerClose, ContainerSetData, OpenScreen};
 use acacia_java_proto::item::ItemStack;
 use acacia_java_proto::{Error as WireError, Wire};
 
@@ -108,6 +108,7 @@ impl Inventory {
                 }
             }
             from::OPEN_SCREEN => self.open(&OpenScreen::read(&mut body)?),
+            from::CONTAINER_SET_DATA => self.set_window_data(ContainerSetData::read(&mut body)?),
             from::CONTAINER_CLOSE => self.close(ContainerClose::read(&mut body)?.container.0),
             from::SET_CURSOR_ITEM => self.cursor = SetCursorItem::read(&mut body)?.item,
             from::SET_HELD_SLOT => {

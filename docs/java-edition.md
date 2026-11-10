@@ -34,7 +34,9 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
 4. **Backend split.** Move the ~97 `acacia-bot` files that touch Bedrock packets behind edition backends
    (movement, interaction, inventory). Java bots path, dig and place. Done 2026-11-10 for goto with digging and
    bridging (`acacia-bot` example `java_goto`); still Bedrock-only: threat perception (Java entities untracked),
-   enchantments on Java stacks, entity actions, item use in the air, forms, boats, elytra flight.
+   enchantments on Java stacks, entity actions, forms, boats, elytra flight. Item use in the air came
+   2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
+   `java_eat`, 0 alerts while walking.
 5. **Inventory and crafting.** Java container clicks (state ids, carried item) behind the same API as
    Bedrock's ItemStackRequest. Own-inventory moves done 2026-11-10: `Bot`'s item moves become window-0 clicks
    predicted as `doClick` (`acacia-java-client` `clicks.rs`, bot `items/java_clicks.rs`); live, goto pulls a tool
@@ -42,7 +44,8 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    `java_chest` opens, fills, empties and reopens a chest with 0 alerts). Crafting too: Java servers send no
    usable recipes, so `Recipes::java()` serves 26.3's vanilla ones (acacia-registry `recipe`), and every craft lays
    the grid out by hand and shift-clicks the result unpredicted (`workstation/java_craft.rs`; example `java_craft`
-   makes planks, sticks and a pickaxe at a table with 0 alerts). Still to do: other workstations (furnace,
+   makes planks, sticks and a pickaxe at a table with 0 alerts). Furnaces need nothing Java-specific (example `java_smelt`); their
+   timers mirror into `containers.data` under Bedrock's numbering. Still to do: other workstations (furnace,
    anvil, ...), recipe-book placement for unlocked recipes, enchantment and custom-name hashes.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
 

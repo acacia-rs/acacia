@@ -37,6 +37,7 @@ packet!(PositionMoveRotation { x: f64, y: f64, z: f64, delta_x: f64, delta_y: f6
 packet!(PlayerPosition { id: VarInt, change: PositionMoveRotation, relatives: i32 });
 packet!(AcceptTeleportation { id: VarInt, x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32 });
 packet!(ChunkBatchReceived { chunks_per_tick: f32 });
+packet!(SetHealth { health: f32, food: VarInt, saturation: f32 });
 // `flags` on the move packets: 1 on ground, 2 horizontal collision.
 packet!(MovePlayerPos { x: f64, y: f64, z: f64, flags: u8 });
 packet!(MovePlayerPosRot { x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32, flags: u8 });

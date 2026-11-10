@@ -138,6 +138,8 @@ impl Wire for ContainerClick {
 }
 
 crate::packets::packet!(ContainerClose { container: VarInt });
+// A window property: a furnace's fuel and cooking timers, a brewing stand's brew time, ...
+crate::packets::packet!(ContainerSetData { container: VarInt, id: i16, value: i16 });
 
 /// `ClientboundOpenScreenPacket`: `menu` is a `minecraft:menu` registry id, `title` a text component's network NBT.
 #[derive(Debug, Clone, PartialEq, Eq)]

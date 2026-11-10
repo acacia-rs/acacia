@@ -123,6 +123,7 @@ impl Bot {
                     java.teleports += 1;
                 }
                 self.on_java_inventory(packet.id);
+                self.on_java_health(&packet);
                 Step::Idle
             }
             Err(e) => {
@@ -130,6 +131,17 @@ impl Bot {
                 self.closed = Some(reason.clone());
                 Step::Disconnected(reason)
             }
+        }
+    }
+
+    fn on_java_health(&mut self, packet: &Packet) {
+        use acacia_java_proto::Wire;
+        if packet.id != acacia_java_proto::ids::play::clientbound::SET_HEALTH {
+            return;
+        }
+        match acacia_java_proto::packets::SetHealth::read(&mut &packet.body[..]) {
+            Ok(h) => self.state.player.set_vitals(h.health, h.food.0 as f32, h.saturation),
+            Err(e) => tracing::debug!(error = %e, "bad SetHealth"),
         }
     }
 
@@ -145,7 +157,7 @@ impl Bot {
                     crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory);
                 }
             }
-            from::OPEN_SCREEN | from::CONTAINER_CLOSE => crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory),
+            from::OPEN_SCREEN | from::CONTAINER_CLOSE | from::CONTAINER_SET_DATA => crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory),
             from::SET_HELD_SLOT => self.state.inventory.select(inventory.selected),
             _ => {}
         }
@@ -153,6 +165,7 @@ impl Bot {
 
     fn java_tick(&mut self) {
         self.governor.tick(None);
+        self.tick_survival();
         let Backend::Java(java) = &mut self.backend else { return };
         java.ticks += 1;
         let player = &mut java.client.movement.player;

@@ -78,6 +78,19 @@ pub(crate) fn mirror_window(containers: &mut Containers, java: &JavaInventory) {
             slots,
         }),
     }
+    let furnace = matches!(window.menu, 10 | 14 | 22);
+    containers.data = window.data.iter().map(|&(id, value)| (i32::from(bedrock_property(furnace, id)), i32::from(value))).collect();
+}
+
+/// A Java window property's Bedrock number: Bedrock's furnace counts 0 cook ticks, 1 fuel left, 2 fuel total
+/// where Java's counts 2, 0, 1; Java's 3, the cook time, stays 3.
+fn bedrock_property(furnace: bool, id: i16) -> i16 {
+    match (furnace, id) {
+        (true, 0) => 1,
+        (true, 1) => 2,
+        (true, 2) => 0,
+        _ => id,
+    }
 }
 
 /// A `minecraft:menu` registry id (26.3) as the Bedrock window that shows the same container.

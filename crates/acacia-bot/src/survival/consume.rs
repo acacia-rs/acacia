@@ -45,6 +45,8 @@ impl Bot {
         self.survival.item_use = Some(ItemUse::new(slot, self.use_snapshot(), ticks, release, auto));
         self.survival.result = None;
         self.send_bedrock(&wire::click_air(self.hand()));
+        #[cfg(feature = "java")]
+        self.java_use_item();
         self.queue_flag(InputData::StartUsingItem);
         self.set_using_item(true);
         Ok(())
@@ -68,6 +70,9 @@ impl Bot {
             }
             UseTick::Finish => {
                 self.send_bedrock(&wire::finish_use(self.hand()));
+                // Java's client completes the use itself at this tick, so its slowdown ends here.
+                #[cfg(feature = "java")]
+                self.set_java_using_item(false);
             }
             UseTick::Done(result) => {
                 let auto = item_use.auto;
@@ -93,5 +98,7 @@ impl Bot {
         if let Some(m) = self.backend.movement_mut() {
             m.using_item = on;
         }
+        #[cfg(feature = "java")]
+        self.set_java_using_item(on);
     }
 }
