@@ -77,7 +77,12 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    alerts. A craft matching an unlocked recipe (`RecipeBookAdd`, matched by result and cell items) is laid out by
    `PlaceRecipe`, one per craft up to 8, as a player clicking the book; others are placed by hand. `java_craft`
    now crafts planks, sticks and the pickaxe from the book, 0 alerts.
-6. **JS package.** Expose the edition in `@acacia-rs` bindings.
+6. **JS package.** Expose the edition in `@acacia-rs` bindings. Done 2026-11-10 on branch `java/js` (java/edition
+   merged with js/cancel): `createBot({ edition: 'java' })`, port 25565 by default, offline or Microsoft (the host's
+   sign-in thread hands the account over; untested live, since it needs an online-mode server). Snapshots read the
+   Java body through `Backend::motion`; chat goes through the inbox, since only Bedrock has a lock-free sender.
+   Dialogs are `FormBody::Dialog` / `FormAnswer::Dialog`, and Bedrock-only actions reject `NOT_POSSIBLE`. Live
+   on the Paper gate from Node: join, chat, goto, walking and crafting planks from the book, 0 alerts.
 
 ## Forms
 

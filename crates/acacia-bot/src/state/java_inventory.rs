@@ -44,6 +44,7 @@ pub(crate) fn stack(java: Option<&JavaStack>, enchantments: &[String]) -> ItemSt
 
 /// Copies every slot, the cursor and the crafting grids; the selected slot is the bot's own and is left alone.
 pub(crate) fn mirror(inventory: &mut Inventory, java: &JavaInventory) {
+    inventory.touch();
     let stack = |s: Option<&JavaStack>| stack(s, &java.enchantments);
     for i in 0..Inventory::HOTBAR_SLOTS as usize {
         inventory.main[i] = stack(java.hotbar(i));
