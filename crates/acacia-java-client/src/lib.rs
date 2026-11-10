@@ -3,6 +3,7 @@
 mod actions;
 mod chat;
 mod chunks;
+pub mod clicks;
 mod crypto;
 mod frame;
 pub mod inventory;

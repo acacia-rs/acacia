@@ -11,6 +11,7 @@ rust-version.workspace = true
 acacia-auth = { path = "../acacia-auth" }
 acacia-java-physics = { path = "../acacia-java-physics" }
 acacia-java-proto = { path = "../acacia-java-proto" }
+acacia-registry = { path = "../acacia-registry" }
 aes = "0.8"
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
 md-5 = "0.10"
@@ -20,5 +21,4 @@ thiserror = "2"
 tokio = { version = "1.53.1", features = ["net", "io-util", "rt", "time", "macros"] }
 
 [dev-dependencies]
-acacia-registry = { path = "../acacia-registry" }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }

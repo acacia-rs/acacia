@@ -31,7 +31,7 @@ pub(crate) fn stack(java: Option<&JavaStack>) -> ItemStack {
     }
 }
 
-/// Copies every slot; the selected slot is the bot's own and is left alone.
+/// Copies every slot and the cursor; the selected slot is the bot's own and is left alone.
 pub(crate) fn mirror(inventory: &mut Inventory, java: &JavaInventory) {
     for i in 0..Inventory::HOTBAR_SLOTS as usize {
         inventory.main[i] = stack(java.hotbar(i));
@@ -43,4 +43,5 @@ pub(crate) fn mirror(inventory: &mut Inventory, java: &JavaInventory) {
         *armor = stack(java.slot(ARMOR_START + i));
     }
     inventory.offhand = stack(java.offhand());
+    inventory.ui[0] = stack(java.cursor.as_ref());
 }

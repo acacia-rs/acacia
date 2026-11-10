@@ -36,7 +36,10 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    bridging (`acacia-bot` example `java_goto`); still Bedrock-only: threat perception (Java entities untracked),
    enchantments on Java stacks, entity actions, item use in the air, forms, boats, elytra flight.
 5. **Inventory and crafting.** Java container clicks (state ids, carried item) behind the same API as
-   Bedrock's ItemStackRequest.
+   Bedrock's ItemStackRequest. Own-inventory moves done 2026-11-10: `Bot`'s item moves become window-0 clicks
+   predicted as `doClick` (`acacia-java-client` `clicks.rs`, bot `items/java_clicks.rs`); live, goto pulls a tool
+   from the main inventory with 0 Grim alerts. Still to do: other containers (OpenScreen), crafting, enchantment
+   and custom-name hashes.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
 
 ## Test servers

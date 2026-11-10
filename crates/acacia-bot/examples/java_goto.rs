@@ -21,6 +21,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     opts.search.allow_bridge = std::env::var_os("ACACIA_BRIDGE").is_some();
     let result = bot.goto_with(Goal::Block(goal), opts).await;
     println!("goto {result:?} after {:.1} s, at {:?}", started.elapsed().as_secs_f32(), bot.block_position());
+    let inv = &bot.state().inventory;
+    let name = |s: &acacia_bot::state::ItemStack| bot.state().items.name(s.network_id).map(|n| format!("{n}x{}", s.count));
+    println!("held {:?}, main 9 {:?}", name(inv.held()), name(&inv.main[9]));
     bot.disconnect().await;
     Ok(())
 }

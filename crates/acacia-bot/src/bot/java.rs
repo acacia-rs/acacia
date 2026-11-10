@@ -135,7 +135,7 @@ impl Bot {
         let Backend::Java(java) = &self.backend else { return };
         let inventory = &java.client.inventory;
         match id {
-            from::CONTAINER_SET_CONTENT | from::CONTAINER_SET_SLOT | from::SET_PLAYER_INVENTORY => {
+            from::CONTAINER_SET_CONTENT | from::CONTAINER_SET_SLOT | from::SET_PLAYER_INVENTORY | from::SET_CURSOR_ITEM => {
                 crate::state::java_inventory::mirror(&mut self.state.inventory, inventory);
             }
             from::SET_HELD_SLOT => self.state.inventory.select(inventory.selected),

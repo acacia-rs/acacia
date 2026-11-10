@@ -16,7 +16,7 @@ const HOTBAR_SIZE: usize = 9;
 /// Window 0: 0 craft result, 1-4 craft grid, 5-8 head to feet, 9-35 main, 36-44 hotbar, 45 offhand.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Inventory {
-    slots: [Option<ItemStack>; SLOTS],
+    pub(crate) slots: [Option<ItemStack>; SLOTS],
     /// The hotbar slot in hand, 0-8.
     pub selected: u8,
     pub cursor: Option<ItemStack>,
@@ -64,7 +64,8 @@ impl Inventory {
         self.state_id
     }
 
-    fn set(&mut self, window_slot: usize, item: Option<ItemStack>) {
+    /// Overwrites a slot, as the server's slot packets do.
+    pub fn set_slot(&mut self, window_slot: usize, item: Option<ItemStack>) {
         if let Some(slot) = self.slots.get_mut(window_slot) {
             *slot = item;
         }
@@ -86,7 +87,7 @@ impl Inventory {
                 let packet = ContainerSetSlot::read(&mut body)?;
                 if packet.container.0 == PLAYER_CONTAINER {
                     if let Ok(slot) = usize::try_from(packet.slot) {
-                        self.set(slot, packet.item);
+                        self.set_slot(slot, packet.item);
                     }
                     self.state_id = packet.state_id.0;
                 }
@@ -94,7 +95,7 @@ impl Inventory {
             from::SET_PLAYER_INVENTORY => {
                 let packet = SetPlayerInventory::read(&mut body)?;
                 if let Some(slot) = window_slot(packet.slot.0) {
-                    self.set(slot, packet.item);
+                    self.set_slot(slot, packet.item);
                 }
             }
             from::SET_CURSOR_ITEM => self.cursor = SetCursorItem::read(&mut body)?.item,

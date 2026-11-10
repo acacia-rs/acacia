@@ -99,6 +99,10 @@ impl Bot {
 
     /// Sends `ops` as one `ItemStackRequest` and applies the result once the server accepts it.
     pub async fn item_stack_request(&mut self, ops: &[Op]) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if matches!(self.backend, crate::bot::Backend::Java(_)) {
+            return self.java_item_ops(ops).await;
+        }
         self.run_plan(|state, screen| Plan::build(state, screen, ops)).await
     }
 

@@ -61,7 +61,7 @@ impl Wire for Encoded<'_> {
 }
 
 impl Client {
-    fn queue(&mut self, id: i32, body: &impl Wire) -> Result<(), Error> {
+    pub(crate) fn queue(&mut self, id: i32, body: &impl Wire) -> Result<(), Error> {
         let mut bytes = Vec::new();
         body.write(&mut bytes);
         self.actions.outbox.push((id, bytes));
