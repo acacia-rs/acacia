@@ -82,6 +82,19 @@ impl Wire for VarInt {
     }
 }
 
+/// `ByteBufCodecs.optional`: a presence flag, then the value.
+impl Wire for Option<VarInt> {
+    fn read(input: &mut &[u8]) -> Result<Self, Error> {
+        if bool::read(input)? { VarInt::read(input).map(Some) } else { Ok(None) }
+    }
+    fn write(&self, out: &mut Vec<u8>) {
+        self.is_some().write(out);
+        if let Some(v) = self {
+            v.write(out);
+        }
+    }
+}
+
 macro_rules! big_endian {
     ($($t:ty),*) => {$(
         impl Wire for $t {

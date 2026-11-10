@@ -2,7 +2,7 @@
 
 use acacia_java_proto::VarInt;
 use acacia_java_proto::ids::play::serverbound as to;
-use acacia_java_proto::packets::{ContainerButtonClick, RenameItem, SelectTrade};
+use acacia_java_proto::packets::{ContainerButtonClick, RenameItem, SelectTrade, SetBeacon};
 
 use crate::frame::Error;
 use crate::join::Client;
@@ -28,5 +28,10 @@ impl Client {
     /// Picks a villager's offer: the server moves its cost from the inventory into the trade slots.
     pub fn select_trade(&mut self, offer: i32) -> Result<(), Error> {
         self.queue(to::SELECT_TRADE, &SelectTrade { offer: VarInt(offer) })
+    }
+
+    /// Confirms the open beacon's powers (`mob_effect` ids); the server takes the payment.
+    pub fn set_beacon(&mut self, primary: i32, secondary: Option<i32>) -> Result<(), Error> {
+        self.queue(to::SET_BEACON, &SetBeacon { primary: Some(VarInt(primary)), secondary: secondary.map(VarInt) })
     }
 }

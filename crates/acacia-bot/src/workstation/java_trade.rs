@@ -51,7 +51,7 @@ impl Bot {
             let covered = payable(self, &chosen);
             let batch = covered.min(times - done);
             self.click_pause().await?;
-            done += if batch == covered { self.java_take_trades(batch).await? } else { self.java_take_trade().await? };
+            done += if batch == covered { self.java_take_trades(batch).await? } else { self.java_take_one(RESULT).await.map(|()| 1)? };
         }
         Ok(done)
     }
@@ -69,19 +69,6 @@ impl Bot {
             Err(ActionError::Timeout) => Ok(made),
             other => other.map(|()| made),
         }
-    }
-
-    /// One trade: the result onto the cursor, then into the inventory.
-    async fn java_take_trade(&mut self) -> Result<u32, ActionError> {
-        self.java_pick_result(RESULT).await?;
-        let held = |bot: &Bot, _: &_| cursor(bot).map(drop);
-        match self.wait_until(RESULT_TIMEOUT, held).await {
-            Err(ActionError::Timeout) => return Err(ActionError::NotPossible("the trade's result was not taken".into())),
-            other => other?,
-        }
-        self.click_pause().await?;
-        self.cursor_to_inventory().await?;
-        Ok(1)
     }
 
     fn select_trade(&mut self, offer: usize) -> Result<(), ActionError> {
@@ -114,8 +101,4 @@ fn offers(bot: &Bot) -> Option<&[MerchantOffer]> {
 
 fn slot(bot: &Bot, i: usize) -> Option<&JavaStack> {
     bot.java()?.client().inventory.window.as_ref()?.slots.get(i)?.as_ref()
-}
-
-fn cursor(bot: &Bot) -> Option<&JavaStack> {
-    bot.java()?.client().inventory.cursor.as_ref()
 }

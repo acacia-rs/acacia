@@ -33,6 +33,8 @@ packet!(KeepAlive { id: i64 });
 packet!(RenameItem { name: String });
 packet!(ContainerButtonClick { container: VarInt, button: VarInt });
 packet!(SelectTrade { offer: VarInt });
+// `mob_effect` registry ids.
+packet!(SetBeacon { primary: Option<VarInt>, secondary: Option<VarInt> });
 packet!(Ping { id: i32 });
 packet!(KnownPack { namespace: String, id: String, version: String });
 packet!(SelectKnownPacks { packs: Vec<KnownPack> });

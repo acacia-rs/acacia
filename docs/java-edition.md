@@ -62,7 +62,11 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    Trading (`workstation/java_trade.rs`) picks the offer with `SelectTrade`, which has the server fill the payment;
    one shift-click on the result takes every trade it covers, else each trade is a click and a put-away.
    `MerchantOffers` mirrors into `stations.trade`. Example `java_trade`: 1 trade by clicks and 3 by one shift-click,
-   0 alerts. Still to do: loom, cartography, beacon, and recipe-book placement for unlocked recipes.
+   0 alerts. The loom's button is the pattern's index in the `no_item_required` tag (or the pattern item's own),
+   cartography crafts are a click on the result each (Java renames maps at the anvil), and the beacon is `SetBeacon`
+   with Java's `mob_effect` ids. Stacks keep `map_id`, or every click on a filled map misses its hash and the
+   server's stale cursor resend lands after the next predicted click. `java_stations` runs all nine stations with 0
+   alerts. Still to do: recipe-book placement for unlocked recipes.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
 
 ## Test servers

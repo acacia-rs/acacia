@@ -3,7 +3,7 @@
 
 use crc::{CRC_32_ISCSI, Crc};
 
-use crate::item::{CUSTOM_NAME, DAMAGE, ENCHANTMENTS, ItemStack, MAX_DAMAGE, MAX_STACK_SIZE, UNBREAKABLE};
+use crate::item::{CUSTOM_NAME, DAMAGE, ENCHANTMENTS, ItemStack, MAP_ID, MAX_DAMAGE, MAX_STACK_SIZE, UNBREAKABLE};
 use crate::nbt;
 use crate::wire::read_len;
 use crate::{Error, VarInt, Wire, write_varint};
@@ -79,7 +79,7 @@ impl HashedStack {
     /// server resends it.
     pub fn of(stack: &ItemStack, enchantments: &[String]) -> HashedStack {
         let c = &stack.components;
-        let ints = [(MAX_STACK_SIZE, c.max_stack_size), (MAX_DAMAGE, c.max_damage), (DAMAGE, c.damage)];
+        let ints = [(MAX_STACK_SIZE, c.max_stack_size), (MAX_DAMAGE, c.max_damage), (DAMAGE, c.damage), (MAP_ID, c.map_id)];
         let mut added: Vec<_> = ints.iter().filter_map(|&(id, v)| Some((id, hash_int(v?)))).collect();
         if c.unbreakable {
             added.push((UNBREAKABLE, hash_unit()));

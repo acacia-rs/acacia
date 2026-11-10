@@ -18,6 +18,7 @@ pub const DAMAGE: i32 = 3;
 pub const UNBREAKABLE: i32 = 4;
 pub const CUSTOM_NAME: i32 = 6;
 pub const ENCHANTMENTS: i32 = 13;
+pub const MAP_ID: i32 = 48;
 
 /// A non-empty stack. On the wire an empty one is a count of 0, so slots read as `Option<ItemStack>`.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -46,6 +47,8 @@ pub struct Components {
     pub custom_name: Option<Vec<u8>>,
     /// `(enchantment registry id, level)`, in wire order.
     pub enchantments: Vec<(i32, i32)>,
+    /// A filled map's id; without it a map's hash misses on every click.
+    pub map_id: Option<i32>,
     /// Component type ids the patch removes from the item's defaults.
     pub removed: Vec<i32>,
 }
@@ -122,6 +125,9 @@ impl Components {
                 self.enchantments.iter().for_each(|&(id, level)| [id, level].iter().for_each(|&v| write_varint(v, out)));
             });
         }
+        if let Some(id) = self.map_id {
+            put(MAP_ID, &|out| write_varint(id, out));
+        }
         added
     }
 }
@@ -161,6 +167,7 @@ fn read_component(id: i32, input: &mut &[u8], depth: u32, components: &mut Compo
                 components.enchantments.push((read_varint(input)?, read_varint(input)?));
             }
         }
+        MAP_ID => components.map_id = Some(read_varint(input)?),
         _ => components::skip(id, input, depth)?,
     }
     Ok(())

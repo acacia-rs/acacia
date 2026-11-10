@@ -37,6 +37,43 @@ impl Bot {
         self.wait_until(RESULT_TIMEOUT, taken).await
     }
 
+    /// One result from `slot` onto the cursor, then into the inventory: one craft, where a shift-click would make
+    /// all the inputs allow.
+    pub(super) async fn java_take_one(&mut self, slot: usize) -> Result<(), ActionError> {
+        self.java_pick_result(slot).await?;
+        let held = |bot: &Bot, _: &_| bot.java()?.client().inventory.cursor.as_ref().map(drop);
+        match self.wait_until(RESULT_TIMEOUT, held).await {
+            Err(ActionError::Timeout) => return Err(ActionError::NotPossible("the result was not taken".into())),
+            other => other?,
+        }
+        self.click_pause().await?;
+        self.cursor_to_inventory().await
+    }
+
+    /// Waits for the open station's result; `false` if it offers none.
+    pub(super) async fn java_result_offered(&mut self) -> Result<bool, ActionError> {
+        let slot = menu(self).and_then(|w| result_slot(w.menu)).ok_or_else(|| ActionError::NotPossible("no station with a result slot is open".into()))?;
+        let offered = |bot: &Bot, _: &_| result_count(bot, slot).filter(|&n| n > 0).map(drop);
+        match self.wait_until(RESULT_TIMEOUT, offered).await {
+            Err(ActionError::Timeout) => Ok(false),
+            other => other.map(|()| true),
+        }
+    }
+
+    /// Confirms the open beacon's powers (Java's `mob_effect` ids are Bedrock's less one); done when the server takes
+    /// the payment from slot 0.
+    pub(super) async fn java_beacon(&mut self, primary: i32, secondary: Option<i32>) -> Result<(), ActionError> {
+        let paid = |bot: &Bot| menu(bot).and_then(|w| w.slots.first().cloned().flatten()).map_or(0, |s| s.count);
+        let before = paid(self);
+        let Backend::Java(java) = &mut self.backend else { return Err(ActionError::Disconnected) };
+        java.client.set_beacon(primary, secondary).map_err(|_| ActionError::Disconnected)?;
+        let taken = |bot: &Bot, _: &_| (paid(bot) < before).then_some(());
+        match self.wait_until(RESULT_TIMEOUT, taken).await {
+            Err(ActionError::Timeout) => Err(ActionError::NotPossible("the beacon kept its payment".into())),
+            other => other,
+        }
+    }
+
     /// [`Bot::stonecut`] on Java: the server's recipe order gives the button; only the input the cuts need goes in,
     /// and one shift-click on the result cuts it all.
     pub(super) async fn java_stonecut(&mut self, pos: BlockPos, item: Item, count: u32) -> Result<u32, ActionError> {

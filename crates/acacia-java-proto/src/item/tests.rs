@@ -251,6 +251,7 @@ fn decoded_components_round_trip() {
         unbreakable: true,
         custom_name: Some(TEXT.to_vec()),
         enchantments: vec![(1, 2), (300, 1)],
+        map_id: Some(7),
         removed: vec![12, 18],
     };
     let mut out = Vec::new();
