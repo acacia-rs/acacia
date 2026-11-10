@@ -4,6 +4,7 @@
 use crc::{CRC_32_ISCSI, Crc};
 
 use crate::item::{DAMAGE, ItemStack, MAX_DAMAGE, MAX_STACK_SIZE, UNBREAKABLE};
+use crate::nbt;
 use crate::wire::read_len;
 use crate::{Error, VarInt, Wire, write_varint};
 
@@ -138,6 +139,36 @@ impl Wire for ContainerClick {
 
 crate::packets::packet!(ContainerClose { container: VarInt });
 
+/// `ClientboundOpenScreenPacket`: `menu` is a `minecraft:menu` registry id, `title` a text component's network NBT.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenScreen {
+    pub container: i32,
+    pub menu: i32,
+    pub title: Vec<u8>,
+}
+
+impl Wire for OpenScreen {
+    fn read(input: &mut &[u8]) -> Result<Self, Error> {
+        let (container, menu) = (VarInt::read(input)?.0, VarInt::read(input)?.0);
+        let start = *input;
+        nbt::skip_tag(input)?;
+        Ok(Self { container, menu, title: start[..start.len() - input.len()].to_vec() })
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        write_varint(self.container, out);
+        write_varint(self.menu, out);
+        out.extend_from_slice(&self.title);
+    }
+}
+
+impl OpenScreen {
+    /// The title if it is plain text (renamed blocks); default titles are translations and give `None`.
+    pub fn title_text(&self) -> Option<String> {
+        nbt::read_root_string(&self.title)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,6 +178,18 @@ mod tests {
         // Guava: Hashing.crc32c().newHasher().putByte(8).putInt(5).hash().asInt()
         assert_eq!(hash_int(5), CRC32C.checksum(&[8, 5, 0, 0, 0]) as i32);
         assert_eq!(CRC32C.checksum(b"123456789"), 0xE306_9283);
+    }
+
+    #[test]
+    fn open_screen_keeps_its_title_nbt() {
+        let title = vec![nbt::TAG_STRING, 0, 5, b'C', b'h', b'e', b's', b't'];
+        let screen = OpenScreen { container: 3, menu: 2, title };
+        let mut buf = Vec::new();
+        screen.write(&mut buf);
+        buf.push(0xff);
+        let mut input = &buf[..];
+        assert_eq!(OpenScreen::read(&mut input), Ok(screen.clone()));
+        assert_eq!((input, screen.title_text().as_deref()), (&[0xff][..], Some("Chest")));
     }
 
     #[test]

@@ -68,3 +68,24 @@ fn clicking_outside_drops_the_cursor() {
     let packet = inv.click(Click { slot: OUTSIDE, button: 0, input: ContainerInput::Pickup });
     assert_eq!((packet.carried, packet.changed.len()), (None, 0));
 }
+
+#[test]
+fn container_clicks_reach_the_player_inventory() {
+    use acacia_java_proto::VarInt;
+    use acacia_java_proto::container::OpenScreen;
+    use acacia_java_proto::inventory::ContainerSetContent;
+
+    let mut inv = with(&[]);
+    inv.open(&OpenScreen { container: 3, menu: 2, title: Vec::new() });
+    let mut items = vec![None; 27 + 36];
+    items[0] = item("dirt", 5);
+    items[27 + 27 + 1] = item("stone_shovel", 1);
+    inv.fill_window(ContainerSetContent { container: VarInt(3), state_id: VarInt(8), items, carried: None });
+    assert_eq!(inv.hotbar(1), item("stone_shovel", 1).as_ref());
+    inv.click(Click::left(0));
+    let packet = inv.click(Click::left(27 + 27 + 4));
+    assert_eq!((packet.container, packet.state_id, packet.changed.len()), (3, 8, 1));
+    assert_eq!((inv.hotbar(4), &inv.window.as_ref().unwrap().slots[0]), (item("dirt", 5).as_ref(), &None));
+    inv.click(Click::swap(0, 1));
+    assert_eq!((inv.hotbar(1), inv.menu_slot(0)), (None, item("stone_shovel", 1).as_ref()));
+}

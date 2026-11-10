@@ -71,22 +71,27 @@ impl Bot {
     }
 
     /// Keeps processing packets and ticks until `check` (run after each packet is applied to the
-    /// state) returns `Some`. Events meant for the caller are kept for [`Bot::next`]. Bedrock only.
+    /// state) returns `Some`. Events meant for the caller are kept for [`Bot::next`]. Java packets
+    /// are applied inside the backend, so on Java `check` runs once a tick with [`no_packet`].
     pub(crate) async fn wait_until<T>(
         &mut self,
         timeout: Duration,
         mut check: impl FnMut(&Bot, &RawPacket) -> Option<T>,
     ) -> Result<T, ActionError> {
-        self.backend.require("waiting for Bedrock packets")?;
         let deadline = tokio::time::Instant::now() + timeout;
         loop {
             let progress = tokio::time::timeout_at(deadline, self.progress()).await.map_err(|_| ActionError::Timeout)??;
-            if let Progress::Packet(packet) = progress {
-                let hit = check(self, &packet);
-                self.keep_for_caller(packet);
-                if let Some(value) = hit {
-                    return Ok(value);
+            let hit = match progress {
+                Progress::Packet(packet) => {
+                    let hit = check(self, &packet);
+                    self.keep_for_caller(packet);
+                    hit
                 }
+                Progress::Tick if self.backend.bedrock().is_none() => check(self, &no_packet()),
+                Progress::Tick => None,
+            };
+            if let Some(value) = hit {
+                return Ok(value);
             }
         }
     }
@@ -123,4 +128,9 @@ impl Bot {
             }
         }
     }
+}
+
+/// What [`Bot::wait_until`]'s check sees on Java: an id no Bedrock packet has.
+fn no_packet() -> RawPacket {
+    RawPacket { id: u32::MAX, sender_subclient: 0, target_subclient: 0, body: Default::default() }
 }

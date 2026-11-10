@@ -10,6 +10,7 @@ pub mod inventory;
 mod join;
 mod link;
 mod movement;
+pub mod window;
 pub mod world;
 
 pub use actions::Actions;

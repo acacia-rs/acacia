@@ -137,7 +137,11 @@ impl Bot {
         match id {
             from::CONTAINER_SET_CONTENT | from::CONTAINER_SET_SLOT | from::SET_PLAYER_INVENTORY | from::SET_CURSOR_ITEM => {
                 crate::state::java_inventory::mirror(&mut self.state.inventory, inventory);
+                if matches!(id, from::CONTAINER_SET_CONTENT | from::CONTAINER_SET_SLOT) {
+                    crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory);
+                }
             }
+            from::OPEN_SCREEN | from::CONTAINER_CLOSE => crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory),
             from::SET_HELD_SLOT => self.state.inventory.select(inventory.selected),
             _ => {}
         }

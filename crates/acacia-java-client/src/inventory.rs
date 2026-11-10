@@ -2,8 +2,11 @@
 
 use acacia_java_proto::ids::play::clientbound as from;
 use acacia_java_proto::inventory::{ContainerSetContent, ContainerSetSlot, PLAYER_CONTAINER, SetCursorItem, SetHeldSlot, SetPlayerInventory};
+use acacia_java_proto::container::{ContainerClose, OpenScreen};
 use acacia_java_proto::item::ItemStack;
 use acacia_java_proto::{Error as WireError, Wire};
+
+use crate::window::Window;
 
 pub const SLOTS: usize = 46;
 pub const CRAFT_RESULT: usize = 0;
@@ -21,11 +24,13 @@ pub struct Inventory {
     pub selected: u8,
     pub cursor: Option<ItemStack>,
     state_id: i32,
+    /// The container screen the server opened, if any.
+    pub window: Option<Window>,
 }
 
 impl Default for Inventory {
     fn default() -> Self {
-        Self { slots: std::array::from_fn(|_| None), selected: 0, cursor: None, state_id: 0 }
+        Self { slots: std::array::from_fn(|_| None), selected: 0, cursor: None, state_id: 0, window: None }
     }
 }
 
@@ -71,12 +76,14 @@ impl Inventory {
         }
     }
 
-    /// Applies the inventory packets of `ClientPacketListener`; other containers' contents are ignored.
+    /// Applies the inventory and container packets of `ClientPacketListener`.
     pub(crate) fn apply(&mut self, id: i32, mut body: &[u8]) -> Result<(), WireError> {
         match id {
             from::CONTAINER_SET_CONTENT => {
                 let packet = ContainerSetContent::read(&mut body)?;
-                if packet.container.0 == PLAYER_CONTAINER {
+                if packet.container.0 != PLAYER_CONTAINER {
+                    self.fill_window(packet);
+                } else {
                     let mut items = packet.items.into_iter();
                     self.slots = std::array::from_fn(|_| items.next().flatten());
                     self.cursor = packet.carried;
@@ -85,7 +92,9 @@ impl Inventory {
             }
             from::CONTAINER_SET_SLOT => {
                 let packet = ContainerSetSlot::read(&mut body)?;
-                if packet.container.0 == PLAYER_CONTAINER {
+                if packet.container.0 != PLAYER_CONTAINER {
+                    self.set_window_slot(packet);
+                } else {
                     if let Ok(slot) = usize::try_from(packet.slot) {
                         self.set_slot(slot, packet.item);
                     }
@@ -98,6 +107,8 @@ impl Inventory {
                     self.set_slot(slot, packet.item);
                 }
             }
+            from::OPEN_SCREEN => self.open(&OpenScreen::read(&mut body)?),
+            from::CONTAINER_CLOSE => self.close(ContainerClose::read(&mut body)?.container.0),
             from::SET_CURSOR_ITEM => self.cursor = SetCursorItem::read(&mut body)?.item,
             from::SET_HELD_SLOT => {
                 let slot = SetHeldSlot::read(&mut body)?.slot.0;

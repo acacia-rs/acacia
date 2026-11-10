@@ -1,13 +1,18 @@
-//! Item moves on Java: each [`Op`] becomes the clicks a player would make in the own inventory, planned against a
+//! Item moves on Java: each [`Op`] becomes the clicks a player would make in the open menu (the own inventory, or
+//! the open container with the player's slots below it), planned against a
 //! copy of the client's inventory so every click's outcome is known before any is sent. Partial counts are moved one
 //! right click at a time; swaps with a hotbar or offhand slot use the number keys, as players do.
 //!
 //! Vanilla releases the movement keys when a screen opens, so the bot stands for a tick with no input, sends the
-//! clicks and closes the inventory (Grim treats clicks in window 0 as an open inventory until the close).
+//! clicks and, in the own inventory, closes it (Grim treats clicks in window 0 as an open inventory until the close).
+//! A container screen stays open for [`Bot::close_container`].
 
 use acacia_java_client::Inventory;
 use acacia_java_client::clicks::{Click, OFFHAND_BUTTON, OUTSIDE};
 use acacia_java_client::inventory::{ARMOUR_HEAD, HOTBAR_START, OFFHAND};
+
+/// The player's slots below a container's: 27 main, then 9 hotbar.
+const MAIN_ROWS: u8 = 27;
 
 use super::{Op, SlotRef};
 use crate::bot::Backend;
@@ -22,23 +27,26 @@ pub(crate) fn plan(inventory: &Inventory, ops: &[Op]) -> Result<Vec<Click>, Acti
     Ok(plan.clicks)
 }
 
-fn window(slot: SlotRef) -> Result<i16, ActionError> {
-    let hotbar = u8::try_from(HOTBAR_START).unwrap_or(36);
-    let i = match slot {
-        SlotRef::Main(i @ 0..9) => hotbar + i,
-        SlotRef::Main(i @ 9..36) => i,
-        SlotRef::Armor(i @ 0..4) => ARMOUR_HEAD as u8 + i,
-        SlotRef::Offhand => OFFHAND as u8,
-        other => return Err(not_possible(&format!("{other:?} is not in the Java player inventory"))),
+/// `slot`'s index in the open menu: window 0, or a container of `own` slots followed by the player's.
+fn window(inv: &Inventory, slot: SlotRef) -> Result<i16, ActionError> {
+    let i = match (inv.window.as_ref().map(|w| w.slots.len()), slot) {
+        (None, SlotRef::Main(i @ 0..9)) => HOTBAR_START + usize::from(i),
+        (None, SlotRef::Main(i @ 9..36)) => usize::from(i),
+        (None, SlotRef::Armor(i @ 0..4)) => ARMOUR_HEAD + usize::from(i),
+        (None, SlotRef::Offhand) => OFFHAND,
+        (Some(own), SlotRef::Main(i @ 0..9)) => own + usize::from(MAIN_ROWS + i),
+        (Some(own), SlotRef::Main(i @ 9..36)) => own + usize::from(i - 9),
+        (Some(own), SlotRef::Container(i)) if usize::from(i) < own => usize::from(i),
+        (_, other) => return Err(not_possible(&format!("{other:?} is not in the open Java menu"))),
     };
-    Ok(i16::from(i))
+    i16::try_from(i).map_err(|_| not_possible("slot out of range"))
 }
 
-/// The number key that swaps with `slot`.
-fn button(slot: SlotRef) -> Option<i8> {
+/// The number key that swaps with `slot`; the offhand key only in the own inventory.
+fn button(inv: &Inventory, slot: SlotRef) -> Option<i8> {
     match slot {
         SlotRef::Main(i @ 0..9) => Some(i as i8),
-        SlotRef::Offhand => Some(OFFHAND_BUTTON),
+        SlotRef::Offhand if inv.window.is_none() => Some(OFFHAND_BUTTON),
         _ => None,
     }
 }
@@ -62,8 +70,12 @@ impl Planner {
         (0..times).for_each(|_| self.push(click));
     }
 
+    fn window(&self, slot: SlotRef) -> Result<i16, ActionError> {
+        window(&self.inv, slot)
+    }
+
     fn count(&self, slot: i16) -> i32 {
-        self.inv.slot(slot as usize).map_or(0, |s| s.count)
+        self.inv.menu_slot(slot as usize).map_or(0, |s| s.count)
     }
 
     fn cursor(&self) -> i32 {
@@ -76,7 +88,7 @@ impl Planner {
 
     /// `to` must be empty or hold the cursor's item.
     fn need_fits(&self, to: i16) -> Result<(), ActionError> {
-        match (self.inv.slot(to as usize), &self.inv.cursor) {
+        match (self.inv.menu_slot(to as usize), &self.inv.cursor) {
             (Some(here), Some(held)) if (here.item, &here.components) != (held.item, &held.components) => Err(not_possible("the target holds another item")),
             _ => Ok(()),
         }
@@ -95,7 +107,7 @@ impl Planner {
         match (from, to) {
             (SlotRef::Cursor, SlotRef::Cursor) => Err(not_possible("moving the cursor onto itself")),
             (SlotRef::Cursor, to) => {
-                let (t, held) = (window(to)?, self.cursor());
+                let (t, held) = (self.window(to)?, self.cursor());
                 if n > held {
                     return Err(not_possible("the cursor holds fewer items"));
                 }
@@ -104,7 +116,7 @@ impl Planner {
                 if self.cursor() != held - n { Err(not_possible("no room in the target")) } else { Ok(()) }
             }
             (from, SlotRef::Cursor) => {
-                let f = window(from)?;
+                let f = self.window(from)?;
                 let has = self.count(f);
                 self.need_empty_cursor()?;
                 if n > has {
@@ -119,7 +131,7 @@ impl Planner {
                 Ok(())
             }
             (from, to) => {
-                let (f, t) = (window(from)?, window(to)?);
+                let (f, t) = (self.window(from)?, self.window(to)?);
                 let (has, before) = (self.count(f), self.count(t));
                 self.need_empty_cursor()?;
                 if n > has {
@@ -140,17 +152,17 @@ impl Planner {
         let armour = |s| matches!(s, SlotRef::Armor(_));
         match (a, b) {
             (SlotRef::Cursor, other) | (other, SlotRef::Cursor) => {
-                self.push(Click::left(window(other)?));
+                self.push(Click::left(self.window(other)?));
                 Ok(())
             }
-            (a, b) if button(b).is_some() && !armour(a) => {
-                self.push(Click::swap(window(a)?, button(b).unwrap_or_default()));
+            (a, b) if button(&self.inv, b).is_some() && !armour(a) => {
+                self.push(Click::swap(self.window(a)?, button(&self.inv, b).unwrap_or_default()));
                 Ok(())
             }
-            (a, b) if button(a).is_some() && !armour(b) => self.swap(b, a),
+            (a, b) if button(&self.inv, a).is_some() && !armour(b) => self.swap(b, a),
             (a, b) => {
                 self.need_empty_cursor()?;
-                let (a, b) = (window(a)?, window(b)?);
+                let (a, b) = (self.window(a)?, self.window(b)?);
                 [a, b, a].into_iter().for_each(|s| self.push(Click::left(s)));
                 Ok(())
             }
@@ -166,7 +178,7 @@ impl Planner {
             if n == self.cursor() { self.push(all) } else { self.repeat(Click::right(OUTSIDE), n) }
             return Ok(());
         }
-        let f = window(from)?;
+        let f = self.window(from)?;
         self.need_empty_cursor()?;
         if n > self.count(f) {
             return Err(not_possible("the slot holds fewer items"));
@@ -185,8 +197,10 @@ impl Bot {
         let held = self.backend.controls_mut().map(std::mem::take).unwrap_or_default();
         self.next_tick(|_, _| false).await?;
         let Backend::Java(java) = &mut self.backend else { return Err(ActionError::Disconnected) };
-        let sent = clicks.into_iter().try_for_each(|c| java.client.click(c)).and_then(|()| java.client.close_inventory());
+        let own = java.client.inventory.window.is_none();
+        let sent = clicks.into_iter().try_for_each(|c| java.client.click(c)).and_then(|()| if own { java.client.close_screen() } else { Ok(()) });
         crate::state::java_inventory::mirror(&mut self.state.inventory, &java.client.inventory);
+        crate::state::java_inventory::mirror_window(&mut self.state.containers, &java.client.inventory);
         sent.map_err(|_| ActionError::Disconnected)?;
         let ticked = self.next_tick(|_, _| false).await;
         if let Some(controls) = self.backend.controls_mut() {

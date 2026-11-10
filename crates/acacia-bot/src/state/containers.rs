@@ -167,7 +167,7 @@ impl Containers {
         open.slots.get_mut(usize::from(slot))
     }
 
-    fn opened(&mut self, container: Container) {
+    pub(crate) fn opened(&mut self, container: Container) {
         self.last_window_id = Some(container.window_id);
         self.data.clear();
         self.open = Some(container);

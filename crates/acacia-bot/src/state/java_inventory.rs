@@ -5,9 +5,10 @@
 use acacia_client::proto::nbt::{Nbt, Value};
 use acacia_java_client::Inventory as JavaInventory;
 use acacia_java_proto::item::ItemStack as JavaStack;
+use acacia_client::proto::types::WindowType;
 use acacia_world::neutral::Item;
 
-use super::{Inventory, ItemStack};
+use super::{Container, Containers, Inventory, ItemStack};
 
 /// Window 0's slots: armour from 5 (helmet first), the main rows from 9, the hotbar from 36.
 const ARMOR_START: usize = 5;
@@ -44,4 +45,51 @@ pub(crate) fn mirror(inventory: &mut Inventory, java: &JavaInventory) {
     }
     inventory.offhand = stack(java.offhand());
     inventory.ui[0] = stack(java.cursor.as_ref());
+}
+
+/// The Java container screen as the bot's open container; the opener fills in the block position.
+pub(crate) fn mirror_window(containers: &mut Containers, java: &JavaInventory) {
+    let Some(window) = &java.window else {
+        containers.open = None;
+        return;
+    };
+    let slots = window.slots.iter().map(|s| stack(s.as_ref())).collect();
+    containers.contents += 1;
+    match containers.open.as_mut().filter(|c| c.window_id == window.id) {
+        Some(open) => open.slots = slots,
+        None => containers.opened(Container {
+            window_id: window.id,
+            window_type: window_type(window.menu),
+            position: None,
+            entity: None,
+            title: window.title.clone(),
+            slots,
+        }),
+    }
+}
+
+/// A `minecraft:menu` registry id (26.3) as the Bedrock window that shows the same container.
+fn window_type(menu: i32) -> WindowType {
+    match menu {
+        0..=5 | 20 => WindowType::Container,
+        6 => WindowType::Dispenser,
+        7 => WindowType::Crafter,
+        8 => WindowType::Anvil,
+        9 => WindowType::Beacon,
+        10 => WindowType::BlastFurnace,
+        11 => WindowType::BrewingStand,
+        12 => WindowType::Workbench,
+        13 => WindowType::Enchantment,
+        14 => WindowType::Furnace,
+        15 => WindowType::Grindstone,
+        16 => WindowType::Hopper,
+        17 => WindowType::Lectern,
+        18 => WindowType::Loom,
+        19 => WindowType::Trading,
+        21 => WindowType::SmithingTable,
+        22 => WindowType::Smoker,
+        23 => WindowType::Cartography,
+        24 => WindowType::Stonecutter,
+        _ => WindowType::None,
+    }
 }
