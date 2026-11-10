@@ -213,6 +213,12 @@ impl Bot {
         self.java_clicks(|client| client.click_unpredicted(Click::quick_move(slot))).await
     }
 
+    /// Left-clicks the result `slot` once, taking one result onto the cursor; unpredicted like [`Bot::java_take_result`].
+    pub(crate) async fn java_pick_result(&mut self, slot: usize) -> Result<(), ActionError> {
+        let slot = i16::try_from(slot).map_err(|_| not_possible("slot out of range"))?;
+        self.java_clicks(|client| client.click_unpredicted(Click::left(slot))).await
+    }
+
     /// Stands for a tick with no input, then sends what `send` queues and, in the own inventory unless crafting holds
     /// it open ([`crate::bot::Java::inventory_held`]), closes it.
     async fn java_clicks(&mut self, send: impl FnOnce(&mut Client) -> Result<(), ClientError>) -> Result<(), ActionError> {

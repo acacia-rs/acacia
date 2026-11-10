@@ -59,7 +59,10 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    unpredicted. Bedrock's plans are skipped, since Java's anvil and XP rules are the server's. The stonecutter's
    button is the recipe's index among those accepting the input, in `UpdateRecipes` order (`java-proto/recipes.rs`).
    Example `java_stations`: anvil rename, grindstone, netherite upgrade, enchanting and 4 stone slabs, 0 alerts.
-   Still to do: loom, cartography, trading, beacon, and recipe-book placement for unlocked recipes.
+   Trading (`workstation/java_trade.rs`) picks the offer with `SelectTrade`, which has the server fill the payment;
+   one shift-click on the result takes every trade it covers, else each trade is a click and a put-away.
+   `MerchantOffers` mirrors into `stations.trade`. Example `java_trade`: 1 trade by clicks and 3 by one shift-click,
+   0 alerts. Still to do: loom, cartography, beacon, and recipe-book placement for unlocked recipes.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
 
 ## Test servers

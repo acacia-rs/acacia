@@ -75,6 +75,25 @@ impl Components {
         Ok(components)
     }
 
+    /// A `DataComponentExactPredicate`: a list of typed components with no removals.
+    pub(crate) fn read_exact(input: &mut &[u8]) -> Result<Self, Error> {
+        let mut components = Self::default();
+        for _ in 0..read_len(input)? {
+            let id = read_varint(input)?;
+            read_component(id, input, 0, &mut components)?;
+        }
+        Ok(components)
+    }
+
+    pub(crate) fn write_exact(&self, out: &mut Vec<u8>) {
+        let added = self.added();
+        write_varint(added.len() as i32, out);
+        for (id, value) in added {
+            write_varint(id, out);
+            out.extend(value);
+        }
+    }
+
     fn added(&self) -> Vec<(i32, Vec<u8>)> {
         let mut added = Vec::new();
         let mut put = |id, value: &dyn Fn(&mut Vec<u8>)| {

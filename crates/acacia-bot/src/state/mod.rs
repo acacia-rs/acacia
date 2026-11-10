@@ -13,6 +13,8 @@ mod inventory;
 mod items;
 #[cfg(feature = "java")]
 pub(crate) mod java_inventory;
+#[cfg(feature = "java")]
+pub(crate) mod java_trade;
 mod kept;
 mod metadata;
 mod player;

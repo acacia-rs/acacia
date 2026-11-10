@@ -157,7 +157,12 @@ impl Bot {
                     crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory);
                 }
             }
-            from::OPEN_SCREEN | from::CONTAINER_CLOSE | from::CONTAINER_SET_DATA => crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory),
+            from::CONTAINER_SET_DATA => crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory),
+            from::OPEN_SCREEN | from::CONTAINER_CLOSE => {
+                crate::state::java_inventory::mirror_window(&mut self.state.containers, inventory);
+                crate::state::java_trade::mirror_trade(&mut self.state.stations, inventory);
+            }
+            from::MERCHANT_OFFERS => crate::state::java_trade::mirror_trade(&mut self.state.stations, inventory),
             from::SET_HELD_SLOT => self.state.inventory.select(inventory.selected),
             _ => {}
         }

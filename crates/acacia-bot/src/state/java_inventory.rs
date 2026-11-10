@@ -20,7 +20,6 @@ pub(crate) const GRID_START: usize = 1;
 /// `minecraft:crafting`'s menu id.
 pub(crate) const CRAFTING_MENU: i32 = 12;
 
-// TODO: enchantments; their ids are the server's synced registry order, not fixed.
 /// `java` in Bedrock's terms; `enchantments` names the enchantment ids (the registry's order), which become
 /// Bedrock's `ench` list.
 pub(crate) fn stack(java: Option<&JavaStack>, enchantments: &[String]) -> ItemStack {

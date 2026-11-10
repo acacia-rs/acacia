@@ -4,6 +4,7 @@
 use acacia_java_proto::container::{ContainerSetData, OpenScreen};
 use acacia_java_proto::inventory::{ContainerSetContent, ContainerSetSlot};
 use acacia_java_proto::item::ItemStack;
+use acacia_java_proto::merchant::MerchantOffers;
 
 use crate::inventory::{HOTBAR_START, Inventory, MAIN_START, SLOTS};
 
@@ -24,6 +25,8 @@ pub struct Window {
     pub state_id: i32,
     /// `ContainerSetData` properties by id (`AbstractFurnaceMenu`: 0 fuel left, 1 fuel total, 2 cooked, 3 cook time).
     pub data: Vec<(i16, i16)>,
+    /// A merchant menu's offers, once the server sends them.
+    pub merchant: Option<MerchantOffers>,
 }
 
 /// Where a menu slot lives.
@@ -36,7 +39,13 @@ pub(crate) enum At {
 
 impl Inventory {
     pub(crate) fn open(&mut self, screen: &OpenScreen) {
-        self.window = Some(Window { id: screen.container, menu: screen.menu, title: screen.title_text(), slots: Vec::new(), state_id: 0, data: Vec::new() });
+        self.window = Some(Window { id: screen.container, menu: screen.menu, title: screen.title_text(), slots: Vec::new(), state_id: 0, data: Vec::new(), merchant: None });
+    }
+
+    pub(crate) fn set_offers(&mut self, offers: MerchantOffers) {
+        if let Some(window) = self.window.as_mut().filter(|w| w.id == offers.container) {
+            window.merchant = Some(offers);
+        }
     }
 
     pub(crate) fn close(&mut self, id: i32) {

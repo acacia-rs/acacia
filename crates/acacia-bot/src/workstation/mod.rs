@@ -26,6 +26,8 @@ mod held_grid;
 mod java_craft;
 #[cfg(feature = "java")]
 mod java_station;
+#[cfg(feature = "java")]
+mod java_trade;
 mod hand;
 mod loom;
 mod pick;
