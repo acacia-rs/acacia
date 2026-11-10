@@ -48,7 +48,7 @@ impl Bot {
     /// Opens the player's own inventory screen (`Interact` OpenInventory). The server answers with
     /// a `ContainerOpen` for window 0, which shows up in `state().containers`.
     pub fn open_inventory(&mut self) {
-        self.client.send(&Interact {
+        self.send_bedrock(&Interact {
             action_id: InteractActionId::OpenInventory,
             target_entity_id: self.runtime_id(),
             has_position: false,

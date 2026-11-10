@@ -14,11 +14,13 @@ exclude = ["tests/traces", "tests/trace_regression.rs"]
 # Sign-in through the game connection's SOCKS5 proxy (see acacia-client's `socks`).
 socks = ["acacia-client/socks"]
 # Java Edition servers (docs/java-edition.md).
-java = ["dep:acacia-java-physics"]
+java = ["dep:acacia-java-physics", "dep:acacia-java-client", "dep:acacia-java-proto"]
 
 [dependencies]
 acacia-client.workspace = true
+acacia-java-client = { path = "../acacia-java-client", optional = true }
 acacia-java-physics = { path = "../acacia-java-physics", optional = true }
+acacia-java-proto = { path = "../acacia-java-proto", optional = true }
 acacia-molang.workspace = true
 acacia-physics = { workspace = true, features = ["acacia-world"] }
 acacia-world.workspace = true
@@ -34,6 +36,10 @@ serde_json = "1"
 thiserror = "2.0.21"
 tokio = { version = "1.53.1", features = ["rt", "time", "macros", "sync"] }
 tracing = "0.1.44"
+
+[[example]]
+name = "java_walk"
+required-features = ["java"]
 
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "test-util"] }

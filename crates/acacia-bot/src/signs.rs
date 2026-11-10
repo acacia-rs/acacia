@@ -84,7 +84,7 @@ impl Bot {
         let hanging = self.block_at(pos).is_some_and(|(_, s)| s.name.contains("hanging_sign"));
         let edit = SideEdit { front, text };
         let nbt = sign_nbt(self.state.block_entities.sign(pos), pos, hanging, &edit, self.state.player.unique_entity_id);
-        self.client.send(&BlockEntityData { position: block_coordinates(pos), nbt: (&nbt).into() });
+        self.send_bedrock(&BlockEntityData { position: block_coordinates(pos), nbt: (&nbt).into() });
         self.reflexes.next_legacy_id();
         self.state.signs.editor = None;
         self.state.block_entities.insert(pos, nbt);

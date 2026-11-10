@@ -40,11 +40,11 @@ async fn main() -> Result<(), Error> {
             let yaw = if v.contains("axis") { (random / 90.0).round() * 90.0 } else { random };
             pad.teleport(&mut bot, [10.5, 0.0, 0.5], yaw).await?;
             bot.wait_ticks(5).await?;
-            bot.trace_mark(&format!("{v} {yaw}"));
+            bot.bedrock_mut().expect("Bedrock bot").trace_mark(&format!("{v} {yaw}"));
             let before = corrections(&bot);
             let mut y = yaw;
             for _ in 0..walk {
-                let grounded = bot.movement().is_some_and(|m| m.on_ground());
+                let grounded = bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.on_ground());
                 if jitter && (!airhold || grounded) {
                     y = yaw + next() - 0.5;
                 }
@@ -63,7 +63,7 @@ async fn main() -> Result<(), Error> {
             println!("{v:16} yaw {yaw:12} corrections {n}");
         }
     }
-    let feet_y = bot.movement().and_then(|m| m.position()).map_or(f32::NAN, |p| p[1]);
+    let feet_y = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).map_or(f32::NAN, |p| p[1]);
     for (v, (hit, total)) in variants.iter().zip(&tally) {
         println!("{v:16} {hit} of {count} yaws corrected, {total} corrections (feet y {feet_y})");
     }

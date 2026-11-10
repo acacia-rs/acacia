@@ -71,7 +71,7 @@ async fn main() -> Result<(), Error> {
     } else {
         bot.boat_to(target, BoatOpts { profile, keep_boat: std::env::var_os("KEEP_BOAT").is_some(), ..BoatOpts::default() }).await
     };
-    let feet = bot.movement().and_then(|m| m.position()).ok_or("no position")?;
+    let feet = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).ok_or("no position")?;
     let off = (feet[0] - (target[0] as f32 + 0.5)).hypot(feet[2] - (target[2] as f32 + 0.5));
     let (height, horizontal) = bot.boat_corrections();
     let boats = bot.state().inventory.main.iter().filter(|s| !s.is_empty() && bot.state().items.name(s.network_id).is_some_and(|n| n.ends_with("boat"))).count();
@@ -86,7 +86,7 @@ async fn main() -> Result<(), Error> {
 }
 
 async fn run(bot: &mut Bot, cmd: &str) -> Result<(), Error> {
-    bot.client().command(cmd);
+    bot.command(cmd);
     bot.wait_ticks(4).await?;
     Ok(())
 }

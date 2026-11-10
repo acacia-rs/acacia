@@ -31,7 +31,7 @@ impl Processes {
     /// en-route placement.
     pub(super) async fn place_en_route(&mut self, bot: &mut Bot, moving: bool) -> Result<(), ActionError> {
         self.walk.tick += 1;
-        let Some(course) = bot.movement.as_ref().map(|m| m.controls) else { return Ok(()) };
+        let Some(course) = bot.backend.movement().map(|m| m.controls) else { return Ok(()) };
         if let Some((id, a)) = self.walk.aimed.take() {
             if !moving {
                 return Ok(());
@@ -46,7 +46,7 @@ impl Processes {
                 Err(ActionError::Disconnected) => return Err(ActionError::Disconnected),
                 Err(e) => self.arbiter.acted(id, &a, &Err(e)),
             }
-            if let Some(m) = bot.movement.as_mut() {
+            if let Some(m) = bot.backend.movement_mut() {
                 m.controls.keep_course(&course);
             }
             self.walk.next_at = self.walk.tick + EVERY;
@@ -54,7 +54,7 @@ impl Processes {
         }
         let next = self.arbiter.pilot().and_then(|p| p.follower()).and_then(|f| f.ahead().first()).map(|n| (n.kind, n.work.is_empty(), n.mac.is_some()));
         let plain = next.is_some_and(|(kind, no_work, mac)| kind == MoveKind::Walk && no_work && !mac);
-        let ground = bot.movement.as_ref().is_some_and(|m| m.on_ground());
+        let ground = bot.backend.movement().is_some_and(|m| m.on_ground());
         // Asked only when it can be aimed now: taking it claims the cell.
         if !moving || !plain || !ground || self.walk.tick < self.walk.next_at || !bot.governor.may_send() {
             tracing::debug!(moving, ?next, ground, wait = self.walk.tick < self.walk.next_at, send = bot.governor.may_send(), "en route: not now");
@@ -75,7 +75,7 @@ fn aim(bot: &mut Bot, a: &Act, course: &crate::movement::Controls) {
     let Act::Place { against, click, .. } = a else { return };
     let eye = bot.eye_position();
     let point = [against[0] as f32 + click[0], against[1] as f32 + click[1], against[2] as f32 + click[2]];
-    if let Some(mv) = bot.movement.as_mut() {
+    if let Some(mv) = bot.backend.movement_mut() {
         mv.controls.look_at(eye, point);
         mv.controls.keep_course(course);
     }

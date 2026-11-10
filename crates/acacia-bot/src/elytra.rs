@@ -39,7 +39,7 @@ impl Bot {
     /// `StartGliding` and `WantUp` in the next `PlayerAuthInput`, no `PlayerAction`. Waits for the
     /// server's `GLIDING` flag (`Rejected` without it). Physics bots only, airborne with an elytra worn.
     pub async fn start_gliding(&mut self) -> Result<(), ActionError> {
-        let Some(movement) = self.movement.as_ref().filter(|m| m.is_started()) else {
+        let Some(movement) = self.backend.movement().filter(|m| m.is_started()) else {
             return Err(ActionError::NotPossible("gliding needs a physics bot".into()));
         };
         if movement.on_ground() {
@@ -63,7 +63,7 @@ impl Bot {
     /// Closes the elytra (physics bots only). In the air vanilla does it on a jump press (`StopGliding`
     /// + the press flags); landing ends a glide by itself.
     pub async fn stop_gliding(&mut self) -> Result<(), ActionError> {
-        let Some(movement) = self.movement.as_ref().filter(|m| m.is_started()) else {
+        let Some(movement) = self.backend.movement().filter(|m| m.is_started()) else {
             return Err(ActionError::NotPossible("gliding needs a physics bot".into()));
         };
         let airborne = !movement.on_ground();
@@ -76,7 +76,7 @@ impl Bot {
 
     /// Whether the simulation is gliding (physics bots).
     pub fn is_gliding(&self) -> bool {
-        self.movement.as_ref().is_some_and(|m| m.gliding())
+        self.backend.movement().is_some_and(|m| m.gliding())
     }
 
     /// Uses a firework rocket from the hotbar like vanilla: `Animate` "useitem" + `UseItem` ClickAir,
@@ -84,7 +84,7 @@ impl Bot {
     pub async fn boost_with_firework(&mut self) -> Result<(), ActionError> {
         self.hold_fireworks().await?;
         self.use_item_like_vanilla();
-        if let Some(movement) = self.movement.as_mut() {
+        if let Some(movement) = self.backend.movement_mut() {
             movement.predict_glide_boost();
         }
         Ok(())
@@ -105,14 +105,14 @@ impl Bot {
     }
 
     fn set_glide(&mut self, on: bool) {
-        if let Some(movement) = self.movement.as_mut() {
+        if let Some(movement) = self.backend.movement_mut() {
             movement.controls.glide = on;
         }
     }
 
     /// Holds jump for one tick, then releases it.
     async fn press_jump(&mut self) -> Result<(), ActionError> {
-        let Some(movement) = self.movement.as_mut() else { return Ok(()) };
+        let Some(movement) = self.backend.movement_mut() else { return Ok(()) };
         let held = std::mem::replace(&mut movement.controls.jump, true);
         let press = self.claim(crate::cancel::Held::Jump(held));
         let ticked = self.next_tick(|_, _| false).await;

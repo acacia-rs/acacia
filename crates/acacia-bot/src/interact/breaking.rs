@@ -97,14 +97,14 @@ impl Bot {
     /// Cancels breaking the block at `pos` (`AbortBreak` with the next tick).
     pub fn abort_break(&mut self, pos: BlockPos) {
         let face = facing_face(self.eye_position(), pos);
-        if let Some(m) = self.movement.as_mut() {
+        if let Some(m) = self.backend.movement_mut() {
             m.pending_actions.push(wire::block_action(Action::AbortBreak, pos, face));
         }
     }
 
     /// Ends a break that finished early (`AbortBreak` with the next tick; see [`wire::break_step`]).
     pub(crate) fn end_break(&mut self, pos: BlockPos, face: Face) {
-        if let Some(m) = self.movement.as_mut() {
+        if let Some(m) = self.backend.movement_mut() {
             m.pending_actions.push(wire::block_action(Action::AbortBreak, pos, face));
         }
     }
@@ -117,7 +117,7 @@ impl Bot {
             let tick = progress.ticks();
             let ticks_now = break_ticks(&mining, &self.break_conditions()).unwrap_or(u32::MAX);
             let last = progress.step(ticks_now);
-            if let Some(m) = self.movement.as_mut() {
+            if let Some(m) = self.backend.movement_mut() {
                 m.pending_actions.extend(wire::break_step(tick == 0, last, pos, face, false));
             }
             if tick % SWING_EVERY == 0 {
@@ -154,7 +154,7 @@ impl Bot {
             mining_fatigue: level(effect::MINING_FATIGUE),
             underwater: self.block_at(eye_block).is_some_and(|(_, s)| s.is_water()) && enchantment_level(&helmet, AQUA_AFFINITY) == 0,
             // Non-physics bots can't break blocks; true keeps the formula's default.
-            on_ground: self.movement.as_ref().is_none_or(|m| m.on_ground()),
+            on_ground: self.backend.movement().is_none_or(|m| m.on_ground()),
         }
     }
 }

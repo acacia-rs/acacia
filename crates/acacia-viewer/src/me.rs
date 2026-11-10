@@ -61,9 +61,9 @@ pub fn me(bot: &Bot) -> Me {
     let items = std::array::from_fn(|slot| stack_of(bot, state.inventory.main.get(slot)?));
     Me {
         eye: DVec3::new(x.into(), y.into(), z.into()),
-        on_ground: bot.movement().is_some_and(|m| m.on_ground()),
-        sprinting: bot.movement().is_some_and(|m| m.sprinting()),
-        flying: bot.movement().is_some_and(|m| m.flying()),
+        on_ground: bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.on_ground()),
+        sprinting: bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.sprinting()),
+        flying: bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.flying()),
         riding: bot.vehicle().is_some(),
         carrying_yaw: crate::ride::carrying_yaw(bot),
         hurts: state.hurts.count(p.runtime_entity_id),

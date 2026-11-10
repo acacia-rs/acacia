@@ -29,7 +29,7 @@ impl Bot {
         if !vehicle.kind.as_deref().is_some_and(|k| HORSES.contains(&k)) {
             return false;
         }
-        let (Some(world), Some(movement)) = (&self.world, &mut self.movement) else { return false };
+        let Some((world, movement)) = self.backend.physics_mut() else { return false };
         let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return false };
         let (unique_id, runtime_id) = (vehicle.unique_id, vehicle.runtime_id);
         if self.ride.horse.as_ref().is_none_or(|h| h.unique_id != unique_id) {

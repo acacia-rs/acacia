@@ -47,19 +47,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let config = BotConfig { physics: true, trackers: Trackers { entities: true, ..Trackers::default() }, ..BotConfig::default() };
     let mut bot = Bot::connect(builder, config).await?;
-    println!("spawned as {}", bot.client().display_name());
+    println!("spawned as {}", bot.name());
 
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     // BEDROCK_TP="x y z": teleport there first (needs operator), so routes start somewhere repeatable.
     if let Ok(tp) = std::env::var("BEDROCK_TP") {
-        bot.client().command(&format!("/tp @s {tp}"));
+        bot.command(&format!("/tp @s {tp}"));
         bot.wait_ticks(40).await?;
     }
     // BEDROCK_CMDS="effect @s saturation 600 10 true;...": commands to run first (operator).
     for cmd in std::env::var("BEDROCK_CMDS").unwrap_or_default().split(';').filter(|c| !c.trim().is_empty()) {
-        bot.client().command(&format!("/{}", cmd.trim()));
+        bot.command(&format!("/{}", cmd.trim()));
         bot.wait_ticks(5).await?;
     }
     if std::env::var("BEDROCK_DUMP").is_ok() {
@@ -87,9 +87,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut seen = 0;
     let mut track = Vec::new();
     let result = loop {
-        track.extend(bot.movement().and_then(|m| m.position()));
+        track.extend(bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()));
         let status = nav.tick(&mut bot).await;
-        let corrections = bot.movement().map_or(0, |m| m.corrections);
+        let corrections = bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.corrections);
         if corrections > seen {
             seen = corrections;
             print_surroundings(&bot);
@@ -111,7 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     print_joins(&nav, &track);
     bot.wait_ticks(20).await?;
-    if bot.movement().is_some_and(|m| m.corrections > seen) {
+    if bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.corrections > seen) {
         print_surroundings(&bot);
     }
     bot.disconnect().await;
@@ -122,11 +122,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// `.` air, `#` full cube, `0`-`7` water decay (`F` falling), `~` water in the liquid layer only,
 /// `+` waterlogged block, letters = other blocks.
 fn print_surroundings(bot: &Bot) {
-    let Some(feet) = bot.movement().and_then(|m| m.position()) else { return };
+    let Some(feet) = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()) else { return };
     let at = Vec3f { x: feet[0], y: feet[1], z: feet[2] };
     let near: Vec<_> = bot.state().entities.iter().filter(|e| e.distance_sq(&at) < 9.0).map(|e| e.kind.as_str()).collect();
     println!("CORRECTION at ({:.3}, {:.3}, {:.3}) entities {near:?}", feet[0], feet[1], feet[2]);
-    let Some((w, r)) = bot.world().and_then(|w| Some((w.view()?, w.registry()?))) else { return };
+    let Some((w, r)) = bot.bedrock().and_then(|b| b.world()).and_then(|w| Some((w.view()?, w.registry()?))) else { return };
     let [x, y, z] = [feet[0].floor() as i32, feet[1].floor() as i32, feet[2].floor() as i32];
     let mut legend: Vec<&str> = Vec::new();
     for dy in (-1..=1).rev() {
@@ -177,7 +177,7 @@ fn print_joins(nav: &Navigator, track: &[[f32; 3]]) {
 }
 
 fn print_progress(bot: &Bot, nav: &Navigator, status: NavStatus) {
-    let m = bot.movement().expect("physics enabled");
+    let m = bot.bedrock().and_then(|b| b.movement()).expect("physics enabled");
     let pos = m.position().map_or("-".into(), |p| format!("({:.2}, {:.2}, {:.2})", p[0], p[1], p[2]));
     let next = nav.follower().and_then(|f| f.ahead().first().map(|n| (n.pos, n.kind)));
     println!(

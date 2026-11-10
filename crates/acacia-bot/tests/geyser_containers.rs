@@ -70,7 +70,7 @@ async fn geyser_close_is_acked_before_the_next_command() {
     let window = window_contents(&mut bot).await;
     assert_eq!((window.window_id, window.title.as_deref(), window.slots.len()), (1, Some(TITLE), 3));
 
-    let trace = bot.packet_trace();
+    let trace = bot.bedrock().expect("Bedrock bot").packet_trace();
     assert!(trace.total > 0 && trace.silent_ms.is_some(), "{trace:?}");
     assert!(trace.counts_by_name.contains_key("ContainerOpen") && trace.counts_by_name.contains_key("StartGame"), "{trace:?}");
     assert!(trace.tail.iter().any(|t| t.starts_with("InventoryContent@-")), "{:?}", trace.tail);

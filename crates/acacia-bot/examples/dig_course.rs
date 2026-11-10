@@ -70,10 +70,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => builder.offline(&name),
     };
     let mut bot = Bot::connect(builder, BotConfig { physics: true, ..BotConfig::default() }).await?;
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
-    println!("spawned as {}", bot.client().display_name());
+    println!("spawned as {}", bot.name());
 
     let mut failed = 0;
     for (i, course) in COURSES.iter().enumerate() {
@@ -95,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn run(bot: &mut Bot, course: &Course, [x, y, z]: [i32; 3]) -> Result<String, Box<dyn std::error::Error>> {
-    let cmd = |bot: &Bot, c: &str| bot.client().command(&format!("/{}", expand(c, x, y, z)));
+    let cmd = |bot: &Bot, c: &str| bot.command(&format!("/{}", expand(c, x, y, z)));
     // Park above the course so the chunks load, then clear it and build.
     cmd(bot, "tp @s {x} {y+20} {z}");
     bot.wait_ticks(60).await?;
@@ -115,7 +115,7 @@ async fn run(bot: &mut Bot, course: &Course, [x, y, z]: [i32; 3]) -> Result<Stri
     let mut opts = GotoOpts::default();
     (opts.search.allow_dig, opts.search.allow_bridge) = (true, true);
     let mut nav = Navigator::new(goal.clone(), opts);
-    let corrections = bot.movement().map_or(0, |m| m.corrections);
+    let corrections = bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.corrections);
     let started = tokio::time::Instant::now();
     let mut worked = 0u32;
     loop {
@@ -130,7 +130,7 @@ async fn run(bot: &mut Bot, course: &Course, [x, y, z]: [i32; 3]) -> Result<Stri
             Err(e) => return Err(format!("{e} at {:?} after {} replans", bot.block_position(), nav.replans()).into()),
         }
     }
-    let corrections = bot.movement().map_or(0, |m| m.corrections) - corrections;
+    let corrections = bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.corrections) - corrections;
     Ok(format!(
         "{:.1}s, {worked} working ticks, {} replans, {corrections} corrections, at {:?}",
         started.elapsed().as_secs_f32(),

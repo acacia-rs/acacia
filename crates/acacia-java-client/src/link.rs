@@ -3,6 +3,7 @@
 use acacia_java_proto::packets::{ChunkBatchReceived, KeepAlive};
 use acacia_java_proto::{Wire, ids};
 use tokio::sync::mpsc;
+use tokio::task::AbortHandle;
 
 use crate::frame::{Connection, Error, FrameReader, FrameWriter, encode};
 
@@ -24,6 +25,7 @@ pub struct Packet {
 pub struct Link {
     commands: mpsc::UnboundedSender<Vec<u8>>,
     events: mpsc::UnboundedReceiver<Result<Packet, Error>>,
+    tasks: [AbortHandle; 2],
 }
 
 impl Link {
@@ -31,9 +33,14 @@ impl Link {
         let (reader, writer) = connection.into_halves();
         let (commands, outgoing) = mpsc::unbounded_channel();
         let (deliver, events) = mpsc::unbounded_channel();
-        tokio::spawn(write_loop(writer, outgoing));
-        tokio::spawn(read_loop(reader, commands.clone(), deliver));
-        Link { commands, events }
+        let writing = tokio::spawn(write_loop(writer, outgoing)).abort_handle();
+        let reading = tokio::spawn(read_loop(reader, commands.clone(), deliver)).abort_handle();
+        Link { commands, events, tasks: [writing, reading] }
+    }
+
+    /// Drops the socket at once; [`Link::recv`] then returns `None` once queued packets are read.
+    pub fn close(&self) {
+        self.tasks.iter().for_each(AbortHandle::abort);
     }
 
     /// Queues a packet; false once the connection has closed.

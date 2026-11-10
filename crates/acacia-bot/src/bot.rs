@@ -1,32 +1,32 @@
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::fmt::Debug;
 use std::time::Duration;
 
-use acacia_client::proto::types::InputData;
-use acacia_client::proto::RawPacket;
-use acacia_client::{Client, ClientBuilder, ConnectError, DisconnectReason, Event, MemoryBlobStore, PacketFilter, PacketTraceSummary};
+use acacia_client::proto::{Packet, RawPacket};
+use acacia_client::{ClientBuilder, ConnectError, DisconnectReason};
 use crate::cadence::Ticker;
 use crate::events::{BotEvent, EventSource, Events};
 use crate::governor::Governor;
 use crate::human::Human;
-use crate::interact::closing::PendingClose;
-use crate::lag::LagLine;
-use crate::items::RequestIds;
-use crate::movement::{Controls, Idle, Movement};
-use crate::prediction_sync::PredictionSync;
+use crate::movement::Controls;
 use crate::reflex::Reflexes;
 use crate::riding::Ride;
 use crate::sleep::Bed;
-use crate::subchunks::SubChunkRequester;
-use crate::spawn::SpawnSequence;
-use crate::state::{GameState, PlayerState};
-use crate::survival::Survival;
-use crate::trace::{self, Recorder};
-use crate::world::WorldTracker;
+use crate::state::GameState;
+use crate::survival::{AutoEat, Survival};
 use crate::BotConfig;
 
+mod bedrock;
+mod bedrock_step;
 mod dimension;
+#[cfg(feature = "java")]
+mod java;
 mod tick;
+
+pub(crate) use bedrock::Backend;
+pub use bedrock::Bedrock;
+#[cfg(feature = "java")]
+pub use java::Java;
 
 /// One unit of work done by [`Bot::step`].
 pub(crate) enum Step {
@@ -39,119 +39,53 @@ pub(crate) enum Step {
 
 /// A connected client plus the game state tracked from its packets.
 pub struct Bot {
-    pub(crate) client: Client,
+    pub(crate) backend: Backend,
     pub(crate) state: GameState,
-    pub(crate) subscribe: PacketFilter,
-    pub(crate) world: Option<WorldTracker>,
-    pub(crate) movement: Option<Movement>,
-    /// Bots without physics: standing-still input and the loading-screen sequence.
-    pub(crate) idle: Option<(Idle, SpawnSequence)>,
-    /// Bots without physics: vanilla's sub-chunk requests (physics bots request through `world`).
-    subchunks: Option<SubChunkRequester>,
-    sync: PredictionSync,
     ticker: Ticker,
     pub(crate) auto_respawn: bool,
     /// Ticks until the scheduled respawn (respawn.rs).
     pub(crate) respawn_in: Option<u32>,
-    recorder: Option<Recorder>,
     events: EventSource,
     pub(crate) human: Human,
     pub(crate) survival: Survival,
     /// Events not yet returned by [`Bot::next`] (queued while stepping or while an action waited).
     pub(crate) pending: VecDeque<BotEvent>,
-    /// Flags for the next `PlayerAuthInput` (item use, gliding, dismount sneak).
-    pub(crate) queued_flags: Vec<InputData>,
     pub(crate) ride: Ride,
     pub(crate) bed: Bed,
-    pub(crate) request_ids: RequestIds,
     pub(crate) reflexes: Reflexes,
     pub(crate) mining: Option<crate::interact::Mining>,
-    /// A dimension change in progress.
-    travel: Option<dimension::Travel>,
-    /// Physics bots: the simulation has started once, and the spawn packets went out with it.
-    spawned: bool,
-    strict: bool,
-    /// A client container close still settling (interact/closing.rs).
-    pub(crate) closing: Option<PendingClose>,
     closed: Option<DisconnectReason>,
     pub(crate) governor: Governor,
     pub(crate) act_timing: crate::act_timing::ActTiming,
-    pub(crate) in_flight: crate::interact::pipeline::Pipeline<crate::interact::pipeline::StackUndo>,
-    lag: Option<LagLine>,
     pub(crate) cancel: crate::cancel::CancelState,
 }
 
 impl Bot {
-    /// Connects and spawns. Tracked packets are added to `builder`'s subscription automatically.
-    pub async fn connect(builder: ClientBuilder, mut config: BotConfig) -> Result<Bot, ConnectError> {
-        config.trackers.block_entities = config.trackers.block_entities.resolve(config.physics);
-        let events = EventSource::new(config.events, config.chat_patterns);
-        let mut tracked: PacketFilter = config.trackers.packet_ids().into_iter().chain(events.packet_ids()).collect();
-        tracked = PredictionSync::PACKETS.iter().chain(crate::sleep::PACKETS).chain(dimension::PACKETS).fold(tracked, |f, &id| f.with(id));
-        tracked = WorldTracker::PACKETS.iter().fold(tracked, |f, &id| f.with(id));
-        let mode = if config.physics { Movement::PACKETS } else { SubChunkRequester::PACKETS };
-        tracked = mode.iter().fold(tracked, |f, &id| f.with(id));
-        if config.physics && config.record.is_some() {
-            tracked = trace::ANALYSIS_PACKETS.iter().fold(tracked, |f, &id| f.with(id));
-        }
-        let server = builder.server().to_owned();
-        // Physics reads terrain from blobs; a trace must hold every blob it uses, so it gets a fresh store.
-        let mut builder = builder.keep_blob_payloads(config.physics).mouse_input(config.mouse_input);
-        if config.physics && config.record.is_some() {
-            builder = builder.blob_store(Arc::new(MemoryBlobStore::with_payloads()));
-        }
-        // The bot sends SetLocalPlayerAsInitialized itself, when it leaves the loading screen (spawn.rs).
-        let client = builder.filter(tracked.union(&config.subscribe)).initialize_on_spawn(false).strict(config.strict).connect().await?;
-        let state = GameState::new(config.trackers, client.runtime_entity_id());
-        let recorder = config.record.as_deref().filter(|_| config.physics).and_then(|path| {
-            Recorder::create(path).inspect_err(|e| tracing::warn!(error = %e, "cannot record trace")).ok()
-        });
-        let mut world = WorldTracker::new(server, config.shared_worlds);
-        if let Some(store) = client.blob_store() {
-            world.set_blob_store(store.clone());
-        }
-        let (world, movement, idle) = if config.physics {
-            let mut movement = Movement::new();
-            movement.mouse_input = config.mouse_input;
-            movement.rotation_noise = Some(crate::movement::RotationNoise::new(crate::cadence::seed()));
-            (world, Some(movement), None)
-        } else {
-            (world.nearby(), None, Some((Idle::default(), SpawnSequence::default())))
-        };
-        Ok(Bot {
-            client,
+    /// Connects to a Bedrock server and spawns. Tracked packets are added to `builder`'s subscription automatically.
+    pub async fn connect(builder: ClientBuilder, config: BotConfig) -> Result<Bot, ConnectError> {
+        Bedrock::connect(builder, config).await
+    }
+
+    fn assemble(backend: Backend, state: GameState, events: EventSource, auto_respawn: bool, auto_eat: Option<AutoEat>) -> Bot {
+        Bot {
+            backend,
             state,
-            subscribe: config.subscribe,
-            world: Some(world),
-            movement,
-            subchunks: idle.is_some().then(SubChunkRequester::default),
-            idle,
-            sync: PredictionSync::default(),
             ticker: Ticker::new(),
-            auto_respawn: config.auto_respawn,
+            auto_respawn,
             respawn_in: None,
-            recorder,
             events,
             human: Human::default(),
-            survival: Survival::new(config.auto_eat),
+            survival: Survival::new(auto_eat),
             pending: VecDeque::new(),
-            queued_flags: Vec::new(),
             ride: Ride::default(),
             bed: Bed::default(),
-            request_ids: RequestIds::default(),
             reflexes: Reflexes::default(),
             mining: None,
-            travel: None,
-            spawned: false,
-            strict: config.strict,
-            closing: None,
             closed: None,
             governor: Governor::default(),
             act_timing: Default::default(),
-            in_flight: Default::default(),
-            lag: config.lag.map(LagLine::new),
             cancel: Default::default(),
-        })
+        }
     }
 
     /// Why the connection ended, once it has.
@@ -159,43 +93,73 @@ impl Bot {
         self.closed.as_ref()
     }
 
-    /// Labels the recorded trace from here on (no-op when not recording).
-    pub fn trace_mark(&mut self, label: &str) {
-        if let Some(r) = &mut self.recorder {
-            r.write(&trace::Event::Mark(label.to_owned()));
-        }
+    /// The Bedrock side (connection, world, physics), for Bedrock bots.
+    pub fn bedrock(&self) -> Option<&Bedrock> {
+        self.backend.bedrock()
     }
 
-    pub fn client(&self) -> &Client {
-        &self.client
-    }
-
-    /// Recent inbound packets (filtered ones too) and the server's silence, for stall diagnostics.
-    pub fn packet_trace(&self) -> PacketTraceSummary {
-        self.client.packet_trace()
+    pub fn bedrock_mut(&mut self) -> Option<&mut Bedrock> {
+        self.backend.bedrock_mut()
     }
 
     pub fn state(&self) -> &GameState {
         &self.state
     }
 
-    pub fn world(&self) -> Option<&WorldTracker> {
-        self.world.as_ref()
-    }
-
-    /// Movement intent (physics bots only); applied from the next tick on.
+    /// Movement intent (physics bots and Java bots); applied from the next tick on.
     pub fn controls(&mut self) -> Option<&mut Controls> {
-        self.movement.as_mut().map(|m| &mut m.controls)
+        match &mut self.backend {
+            Backend::Bedrock(b) => b.movement.as_mut().map(|m| &mut m.controls),
+            #[cfg(feature = "java")]
+            Backend::Java(java) => Some(&mut java.controls),
+        }
     }
 
-    pub fn movement(&self) -> Option<&Movement> {
-        self.movement.as_ref()
+    /// The player's name on the server.
+    pub fn name(&self) -> &str {
+        match &self.backend {
+            Backend::Bedrock(b) => b.client.display_name(),
+            #[cfg(feature = "java")]
+            Backend::Java(java) => &java.client.name,
+        }
+    }
+
+    /// Runs a command (the leading `/` is optional); false if it could not be sent.
+    pub fn command(&self, cmd: &str) -> bool {
+        match &self.backend {
+            Backend::Bedrock(b) => b.client.command(cmd),
+            #[cfg(feature = "java")]
+            Backend::Java(_) => java::not_yet("commands"),
+        }
+    }
+
+    /// Says `text` in chat; false if it could not be sent.
+    pub fn chat(&self, text: &str) -> bool {
+        match &self.backend {
+            Backend::Bedrock(b) => b.client.chat(text),
+            #[cfg(feature = "java")]
+            Backend::Java(_) => java::not_yet("chat"),
+        }
+    }
+
+    /// Starts closing the connection; [`Bot::next`] then reports the disconnect.
+    pub fn close(&self) {
+        match &self.backend {
+            Backend::Bedrock(b) => b.client.close(),
+            #[cfg(feature = "java")]
+            Backend::Java(java) => java.client.close(),
+        }
+    }
+
+    /// Queues a Bedrock packet; false once the connection is closed, and always on Java (nothing is sent).
+    pub(crate) fn send_bedrock<T: Packet + Debug>(&self, packet: &T) -> bool {
+        self.backend.bedrock().is_some_and(|b| b.client.send(packet))
     }
 
     /// Closes the connection and waits (up to 2 s) for the disconnect to be sent, so the server
     /// frees the session at once instead of timing it out ("already logged in" on a quick relog).
     pub async fn disconnect(&mut self) {
-        self.client.close();
+        self.close();
         let closed = async {
             while let Some(event) = self.next().await {
                 if matches!(event, BotEvent::Disconnected(_)) {
@@ -226,87 +190,10 @@ impl Bot {
 
     /// Handles one incoming packet or movement tick, updating state. `None` once the connection is gone.
     pub(crate) async fn step(&mut self) -> Option<Step> {
-        if let Some(world) = &mut self.world {
-            for request in world.outgoing.drain(..) {
-                self.client.send(&request);
-            }
-            let rejected = world.rejected.drain(..).filter(|_| self.strict);
-            self.pending.extend(rejected.map(BotEvent::Violation));
+        match self.backend {
+            Backend::Bedrock(_) => self.bedrock_step().await,
+            #[cfg(feature = "java")]
+            Backend::Java(_) => self.java_step().await,
         }
-        if let Some(packet) = self.lag.as_mut().and_then(|l| l.pop_due(tokio::time::Instant::now())) {
-            self.apply(&packet);
-            return Some(Step::Packet(packet));
-        }
-        // A queued event with no tick due skips the select!, whose tick timer was registered and cleared per packet.
-        if self.lag.is_none()
-            && !self.ticker.due()
-            && let Some(event) = self.client.try_recv()
-        {
-            return self.on_event(event);
-        }
-        let lagged = self.lag.as_ref().and_then(LagLine::next_at);
-        tokio::select! {
-            event = self.client.recv() => self.on_event(event?),
-            // In an async block: select! builds a disabled branch's future too, and a bare sleep looks up the timer.
-            _ = async { tokio::time::sleep_until(lagged.unwrap_or_else(tokio::time::Instant::now)).await }, if lagged.is_some() => Some(Step::Idle),
-            ticks = self.ticker.wait() => {
-                (0..ticks).for_each(|_| self.on_tick());
-                Some(Step::Tick)
-            }
-        }
-    }
-
-    fn on_event(&mut self, event: Event) -> Option<Step> {
-        match event {
-            Event::Packet(packet) if self.lag.is_some() => {
-                self.lag.as_mut()?.push(tokio::time::Instant::now(), packet);
-                Some(Step::Idle)
-            }
-            Event::Packet(packet) => {
-                self.apply(&packet);
-                Some(Step::Packet(packet))
-            }
-            Event::Violation(violation) => {
-                self.pending.push_back(BotEvent::Violation(violation));
-                Some(Step::Idle)
-            }
-            Event::Disconnected(reason) => {
-                self.closed = Some(reason.clone());
-                Some(Step::Disconnected(reason))
-            }
-        }
-    }
-
-    fn apply(&mut self, packet: &RawPacket) {
-        if let Some(r) = &mut self.recorder
-            && (PlayerState::PACKETS.contains(&packet.id)
-                || WorldTracker::PACKETS.contains(&packet.id)
-                || Movement::PACKETS.contains(&packet.id)
-                || trace::ANALYSIS_PACKETS.contains(&packet.id) && trace::about(packet, self.state.me().runtime_entity_id))
-        {
-            r.write(&trace::Event::Packet(packet.clone()));
-        }
-        let was_alive = self.state.player.alive;
-        let mut result = self.state.apply(packet);
-        let me = self.state.me();
-        if let Some(world) = &mut self.world {
-            result = result.and(world.apply(packet));
-        }
-        if let Some(movement) = &mut self.movement {
-            result = result.and(movement.apply(packet, &me));
-        }
-        if let Err(e) = result {
-            tracing::debug!(id = packet.id, error = %e, "tracker failed to decode packet");
-        }
-        self.on_container_close(packet);
-        self.sync.apply(packet, self.state.player.runtime_entity_id);
-        if let Some(subchunks) = &mut self.subchunks {
-            subchunks.apply(packet);
-        }
-        self.on_travel_packet(packet);
-        self.auto_respawn(packet, was_alive);
-        self.reflex_packet(packet);
-        self.on_fetch_packet(packet);
-        self.events.on_packet(packet, &mut self.state, &mut self.pending);
     }
 }

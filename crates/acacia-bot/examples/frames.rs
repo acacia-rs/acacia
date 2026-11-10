@@ -24,7 +24,7 @@ async fn main() -> Result<(), Error> {
     let [x, y, z] = [coordinate(1, 260), coordinate(2, -59), coordinate(3, 104)];
     let config = BotConfig { physics: true, ..BotConfig::default() };
     let mut bot = Bot::connect(Client::builder(&server).offline("Framer"), config).await?;
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     // A bot that died here last time respawns at the world spawn first.
@@ -87,7 +87,7 @@ async fn main() -> Result<(), Error> {
 
 async fn run(bot: &mut Bot, commands: &[String], settle: u32) -> Result<(), Error> {
     for command in commands {
-        bot.client().command(command);
+        bot.command(command);
         bot.wait_ticks(4).await?;
     }
     Ok(bot.wait_ticks(settle).await?)

@@ -11,7 +11,7 @@ const AIR: &str = "minecraft:air";
 
 /// Two blocks east of the feet, at feet height (the flat world's ground is just below).
 fn spot(bot: &Bot) -> Result<Pos, Box<dyn std::error::Error>> {
-    let feet = bot.movement().and_then(|m| m.position()).ok_or("no simulated position")?;
+    let feet = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).ok_or("no simulated position")?;
     Ok([feet[0].floor() as i32 + 2, feet[1].floor() as i32, feet[2].floor() as i32])
 }
 
@@ -42,7 +42,7 @@ async fn hold_mine(bot: &mut Bot, pos: Pos) -> Result<u32, Box<dyn std::error::E
 
 pub async fn mine_held(bot: &mut Bot) -> Check {
     let pos = spot(bot)?;
-    bot.client().command(&format!("/setblock {} {} {} dirt", pos[0], pos[1], pos[2]));
+    bot.command(&format!("/setblock {} {} {} dirt", pos[0], pos[1], pos[2]));
     bot.wait_ticks(10).await?;
     let ticks = hold_mine(bot, pos).await?;
     Ok(format!("dirt broken by hand after {ticks} ticks"))
@@ -52,13 +52,13 @@ pub async fn mine_held(bot: &mut Bot) -> Check {
 /// `MOUSE=1` (`BotConfig::mouse_input`): with touch input BDS mines creative blocks as survival.
 pub async fn mine_creative(bot: &mut Bot) -> Check {
     let pos = spot(bot)?;
-    bot.client().command("/replaceitem entity @s slot.hotbar 7 air");
-    bot.client().command(&format!("/setblock {} {} {} stone", pos[0], pos[1], pos[2]));
-    bot.client().command("/gamemode creative");
+    bot.command("/replaceitem entity @s slot.hotbar 7 air");
+    bot.command(&format!("/setblock {} {} {} stone", pos[0], pos[1], pos[2]));
+    bot.command("/gamemode creative");
     bot.wait_ticks(10).await?;
     bot.select_hotbar(7)?;
     let result = hold_mine(bot, pos).await;
-    bot.client().command("/gamemode survival");
+    bot.command("/gamemode survival");
     bot.wait_ticks(10).await?;
     let ticks = result?;
     if ticks > 3 {
@@ -69,8 +69,8 @@ pub async fn mine_creative(bot: &mut Bot) -> Check {
 
 pub async fn place_aimed(bot: &mut Bot) -> Check {
     let pos = spot(bot)?;
-    bot.client().command(&format!("/setblock {} {} {} air", pos[0], pos[1], pos[2]));
-    bot.client().command("/replaceitem entity @s slot.hotbar 8 cobblestone 4");
+    bot.command(&format!("/setblock {} {} {} air", pos[0], pos[1], pos[2]));
+    bot.command("/replaceitem entity @s slot.hotbar 8 cobblestone 4");
     bot.wait_ticks(10).await?;
     if find(bot, "minecraft:cobblestone")? != SlotRef::Main(8) {
         return Err("cobblestone is not in hotbar slot 8".into());

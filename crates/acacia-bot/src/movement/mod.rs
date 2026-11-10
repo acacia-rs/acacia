@@ -21,6 +21,8 @@ mod tests;
 
 #[cfg(feature = "java")]
 pub use java_sim::{JAVA, JavaSim, JavaView};
+#[cfg(feature = "java")]
+pub(crate) use java_sim::keys as java_keys;
 
 pub use controls::Controls;
 pub(crate) use controls::{attach_actions, VehicleCorrection};

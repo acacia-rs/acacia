@@ -12,7 +12,7 @@ pub async fn pickup(bot: &mut Bot) -> Check {
     let mut seen = Vec::new();
     for (item, n) in [("minecraft:wheat", 3), ("minecraft:apple", 2)] {
         let before = count(bot, item);
-        bot.client().command(&format!("/scriptevent actiontest:drop {item} {n}"));
+        bot.command(&format!("/scriptevent actiontest:drop {item} {n}"));
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
         while count(bot, item) < before + n {
             if tokio::time::Instant::now() > deadline {

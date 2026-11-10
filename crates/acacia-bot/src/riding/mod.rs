@@ -55,7 +55,7 @@ impl Bot {
         if let Some(v) = self.state.riding.vehicle.as_ref().filter(|v| v.runtime_id == Some(runtime_id)) {
             return Ok(v.clone());
         }
-        if self.movement.as_ref().is_some_and(|m| m.controls.sneak) {
+        if self.backend.movement().is_some_and(|m| m.controls.sneak) {
             return Err(ActionError::NotPossible("sneaking".into()));
         }
         self.interact_entity(runtime_id).await?;
@@ -80,7 +80,7 @@ impl Bot {
             self.next_tick(|_, _| false).await?;
             if !self.ride.dismount || !self.state.riding.is_riding() {
                 self.release(leaving);
-                if self.movement.is_some() {
+                if self.backend.movement().is_some() {
                     // The simulation resumes at the exit on the tick after the seat is given up.
                     self.next_tick(|_, _| false).await?;
                 }
@@ -113,7 +113,7 @@ impl Bot {
     /// `eye`: the dismount tick's input position, which vanilla repeats in LeaveVehicle.
     fn leave_vehicle(&mut self, eye: Vec3f) {
         let target = self.state.riding.vehicle.as_ref().and_then(|v| v.runtime_id).unwrap_or(0);
-        self.client.send(&Interact {
+        self.send_bedrock(&Interact {
             action_id: InteractActionId::LeaveVehicle,
             target_entity_id: target,
             has_position: true,
@@ -126,7 +126,7 @@ impl Bot {
 
     /// `ClientCameraAimAssist` Clear, which vanilla sends on every mount and dismount.
     fn clear_aim_assist(&self) {
-        self.client.send(&ClientCameraAimAssist {
+        self.send_bedrock(&ClientCameraAimAssist {
             preset_id: String::new(),
             action: ClientCameraAimAssistAction::Clear,
             allow_aim_assist: false,

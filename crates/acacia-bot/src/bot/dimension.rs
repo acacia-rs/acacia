@@ -90,6 +90,7 @@ pub(crate) fn terrain_arrived(view: &ChunkView, [x, y, z]: [f32; 3]) -> bool {
 impl Bot {
     /// Opens the loading screen on `ChangeDimension` and notes the server's acknowledgement.
     pub(crate) fn on_travel_packet(&mut self, packet: &RawPacket) {
+        let Some(b) = self.backend.bedrock_mut() else { return };
         match packet.id {
             ChangeDimension::ID => {
                 let Ok(change) = packet.decode::<ChangeDimension>() else { return };
@@ -97,12 +98,12 @@ impl Bot {
                 let teleports = self.state.player.teleports;
                 let travel = Travel { loading_screen_id: change.loading_screen_id, respawn: change.respawn, teleports, ..Travel::default() };
                 if let Some(screen) = travel.loading_screen(LOADING_SCREEN_START) {
-                    self.client.send(&screen);
+                    b.client.send(&screen);
                 }
-                self.travel = Some(travel);
+                b.travel = Some(travel);
             }
             PlayerAction::ID => {
-                if let (Some(travel), Ok(action)) = (&mut self.travel, packet.decode::<PlayerAction>())
+                if let (Some(travel), Ok(action)) = (&mut b.travel, packet.decode::<PlayerAction>())
                     && action.action == Action::DimensionChangeAck
                 {
                     tracing::debug!(waited = travel.waited, "server dimension change ack");
@@ -114,7 +115,7 @@ impl Bot {
                 let me = self.state.player.runtime_entity_id;
                 if packet.decode::<ShowCredits>().is_ok_and(|c| c.runtime_entity_id == me && c.status == CREDITS_START) {
                     tracing::debug!("credits skipped");
-                    self.client.send(&ShowCredits { runtime_entity_id: me, status: CREDITS_END });
+                    b.client.send(&ShowCredits { runtime_entity_id: me, status: CREDITS_END });
                 }
             }
             _ => {}
@@ -124,19 +125,20 @@ impl Bot {
     /// One tick of a pending dimension change. `placed`: the terrain at the new position has arrived.
     /// True when movement may run: the change is over, or (with none pending) `placed`.
     pub(crate) fn travel_tick(&mut self, placed: bool) -> bool {
-        let Some(travel) = &mut self.travel else { return placed };
+        let Some(b) = self.backend.bedrock_mut() else { return placed };
+        let Some(travel) = &mut b.travel else { return placed };
         match travel.tick(placed, self.state.player.teleports != travel.teleports) {
             Step::Wait => {}
             Step::Leave => {
                 tracing::debug!(?travel, "leaving the dimension loading screen");
                 let me = self.state.player.runtime_entity_id;
-                self.client.send(&crate::sleep::player_action(me, Action::DimensionChangeAck));
+                b.client.send(&crate::sleep::player_action(me, Action::DimensionChangeAck));
                 if let Some(screen) = travel.loading_screen(LOADING_SCREEN_END) {
-                    self.client.send(&screen);
+                    b.client.send(&screen);
                 }
             }
             Step::Arrived => {
-                self.travel = None;
+                b.travel = None;
                 return true;
             }
         }

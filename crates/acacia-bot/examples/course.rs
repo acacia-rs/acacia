@@ -80,7 +80,7 @@ async fn main() -> Result<(), Error> {
     };
     let record = std::env::var_os("BEDROCK_RECORD").map(Into::into);
     let mut bot = Bot::connect(builder, BotConfig { physics: true, record, ..BotConfig::default() }).await?;
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     bot.wait_ticks(20).await?;
@@ -128,7 +128,7 @@ async fn main() -> Result<(), Error> {
     }
     println!("total corrections {total_corr}, failed legs {failed}");
     // Offline players rejoin where they left: back to the origin, so the next run builds in the same place.
-    bot.client().command(&format!("/tp @s {} {} {}", origin[0] as f32 + 0.5, origin[1], origin[2] as f32 + 0.5));
+    bot.command(&format!("/tp @s {} {} {}", origin[0] as f32 + 0.5, origin[1], origin[2] as f32 + 0.5));
     bot.wait_ticks(10).await?;
     bot.disconnect().await;
     Ok(())
@@ -140,12 +140,12 @@ async fn run_leg(bot: &mut Bot, nav: &mut Navigator, ticks: &mut u32, lift: Opti
     let mut lifted = false;
     loop {
         if let (Some(x0), false) = (lift, lifted)
-            && let Some(m) = bot.movement()
+            && let Some(m) = bot.bedrock().and_then(|b| b.movement())
             && let Some(p) = m.position()
             && !m.on_ground()
             && (LIFT_X.0..LIFT_X.1).contains(&(p[0] - x0))
         {
-            bot.client().command(LIFT);
+            bot.command(LIFT);
             println!("lift at tick {ticks}, x offset {:.2}", p[0] - x0);
             lifted = true;
         }
@@ -160,7 +160,7 @@ async fn run_leg(bot: &mut Bot, nav: &mut Navigator, ticks: &mut u32, lift: Opti
 async fn respawn_check(bot: &mut Bot) -> Result<(), Error> {
     let before = counts(bot);
     let t = Instant::now();
-    bot.client().command("/kill @s");
+    bot.command("/kill @s");
     let deaths = bot.state().player.deaths;
     for _ in 0..200 {
         bot.wait_ticks(1).await?;
@@ -187,7 +187,7 @@ async fn respawn_check(bot: &mut Bot) -> Result<(), Error> {
 }
 
 fn counts(bot: &Bot) -> (u32, u32) {
-    bot.movement().map_or((0, 0), |m| (m.corrections, m.teleports))
+    bot.bedrock().and_then(|b| b.movement()).map_or((0, 0), |m| (m.corrections, m.teleports))
 }
 
 /// Clears one section of the walled lane from the origin and places its legs' obstacles; no mobs (their
@@ -202,7 +202,7 @@ async fn build(bot: &mut Bot, [x, y, z]: [i32; 3], java: bool, far: bool) -> Res
         cmds.extend(leg.build.iter().map(|&(a, b, block)| fill(a, b, &resolve(block, java))));
     }
     for cmd in cmds {
-        bot.client().command(&cmd);
+        bot.command(&cmd);
         bot.wait_ticks(2).await?;
     }
     bot.wait_ticks(40).await?;

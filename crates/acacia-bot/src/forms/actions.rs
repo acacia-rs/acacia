@@ -66,7 +66,8 @@ impl Bot {
     }
 
     fn send_form_response(&mut self, id: u32, packet: &ModalFormResponse) -> Result<(), ActionError> {
+        let b = self.backend.require("forms")?;
         self.state.forms.remove(id);
-        if self.client.send(packet) { Ok(()) } else { Err(ActionError::Disconnected) }
+        if b.client.send(packet) { Ok(()) } else { Err(ActionError::Disconnected) }
     }
 }

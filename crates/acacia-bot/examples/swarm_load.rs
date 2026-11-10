@@ -30,7 +30,7 @@ fn next(seed: &mut u64) -> i32 {
 }
 
 async fn wander(bot: &mut Bot, mut seed: u64) -> Result<(), ActionError> {
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     bot.wait_ticks(40).await?;
@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let swarm = builder.start(async |bot: &mut Bot, role: &mut Role| match role {
         Role::Stand => while bot.next().await.is_some() {},
         Role::Wander => {
-            let seed = bot.client().display_name().bytes().fold(0x9e37_79b9_7f4a_7c15u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3));
+            let seed = bot.name().bytes().fold(0x9e37_79b9_7f4a_7c15u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3));
             let _ = wander(bot, seed).await;
         }
     })?;

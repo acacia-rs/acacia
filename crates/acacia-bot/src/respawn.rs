@@ -15,7 +15,9 @@ impl Bot {
     /// Presses "respawn" on the death screen. Movement resumes at the position the server replies with.
     pub fn respawn(&self) {
         tracing::debug!("respawning");
-        self.client.respawn();
+        if let Some(b) = self.backend.bedrock() {
+            b.client.respawn();
+        }
     }
 
     /// Schedules one respawn per death. BDS shows the death screen with `Respawn(searching)`; Geyser

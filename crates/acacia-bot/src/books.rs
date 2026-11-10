@@ -85,9 +85,9 @@ impl Bot {
         self.pause(time).await?;
         let old = self.state.inventory.main[usize::from(slot)].clone();
         let new = edits.iter().fold(old.clone(), |book, edit| edited_book(&book, edit));
-        self.client.send(&legacy::rewrite_slot(None, &SlotChange { slot, old: &old, new: &new }));
+        self.send_bedrock(&legacy::rewrite_slot(None, &SlotChange { slot, old: &old, new: &new }));
         for edit in &edits {
-            self.client.send(&page_packet(slot, edit));
+            self.send_bedrock(&page_packet(slot, edit));
         }
         self.state.inventory.main[usize::from(slot)] = new;
         self.equip_now();
@@ -104,12 +104,12 @@ impl Bot {
             return;
         }
         for page in 0..2 {
-            self.client.send(&page_packet(slot, &PageEdit::Replace { page, text: String::new() }));
+            self.send_bedrock(&page_packet(slot, &PageEdit::Replace { page, text: String::new() }));
         }
         let opened = with_pages(&book, Vec::new());
         let id = self.reflexes.next_legacy_id();
         let click = wire::click_air(self.hand());
-        self.client.send(&legacy::with_slot_change(click, Some(id), &SlotChange { slot, old: &book, new: &opened }));
+        self.send_bedrock(&legacy::with_slot_change(click, Some(id), &SlotChange { slot, old: &book, new: &opened }));
         self.state.inventory.main[usize::from(slot)] = opened;
         self.equip_now();
     }
@@ -129,13 +129,13 @@ impl Bot {
     pub fn sign_typed_book(&mut self, title: &str) -> Result<(), ActionError> {
         let slot = self.held_book()?;
         check_title(title)?;
-        let xuid = self.client.xuid().to_owned();
+        let xuid = self.backend.require("books")?.client.xuid().to_owned();
         let written = self.state.items.id(WRITTEN_BOOK).ok_or_else(|| ActionError::NotPossible("no written book in the item registry".into()))?;
         let old = self.state.inventory.main[usize::from(slot)].clone();
         let new = signed_book(&old, written, title, AUTHOR, &xuid);
         let id = self.reflexes.next_legacy_id();
-        self.client.send(&legacy::rewrite_slot(Some(id), &SlotChange { slot, old: &old, new: &new }));
-        self.client.send(&sign_packet(slot, title, AUTHOR, &xuid));
+        self.send_bedrock(&legacy::rewrite_slot(Some(id), &SlotChange { slot, old: &old, new: &new }));
+        self.send_bedrock(&sign_packet(slot, title, AUTHOR, &xuid));
         self.state.inventory.main[usize::from(slot)] = new;
         Ok(())
     }
@@ -143,7 +143,7 @@ impl Bot {
     /// Sends a page edit and applies it to the held book, as the client does: BDS echoes no page
     /// edits, and it rejects the next click made holding an item that differs from its copy.
     fn send_page_edit(&mut self, slot: u8, edit: &PageEdit) {
-        self.client.send(&page_packet(slot, edit));
+        self.send_bedrock(&page_packet(slot, edit));
         let book = &mut self.state.inventory.main[usize::from(slot)];
         *book = edited_book(book, edit);
     }

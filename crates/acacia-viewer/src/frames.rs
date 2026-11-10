@@ -48,7 +48,7 @@ pub fn publish(bot: &Bot) {
 fn framed_item(bot: &Bot, block: [i32; 3], nbt: &Nbt) -> Option<Framed> {
     let item = nbt.value.get("Item")?;
     let Value::String(name) = item.get("Name")? else { return None };
-    let view = bot.world()?.view()?;
+    let view = bot.bedrock().and_then(|b| b.world())?.view()?;
     let state = view.world().registry().get(acacia_world::BlockAccess::block(view, block[0], block[1], block[2]))?;
     // As `acacia_render::blocks::model` turns the frame's block model.
     let (yaw, tilt) = match state.property("facing_direction")? {
@@ -76,7 +76,7 @@ fn framed_item(bot: &Bot, block: [i32; 3], nbt: &Nbt) -> Option<Framed> {
     if let Some(id) = map_id.filter(|_| map.is_none())
         && ASKED.with_borrow_mut(|asked| asked.insert(id))
     {
-        bot.client().send(&MapInfoRequest { map_id: id, client_pixels: Vec::new() });
+        bot.bedrock().expect("Bedrock bot").client().send(&MapInfoRequest { map_id: id, client_pixels: Vec::new() });
     }
     let block_id = view.world().registry().states_of(name).next().map_or(0, |(id, _)| id);
     let key = ItemKey { name: name.to_string(), aux, block: block_id, dye: None, banner: None, trim: None };

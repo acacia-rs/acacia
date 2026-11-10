@@ -35,7 +35,7 @@ async fn main() -> Result<(), Error> {
     let [x, y, z] = [coordinate(5000), coordinate(-60), coordinate(5000)];
     let config = BotConfig { physics: true, ..BotConfig::default() };
     let mut bot = Bot::connect(Client::builder(&server).offline("BannerSmith"), config).await?;
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     let loom = [x - 2, y, z];
@@ -72,7 +72,7 @@ async fn main() -> Result<(), Error> {
 
 async fn run(bot: &mut Bot, commands: &[String], settle: u32) -> Result<(), Error> {
     for command in commands {
-        bot.client().command(command);
+        bot.command(command);
         bot.wait_ticks(4).await?;
     }
     Ok(bot.wait_ticks(settle).await?)

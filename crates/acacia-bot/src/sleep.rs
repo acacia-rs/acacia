@@ -74,7 +74,7 @@ impl Bot {
         }
         let settle = self.human.between(START_SLEEP).saturating_sub(clicked.elapsed());
         self.pause(settle).await?;
-        self.client.send(&player_action(self.runtime_id(), Action::StartSleeping));
+        self.send_bedrock(&player_action(self.runtime_id(), Action::StartSleeping));
         self.reflexes.in_bed = true;
         self.unclaim(bed);
         Ok(())
@@ -92,7 +92,7 @@ impl Bot {
     /// Presses "leave bed" without waiting.
     pub(crate) fn leave_bed(&mut self) {
         self.reflexes.in_bed = false;
-        self.client.send(&player_action(self.runtime_id(), Action::StopSleeping));
+        self.send_bedrock(&player_action(self.runtime_id(), Action::StopSleeping));
         self.reflexes.schedule(0, Reflex::ClearAimAssist);
     }
 }

@@ -24,6 +24,9 @@ pub enum ActionError {
     /// [`crate::CancelHandle::cancel`] ended the action (see [`crate::cancel`]).
     #[error("cancelled")]
     Cancelled,
+    /// The bot's edition has no implementation of this yet.
+    #[error("not supported on Java Edition yet: {0}")]
+    Unsupported(&'static str),
 }
 
 enum Progress {
@@ -62,18 +65,19 @@ impl Bot {
     }
 
     pub(crate) fn keep_for_caller(&mut self, packet: RawPacket) {
-        if self.subscribe.allows(packet.id) {
+        if self.backend.bedrock().is_some_and(|b| b.subscribe.allows(packet.id)) {
             self.pending.push_back(BotEvent::Packet(packet));
         }
     }
 
     /// Keeps processing packets and ticks until `check` (run after each packet is applied to the
-    /// state) returns `Some`. Events meant for the caller are kept for [`Bot::next`].
+    /// state) returns `Some`. Events meant for the caller are kept for [`Bot::next`]. Bedrock only.
     pub(crate) async fn wait_until<T>(
         &mut self,
         timeout: Duration,
         mut check: impl FnMut(&Bot, &RawPacket) -> Option<T>,
     ) -> Result<T, ActionError> {
+        self.backend.require("waiting for Bedrock packets")?;
         let deadline = tokio::time::Instant::now() + timeout;
         loop {
             let progress = tokio::time::timeout_at(deadline, self.progress()).await.map_err(|_| ActionError::Timeout)??;
@@ -88,8 +92,9 @@ impl Bot {
     }
 
     /// Processes packets up to and including the next movement tick; true if `check` matched any
-    /// packet on the way. Physics bots only (others never tick).
+    /// packet on the way. Bedrock physics bots only (others never tick).
     pub(crate) async fn next_tick(&mut self, mut check: impl FnMut(&Bot, &RawPacket) -> bool) -> Result<bool, ActionError> {
+        self.backend.require("waiting for Bedrock packets")?;
         let mut hit = false;
         loop {
             match self.progress().await? {
@@ -109,9 +114,14 @@ impl Bot {
 
     /// Lets `duration` pass while processing packets.
     pub(crate) async fn pause(&mut self, duration: Duration) -> Result<(), ActionError> {
-        match self.wait_until(duration, |_, _| None::<()>).await {
-            Ok(()) | Err(ActionError::Timeout) => Ok(()),
-            Err(e) => Err(e),
+        let deadline = tokio::time::Instant::now() + duration;
+        loop {
+            match tokio::time::timeout_at(deadline, self.progress()).await {
+                Err(_) => return Ok(()),
+                Ok(Err(e)) => return Err(e),
+                Ok(Ok(Progress::Packet(packet))) => self.keep_for_caller(packet),
+                Ok(Ok(Progress::Tick)) => {}
+            }
         }
     }
 }

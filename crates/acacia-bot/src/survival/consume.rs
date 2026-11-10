@@ -44,8 +44,8 @@ impl Bot {
         let slot = self.state.inventory.selected_hotbar_slot;
         self.survival.item_use = Some(ItemUse::new(slot, self.use_snapshot(), ticks, release, auto));
         self.survival.result = None;
-        self.client.send(&wire::click_air(self.hand()));
-        self.queued_flags.push(InputData::StartUsingItem);
+        self.send_bedrock(&wire::click_air(self.hand()));
+        self.queue_flag(InputData::StartUsingItem);
         self.set_using_item(true);
         Ok(())
     }
@@ -59,7 +59,7 @@ impl Bot {
             UseTick::Nothing => {}
             UseTick::Effect => {
                 let held = self.state.inventory.held();
-                self.client.send(&EntityEvent {
+                self.send_bedrock(&EntityEvent {
                     runtime_entity_id: self.runtime_id(),
                     event_id: EntityEventEventId::EatingItem,
                     data: eating_data(held.network_id, held.metadata),
@@ -67,7 +67,7 @@ impl Bot {
                 });
             }
             UseTick::Finish => {
-                self.client.send(&wire::finish_use(self.hand()));
+                self.send_bedrock(&wire::finish_use(self.hand()));
             }
             UseTick::Done(result) => {
                 let auto = item_use.auto;
@@ -90,7 +90,7 @@ impl Bot {
     }
 
     fn set_using_item(&mut self, on: bool) {
-        if let Some(m) = self.movement.as_mut() {
+        if let Some(m) = self.backend.movement_mut() {
             m.using_item = on;
         }
     }

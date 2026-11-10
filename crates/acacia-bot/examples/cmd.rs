@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     bot.wait_ticks(40).await?;
     for command in args {
         println!("{command}");
-        bot.client().command(&command);
+        bot.command(&command);
         bot.wait_ticks(4).await?;
     }
     bot.wait_ticks(20).await?;

@@ -78,13 +78,13 @@ impl Bot {
     /// `StartUsingItem` on the next input.
     fn use_rod(&mut self) {
         self.use_item_like_vanilla();
-        self.queued_flags.push(InputData::StartUsingItem);
+        self.queue_flag(InputData::StartUsingItem);
     }
 
     /// A right-click in the air with a rod or rocket as the capture shows it: `Animate` "useitem", then ClickAir.
     pub(crate) fn use_item_like_vanilla(&mut self) {
         self.swing_from(Some(SwingSource::UseItem));
-        self.client.send(&wire::click_air(self.hand()));
+        self.send_bedrock(&wire::click_air(self.hand()));
     }
 
     async fn cast(&mut self) -> Result<(), ActionError> {

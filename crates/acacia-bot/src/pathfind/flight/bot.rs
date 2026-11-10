@@ -18,7 +18,7 @@ impl Bot {
     /// Flies to `target` by elytra (worn, or put on from the inventory) and lands within `opts.land_radius` of it,
     /// on the top surface of the column (physics bots only). Rockets are used from the hotbar.
     pub async fn fly_to(&mut self, target: BlockPos, opts: FlyOpts) -> Result<(), ActionError> {
-        if self.movement.as_ref().is_none_or(|m| !m.is_started()) {
+        if self.backend.require("elytra flight")?.movement.as_ref().is_none_or(|m| !m.is_started()) {
             return Err(ActionError::NotPossible("flying needs a physics bot (BotConfig.physics)".into()));
         }
         self.equip_elytra().await?;
@@ -30,7 +30,7 @@ impl Bot {
         loop {
             let rockets = self.hotbar_rockets();
             let order = {
-                let (Some(world), Some(movement)) = (self.world.as_ref(), self.movement.as_mut()) else { return Err(ActionError::Disconnected) };
+                let Some((world, movement)) = self.backend.physics_mut() else { return Err(ActionError::Disconnected) };
                 match (world.view(), world.registry(), movement.fork()) {
                     (Some(view), Some(registry), Some(fork)) => {
                         let terrain = Terrain::new(view, registry.as_ref());
@@ -57,7 +57,7 @@ impl Bot {
             self.next_tick(|_, _| false).await?;
         }
         self.stop_pathing();
-        let (Some(spot), Some(feet)) = (pilot.spot(), self.movement.as_ref().and_then(|m| m.position())) else { return Ok(()) };
+        let (Some(spot), Some(feet)) = (pilot.spot(), self.backend.movement().and_then(|m| m.position())) else { return Ok(()) };
         if (spot[0] - feet[0]).hypot(spot[2] - feet[2]) > WALK_REST {
             let cell = spot.map(|v| v.floor() as i32);
             self.goto_with(Goal::Block(cell), GotoOpts::default()).await?;

@@ -24,10 +24,10 @@ impl Bot {
         let inv = &self.state.inventory;
         let (slot, item) = (inv.selected_hotbar_slot, inv.held().clone());
         if needs_mouse_over(self.reflexes.equipped.as_ref(), slot, &item) {
-            self.client.send(&wire::mouse_over_nothing());
+            self.send_bedrock(&wire::mouse_over_nothing());
             self.reflexes.hovered = None;
         }
-        self.client.send(&wire::mob_equipment(self.runtime_id(), slot, &item));
+        self.send_bedrock(&wire::mob_equipment(self.runtime_id(), slot, &item));
         self.reflexes.equipped = Some((slot, item));
     }
 }

@@ -104,7 +104,7 @@ impl Bot {
         if !vehicle.kind.as_deref().is_some_and(|k| BOATS.contains(&k)) {
             return false;
         }
-        let (Some(world), Some(movement)) = (&self.world, &mut self.movement) else { return false };
+        let Some((world, movement)) = self.backend.physics_mut() else { return false };
         let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return false };
         let world = PhysicsWorld { view, registry };
         let (unique_id, runtime_id) = (vehicle.unique_id, vehicle.runtime_id);

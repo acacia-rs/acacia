@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(_) => {}
             },
             _ = tick.tick() => {
-                let Some(view) = bot.world().and_then(|w| w.view()) else { continue };
+                let Some(view) = bot.bedrock().and_then(|b| b.world()).and_then(|w| w.view()) else { continue };
                 let world = view.world().clone();
                 // A new dimension is a new World: finish the old one's store, start one for this.
                 if current.as_ref().is_none_or(|c| !Arc::ptr_eq(c, &world)) {
@@ -121,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match stops.pop() {
                         Some(stop) => {
                             store.flush(true)?;
-                            bot.client().command(&tp_command(&stop));
+                            bot.command(&tp_command(&stop));
                             last_change = Instant::now();
                         }
                         None => break "quiet".to_owned(),
@@ -143,7 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ANVIL_PROBE="x,y,z;…": the Bedrock states the bot holds there, for chasing a diff-render cell
     if let (Ok(probe), Some(view)) = (
         std::env::var("ANVIL_PROBE"),
-        bot.world().and_then(|w| w.view()),
+        bot.bedrock().and_then(|b| b.world()).and_then(|w| w.view()),
     ) {
         let reg = view.world().registry();
         for p in probe.split(';') {
@@ -167,6 +167,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    bot.client().close();
+    bot.close();
     Ok(())
 }

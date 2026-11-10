@@ -23,7 +23,7 @@ impl Setup {
 
     /// Once per bot tick: sends the commands that are due.
     pub fn tick(&mut self, bot: &Bot) {
-        if bot.movement().is_some_and(|m| m.is_started()) {
+        if bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.is_started()) {
             self.ticks += 1;
         }
         while self.ticks >= self.after && !self.commands.is_empty() {
@@ -31,7 +31,7 @@ impl Setup {
             tracing::info!(command, "setup");
             match command.strip_prefix("wait ").and_then(|s| s.trim().parse::<f32>().ok()) {
                 Some(secs) => self.after = self.ticks + (secs * 20.0) as u32,
-                None => _ = bot.client().command(&command),
+                None => _ = bot.command(&command),
             }
         }
     }

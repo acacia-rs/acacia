@@ -198,7 +198,7 @@ pub async fn drive(bot: &mut Bot, builder: Builder, kill_at: u32, label: &str) -
         }
         (still, last_done) = if s.done == last_done { (still + 1, last_done) } else { (0, s.done) };
         if still > 0 && still % 1000 == 0 {
-            let m = bot.movement();
+            let m = bot.bedrock().and_then(|b| b.movement());
             println!("{label} STALL at {:?} ground {:?} status {st:?} failed {:?}", m.and_then(|m| m.position()), m.map(|m| m.on_ground()), s.failed);
             diag.explain_for(bot).iter().take(12).for_each(|l| println!("  OPEN {l}"));
         }

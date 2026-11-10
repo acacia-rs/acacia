@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..BotConfig::default()
     };
     let mut bot = Bot::connect(Client::builder(&server).offline(&name), config).await?;
-    println!("spawned as {}", bot.client().display_name());
+    println!("spawned as {}", bot.name());
 
     let deadline = tokio::time::sleep(Duration::from_secs(secs));
     tokio::pin!(deadline);

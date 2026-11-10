@@ -65,7 +65,9 @@ name = "acacia-bot"
 version = "0.1.0"
 dependencies = [
  "acacia-client",
+ "acacia-java-client",
  "acacia-java-physics",
+ "acacia-java-proto",
  "acacia-molang",
  "acacia-physics",
  "acacia-registry",

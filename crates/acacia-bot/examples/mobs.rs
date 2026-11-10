@@ -147,7 +147,7 @@ async fn attempt(bot: &mut Bot, pad: &Pad, s: &Scenario, profile: MovementProfil
         ticks += 1;
         strikes = procs.pilot().map_or(strikes, |p| p.strikes());
         evading += u32::from(procs.arbiter().active() == Some(evade));
-        let feet = bot.movement().and_then(|m| m.position()).unwrap_or_default();
+        let feet = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).unwrap_or_default();
         seen.add(&hazard::Threats::near(&bot.state().entities, feet, 16.0), feet, bot.state().player.unique_entity_id);
         let near = |e: &&acacia_bot::state::Entity| !e.is_player() && (e.position.x - feet[0]).hypot(e.position.z - feet[2]) < 16.0;
         seen.kinds.extend(bot.state().entities.iter().filter(near).map(|e| e.kind.clone()));

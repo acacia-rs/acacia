@@ -156,7 +156,7 @@ impl<S, F: AsyncFn(&mut Bot, &mut S)> Run<'_, S, F> {
             Ok(Ok(bot)) => bot,
         };
         self.ctx.registry.set(&id, BotStatus::Online);
-        self.ctx.emit(SwarmEvent::Spawned { id: id.clone(), display_name: bot.client().display_name().to_owned() });
+        self.ctx.emit(SwarmEvent::Spawned { id: id.clone(), display_name: bot.name().to_owned() });
         let since = Instant::now();
         let reason = match guard((self.task)(&mut bot, &mut self.spec.state), &mut self.cancel, &mut self.keeper).await {
             Ok(()) => bot.disconnect_reason().cloned().filter(|r| *r != DisconnectReason::LocalClose),

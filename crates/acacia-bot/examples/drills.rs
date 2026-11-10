@@ -318,10 +318,10 @@ async fn main() -> Result<(), Error> {
         if only.as_ref().is_some_and(|o| !o.iter().any(|n| n == drill.name)) {
             continue;
         }
-        bot.trace_mark(&format!("{} build", drill.name));
+        bot.bedrock_mut().expect("Bedrock bot").trace_mark(&format!("{} build", drill.name));
         pad.build(&mut bot, drill.fills, drill.settle).await?;
         pad.teleport(&mut bot, drill.start, -90.0).await?;
-        bot.trace_mark(drill.name);
+        bot.bedrock_mut().expect("Bedrock bot").trace_mark(drill.name);
         if std::env::var("BEDROCK_COLUMN").is_ok() {
             println!("  column under start: {}", column(&bot));
         }
@@ -344,7 +344,7 @@ async fn main() -> Result<(), Error> {
 /// Our view of the blocks from the feet down six cells (debugging stale terrain).
 fn column(bot: &Bot) -> String {
     use acacia_world::BlockAccess;
-    let (Some([x, y, z]), Some(w)) = (bot.block_position(), bot.world()) else { return "?".into() };
+    let (Some([x, y, z]), Some(w)) = (bot.block_position(), bot.bedrock().and_then(|b| b.world())) else { return "?".into() };
     let (Some(view), Some(r)) = (w.view(), w.registry()) else { return "?".into() };
     (0..6)
         .map(|d| r.get(view.block(x, y - d, z)).map_or("?", |s| s.name.trim_start_matches("minecraft:")))

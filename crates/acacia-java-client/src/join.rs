@@ -98,6 +98,11 @@ impl Client {
         self.link.send(id, body).then_some(()).ok_or(Error::Closed)
     }
 
+    /// Closes the connection; [`Client::next`] then fails with [`Error::Closed`].
+    pub fn close(&self) {
+        self.link.close();
+    }
+
     fn apply(&mut self, packet: &Packet) -> Result<(), Error> {
         use ids::play::{clientbound as from, serverbound as to};
         let (id, body) = (packet.id, &packet.body[..]);

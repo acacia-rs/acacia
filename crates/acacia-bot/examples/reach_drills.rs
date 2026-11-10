@@ -199,7 +199,7 @@ async fn hit_at(bot: &mut Bot, pad: &Pad, d: f32) -> Result<(bool, String), Erro
     aim(bot, click);
     collect(bot, 2).await?;
     let eye = bot.eye_position();
-    bot.client().send(&attack(bot, id, click));
+    bot.bedrock().expect("Bedrock bot").client().send(&attack(bot, id, click));
     let events = collect(bot, 10).await?;
     let hurt = events.iter().any(|e| match e {
         BotEvent::Packet(p) if p.id == EntityEvent::ID => {

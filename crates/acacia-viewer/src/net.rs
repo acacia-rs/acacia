@@ -151,7 +151,7 @@ async fn run(
         bot = Bot::connect(builder, config) => bot?,
         _ = &mut quit => return Ok("quit".into()),
     };
-    send(NetEvent::Status(format!("joined as {}", bot.client().display_name())))?;
+    send(NetEvent::Status(format!("joined as {}", bot.name())))?;
     let mut inventory = control::Inventory::default();
     // How many creative items were last sent to the window.
     let mut creative = 0;
@@ -255,7 +255,7 @@ async fn run(
                 return Ok("quit".into());
             }
         }
-        let world = bot.world().and_then(|w| w.view()).map(|v| v.world().clone());
+        let world = bot.bedrock().and_then(|b| b.world()).and_then(|w| w.view()).map(|v| v.world().clone());
         if let Some(world) = world.filter(|w| current.as_ref().is_none_or(|c| !Arc::ptr_eq(c, w))) {
             current = Some(world.clone());
             send(NetEvent::World(world))?;

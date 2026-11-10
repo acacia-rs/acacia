@@ -121,7 +121,7 @@ impl Own {
 
     fn steps(&mut self, bot: &Bot) -> Vec<Cue> {
         let mut out = Vec::new();
-        let Some(m) = bot.movement() else { return out };
+        let Some(m) = bot.bedrock().and_then(|b| b.movement()) else { return out };
         let (Some(feet), on_ground) = (m.position(), m.on_ground()) else { return out };
         if let Some(last) = self.last.replace(feet)
             && on_ground
@@ -141,7 +141,7 @@ impl Own {
 
 /// The block at `p` and its runtime id; `None` for air or an unknown place.
 fn block_at(bot: &Bot, p: glam::IVec3) -> Option<(&'static str, u32)> {
-    let view = bot.world()?.view()?;
+    let view = bot.bedrock().and_then(|b| b.world())?.view()?;
     let id = acacia_world::BlockAccess::block(view, p.x, p.y, p.z);
     let state = view.world().registry().get(id).filter(|s| !s.is_air())?;
     Some((state.name, id))
@@ -155,14 +155,14 @@ fn centre(p: glam::IVec3) -> [f64; 3] {
 /// runtime id in the shown world, for the chips.
 pub fn broken(bot: &Bot, packet: &RawPacket) -> Option<(glam::IVec3, u32)> {
     let p: LevelEvent = packet.decode().ok().filter(|p: &LevelEvent| p.event == LevelEventEvent::ParticleDestroy)?;
-    let world = bot.world()?.view()?.world().clone();
+    let world = bot.bedrock().and_then(|b| b.world())?.view()?.world().clone();
     let pos = glam::DVec3::new(p.position.x.into(), p.position.y.into(), p.position.z.into()).floor().as_ivec3();
     Some((pos, world.runtime_id(u32::try_from(p.data).ok()?)))
 }
 
 /// The block a sound's data names: the server's id for it (hashed on BDS).
 fn block_name(bot: &Bot, wire: i32) -> Option<String> {
-    let view = bot.world()?.view()?;
+    let view = bot.bedrock().and_then(|b| b.world())?.view()?;
     let world = view.world();
     let id = world.runtime_id(u32::try_from(wire).ok()?);
     Some(world.registry().get(id).filter(|s| !s.is_air())?.name.to_owned())

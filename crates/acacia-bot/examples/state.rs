@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let start = std::time::Instant::now();
     let mut bot = Bot::connect(builder, BotConfig { trackers, subscribe, ..BotConfig::default() }).await?;
-    println!("spawned as {}", bot.client().display_name());
+    println!("spawned as {}", bot.name());
 
     let mut script = std::env::var("BEDROCK_CMD").unwrap_or_default().split(';').filter(|s| !s.is_empty()).map(str::to_owned).collect::<Vec<_>>().into_iter();
     let mut report = tokio::time::interval(Duration::from_secs(5));
@@ -73,11 +73,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             _ = report.tick() => {
                 if let Some(line) = script.next() {
-                    if line.starts_with('/') { bot.client().command(&line); } else { bot.client().chat(line); }
+                    if line.starts_with('/') { bot.command(&line); } else { bot.chat(&line); }
                 }
                 print_state(bot.state());
             }
-            _ = &mut deadline => bot.client().close(),
+            _ = &mut deadline => bot.close(),
         }
     }
     Ok(())

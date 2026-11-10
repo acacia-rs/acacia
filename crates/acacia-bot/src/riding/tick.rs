@@ -22,7 +22,7 @@ impl Bot {
         if let Some(feet @ [x, y, z]) = exit.filter(|_| !self.state.riding.is_riding()) {
             tracing::debug!(?feet, "left the vehicle");
             self.state.player.position = Vec3f { x, y, z };
-            if let Some((idle, _)) = self.idle.as_mut() {
+            if let Some((idle, _)) = self.backend.idle_mut() {
                 idle.stepped_to(feet);
             }
         }
@@ -32,7 +32,7 @@ impl Bot {
     /// modelled) and returns true. On leaving the seat the simulation resumes where the server puts
     /// the player ([`Mount::exit_feet`]).
     pub(crate) fn ride_physics_tick(&mut self) -> bool {
-        if self.movement.is_none() {
+        if self.backend.movement().is_none() {
             return false;
         }
         let Some(seat) = Seat::of(&self.state) else {
@@ -41,7 +41,7 @@ impl Bot {
                 let eye = self.state.player.eye_position();
                 let feet = self.ride.leaving_feet.take().unwrap_or([eye.x, eye.y - EYE_HEIGHT, eye.z]);
                 tracing::debug!(?feet, "left the vehicle");
-                if let Some(movement) = self.movement.as_mut() {
+                if let Some(movement) = self.backend.movement_mut() {
                     movement.resync(idle.last_tick(), feet, [0.0; 3]);
                 }
             }
@@ -52,17 +52,17 @@ impl Bot {
         if self.ride.dismount {
             tracing::debug!(mount = ?Mount::of(&self.state), ?exit, "dismounting");
         }
-        let Some(movement) = self.movement.as_mut() else { return false };
+        let Some(movement) = self.backend.movement_mut() else { return false };
         let (yaw, pitch) = (movement.controls.yaw, movement.controls.pitch);
         let idle = self.ride.idle.get_or_insert_with(|| Idle::continuing(movement.input_tick()));
         if let Some(mut input) = idle.tick_facing(&self.state.player, yaw, pitch, true) {
             self.seat_input(&mut input, &seat, Some(exit));
             if self.state.riding.is_riding() && !self.drive_horse(&mut input) && !self.drive_boat(&mut input) {
                 // The server moves the rest (pigs, minecarts) from the rider's keys.
-                report_keys(&mut input, keys(&self.movement.as_ref().map(|m| m.controls).unwrap_or_default()));
+                report_keys(&mut input, keys(&self.backend.movement().map(|m| m.controls).unwrap_or_default()));
             }
             self.add_queued_flags(&mut input);
-            self.client.send(&input);
+            self.send_bedrock(&input);
         }
         true
     }
@@ -70,7 +70,7 @@ impl Bot {
     /// Where the server will put the player if it leaves the vehicle now, from the tracked terrain;
     /// `None` unless every block the search may test is known (idle bots keep only nearby sections).
     fn exit_feet(&self) -> Option<[f32; 3]> {
-        let world = self.world.as_ref()?;
+        let world = self.backend.world()?;
         let (view, registry) = (world.view()?, world.registry()?);
         let mount = Mount::of(&self.state)?;
         let [x, y, z] = mount.vehicle.map(|c| c.floor() as i32);
@@ -97,7 +97,9 @@ impl Bot {
         // Vanilla clears aim assist and the crosshair target on the tick after the first seated one.
         if self.ride.seated == 1 {
             self.clear_aim_assist();
-            spawn::send(&self.client, self.state.player.runtime_entity_id, SpawnPacket::MouseOverNothing);
+            if let Some(b) = self.backend.bedrock() {
+                spawn::send(&b.client, self.state.player.runtime_entity_id, SpawnPacket::MouseOverNothing);
+            }
         }
         apply_seat(input, seat, self.ride.seated == 0);
         self.ride.seated += 1;

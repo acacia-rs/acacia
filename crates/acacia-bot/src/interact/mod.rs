@@ -57,7 +57,7 @@ impl Bot {
     /// Eye position: the seat while riding, else simulated for physics bots, last server position otherwise.
     /// Line of sight over the tracked world; `None` before the world is known.
     pub(crate) fn sight(&self) -> Option<sight::Sight<'_, acacia_world::ChunkView>> {
-        let world = self.world.as_ref()?;
+        let world = self.backend.world()?;
         Some(sight::Sight { world: world.view()?, registry: world.registry()? })
     }
 
@@ -88,7 +88,7 @@ impl Bot {
         if let Some(seat) = self.seat_eye() {
             return seat;
         }
-        if let Some(eye) = self.movement.as_ref().and_then(|m| m.eye_position()) {
+        if let Some(eye) = self.backend.movement().and_then(|m| m.eye_position()) {
             return eye;
         }
         let e = self.state.player.eye_position();
@@ -96,7 +96,7 @@ impl Bot {
     }
 
     pub(crate) fn has_physics(&self) -> bool {
-        self.movement.as_ref().is_some_and(|m| m.is_started())
+        self.backend.movement().is_some_and(|m| m.is_started())
     }
 
     pub(crate) fn hand(&self) -> wire::Hand {
@@ -110,7 +110,7 @@ impl Bot {
 
     /// Runtime id and state of the tracked block at `pos` (idle bots: only right around them).
     pub(crate) fn block_at(&self, [x, y, z]: BlockPos) -> Option<(u32, &BlockState)> {
-        let world = self.world.as_ref().filter(|w| w.knows_block(x, y, z))?;
+        let world = self.backend.world().filter(|w| w.knows_block(x, y, z))?;
         let (view, registry) = (world.view()?, world.registry()?);
         let id = view.block(x, y, z);
         registry.get(id).map(|s| (id, s))
@@ -119,7 +119,7 @@ impl Bot {
     /// The id the server uses for the block at `pos`. BDS ignores a click naming another block, so an
     /// unknown block is refused rather than clicked blind.
     fn block_wire_id(&self, pos: BlockPos) -> Result<u32, ActionError> {
-        match (self.world.as_ref().and_then(|w| w.view()), self.block_at(pos)) {
+        match (self.backend.world().and_then(|w| w.view()), self.block_at(pos)) {
             (Some(view), Some((id, _))) => Ok(view.world().wire_id(id)),
             _ => Err(ActionError::NotPossible(format!("block {pos:?} is not known (not loaded, or not received near an idle bot)"))),
         }
@@ -128,7 +128,7 @@ impl Bot {
     /// (yaw, pitch) the bot's inputs report: its own aim, or for an idle bot that has not aimed, the
     /// server's last rotation.
     pub fn facing(&self) -> (f32, f32) {
-        match (self.movement.as_ref(), self.idle.as_ref()) {
+        match (self.backend.movement(), self.backend.idle()) {
             (Some(m), _) => (m.controls.yaw, m.controls.pitch),
             (None, Some((idle, _))) => idle.facing(&self.state.player),
             (None, None) => (self.state.player.yaw, self.state.player.pitch),
@@ -141,11 +141,11 @@ impl Bot {
     pub async fn look_at(&mut self, target: Vec3) -> Result<(), ActionError> {
         let eye = self.eye_position();
         let (before, after) = if self.has_physics() {
-            let Some(movement) = self.movement.as_mut() else { return Ok(()) };
+            let Some(movement) = self.backend.movement_mut() else { return Ok(()) };
             let before = movement.controls;
             movement.controls.look_at(eye, target);
             ((before.yaw, before.pitch), (movement.controls.yaw, movement.controls.pitch))
-        } else if let Some((idle, _)) = self.idle.as_mut() {
+        } else if let Some((idle, _)) = self.backend.idle_mut() {
             let before = idle.facing(&self.state.player);
             idle.look_at(eye, target);
             (before, idle.facing(&self.state.player))

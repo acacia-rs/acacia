@@ -145,7 +145,7 @@ fn perceive(pilot: &mut Pilot, state: &GameState, movement: &Movement, view: &Ch
 
 /// [`perceive`] for a pilot not driven this tick (one that holds at its goal still notices a threat leave).
 pub(super) fn sense(pilot: &mut Pilot, bot: &Bot) {
-    let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_ref()) else { return };
+    let Some((world, movement)) = bot.backend.physics() else { return };
     if let (Some(view), Some(registry)) = (world.view(), world.registry()) {
         perceive(pilot, &bot.state, movement, view, registry.as_ref());
     }
@@ -153,7 +153,7 @@ pub(super) fn sense(pilot: &mut Pilot, bot: &Bot) {
 
 /// After the steering: aims at a chaser closing in and attacks it when due ([`Pilot::strike`]).
 fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
-    let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_ref()) else { return };
+    let Some((world, movement)) = bot.backend.physics() else { return };
     let (Some(view), Some(registry), Some(st)) = (world.view(), world.registry(), movement.state()) else { return };
     let mut controls = movement.controls;
     let id = {
@@ -162,7 +162,7 @@ fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
         let body = Body { eye: bot.eye_position(), feet: st.pos, vel: st.vel, me: bot.state.player.unique_entity_id, tick: bot.state.entities.now(), sees: &sees };
         pilot.strike(&body, &mut controls)
     };
-    if let Some(m) = bot.movement.as_mut() {
+    if let Some(m) = bot.backend.movement_mut() {
         m.controls = controls;
     }
     if let Some(id) = id {
@@ -174,7 +174,7 @@ fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
 
 /// Drives `pilot` for one tick (without letting it pass) and does any work due; also returns what the work changed.
 pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus, ActionError>, Worked) {
-    if bot.movement.is_none() {
+    if bot.backend.movement().is_none() {
         return (Err(ActionError::NotPossible("pathfinding needs a physics bot (BotConfig.physics)".into())), Worked::default());
     }
     let s = &pilot.opts().search;
@@ -183,7 +183,7 @@ pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus,
     if opts.boats {
         opts.boat_source = bot.boat_source();
     }
-    let (Some(world), Some(movement)) = (bot.world.as_ref(), bot.movement.as_mut()) else {
+    let Some((world, movement)) = bot.backend.physics_mut() else {
         return (Ok(NavStatus::Searching), Worked::default());
     };
     let (Some(view), Some(registry)) = (world.view(), world.registry()) else {

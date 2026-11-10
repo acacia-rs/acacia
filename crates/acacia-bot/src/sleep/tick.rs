@@ -48,7 +48,7 @@ impl Bot {
     /// Physics bots: while the server shows the player sleeping, sends a still input at the bed instead
     /// of simulating and returns true. On waking the simulation resumes at the server's position.
     pub(crate) fn bed_physics_tick(&mut self) -> bool {
-        let Some(movement) = self.movement.as_mut() else { return false };
+        let Some(movement) = self.backend.movement_mut() else { return false };
         if !self.state.player.is_sleeping() {
             if let Some(idle) = self.bed.idle.take() {
                 (self.bed.lying, self.bed.clicked_from) = (None, None);
@@ -70,7 +70,7 @@ impl Bot {
         if let Some(mut input) = idle.tick_facing(&self.state.player, yaw, 0.0, true) {
             input.position = eye;
             self.add_queued_flags(&mut input);
-            self.client.send(&input);
+            self.send_bedrock(&input);
         }
         true
     }

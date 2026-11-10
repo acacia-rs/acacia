@@ -70,7 +70,7 @@ async fn run() -> Result<(), Error> {
         pad.teleport(&mut a, [start[0], 0.0, start[1]], yaw).await?;
         a.wait_ticks(5).await?;
         let seg = if mix { Segment::draw(&mut next) } else { Segment { strafe: 0.0, sprint: true, jump, turn: Turn::None } };
-        a.trace_mark(&format!("hop {yaw} {seg:?}"));
+        a.bedrock_mut().expect("Bedrock bot").trace_mark(&format!("hop {yaw} {seg:?}"));
         let before = corrections(&a);
         for t in 0..ticks {
             let y = yaw + seg.turn.offset(t);

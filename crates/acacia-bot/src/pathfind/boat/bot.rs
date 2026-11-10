@@ -26,7 +26,7 @@ impl Bot {
     /// in reach or places one from the hotbar, paddles, gets off by the target, and breaks and collects the boat
     /// unless `opts.keep_boat`.
     pub async fn boat_to(&mut self, target: BlockPos, opts: BoatOpts) -> Result<(), ActionError> {
-        if self.movement.as_ref().is_none_or(|m| !m.is_started()) {
+        if self.backend.require("boats")?.movement.as_ref().is_none_or(|m| !m.is_started()) {
             return Err(ActionError::NotPossible("boating needs a physics bot (BotConfig.physics)".into()));
         }
         if !self.state.tracks_entities() {
@@ -43,7 +43,7 @@ impl Bot {
             self.next_tick(|_, _| false).await?;
         }
         let paddled = self.paddle(target, &opts).await;
-        if let Some(m) = self.movement.as_mut() {
+        if let Some(m) = self.backend.movement_mut() {
             m.controls.stop();
         }
         if let Err(e) = paddled {
@@ -59,7 +59,7 @@ impl Bot {
         if !opts.keep_boat {
             self.collect_boat(boat).await?;
         }
-        let Some(feet) = self.movement.as_ref().and_then(|m| m.position()) else { return Ok(()) };
+        let Some(feet) = self.backend.movement().and_then(|m| m.position()) else { return Ok(()) };
         let centre = [target[0] as f32 + 0.5, target[2] as f32 + 0.5];
         if (feet[0] - centre[0]).hypot(feet[2] - centre[1]) > WALK_REST || feet[1].floor() as i32 != target[1] {
             self.goto_with(Goal::Block(target), GotoOpts::default()).await?;
@@ -75,7 +75,7 @@ impl Bot {
         for tick in 0.. {
             let st = self.boat_state().ok_or_else(|| ActionError::NotPossible("not driving a boat".into()))?;
             let order = {
-                let (Some(world), Some(movement)) = (self.world.as_ref(), self.movement.as_mut()) else { return Err(ActionError::Disconnected) };
+                let Some((world, movement)) = self.backend.physics_mut() else { return Err(ActionError::Disconnected) };
                 let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return Err(ActionError::Disconnected) };
                 let terrain = Terrain::new(view, registry.as_ref());
                 let replan = pilot.as_ref().is_none_or(|p| !p.complete() && tick - planned_at >= REPLAN_TICKS);

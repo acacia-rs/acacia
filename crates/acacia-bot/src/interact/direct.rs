@@ -96,7 +96,7 @@ impl Bot {
     pub fn stop_mining(&mut self) {
         if let Some(m) = self.mining.take()
             && m.progress.ticks() > 0
-            && let Some(movement) = self.movement.as_mut()
+            && let Some(movement) = self.backend.movement_mut()
         {
             movement.pending_actions.push(wire::block_action(Action::AbortBreak, m.pos, m.face));
         }
@@ -132,7 +132,7 @@ impl Bot {
         let ticks_now = if m.creative { 1 } else { break_ticks(&m.mining, &self.break_conditions()).unwrap_or(u32::MAX) };
         let last = m.progress.step(ticks_now);
         let actions = wire::break_step(tick == 0, last, m.pos, m.face, m.creative);
-        if let Some(movement) = self.movement.as_mut() {
+        if let Some(movement) = self.backend.movement_mut() {
             movement.pending_actions.extend(actions);
         }
         if tick % SWING_EVERY == 0 {
@@ -145,7 +145,7 @@ impl Bot {
     /// minecart) is placed against it unless the block is one a click uses ([`is_interactive`]) and
     /// the player is not sneaking; anything else uses the block or the item on it.
     pub fn right_click_block(&mut self, pos: BlockPos, face: Face) -> Result<(), ActionError> {
-        let sneaking = self.movement.as_ref().is_some_and(|m| m.controls.sneak);
+        let sneaking = self.backend.movement().is_some_and(|m| m.controls.sneak);
         let held = self.state.inventory.held();
         let places = held.block_runtime_id != 0 || self.held_name().is_some_and(|n| n.ends_with("boat") || n.ends_with("minecart"));
         let interactive = self.block_at(pos).is_some_and(|(_, s)| is_interactive(s));

@@ -143,7 +143,7 @@ impl Bot {
     /// vanilla client does when it places: physics then agrees with a server that already has it. Returns the
     /// block it replaced (wire id), for [`Bot::unpredict_block`].
     pub(crate) fn predict_block(&self, pos: BlockPos, wire: u32) -> Option<u32> {
-        let view = self.world.as_ref()?.view()?;
+        let view = self.backend.world()?.view()?;
         let (id, _) = self.block_at(pos)?;
         let old = view.world().wire_id(id);
         view.set_block(pos[0], pos[1], pos[2], 0, wire);
@@ -152,7 +152,7 @@ impl Bot {
 
     /// Puts back the block a refused or unanswered prediction replaced (no ghost block stays behind).
     pub(crate) fn unpredict_block(&self, pos: BlockPos, old: u32) {
-        if let Some(view) = self.world.as_ref().and_then(|w| w.view()) {
+        if let Some(view) = self.backend.world().and_then(|w| w.view()) {
             view.set_block(pos[0], pos[1], pos[2], 0, old);
         }
     }

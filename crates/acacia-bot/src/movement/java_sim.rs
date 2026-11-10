@@ -28,7 +28,7 @@ fn widen(v: Vec3) -> [f64; 3] {
     v.map(f64::from)
 }
 
-fn keys(c: &Controls) -> Keys {
+pub(crate) fn keys(c: &Controls) -> Keys {
     Keys {
         forward: c.forward > 0.0,
         backward: c.forward < 0.0,
