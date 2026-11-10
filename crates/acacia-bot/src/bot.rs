@@ -129,7 +129,7 @@ impl Bot {
         match &self.backend {
             Backend::Bedrock(b) => b.client.command(cmd),
             #[cfg(feature = "java")]
-            Backend::Java(_) => java::not_yet("commands"),
+            Backend::Java(j) => j.client.command(cmd).is_ok(),
         }
     }
 
@@ -138,7 +138,7 @@ impl Bot {
         match &self.backend {
             Backend::Bedrock(b) => b.client.chat(text),
             #[cfg(feature = "java")]
-            Backend::Java(_) => java::not_yet("chat"),
+            Backend::Java(j) => j.client.chat(text).is_ok(),
         }
     }
 

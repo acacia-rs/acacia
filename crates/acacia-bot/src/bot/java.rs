@@ -102,10 +102,3 @@ fn disconnect_reason(e: Error) -> DisconnectReason {
         e => DisconnectReason::Protocol(e.to_string()),
     }
 }
-
-/// Logs a neutral call the Java side cannot serve yet; always false.
-// TODO: Java chat and commands (ChatCommand, Chat packets with their signing state).
-pub(super) fn not_yet(what: &str) -> bool {
-    tracing::warn!("not supported on Java Edition yet: {what}");
-    false
-}
