@@ -3,6 +3,7 @@
 
 mod aabb;
 mod block_factors;
+mod block_path;
 mod boat;
 mod boat_inside;
 mod boat_lerp;
