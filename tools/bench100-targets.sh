@@ -23,7 +23,8 @@ sapling_prepare() {
   local bin=${SAPLING_BIN:-${SAPLING:-$root/../sapling-bench100}/target/release/examples/bench_server}
   [ -x "$bin" ] || { echo "no sapling bench_server at $bin (tools/bench100.sh build sapling)" >&2; return 1; }
   bds_properties >"$1/bench.properties"
-  server_cmd=("$bin" --properties=bench.properties)
+  # SERVER_WRAP: argv prefix, e.g. "heaptrack -o <file>" (samples.tsv then shows the wrapper, not the server).
+  server_cmd=(${SERVER_WRAP:-} "$bin" --properties=bench.properties)
   ready_re='started'
   tick_re='^sapling-shard-0$'
   tp_cmd='tp @s {x} {y} {z}' console_tp='' time_cmd='time query gametime' console_poll='' stop_line=''

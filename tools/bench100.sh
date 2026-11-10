@@ -9,7 +9,7 @@
 #        tools/bench100.sh build <swarm|sapling>                   (release builds, -j 2, under BUILD_LOCK)
 #   env: BOTS (100) PORT (19470, and +1 for BDS's v6) SEED VIEW SIM IDLE (20) MIN_SETTLE (300) MAX_SETTLE (900) STEADY (90)
 #        SERVER_CPUS (0-3,8-11) SWARM_CPUS (4-7,12-15) Y (200: teleport height) SPACING (32 chunks)
-#        SWARM_BIN (target/release/examples/bench100)
+#        SWARM_BIN (target/release/examples/bench100) PROFILE (1: attach perf, see tools/bench100-profile.sh)
 #        sapling: SAPLING (../sapling-bench100, branch bench/100-bot; its ignored data copied from
 #                 sapling/) or SAPLING_BIN. chorus: CHORUS_BIN. bds: BDS_HOME (~/work/bds-mem100).
 #   Per run dir: server.log, swarm.jsonl, samples.tsv (t cpu_ticks rss_kb), threads.tsv
@@ -96,6 +96,8 @@ run() {
     || { echo "server did not start:"; tail -n 20 "$out/server.log"; return 1; }
   sample "$server" "$out" &
   helpers+=($!)
+  local profile=''
+  if [ "${PROFILE:-0}" = 1 ]; then bash "$root/tools/bench100-profile.sh" "$server" "$out" & profile=$!; fi
   echo "$target: up, idle ${IDLE}s"
   sleep "$IDLE"
 
@@ -111,6 +113,8 @@ run() {
   timeout $((MAX_SETTLE + STEADY + 300)) tail --pid="$swarm" -f /dev/null
   wait "$swarm" 2>/dev/null; swarm=''
   stop
+  # stop() killed its helpers; the profilers end with the server and finish writing here.
+  [ -n "$profile" ] && wait "$profile" 2>/dev/null
   python3 -I "$root/tools/bench100-summary.py" "$out" | tee "$out/summary.md"
 }
 
