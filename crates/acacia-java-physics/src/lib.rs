@@ -16,6 +16,7 @@ mod mth;
 mod player;
 mod support;
 mod swim;
+mod teleport;
 mod tick;
 mod travel;
 
@@ -24,3 +25,4 @@ pub use boat::{Boat, BoatStatus};
 pub use collide::Blocks;
 pub use input::{Keys, Pose};
 pub use player::{Effects, ItemUse, Player};
+pub use teleport::Placement;

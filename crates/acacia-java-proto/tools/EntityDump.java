@@ -10,6 +10,8 @@ import java.util.Map;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
@@ -26,6 +28,38 @@ public class EntityDump {
         if (AbstractMinecart.class.isAssignableFrom(c)) return "pushable";
         if (Bat.class.isAssignableFrom(c) || ArmorStand.class.isAssignableFrom(c)) return "none";
         return LivingEntity.class.isAssignableFrom(c) ? "pushable" : "none";
+    }
+
+    // `getAgeScale` overrides in 26.3; every other baby is half size.
+    static final Map<String, Float> AGE_SCALES = Map.of(
+        "Dolphin", 0.65F, "HappyGhast", 0.2375F, "Goat", 0.55F, "Armadillo", 0.6F, "Turtle", 0.3F, "Camel", 0.6F);
+
+    static Object staticField(Class<?> c, String name) throws Exception {
+        for (; c != Object.class; c = c.getSuperclass()) {
+            try {
+                Field f = c.getDeclaredField(name);
+                f.setAccessible(true);
+                return f.get(null);
+            } catch (NoSuchFieldException e) {
+                // keep looking in the superclass
+            }
+        }
+        return null;
+    }
+
+    // `,"baby":[w,h],"babyData":id` for types with a synced baby flag.
+    static String baby(Class<?> c, EntityType<?> t) throws Exception {
+        if (!(staticField(c, "DATA_BABY_ID") instanceof EntityDataAccessor<?> flag)) return "";
+        float w, h;
+        if (staticField(c, "BABY_DIMENSIONS") instanceof EntityDimensions d) {
+            w = d.width();
+            h = d.height();
+        } else {
+            float scale = AGE_SCALES.getOrDefault(c.getSimpleName(), 0.5F);
+            w = t.getWidth() * scale;
+            h = t.getHeight() * scale;
+        }
+        return ",\"baby\":[" + w + "," + h + "],\"babyData\":" + flag.id();
     }
 
     public static void main(String[] args) throws Exception {
@@ -48,7 +82,8 @@ public class EntityDump {
                 .append(",\"name\":\"").append(BuiltInRegistries.ENTITY_TYPE.getKey(t)).append("\"")
                 .append(",\"width\":").append(t.getWidth())
                 .append(",\"height\":").append(t.getHeight())
-                .append(",\"collision\":\"").append(collision(c)).append("\"}");
+                .append(",\"collision\":\"").append(collision(c)).append("\"")
+                .append(baby(c, t)).append("}");
         }
         Files.writeString(Path.of(args[0]), out.append("]").toString());
     }

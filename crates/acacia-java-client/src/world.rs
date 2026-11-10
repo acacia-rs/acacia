@@ -4,11 +4,11 @@ use std::collections::HashMap;
 
 use crate::chunks::Chunks;
 use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
-pub use crate::entity::Entity;
+pub use crate::entity::{Entity, Mover};
 
-use acacia_java_physics::Aabb;
+use acacia_java_physics::{Aabb, Placement};
+use crate::movement::placement;
 use acacia_java_proto::actions::BlockPos;
-use acacia_java_proto::entity_types::{ENTITY_SHAPES, EntityCollision};
 use acacia_java_proto::chunk::{read_chunk_header, read_sections};
 use acacia_java_proto::entity::{PositionPath, read_lp_vec3, read_move, read_path, skip_lp_vec3};
 use acacia_java_proto::packets::{PositionMoveRotation, SetPassengers};
@@ -59,15 +59,9 @@ impl World {
         self.chunks.min_y()
     }
 
-    /// Boxes of the entities that block a mover: solid ones, and pushable ones too for a `vehicle`, minus `skip`
-    /// (the mover and whoever rides with it). TODO: babies, slime sizes and player poses get the type's default size.
-    pub fn collision_boxes(&self, vehicle: bool, skip: &[i32]) -> Vec<Aabb> {
-        let blocks = |c: EntityCollision| c == EntityCollision::Solid || vehicle && c == EntityCollision::Pushable;
-        let boxed = |e: &Entity| {
-            let &(width, height, collision) = ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?;
-            blocks(collision).then(|| Aabb::of_entity(e.position, width, height))
-        };
-        self.entities.iter().filter(|(id, _)| !skip.contains(id)).filter_map(|(_, e)| boxed(e)).collect()
+    /// Boxes of the entities that block `mover`, minus `skip` (the mover and whoever rides with it).
+    pub fn collision_boxes(&self, mover: Mover, skip: &[i32]) -> Vec<Aabb> {
+        self.entities.iter().filter(|(id, _)| !skip.contains(id)).filter_map(|(_, e)| e.collision_box(mover)).collect()
     }
 
     /// Writes a block ahead of the server, as vanilla's prediction does; the server's update overwrites it.
@@ -164,14 +158,12 @@ impl World {
             }
             from::SET_ENTITY_DATA => {
                 let id = read_varint(input)?;
-                match self.entities.get_mut(&id) {
-                    Some(e) if is_rocket(e.kind) => {
-                        read_rocket_target(input)?.inspect(|&target| e.attached_to = target);
-                    }
-                    Some(e) if has_mob_flags(e.kind) => {
-                        read_mob_flags(input)?.inspect(|flags| e.aggressive = flags & MOB_AGGRESSIVE != 0);
-                    }
-                    _ => {}
+                let Some(e) = self.entities.get_mut(&id) else { return Ok(()) };
+                e.read_body_data(input)?;
+                if is_rocket(e.kind) {
+                    read_rocket_target(input)?.inspect(|&target| e.attached_to = target);
+                } else if has_mob_flags(e.kind) {
+                    read_mob_flags(input)?.inspect(|flags| e.aggressive = flags & MOB_AGGRESSIVE != 0);
                 }
             }
             from::MOVE_ENTITY_ROT => {
@@ -214,19 +206,17 @@ impl World {
         Ok(())
     }
 
-    /// `Relative` bits as in [`crate::Pose`].
     fn teleport_entity(&mut self, input: &mut &[u8]) -> Result<(), Error> {
         let id = read_varint(input)?;
-        let c = PositionMoveRotation::read(input)?;
+        let change = placement(&PositionMoveRotation::read(input)?);
         let relatives = i32::read(input)?;
         let on_ground = bool::read(input)?;
-        // The driven vehicle's teleport snaps it in `Client::vehicle_teleported`.
+        // The driven vehicle's teleport goes through `Client::vehicle_teleported`.
         let Some(e) = self.entities.get_mut(&id).filter(|_| self.driven != Some(id)) else { return Ok(()) };
-        let is =|bit: u32| relatives & (1 << bit) != 0;
-        let [x, y, z] = e.position;
-        let to = [c.x + if is(0) { x } else { 0.0 }, c.y + if is(1) { y } else { 0.0 }, c.z + if is(2) { z } else { 0.0 }];
-        let rot = (c.y_rot + if is(3) { e.y_rot } else { 0.0 }, c.x_rot + if is(4) { e.x_rot } else { 0.0 });
-        e.move_to(Some(PositionPath::Linear(to)), Some(rot), true);
+        let source = Placement { pos: e.position, delta: e.motion, y_rot: e.y_rot, x_rot: e.x_rot };
+        let to = source.teleported(&change, relatives);
+        e.motion = to.delta;
+        e.move_to(Some(PositionPath::Linear(to.pos)), Some((to.y_rot, to.x_rot)), true);
         e.on_ground = on_ground;
         Ok(())
     }

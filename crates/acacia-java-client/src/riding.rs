@@ -2,13 +2,15 @@
 //! (`AbstractBoat.tick`, `LocalPlayer.rideTick` and `sendChanges`).
 // TODO: other vehicles (horses, pigs, minecarts) seat the player but aren't driven; a passenger seat isn't placed.
 
-use acacia_java_physics::{Boat, Keys};
+use acacia_java_physics::{Boat, Keys, Placement};
 use acacia_java_proto::entity_types::ENTITY_TYPES;
 use acacia_java_proto::packets::{MovePlayerRot, MoveVehicle, PaddleBoat, PositionMoveRotation, VehiclePose};
 use acacia_java_proto::{Wire, ids, read_varint};
 
 use crate::frame::Error;
 use crate::join::Client;
+use crate::movement::placement;
+use crate::world::Mover;
 
 use ids::play::{clientbound as from, serverbound as to};
 
@@ -107,25 +109,29 @@ impl Client {
         self.send(to::MOVE_VEHICLE, &echo)
     }
 
-    /// `handleTeleportEntity` on the driven boat: interpolated over three ticks, snapped beyond 64 blocks.
+    /// `handleTeleportEntity` on the driven boat: interpolated over three ticks; beyond 64 blocks it snaps, carries
+    /// the rider and is reported at once.
     fn vehicle_teleported(&mut self, input: &mut &[u8]) -> Result<(), Error> {
         let id = read_varint(input)?;
         let Some(boat) = self.movement.riding.as_mut().and_then(|r| r.boat.as_mut()).filter(|_| self.world.driven == Some(id)) else {
             return Ok(());
         };
-        let c = PositionMoveRotation::read(input)?;
-        let relatives = i32::read(input)?;
-        let base = |bit: u32, v: f64| if relatives & (1 << bit) != 0 { v } else { 0.0 };
-        let pos = [base(0, boat.pos[0]) + c.x, base(1, boat.pos[1]) + c.y, base(2, boat.pos[2]) + c.z];
-        boat.delta = [base(5, boat.delta[0]) + c.delta_x, base(6, boat.delta[1]) + c.delta_y, base(7, boat.delta[2]) + c.delta_z];
-        let yaw = base(3, boat.yaw as f64) as f32 + c.y_rot;
-        let pitch = base(4, boat.pitch as f64) as f32 + c.x_rot;
-        if (0..3).map(|a| (pos[a] - boat.pos[a]).powi(2)).sum::<f64>() > 4096.0 {
+        let change = placement(&PositionMoveRotation::read(input)?);
+        let source = Placement { pos: boat.pos, delta: boat.delta, y_rot: boat.yaw, x_rot: boat.pitch };
+        let Placement { pos, delta, y_rot: yaw, x_rot: pitch } = source.teleported(&change, i32::read(input)?);
+        boat.delta = delta;
+        let snap = (0..3).map(|a| (pos[a] - boat.pos[a]).powi(2)).sum::<f64>() > 4096.0;
+        if snap {
             (boat.pos, boat.yaw, boat.pitch) = (pos, yaw, pitch);
         } else {
             boat.interpolate_to(pos, yaw, pitch);
         }
         boat.on_ground = bool::read(input)?;
+        if snap {
+            let echo = vehicle_move(boat);
+            self.movement.player.pos = boat.rider_feet();
+            self.send(to::MOVE_VEHICLE, &echo)?;
+        }
         Ok(())
     }
 
@@ -137,7 +143,7 @@ impl Client {
         let mut sent = None;
         if let Some(boat) = riding.boat.as_mut() {
             let passengers = self.world.entities.get(&riding.vehicle).map_or(&[][..], |e| &e.passengers);
-            boat.solid_entities = self.world.collision_boxes(true, &[&[riding.vehicle][..], passengers].concat());
+            boat.solid_entities = self.world.collision_boxes(Mover::Vehicle, &[&[riding.vehicle][..], passengers].concat());
             let [left, right] = boat.tick(&self.world, riding.keys);
             sent = Some((PaddleBoat { left, right }, boat.clone()));
             if let Some(e) = self.world.entities.get_mut(&riding.vehicle) {

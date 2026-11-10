@@ -45,7 +45,9 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    `acacia-java-proto/tools/EntityDump.java`); a boat stops at a NoAI pig, 0 alerts. The driven boat is never
    pushed (it carries a rider). A teleport of it interpolates over three ticks (`boat_lerp.rs`); Grim flags a
    tp of a ridden boat whether it snaps or interpolates. Boarding's teleport isn't a setback. Not modelled:
-   baby/slime/pose sizes, other vehicles. Elytra flight too: a jump in the air
+   the scale attribute and per-type shapes (slimes, pufferfish, shulker peeks), other vehicles; babies (the dump's
+   `BABY_DIMENSIONS` or age scale), player poses and a still happy ghast are sized. Every teleport goes through
+   `acacia-java-physics` `Placement::teleported`, `ROTATE_DELTA` included. Elytra flight too: a jump in the air
    with a usable elytra worn starts the glide (`START_FALL_FLYING`), and each firework rocket attached to the
    player (entity data 9) boosts the physics after the player's tick (example `java_elytra`: two boosts, ~930
    blocks, 0 alerts). Dialogs answer as forms (see "Forms" below). Item use in the air came 2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
@@ -93,7 +95,8 @@ Java dialogs (`ShowDialog`, inline or a registry entry) are `Bot` forms. Confirm
 Inputs map to Bedrock elements: text → Input, boolean → Toggle, single_option → Dropdown, number_range → Slider
 (snapped to its step). A button sends a command (unsigned `ChatCommand`, templates filled as vanilla does) or a
 `CustomClickAction`; `Close` runs the cancel action (notice → its button, confirmation → no, else `exit_action`)
-when escape may close it. Registry dialogs aren't read from configuration yet, so they show as a form with no buttons titled by registry index.
+when escape may close it. Registry dialogs come from configuration's `minecraft:dialog` data; the built-in ones
+(sent without data, since the client claims the vanilla packs) show as a form with no buttons titled by index.
 Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
 
 ## Test servers

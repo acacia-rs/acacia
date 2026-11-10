@@ -1,17 +1,17 @@
 //! Runs the local player's physics and tells the server, as `LocalPlayer.sendChanges` does.
 
-use acacia_java_physics::{Blocks, Keys, Player};
+use acacia_java_physics::{Blocks, Keys, Placement, Player};
 use acacia_java_proto::packets::{
     COMMAND_START_FALL_FLYING, COMMAND_START_SPRINTING, COMMAND_STOP_SPRINTING, ClientboundAbilities, Empty, MovePlayerPos, MovePlayerPosRot, MovePlayerRot, MovePlayerStatusOnly,
-    PlayerCommand, PlayerInput, PlayerPosition, ServerboundAbilities,
+    PlayerCommand, PlayerInput, PlayerPosition, PositionMoveRotation, ServerboundAbilities,
 };
 use acacia_java_proto::entity::read_lp_vec3;
 use acacia_java_proto::{Error as WireError, VarInt, Wire, ids, read_varint};
 
 use crate::frame::Error;
-use crate::join::{Client, Pose};
+use crate::join::Client;
 use crate::riding::Riding;
-use crate::world::World;
+use crate::world::{Mover, World};
 
 use ids::play::{clientbound as from, serverbound as to};
 
@@ -72,17 +72,19 @@ impl Default for Movement {
     }
 }
 
+/// A teleport packet's change as a [`Placement`].
+pub(crate) fn placement(c: &PositionMoveRotation) -> Placement {
+    Placement { pos: [c.x, c.y, c.z], delta: [c.delta_x, c.delta_y, c.delta_z], y_rot: c.y_rot, x_rot: c.x_rot }
+}
+
 impl Movement {
-    /// `setValuesFromPositionPacket`; `pose` is the position already made absolute.
-    // TODO: Relative.ROTATE_DELTA (bit 8) is not applied.
-    pub(crate) fn teleported(&mut self, pose: Pose, packet: &PlayerPosition) {
-        let c = &packet.change;
-        let change = [c.delta_x, c.delta_y, c.delta_z];
-        let delta = std::array::from_fn(|a| if packet.relatives & (1 << (5 + a)) != 0 { self.player.delta[a] } else { 0.0 } + change[a]);
-        self.player.pos = pose.position;
-        self.player.delta = delta;
-        self.player.yaw = pose.y_rot;
-        self.player.pitch = pose.x_rot;
+    /// `setValuesFromPositionPacket` on the player; returns where it put it.
+    pub(crate) fn teleported(&mut self, packet: &PlayerPosition) -> Placement {
+        let p = &self.player;
+        let source = Placement { pos: p.pos, delta: p.delta, y_rot: p.yaw, x_rot: p.pitch };
+        let to = source.teleported(&placement(&packet.change), packet.relatives);
+        (self.player.pos, self.player.delta, self.player.yaw, self.player.pitch) = (to.pos, to.delta, to.y_rot, to.x_rot);
+        to
     }
 
     pub(crate) fn apply(&mut self, id: i32, mut input: &[u8], player_id: i32) -> Result<(), WireError> {
@@ -153,7 +155,8 @@ impl Client {
         if self.movement.riding.is_some() {
             self.ride_step(keys)?;
         } else {
-            self.movement.player.solid_entities = self.world.collision_boxes(false, &[]);
+            let feet = self.movement.player.pos[1];
+            self.movement.player.solid_entities = self.world.collision_boxes(Mover::Player { feet }, &[]);
             self.movement.player.tick(&self.world, keys);
             self.send_changes()?;
             let me = self.world.player_id;
