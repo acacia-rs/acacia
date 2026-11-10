@@ -41,6 +41,18 @@ pub fn normalize(v: [f64; 3]) -> [f64; 3] {
     if length < 1.0E-5_f32 as f64 { [0.0; 3] } else { v.map(|c| c / length) }
 }
 
+/// `Mth.wrapDegrees`: into [-180, 180).
+pub fn wrap_degrees(d: f32) -> f32 {
+    let d = d % 360.0;
+    if d >= 180.0 {
+        d - 360.0
+    } else if d < -180.0 {
+        d + 360.0
+    } else {
+        d
+    }
+}
+
 /// `Entity.calculateViewVector`.
 pub fn look_vector(pitch: f32, yaw: f32) -> [f64; 3] {
     let x = pitch * DEG_TO_RAD;

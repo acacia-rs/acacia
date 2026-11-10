@@ -97,6 +97,17 @@ impl Player {
         self.zza = input[1];
     }
 
+    /// The rider a mount reads after this tick's keys: a passenger never crouches and isn't slowed by using items.
+    pub fn rider(&mut self, keys: Keys) -> crate::Rider {
+        self.read_keys(keys);
+        self.crouching = false;
+        let using = self.using_item.take();
+        self.apply_input();
+        self.using_item = using;
+        let (xxa, zza, yaw, pitch) = (self.xxa, self.zza, self.yaw, self.pitch);
+        crate::Rider { xxa, zza, jumping: keys.jump, sprinting: self.sprinting, yaw, pitch }
+    }
+
     fn slow_from_item(&self) -> bool {
         self.using_item.is_some_and(|using| !using.can_sprint)
     }

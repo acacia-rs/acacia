@@ -130,7 +130,7 @@ impl Player {
             self.delta = [0.0; 3];
         }
         let delta = self.back_off_from_edge(world, delta);
-        let movement = self.colliders(world).collide(self.bounding_box(), delta, self.on_ground, STEP_HEIGHT);
+        let movement = self.colliders(world).collide(self.bounding_box(), delta, self.on_ground, self.step_height());
         let moved = length_sqr(movement);
         if moved > 1.0E-7 || length_sqr(delta) - moved < 1.0E-7 {
             let from = self.pos;

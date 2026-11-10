@@ -10,7 +10,7 @@ use crate::block_path::for_each_cell_between;
 use crate::collide::Blocks;
 use crate::fluid::fluid_of;
 use crate::mth::{floor, length_sqr};
-use crate::player::{Player, WIDTH};
+use crate::player::Player;
 use crate::support::LEGACY_ON_POS;
 
 const TARGET_MARGIN: f64 = 1.0E-5_f32 as f64;
@@ -178,7 +178,7 @@ impl InsideBody for Player {
     }
 
     fn size(&self) -> (f32, f32) {
-        (WIDTH, self.pose.height())
+        Player::size(self)
     }
 
     fn grounded(&self) -> bool {

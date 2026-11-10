@@ -1,7 +1,7 @@
-//! Riding on Java: the client keeps the seat and drives the boat (`acacia_java_client::Riding`); this mirrors the seat
+//! Riding on Java: the client keeps the seat and drives the boat or mount (`acacia_java_client::Riding`); this mirrors the seat
 //! into `state.riding`. A dismount holds shift until the server lets the player off.
 
-use acacia_java_physics::Boat;
+use acacia_java_physics::{Boat, Mount};
 
 use crate::state::{java_bedrock_kind, Vehicle};
 use crate::Bot;
@@ -9,7 +9,12 @@ use crate::Bot;
 impl Bot {
     /// The boat the bot drives on Java, as simulated after its last tick.
     pub fn java_boat(&self) -> Option<&Boat> {
-        self.java()?.client().movement.riding.as_ref()?.boat.as_ref()
+        self.java()?.client().movement.riding.as_ref()?.driven.as_ref()?.boat()
+    }
+
+    /// The mount the bot drives on Java, as simulated after its last tick.
+    pub fn java_mount(&self) -> Option<&Mount> {
+        self.java()?.client().movement.riding.as_ref()?.driven.as_ref()?.mount()
     }
 
     /// Mirrors the Java client's seat into `state.riding`; a dismount is over once the seat is gone.

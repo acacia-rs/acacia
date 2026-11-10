@@ -172,7 +172,11 @@ impl Client {
     }
 
     fn send_command(&mut self, action: i32) -> Result<(), Error> {
-        let packet = PlayerCommand { entity: VarInt(self.world.player_id), action: VarInt(action), data: VarInt(0) };
+        self.send_command_with(action, 0)
+    }
+
+    pub(crate) fn send_command_with(&mut self, action: i32, data: i32) -> Result<(), Error> {
+        let packet = PlayerCommand { entity: VarInt(self.world.player_id), action: VarInt(action), data: VarInt(data) };
         self.send(to::PLAYER_COMMAND, &packet)
     }
 

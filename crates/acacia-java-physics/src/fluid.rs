@@ -265,13 +265,14 @@ fn add_current(delta: &mut [f64; 3], current: Accumulator, scale: f64) {
 impl Player {
     /// `Entity.updateFluidInteraction`, including the push from currents.
     pub(crate) fn update_fluids(&mut self, world: &impl Blocks) {
-        let scan = FluidScan::of(world, self.bounding_box(), Some((self.eye_y(), self.block_pos())), !self.flying);
+        let pushed = self.mount.map_or(!self.flying, |m| m.pushed_by_fluids);
+        let scan = FluidScan::of(world, self.bounding_box(), Some((self.eye_y(), self.block_pos())), pushed);
         self.fluids = scan.contact;
         self.in_water = self.fluids.height(false) > 0.0;
         if self.in_water {
             self.fall_distance = 0.0;
         }
-        if !self.flying {
+        if pushed {
             scan.push(&mut self.delta, self.fast_lava);
         }
     }
