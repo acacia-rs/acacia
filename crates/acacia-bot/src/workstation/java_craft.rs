@@ -1,7 +1,8 @@
-//! Crafting on Java: the ingredients are laid out in the grid by hand ([`super::grid`]), then the result is
-//! shift-clicked, which crafts until the grid runs out. Java servers send no recipes a bot can plan with and only
-//! fill unlocked recipes from the book, so the recipes are Java's vanilla ones ([`crate::state::Recipes::java`])
-//! and every craft is a grid craft. The own grid needs the inventory open throughout: closing it hands the grid back.
+//! Crafting on Java: the ingredients go into the grid, then the result is shift-clicked, which crafts until the grid
+//! runs out. Java servers send no recipes a bot can plan with, so the recipes are Java's vanilla ones
+//! ([`crate::state::Recipes::java`]). A craft matching an unlocked book recipe is laid out by the server
+//! ([`super::java_book`]), any other by hand ([`super::grid`]). The own grid needs the inventory open throughout:
+//! closing it hands the grid back.
 
 use std::time::Duration;
 
@@ -42,15 +43,20 @@ impl Bot {
         let cells = grid_cells(table);
         let mut made = 0;
         while made < count {
-            let batch = pick_recipe(&self.state, item, table).and_then(|r| grid_batch(&self.state, r, table, count - made));
-            let placements = match batch {
-                Ok((_, placements)) => placements,
+            let batch = pick_recipe(&self.state, item, table).and_then(|r| {
+                let per_craft = r.outputs.first().map_or(1, |o| i32::from(o.count.max(1)));
+                grid_batch(&self.state, r, table, count - made).map(|b| (per_craft, b))
+            });
+            let (per_craft, (times, placements)) = match batch {
+                Ok(batch) => batch,
                 Err(ActionError::NotPossible(_)) if made > 0 => break,
                 Err(e) => return Err(e),
             };
-            for op in placement_clicks(&self.state, &placements) {
-                self.click_pause().await?;
-                self.item_stack_request(&[op]).await?;
+            if self.java_place_from_book((i32::from(item.java_id()), per_craft), &placements, times).await? == 0 {
+                for op in placement_clicks(&self.state, &placements) {
+                    self.click_pause().await?;
+                    self.item_stack_request(&[op]).await?;
+                }
             }
             self.click_pause().await?;
             let before = held(&self.state, item);

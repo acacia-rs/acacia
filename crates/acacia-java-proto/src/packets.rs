@@ -35,6 +35,7 @@ packet!(ContainerButtonClick { container: VarInt, button: VarInt });
 packet!(SelectTrade { offer: VarInt });
 // `mob_effect` registry ids.
 packet!(SetBeacon { primary: Option<VarInt>, secondary: Option<VarInt> });
+packet!(PlaceRecipe { container: VarInt, recipe: VarInt, use_max_items: bool });
 packet!(Ping { id: i32 });
 packet!(KnownPack { namespace: String, id: String, version: String });
 packet!(SelectKnownPacks { packs: Vec<KnownPack> });

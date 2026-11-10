@@ -23,6 +23,8 @@ mod grid;
 mod grindstone;
 mod held_grid;
 #[cfg(feature = "java")]
+mod java_book;
+#[cfg(feature = "java")]
 mod java_craft;
 #[cfg(feature = "java")]
 mod java_station;

@@ -13,6 +13,7 @@ pub mod item;
 pub mod merchant;
 pub mod nbt;
 pub mod packets;
+pub mod recipe_book;
 pub mod recipes;
 pub mod tag;
 mod wire;

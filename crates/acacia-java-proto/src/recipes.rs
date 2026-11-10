@@ -46,7 +46,7 @@ pub fn read_update_recipes(input: &mut &[u8]) -> Result<Vec<StonecutterRecipe>, 
 }
 
 /// `ByteBufCodecs.holderSet`: 0 then a tag, else the item count plus one, then the ids.
-fn read_holder_set(input: &mut &[u8]) -> Result<Ingredient, Error> {
+pub(crate) fn read_holder_set(input: &mut &[u8]) -> Result<Ingredient, Error> {
     match read_varint(input)? {
         0 => Ok(Ingredient::Tag(String::read(input)?)),
         n => (1..n).map(|_| read_varint(input)).collect::<Result<_, _>>().map(Ingredient::Items),
@@ -55,7 +55,7 @@ fn read_holder_set(input: &mut &[u8]) -> Result<Ingredient, Error> {
 
 /// `SlotDisplay.STREAM_CODEC`: a type id from `SlotDisplays.bootstrap`'s order, then its fields. Returns the stack an
 /// `item` or `item_stack` display shows.
-fn read_slot_display(input: &mut &[u8], depth: u32) -> Result<Option<(i32, i32)>, Error> {
+pub(crate) fn read_slot_display(input: &mut &[u8], depth: u32) -> Result<Option<(i32, i32)>, Error> {
     if depth >= MAX_DEPTH {
         return Err(Error::TooDeep(MAX_DEPTH));
     }

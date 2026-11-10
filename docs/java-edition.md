@@ -69,7 +69,9 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    cartography crafts are a click on the result each (Java renames maps at the anvil), and the beacon is `SetBeacon`
    with Java's `mob_effect` ids. Stacks keep `map_id`, or every click on a filled map misses its hash and the
    server's stale cursor resend lands after the next predicted click. `java_stations` runs all nine stations with 0
-   alerts. Still to do: recipe-book placement for unlocked recipes.
+   alerts. A craft matching an unlocked recipe (`RecipeBookAdd`, matched by result and cell items) is laid out by
+   `PlaceRecipe`, one per craft up to 8, as a player clicking the book; others are placed by hand. `java_craft`
+   now crafts planks, sticks and the pickaxe from the book, 0 alerts.
 6. **JS package.** Expose the edition in `@acacia-rs` bindings.
 
 ## Forms
