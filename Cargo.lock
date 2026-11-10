@@ -167,6 +167,7 @@ dependencies = [
 name = "acacia-java-proto"
 version = "0.1.0"
 dependencies = [
+ "crc",
  "thiserror 2.0.21",
 ]
 

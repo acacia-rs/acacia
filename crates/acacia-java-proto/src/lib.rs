@@ -3,6 +3,7 @@
 
 pub mod actions;
 pub mod chunk;
+pub mod container;
 pub mod entity;
 pub mod ids;
 pub mod inventory;

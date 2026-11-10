@@ -1,0 +1,169 @@
+//! Container clicks and what they carry: the client's predicted slots as `HashedStack`s, hashed with
+//! `HashOps.CRC32C_INSTANCE`. A wrong hash only makes the server resend that slot.
+
+use crc::{CRC_32_ISCSI, Crc};
+
+use crate::item::{DAMAGE, ItemStack, MAX_DAMAGE, MAX_STACK_SIZE, UNBREAKABLE};
+use crate::wire::read_len;
+use crate::{Error, VarInt, Wire, write_varint};
+
+const CRC32C: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
+/// `HashOps` tags.
+const TAG_MAP_START: u8 = 2;
+const TAG_MAP_END: u8 = 3;
+const TAG_INT: u8 = 8;
+
+/// `ContainerInput`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContainerInput {
+    Pickup,
+    QuickMove,
+    Swap,
+    Clone,
+    Throw,
+    QuickCraft,
+    PickupAll,
+}
+
+/// `HashOps.createInt`: Guava hashes the tag then the int little-endian.
+fn hash_int(v: i32) -> i32 {
+    let mut digest = CRC32C.digest();
+    digest.update(&[TAG_INT]);
+    digest.update(&v.to_le_bytes());
+    digest.finalize() as i32
+}
+
+/// A `Unit` encodes as an empty map.
+fn hash_unit() -> i32 {
+    CRC32C.checksum(&[TAG_MAP_START, TAG_MAP_END]) as i32
+}
+
+/// `HashedStack.ActualItem`; `None` on the wire is the empty stack.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashedStack {
+    pub item: i32,
+    pub count: i32,
+    /// (component type id, hash), for the components set by the stack's patch.
+    pub added: Vec<(i32, i32)>,
+    pub removed: Vec<i32>,
+}
+
+impl HashedStack {
+    /// The stack as the client would hash it. Components the client does not decode are left out, so such a
+    /// stack's hash misses and the server resends it.
+    // TODO: hash custom names and enchantments (`HashOps` over their codecs).
+    pub fn of(stack: &ItemStack) -> HashedStack {
+        let c = &stack.components;
+        let ints = [(MAX_STACK_SIZE, c.max_stack_size), (MAX_DAMAGE, c.max_damage), (DAMAGE, c.damage)];
+        let mut added: Vec<_> = ints.iter().filter_map(|&(id, v)| Some((id, hash_int(v?)))).collect();
+        if c.unbreakable {
+            added.push((UNBREAKABLE, hash_unit()));
+        }
+        HashedStack { item: stack.item, count: stack.count, added, removed: c.removed.clone() }
+    }
+}
+
+impl Wire for Option<HashedStack> {
+    fn read(input: &mut &[u8]) -> Result<Self, Error> {
+        if !bool::read(input)? {
+            return Ok(None);
+        }
+        let (item, count) = (VarInt::read(input)?.0, VarInt::read(input)?.0);
+        let mut added = Vec::new();
+        for _ in 0..read_len(input)? {
+            added.push((VarInt::read(input)?.0, i32::read(input)?));
+        }
+        let mut removed = Vec::new();
+        for _ in 0..read_len(input)? {
+            removed.push(VarInt::read(input)?.0);
+        }
+        Ok(Some(HashedStack { item, count, added, removed }))
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        let Some(s) = self else { return false.write(out) };
+        true.write(out);
+        write_varint(s.item, out);
+        write_varint(s.count, out);
+        write_varint(s.added.len() as i32, out);
+        for &(id, hash) in &s.added {
+            write_varint(id, out);
+            hash.write(out);
+        }
+        write_varint(s.removed.len() as i32, out);
+        s.removed.iter().for_each(|&id| write_varint(id, out));
+    }
+}
+
+/// `ServerboundContainerClickPacket`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContainerClick {
+    pub container: i32,
+    pub state_id: i32,
+    pub slot: i16,
+    pub button: i8,
+    pub input: ContainerInput,
+    /// The slots the client predicts changed, with their new contents.
+    pub changed: Vec<(i16, Option<HashedStack>)>,
+    pub carried: Option<HashedStack>,
+}
+
+impl Wire for ContainerClick {
+    fn read(input: &mut &[u8]) -> Result<Self, Error> {
+        let (container, state_id) = (VarInt::read(input)?.0, VarInt::read(input)?.0);
+        let (slot, button) = (i16::read(input)?, i8::read(input)?);
+        let inputs = [ContainerInput::Pickup, ContainerInput::QuickMove, ContainerInput::Swap, ContainerInput::Clone, ContainerInput::Throw, ContainerInput::QuickCraft, ContainerInput::PickupAll];
+        let kind = usize::try_from(VarInt::read(input)?.0).ok().and_then(|i| inputs.get(i).copied()).ok_or(Error::Invalid("container input"))?;
+        let mut changed = Vec::new();
+        for _ in 0..read_len(input)? {
+            changed.push((i16::read(input)?, Option::<HashedStack>::read(input)?));
+        }
+        Ok(Self { container, state_id, slot, button, input: kind, changed, carried: Option::<HashedStack>::read(input)? })
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        write_varint(self.container, out);
+        write_varint(self.state_id, out);
+        self.slot.write(out);
+        self.button.write(out);
+        write_varint(self.input as i32, out);
+        write_varint(self.changed.len() as i32, out);
+        for (slot, stack) in &self.changed {
+            slot.write(out);
+            stack.write(out);
+        }
+        self.carried.write(out);
+    }
+}
+
+crate::packets::packet!(ContainerClose { container: VarInt });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hashes_match_guava_crc32c() {
+        // Guava: Hashing.crc32c().newHasher().putByte(8).putInt(5).hash().asInt()
+        assert_eq!(hash_int(5), CRC32C.checksum(&[8, 5, 0, 0, 0]) as i32);
+        assert_eq!(CRC32C.checksum(b"123456789"), 0xE306_9283);
+    }
+
+    #[test]
+    fn clicks_round_trip() {
+        let mut pickaxe = ItemStack::new(1052, 1);
+        pickaxe.components.damage = Some(100);
+        let click = ContainerClick {
+            container: 0,
+            state_id: 7,
+            slot: 36,
+            button: 0,
+            input: ContainerInput::Pickup,
+            changed: vec![(36, None)],
+            carried: Some(HashedStack::of(&pickaxe)),
+        };
+        let mut buf = Vec::new();
+        click.write(&mut buf);
+        assert_eq!(ContainerClick::read(&mut &buf[..]), Ok(click));
+    }
+}
