@@ -10,6 +10,7 @@
 #   env: BOTS (100) PORT (19470, and +1 for BDS's v6) SEED VIEW SIM IDLE (20) MIN_SETTLE (300) MAX_SETTLE (900) STEADY (90)
 #        SERVER_CPUS (0-3,8-11) SWARM_CPUS (4-7,12-15) Y (200: teleport height) SPACING (32 chunks)
 #        SWARM_BIN (target/release/examples/bench100) PROFILE (1: attach perf, see tools/bench100-profile.sh)
+#        BENCH_SCOPE (1: run in its own systemd user scope) BENCH_MEM_HIGH (7G) BENCH_MEM_MAX (8G)
 #        sapling: SAPLING (../sapling-bench100, branch bench/100-bot; its ignored data copied from
 #                 sapling/) or SAPLING_BIN. chorus: CHORUS_BIN. bds: BDS_HOME (~/work/bds-mem100).
 #   Per run dir: server.log, swarm.jsonl, samples.tsv (t cpu_ticks rss_kb), threads.tsv
@@ -80,16 +81,19 @@ run() {
   rm -f "$out/console"; mkfifo "$out/console"
   # Held read-write so the server's stdin never sees EOF between writers.
   exec 8<>"$out/console"
-  (cd "$out/server" && exec taskset -c "$server_cpus" "${server_cmd[@]}") <"$out/console" >"$out/server.log" 2>&1 &
+  # Its own process group: a SERVER_WRAP like heaptrack doesn't pass SIGINT on, which orphaned a server for 2 days.
+  (cd "$out/server" && exec setsid taskset -c "$server_cpus" "${server_cmd[@]}") <"$out/console" >"$out/server.log" 2>&1 &
   # Globals: the EXIT trap runs after run() has returned.
   server=$! swarm='' helpers=()
   stop() {
     trap - EXIT INT TERM
     [ -n "$swarm" ] && kill "$swarm" 2>/dev/null
     for h in "${helpers[@]}"; do kill "$h" 2>/dev/null; done
-    if [ -n "$stop_line" ]; then echo "$stop_line" >&8; else kill -INT "$server" 2>/dev/null; fi
-    timeout 60 tail --pid="$server" -f /dev/null || kill -KILL "$server" 2>/dev/null
+    if [ -n "$stop_line" ]; then echo "$stop_line" >&8; else kill -INT -- "-$server" 2>/dev/null; fi
+    timeout 60 tail --pid="$server" -f /dev/null || kill -KILL -- "-$server" 2>/dev/null
+    pkill -KILL -g "$server" 2>/dev/null
     exec 8>&-
+    scope_pressure >>"$out/meta.txt"
   }
   trap stop EXIT INT TERM
   timeout 300 bash -c "until grep -qE '$ready_re' '$out/server.log'; do kill -0 $server || exit 1; sleep 1; done" \
@@ -118,9 +122,23 @@ run() {
   python3 -I "$root/tools/bench100-summary.py" "$out" | tee "$out/summary.md"
 }
 
+# The memory scope's peak and how often it hit memory.high: a scope at its limit stalls every process in it,
+# bots included, past RakNet's 10 s timeout (acacia reports/net-backlog-20261110).
+scope_pressure() {
+  local cg; cg=/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)
+  printf 'scope %s peak %s MiB, memory.high events %s\n' "${cg##*/}" "$(($(cat "$cg/memory.peak" 2>/dev/null || echo 0) >> 20))" \
+    "$(awk '$1 == "high" {print $2}' "$cg/memory.events" 2>/dev/null)"
+}
+
 case ${1:-} in
-  run) shift; run "$@" ;;
+  run)
+    # Own scope, so the session's other jobs can't push the bench into memory.high (BENCH_SCOPE=0 to skip).
+    if [ "${BENCH_SCOPE:-1}" = 1 ] && [ -z "${BENCH100_SCOPED:-}" ]; then
+      exec systemd-run --user --scope -q -p MemoryHigh="${BENCH_MEM_HIGH:-7G}" -p MemoryMax="${BENCH_MEM_MAX:-8G}" \
+        env BENCH100_SCOPED=1 bash "$0" "$@"
+    fi
+    shift; run "$@" ;;
   summary) shift; python3 -I "$root/tools/bench100-summary.py" "$@" ;;
   build) build "${2:-}" ;;
-  *) sed -n '2,16p' "$0"; exit 2 ;;
+  *) sed -n '2,17p' "$0"; exit 2 ;;
 esac
