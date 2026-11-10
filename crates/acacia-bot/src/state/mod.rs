@@ -50,6 +50,8 @@ pub use stations::{EnchantOption, Stations, TradeItem, TradeOffer, TradeWindow};
 pub use player::PlayerState;
 pub use player_list::{PlayerList, PlayerListEntry};
 pub(crate) use player_list::PlayerChange;
+#[cfg(feature = "java")]
+pub(crate) use entities::bedrock_kind as java_bedrock_kind;
 pub use scoreboard::{Objective, ScoreEntry, Scoreboard, SortOrder, SLOT_BELOW_NAME, SLOT_LIST, SLOT_SIDEBAR};
 pub use signs::{SignEditor, Signs};
 

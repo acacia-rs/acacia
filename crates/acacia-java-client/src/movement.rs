@@ -10,6 +10,7 @@ use acacia_java_proto::{Error as WireError, VarInt, Wire, ids, read_varint};
 
 use crate::frame::Error;
 use crate::join::{Client, Pose};
+use crate::riding::Riding;
 use crate::world::World;
 
 use ids::play::{clientbound as from, serverbound as to};
@@ -37,6 +38,10 @@ impl Blocks for World {
 /// What the server was last told, next to the simulated player.
 pub struct Movement {
     pub player: Player,
+    /// The seat while the player rides; the player's own physics pauses meanwhile.
+    pub riding: Option<Riding>,
+    /// Server corrections of driven vehicles since joining: [height only, horizontal].
+    pub vehicle_corrections: [u32; 2],
     sent_keys: Keys,
     sent_sprinting: bool,
     sent_flying: bool,
@@ -52,6 +57,8 @@ impl Default for Movement {
     fn default() -> Self {
         Self {
             player: Player::at([0.0; 3]),
+            riding: None,
+            vehicle_corrections: [0; 2],
             sent_keys: Keys::default(),
             sent_sprinting: false,
             sent_flying: false,
@@ -143,16 +150,20 @@ impl Client {
         if !self.loaded() || !self.world.has_chunk(at) {
             return Ok(());
         }
-        self.movement.player.tick(&self.world, keys);
+        if self.movement.riding.is_some() {
+            self.ride_step(keys)?;
+        } else {
+            self.movement.player.tick(&self.world, keys);
+            self.send_changes()?;
+            let me = self.world.player_id;
+            for _ in self.world.entities.values().filter(|e| e.attached_to == Some(me)) {
+                self.movement.player.firework_boost();
+            }
+        }
         let player = &self.movement.player;
         self.pose.position = player.pos;
         self.pose.y_rot = player.yaw;
         self.pose.x_rot = player.pitch;
-        self.send_changes()?;
-        let me = self.world.player_id;
-        for _ in self.world.entities.values().filter(|e| e.attached_to == Some(me)) {
-            self.movement.player.firework_boost();
-        }
         self.send(to::CLIENT_TICK_END, &Empty {})
     }
 
@@ -162,7 +173,7 @@ impl Client {
     }
 
     fn send_changes(&mut self) -> Result<(), Error> {
-        let (keys, sprinting, flying, gliding) = (self.movement.player.keys, self.movement.player.sprinting, self.movement.player.flying, self.movement.player.fall_flying);
+        let (flying, gliding) = (self.movement.player.flying, self.movement.player.fall_flying);
         // Vanilla sends these two from aiStep, so they arrive before the tick's input; Grim's ElytraB relies on it.
         if flying != self.movement.sent_flying {
             self.send(to::PLAYER_ABILITIES, &ServerboundAbilities { flags: if flying { ABILITY_FLYING } else { 0 } })?;
@@ -172,15 +183,28 @@ impl Client {
             self.send_command(COMMAND_START_FALL_FLYING)?;
         }
         self.movement.sent_gliding = gliding;
+        self.send_keys()?;
+        self.send_sprint()?;
+        self.send_position()
+    }
+
+    /// `PlayerInput` when the keys changed.
+    pub(crate) fn send_keys(&mut self) -> Result<(), Error> {
+        let keys = self.movement.player.keys;
         if keys != self.movement.sent_keys {
             self.send(to::PLAYER_INPUT, &PlayerInput { flags: input_flags(keys) })?;
             self.movement.sent_keys = keys;
         }
+        Ok(())
+    }
+
+    pub(crate) fn send_sprint(&mut self) -> Result<(), Error> {
+        let sprinting = self.movement.player.sprinting;
         if sprinting != self.movement.sent_sprinting {
             self.send_command(if sprinting { COMMAND_START_SPRINTING } else { COMMAND_STOP_SPRINTING })?;
             self.movement.sent_sprinting = sprinting;
         }
-        self.send_position()
+        Ok(())
     }
 
     fn send_position(&mut self) -> Result<(), Error> {

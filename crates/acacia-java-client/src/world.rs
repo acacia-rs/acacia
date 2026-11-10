@@ -8,8 +8,8 @@ pub use crate::entity::Entity;
 
 use acacia_java_proto::actions::BlockPos;
 use acacia_java_proto::chunk::{read_chunk_header, read_sections};
-use acacia_java_proto::entity::{PositionPath, read_move, read_path, skip_lp_vec3};
-use acacia_java_proto::packets::PositionMoveRotation;
+use acacia_java_proto::entity::{PositionPath, read_lp_vec3, read_move, read_path, skip_lp_vec3};
+use acacia_java_proto::packets::{PositionMoveRotation, SetPassengers};
 use acacia_java_proto::{Error, VarInt, Wire, ids, read_varint, read_varlong};
 
 use ids::play::clientbound as from;
@@ -25,6 +25,8 @@ pub struct World {
     pub player_id: i32,
     chunks: Chunks,
     pub entities: HashMap<i32, Entity>,
+    /// The vehicle the player drives: the client simulates it, so the server's moves only set its codec base.
+    pub(crate) driven: Option<i32>,
 }
 
 /// Lowest y of a vanilla dimension. The client claims the vanilla packs, so a custom dimension type would be
@@ -60,10 +62,12 @@ impl World {
         self.chunks.set_block(pos, state);
     }
 
-    /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick.
+    /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick. An unridden boat's tick zeroes
+    /// its motion too.
     pub fn tick_entities(&mut self) {
         for e in self.entities.values_mut() {
             e.lerp.interpolate(&mut e.position);
+            e.motion = [0.0; 3];
         }
     }
 
@@ -112,20 +116,38 @@ impl World {
                 let id = read_varint(input)?;
                 let path = read_path(input)?;
                 let (y_rot, x_rot, on_ground) = (f32::read(input)?, f32::read(input)?, bool::read(input)?);
+                let driven = self.driven == Some(id);
                 if let Some(e) = self.entities.get_mut(&id) {
                     e.base = path.end();
-                    e.move_to(Some(path), Some((y_rot, x_rot)), true);
-                    e.on_ground = on_ground;
+                    if !driven {
+                        e.move_to(Some(path), Some((y_rot, x_rot)), true);
+                        e.on_ground = on_ground;
+                    }
                 }
             }
             from::MOVE_ENTITY_POS | from::MOVE_ENTITY_POS_ROT => {
                 let id2 = read_varint(input)?;
+                let driven = self.driven == Some(id2);
                 let Some(e) = self.entities.get_mut(&id2) else { return Ok(()) };
                 let (on_ground, path) = read_move(input, e.base)?;
                 let rot = if id == from::MOVE_ENTITY_POS_ROT { Some((degrees(i8::read(input)?), degrees(i8::read(input)?))) } else { None };
                 e.base = path.end();
-                e.move_to(Some(path), rot, false);
-                e.on_ground = on_ground;
+                if !driven {
+                    e.move_to(Some(path), rot, false);
+                    e.on_ground = on_ground;
+                }
+            }
+            from::SET_ENTITY_MOTION => {
+                let id = read_varint(input)?;
+                if let Some(e) = self.entities.get_mut(&id) {
+                    e.motion = read_lp_vec3(input)?;
+                }
+            }
+            from::SET_PASSENGERS => {
+                let SetPassengers { vehicle, passengers } = SetPassengers::read(input)?;
+                if let Some(e) = self.entities.get_mut(&vehicle.0) {
+                    e.passengers = passengers.iter().map(|p| p.0).collect();
+                }
             }
             from::SET_ENTITY_DATA => {
                 let id = read_varint(input)?;
@@ -143,7 +165,7 @@ impl World {
                 let entity = read_varint(input)?;
                 let on_ground = bool::read(input)?;
                 let (y_rot, x_rot) = (degrees(i8::read(input)?), degrees(i8::read(input)?));
-                if let Some(e) = self.entities.get_mut(&entity) {
+                if let Some(e) = self.entities.get_mut(&entity).filter(|_| self.driven != Some(entity)) {
                     e.move_to(None, Some((y_rot, x_rot)), false);
                     e.on_ground = on_ground;
                 }
@@ -185,8 +207,9 @@ impl World {
         let c = PositionMoveRotation::read(input)?;
         let relatives = i32::read(input)?;
         let on_ground = bool::read(input)?;
-        let Some(e) = self.entities.get_mut(&id) else { return Ok(()) };
-        let is = |bit: u32| relatives & (1 << bit) != 0;
+        // The driven vehicle's teleport snaps it in `Client::vehicle_teleported`.
+        let Some(e) = self.entities.get_mut(&id).filter(|_| self.driven != Some(id)) else { return Ok(()) };
+        let is =|bit: u32| relatives & (1 << bit) != 0;
         let [x, y, z] = e.position;
         let to = [c.x + if is(0) { x } else { 0.0 }, c.y + if is(1) { y } else { 0.0 }, c.z + if is(2) { z } else { 0.0 }];
         let rot = (c.y_rot + if is(3) { e.y_rot } else { 0.0 }, c.x_rot + if is(4) { e.x_rot } else { 0.0 });

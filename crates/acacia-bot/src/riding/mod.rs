@@ -6,6 +6,8 @@ mod boat;
 mod exit;
 mod horse;
 mod input;
+#[cfg(feature = "java")]
+mod java;
 mod keys;
 mod tick;
 
@@ -55,7 +57,7 @@ impl Bot {
         if let Some(v) = self.state.riding.vehicle.as_ref().filter(|v| v.runtime_id == Some(runtime_id)) {
             return Ok(v.clone());
         }
-        if self.backend.movement().is_some_and(|m| m.controls.sneak) {
+        if self.backend.controls().is_some_and(|c| c.sneak) {
             return Err(ActionError::NotPossible("sneaking".into()));
         }
         self.interact_entity(runtime_id).await?;
@@ -69,7 +71,8 @@ impl Bot {
     /// Leaves the vehicle like vanilla: on the next tick the client gives up its seat itself, sends
     /// `Interact` LeaveVehicle with the point it steps off at (that tick's input already stands there,
     /// no sneak flags) and clears aim assist. A physics bot returns standing at the exit. A server that
-    /// disagrees links the bot again, which shows in [`Bot::vehicle`].
+    /// disagrees links the bot again, which shows in [`Bot::vehicle`]. On Java the input holds shift until the
+    /// server's passengers drop the bot, which the server's exit teleport follows.
     pub async fn dismount(&mut self) -> Result<(), ActionError> {
         if !self.state.riding.is_riding() {
             return Err(ActionError::NotPossible("not riding".into()));

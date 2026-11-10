@@ -6,10 +6,10 @@ use crate::collide::{Blocks, Colliders, Context};
 use crate::fluid::FluidContact;
 use crate::input::{Keys, Pose};
 use crate::mth::{cos, floor, sin, DEG_TO_RAD};
+use crate::support::{Support, BELOW_MOVEMENT_OFFSET};
 
 pub const WIDTH: f32 = 0.6;
 pub const STEP_HEIGHT: f32 = 0.6;
-pub(crate) const BELOW_MOVEMENT_OFFSET: f32 = 0.500001;
 const FIT_MARGIN: f64 = 1.0E-7;
 
 /// The held item's `use_effects` component while it is being used; vanilla's default is speed 0.2, no sprinting.
@@ -67,8 +67,7 @@ pub struct Player {
     pub(crate) move_vector: [f32; 2],
     pub(crate) xxa: f32,
     pub(crate) zza: f32,
-    pub(crate) supporting: Option<[i32; 3]>,
-    pub(crate) on_ground_no_blocks: bool,
+    pub(crate) support: Support,
     pub(crate) fall_distance: f64,
     pub(crate) stuck: [f64; 3],
     pub(crate) in_powder_snow: bool,
@@ -140,15 +139,8 @@ impl Player {
         self.pos.map(floor)
     }
 
-    /// `Entity.getOnPos` for offsets above 1.0E-5.
     pub(crate) fn on_pos(&self, world: &impl Blocks, offset: f32) -> [i32; 3] {
-        let below = floor(self.pos[1] - offset as f64);
-        let Some(support) = self.supporting else {
-            return [floor(self.pos[0]), below, floor(self.pos[2])];
-        };
-        let block = world.block_state(support).block();
-        let keeps_support = (offset as f64 <= 0.5 && block.is(BlockTag::Fences)) || block.is(BlockTag::Walls) || block.is(BlockTag::FenceGates);
-        if keeps_support { support } else { [support[0], below, support[2]] }
+        self.support.on_pos(world, self.pos, offset)
     }
 
     /// The `movement_speed` attribute as a float.

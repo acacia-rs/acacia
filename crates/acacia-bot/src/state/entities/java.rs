@@ -45,7 +45,7 @@ impl Entities {
 }
 
 /// Java's entity type name as Bedrock spells it, where the two differ for something a bot reacts to.
-fn bedrock_kind(kind: i32) -> &'static str {
+pub(crate) fn bedrock_kind(kind: i32) -> &'static str {
     let name = usize::try_from(kind).ok().and_then(|k| ENTITY_TYPES.get(k)).copied().unwrap_or("minecraft:unknown");
     match name {
         n if n.ends_with("_chest_boat") || n.ends_with("_chest_raft") => "minecraft:chest_boat",

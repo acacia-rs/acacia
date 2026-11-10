@@ -1,14 +1,14 @@
 use acacia_registry::{Block, BlockTag};
 
 use crate::aabb::Aabb;
-use crate::block_factors::{bounce, speed_factor};
+use crate::block_factors::bounce;
 use crate::collide::Blocks;
 use crate::mth::{cos, length_sqr, sin, DEG_TO_RAD};
-use crate::player::{Player, BELOW_MOVEMENT_OFFSET, STEP_HEIGHT};
+use crate::player::{Player, STEP_HEIGHT};
+use crate::support::LEGACY_ON_POS;
 use crate::travel::modified_friction;
 
 const BACK_OFF_STEP: f64 = 0.05;
-const LEGACY_ON_POS: f32 = 0.2;
 
 fn signum(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v.signum() }
@@ -56,22 +56,9 @@ impl Player {
     }
 
     fn update_support(&mut self, world: &impl Blocks, movement: [f64; 3]) {
-        if !self.on_ground {
-            self.on_ground_no_blocks = false;
-            self.supporting = None;
-            return;
-        }
-        let b = self.bounding_box();
-        let area = Aabb { min: [b.min[0], b.min[1] - 1.0E-6, b.min[2]], max: [b.max[0], b.min[1], b.max[2]] };
-        let colliders = self.colliders(world);
-        let mut found = colliders.supporting_block(&area, self.pos);
-        if found.is_some() || self.on_ground_no_blocks {
-            self.supporting = found;
-        } else {
-            found = colliders.supporting_block(&area.moved([-movement[0], 0.0, -movement[2]]), self.pos);
-            self.supporting = found;
-        }
-        self.on_ground_no_blocks = found.is_none();
+        let mut support = self.support;
+        support.update(&self.colliders(world), self.bounding_box(), self.pos, self.on_ground, movement);
+        self.support = support;
     }
 
     fn is_minor_collision(&self, movement: [f64; 3]) -> bool {
@@ -129,12 +116,7 @@ impl Player {
         if self.flying || self.fall_flying {
             return 1.0;
         }
-        let block = world.block_state(self.block_pos()).block();
-        let here = speed_factor(block);
-        if block == Block::Water || block == Block::BubbleColumn || here as f64 != 1.0 {
-            return here;
-        }
-        speed_factor(world.block_state(self.on_pos(world, BELOW_MOVEMENT_OFFSET)).block())
+        self.support.speed_factor(world, self.pos)
     }
 
     /// `Entity.move` for `MoverType.SELF`.
