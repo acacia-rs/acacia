@@ -28,6 +28,10 @@ mod entity;
 pub(crate) mod equipment;
 mod geometry;
 mod item_use;
+#[cfg(feature = "java")]
+mod java_access;
+#[cfg(feature = "java")]
+mod java_actions;
 pub(crate) mod legacy;
 pub(crate) mod pipeline;
 pub(crate) mod sight;
@@ -56,7 +60,11 @@ const AIM_TOLERANCE: f32 = 0.5;
 impl Bot {
     /// Eye position: the seat while riding, else simulated for physics bots, last server position otherwise.
     /// Line of sight over the tracked world; `None` before the world is known.
-    pub(crate) fn sight(&self) -> Option<sight::Sight<'_, acacia_world::ChunkView>> {
+    pub(crate) fn sight(&self) -> Option<sight::Sight<'_, dyn BlockAccess + '_>> {
+        #[cfg(feature = "java")]
+        if let Some(java) = self.java() {
+            return Some(sight::Sight { world: java_access::JavaAccess::new(java.client().world.chunks()), registry: acacia_world::BlockRegistry::java() });
+        }
         let world = self.backend.world()?;
         Some(sight::Sight { world: world.view()?, registry: world.registry()? })
     }
@@ -96,7 +104,7 @@ impl Bot {
     }
 
     pub(crate) fn has_physics(&self) -> bool {
-        self.backend.movement().is_some_and(|m| m.is_started())
+        self.backend.feet().is_some()
     }
 
     pub(crate) fn hand(&self) -> wire::Hand {
@@ -110,6 +118,11 @@ impl Bot {
 
     /// Runtime id and state of the tracked block at `pos` (idle bots: only right around them).
     pub(crate) fn block_at(&self, [x, y, z]: BlockPos) -> Option<(u32, &BlockState)> {
+        #[cfg(feature = "java")]
+        if let Some(java) = self.java() {
+            let id = java.client().world.block([x, y, z])?;
+            return acacia_world::BlockRegistry::java().get(id).map(|s| (id, s));
+        }
         let world = self.backend.world().filter(|w| w.knows_block(x, y, z))?;
         let (view, registry) = (world.view()?, world.registry()?);
         let id = view.block(x, y, z);
@@ -128,8 +141,8 @@ impl Bot {
     /// (yaw, pitch) the bot's inputs report: its own aim, or for an idle bot that has not aimed, the
     /// server's last rotation.
     pub fn facing(&self) -> (f32, f32) {
-        match (self.backend.movement(), self.backend.idle()) {
-            (Some(m), _) => (m.controls.yaw, m.controls.pitch),
+        match (self.backend.controls(), self.backend.idle()) {
+            (Some(c), _) => (c.yaw, c.pitch),
             (None, Some((idle, _))) => idle.facing(&self.state.player),
             (None, None) => (self.state.player.yaw, self.state.player.pitch),
         }
@@ -141,10 +154,10 @@ impl Bot {
     pub async fn look_at(&mut self, target: Vec3) -> Result<(), ActionError> {
         let eye = self.eye_position();
         let (before, after) = if self.has_physics() {
-            let Some(movement) = self.backend.movement_mut() else { return Ok(()) };
-            let before = movement.controls;
-            movement.controls.look_at(eye, target);
-            ((before.yaw, before.pitch), (movement.controls.yaw, movement.controls.pitch))
+            let Some(controls) = self.backend.controls_mut() else { return Ok(()) };
+            let before = *controls;
+            controls.look_at(eye, target);
+            ((before.yaw, before.pitch), (controls.yaw, controls.pitch))
         } else if let Some((idle, _)) = self.backend.idle_mut() {
             let before = idle.facing(&self.state.player);
             idle.look_at(eye, target);

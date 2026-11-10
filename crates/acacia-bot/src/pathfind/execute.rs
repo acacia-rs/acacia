@@ -94,9 +94,8 @@ async fn maneuver_until(bot: &mut Bot, ticks: u32, mut step: impl FnMut(&Sense, 
 }
 
 fn sense(bot: &Bot) -> Option<Sense> {
-    let m = bot.backend.movement()?;
-    let pos = m.position()?;
+    let (pos, on_ground) = bot.backend.feet()?;
     let feet = [pos[0].floor() as i32, pos[1].floor() as i32, pos[2].floor() as i32];
     let in_water = bot.block_at(feet).is_some_and(|(_, s)| s.is_water());
-    Some(Sense { pos, on_ground: m.on_ground(), in_water })
+    Some(Sense { pos, on_ground, in_water })
 }

@@ -147,7 +147,7 @@ impl Bot {
         if self.block_at(against).is_some_and(|(_, s)| s.is_air()) {
             return Err(ActionError::NotPossible(format!("nothing to place against at {against:?}")));
         }
-        let sneaking = self.backend.movement().is_some_and(|m| m.controls.sneak);
+        let sneaking = self.backend.controls().is_some_and(|c| c.sneak);
         if !sneaking && self.block_at(against).is_some_and(|(_, s)| is_interactive(s)) {
             return Err(ActionError::NotPossible(format!("clicking {against:?} would use it, not place against it")));
         }
@@ -189,7 +189,7 @@ impl Bot {
                 None => confirm.insert(self.confirmation(target, expect, MAX_TRIES).predicted()),
             };
             self.click_block(against, face, click, SwingSource::Build)?;
-            let predict = before.block_runtime_id != 0 && half_slab.is_none();
+            let predict = before.block_runtime_id != 0 && half_slab.is_none() && self.backend.bedrock().is_some();
             let replaced = predict.then(|| self.predict_block(target, before.block_runtime_id)).flatten();
             let predicted = self.state.inventory.held().clone();
             let verdict = self.await_confirm(target, c, Instant::now()).await?;
@@ -219,6 +219,10 @@ impl Bot {
     /// Vanilla's block click: StartItemUseOn, the swing, the ClickBlock (placing: with the held
     /// stack's predicted change, then the new stack in MobEquipment), StopItemUseOn a moment later.
     pub(super) fn click_block(&mut self, pos: BlockPos, face: Face, click: Vec3, source: SwingSource) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_click_block(pos, face, click, source == SwingSource::Build);
+        }
         let block = self.block_wire_id(pos)?;
         tracing::debug!(?pos, ?face, block, "click block");
         let held = self.state.inventory.held().clone();

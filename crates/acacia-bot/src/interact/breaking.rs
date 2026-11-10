@@ -97,6 +97,8 @@ impl Bot {
     /// Cancels breaking the block at `pos` (`AbortBreak` with the next tick).
     pub fn abort_break(&mut self, pos: BlockPos) {
         let face = facing_face(self.eye_position(), pos);
+        #[cfg(feature = "java")]
+        self.java_abort_break(pos, face);
         if let Some(m) = self.backend.movement_mut() {
             m.pending_actions.push(wire::block_action(Action::AbortBreak, pos, face));
         }
@@ -112,6 +114,10 @@ impl Bot {
     /// Sends the block actions until the progress, summed at each tick's break speed, is full. `Ok(true)` if
     /// the block disappeared on its own before the prediction was due.
     async fn mine(&mut self, pos: BlockPos, face: Face, mining: Mining) -> Result<bool, ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_mine(pos, face, mining).await;
+        }
         let mut progress = Progress::default();
         loop {
             let tick = progress.ticks();

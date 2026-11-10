@@ -1,5 +1,7 @@
 //! Digging, using and attacking, sequenced as `MultiPlayerGameMode` does. When to dig on, and for how long, is the
-//! caller's: the client only sends what vanilla would send at each step.
+//! caller's: the client only sends what vanilla would send at each step. Actions wait for the next
+//! [`Client::step`], which sends them first, as vanilla's `handleKeybinds` runs after the tick's packets are
+//! handled and before the player moves: Grim's Post check flags an action that reaches it before a pong.
 
 use acacia_java_proto::actions::{Action, Attack, BlockChangedAck, BlockPos, Direction, Hand, Interact, PlayerAction, SetCarriedItem, UseItem, UseItemOn};
 use acacia_java_proto::entity::LpVec3;
@@ -20,6 +22,7 @@ pub struct Actions {
     carried: u8,
     sequence: i32,
     acked: i32,
+    outbox: Vec<(i32, Vec<u8>)>,
 }
 
 impl Actions {
@@ -44,19 +47,48 @@ impl Actions {
     }
 }
 
+/// A body already encoded.
+struct Encoded<'a>(&'a [u8]);
+
+impl Wire for Encoded<'_> {
+    fn read(_: &mut &[u8]) -> Result<Self, WireError> {
+        unreachable!("only written")
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(self.0);
+    }
+}
+
 impl Client {
-    /// `ensureHasSentCarriedItem`, which vanilla runs before every action.
-    fn sync_carried(&mut self) -> Result<(), Error> {
+    fn queue(&mut self, id: i32, body: &impl Wire) -> Result<(), Error> {
+        let mut bytes = Vec::new();
+        body.write(&mut bytes);
+        self.actions.outbox.push((id, bytes));
+        Ok(())
+    }
+
+    /// Sends the queued actions, after the held slot if it changed.
+    pub(crate) fn send_actions(&mut self) -> Result<(), Error> {
+        self.sync_carried()?;
+        for (id, body) in std::mem::take(&mut self.actions.outbox) {
+            self.send(id, &Encoded(&body))?;
+        }
+        Ok(())
+    }
+
+    /// `ensureHasSentCarriedItem`, which vanilla runs at the start of each tick and before every action.
+    pub(crate) fn sync_carried(&mut self) -> Result<(), Error> {
         if self.actions.selected != self.actions.carried {
             self.actions.carried = self.actions.selected;
-            self.send(to::SET_CARRIED_ITEM, &SetCarriedItem { slot: i16::from(self.actions.carried) })?;
+            self.queue(to::SET_CARRIED_ITEM, &SetCarriedItem { slot: i16::from(self.actions.carried) })?;
         }
         Ok(())
     }
 
     fn block_action(&mut self, action: Action, pos: [i32; 3], face: Direction, sequenced: bool) -> Result<i32, Error> {
         let sequence = if sequenced { self.actions.next_sequence() } else { 0 };
-        self.send(to::PLAYER_ACTION, &PlayerAction { action, pos: BlockPos(pos), face, sequence })?;
+        self.queue(to::PLAYER_ACTION, &PlayerAction { action, pos: BlockPos(pos), face, sequence })?;
         Ok(sequence)
     }
 
@@ -89,8 +121,8 @@ impl Client {
     }
 
     /// The arm swing: once per attack, and every tick a dig goes on.
-    pub fn punch(&self) -> Result<(), Error> {
-        self.send(to::PUNCH, &Empty {})
+    pub fn punch(&mut self) -> Result<(), Error> {
+        self.queue(to::PUNCH, &Empty {})
     }
 
     /// Clicks `face` of `pos` at `click` (relative to the block's corner). Returns the action's sequence.
@@ -98,7 +130,7 @@ impl Client {
         self.sync_carried()?;
         let sequence = self.actions.next_sequence();
         let packet = UseItemOn { hand, pos: BlockPos(pos), face, click, inside: false, world_border: false, sequence };
-        self.send(to::USE_ITEM_ON, &packet)?;
+        self.queue(to::USE_ITEM_ON, &packet)?;
         Ok(sequence)
     }
 
@@ -108,7 +140,7 @@ impl Client {
         let sequence = self.actions.next_sequence();
         let player = &self.movement.player;
         let packet = UseItem { hand, sequence: VarInt(sequence), y_rot: player.yaw, x_rot: player.pitch };
-        self.send(to::USE_ITEM, &packet)?;
+        self.queue(to::USE_ITEM, &packet)?;
         Ok(sequence)
     }
 
@@ -121,12 +153,12 @@ impl Client {
     /// Hits `entity`; vanilla follows with [`Client::punch`].
     pub fn attack(&mut self, entity: i32) -> Result<(), Error> {
         self.sync_carried()?;
-        self.send(to::ATTACK, &Attack { entity: VarInt(entity) })
+        self.queue(to::ATTACK, &Attack { entity: VarInt(entity) })
     }
 
     /// Right-clicks `entity` at `location`, relative to its feet; `secondary` is sneaking.
     pub fn interact(&mut self, entity: i32, hand: Hand, location: [f64; 3], secondary: bool) -> Result<(), Error> {
         self.sync_carried()?;
-        self.send(to::INTERACT, &Interact { entity: VarInt(entity), hand, location: LpVec3(location), secondary })
+        self.queue(to::INTERACT, &Interact { entity: VarInt(entity), hand, location: LpVec3(location), secondary })
     }
 }

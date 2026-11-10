@@ -1,7 +1,8 @@
-//! Java bot: joins an offline-mode server, waits 3 s, then walks to a block with the shared pathfinder.
+//! Java bot: joins an offline-mode server, waits 3 s, then walks to a block with the shared pathfinder, digging
+//! through what is in the way when `ACACIA_DIG` is set.
 //! `cargo run -p acacia-bot --features java --example java_goto -- <host> <port> <x> <y> <z> [name]`
 
-use acacia_bot::pathfind::Goal;
+use acacia_bot::pathfind::{Goal, GotoOpts};
 use acacia_bot::{Bot, BotConfig};
 
 #[tokio::main(flavor = "current_thread")]
@@ -15,7 +16,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     bot.wait_ticks(60).await?;
     println!("start {:?}", bot.block_position());
     let started = std::time::Instant::now();
-    let result = bot.goto(Goal::Block(goal)).await;
+    let mut opts = GotoOpts::default();
+    opts.search.allow_dig = std::env::var_os("ACACIA_DIG").is_some();
+    let result = bot.goto_with(Goal::Block(goal), opts).await;
     println!("goto {result:?} after {:.1} s, at {:?}", started.elapsed().as_secs_f32(), bot.block_position());
     bot.disconnect().await;
     Ok(())

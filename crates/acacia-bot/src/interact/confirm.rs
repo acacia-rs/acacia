@@ -160,7 +160,9 @@ impl Bot {
     /// Starts confirming an action on `pos` sent this tick.
     pub(crate) fn confirmation(&self, pos: BlockPos, expect: Expect, max_tries: u32) -> Confirm {
         let before = self.block_at(pos).map(|(id, _)| id);
-        Confirm::new(expect, before, self.governor.now(), self.governor.timeout_ticks(), max_tries)
+        let confirm = Confirm::new(expect, before, self.governor.now(), self.governor.timeout_ticks(), max_tries);
+        // Java predicts every action's block; only the server's answer settles it.
+        if self.backend.bedrock().is_none() { confirm.predicted() } else { confirm }
     }
 
     /// Lets ticks pass until `c` decides. A first try's echo feeds the governor's round-trip estimate.
@@ -168,7 +170,12 @@ impl Bot {
         let at = block_coordinates(pos);
         let t = Instant::now();
         loop {
-            let echoed = self.next_tick(|_, p| is_update_at(p, &at)).await?;
+            #[allow(unused_mut)]
+            let mut echoed = self.next_tick(|_, p| is_update_at(p, &at)).await?;
+            #[cfg(feature = "java")]
+            {
+                echoed |= self.java_echoed();
+            }
             let verdict = c.check(self.governor.now(), self.block_at(pos), echoed);
             if verdict == Verdict::Done && c.tries() == 1 && echoed {
                 self.governor.sample(sent_at.elapsed());

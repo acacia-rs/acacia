@@ -4,7 +4,8 @@ use acacia_java_client::Chunks;
 use acacia_world::BlockRegistry;
 use tokio::sync::oneshot;
 
-use super::goto::{NavStatus, Worked};
+use super::astar::SearchOpts;
+use super::goto::NavStatus;
 use super::job::{Answer, SearchJob};
 use super::pilot::Pilot;
 use super::terrain::{Blocks, Terrain};
@@ -30,16 +31,11 @@ fn spawn(job: SearchJob<JavaSim>, chunks: Chunks) -> Answer {
     rx
 }
 
-/// [`super::goto::step`] on Java. Threat perception and path work (digging, bridging) are Bedrock-only so far.
-// TODO: Java path work once dig and place go through the backend.
-pub(super) fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus, ActionError>, Worked) {
-    let opts = pilot.search_opts(None, bot.state.player.hunger);
-    let Backend::Java(java) = &mut bot.backend else { return (Ok(NavStatus::Searching), Worked::default()) };
+/// The steering half of [`super::goto::step`] on Java. Threats are not perceived yet: Java entities are not tracked.
+// TODO: hazards from Java entities.
+pub(super) fn drive(pilot: &mut Pilot, bot: &mut Bot, opts: SearchOpts) -> Result<NavStatus, ActionError> {
+    let Backend::Java(java) = &mut bot.backend else { return Ok(NavStatus::Searching) };
     let chunks = java.client.world.chunks().clone();
     let terrain = Terrain::new(&chunks, BlockRegistry::java());
-    let status = pilot.drive(&terrain, java.as_mut(), opts, &mut |job| spawn(job, chunks.clone()));
-    if status == Ok(NavStatus::Working) {
-        return (pilot.work_failed("path work is not supported on Java Edition yet".into()).map(|()| NavStatus::Working), Worked::default());
-    }
-    (status, Worked::default())
+    pilot.drive(&terrain, java.as_mut(), opts, &mut |job| spawn(job, chunks.clone()))
 }

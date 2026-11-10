@@ -22,7 +22,7 @@ const PORTAL_Z: Aabb = b([0.375, 0.0, 0.0], [0.625, 1.0, 1.0]);
 const SCAFFOLD_TOP_BOXES: usize = 5;
 
 /// The selection boxes of the block at `pos`, block-local.
-pub fn boxes_at(world: &impl BlockAccess, registry: &BlockRegistry, pos: [i32; 3]) -> Vec<Aabb> {
+pub fn boxes_at(world: &(impl BlockAccess + ?Sized), registry: &BlockRegistry, pos: [i32; 3]) -> Vec<Aabb> {
     let Some(state) = registry.get(world.block(pos[0], pos[1], pos[2])) else { return Vec::new() };
     let at = |dx: i32, dy: i32, dz: i32| registry.get(world.block(pos[0] + dx, pos[1] + dy, pos[2] + dz));
     let name = state.name.trim_start_matches("minecraft:");

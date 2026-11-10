@@ -17,6 +17,8 @@ use crate::{Bot, BotConfig};
 pub struct Java {
     pub(crate) client: Client,
     pub(crate) controls: Controls,
+    /// Sequence of the predicting action awaiting the server's answer, 0 for none.
+    pub(crate) awaiting: i32,
     ticks: u64,
     teleports: u32,
     last_setback: Option<u64>,
@@ -69,7 +71,7 @@ impl Bot {
         let client = Client::join_offline(host, port, name).await?;
         let events = EventSource::new(config.events, config.chat_patterns);
         let state = GameState::new(config.trackers, 0);
-        let java = Java { client, controls: Controls::default(), ticks: 0, teleports: 0, last_setback: None };
+        let java = Java { client, controls: Controls::default(), awaiting: 0, ticks: 0, teleports: 0, last_setback: None };
         Ok(Bot::assemble(Backend::Java(Box::new(java)), state, events, config.auto_respawn, config.auto_eat))
     }
 

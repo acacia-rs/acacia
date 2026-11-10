@@ -39,13 +39,19 @@ pub fn break_ticks(mining: &Mining, c: &BreakConditions) -> Option<u32> {
     Some((ticks - 1e-4).ceil().max(1.0) as u32)
 }
 
-/// Java's dig in ticks after `START_DESTROY_BLOCK`, 0 when the start breaks it: `MultiPlayerGameMode` sums each
-/// tick's `getDestroyProgress` in f32 and stops at 1, so stone by hand takes 151, not 150.
-pub fn java_dig_ticks(mining: &Mining, c: &BreakConditions) -> Option<u32> {
-    let per_tick = match damage(mining, c)? {
-        Damage::Instant => return Some(0),
+/// Java's `getDestroyProgress`: the share of the block one tick of digging takes, 1 or more when the start breaks it.
+pub fn java_progress(mining: &Mining, c: &BreakConditions) -> Option<f32> {
+    Some(match damage(mining, c)? {
+        Damage::Instant => 1.0,
         Damage::Per { speed, divisor } => speed / mining.hardness / divisor as f32,
-    };
+    })
+}
+
+/// Java's dig in ticks after `START_DESTROY_BLOCK`, 0 when the start breaks it: `MultiPlayerGameMode` sums each
+/// tick's [`java_progress`] in f32 and stops at 1, so stone by hand takes 151, not 150.
+#[cfg(test)]
+fn java_dig_ticks(mining: &Mining, c: &BreakConditions) -> Option<u32> {
+    let per_tick = java_progress(mining, c)?;
     if per_tick >= 1.0 {
         return Some(0);
     }

@@ -137,6 +137,7 @@ impl Client {
     /// One client tick: simulates the player with `keys` and sends what changed. Does nothing before the first
     /// teleport or while the player's chunk is missing.
     pub fn step(&mut self, keys: Keys) -> Result<(), Error> {
+        self.send_actions()?;
         let at = self.movement.player.pos.map(|v| v.floor() as i32);
         if !self.loaded() || !self.world.has_chunk(at) {
             return Ok(());

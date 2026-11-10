@@ -172,32 +172,34 @@ fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
     }
 }
 
-/// Drives `pilot` for one tick (without letting it pass) and does any work due; also returns what the work changed.
-pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus, ActionError>, Worked) {
+/// Steers for this tick from the edition's world and movement; `None` while they are not known yet.
+fn drive(pilot: &mut Pilot, bot: &mut Bot, mut opts: SearchOpts) -> Result<Option<NavStatus>, ActionError> {
     #[cfg(feature = "java")]
     if bot.java().is_some() {
-        return super::java_goto::step(pilot, bot);
+        return super::java_goto::drive(pilot, bot, opts).map(Some);
     }
-    if bot.backend.movement().is_none() {
+    if opts.boats {
+        opts.boat_source = bot.boat_source();
+    }
+    let Some((world, movement)) = bot.backend.physics_mut() else { return Ok(None) };
+    let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return Ok(None) };
+    opts.hazards = perceive(pilot, &bot.state, movement, view, registry.as_ref());
+    let terrain = Terrain::new(view, registry.as_ref()).with_hazards(opts.hazards.clone());
+    let (snapshot, reg) = (view.world().clone(), registry.clone());
+    pilot.drive(&terrain, movement, opts, &mut |job| job.spawn_blocking(snapshot.clone(), reg.clone())).map(Some)
+}
+
+/// Drives `pilot` for one tick (without letting it pass) and does any work due; also returns what the work changed.
+pub(super) async fn step(pilot: &mut Pilot, bot: &mut Bot) -> (Result<NavStatus, ActionError>, Worked) {
+    if !bot.backend.moves() {
         return (Err(ActionError::NotPossible("pathfinding needs a physics bot (BotConfig.physics)".into())), Worked::default());
     }
     let s = &pilot.opts().search;
     let kit = (s.allow_dig || s.allow_bridge).then(|| bot.path_kit(&pilot.opts().scaffold));
-    let mut opts = pilot.search_opts(kit, bot.state.player.hunger);
-    if opts.boats {
-        opts.boat_source = bot.boat_source();
-    }
-    let Some((world, movement)) = bot.backend.physics_mut() else {
-        return (Ok(NavStatus::Searching), Worked::default());
-    };
-    let (Some(view), Some(registry)) = (world.view(), world.registry()) else {
-        return (Ok(NavStatus::Searching), Worked::default());
-    };
-    opts.hazards = perceive(pilot, &bot.state, movement, view, registry.as_ref());
-    let terrain = Terrain::new(view, registry.as_ref()).with_hazards(opts.hazards.clone());
-    let (snapshot, reg) = (view.world().clone(), registry.clone());
-    let status = match pilot.drive(&terrain, movement, opts, &mut |job| job.spawn_blocking(snapshot.clone(), reg.clone())) {
-        Ok(s) => s,
+    let opts = pilot.search_opts(kit, bot.state.player.hunger);
+    let status = match drive(pilot, bot, opts) {
+        Ok(Some(s)) => s,
+        Ok(None) => return (Ok(NavStatus::Searching), Worked::default()),
         Err(e) => return (Err(e), Worked::default()),
     };
     strike_back(pilot, bot);

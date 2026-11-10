@@ -21,6 +21,11 @@ impl Bot {
 
     /// Sends the held stack now and records it as what the server was told.
     pub(crate) fn equip_now(&mut self) {
+        #[cfg(feature = "java")]
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            java.client.actions.selected = self.state.inventory.selected_hotbar_slot;
+            return;
+        }
         let inv = &self.state.inventory;
         let (slot, item) = (inv.selected_hotbar_slot, inv.held().clone());
         if needs_mouse_over(self.reflexes.equipped.as_ref(), slot, &item) {
