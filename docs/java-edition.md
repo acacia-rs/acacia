@@ -33,10 +33,11 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    in its `tests/traces`, made with the bridge's `tools/move-trace.sh` (branch `java-physics-trace`).
 4. **Backend split.** Move the ~97 `acacia-bot` files that touch Bedrock packets behind edition backends
    (movement, interaction, inventory). Java bots path, dig and place. Done 2026-11-10 for goto with digging and
-   bridging (`acacia-bot` example `java_goto`); still Bedrock-only: threat perception (Java entities untracked),
-   enchantments on Java stacks, entity actions, forms, boats, elytra flight. Item use in the air came
-   2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
-   `java_eat`, 0 alerts while walking.
+   bridging (`acacia-bot` example `java_goto`); still Bedrock-only: enchantments on Java stacks, entity actions
+   (striking back included), forms, boats, elytra flight. Item use in the air came 2026-11-10: eating (`consume`, auto-eat) with the using-item slowdown, health and food from `SetHealth`; example
+   `java_eat`, 0 alerts while walking. Threat perception too: the Java client's entities mirror into
+   `state.entities` each tick (Bedrock kind names; proto `entity_types.rs` from `tools/gen_entity_types.mjs`), and
+   Java goto perceives hazards from them (example `java_avoid` swerves 4 blocks round a zombie, 0 alerts).
 5. **Inventory and crafting.** Java container clicks (state ids, carried item) behind the same API as
    Bedrock's ItemStackRequest. Own-inventory moves done 2026-11-10: `Bot`'s item moves become window-0 clicks
    predicted as `doClick` (`acacia-java-client` `clicks.rs`, bot `items/java_clicks.rs`); live, goto pulls a tool

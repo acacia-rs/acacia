@@ -8,6 +8,8 @@ use super::{Effects, ItemStack, Metadata};
 
 mod apply;
 mod equipment;
+#[cfg(feature = "java")]
+mod java;
 mod moves;
 mod properties;
 mod solids;

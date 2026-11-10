@@ -173,6 +173,10 @@ impl Bot {
         if let Err(e) = java.client.step(java_keys(&java.controls)) {
             tracing::debug!(error = %e, "java movement not sent");
         }
+        if self.state.keeps_entities() {
+            self.state.entities.advance();
+            self.state.entities.mirror_java(&java.client.world.entities);
+        }
     }
 }
 

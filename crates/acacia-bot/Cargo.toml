@@ -61,6 +61,10 @@ required-features = ["java"]
 name = "java_eat"
 required-features = ["java"]
 
+[[example]]
+name = "java_avoid"
+required-features = ["java"]
+
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "test-util"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
