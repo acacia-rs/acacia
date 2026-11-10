@@ -208,7 +208,9 @@ impl<S, F: AsyncFn(&mut Bot, &mut S)> Run<'_, S, F> {
 }
 
 async fn guard<T>(fut: impl Future<Output = T>, cancel: &mut watch::Receiver<bool>, keeper: &mut Keeper) -> Result<T, Interrupt> {
+    // Biased so a task is polled at least once even when a cancel came first: its spawn was already announced.
     tokio::select! {
+        biased;
         v = fut => Ok(v),
         _ = cancel.wait_for(|c| *c) => Err(Interrupt::Cancelled),
         () = keeper.lost() => Err(Interrupt::LeaseLost),
