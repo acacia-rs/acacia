@@ -287,7 +287,7 @@ fn wrap_degrees(d: f32) -> f32 {
     }
 }
 
-fn disconnect_reason(e: Error) -> DisconnectReason {
+pub(crate) fn disconnect_reason(e: Error) -> DisconnectReason {
     match e {
         // The link's tasks ended without an error of their own: Client::close stopped them.
         Error::Closed => DisconnectReason::LocalClose,

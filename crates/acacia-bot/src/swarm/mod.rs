@@ -4,6 +4,7 @@
 
 mod builder;
 mod events;
+mod java;
 mod join_queue;
 mod keeper;
 mod lease;

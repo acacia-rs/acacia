@@ -70,6 +70,23 @@ Tried, no gain: jemalloc (±5% RSS) and `MALLOC_ARENA_MAX=2` (wander -86 MB, mob
 with the move fields beside the map key (mobs cycles 1.008 over three rounds; the miss is the bucket itself); sha2's `asm` backend on testbox's Xeon
 E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%).
 
+## Java baseline
+
+`tools/java-load.sh <swarm_load built --features java> <bots> <wanderers> [seconds]`: `swarm_load` with `JAVA=1`
+(`Target::Java`) against a local Paper + Grim (flat, view distance 4), under perf stat and `/usr/bin/time`.
+2026-11-11, release build, 120 s including joins:
+
+| Run | Spawned | CPU s | Instructions | Peak RSS | Grim alerts |
+|---|---|---|---|---|---|
+| 50 standing | 50 | 8.8 | 26 G | 121 MB | 0 |
+| 50 wandering | 50 | 153 | 1.72 T | 164 MB | 28 |
+
+Standing Java bots cost ~2.4 MB and ~0.15% of a core each. Wandering is ~66x the CPU of standing, with pathfinding
+and physics for every bot (not yet profiled). The 28 alerts were small Simulation offsets (≤0.05) on 2 bots in 2
+bursts, most likely bots pushing each other in the crowd at spawn, where `push.rs` takes other players as
+pushers. A two-player push drill should settle that. Not compared with Bedrock: its runs above are relative A/B,
+and sapling isn't Paper.
+
 ## Left, by owner
 
 - Pathfinding (wander ~55% of the swarm): `CellMemo::get` ~10% self, `CellMemo::default` 1.7% (a memo built per

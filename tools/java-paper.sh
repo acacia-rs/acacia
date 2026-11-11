@@ -6,6 +6,7 @@ ALERTS='grim.*(failed|flagged)|\[Grim\].*x[0-9]'
 
 # paper_start <dir> <port>: boots a fresh flat world in <dir> (log <dir>/out.log) and waits for it. Sets PAPER_PID
 # and PAPER_FD, the console's write end. Every join gets a required resource pack, which the client must accept.
+# PAPER_PROPS: extra server.properties lines, space-separated.
 paper_start() {
 	local dir=$1 port=$2
 	rm -rf "$dir"/world* "$dir/in"
@@ -15,7 +16,7 @@ paper_start() {
 	echo eula=true > "$dir/eula.txt"
 	printf '%s\n' online-mode=false white-list=false "server-port=$port" level-type=minecraft:flat spawn-protection=0 \
 		view-distance=4 simulation-distance=4 gamemode=survival difficulty=peaceful \
-		resource-pack=http://127.0.0.1:9/drill-pack.zip require-resource-pack=true > "$dir/server.properties"
+		resource-pack=http://127.0.0.1:9/drill-pack.zip require-resource-pack=true $PAPER_PROPS > "$dir/server.properties"
 	: > "$dir/out.log"
 	mkfifo "$dir/in"
 	(cd "$dir" && exec "$JDK" -Xmx1500M -jar "$G/paper.jar" --nogui < in > out.log 2>&1 9>&-) &

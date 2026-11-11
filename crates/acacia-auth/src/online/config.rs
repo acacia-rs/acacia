@@ -2,7 +2,7 @@ use std::time::Duration;
 
 /// The Xbox title the login impersonates. Values from gophertunnel `auth.AndroidConfig` /
 /// `auth.NintendoConfig` (client IDs match prismarine-auth `Titles.js`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Title {
     /// Minecraft for Android. gophertunnel's default; the Mojang chain's `titleId` is 1739947436.
     #[default]
