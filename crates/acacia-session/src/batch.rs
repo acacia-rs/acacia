@@ -18,6 +18,9 @@ pub struct BatchCodec {
     max_decompressed: usize,
     /// Scratch for a batch's uncompressed packets, kept across batches.
     plain: BytesMut,
+    /// Scratch for a batch's body: compressing reserves about `plain`'s length, and a sent message
+    /// that kept that slack held 15x its size until its last fragment was acked.
+    body: BytesMut,
 }
 
 /// A batch body (after the 0xfe byte, before encryption) built once for many receivers: a server
@@ -30,7 +33,7 @@ impl SharedBatch {
     pub fn new<'a>(packets: impl IntoIterator<Item = &'a [u8]>, compression: Option<(Algorithm, usize)>) -> Self {
         let mut body = BytesMut::new();
         put_body(packets, compression, &mut BytesMut::new(), &mut body);
-        Self(body.freeze())
+        Self(Bytes::copy_from_slice(&body))
     }
 }
 
@@ -58,7 +61,7 @@ fn put_body<'a>(packets: impl IntoIterator<Item = &'a [u8]>, compression: Option
 
 impl Default for BatchCodec {
     fn default() -> Self {
-        Self { header: true, compression: None, encryption: None, max_decompressed: DEFAULT_MAX_DECOMPRESSED, plain: BytesMut::new() }
+        Self { header: true, compression: None, encryption: None, max_decompressed: DEFAULT_MAX_DECOMPRESSED, plain: BytesMut::new(), body: BytesMut::new() }
     }
 }
 
@@ -92,10 +95,14 @@ impl BatchCodec {
 
     /// Encodes already-serialized packets (header + body) into one game message.
     pub fn encode<'a>(&mut self, packets: impl IntoIterator<Item = &'a [u8]>) -> Bytes {
-        let mut out = self.start_message(0);
-        put_body(packets, self.compression, &mut self.plain, &mut out);
-        if self.plain.capacity() > 1 << 16 {
-            self.plain = BytesMut::new();
+        self.body.clear();
+        put_body(packets, self.compression, &mut self.plain, &mut self.body);
+        let mut out = self.start_message(self.body.len());
+        out.put_slice(&self.body);
+        for scratch in [&mut self.plain, &mut self.body] {
+            if scratch.capacity() > 1 << 16 {
+                *scratch = BytesMut::new();
+            }
         }
         self.seal(out)
     }
@@ -193,6 +200,17 @@ mod tests {
         let mut out = vec![];
         rx.decode(&msg, &mut out).unwrap();
         assert_eq!(out.iter().map(|b| &b[..]).collect::<Vec<_>>(), packets);
+    }
+
+    #[test]
+    fn a_compressed_message_keeps_no_spare_capacity() {
+        let mut tx = BatchCodec::default();
+        tx.enable_compression(Algorithm::Deflate, 256);
+        let big = vec![7u8; 200_000];
+        let msg = tx.encode([&big[..]]);
+        let len = msg.len();
+        let held = msg.try_into_mut().expect("the only handle").capacity();
+        assert!(len < 2_000 && held <= len + 16, "{len} bytes in {held}");
     }
 
     #[test]
