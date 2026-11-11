@@ -36,7 +36,7 @@ async fn watch(bot: &mut Bot, observer: &mut Bot, ticks: u32) -> Result<Seen, Er
 
 async fn give(bot: &mut Bot, cmds: &[String]) -> Result<(), Error> {
     for cmd in cmds {
-        bot.client().command(cmd);
+        bot.command(cmd);
         bot.wait_ticks(5).await?;
     }
     bot.wait_ticks(10).await?;
@@ -66,7 +66,7 @@ async fn main() -> Result<(), Error> {
     // TOTEM=1: a totem in the offhand, lethal damage; reports whether it was used up and the bot survived.
     if std::env::var("TOTEM").is_ok() {
         give(&mut bot, &["/clear @s".into(), "/replaceitem entity @s slot.weapon.offhand 0 totem_of_undying 1".into()]).await?;
-        bot.client().command("/damage @s 100 entity_attack");
+        bot.command("/damage @s 100 entity_attack");
         bot.wait_ticks(30).await?;
         let s = bot.state();
         println!("totem: offhand x{} alive {} health {}", s.inventory.offhand.count, s.player.alive, s.player.health);
@@ -76,7 +76,7 @@ async fn main() -> Result<(), Error> {
     // EXTRA_FLAGS=66,67: one main-hand attempt per raw PlayerAuthInput flag number, sent with the use.
     if let Ok(list) = std::env::var("EXTRA_FLAGS") {
         give(&mut bot, &["/clear @s".into(), format!("/give @s {item} 1")]).await?;
-        let slot = bot.find_item(&format!("minecraft:{item}")).ok_or("no item")?;
+        let slot = bot.find_item_named(&format!("minecraft:{item}")).ok_or("no item")?;
         bot.equip(slot, acacia_bot::survival::Destination::Hand).await?;
         let held = SlotRef::Main(bot.state().inventory.selected_hotbar_slot);
         for n in list.split(',').filter_map(|n| n.parse::<i64>().ok()) {
@@ -92,7 +92,7 @@ async fn main() -> Result<(), Error> {
 
     // Control: the item in the main hand.
     give(&mut bot, &["/clear @s".into(), format!("/give @s {item} 1"), "/give @s arrow 16".into()]).await?;
-    let slot = bot.find_item(&format!("minecraft:{item}")).ok_or("no item")?;
+    let slot = bot.find_item_named(&format!("minecraft:{item}")).ok_or("no item")?;
     bot.equip(slot, acacia_bot::survival::Destination::Hand).await?;
     let held = SlotRef::Main(bot.state().inventory.selected_hotbar_slot);
     bot.start_use_in(held);
@@ -106,7 +106,7 @@ async fn main() -> Result<(), Error> {
         give(&mut bot, &setup).await?;
         if let Some(m) = &main_item {
             give(&mut bot, &[format!("/give @s {m} 1")]).await?;
-            let slot = bot.find_item(&format!("minecraft:{m}")).ok_or("no main item")?;
+            let slot = bot.find_item_named(&format!("minecraft:{m}")).ok_or("no main item")?;
             bot.equip(slot, acacia_bot::survival::Destination::Hand).await?;
         }
         if flag {

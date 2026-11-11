@@ -17,19 +17,19 @@ async fn main() -> Result<(), Error> {
     let (mut bot, _pad) = support::connect(&server, &name).await?;
     // AUX=5,6,13 picks the values; peaceful stops hunger, so the drain runs on easy
     let list: Vec<u32> = std::env::var("AUX").map_or_else(|_| (0..=max).collect(), |v| v.split(',').filter_map(|a| a.parse().ok()).collect());
-    bot.client().command("/difficulty easy");
+    bot.command("/difficulty easy");
     for aux in list {
         for cmd in ["/effect @s clear".to_string(), "/clear @s".into(), format!("/give @s suspicious_stew 1 {aux}")] {
-            bot.client().command(&cmd);
+            bot.command(&cmd);
             bot.wait_ticks(6).await?;
         }
         // Hunger drains saturation then food, so a saturation effect shows against the stew's own 6 + 7.2
-        bot.client().command("/effect @s hunger 2 60 true");
+        bot.command("/effect @s hunger 2 60 true");
         bot.wait_ticks(60).await?;
-        bot.client().command("/effect @s clear");
+        bot.command("/effect @s clear");
         bot.wait_ticks(10).await?;
         let (food, sat) = (bot.state().player.hunger, bot.state().player.saturation);
-        let Some(slot) = bot.find_item("minecraft:suspicious_stew") else {
+        let Some(slot) = bot.find_item_named("minecraft:suspicious_stew") else {
             println!("aux {aux}: no stew in the inventory");
             continue;
         };

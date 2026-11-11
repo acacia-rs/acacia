@@ -29,12 +29,12 @@ async fn main() -> Result<(), Error> {
         "/give @s copper_ingot 1".into(),
         format!("/setblock {x} {y} {z} smithing_table"),
     ] {
-        bot.client().command(&cmd);
+        bot.command(&cmd);
         bot.wait_ticks(4).await?;
     }
     pad.teleport(&mut bot, [5.5, 0.0, -1.5], 0.0).await?;
     bot.wait_ticks(20).await?;
-    let find = |bot: &acacia_bot::Bot, n: &str| bot.find_item(n).ok_or_else(|| format!("no {n}"));
+    let find = |bot: &acacia_bot::Bot, n: &str| bot.find_item_named(n).ok_or_else(|| format!("no {n}"));
     let (base, add, template) = (find(&bot, "minecraft:iron_chestplate")?, find(&bot, "minecraft:copper_ingot")?, find(&bot, "minecraft:sentry_armor_trim_smithing_template")?);
     let result = bot.smith([x, y, z], base, add, template).await;
     println!("smith: {result:?}");
@@ -42,7 +42,7 @@ async fn main() -> Result<(), Error> {
     // The server's own stack, not acacia's prediction: what it tells a second player who sees this one wear it
     let watching = acacia_bot::BotConfig { trackers: acacia_bot::state::Trackers { entities: true, ..Default::default() }, ..Default::default() };
     let (mut observer, _) = support::connect_config(&server, "ProbeObs", watching).await?;
-    let chest = bot.find_item("minecraft:iron_chestplate").ok_or("no chestplate")?;
+    let chest = bot.find_item_named("minecraft:iron_chestplate").ok_or("no chestplate")?;
     bot.equip(chest, acacia_bot::survival::Destination::Chest).await?;
     for _ in 0..40 {
         bot.wait_ticks(1).await?;

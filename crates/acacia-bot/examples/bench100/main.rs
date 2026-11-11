@@ -105,14 +105,14 @@ async fn run_bot(bot: &mut Bot, cell: &Cell, o: &Opts, views: &Views) {
                 drop(v);
                 if let Some(tp) = tp.as_ref().filter(|_| !arrived && t >= next_tp) {
                     if let Some(cmd) = &o.setup_cmd {
-                        bot.client().command(cmd);
+                        bot.command(cmd);
                     }
-                    bot.client().command(tp);
+                    bot.command(tp);
                     next_tp = t + 5.0;
                 }
                 if cell.index == 0 && t >= next_poll {
                     if let Some(cmd) = &o.time_cmd {
-                        bot.client().command(cmd);
+                        bot.command(cmd);
                     }
                     next_poll = t + o.poll;
                 }

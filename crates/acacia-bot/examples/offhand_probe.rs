@@ -27,7 +27,7 @@ async fn watch(bot: &mut Bot, observer: &mut Bot) -> Result<bool, Error> {
 
 async fn give(bot: &mut Bot, cmds: &[String]) -> Result<(), Error> {
     for cmd in cmds {
-        bot.client().command(cmd);
+        bot.command(cmd);
         bot.wait_ticks(5).await?;
     }
     bot.wait_ticks(10).await?;
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Error> {
     bot.wait_ticks(5).await?;
 
     give(&mut bot, &["/clear @s".into(), format!("/give @s {item} 3")]).await?;
-    let slot = bot.find_item(&format!("minecraft:{item}")).ok_or("no item")?;
+    let slot = bot.find_item_named(&format!("minecraft:{item}")).ok_or("no item")?;
     bot.equip(slot, acacia_bot::survival::Destination::Hand).await?;
     bot.use_item();
     let blocking = watch(&mut bot, &mut observer).await?;
