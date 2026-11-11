@@ -79,8 +79,13 @@ impl Entity {
         blocks.then_some(bb)
     }
 
-    fn is(&self, name: &str) -> bool {
-        usize::try_from(self.kind).ok().and_then(|k| ENTITY_TYPES.get(k)) == Some(&name)
+    pub(crate) fn is(&self, name: &str) -> bool {
+        self.type_name() == name
+    }
+
+    /// Its `entity_type` registry name; empty for an unknown id.
+    pub(crate) fn type_name(&self) -> &'static str {
+        usize::try_from(self.kind).ok().and_then(|k| ENTITY_TYPES.get(k)).copied().unwrap_or("")
     }
 
     /// Pose and baby flag from `SetEntityData` items.

@@ -233,6 +233,11 @@ impl Player {
         }
     }
 
+    /// `LivingEntity.isPushable` for a living, non-spectator player: not while it climbs.
+    pub fn pushable(&self, world: &impl Blocks) -> bool {
+        !self.on_climbable(world)
+    }
+
     /// `Entity.push` from an entity overlapping the player; call before `tick`, as vanilla mobs do in their own tick.
     pub fn pushed_by(&mut self, other: [f64; 3]) {
         let (mut xa, mut za) = (other[0] - self.pos[0], other[2] - self.pos[2]);

@@ -121,3 +121,21 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   scripts; judge by server corrections and Grim's verbose flags. `ACACIA_GATE_CHEAT=1` is the control that must fail.
   Other examples run through it behind a wrapper that keeps `<host> <port>` and drops the gate's other arguments
   (e.g. `java_goto` with `ACACIA_DIG`/`ACACIA_BRIDGE`).
+- Drills, after Bedrock's: `tools/java-drills.sh <java_drill binary> [drill...]` runs the `java_drill` example's
+  scenarios on one Paper + Grim server, a fresh connection each. A drill sets itself up by op commands on its own
+  strip and passes with 0 Grim alerts, 0 setbacks after setup and its own check (speed, slowness, jump_boost,
+  levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat). `DRILL_TRACE=1` prints the player
+  every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
+
+## Status, chat and loading
+
+- Health, food and mob effects come from `SetHealth` / `UpdateMobEffect` / `RemoveMobEffect` into the physics
+  (`acacia-java-client` `status.rs`): sprinting needs food > 6, FAST_LAVA is the Nether's, leather boots walk on
+  powder snow. Remote mobs push the player after its tick, as `pushEntities` does client-side (`push.rs`).
+- Death: health 0 is `BotEvent::Died` (`PlayerCombatKill`'s text a chat event); `ClientCommand` 0 respawns (auto-respawn after the death screen).
+  `Respawn` rebuilds the player, keeping what its `dataToKeep` byte says, and a new level only on a dimension change.
+- Chat: system, player (signed), disguised and action bar messages decode to `BotEvent::Chat` (`messages.rs`), with
+  the chat type's name from configuration's `minecraft:chat_type`.
+- Loading follows `LevelLoadTracker` (`loading.rs`): `GameEvent` 13, then the player's chunk, then 10 ticks before
+  `PlayerLoaded`; the player neither ticks nor moves until then. Sending it on the first position made a join in
+  mid-air fall early, and Grim flagged Simulation.

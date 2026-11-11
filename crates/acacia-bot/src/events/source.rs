@@ -64,14 +64,7 @@ impl EventSource {
 
     /// Queues the events `packet` caused; `state` already reflects it.
     pub(crate) fn on_packet(&mut self, packet: &RawPacket, state: &mut GameState, out: &mut EventOut) {
-        let changes = std::mem::take(&mut state.player_list.changes);
-        if self.wants(Events::PLAYERS) {
-            out.extend(changes.into_iter().map(|c| match c {
-                PlayerChange::Joined(p) => BotEvent::PlayerJoined(p),
-                PlayerChange::Left(p) => BotEvent::PlayerLeft(p),
-            }));
-        }
-        self.on_entity_changes(state, out);
+        self.on_lists(state, out);
         match packet.id {
             // Text also arrives for bed refusals (sleep.rs) when chat is off.
             Text::ID if self.wants(Events::CHAT) || !self.patterns.is_empty() => self.on_text(packet, out),
@@ -93,6 +86,31 @@ impl EventSource {
             }
             _ => {}
         }
+        self.on_status(state, out);
+    }
+
+    /// [`EventSource::on_packet`] for a Java packet: the same state-driven events, plus its message.
+    #[cfg(feature = "java")]
+    pub(crate) fn on_java_packet(&mut self, message: Option<ChatMessage>, state: &mut GameState, out: &mut EventOut) {
+        self.on_lists(state, out);
+        if let Some(message) = message {
+            self.on_message(message, out);
+        }
+        self.on_status(state, out);
+    }
+
+    fn on_lists(&mut self, state: &mut GameState, out: &mut EventOut) {
+        let changes = std::mem::take(&mut state.player_list.changes);
+        if self.wants(Events::PLAYERS) {
+            out.extend(changes.into_iter().map(|c| match c {
+                PlayerChange::Joined(p) => BotEvent::PlayerJoined(p),
+                PlayerChange::Left(p) => BotEvent::PlayerLeft(p),
+            }));
+        }
+        self.on_entity_changes(state, out);
+    }
+
+    fn on_status(&mut self, state: &GameState, out: &mut EventOut) {
         if self.wants(Events::HEALTH) {
             self.on_vitals(state, out);
         }
@@ -140,7 +158,12 @@ impl EventSource {
     }
 
     fn on_text(&self, packet: &RawPacket, out: &mut EventOut) {
-        let Some(message) = packet.decode::<Text>().ok().and_then(ChatMessage::from_packet) else { return };
+        if let Some(message) = packet.decode::<Text>().ok().and_then(ChatMessage::from_packet) {
+            self.on_message(message, out);
+        }
+    }
+
+    fn on_message(&self, message: ChatMessage, out: &mut EventOut) {
         if !self.patterns.is_empty() {
             let plain = message.plain();
             for pattern in &self.patterns {

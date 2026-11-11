@@ -4,7 +4,7 @@
 use acacia_client::DisconnectReason;
 use acacia_java_client::{Client, Error, Packet};
 use acacia_java_physics::Keys;
-use acacia_java_proto::ids::play::clientbound::{PLAYER_POSITION, SET_PASSENGERS};
+use acacia_java_proto::ids::play::clientbound::{PLAYER_POSITION, RESPAWN, SET_PASSENGERS};
 
 use super::bedrock::Backend;
 use super::Step;
@@ -28,11 +28,19 @@ pub struct Java {
     last_setback: Option<u64>,
     /// `last_setback` before the latest teleport, restored when that teleport only seated the player.
     setback_before: Option<u64>,
+    /// A respawn's new player has not ticked yet: positions until then place it (Paper's respawn sends two).
+    respawned: bool,
+    setbacks: u32,
 }
 
 impl Java {
     pub fn client(&self) -> &Client {
         &self.client
+    }
+
+    /// Server positions that corrected the player (its first and a respawn's place it, a seat's isn't one).
+    pub fn setbacks(&self) -> u32 {
+        self.setbacks
     }
 
     pub(crate) fn started(&self) -> bool {
@@ -87,7 +95,7 @@ impl Bot {
         let mut state = GameState::new(config.trackers, 0);
         state.items = crate::state::ItemRegistry::java();
         state.recipes = crate::state::Recipes::java();
-        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, teleports: 0, last_setback: None, setback_before: None };
+        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, teleports: 0, last_setback: None, setback_before: None, respawned: false, setbacks: 0 };
         let assembly = Assembly { auto_respawn: config.auto_respawn, auto_eat: config.auto_eat, snapshots: config.snapshots };
         Bot::assemble(Backend::Java(Box::new(java)), state, events, EventOut::new(config.event_sink), assembly)
     }
@@ -133,11 +141,19 @@ impl Bot {
                 {
                     let player = &java.client.movement.player;
                     (java.controls.yaw, java.controls.pitch) = (player.yaw, player.pitch);
-                    if java.teleports > 0 {
+                    if java.teleports > 0 && !java.respawned {
+                        tracing::debug!(tick = java.ticks, pos = ?player.pos, loaded = java.client.loaded(), "java setback");
                         java.setback_before = java.last_setback;
                         java.last_setback = Some(java.ticks);
+                        java.setbacks += 1;
                     }
                     java.teleports += 1;
+                }
+                if packet.id == RESPAWN
+                    && let Backend::Java(java) = &mut self.backend
+                {
+                    tracing::debug!(tick = java.ticks, "java respawn");
+                    java.respawned = true;
                 }
                 // Boarding a boat turns the player to the boat's yaw; `startRiding`'s teleport just before isn't a setback.
                 if packet.id == SET_PASSENGERS
@@ -146,11 +162,20 @@ impl Bot {
                     java.controls.yaw = java.client.movement.player.yaw;
                     if java.client.movement.riding.is_some() && java.last_setback == Some(java.ticks) {
                         java.last_setback = java.setback_before;
+                        java.setbacks -= 1;
                     }
                 }
+                let was_alive = self.state.player.alive;
                 self.on_java_inventory(packet.id);
                 self.on_java_health(&packet);
                 self.on_java_dialog(packet.id);
+                let message = match &mut self.backend {
+                    Backend::Java(java) => java.client.message.take().map(crate::events::ChatMessage::from_java),
+                    Backend::Bedrock(_) => None,
+                };
+                self.events.on_java_packet(message, &mut self.state, &mut self.out);
+                // Java has no "searching for spawn": dying is the only trigger.
+                self.schedule_respawn(was_alive);
                 Step::Idle
             }
             Err(e) => {
@@ -208,15 +233,18 @@ impl Bot {
 
     pub(super) fn java_tick(&mut self) {
         self.governor.tick(None);
+        self.tick_respawn();
         self.tick_survival();
         let dismounting = self.java_dismounting();
         let Backend::Java(java) = &mut self.backend else { return };
         java.ticks += 1;
+        java.respawned &= !java.client.loaded();
         let player = &mut java.client.movement.player;
         // Turned by the shorter way and never wrapped, as a mouse turns it: Grim's AimModulo360 flags a 360° jump.
         player.yaw += wrap_degrees(java.controls.yaw - player.yaw);
         player.pitch = java.controls.pitch.clamp(-90.0, 90.0);
         player.has_glider = usable_elytra(java.client.inventory.slot(CHEST_SLOT));
+        player.snow_boots = java.client.inventory.slot(FEET_SLOT).is_some_and(|s| s.item == i32::from(acacia_world::neutral::Item::LeatherBoots.java_id()));
         let mut keys = java_keys(&java.controls);
         keys.shift |= dismounting;
         if let Err(e) = java.client.step(keys) {
@@ -234,8 +262,9 @@ impl Bot {
     }
 }
 
-/// Window 0's chest armour slot.
+/// Window 0's chest and feet armour slots.
 const CHEST_SLOT: usize = 6;
+const FEET_SLOT: usize = 8;
 const ELYTRA_DURABILITY: i32 = 432;
 
 /// An elytra that will not break on its next use (`LivingEntity.canGlideUsing`).

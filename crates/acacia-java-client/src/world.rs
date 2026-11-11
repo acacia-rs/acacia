@@ -93,9 +93,13 @@ impl World {
         let input = &mut input;
         match id {
             from::LOGIN => self.login(input)?,
+            // `handleRespawn` builds a new level only when the dimension changes.
             from::RESPAWN => {
                 read_varint(input)?;
-                self.enter_level(String::read(input)?);
+                let dimension = String::read(input)?;
+                if dimension != self.dimension {
+                    self.enter_level(dimension);
+                }
             }
             from::LEVEL_CHUNK_WITH_LIGHT => {
                 let (x, z, buffer) = read_chunk_header(input)?;

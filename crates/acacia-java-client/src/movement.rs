@@ -42,6 +42,8 @@ pub struct Movement {
     pub riding: Option<Riding>,
     /// Server corrections of driven vehicles since joining: [height only, horizontal].
     pub vehicle_corrections: [u32; 2],
+    pub health: f32,
+    pub food: i32,
     sent_keys: Keys,
     sent_sprinting: bool,
     sent_flying: bool,
@@ -59,6 +61,8 @@ impl Default for Movement {
             player: Player::at([0.0; 3]),
             riding: None,
             vehicle_corrections: [0; 2],
+            health: 20.0,
+            food: 20,
             sent_keys: Keys::default(),
             sent_sprinting: false,
             sent_flying: false,
@@ -133,6 +137,14 @@ impl Movement {
         Ok(())
     }
 
+    /// What a new `LocalPlayer` has sent: nothing, or the old one's input and sprint when its data is kept.
+    pub(crate) fn reset_sent(&mut self, kept: Option<(Keys, bool)>) {
+        let (keys, sprinting) = kept.unwrap_or_default();
+        (self.sent_keys, self.sent_sprinting) = (keys, sprinting);
+        (self.sent_flying, self.sent_gliding, self.sent_on_ground, self.sent_collision) = (false, false, false, false);
+        (self.sent_pos, self.sent_rot, self.position_reminder) = ([0.0; 3], [0.0; 2], 0);
+    }
+
     fn collision_flags(&self) -> u8 {
         u8::from(self.player.on_ground) | u8::from(self.player.horizontal_collision) << 1
     }
@@ -148,16 +160,20 @@ impl Client {
     pub fn step(&mut self, keys: Keys) -> Result<(), Error> {
         self.send_actions()?;
         self.world.tick_entities();
+        self.tick_loading()?;
         let at = self.movement.player.pos.map(|v| v.floor() as i32);
         if !self.loaded() || !self.world.has_chunk(at) {
             return Ok(());
         }
+        let keys = if self.movement.dead() { Keys::default() } else { keys };
+        self.update_status();
         if self.movement.riding.is_some() {
             self.ride_step(keys)?;
         } else {
             let feet = self.movement.player.pos[1];
             self.movement.player.solid_entities = self.world.collision_boxes(Mover::Player { feet }, &[]);
             self.movement.player.tick(&self.world, keys);
+            self.push_player();
             self.send_changes()?;
             let me = self.world.player_id;
             for _ in self.world.entities.values().filter(|e| e.attached_to == Some(me)) {

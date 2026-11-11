@@ -32,7 +32,7 @@ pub struct Riding {
     pub(crate) jump_bar: JumpBar,
 }
 
-fn is_boat(name: &str) -> bool {
+pub(crate) fn is_boat(name: &str) -> bool {
     name.ends_with("_boat") || name.ends_with("_raft")
 }
 
