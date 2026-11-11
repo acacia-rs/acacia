@@ -158,6 +158,10 @@ impl Client {
     /// One client tick: simulates the player with `keys` and sends what changed. Does nothing before the first
     /// teleport or while the player's chunk is missing.
     pub fn step(&mut self, keys: Keys) -> Result<(), Error> {
+        // No level while the server reconfigures; queued actions wait for the next one.
+        if self.configuring() {
+            return Ok(());
+        }
         self.send_actions()?;
         self.world.tick_entities();
         self.tick_loading()?;

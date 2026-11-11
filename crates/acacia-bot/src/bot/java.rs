@@ -4,7 +4,7 @@
 use acacia_client::DisconnectReason;
 use acacia_java_client::{Client, Error, Packet};
 use acacia_java_physics::Keys;
-use acacia_java_proto::ids::play::clientbound::{PLAYER_POSITION, RESPAWN, SET_PASSENGERS};
+use acacia_java_proto::ids::play::clientbound::{LOGIN, PLAYER_POSITION, RESPAWN, SET_PASSENGERS};
 
 use super::bedrock::Backend;
 use super::Step;
@@ -149,10 +149,10 @@ impl Bot {
                     }
                     java.teleports += 1;
                 }
-                if packet.id == RESPAWN
+                // A login after a reconfiguration places a new player too.
+                if matches!(packet.id, RESPAWN | LOGIN)
                     && let Backend::Java(java) = &mut self.backend
                 {
-                    tracing::debug!(tick = java.ticks, "java respawn");
                     java.respawned = true;
                 }
                 // Boarding a boat turns the player to the boat's yaw; `startRiding`'s teleport just before isn't a setback.

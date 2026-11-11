@@ -85,6 +85,11 @@ impl Connection {
         self.writer.write(encode(id, body)).await
     }
 
+    /// Sends a packet already [`encode`]d.
+    pub(crate) async fn write(&mut self, packet: Vec<u8>) -> Result<(), Error> {
+        self.writer.write(packet).await
+    }
+
     pub(crate) fn into_halves(self) -> (FrameReader, FrameWriter) {
         (self.reader, self.writer)
     }

@@ -126,6 +126,20 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   strip and passes with 0 Grim alerts, 0 setbacks after setup and its own check (speed, slowness, jump_boost,
   levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat). `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
+  Every drill server requires a resource pack, so each join also checks the pack answers.
+- `tools/java-switch.sh <java_drill binary>`: the `switch` drill behind Velocity (`tools/java-proxy/velocity.toml`,
+  jar at `~/java-truth/velocity/velocity.jar`) with two Paper + Grim backends; `/server b` reconfigures the client
+  in play, and it must walk on b with 0 alerts on both and 0 setbacks.
+
+## Joining
+
+Login answers cookie requests (none stored yet) and plugin queries ("no payload"), then sends the vanilla brand
+and client information. Configuration (`configuration.rs`) answers keep-alives, pings, known packs, cookies
+(`StoreCookie` keeps them for the connection), the code of conduct (accepted) and resource packs: every pack is
+reported accepted, downloaded and loaded without being fetched, since declining a required one is a kick.
+`StartConfiguration` in play (a proxy switching backends) is answered on the link's reader: the writer drops
+play packets until `FinishConfiguration`, the client holds its tick, and the next `Login` places a new player.
+Not done: `Transfer` (reconnecting elsewhere with the cookies).
 
 ## Status, chat and loading
 

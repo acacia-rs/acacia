@@ -5,9 +5,13 @@ use acacia_bot::BotEvent;
 
 use crate::{Drill, FLOOR};
 
-pub const NAMES: &[&str] = &["speed", "slowness", "jump_boost", "levitation", "slow_falling", "hunger", "powder_snow", "nether_lava", "push", "death", "chat"];
+/// `switch` needs a proxy with backends `a` and `b` (tools/java-switch.sh); the rest run on one server.
+pub const NAMES: &[&str] = &["speed", "slowness", "jump_boost", "levitation", "slow_falling", "hunger", "powder_snow", "nether_lava", "push", "death", "chat", "switch"];
 
-type Outcome = Result<(u32, Result<(), String>), String>;
+/// Velocity's switch: reconfiguration, the new backend's login and its level load.
+const SWITCH_TICKS: u32 = 200;
+
+type Outcome =Result<(u32, Result<(), String>), String>;
 
 /// The drill's strip: cleared, the bot alone on it at the west end facing east, no effects or items.
 async fn start(d: &mut Drill, x: i32, extra: &[&str]) -> Result<u32, String> {
@@ -135,6 +139,16 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
             let said = |text: &str| d.seen(|e| matches!(e, BotEvent::Chat(m) if m.message.contains(text)));
             let (say, tell) = (said("drill-say"), said("drill-tell"));
             Ok((base, check(say && tell, || format!("say {say}, tellraw {tell}"))))
+        }
+        "switch" => {
+            start(d, x, &[]).await?;
+            d.bot.command("server b");
+            d.ticks(SWITCH_TICKS).await?;
+            let base = start(d, x, &[]).await?;
+            d.walk(40, 1.0, true, true).await?;
+            let moved = d.feet()[0] - x0;
+            let configuring = d.bot.java().is_none_or(|j| j.client().configuring());
+            Ok((base, check(moved > 8.0 && !configuring, || format!("moved {moved:.2}, configuring {configuring}"))))
         }
         _ => unreachable!(),
     }

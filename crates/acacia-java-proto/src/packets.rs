@@ -39,6 +39,27 @@ packet!(PlaceRecipe { container: VarInt, recipe: VarInt, use_max_items: bool });
 packet!(Ping { id: i32 });
 packet!(KnownPack { namespace: String, id: String, version: String });
 packet!(SelectKnownPacks { packs: Vec<KnownPack> });
+packet!(CookieRequest { key: String });
+packet!(CookieResponse { key: String, payload: Option<Vec<u8>> });
+packet!(StoreCookie { key: String, payload: Vec<u8> });
+packet!(CustomQuery { transaction: VarInt });
+packet!(CustomQueryAnswer { transaction: VarInt, payload: Option<Vec<u8>> });
+// An optional prompt component follows.
+packet!(ResourcePackPush { id: u128, url: String, hash: String, required: bool });
+packet!(ResourcePackResponse { id: u128, action: VarInt });
+// `ServerboundCustomPayloadPacket` carrying `BrandPayload`.
+packet!(Brand { channel: String, brand: String });
+packet!(ClientInformation {
+    language: String,
+    view_distance: i8,
+    chat_visibility: VarInt,
+    chat_colors: bool,
+    model_customisation: u8,
+    main_hand: VarInt,
+    text_filtering: bool,
+    allows_listing: bool,
+    particles: VarInt,
+});
 packet!(PositionMoveRotation { x: f64, y: f64, z: f64, delta_x: f64, delta_y: f64, delta_z: f64, y_rot: f32, x_rot: f32 });
 packet!(PlayerPosition { id: VarInt, change: PositionMoveRotation, relatives: i32 });
 packet!(AcceptTeleportation { id: VarInt, x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32 });

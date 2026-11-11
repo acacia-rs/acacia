@@ -1,30 +1,23 @@
-use acacia_auth::{Account, JavaProfile};
-use acacia_java_proto::packets::{AcceptTeleportation, Empty, EncryptionHello, EncryptionKey, INTENT_LOGIN, Intention, KeepAlive, LoginCompression, LoginFinished, LoginHello, Ping, PlayerPosition, SelectKnownPacks};
+use acacia_auth::Account;
 use acacia_java_proto::dialog::{Dialog, Shown, read_show_dialog};
-use acacia_java_proto::tag::Tag;
+use acacia_java_proto::packets::{AcceptTeleportation, Empty, INTENT_LOGIN, Intention, LoginHello, Ping, PlayerPosition};
 use acacia_java_proto::recipe_book::BookRecipe;
 use acacia_java_proto::recipes::{StonecutterRecipe, read_update_recipes};
-use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids, read_varint};
-use md5::{Digest, Md5};
+use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids};
 use tokio::net::TcpStream;
 
 use crate::actions::Actions;
-use crate::crypto::{random_secret, rsa_encrypt, server_hash};
+use crate::configuration::{Cookies, Registries};
 use crate::frame::{Connection, Error};
 use crate::inventory::Inventory;
-use crate::link::{Link, Packet};
+use crate::link::{Link, Packet, Received};
 use crate::loading::Loading;
+use crate::login::{Session, configure, login};
 use crate::messages::{self, Message};
 use crate::movement::Movement;
 use crate::world::World;
 
-/// The id an offline-mode server gives `name`: a v3 UUID of `OfflinePlayer:<name>`.
-pub fn offline_uuid(name: &str) -> u128 {
-    let mut hash: [u8; 16] = Md5::digest(format!("OfflinePlayer:{name}")).into();
-    hash[6] = hash[6] & 0x0f | 0x30;
-    hash[8] = hash[8] & 0x3f | 0x80;
-    u128::from_be_bytes(hash)
-}
+pub use crate::login::offline_uuid;
 
 /// Where the server last put the player.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -56,6 +49,8 @@ pub struct Client {
     pub message: Option<Message>,
     chat_types: Vec<String>,
     loading: Loading,
+    /// The server sent the client back to configuration: what it has sent so far.
+    reconfiguring: Option<Registries>,
 }
 
 impl Client {
@@ -77,42 +72,85 @@ impl Client {
         c.send(ids::handshake::serverbound::INTENTION, &intention).await?;
         c.send(ids::login::serverbound::HELLO, &LoginHello { name: name.to_owned(), uuid }).await?;
         let profile = login(&mut c, session).await?;
-        let Registries { enchantments, dialogs, chat_types } = configure(&mut c).await?;
-        let mut inventory = Inventory::default();
-        inventory.enchantments = enchantments.into();
-        Ok(Self {
-            link: Link::spawn(c),
+        let mut cookies = Cookies::new();
+        let registries = configure(&mut c, &mut cookies).await?;
+        let mut client = Self {
+            link: Link::spawn(c, cookies),
             uuid: profile.uuid,
             name: profile.name,
             pose: Pose::default(),
             world: World::default(),
             movement: Movement::default(),
             actions: Actions::default(),
-            inventory,
+            inventory: Inventory::default(),
             stonecutter: Vec::new(),
             dialog: None,
-            dialogs,
+            dialogs: Vec::new(),
             recipe_book: Vec::new(),
             message: None,
-            chat_types,
+            chat_types: Vec::new(),
             loading: Loading::default(),
-        })
+            reconfiguring: None,
+        };
+        client.install(registries);
+        Ok(client)
     }
 
-    /// The next packet, already applied to the world and movement. Cancel-safe.
+    fn install(&mut self, registries: Registries) {
+        self.inventory.enchantments = registries.enchantments.into();
+        self.dialogs = registries.dialogs;
+        self.chat_types = registries.chat_types;
+    }
+
+    /// The next play packet, already applied to the world and movement. Cancel-safe.
     pub async fn next(&mut self) -> Result<Packet, Error> {
-        let packet = self.link.recv().await.ok_or(Error::Closed)??;
-        self.apply(&packet)?;
-        Ok(packet)
+        loop {
+            let received = self.link.recv().await.ok_or(Error::Closed)??;
+            if let Some(packet) = self.receive(received)? {
+                return Ok(packet);
+            }
+        }
     }
 
     /// Like [`Client::next`] for a packet that has already arrived.
     pub fn try_next(&mut self) -> Option<Result<Packet, Error>> {
-        let packet = match self.link.try_recv()? {
-            Ok(packet) => packet,
-            Err(e) => return Some(Err(e)),
-        };
-        Some(self.apply(&packet).map(|()| packet))
+        loop {
+            match self.link.try_recv()?.and_then(|received| self.receive(received)) {
+                Ok(Some(packet)) => return Some(Ok(packet)),
+                Ok(None) => {}
+                Err(e) => return Some(Err(e)),
+            }
+        }
+    }
+
+    /// Applies a play packet, or takes a reconfiguration's packet (`None`: nothing for the caller).
+    fn receive(&mut self, received: Received) -> Result<Option<Packet>, Error> {
+        match received {
+            Received::Play(packet) => self.apply(&packet).map(|()| Some(packet)),
+            Received::Configuration(id, body) => {
+                self.reconfigure(id, &body)?;
+                Ok(None)
+            }
+        }
+    }
+
+    /// The server's configuration packets after `StartConfiguration` (the link answers them).
+    fn reconfigure(&mut self, id: i32, body: &[u8]) -> Result<(), Error> {
+        use ids::configuration::clientbound as from;
+        match id {
+            from::DISCONNECT => return Err(Error::Disconnected(format!("{body:02x?}"))),
+            from::FINISH_CONFIGURATION => {
+                let registries = self.reconfiguring.take().unwrap_or_default();
+                self.install(registries);
+            }
+            _ => self.reconfiguring.get_or_insert_default().collect(id, body)?,
+        }
+        Ok(())
+    }
+
+    /// The server took the client back to configuration; play resumes with a new `Login`.
+    pub fn configuring(&self) -> bool {
+        self.reconfiguring.is_some()
     }
 
     /// Queues a play packet; [`Error::Closed`] once the connection is gone.
@@ -149,8 +187,18 @@ impl Client {
             from::CLEAR_DIALOG => self.dialog = None,
             from::RECIPE_BOOK_ADD | from::RECIPE_BOOK_REMOVE => self.update_book(id, body)?,
             from::DISCONNECT => return Err(Error::Disconnected(format!("{body:02x?}"))),
+            // `handleLogin` makes a new player: after a reconfiguration this is the only reset.
+            from::LOGIN => {
+                self.loading = Loading::default();
+                self.movement = Movement::default();
+            }
             // `setClientLoaded(false)` and a new `LevelLoadTracker`.
-            from::LOGIN | from::RESPAWN => self.loading = Loading::default(),
+            from::RESPAWN => self.loading = Loading::default(),
+            // `clearClientLevel`: no level or player until the next `Login`.
+            from::START_CONFIGURATION => {
+                self.reconfiguring = Some(Registries::default());
+                self.loading = Loading::default();
+            }
             _ => {}
         }
         // A message we can't read is dropped rather than ending the connection.
@@ -182,97 +230,6 @@ impl Client {
 
 /// `ClientboundGameEventPacket.LEVEL_CHUNKS_LOAD_START`.
 const LEVEL_CHUNKS_LOAD_START: u8 = 13;
-
-/// The account and profile to authenticate with; `None` joins offline.
-type Session<'a> = Option<(&'a Account, &'a JavaProfile)>;
-
-/// Answers the server's encryption request and turns encryption on.
-async fn encrypt(c: &mut Connection, hello: EncryptionHello, session: Session<'_>) -> Result<(), Error> {
-    let secret = random_secret();
-    if hello.should_authenticate {
-        let (account, player) = session.ok_or(Error::NeedsAccount)?;
-        account.join_java_session(player, &server_hash(&hello.server_id, &secret, &hello.public_key)).await?;
-    }
-    let key = EncryptionKey { secret: rsa_encrypt(&hello.public_key, &secret)?, challenge: rsa_encrypt(&hello.public_key, &hello.challenge)? };
-    c.send(ids::login::serverbound::KEY, &key).await?;
-    c.enable_encryption(&secret);
-    Ok(())
-}
-
-async fn login(c: &mut Connection, session: Session<'_>) -> Result<LoginFinished, Error> {
-    use ids::login::{clientbound as from, serverbound as to};
-    loop {
-        let (id, body) = c.read().await?;
-        let mut input = &body[..];
-        match id {
-            from::HELLO => encrypt(c, EncryptionHello::read(&mut input)?, session).await?,
-            from::LOGIN_COMPRESSION => c.set_compression(LoginCompression::read(&mut input)?.threshold.0),
-            from::LOGIN_FINISHED => {
-                let profile = LoginFinished::read(&mut input)?;
-                c.send(to::LOGIN_ACKNOWLEDGED, &Empty {}).await?;
-                return Ok(profile);
-            }
-            from::LOGIN_DISCONNECT => return Err(Error::Disconnected(String::read(&mut input)?)),
-            other => return Err(Error::Unexpected(other, "login")),
-        }
-    }
-}
-
-/// What configuration leaves the client: enchantment names, and dialogs whose data the server sent (datapack ones;
-/// the built-in packs both sides claim come without), by network id.
-#[derive(Default)]
-struct Registries {
-    enchantments: Vec<String>,
-    dialogs: Vec<Option<Dialog>>,
-    chat_types: Vec<String>,
-}
-
-/// The configuration phase.
-async fn configure(c: &mut Connection) -> Result<Registries, Error> {
-    use ids::configuration::{clientbound as from, serverbound as to};
-    let mut registries = Registries::default();
-    loop {
-        let (id, body) = c.read().await?;
-        let mut input = &body[..];
-        match id {
-            from::KEEP_ALIVE => c.send(to::KEEP_ALIVE, &KeepAlive::read(&mut input)?).await?,
-            from::PING => c.send(to::PONG, &Ping::read(&mut input)?).await?,
-            // Claiming the server's own packs means it omits the vanilla registry contents.
-            from::SELECT_KNOWN_PACKS => c.send(to::SELECT_KNOWN_PACKS, &SelectKnownPacks::read(&mut input)?).await?,
-            from::REGISTRY_DATA => match String::read(&mut input)?.as_str() {
-                ENCHANTMENT_REGISTRY => registries.enchantments = registry_entries(&mut input)?.into_iter().map(|(name, _)| name).collect(),
-                CHAT_TYPE_REGISTRY => registries.chat_types = registry_entries(&mut input)?.into_iter().map(|(name, _)| name).collect(),
-                DIALOG_REGISTRY => {
-                    let entries = registry_entries(&mut input)?;
-                    registries.dialogs = entries.iter().map(|(_, data)| data.as_ref().and_then(Dialog::from_tag)).collect();
-                }
-                _ => {}
-            },
-            from::FINISH_CONFIGURATION => {
-                c.send(to::FINISH_CONFIGURATION, &Empty {}).await?;
-                return Ok(registries);
-            }
-            from::DISCONNECT => return Err(Error::Disconnected(format!("{body:02x?}"))),
-            _ => {}
-        }
-    }
-}
-
-const ENCHANTMENT_REGISTRY: &str = "minecraft:enchantment";
-const DIALOG_REGISTRY: &str = "minecraft:dialog";
-const CHAT_TYPE_REGISTRY: &str = "minecraft:chat_type";
-
-/// `RegistryData` entries after the registry key: ids in network order, each with optional data (absent for packs
-/// both sides know).
-fn registry_entries(input: &mut &[u8]) -> Result<Vec<(String, Option<Tag>)>, Error> {
-    let mut entries = Vec::new();
-    for _ in 0..read_varint(input)? {
-        let name = String::read(input)?;
-        let data = if bool::read(input)? { Some(Tag::read_root(input)?.ok_or(acacia_java_proto::Error::Invalid("registry entry NBT"))?) } else { None };
-        entries.push((name, data));
-    }
-    Ok(entries)
-}
 
 #[cfg(test)]
 #[path = "join_tests.rs"]
