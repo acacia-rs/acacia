@@ -25,7 +25,7 @@ tracing = "0.1.44"
 # STUN/TURN client (turn/): MESSAGE-INTEGRITY, long-term key, FINGERPRINT.
 hmac = "0.12"
 sha1 = "0.10"
-md-5 = "0.10"
+md-5 = "0.11"
 crc = "3"
 # LAN discovery (lan/): AES-256-ECB + HMAC-SHA256.
 aes = "0.8"
