@@ -20,7 +20,9 @@ case "${1:-}" in
       kill $(mine '^\./bedrock_server') 2>/dev/null
     fi
     # The feed loop outlives a crashed server, so it is killed either way.
-    kill $(mine '^sh -c while true; do cat console') 2>/dev/null; true ;;
+    # Kill the loop before its cat: a cat blocked opening the fifo survives the loop's death and leaks.
+    kill $(mine '^sh -c while true; do cat console') 2>/dev/null
+    kill $(mine '^cat console$') 2>/dev/null; true ;;
   reset) rm -rf worlds/actions/db worlds/actions/level.dat* worlds/actions/levelname.txt ;;
   *) echo "usage: bds-ctl.sh start|stop|reset" >&2; exit 2 ;;
 esac
