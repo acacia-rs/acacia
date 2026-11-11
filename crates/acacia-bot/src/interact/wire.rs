@@ -128,6 +128,18 @@ pub(crate) struct Hand {
     pub slot: u8,
     pub item: ItemV4,
     pub eye: Vec3,
+    pub hand: TransactionUseItemHand,
+}
+
+impl Hand {
+    pub fn main(slot: u8, item: ItemV4, eye: Vec3) -> Self {
+        Self { slot, item, eye, hand: TransactionUseItemHand::MainHand }
+    }
+
+    /// The offhand stack as the held item, the selected hotbar slot unchanged (see `Bot::use_item_in`).
+    pub fn offhand(slot: u8, item: ItemV4, eye: Vec3) -> Self {
+        Self { slot, item, eye, hand: TransactionUseItemHand::OffHand }
+    }
 }
 
 /// `UseItem` ClickBlock: `click` is relative to the block, `block` the clicked block's wire id.
@@ -188,7 +200,7 @@ fn use_item(
             block_position,
             face,
             hotbar_slot: i32::from(hand.slot),
-            hand: TransactionUseItemHand::MainHand,
+            hand: hand.hand,
             held_item: hand.item,
             player_pos: vec3f(hand.eye),
             click_pos: vec3f(click),

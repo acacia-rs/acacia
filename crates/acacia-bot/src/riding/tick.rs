@@ -3,7 +3,7 @@ use acacia_client::proto::types::Vec3f;
 
 use super::exit::Mount;
 use super::input::{apply_dismount, apply_seat, Seat};
-use super::keys::{keys, report_keys};
+use super::keys::{keys, report_jump, report_keys};
 use crate::movement::{Idle, EYE_HEIGHT};
 use crate::spawn::{self, SpawnPacket};
 use crate::world::PhysicsWorld;
@@ -59,7 +59,9 @@ impl Bot {
             self.seat_input(&mut input, &seat, Some(exit));
             if self.state.riding.is_riding() && !self.drive_horse(&mut input) && !self.drive_boat(&mut input) {
                 // The server moves the rest (pigs, minecarts) from the rider's keys.
-                report_keys(&mut input, keys(&self.backend.movement().map(|m| m.controls).unwrap_or_default()));
+                let controls = self.backend.movement().map(|m| m.controls).unwrap_or_default();
+                report_keys(&mut input, keys(&controls));
+                report_jump(&mut input, controls.jump, std::mem::replace(&mut self.ride.jump_held, controls.jump));
             }
             self.add_queued_flags(&mut input);
             self.send_bedrock(&input);

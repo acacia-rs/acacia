@@ -109,7 +109,12 @@ impl Bot {
 
     pub(crate) fn hand(&self) -> wire::Hand {
         let inv = &self.state.inventory;
-        wire::Hand { slot: inv.selected_hotbar_slot, item: to_wire(inv.held()), eye: self.eye_position() }
+        wire::Hand::main(inv.selected_hotbar_slot, to_wire(inv.held()), self.eye_position())
+    }
+
+    pub(crate) fn offhand_hand(&self) -> wire::Hand {
+        let inv = &self.state.inventory;
+        wire::Hand::offhand(inv.selected_hotbar_slot, to_wire(&inv.offhand), self.eye_position())
     }
 
     pub(crate) fn runtime_id(&self) -> u64 {

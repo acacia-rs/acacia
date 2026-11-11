@@ -11,6 +11,7 @@ use super::legacy::{self, SlotChange};
 use super::wire::{self, SwingSource};
 use super::{is_interactive, Face};
 use crate::human::STOP_USE_ON;
+use crate::items::SlotRef;
 use crate::reflex::Reflex;
 use crate::state::ItemStack;
 use crate::{ActionError, Bot};
@@ -45,6 +46,34 @@ impl Bot {
         self.send_bedrock(&wire::release(self.hand()));
         #[cfg(feature = "java")]
         self.java_release_item();
+    }
+
+    /// [`Bot::use_item`] with the stack in `slot`: `SlotRef::Offhand` sends the offhand stack as the held item with
+    /// the transaction's `hand` set to `OffHand`; any other slot is the held item. Strict BDS 1.26 ignores it:
+    /// golden apple and snowball in the offhand stay unused with an empty main hand, also with the hand set to
+    /// main, a `StartUsingItem` flag, or a `MobEquipment` for the offhand window first (`examples/offhand_probe.rs`).
+    /// A bow or crossbow held from the offhand is ignored too (`examples/hold_probe.rs`).
+    pub fn use_item_in(&mut self, slot: SlotRef) {
+        let hand = if slot == SlotRef::Offhand { self.offhand_hand() } else { self.hand() };
+        self.client.send(&wire::click_air(hand));
+    }
+
+    /// [`Bot::use_item_in`] plus the `StartUsingItem` input flag on the next `PlayerAuthInput`, as a held use
+    /// (shield, bow) starts on the vanilla client. End it with [`Bot::release_item_in`].
+    pub fn start_use_in(&mut self, slot: SlotRef) {
+        self.use_item_in(slot);
+        self.queued_flags.push(acacia_client::proto::types::InputData::StartUsingItem);
+    }
+
+    /// Sets `flag` on the next `PlayerAuthInput` (raw, for probing inputs the bot has no action for).
+    pub fn queue_input_flag(&mut self, flag: acacia_client::proto::types::InputData) {
+        self.queued_flags.push(flag);
+    }
+
+    /// [`Bot::release_item`] for the stack in `slot` (`SlotRef::Offhand`: `hand` = OffHand).
+    pub fn release_item_in(&mut self, slot: SlotRef) {
+        let hand = if slot == SlotRef::Offhand { self.offhand_hand() } else { self.hand() };
+        self.client.send(&wire::release(hand));
     }
 
     /// Right-clicks the block at `pos` with the held item (`UseItem` ClickBlock): opens doors, presses

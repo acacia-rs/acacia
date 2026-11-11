@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn rod_and_rocket_clicks_match_the_capture() {
-        let hand = wire::Hand { slot: 1, item: wire::to_wire(&stack(395, 1)), eye: [-0.42, 72.62, 3.44] };
+        let hand = wire::Hand::main(1, wire::to_wire(&stack(395, 1)), [-0.42, 72.62, 3.44]);
         let TransactionTransactionData::ItemUse(u) = wire::click_air(hand).transaction.transaction_data else { panic!() };
         assert_eq!((u.trigger_type, u.client_prediction), (TriggerType::UnknownValue, TransactionUseItemClientPrediction::Failure));
         assert_eq!((u.face, u.hotbar_slot, u.click_pos.x), (255, 1, 0.0));

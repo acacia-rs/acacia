@@ -39,7 +39,7 @@ fn placing_lists_the_held_slot_change() {
     let sign = stack(361, 2);
     let left = one_used(&sign);
     assert_eq!((left.count, one_used(&stack(421, 1)).is_empty()), (1, true));
-    let hand = Hand { slot: 3, item: to_wire(&sign), eye: [1.06, 72.62, 3.17] };
+    let hand = Hand::main(3, to_wire(&sign), [1.06, 72.62, 3.17]);
     let click = wire::click_block(hand, [1, 70, 4], Face::Up, Face::Up.click_offset(), 7);
     let packet = with_slot_change(click, Some(-70), &SlotChange { slot: 3, old: &sign, new: &left });
     let t = raw(&packet).decode::<acacia_client::proto::packets::InventoryTransaction>().unwrap().transaction;
@@ -52,7 +52,7 @@ fn placing_lists_the_held_slot_change() {
     assert!(matches!(t.transaction_data, Data::ItemUse(_)));
 
     let bed = stack(421, 1);
-    let t = with_slot_change(wire::click_air(Hand { slot: 0, item: to_wire(&bed), eye: [0.0; 3] }), None, &SlotChange { slot: 0, old: &bed, new: &one_used(&bed) })
+    let t = with_slot_change(wire::click_air(Hand::main(0, to_wire(&bed), [0.0; 3])), None, &SlotChange { slot: 0, old: &bed, new: &one_used(&bed) })
         .transaction;
     assert_eq!((t.legacy.legacy_request_id, t.legacy.legacy_transactions, t.actions[0].new_item.network_id), (0, None, 0));
 }
