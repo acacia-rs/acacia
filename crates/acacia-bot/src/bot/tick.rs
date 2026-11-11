@@ -8,6 +8,8 @@ use crate::Bot;
 
 /// Start movement after this long with the spawn chunk loaded even without support below (5 s).
 const SPAWN_WAIT_TICKS: u32 = 100;
+/// Leave the loading screen after this long even with no terrain yet (2.5 s, vanilla's loading end after PlayerSpawn).
+const TERRAINLESS_SPAWN_TICKS: u32 = 50;
 /// Solid entities this near the feet (blocks) take part in the tick: more than a tick's travel.
 const SOLID_REACH: f32 = 4.0;
 
@@ -119,6 +121,13 @@ impl Bot {
             movement.spawn_wait += 1;
             placed = crate::world::has_support_below(view, registry, feet) || movement.spawn_wait >= SPAWN_WAIT_TICKS;
         }
+        // gophertunnel proxies (Oomph) hold every backend packet, chunks included, until SetLocalPlayerAsInitialised.
+        if !placed && !travelled && !b.spawned {
+            b.spawn_ticks += 1;
+            if b.spawn_ticks == TERRAINLESS_SPAWN_TICKS {
+                send_spawn_packets(&b.client, &mut b.spawn_sent, p.runtime_entity_id);
+            }
+        }
         // After the spawn the look is the player's own; the server's is from before the change.
         let (yaw, pitch) = if b.spawned { (movement.controls.yaw, movement.controls.pitch) } else { (p.yaw, p.pitch) };
         if !self.travel_tick(placed) {
@@ -133,10 +142,7 @@ impl Bot {
         if std::mem::replace(&mut b.spawned, true) {
             return;
         }
-        // TODO: physics bots skip vanilla's spawn timing (crate::spawn); idle bots follow it.
-        for packet in [SpawnPacket::LoadingScreenStart, SpawnPacket::LoadingScreenEnd, SpawnPacket::Initialized] {
-            spawn::send(&b.client, self.state.player.runtime_entity_id, packet);
-        }
+        send_spawn_packets(&b.client, &mut b.spawn_sent, self.state.player.runtime_entity_id);
         b.sync.spawned();
     }
 
@@ -177,5 +183,16 @@ impl Bot {
             }
             self.send_bedrock(&input);
         }
+    }
+}
+
+/// Physics bots' loading screen and SetLocalPlayerAsInitialised, once.
+// TODO: physics bots skip vanilla's spawn timing (crate::spawn); idle bots follow it.
+fn send_spawn_packets(client: &acacia_client::Client, sent: &mut bool, me: u64) {
+    if std::mem::replace(sent, true) {
+        return;
+    }
+    for packet in [SpawnPacket::LoadingScreenStart, SpawnPacket::LoadingScreenEnd, SpawnPacket::Initialized] {
+        spawn::send(client, me, packet);
     }
 }

@@ -40,8 +40,12 @@ pub struct Bedrock {
     pub(crate) in_flight: Pipeline<StackUndo>,
     /// A dimension change in progress.
     pub(crate) travel: Option<Travel>,
-    /// Physics bots: the simulation has started once, and the spawn packets went out with it.
+    /// Physics bots: the simulation has started once.
     pub(crate) spawned: bool,
+    /// Physics bots: the loading-screen packets went out (with the first start, or earlier without terrain).
+    pub(crate) spawn_sent: bool,
+    /// Physics bots: ticks waited for terrain before the first start.
+    pub(crate) spawn_ticks: u32,
     pub(crate) strict: bool,
     /// A client container close still settling (interact/closing.rs).
     pub(crate) closing: Option<PendingClose>,
@@ -99,6 +103,8 @@ impl Bedrock {
             in_flight: Default::default(),
             travel: None,
             spawned: false,
+            spawn_sent: false,
+            spawn_ticks: 0,
             strict: config.strict,
             closing: None,
             lag: config.lag.map(LagLine::new),
