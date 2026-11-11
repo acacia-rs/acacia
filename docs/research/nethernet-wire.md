@@ -193,6 +193,8 @@ a=end-of-candidates                     (MOJ example; GN omits)
 2. Does BDS 26.50 **require** a client `a=identity` when `online-mode=false`? Does it validate the GameServerToken when `online-mode=true`? Is a bare `Login` chain enough? MOJ says this is server policy.
 3. Does BDS serve both HTTP and HTTPS on the same port (sniffing), or plain HTTP only? It has no cert by default. MOJ and GN imply plain HTTP for raw IP:port.
 4. Does BDS emit `a=end-of-candidates`, and a srflx candidate when it is behind NAT? MOJ:553 puts that on the operator.
+   BDS has no server.properties key for STUN or TURN (bdsre string search, 2026-10-28); its only ICE servers are the
+   signaling service's `TurnAuthServers`. `Host` can gather srflx and relay candidates itself (`HostConfig::ice`).
 5. How does vanilla use UnreliableDataChannel (which packets go on it, and if the server can send on it)? GN treats it as unused.
 6. What timeouts does vanilla use for the HTTP request and ICE consent? The values here are GN/pion defaults.
 7. Can BDS respond with a 2xx whose body is a bare error code, or does it always use non-2xx? GN's client handles both.

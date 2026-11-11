@@ -55,9 +55,10 @@ pub(crate) fn candidate_line(addr: SocketAddr, typ: CandidateType, ufrag: Option
 
 /// Rebuilds str0m's offer or answer in the vanilla line order (BDS answers use the same one) with
 /// `identity_line` at session level. Takes the fingerprint, ICE credentials and DTLS setup from
-/// str0m's SDP. With `embedded` the SDP carries that host candidate (direct connect); without,
-/// candidates are trickled and the media line holds libwebrtc's pre-gathering placeholders.
-pub(crate) fn vanilla_sdp(str0m_offer: &str, identity_line: &str, embedded: Option<SocketAddr>) -> String {
+/// str0m's SDP. With `embedded` the SDP carries that host candidate (direct connect), then the
+/// `extra` candidate lines; without, candidates are trickled and the media line holds libwebrtc's
+/// pre-gathering placeholders.
+pub(crate) fn vanilla_sdp(str0m_offer: &str, identity_line: &str, embedded: Option<SocketAddr>, extra: &[String]) -> String {
     let attr = |name: &str| str0m_offer.lines().find_map(|l| l.strip_prefix(name)).unwrap_or_default();
     let placeholder = SocketAddr::from(([0, 0, 0, 0], 9));
     let media = embedded.unwrap_or(placeholder);
@@ -79,6 +80,9 @@ pub(crate) fn vanilla_sdp(str0m_offer: &str, identity_line: &str, embedded: Opti
     line(&format!("c=IN {family} {}", media.ip()));
     if let Some(host) = embedded {
         line(&format!("a={}", candidate_line(host, CandidateType::Host, None)));
+        for candidate in extra {
+            line(&format!("a={candidate}"));
+        }
     }
     line(&format!("a=ice-ufrag:{}", attr("a=ice-ufrag:")));
     line(&format!("a=ice-pwd:{}", attr("a=ice-pwd:")));
@@ -138,7 +142,7 @@ mod tests {
 
     #[test]
     fn offer_follows_vanilla_layout() {
-        let offer = vanilla_sdp(STR0M, "a=identity:e30=", Some("192.168.1.20:50123".parse().unwrap()));
+        let offer = vanilla_sdp(STR0M, "a=identity:e30=", Some("192.168.1.20:50123".parse().unwrap()), &[]);
         let key = |l: &str| match l.strip_prefix("a=") {
             Some(attr) => format!("a={}", attr.split(':').next().unwrap_or_default()),
             None if l.starts_with("m=") || l.starts_with("c=") => l.to_owned(),
@@ -158,7 +162,7 @@ mod tests {
 
     #[test]
     fn trickle_offer_has_no_candidates() {
-        let offer = vanilla_sdp(STR0M, "a=identity:e30=", None);
+        let offer = vanilla_sdp(STR0M, "a=identity:e30=", None, &[]);
         assert!(!offer.contains("a=candidate"));
         assert!(offer.contains("m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\na=ice-ufrag:Ab12\r\n"));
     }
