@@ -3,6 +3,8 @@ import type { BlockPos } from './generated/types/BlockPos.js'
 import type { ContainerItem } from './generated/types/ContainerItem.js'
 import type { ItemName } from './generated/names.js'
 import type { EquipDestination } from './generated/types/EquipDestination.js'
+import type { InventorySlot } from './generated/types/InventorySlot.js'
+import type { SlotRef as WireSlotRef } from './generated/types/SlotRef.js'
 import type { Recipe } from './generated/types/Recipe.js'
 import type { Vec3 } from './generated/types/Vec3.js'
 import { BotReads, type Item } from './reads.js'
@@ -11,10 +13,23 @@ import type { CallOptions } from './session.js'
 /** An item name (`stone` or `minecraft:stone`; vanilla names autocomplete) or an `inventory` entry. */
 export type ItemRef = ItemName | Item
 
-function nameOf(item: ItemRef): string {
+/**
+ * One of the bot's own slots: a main-inventory slot number (0-8 the hotbar), a `{ window, slot }` place or an
+ * `inventory` entry (window 0 main, 119 off hand, 120 armour), or an item name for its first main-inventory stack.
+ */
+export type SlotRef = number | InventorySlot | ItemName
+
+export function nameOf(item: ItemRef): string {
   const name = typeof item === 'string' ? item : item.name
   if (name === null) throw new AcaciaError('BAD_PARAMS', 'the item has no name yet (no item table)')
   return name
+}
+
+/** A `SlotRef` as the wire takes it. */
+export function slotOf(slot: SlotRef): WireSlotRef {
+  if (typeof slot === 'number') return { window: 0, slot }
+  if (typeof slot === 'string') return slot
+  return { window: slot.window, slot: slot.slot }
 }
 
 /** A bot's inventory, crafting and container verbs (contract: the package README). */
@@ -80,6 +95,16 @@ export class BotItems extends BotReads {
     const { toward, ...call } = options
     const params = { item: nameOf(item), ...(count === undefined ? {} : { count }), ...(toward === undefined ? {} : { toward: cell(toward) }) }
     return (await this.call('bot.toss', params, call)).tossed
+  }
+
+  /** Moves `count` (default the whole stack) items from one own slot onto an empty slot or a stack of the same item. */
+  moveItem(from: SlotRef, to: SlotRef, count?: number, options?: CallOptions): Promise<void> {
+    return this.call('bot.moveItem', { from: slotOf(from), to: slotOf(to), ...(count === undefined ? {} : { count }) }, options)
+  }
+
+  /** Exchanges the contents of two own slots, which must not hold the same item. */
+  swapItems(a: SlotRef, b: SlotRef, options?: CallOptions): Promise<void> {
+    return this.call('bot.swapItems', { a: slotOf(a), b: slotOf(b) }, options)
   }
 }
 

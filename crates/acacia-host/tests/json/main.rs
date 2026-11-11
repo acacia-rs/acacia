@@ -8,6 +8,7 @@ mod entities;
 mod interact;
 mod items;
 mod moves;
+mod riding_stations;
 mod survival;
 mod survival_verbs;
 

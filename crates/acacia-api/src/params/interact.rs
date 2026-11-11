@@ -1,10 +1,10 @@
-//! Params of the right-click and hand verbs: using blocks, items and entities, the hotbar.
+//! Params of the right-click and hand verbs: using blocks, items and entities, riding, the hotbar.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{BotId, EntityId, Face};
+use crate::{BotId, EntityId, Face, UniqueId};
 
 /// The block cell `x, y, z` to right-click.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
@@ -25,6 +25,19 @@ pub struct ActivateEntityParams {
     pub bot: BotId,
     /// A tracked entity's id (players included).
     pub entity: EntityId,
+}
+
+/// What `bot.mount` seated the bot on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Vehicle {
+    pub unique_id: UniqueId,
+    /// The runtime id actions take; null when the vehicle's spawn was not seen.
+    pub id: Option<EntityId>,
+    /// `minecraft:boat`, ...; null when unknown.
+    pub kind: Option<String>,
+    /// In the controlling seat rather than a passenger seat.
+    pub driver: bool,
 }
 
 /// The hotbar slot to hold.
