@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => builder.offline(&name),
     };
     let mut bot = Bot::connect(builder, BotConfig { physics: true, ..BotConfig::default() }).await?;
-    println!("spawned as {}", bot.client().display_name());
+    println!("spawned as {}", bot.name());
 
     let mut report = tokio::time::interval(Duration::from_secs(1));
     let mut phase = 0usize;
@@ -55,15 +55,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 None => break,
             },
             _ = report.tick() => {
-                let m = bot.movement().expect("physics enabled");
+                let m = bot.bedrock().and_then(|b| b.movement()).expect("physics enabled");
                 let pos = m.position().map_or("not started".into(), |p| format!("({:.3}, {:.3}, {:.3})", p[0], p[1], p[2]));
-                let chunks = bot.world().and_then(|w| w.view()).map_or(0, |v| v.len());
+                let chunks = bot.bedrock().and_then(|b| b.world()).and_then(|w| w.view()).map_or(0, |v| v.len());
                 let below = below_feet(&bot);
                 println!("phase {phase} pos {pos} | below {below} | chunks {chunks} | corrections {} teleports {}", m.corrections, m.teleports);
             }
             _ = tokio::time::sleep_until(phase_end), if phase < PLAN.len() => {
                 phase += 1;
-                if phase == PLAN.len() { bot.client().close(); continue; }
+                if phase == PLAN.len() { bot.close(); continue; }
                 let (secs, forward, strafe, jump, yaw) = PLAN[phase];
                 let c = bot.controls().expect("physics enabled");
                 (c.forward, c.strafe, c.jump, c.yaw) = (forward, strafe, jump, yaw);
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// Name of the block under the simulated feet, for diagnosing terrain decoding.
 fn below_feet(bot: &Bot) -> String {
     use acacia_world::BlockAccess;
-    let (Some(p), Some(w)) = (bot.movement().and_then(|m| m.position()), bot.world()) else { return "-".into() };
+    let (Some(p), Some(w)) = (bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()), bot.bedrock().and_then(|b| b.world())) else { return "-".into() };
     let (Some(view), Some(reg)) = (w.view(), w.registry()) else { return "-".into() };
     let (x, y, z) = (p[0].floor() as i32, (p[1] - 0.01).floor() as i32, p[2].floor() as i32);
     let id = view.block(x, y, z);

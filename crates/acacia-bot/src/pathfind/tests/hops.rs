@@ -5,9 +5,7 @@ use acacia_physics::BlockPos;
 
 use super::drive::{PROFILES, macro_opts, plan, plan_and_follow, standing};
 use super::grid::Grid;
-use crate::movement::Controls;
-use crate::pathfind::costs::HOP_SPEED;
-use crate::pathfind::reach::LEAP_VMAX;
+use crate::movement::{BEDROCK, Controls};
 use crate::pathfind::{Entry, Goal, GotoOpts, MoveKind, MovementProfile, Path, Pilot, SearchOpts};
 
 /// Distance covered after each tick of sprinting from standing, jumping whenever possible or never.
@@ -29,26 +27,26 @@ fn steady_hop_speed_bounds_the_heuristic() {
     // Five whole 12-tick hops once the speed has settled.
     let v = (xs[119] - xs[59]) / 60.0;
     eprintln!("steady hop speed {v:.5} blocks/tick = {:.4} ticks/block", 1.0 / v);
-    assert!((v - HOP_SPEED).abs() < 2e-4, "HOP_SPEED is {HOP_SPEED}, measured {v}");
+    assert!((v - BEDROCK.hop_speed).abs() < 2e-4, "hop_speed is {}, measured {v}", BEDROCK.hop_speed);
     let opts = macro_opts(MovementProfile::Optimal);
-    assert!(opts.speed().per_block <= 1.0 / v, "inadmissible");
+    assert!(opts.speed(&BEDROCK).per_block <= 1.0 / v, "inadmissible");
     // From standing, no run beats the heuristic's startup either.
     for jump in [true, false] {
         for (t, &d) in sprint_from_rest(jump).iter().enumerate() {
-            let h = opts.speed().run(d, true);
+            let h = opts.speed(&BEDROCK).run(d, true);
             assert!(h <= (t + 1) as f32, "jump {jump}, tick {t}: {d} blocks, h {h}");
         }
     }
 }
 
-/// Lazy leaps are queued at distance / `LEAP_VMAX`: no tick of sprint-jumping, from rest into a hop chain, travels
+/// Lazy leaps are queued at distance / `leap_vmax`: no tick of sprint-jumping, from rest into a hop chain, travels
 /// farther than that.
 #[test]
 fn leap_speed_stays_under_the_floor_bound() {
     let xs = sprint_from_rest(true);
     let fastest = xs.windows(2).map(|w| w[1] - w[0]).fold(xs[0], f32::max);
     eprintln!("fastest tick {fastest:.4} blocks");
-    assert!(fastest < LEAP_VMAX, "{fastest}");
+    assert!(fastest < BEDROCK.leap_vmax, "{fastest}");
 }
 
 /// Plans from standing at `from` and follows the plan under every seed: (plan, worst ticks taken).
@@ -69,7 +67,7 @@ fn hops_along_flat_ground() {
         let (_, sprinting) = follow(&g, [-20.5, 1.0, 0.5], goal, &classic);
         let opts = macro_opts(profile);
         let (p, ticks) = follow(&g, [-20.5, 1.0, 0.5], goal, &opts);
-        let h = Goal::Block(goal).estimate([-21, 1, 0], opts.speed(), true);
+        let h = Goal::Block(goal).estimate([-21, 1, 0], opts.speed(&BEDROCK), true);
         let hops = p.nodes.iter().filter(|n| n.kind == MoveKind::Hop).count();
         eprintln!("{profile:?}: {ticks} ticks with {hops} hops, {sprinting} sprinting; h {h}, cost {}", p.cost);
         assert!(h <= p.cost && ticks <= sprinting, "{profile:?}");

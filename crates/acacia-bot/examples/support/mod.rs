@@ -59,7 +59,7 @@ pub async fn connect_config(server: &str, name: &str, config: BotConfig) -> Resu
     };
     let config = BotConfig { physics: true, ..config };
     let mut bot = Bot::connect(builder, config).await?;
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     bot.wait_ticks(20).await?;
@@ -71,7 +71,7 @@ pub async fn connect_config(server: &str, name: &str, config: BotConfig) -> Resu
     }
     println!("pad origin {spawn:?} + {PAD_HEIGHT} up");
     for cmd in ["/difficulty peaceful", "/kill @e[type=!player]"] {
-        bot.client().command(cmd);
+        bot.command(cmd);
         bot.wait_ticks(2).await?;
     }
     Ok((bot, Pad { spawn, commander: Commander::Own }))
@@ -89,7 +89,7 @@ pub fn watchdog(default_secs: u64) {
 }
 
 pub fn corrections(bot: &Bot) -> u32 {
-    bot.movement().map_or(0, |m| m.corrections)
+    bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.corrections)
 }
 
 /// Who runs a pad's commands: the bot itself, or an operator they are relayed to with `@s` replaced by
@@ -129,7 +129,7 @@ impl Pad {
     pub fn run(&self, bot: &Bot, command: &str) {
         match &self.commander {
             Commander::Own => {
-                bot.client().command(command);
+                bot.command(command);
             }
             Commander::Relay(to, name) => {
                 let _ = to.send(command.replace("@s", name));
@@ -161,10 +161,10 @@ impl Pad {
     /// Teleports to `at` (feet, offset from the origin block's corner) and waits until it lands: BDS can
     /// send the teleport many ticks late after big fills.
     pub async fn teleport(&self, bot: &mut Bot, at: [f32; 3], yaw: f32) -> Result<(), Error> {
-        let teleports = bot.movement().map_or(0, |m| m.teleports);
+        let teleports = bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.teleports);
         self.run(bot, &self.tp_command(at, yaw));
         for _ in 0..100 {
-            if bot.movement().is_some_and(|m| m.teleports > teleports) {
+            if bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.teleports > teleports) {
                 break;
             }
             bot.wait_ticks(1).await?;

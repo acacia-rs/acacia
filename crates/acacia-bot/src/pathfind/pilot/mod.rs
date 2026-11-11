@@ -13,7 +13,7 @@ mod watch;
 use std::sync::Arc;
 use std::time::Duration;
 
-use acacia_physics::{PlayerState, Vec3};
+use acacia_physics::Vec3;
 use tokio::sync::oneshot::error::TryRecvError;
 
 use super::astar::{Path, SearchOpts, search_cached};
@@ -26,10 +26,11 @@ use super::hazard::{Hazards, Senses, Striker};
 use super::job::{Answer, SearchJob, Spawn};
 use super::kit::Kit;
 use super::profile::MovementProfile;
+use super::rollout::PlanSim;
 use super::terrain::{Blocks, Terrain};
 use super::PathNode;
 use crate::cadence::{seed, splitmix};
-use crate::movement::Movement;
+use crate::movement::{Live, Sim};
 use crate::ActionError;
 use ahead::Ahead;
 use alarm::Alarm;
@@ -134,9 +135,13 @@ impl Pilot {
     }
 
     /// Sets `movement`'s controls for the next tick. `spawn` starts the searches that do not fit in the tick.
-    pub fn drive<B: Blocks>(&mut self, terrain: &Terrain<B>, movement: &mut Movement, opts: SearchOpts, spawn: Spawn) -> Result<NavStatus, ActionError> {
-        let Some(live) = movement.state().cloned() else { return Ok(NavStatus::Searching) };
-        self.guard.tick(&self.goal, live.pos)?;
+    pub fn drive<B: Blocks, L: Live>(&mut self, terrain: &Terrain<B>, movement: &mut L, opts: SearchOpts, spawn: Spawn<L::Sim>) -> Result<NavStatus, ActionError>
+    where
+        L::Sim: PlanSim<B>,
+    {
+        let Some(live) = movement.base() else { return Ok(NavStatus::Searching) };
+        let pos = live.body().pos;
+        self.guard.tick(&self.goal, pos, L::Sim::envelope())?;
         if self.hold_after_setback(movement) {
             return Ok(NavStatus::Searching);
         }
@@ -147,24 +152,24 @@ impl Pilot {
                 Ok(path) => path,
             };
             self.pending = None;
-            self.accept(path, live.pos)?;
+            self.accept(path, pos)?;
         }
-        if self.teleports.replace(movement.teleports).is_some_and(|t| t != movement.teleports) {
+        if self.teleports.replace(movement.teleports()).is_some_and(|t| t != movement.teleports()) {
             self.drop_follower(false);
         }
         if self.follower.as_ref().is_some_and(|f| !still_valid(terrain, f)) {
             tracing::debug!("path blocked by a world change; re-planning");
             self.drop_follower(true);
         }
-        if self.follower.as_ref().is_some_and(|f| self.alarm.tick(opts.hazards.as_deref(), f, live.pos)) {
-            tracing::debug!(?live.pos, "an entity moved onto the path ahead; re-planning");
+        if self.follower.as_ref().is_some_and(|f| self.alarm.tick(opts.hazards.as_deref(), f, pos)) {
+            tracing::debug!(?pos, "an entity moved onto the path ahead; re-planning");
             self.drop_follower(false);
         }
         self.poll_ahead();
         if self.follower.is_none() {
             // After a divergence the controls carry the bot on through the air while it re-plans.
             if !self.diverged_in_air || movement.on_ground() {
-                movement.controls.stop();
+                movement.controls().stop();
             }
             if !self.guard.waiting() {
                 self.plan(terrain, live.clone(), opts.clone(), true, &mut *spawn)?;
@@ -174,11 +179,10 @@ impl Pilot {
         // per act mid-walk was a quarter of its moving time).
         let Some(follower) = &mut self.follower else { return Ok(NavStatus::Searching) };
         follower.set_hazards(opts.hazards.clone());
-        let pos = live.pos;
         let feet = pos.map(|v| v.floor() as i32);
         let sense = Sense { pos, on_ground: movement.on_ground(), in_water: terrain.cell(feet).is_water() };
         let fork = movement.fork();
-        let status = follower.tick(&sense, fork.as_ref(), terrain, &mut movement.controls);
+        let status = follower.tick(&sense, fork.as_ref(), terrain, movement.controls());
         let (index, short) = (follower.index(), follower.spend().short);
         match status {
             FollowStatus::Moving => {
@@ -221,17 +225,18 @@ impl Pilot {
 
     /// Searches from the live state, so the plan starts with the momentum the bot has (a re-plan after a
     /// divergence keeps running). `inline`: try a quick search before the tick ends, else only in the background.
-    fn plan<B: Blocks>(&mut self, terrain: &Terrain<B>, live: PlayerState, mut opts: SearchOpts, inline: bool, spawn: Spawn) -> Result<(), ActionError> {
+    fn plan<B: Blocks, S: PlanSim<B>>(&mut self, terrain: &Terrain<B>, live: S, mut opts: SearchOpts, inline: bool, spawn: Spawn<S>) -> Result<(), ActionError> {
         opts.favour = self.favour.clone();
-        self.guard.searched(live.on_ground);
+        let body = live.body();
+        self.guard.searched(body.on_ground);
         if inline {
             let quick_opts = SearchOpts { max_nodes: QUICK_NODES, budget: QUICK_BUDGET, max_rollout_ticks: QUICK_ROLLOUT_TICKS, ..opts.clone() };
             let quick = search_cached(terrain, &live, &self.goal, &quick_opts, &self.cache);
             // A plan whose macro budget ran out may have missed faster macro moves: search again in full. Moving, a
             // partial one beats stopping for the full search: plan-ahead extends it from its end.
-            let moving = live.vel[0].hypot(live.vel[2]) > MOVING;
+            let moving = body.vel[0].hypot(body.vel[2]) > MOVING;
             if quick.unreachable || (quick.complete && !quick.macro_stats.exhausted) || (moving && !quick.complete && !quick.nodes.is_empty()) {
-                return self.accept(quick, live.pos);
+                return self.accept(quick, body.pos);
             }
         }
         let job = SearchJob { from: live, goal: self.goal.clone(), opts, cache: self.cache.clone() };

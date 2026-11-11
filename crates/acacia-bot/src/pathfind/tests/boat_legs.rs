@@ -2,11 +2,12 @@
 //! under the edge, and no boat is planned without one to board.
 
 use super::drive::macro_opts;
-use super::grid::Grid;
+use super::grid::{Grid, search};
 use super::search::{ORIGIN, kinds, opts};
 use super::sim::{assert_at, run_with};
+use crate::movement::BEDROCK;
 use crate::pathfind::boat::BoatSource;
-use crate::pathfind::{Goal, MoveKind, MovementProfile, Path, SearchOpts, search};
+use crate::pathfind::{Goal, MoveKind, MovementProfile, Path, SearchOpts};
 
 const FAR_BANK: [i32; 3] = [50, 1, 0];
 
@@ -61,9 +62,9 @@ fn the_heuristic_stays_under_the_boat_edge() {
     let i = p.nodes.iter().position(|n| n.kind == MoveKind::Boat).expect("a boat leg");
     let from = if i == 0 { [0, 1, 0] } else { p.nodes[i - 1].pos };
     let leg = &p.nodes[i];
-    let floor = Goal::Block(leg.pos).estimate(from, o.speed(), true);
+    let floor = Goal::Block(leg.pos).estimate(from, o.speed(&BEDROCK), true);
     assert!(leg.cost >= floor, "edge {} under the heuristic's {floor}", leg.cost);
-    assert!(o.speed().per_block < opts(true).speed().per_block);
+    assert!(o.speed(&BEDROCK).per_block < opts(true).speed(&BEDROCK).per_block);
 }
 
 #[test]
@@ -75,7 +76,7 @@ fn no_boat_is_planned_without_one_to_board() {
         let p = search(&g.terrain(), ORIGIN, &Goal::Block(FAR_BANK), &o);
         assert!(boat_nodes(&p).is_empty(), "{source:?}: {:?}", kinds(&p));
         if !source.any() {
-            assert_eq!(o.speed(), opts(true).speed());
+            assert_eq!(o.speed(&BEDROCK), opts(true).speed(&BEDROCK));
         }
     }
 }

@@ -1,13 +1,14 @@
 //! Moving a cached macro-move result to another node (`cache.rs`): positions are translated in f32, so a reused
 //! landing may sit a float rounding off the one a fresh rollout would give, far under `Momentum`'s quantum.
 
-use acacia_physics::{BlockPos, PlayerState};
+use acacia_physics::BlockPos;
 
 use super::control::RunCtl;
 use super::hop::Ran;
 use super::leap::LeapCtl;
 use super::solve::{Miss, Solved};
 use super::terrain::Spot;
+use crate::movement::Motion;
 
 /// Moved to another node `d` away.
 pub(crate) trait Shift {
@@ -30,8 +31,8 @@ impl Shift for Spot {
     }
 }
 
-/// Only the position: a stored end state is read for its position, velocity and flags.
-impl Shift for PlayerState {
+/// Only the position: a stored end motion is read for its position, velocity and flags.
+impl Shift for Motion {
     fn shift(&mut self, d: BlockPos) {
         (0..3).for_each(|i| self.pos[i] += d[i] as f32);
     }

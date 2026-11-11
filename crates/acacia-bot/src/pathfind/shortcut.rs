@@ -2,20 +2,18 @@
 //! simulates sprinting (and sprint-jumping) straight at nodes further on and runs the fastest clean one
 //! instead of the 8-direction staircase between them.
 
-use acacia_physics::constants::DEFAULT_GROUND_DRAG;
-use acacia_physics::{Aabb, BlockPos, WorldView};
+use acacia_physics::{Aabb, BlockPos};
 
 use super::PathNode;
 use super::control::{Controller, LAND_EPS, Phase, centre, standing_on, yaw_to};
-use super::costs::{COST_HEURISTIC, MACRO_STARTUP};
+use super::costs::MACRO_STARTUP;
 use super::hazard::Hazards;
 use super::leap_moves::RUNNING;
 use super::moves::MoveKind;
 use super::profile::Aim;
 use super::rollout::{Body, Spend};
-use super::retry::live_hazard;
 use super::solve::Solver;
-use crate::movement::{Controls, Rollout};
+use crate::movement::{Controls, Sim, SimWorld, StepIn};
 
 /// Nodes ahead tried, farthest first.
 const AHEAD: [usize; 7] = [20, 15, 10, 5, 4, 3, 2];
@@ -29,8 +27,6 @@ const HELD_AIM_DEG: f32 = 1.0;
 const OVERSHOOT: f32 = 2.0;
 /// Slower than this (blocks/tick), a shortcut has stopped on a target it may not overshoot.
 const FINAL_SPEED: f32 = 0.05;
-/// Ground coast per unit of speed, k / (1 − k).
-const GROUND_COAST: f32 = DEFAULT_GROUND_DRAG / (1.0 - DEFAULT_GROUND_DRAG);
 /// Flat nodes after the target a shortcut that may overshoot needs: one per block it may land past, and one more.
 const OVERSHOOT_AHEAD: usize = 3;
 
@@ -51,6 +47,8 @@ pub struct ShortcutCtl {
     overshoot: f32,
     /// The target ends the path: stop on it.
     stop: bool,
+    /// Ground coast per unit of speed, k / (1 − k) for the walker's ground drag k.
+    coast: f32,
 }
 
 impl ShortcutCtl {
@@ -97,7 +95,7 @@ impl Controller for ShortcutCtl {
         let dist = (b.pos[0] - to[0]).hypot(b.pos[2] - to[1]);
         c.jump = self.jump && b.on_ground && dist > self.stop_jump;
         // Braking for a stop-only target: let go once coasting on the ground covers what is left.
-        if self.stop && b.on_ground && dist < b.h_speed() * GROUND_COAST {
+        if self.stop && b.on_ground && dist < b.h_speed() * self.coast {
             (c.forward, c.sprint, c.jump) = (0.0, false, false);
         }
         Phase::Going
@@ -112,14 +110,18 @@ fn flat(n: &PathNode, level: f32) -> bool {
 /// The shortcut from the live state to a node after `path[index]`: its controller, predicted bodies and the
 /// index it lands on. Only taken when faster than following the nodes between; looked for within `spend`.
 /// `ends_at_goal`: the path's last node is the goal, where a shortcut stops.
-pub(super) fn find(path: &[PathNode], index: usize, live: &Rollout, w: &dyn WorldView, aim: Aim, ends_at_goal: bool, hazards: Option<&Hazards>, spend: &mut Spend) -> Option<(ShortcutCtl, Vec<Body>, usize)> {
-    let level = live.st.pos[1];
-    if !live.st.on_ground || !path.get(index).is_some_and(|n| flat(n, level)) {
+#[allow(clippy::too_many_arguments)]
+pub(super) fn find<S: StepIn<W>, W: SimWorld + ?Sized>(path: &[PathNode], index: usize, live: &S, w: &W, aim: Aim, ends_at_goal: bool, hazards: Option<&Hazards>, spend: &mut Spend) -> Option<(ShortcutCtl, Vec<Body>, usize)> {
+    let body = live.body();
+    let level = body.pos[1];
+    if !body.on_ground || !path.get(index).is_some_and(|n| flat(n, level)) {
         return None;
     }
     let reach = path[index..].iter().take_while(|n| flat(n, level)).count();
-    let avoid = |p: BlockPos| live_hazard(w, p);
-    let held = Controls { yaw: live.st.yaw, ..Controls::default() };
+    let avoid = |p: BlockPos| w.hazard(p);
+    let held = Controls { yaw: body.yaw, ..Controls::default() };
+    let drag = S::envelope().ground_drag;
+    let coast = drag / (1.0 - drag);
     let mut solver = Solver::new(w, &avoid, &|_| false, aim.profile, false, held);
     solver.budget = spend.left();
     // The span's last node first: a fixed step would stop short of it, and the rest is walked.
@@ -137,7 +139,7 @@ pub(super) fn find(path: &[PathNode], index: usize, live: &Rollout, w: &dyn Worl
                 // Macro moves after it were planned from the target itself: a landing past it would start them elsewhere.
                 let walked_on = k + OVERSHOOT_AHEAD < reach && path[j + 1..=j + OVERSHOOT_AHEAD].iter().all(|n| n.mac.is_none());
                 let overshoot = if walked_on { OVERSHOOT } else { 0.0 };
-                let ctl = ShortcutCtl { target: path[j].pos, feet: path[j].feet, jump, stop_jump, aim, max, t: 0, heading: None, origin: None, overshoot, stop: aim.profile.eased_stop() && ends_at_goal && j + 1 == path.len() };
+                let ctl = ShortcutCtl { target: path[j].pos, feet: path[j].feet, jump, stop_jump, aim, max, t: 0, heading: None, origin: None, overshoot, stop: aim.profile.eased_stop() && ends_at_goal && j + 1 == path.len(), coast };
                 if !solver.affords(u64::from(max)) {
                     return None;
                 }
@@ -166,24 +168,23 @@ fn no_nearer(h: &Hazards, bodies: &[Body], nodes: &[PathNode]) -> bool {
 }
 
 /// A collision box right under the feet centre.
-pub(crate) fn over_floor(w: &dyn WorldView, b: &Body) -> bool {
+pub(crate) fn over_floor<W: SimWorld + ?Sized>(w: &W, b: &Body) -> bool {
     let ([x, y, z], e) = (b.pos, 1e-3);
-    let mut boxes = Vec::new();
-    w.collisions(&Aabb::new(x - e, y - 0.01, z - e, x + e, y, z + e), &mut boxes);
-    !boxes.is_empty()
+    w.collides(&Aabb::new(x - e, y - 0.01, z - e, x + e, y, z + e))
 }
 
 /// Blocks from the live position through the nodes' centres, and the ticks following them takes: macro moves
 /// as planned (simulated), walked segments at sprint speed plus the run-up when starting one from standing.
-fn planned(live: &Rollout, nodes: &[PathNode]) -> (f32, f32) {
-    let mut at = [live.st.pos[0], live.st.pos[2]];
-    let standing = live.st.vel[0].hypot(live.st.vel[2]) < RUNNING;
+fn planned<S: Sim>(live: &S, nodes: &[PathNode]) -> (f32, f32) {
+    let (b, cost_heuristic) = (live.body(), S::envelope().cost_heuristic);
+    let mut at = [b.pos[0], b.pos[2]];
+    let standing = b.vel[0].hypot(b.vel[2]) < RUNNING;
     let (mut len, mut ticks) = (0.0, if standing && nodes[0].mac.is_none() { MACRO_STARTUP } else { 0.0 });
     for n in nodes {
         let c = centre(n.pos);
         let d = (c[0] - at[0]).hypot(c[1] - at[1]);
         len += d;
-        ticks += if n.mac.is_some() { n.cost } else { d * COST_HEURISTIC };
+        ticks += if n.mac.is_some() { n.cost } else { d * cost_heuristic };
         at = c;
     }
     (len, ticks)

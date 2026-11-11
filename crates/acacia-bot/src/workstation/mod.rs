@@ -17,11 +17,19 @@ mod craft;
 mod craftable;
 mod creative;
 mod enchant;
-mod enchants;
+pub(crate) mod enchants;
 mod furnace;
 mod grid;
 mod grindstone;
 mod held_grid;
+#[cfg(feature = "java")]
+mod java_book;
+#[cfg(feature = "java")]
+mod java_craft;
+#[cfg(feature = "java")]
+mod java_station;
+#[cfg(feature = "java")]
+mod java_trade;
 mod hand;
 mod loom;
 mod pick;
@@ -46,6 +54,15 @@ use crate::items::craft::Craft;
 use crate::items::{Op, SlotRef};
 use crate::state::{GameState, Inventory, ItemStack};
 use crate::{ActionError, Bot};
+
+/// What a Java station needs besides its inputs; Bedrock's craft request carries it instead.
+#[cfg_attr(not(feature = "java"), allow(dead_code))]
+pub(super) enum StationStep<'a> {
+    Take,
+    Rename(&'a str),
+    Button(i32),
+    Unsupported(&'static str),
+}
 
 impl Bot {
     /// Opens the block at `pos` and checks that it shows one of `kinds`.
@@ -102,6 +119,16 @@ impl Bot {
             left -= n;
         }
         Ok(())
+    }
+
+    /// Sends the craft `plan` builds, or on Java does `step` and takes what the station offers.
+    #[cfg_attr(not(feature = "java"), allow(unused_variables))]
+    async fn finish_station(&mut self, plan: impl Fn(&GameState) -> Result<(Craft, Vec<Op>), ActionError>, step: StationStep<'_>) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_station_step(step).await;
+        }
+        self.craft_click(plan(&self.state)?).await
     }
 
     /// One click sending a craft.

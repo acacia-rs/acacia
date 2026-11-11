@@ -95,10 +95,10 @@ fn act_inner(w: &mut World, m: &Movement, act: &Act) -> Result<(), ActionError> 
                 let a = [pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]];
                 solid(w, a).is_some_and(|b| b.solid()) && !far(a)
             });
-            let item = blocks.iter().find(|b| w.inv.get(*b).copied().unwrap_or(0) > 0).cloned();
+            let item = blocks.iter().map(|b| b.name()).find(|b| w.inv.get(*b).copied().unwrap_or(0) > 0);
             match item {
                 Some(item) if reach && !blocked(w, *pos) => {
-                    take(w, &item)?;
+                    take(w, item)?;
                     w.set(*pos, item.trim_start_matches("minecraft:"), "");
                     Ok(())
                 }

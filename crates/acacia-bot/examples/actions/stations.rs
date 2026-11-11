@@ -6,9 +6,9 @@ use acacia_bot::state::TradeItem;
 use crate::{count, find, has_nbt, server_entities, server_inv, stack, stacks, Check, Scene};
 
 pub async fn craft(bot: &mut Bot, s: &Scene) -> Check {
-    let planks = bot.craft("minecraft:oak_planks", 8, None).await?;
-    let sticks = bot.craft("minecraft:stick", 4, None).await?;
-    let shovel = bot.craft("minecraft:wooden_shovel", 1, Some(s.at("crafting_table"))).await?;
+    let planks = bot.craft(acacia_registry::Item::OakPlanks, 8, None).await?;
+    let sticks = bot.craft(acacia_registry::Item::Stick, 4, None).await?;
+    let shovel = bot.craft(acacia_registry::Item::WoodenShovel, 1, Some(s.at("crafting_table"))).await?;
     let have = (count(bot, "minecraft:oak_planks"), count(bot, "minecraft:stick"), count(bot, "minecraft:wooden_shovel"));
     if have.2 == 0 {
         return Err(format!("made {planks} planks, {sticks} sticks, {shovel} shovels; have {have:?}").into());
@@ -88,7 +88,7 @@ pub async fn grindstone(bot: &mut Bot, s: &Scene) -> Check {
 }
 
 pub async fn stonecut(bot: &mut Bot, s: &Scene) -> Check {
-    let made = bot.stonecut(s.at("stonecutter"), "minecraft:stone_bricks", 4).await?;
+    let made = bot.stonecut(s.at("stonecutter"), acacia_registry::Item::StoneBricks, 4).await?;
     let have = count(bot, "minecraft:stone_bricks");
     if have < 4 {
         return Err(format!("made {made}, have {have} stone bricks").into());

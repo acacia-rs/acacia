@@ -2,6 +2,8 @@ use std::time::Instant;
 
 use acacia_client::proto::types::Action;
 use acacia_physics::{BlockPos, Vec3};
+use acacia_world::neutral::prop;
+use acacia_world::neutral::value::SlabType;
 
 use super::confirm::{unpredict, Confirm, Expect, Verdict};
 use super::geometry::{block_distance, block_min, relative, BLOCK_REACH};
@@ -23,7 +25,9 @@ impl Bot {
     }
 
     pub(crate) fn swing_from(&mut self, source: Option<SwingSource>) {
-        self.client.send(&wire::swing(self.runtime_id(), source));
+        self.send_bedrock(&wire::swing(self.runtime_id(), source));
+        #[cfg(feature = "java")]
+        self.java_swing();
     }
 
     /// Uses the held item in the air (`UseItem` ClickAir): eat, drink, throw, draw a bow, raise a
@@ -31,12 +35,16 @@ impl Bot {
     /// aims throws with the rotation of the last `PlayerAuthInput`, so physics bots should set
     /// [`crate::movement::Controls`] a tick before.
     pub fn use_item(&mut self) {
-        self.client.send(&wire::click_air(self.hand()));
+        self.send_bedrock(&wire::click_air(self.hand()));
+        #[cfg(feature = "java")]
+        self.java_use_item();
     }
 
     /// Releases the item in use (`ReleaseItem` Release): shoots a drawn bow.
     pub fn release_item(&mut self) {
-        self.client.send(&wire::release(self.hand()));
+        self.send_bedrock(&wire::release(self.hand()));
+        #[cfg(feature = "java")]
+        self.java_release_item();
     }
 
     /// Right-clicks the block at `pos` with the held item (`UseItem` ClickBlock): opens doors, presses
@@ -136,7 +144,8 @@ impl Bot {
             && !s.is_air()
             && !s.is_liquid()
         {
-            if !s.name.ends_with("_slab") && !adds_to(s.name, self.held_name()) {
+            let single_slab = matches!(s.get(prop::SlabType), Some(SlabType::Bottom | SlabType::Top));
+            if !single_slab && !adds_to(s.name, self.held_name()) {
                 return Err(ActionError::NotPossible(format!("{target:?} is occupied by {}", s.name)));
             }
             half_slab = Some(id);
@@ -144,7 +153,7 @@ impl Bot {
         if self.block_at(against).is_some_and(|(_, s)| s.is_air()) {
             return Err(ActionError::NotPossible(format!("nothing to place against at {against:?}")));
         }
-        let sneaking = self.movement.as_ref().is_some_and(|m| m.controls.sneak);
+        let sneaking = self.backend.controls().is_some_and(|c| c.sneak);
         if !sneaking && self.block_at(against).is_some_and(|(_, s)| is_interactive(s)) {
             return Err(ActionError::NotPossible(format!("clicking {against:?} would use it, not place against it")));
         }
@@ -216,28 +225,32 @@ impl Bot {
     /// Vanilla's block click: StartItemUseOn, the swing, the ClickBlock (placing: with the held
     /// stack's predicted change, then the new stack in MobEquipment), StopItemUseOn a moment later.
     pub(super) fn click_block(&mut self, pos: BlockPos, face: Face, click: Vec3, source: SwingSource) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_click_block(pos, face, click, source == SwingSource::Build);
+        }
         let block = self.block_wire_id(pos)?;
         tracing::debug!(?pos, ?face, block, "click block");
         let held = self.state.inventory.held().clone();
         let is_sign = self.held_name().is_some_and(|n| n.ends_with("sign"));
         let result = use_on_result(&held, is_sign, pos, face);
         if self.reflexes.hovered.take().is_some() {
-            self.client.send(&wire::mouse_over_nothing());
+            self.send_bedrock(&wire::mouse_over_nothing());
         }
-        self.client.send(&wire::item_use_on(self.runtime_id(), Action::StartItemUseOn, pos, result, face as i32));
+        self.send_bedrock(&wire::item_use_on(self.runtime_id(), Action::StartItemUseOn, pos, result, face as i32));
         self.swing_from(Some(source));
         let packet = wire::click_block(self.hand(), pos, face, click, block);
         if source != SwingSource::Build {
-            self.client.send(&packet);
+            self.send_bedrock(&packet);
         } else {
             let slot = self.state.inventory.selected_hotbar_slot;
             let left = one_used(&held);
             // Capture: sign 2 -> 1 had a legacy id, bed and boat 1 -> 0 had none.
             let legacy_id = (!left.is_empty()).then(|| self.reflexes.next_legacy_id());
-            self.client.send(&legacy::with_slot_change(packet, legacy_id, &SlotChange { slot, old: &held, new: &left }));
+            self.send_bedrock(&legacy::with_slot_change(packet, legacy_id, &SlotChange { slot, old: &held, new: &left }));
             self.state.inventory.main[usize::from(slot)] = left;
             if is_sign {
-                self.client.send(&wire::click_air(self.hand()));
+                self.send_bedrock(&wire::click_air(self.hand()));
             }
             self.equip_now();
         }

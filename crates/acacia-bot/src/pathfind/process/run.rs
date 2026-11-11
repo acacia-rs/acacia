@@ -76,14 +76,13 @@ impl Processes {
     /// Gives control to one process for a tick and lets the tick pass (not once every process has finished).
     /// Errors only when the bot cannot move or is disconnected; processes' own failures are their outcomes.
     pub async fn tick(&mut self, bot: &mut Bot) -> Result<Status, ActionError> {
-        let Some(movement) = bot.movement.as_ref() else {
+        if !bot.backend.moves() {
             return Err(ActionError::NotPossible("processes need a physics bot (BotConfig.physics)".into()));
-        };
-        let Some(live) = movement.state() else {
+        }
+        let Some((pos, on_ground)) = bot.backend.feet() else {
             bot.next_tick(|_, _| false).await?;
             return Ok(Status::Idle);
         };
-        let (pos, on_ground) = (live.pos, movement.on_ground());
         for (target, result) in bot.settle_placements() {
             if let Some((id, act)) = self.sent.remove(&target) {
                 self.arbiter.acted(id, &act, &result);
@@ -124,7 +123,7 @@ impl Processes {
                 let t = std::time::Instant::now();
                 let human = self.arbiter.get(id).is_some_and(|p| p.opts().search.profile == MovementProfile::Human);
                 // Optimal: placements go out without awaiting their echo; their outcome comes on a later tick.
-                let paced = pacing(&act, human, &bot.governor, needs_stack_request(bot, &act) && !bot.in_flight.is_empty());
+                let paced = pacing(&act, human, &bot.governor, needs_stack_request(bot, &act) && bot.placements_in_flight().next().is_some());
                 let result = match paced {
                     Pacing::Hold => None,
                     Pacing::Send => match bounded(act::send_place(bot, &act)).await {
@@ -279,7 +278,7 @@ impl Look for BotLook<'_> {
     }
 
     fn any_in_flight(&self) -> bool {
-        !self.0.in_flight.is_empty()
+        self.0.placements_in_flight().next().is_some()
     }
 
     fn sign_text(&self, pos: BlockPos, front: bool) -> Option<String> {

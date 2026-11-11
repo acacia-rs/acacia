@@ -142,8 +142,14 @@ impl Bot {
     /// Writes block `wire` (the server's id form) into the tracked world at `pos` ahead of the server, as the
     /// vanilla client does when it places: physics then agrees with a server that already has it. Returns the
     /// block it replaced (wire id), for [`Bot::unpredict_block`].
-    pub(crate) fn predict_block(&self, pos: BlockPos, wire: u32) -> Option<u32> {
-        let view = self.world.as_ref()?.view()?;
+    pub(crate) fn predict_block(&mut self, pos: BlockPos, wire: u32) -> Option<u32> {
+        #[cfg(feature = "java")]
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            let old = java.client.world.block(pos)?;
+            java.client.world.set_block(pos, wire);
+            return Some(old);
+        }
+        let view = self.backend.world()?.view()?;
         let (id, _) = self.block_at(pos)?;
         let old = view.world().wire_id(id);
         view.set_block(pos[0], pos[1], pos[2], 0, wire);
@@ -151,8 +157,13 @@ impl Bot {
     }
 
     /// Puts back the block a refused or unanswered prediction replaced (no ghost block stays behind).
-    pub(crate) fn unpredict_block(&self, pos: BlockPos, old: u32) {
-        if let Some(view) = self.world.as_ref().and_then(|w| w.view()) {
+    pub(crate) fn unpredict_block(&mut self, pos: BlockPos, old: u32) {
+        #[cfg(feature = "java")]
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            java.client.world.set_block(pos, old);
+            return;
+        }
+        if let Some(view) = self.backend.world().and_then(|w| w.view()) {
             view.set_block(pos[0], pos[1], pos[2], 0, old);
         }
     }
@@ -160,7 +171,9 @@ impl Bot {
     /// Starts confirming an action on `pos` sent this tick.
     pub(crate) fn confirmation(&self, pos: BlockPos, expect: Expect, max_tries: u32) -> Confirm {
         let before = self.block_at(pos).map(|(id, _)| id);
-        Confirm::new(expect, before, self.governor.now(), self.governor.timeout_ticks(), max_tries)
+        let confirm = Confirm::new(expect, before, self.governor.now(), self.governor.timeout_ticks(), max_tries);
+        // Java predicts every action's block; only the server's answer settles it.
+        if self.backend.bedrock().is_none() { confirm.predicted() } else { confirm }
     }
 
     /// Lets ticks pass until `c` decides. A first try's echo feeds the governor's round-trip estimate.
@@ -168,7 +181,12 @@ impl Bot {
         let at = block_coordinates(pos);
         let t = Instant::now();
         loop {
-            let echoed = self.next_tick(|_, p| is_update_at(p, &at)).await?;
+            #[allow(unused_mut)]
+            let mut echoed = self.next_tick(|_, p| is_update_at(p, &at)).await?;
+            #[cfg(feature = "java")]
+            {
+                echoed |= self.java_echoed();
+            }
             let verdict = c.check(self.governor.now(), self.block_at(pos), echoed);
             if verdict == Verdict::Done && c.tries() == 1 && echoed {
                 self.governor.sample(sent_at.elapsed());

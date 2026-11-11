@@ -99,6 +99,10 @@ impl Bot {
 
     /// Sends `ops` as one `ItemStackRequest` and applies the result once the server accepts it.
     pub async fn item_stack_request(&mut self, ops: &[Op]) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if matches!(self.backend, crate::bot::Backend::Java(_)) {
+            return self.java_item_ops(ops).await;
+        }
         self.run_plan(|state, screen| Plan::build(state, screen, ops)).await
     }
 
@@ -125,7 +129,7 @@ impl Bot {
     async fn send_plan(&mut self, build: impl Fn(&GameState, Screen) -> Result<Plan, ActionError>) -> Result<(), ActionError> {
         // Rebuilt after the screen opened: the server may have resent slots meanwhile.
         let plan = build(&self.state, self.screen())?;
-        let id = self.send_request(&plan);
+        let id = self.send_request(&plan)?;
         let response = self.wait_until(RESPONSE_TIMEOUT, |_, packet| response_for(packet, id)).await?;
         self.finish_request(plan, &response)
     }
@@ -134,7 +138,7 @@ impl Bot {
     /// response with `response_for` and hands it to [`Bot::finish_request`].
     pub(crate) fn send_ops(&mut self, ops: &[Op]) -> Result<(Plan, i32), ActionError> {
         let plan = Plan::build(&self.state, self.screen(), ops)?;
-        let id = self.send_request(&plan);
+        let id = self.send_request(&plan)?;
         Ok((plan, id))
     }
 
@@ -150,15 +154,16 @@ impl Bot {
         Ok(())
     }
 
-    fn send_request(&mut self, plan: &Plan) -> i32 {
-        let id = self.request_ids.next();
+    fn send_request(&mut self, plan: &Plan) -> Result<i32, ActionError> {
+        let b = self.backend.require_mut("item stack requests")?;
+        let id = b.request_ids.next();
         let request = plan.request(id);
         tracing::debug!(?request, "item stack request");
-        self.client.send(&request);
-        if let Some(m) = self.movement.as_mut() {
+        b.client.send(&request);
+        if let Some(m) = b.movement.as_mut() {
             m.still_ticks = 1;
         }
-        id
+        Ok(id)
     }
 
     fn screen(&self) -> Screen {
@@ -166,7 +171,7 @@ impl Bot {
     }
 
     fn container_block(&self) -> BlockKind {
-        let (Some(world), Some(pos)) = (self.world.as_ref(), open_container(&self.state).and_then(|c| c.position.as_ref())) else {
+        let (Some(world), Some(pos)) = (self.backend.world(), open_container(&self.state).and_then(|c| c.position.as_ref())) else {
             return BlockKind::Other;
         };
         let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return BlockKind::Other };
@@ -188,7 +193,7 @@ impl Bot {
     }
 
     pub(crate) fn send_open_inventory(&mut self) {
-        self.client.send(&Interact {
+        self.send_bedrock(&Interact {
             action_id: InteractActionId::OpenInventory,
             target_entity_id: self.state.player.runtime_entity_id,
             has_position: false,

@@ -92,7 +92,7 @@ async fn run() -> Result<(), Error> {
     let only: Option<Vec<&str>> = args.get(2).map(|s| s.split(',').collect());
     let (mut bot, _pad) = support::connect(&server, &name).await?;
     for cmd in ["/gamemode survival @s", "/clear @s", "/give @s elytra", "/give @s firework_rocket 16"] {
-        bot.client().command(cmd);
+        bot.command(cmd);
         bot.wait_ticks(4).await?;
     }
     bot.wait_ticks(20).await?;
@@ -106,7 +106,7 @@ async fn run() -> Result<(), Error> {
         Ok(obs) => {
             let w = observer(&server, &obs, log.clone()).await?;
             bot.wait_ticks(60).await?;
-            bot.client().command(&format!("/gamemode spectator {obs}"));
+            bot.command(&format!("/gamemode spectator {obs}"));
             Some((obs, w))
         }
         Err(_) => None,
@@ -115,12 +115,12 @@ async fn run() -> Result<(), Error> {
         if let Some((obs, _)) = &watcher {
             // Mid-path and close, so the server sends every tick's move (it paces by watcher distance).
             let (s, c) = (p.yaw.to_radians().sin(), p.yaw.to_radians().cos());
-            bot.client().command(&format!("/tp {obs} {} {} {}", home[0] as f32 - 25.0 * s, home[1] + 40, home[2] as f32 + 25.0 * c));
+            bot.command(&format!("/tp {obs} {} {} {}", home[0] as f32 - 25.0 * s, home[1] + 40, home[2] as f32 + 25.0 * c));
         }
         if bot.is_gliding() {
             bot.stop_gliding().await?;
         }
-        bot.client().command(&format!("/tp @s {} {} {} {} 0", home[0], home[1] + 60, home[2], p.yaw));
+        bot.command(&format!("/tp @s {} {} {} {} 0", home[0], home[1] + 60, home[2], p.yaw));
         bot.wait_ticks(20).await?;
         bot.start_gliding().await?;
         let _ = writeln!(log.borrow_mut(), "phase {}", p.name);
@@ -138,7 +138,7 @@ async fn run() -> Result<(), Error> {
                 c.yaw = yaw;
             }
             bot.wait_ticks(1).await?;
-            if let Some(st) = bot.movement().and_then(|m| m.state()) {
+            if let Some(st) = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.state()) {
                 let _ = writeln!(log.borrow_mut(), "us {:?} {:?}", st.pos, st.vel);
             }
         }

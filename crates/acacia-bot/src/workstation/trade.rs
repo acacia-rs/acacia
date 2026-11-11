@@ -14,7 +14,7 @@ use crate::items::{to_inventory_ops, ui, Op, SlotRef};
 use crate::state::{GameState, ItemStack, TradeItem, TradeOffer};
 use crate::{ActionError, Bot};
 
-const OPEN_TIMEOUT: Duration = Duration::from_secs(3);
+pub(super) const OPEN_TIMEOUT: Duration = Duration::from_secs(3);
 /// Assumed stack size of payments and results; the item registry does not carry it.
 const MAX_STACK: u16 = 64;
 const PAYMENT_SLOTS: [u8; 2] = [ui::TRADE_INGREDIENT_1, ui::TRADE_INGREDIENT_2];
@@ -24,6 +24,10 @@ impl Bot {
     /// tracked villager or wandering trader `trader` (runtime id; needs `Trackers::entities`).
     /// Returns how many trades went through (fewer only if payment or stock ran out after one).
     pub async fn trade(&mut self, trader: u64, offer: usize, times: u32) -> Result<u32, ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_trade(trader, offer, times).await;
+        }
         self.state.stations.trade = None;
         self.interact_entity(trader).await?;
         self.wait_until(OPEN_TIMEOUT, |bot: &Bot, _: &RawPacket| bot.state.stations.trade.is_some().then_some(())).await?;
@@ -93,7 +97,7 @@ impl Bot {
         self.click_pause().await
     }
 
-    async fn cursor_to_inventory(&mut self) -> Result<(), ActionError> {
+    pub(super) async fn cursor_to_inventory(&mut self) -> Result<(), ActionError> {
         let held = self.state.inventory.cursor().clone();
         let ops = to_inventory_ops(&self.state, SlotRef::Cursor, &held)?;
         self.item_stack_request(&ops).await

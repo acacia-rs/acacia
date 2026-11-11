@@ -35,7 +35,7 @@ async fn main() -> Result<(), Error> {
     let [x, y, z] = [coordinate(5000), coordinate(-60), coordinate(5000)];
     let config = BotConfig { physics: true, ..BotConfig::default() };
     let mut bot = Bot::connect(Client::builder(&server).offline("BannerSmith"), config).await?;
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     let loom = [x - 2, y, z];
@@ -72,7 +72,7 @@ async fn main() -> Result<(), Error> {
 
 async fn run(bot: &mut Bot, commands: &[String], settle: u32) -> Result<(), Error> {
     for command in commands {
-        bot.client().command(command);
+        bot.command(command);
         bot.wait_ticks(4).await?;
     }
     Ok(bot.wait_ticks(settle).await?)
@@ -102,7 +102,7 @@ async fn make(bot: &mut Bot, [x, y, z]: [i32; 3], loom: [i32; 3], spec: Option<&
 /// The slot of item `name`, waiting up to three seconds for the server to hand it over.
 async fn find(bot: &mut Bot, name: &str) -> Result<SlotRef, Error> {
     for _ in 0..60 {
-        if let Some(slot) = bot.find_item(&format!("minecraft:{name}")) {
+        if let Some(slot) = bot.find_item_named(&format!("minecraft:{name}")) {
             return Ok(slot);
         }
         bot.wait_ticks(1).await?;

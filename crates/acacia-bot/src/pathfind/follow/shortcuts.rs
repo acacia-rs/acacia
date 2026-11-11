@@ -2,12 +2,10 @@
 
 use std::sync::Arc;
 
-use acacia_physics::WorldView;
-
 use super::Follower;
 use crate::pathfind::hazard::Hazards;
 use crate::cadence::splitmix;
-use crate::movement::Rollout;
+use crate::movement::{SimWorld, StepIn};
 use crate::pathfind::rollout::Spend;
 use crate::pathfind::shortcut;
 
@@ -29,7 +27,7 @@ impl Follower {
     }
 
     /// Once per node, with nothing running: start a shortcut to a node further on if one beats the nodes between.
-    pub(super) fn try_shortcut(&mut self, live: Option<&Rollout>, w: &dyn WorldView, spend: &mut Spend) {
+    pub(super) fn try_shortcut<S: StepIn<W>, W: SimWorld + ?Sized>(&mut self, live: Option<&S>, w: &W, spend: &mut Spend) {
         let Some(live) = live.filter(|_| self.shortcuts) else { return };
         if self.macros.active() || self.tried.replace(self.index) == Some(self.index) {
             return;

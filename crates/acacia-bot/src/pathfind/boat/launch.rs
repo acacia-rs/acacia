@@ -95,7 +95,7 @@ impl Bot {
         let back = move |bot: &Bot, _: &_| (bot.boats_held() > held).then_some(());
         for _ in 0..PICKUP_TRIES {
             let Some(f) = self.state.entities.get(drop).map(|e| e.feet()) else { break };
-            tracing::debug!(drop, feet = ?f, bot = ?self.movement.as_ref().and_then(|m| m.position()), "walking to the boat's drop");
+            tracing::debug!(drop, feet = ?f, bot = ?self.backend.movement().and_then(|m| m.position()), "walking to the boat's drop");
             if let Err(e) = self.goto_with(Goal::Near([f.x.floor() as i32, f.y.floor() as i32, f.z.floor() as i32], 1.0), GotoOpts::default()).await {
                 tracing::debug!(error = %e, "walk to the boat's drop");
             }
@@ -108,7 +108,7 @@ impl Bot {
             return Ok(());
         }
         let left = self.state.entities.get(drop).map(|e| e.feet());
-        tracing::debug!(drop, ?left, bot = ?self.movement.as_ref().and_then(|m| m.position()), "boat drop not picked up");
+        tracing::debug!(drop, ?left, bot = ?self.backend.movement().and_then(|m| m.position()), "boat drop not picked up");
         Err(ActionError::Rejected(format!("the boat's drop was not picked up (left at {left:?})")))
     }
 
@@ -158,8 +158,8 @@ impl Bot {
     /// The still-water cell a block below the feet, with room for a boat that clears the bot, nearest the bot
     /// (ties: nearest `toward`). BDS refused every placement 3.5 blocks out and took one at 2.6 (2026-10-28).
     fn launch_water(&self, toward: BlockPos) -> Option<BlockPos> {
-        let feet = self.movement.as_ref()?.position()?;
-        let world = self.world.as_ref()?;
+        let feet = self.backend.movement()?.position()?;
+        let world = self.backend.world()?;
         let (view, registry) = (world.view()?, world.registry()?);
         let terrain = Terrain::new(view, registry.as_ref());
         let y = feet[1].floor() as i32 - 1;

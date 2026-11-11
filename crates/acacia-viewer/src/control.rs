@@ -133,7 +133,7 @@ pub struct Rows {
 
 /// A stack's block id in the world's registry: items carry the server's wire id, hashed on BDS.
 pub fn block_of(bot: &Bot, s: &ItemStack) -> u32 {
-    let Some(view) = bot.world().and_then(|w| w.view()) else { return 0 };
+    let Some(view) = bot.bedrock().and_then(|b| b.world()).and_then(|w| w.view()) else { return 0 };
     match s.block_runtime_id {
         // Recipe outputs carry no block id: the block of the item's name, in its first state.
         0 => bot.state().item_name(s).and_then(|name| view.world().registry().states_of(name).next()).map_or(0, |(id, _)| id),
@@ -256,7 +256,10 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         Command::Creative { id, count } => bot.take_creative(id, count).await,
         Command::Beacon(primary, secondary) => bot.take_beacon(primary, secondary).await,
         Command::Click(slot, click) => bot.click_slot(slot, click).await,
-        Command::Craft { name, table } => bot.craft(&name, 1, table).await.map(|_| ()),
+        Command::Craft { name, table } => match acacia_world::neutral::Item::from_name(&name).or_else(|| acacia_world::neutral::Item::from_bedrock(&name, 0)) {
+            Some(item) => bot.craft(item, 1, table).await.map(|_| ()),
+            None => Err(acacia_bot::ActionError::NotPossible(format!("no item called {name}"))),
+        },
         Command::DropCursor { one } => bot.drop_cursor(one).await,
         Command::DestroyCursor => bot.destroy_cursor().await,
         Command::AnswerForm(id, reply) => bot.answer_form_now(id, reply),
@@ -299,8 +302,8 @@ pub async fn apply(bot: &mut Bot, command: Command) {
         }
         Command::Chat(text) => {
             let sent = match text.strip_prefix('/') {
-                Some(command) => bot.client().command(command),
-                None => bot.client().chat(&text),
+                Some(command) => bot.command(command),
+                None => bot.chat(&text),
             };
             if sent { Ok(()) } else { Err(acacia_bot::ActionError::NotPossible("chat not sent".into())) }
         }

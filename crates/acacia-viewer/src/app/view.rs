@@ -129,6 +129,6 @@ fn using(name: &str, held: f32) -> Option<first_person::Using> {
         CROSSBOW => return Some(first_person::Using::Crossbow { held, charge: 25.0 }),
         _ => {}
     }
-    let duration = acacia_bot::survival::use_ticks(name)? as f32;
+    let duration = acacia_bot::survival::use_ticks(acacia_world::neutral::Item::from_name(name)?)? as f32;
     Some(first_person::Using::Eat { held: held % duration, duration })
 }

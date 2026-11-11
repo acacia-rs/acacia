@@ -82,7 +82,7 @@ async fn run() -> Result<(), Error> {
     let only: Option<Vec<&str>> = args.get(2).map(|s| s.split(',').collect());
     let config = BotConfig { trackers: Trackers { entities: true, ..Trackers::default() }, ..BotConfig::default() };
     let (mut bot, pad) = support::connect_config(&server, &name, config).await?;
-    bot.client().command("/gamemode survival @s");
+    bot.command("/gamemode survival @s");
     let log: Log = Rc::new(RefCell::new(std::io::BufWriter::new(std::fs::File::create(
         std::env::var("DRILL_LOG").unwrap_or_else(|_| "drill.log".into()),
     )?)));
@@ -90,7 +90,7 @@ async fn run() -> Result<(), Error> {
         Ok(obs) => {
             let w = observer(&server, &obs, log.clone()).await?;
             bot.wait_ticks(60).await?;
-            bot.client().command(&format!("/gamemode spectator {obs}"));
+            bot.command(&format!("/gamemode spectator {obs}"));
             Some((obs, w))
         }
         Err(_) => None,
@@ -138,7 +138,7 @@ async fn drill(bot: &mut Bot, pad: &Pad, p: &Phase, observer: Option<&str>, log:
             (c.forward, c.yaw, c.pitch) = (if t < p.idle { 0.0 } else { 1.0 }, p.yaw, 0.0);
         }
         bot.wait_ticks(1).await?;
-        if let Some(st) = bot.movement().and_then(|m| m.state()) {
+        if let Some(st) = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.state()) {
             let _ = writeln!(log.borrow_mut(), "us {t} {:?} {:?} ground {}", st.pos, st.vel, st.on_ground);
         }
         for e in bot.state().entities.iter().filter(|e| !e.is_player()) {

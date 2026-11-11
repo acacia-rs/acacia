@@ -7,7 +7,7 @@ mod work;
 
 use std::sync::Arc;
 
-use acacia_physics::{Vec3, WorldView};
+use acacia_physics::Vec3;
 
 use super::follow_macro::{MacroReport, MacroRunner, MacroStep};
 use super::hazard::Hazards;
@@ -16,7 +16,7 @@ use super::profile::{Aim, MovementProfile};
 use super::rollout::Spend;
 use super::PathNode;
 use crate::cadence::splitmix;
-use crate::movement::{Controls, Rollout};
+use crate::movement::{Controls, SimWorld, StepIn};
 
 /// Rollout ticks one follower tick may simulate (~5 µs each in release): live re-solves and shortcut
 /// searches stop there, and a move that cannot be solved within it diverges into a background re-plan.
@@ -147,14 +147,14 @@ impl Follower {
 
     /// `live`: a fork of the live simulation, which macro moves need (without it they are steered
     /// classically); `w` the world it runs in.
-    pub fn tick(&mut self, s: &Sense, live: Option<&Rollout>, w: &dyn WorldView, c: &mut Controls) -> FollowStatus {
+    pub fn tick<S: StepIn<W>, W: SimWorld + ?Sized>(&mut self, s: &Sense, live: Option<&S>, w: &W, c: &mut Controls) -> FollowStatus {
         let mut spend = Spend::new(ROLLOUT_BUDGET);
         let status = self.tick_within(s, live, w, c, &mut spend);
         self.spend = spend;
         status
     }
 
-    fn tick_within(&mut self, s: &Sense, live: Option<&Rollout>, w: &dyn WorldView, c: &mut Controls, spend: &mut Spend) -> FollowStatus {
+    fn tick_within<S: StepIn<W>, W: SimWorld + ?Sized>(&mut self, s: &Sense, live: Option<&S>, w: &W, c: &mut Controls, spend: &mut Spend) -> FollowStatus {
         let vel = self.last_pos.map_or([0.0; 3], |l| [s.pos[0] - l[0], s.pos[1] - l[1], s.pos[2] - l[2]]);
         self.last_pos = Some(s.pos);
         if self.path.is_empty() {
@@ -213,7 +213,8 @@ impl Follower {
             }
         }
         let coast = live.filter(|_| last).and_then(|l| Self::coast_end(l, c, w, spend));
-        self.steer(s, c, &node, target, dist, speed, last, coast);
+        let stops = self.stops::<S>(coast, target, dist, speed);
+        self.steer(s, c, &node, target, dist, last, stops);
         FollowStatus::Moving
     }
 

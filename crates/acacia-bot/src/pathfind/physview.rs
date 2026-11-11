@@ -20,7 +20,7 @@ impl<B: Blocks> WorldView for Terrain<'_, B> {
         if c.has(UNLOADED) {
             return BlockPhysics::AIR;
         }
-        self.cells.physics(c, || block_physics(self.registry(), c.block, || c.liquid))
+        self.cells.physics(c, || block_physics(self.palette(), c.block, || c.liquid))
     }
 
     /// Loaded chunk by chunk, like the live world: a column's cells all load together.

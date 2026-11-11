@@ -26,6 +26,8 @@ pub struct CachedTokens {
     pub xsts: BTreeMap<String, XboxToken>,
     pub playfab: Option<PlayFabSession>,
     pub service_token: Option<ServiceToken>,
+    #[serde(default)]
+    pub java_profile: Option<super::java::JavaProfile>,
     /// Last credentials, reusable while unexpired for the same client key.
     pub credentials: Option<CachedCredentials>,
     /// P-384 client key (hex scalar) that `credentials` is bound to. Reusing it across reconnects
@@ -52,6 +54,7 @@ impl CachedTokens {
             xsts: BTreeMap::new(),
             playfab: None,
             service_token: None,
+            java_profile: None,
             credentials: None,
             client_key: None,
         }
@@ -93,6 +96,7 @@ impl CachedTokens {
         self.xsts.clear();
         self.playfab = None;
         self.service_token = None;
+        self.java_profile = None;
         self.credentials = None;
     }
 }

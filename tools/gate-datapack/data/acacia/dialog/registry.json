@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:notice",
+  "title": "Registry",
+  "body": { "type": "minecraft:plain_message", "contents": "From the dialog registry" },
+  "action": { "label": "Done", "action": { "type": "minecraft:run_command", "command": "tellraw @a \"registry\"" } }
+}

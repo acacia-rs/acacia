@@ -2,13 +2,13 @@
 
 use std::sync::Arc;
 
-use acacia_physics::PlayerState;
 use acacia_world::{BlockRegistry, World};
 use tokio::sync::oneshot;
 
 use super::astar::{Path, SearchOpts, search_cached};
 use super::cache::RolloutCache;
 use super::goal::Goal;
+use super::rollout::PlanSim;
 use super::snapshot::WorldBlocks;
 use super::terrain::{Blocks, Terrain};
 
@@ -16,24 +16,30 @@ use super::terrain::{Blocks, Terrain};
 pub type Answer = oneshot::Receiver<Path>;
 
 /// Starts a search somewhere off the tick.
-pub type Spawn<'a> = &'a mut dyn FnMut(SearchJob) -> Answer;
+pub type Spawn<'a, S> = &'a mut dyn FnMut(SearchJob<S>) -> Answer;
 
-pub struct SearchJob {
-    /// The state searched from (live, or synthesized at a path's end).
-    pub from: PlayerState,
+pub struct SearchJob<S> {
+    /// The simulation searched from (live, or synthesized at a path's end).
+    pub from: S,
     pub goal: Goal,
     pub opts: SearchOpts,
     /// Macro-move results shared by every search of one goto, running ones included.
     pub cache: Arc<RolloutCache>,
 }
 
-impl SearchJob {
-    pub fn run<B: Blocks>(&self, t: &Terrain<B>) -> Path {
+impl<S> SearchJob<S> {
+    pub fn run<B: Blocks>(&self, t: &Terrain<B>) -> Path
+    where
+        S: PlanSim<B>,
+    {
         search_cached(t, &self.from, &self.goal, &self.opts, &self.cache)
     }
 
     /// Runs on tokio's blocking pool against `world` as it is while it runs.
-    pub fn spawn_blocking(self, world: Arc<World>, registry: Arc<BlockRegistry>) -> Answer {
+    pub fn spawn_blocking(self, world: Arc<World>, registry: Arc<BlockRegistry>) -> Answer
+    where
+        S: PlanSim<WorldBlocks>,
+    {
         let (tx, rx) = oneshot::channel();
         tokio::task::spawn_blocking(move || {
             // The receiver is gone when the goto was dropped or re-planned meanwhile.

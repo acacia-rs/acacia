@@ -3,14 +3,17 @@
 //! offered only where the plain moves found no way.
 
 use acacia_physics::BlockPos;
+use acacia_world::neutral::prop;
+use acacia_world::neutral::value::DoubleBlockHalf;
 
 use super::cell::{Cell, AVOID, FALLS, LIQUID, OPENABLE, Rect, UNLOADED};
-use super::costs::{self, BREAK_PENALTY, CENTER_AFTER_FALL, DOOR, MAX_DIG_TICKS, SNEAK, WALK};
+use super::costs::{self, BREAK_PENALTY, DOOR, MAX_DIG_TICKS};
 use super::kit::Kit;
 use super::moves::{offset, push, Ctx, Edge, MoveKind};
 use super::terrain::{Blocks, Span, Spot, SpotKind, Terrain, CARVED, EPS, OPENED, PLACED_FLOOR};
 use super::work::{face_toward, Step, Work};
 use crate::interact::Face;
+use crate::movement::Sim;
 
 /// Where liquid could flow into a broken cell from: the sides and above.
 const FLOW_IN: [(i32, i32, i32); 5] = [(1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1), (0, 1, 0)];
@@ -39,22 +42,22 @@ pub(crate) fn dig_cost<B: Blocks>(t: &Terrain<B>, q: BlockPos, kit: &Kit) -> Opt
 }
 
 /// Work that clears the cells in a move's way, and what it costs.
-struct Clearing<'c, 'k> {
-    ctx: &'c Ctx<'k>,
+struct Clearing<'c, 'k, S> {
+    ctx: &'c Ctx<'k, S>,
     dig: bool,
     work: Work,
     cost: f32,
 }
 
-impl<'c, 'k> Clearing<'c, 'k> {
-    fn new(ctx: &'c Ctx<'k>) -> Self {
+impl<'c, 'k, S> Clearing<'c, 'k, S> {
+    fn new(ctx: &'c Ctx<'k, S>) -> Self {
         Self { ctx, dig: ctx.dig, work: Work::default(), cost: 0.0 }
     }
 
     /// Opens the cell if toggling it frees `span`, else breaks it if digging is allowed.
     fn clear<B: Blocks>(&mut self, t: &Terrain<B>, q: BlockPos, c: Cell, span: Span) -> bool {
         if self.ctx.doors && c.has(OPENABLE) && t.toggled_boxes(c.block).is_some_and(|b| !span.hits(b)) {
-            let open = t.state(q).and_then(|s| s.property("open_bit")) != Some("1");
+            let open = t.state(q).and_then(|s| s.get(prop::Open)) != Some(true);
             if self.work.push(Step::Door { pos: door_base(t, q), open }) {
                 self.cost += DOOR;
             }
@@ -72,13 +75,13 @@ impl<'c, 'k> Clearing<'c, 'k> {
 fn door_base<B: Blocks>(t: &Terrain<B>, q: BlockPos) -> BlockPos {
     let below = offset(q, 0, -1, 0);
     match (t.state(q), t.state(below)) {
-        (Some(s), Some(b)) if s.property("upper_block_bit") == Some("1") && b.name == s.name => below,
+        (Some(s), Some(b)) if s.get(prop::DoubleBlockHalf) == Some(DoubleBlockHalf::Upper) && b.kind() == s.kind() => below,
         _ => q,
     }
 }
 
 /// Cardinal moves at the same level or one up that open, dig or bridge, where no plain move reached.
-pub(crate) fn forward<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i32), ctx: &Ctx, start: usize, out: &mut Vec<Edge>) {
+pub(crate) fn forward<B: Blocks, S: Sim>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i32), ctx: &Ctx<S>, start: usize, out: &mut Vec<Edge>) {
     if !grounded(p, from) {
         return;
     }
@@ -95,7 +98,7 @@ pub(crate) fn forward<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, d
 
 /// Into the cell ahead at feet level: open or dig through what is in the way, and place a floor
 /// first when there is none.
-fn level<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i32), ctx: &Ctx, out: &mut Vec<Edge>) {
+fn level<B: Blocks, S: Sim>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i32), ctx: &Ctx<S>, out: &mut Vec<Edge>) {
     let side = offset(p, dx, 0, dz);
     let below = t.cell(offset(side, 0, -1, 0));
     let bridge = !below.is_floor();
@@ -113,11 +116,12 @@ fn level<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i32
     if cl.work.steps().any(|s| matches!(s, Step::Door { pos, .. } if pos[0] == side[0] && pos[2] == side[2])) {
         made |= OPENED;
     }
-    let mut cost = WALK + cl.cost;
+    let e = S::envelope();
+    let mut cost = costs::walk(e) + cl.cost;
     if bridge {
         cl.work.push(Step::Place { against: offset(p, 0, -1, 0), face: face_toward(dx, dz) });
         made |= PLACED_FLOOR;
-        cost += SNEAK - WALK + costs::place(ctx.blocks_left);
+        cost += costs::sneak(e) - costs::walk(e) + costs::place(ctx.blocks_left);
     }
     if !cl.work.is_empty() {
         push(t, out, side, Spot::stand(feet, made), MoveKind::Walk, cost, cl.work);
@@ -125,7 +129,7 @@ fn level<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i32
 }
 
 /// Jump onto the block ahead after digging out the head room on both sides.
-fn ascend<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i32), ctx: &Ctx, out: &mut Vec<Edge>) {
+fn ascend<B: Blocks, S: Sim>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i32), ctx: &Ctx<S>, out: &mut Vec<Edge>) {
     let up = offset(p, dx, 1, dz);
     if !t.cell(offset(up, 0, -1, 0)).is_floor() {
         return;
@@ -136,12 +140,12 @@ fn ascend<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (dx, dz): (i32, i3
         && t.obstruct_from(p, from, Rect::toward(dx, dz), feet, |q, c, s| cl.clear(t, q, c, s))
         && t.obstruct(up, Rect::toward(-dx, -dz), feet, |q, c, s| cl.clear(t, q, c, s));
     if ok && cl.work.breaks() > 0 {
-        push(t, out, up, Spot::stand(feet, CARVED), MoveKind::Ascend, costs::ascend() + cl.cost, cl.work);
+        push(t, out, up, Spot::stand(feet, CARVED), MoveKind::Ascend, costs::ascend(S::envelope()) + cl.cost, cl.work);
     }
 }
 
 /// Digging down and pillaring up.
-pub(crate) fn vertical<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: &Ctx, out: &mut Vec<Edge>) {
+pub(crate) fn vertical<B: Blocks, S: Sim>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: &Ctx<S>, out: &mut Vec<Edge>) {
     if !grounded(p, from) {
         return;
     }
@@ -153,7 +157,7 @@ pub(crate) fn vertical<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: 
     }
 }
 
-fn down<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: &Ctx, out: &mut Vec<Edge>) {
+fn down<B: Blocks, S: Sim>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: &Ctx<S>, out: &mut Vec<Edge>) {
     let below = offset(p, 0, -1, 0);
     if from.made & PLACED_FLOOR != 0 || !t.cell(offset(p, 0, -2, 0)).is_floor() || !ctx.may_alter(below) {
         return;
@@ -161,11 +165,12 @@ fn down<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: &Ctx, out: &mut
     let Some(cost) = dig_cost(t, below, ctx.kit) else { return };
     let mut work = Work::default();
     work.push(Step::Break(below));
-    let cost = cost + costs::fall_ticks(1.0) + CENTER_AFTER_FALL;
+    let e = S::envelope();
+    let cost = cost + costs::fall_ticks(e, 1.0) + costs::center_after_fall(e);
     push(t, out, below, Spot::stand(below[1] as f32, CARVED), MoveKind::Down, cost, work);
 }
 
-fn pillar<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: &Ctx, out: &mut Vec<Edge>) {
+fn pillar<B: Blocks, S: Sim>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: &Ctx<S>, out: &mut Vec<Edge>) {
     let carved = from.made & CARVED != 0;
     if !solid_under(t, p, from) || !(carved || t.cell(p).is_open()) || !ctx.may_alter(p) {
         return;
@@ -177,6 +182,6 @@ fn pillar<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, ctx: &Ctx, out: &m
     }
     let made = PLACED_FLOOR | if carved || cl.work.breaks() > 0 { CARVED } else { 0 };
     cl.work.push(Step::Place { against: offset(p, 0, -1, 0), face: Face::Up });
-    let cost = costs::ascend() + costs::place(ctx.blocks_left) + cl.cost;
+    let cost = costs::ascend(S::envelope()) + costs::place(ctx.blocks_left) + cl.cost;
     push(t, out, offset(p, 0, 1, 0), Spot::stand(feet, made), MoveKind::Pillar, cost, cl.work);
 }

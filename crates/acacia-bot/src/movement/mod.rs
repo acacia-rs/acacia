@@ -13,12 +13,21 @@ mod lifecycle;
 mod packets;
 mod rewind;
 mod rotation_noise;
+#[cfg(feature = "java")]
+mod java_sim;
+mod sim;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "java")]
+pub use java_sim::{JAVA, JavaSim, JavaView};
+#[cfg(feature = "java")]
+pub(crate) use java_sim::keys as java_keys;
+
 pub use controls::Controls;
 pub(crate) use controls::{attach_actions, VehicleCorrection};
-pub use fork::Rollout;
+pub use fork::{BEDROCK, Rollout};
+pub use sim::{Body, Envelope, Live, Motion, Sim, SimWorld, StepIn, Traits};
 pub use idle::Idle;
 
 use acacia_client::proto::packets::{PlayerAuthInput, PlayerAuthInputBlockActionItem, PlayerAuthInputInputMode, PlayerAuthInputInteractionModel};

@@ -4,10 +4,10 @@
 use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 
-use acacia_physics::constants::{JUMP_DELAY_TICKS, SNEAKING_PLAYER_HEIGHT};
-use acacia_physics::{BlockPos, PlayerState, Vec3};
+use acacia_physics::{BlockPos, Vec3};
 
 use super::terrain::PosHasher;
+use crate::movement::{Motion, Sim};
 
 /// How the player moves at a node.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -96,17 +96,16 @@ fn q(v: f32, scale: f32) -> i16 {
 }
 
 impl Momentum {
-    /// The motion of `st`, with feet measured from block `at`.
-    pub fn snap(st: &PlayerState, at: BlockPos) -> Self {
-        let off = [0, 1, 2].map(|i| q(st.pos[i] - at[i] as f32, OFF_Q));
-        let delay = st.jump_delay.min(JUMP_DELAY_TICKS) as u8;
+    /// The motion `m`, with feet measured from block `at`.
+    pub fn snap(m: &Motion, at: BlockPos) -> Self {
+        let off = [0, 1, 2].map(|i| q(m.pos[i] - at[i] as f32, OFF_Q));
         let bit = |on: bool, flag: u8| if on { flag } else { 0 };
-        let flags = bit(st.on_ground, ON_GROUND)
-            | bit(st.sprinting, SPRINTING)
-            | bit(st.sneaking, SNEAKING)
-            | bit(st.pressing_jump, PRESSING_JUMP)
-            | (delay << DELAY_SHIFT);
-        Self { off, vel: st.vel.map(|v| q(v, VEL_Q)), yaw_q: (st.yaw.rem_euclid(360.0) * YAW_Q) as u16, flags }
+        let flags = bit(m.on_ground, ON_GROUND)
+            | bit(m.sprinting, SPRINTING)
+            | bit(m.sneaking, SNEAKING)
+            | bit(m.pressing_jump, PRESSING_JUMP)
+            | (m.jump_delay << DELAY_SHIFT);
+        Self { off, vel: m.vel.map(|v| q(v, VEL_Q)), yaw_q: (m.yaw.rem_euclid(360.0) * YAW_Q) as u16, flags }
     }
 
     /// Standing still at the centre of block `at` with feet at `feet`.
@@ -128,27 +127,22 @@ impl Momentum {
         self.flags & flag != 0
     }
 
-    /// A fresh simulation state moving like this at block `at`; attributes, effects, equipment and flight
-    /// come from `base` (the live state), everything transient starts from rest.
-    pub fn synth(&self, at: BlockPos, base: &PlayerState) -> PlayerState {
-        let mut st = PlayerState::new(self.feet(at));
-        st.vel = self.velocity();
-        st.last_vel = st.vel;
-        st.yaw = self.yaw_q as f32 / YAW_Q;
-        st.on_ground = self.has(ON_GROUND);
-        st.sprinting = self.has(SPRINTING);
-        st.sneaking = self.has(SNEAKING);
-        if st.sneaking {
-            st.size[1] = SNEAKING_PLAYER_HEIGHT;
+    /// Moving like this at block `at`: what [`Sim::synth`] starts a simulation from.
+    pub fn motion(&self, at: BlockPos) -> Motion {
+        Motion {
+            pos: self.feet(at),
+            vel: self.velocity(),
+            yaw: self.yaw_q as f32 / YAW_Q,
+            on_ground: self.has(ON_GROUND),
+            sprinting: self.has(SPRINTING),
+            sneaking: self.has(SNEAKING),
+            pressing_jump: self.has(PRESSING_JUMP),
+            jump_delay: self.flags >> DELAY_SHIFT,
         }
-        st.pressing_jump = self.has(PRESSING_JUMP);
-        st.jump_delay = u64::from(self.flags >> DELAY_SHIFT);
-        st.effects = base.effects;
-        st.equipment = base.equipment;
-        st.flight = base.flight;
-        st.jump_strength = base.jump_strength;
-        st.freeze = base.freeze;
-        st.set_movement_attribute(base.movement_attribute);
-        st
+    }
+
+    /// A fresh simulation moving like this at block `at`, with `base`'s attributes ([`Sim::synth`]).
+    pub fn synth<S: Sim>(&self, at: BlockPos, base: &S) -> S {
+        base.synth(&self.motion(at))
     }
 }

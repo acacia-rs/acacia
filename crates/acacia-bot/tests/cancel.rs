@@ -48,7 +48,7 @@ async fn until(bot: &mut Bot, secs: u64, what: &str, done: impl Fn(&Bot) -> bool
 
 /// The wire id the server would send for `name`.
 fn wire(bot: &Bot, name: &str) -> u32 {
-    let world = bot.world().expect("world tracker");
+    let world = bot.bedrock().and_then(|b| b.world()).expect("world tracker");
     let id = world.registry().expect("registry").find(name, "").unwrap_or_else(|| panic!("{name} not in the registry"));
     world.view().expect("view").world().wire_id(id)
 }
@@ -71,10 +71,10 @@ async fn stand_on_floor(server: &FakeServer, bot: &mut Bot) -> BlockPos {
     let feet = [p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32];
     let floor: Vec<BlockPos> =
         (-FLOOR..=FLOOR).flat_map(|dx| (-FLOOR..=FLOOR).map(move |dz| [feet[0] + dx, feet[1] - 1, feet[2] + dz])).collect();
-    let loaded = |bot: &Bot| bot.world().and_then(|w| w.view()).is_some_and(|v| floor.iter().all(|c| v.chunk(c[0] >> 4, c[2] >> 4).is_some()));
+    let loaded = |bot: &Bot| bot.bedrock().and_then(|b| b.world()).and_then(|w| w.view()).is_some_and(|v| floor.iter().all(|c| v.chunk(c[0] >> 4, c[2] >> 4).is_some()));
     until(bot, 20, "the spawn chunks", loaded).await;
     set_blocks(server, &floor, wire(bot, "minecraft:stone"));
-    let standing = |bot: &Bot| bot.movement().is_some_and(|m| m.is_started() && m.on_ground());
+    let standing = |bot: &Bot| bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.is_started() && m.on_ground());
     until(bot, 20, "the bot to stand on the floor", standing).await;
     let f = position(bot);
     [f[0].floor() as i32, (f[1] + 0.01).floor() as i32, f[2].floor() as i32]
@@ -142,7 +142,7 @@ async fn a_cancelled_or_dropped_goto_lets_go_of_the_keys() {
 }
 
 fn position(bot: &Bot) -> [f32; 3] {
-    bot.movement().and_then(|m| m.position()).expect("movement started")
+    bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).expect("movement started")
 }
 
 /// A stone block beside the feet, in reach and in view.
@@ -156,7 +156,7 @@ async fn wall(server: &FakeServer, bot: &mut Bot, feet: BlockPos) -> BlockPos {
 
 fn block_wire(bot: &Bot, [x, y, z]: BlockPos) -> Option<u32> {
     use acacia_world::BlockAccess;
-    let view = bot.world()?.view()?;
+    let view = bot.bedrock().and_then(|b| b.world())?.view()?;
     Some(view.world().wire_id(view.block(x, y, z)))
 }
 
@@ -167,7 +167,7 @@ fn block_actions(server: &FakeServer, [x, y, z]: BlockPos) -> Vec<Action> {
 }
 
 fn keys_held(bot: &Bot) -> Option<Controls> {
-    let c = bot.movement().expect("physics").controls;
+    let c = bot.bedrock().and_then(|b| b.movement()).expect("physics").controls;
     (c.forward != 0.0 || c.strafe != 0.0 || c.jump || c.sneak || c.sprint).then_some(c)
 }
 

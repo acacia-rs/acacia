@@ -157,6 +157,26 @@ pub(crate) async fn sisu_authorize(
     })
 }
 
+/// Title and user tokens the `live` way (prismarine-auth's flow for Java), without SISU.
+pub(crate) async fn live_tokens(http: &Http, title: Title, key: &SigningKey, msa_access_token: &str, device: &XboxToken) -> Result<(XboxToken, XboxToken)> {
+    let ticket = format!("t={msa_access_token}");
+    let user_body = json!({
+        "RelyingParty": "http://auth.xboxlive.com",
+        "TokenType": "JWT",
+        "Properties": { "AuthMethod": "RPS", "SiteName": "user.auth.xboxlive.com", "RpsTicket": ticket },
+    });
+    let title_body = json!({
+        "RelyingParty": "http://auth.xboxlive.com",
+        "TokenType": "JWT",
+        "Properties": { "AuthMethod": "RPS", "DeviceToken": device.token, "RpsTicket": ticket, "SiteName": "user.auth.xboxlive.com", "ProofKey": proof_key_jwk(key) },
+    });
+    let post = async |url: &str, body: serde_json::Value| -> Result<XboxToken> {
+        let req = http.xbox_post(url, title.user_agent(), Some("1"), None, serde_json::to_vec(&body)?, key);
+        http.json::<WireToken>(req, url).await?.into_token(url)
+    };
+    Ok((post(ep::TITLE_AUTH, title_body).await?, post(ep::USER_AUTH, user_body).await?))
+}
+
 /// `POST xsts.auth.xboxlive.com/xsts/authorize` for one relying party.
 pub(crate) async fn xsts(
     http: &Http,
@@ -164,7 +184,8 @@ pub(crate) async fn xsts(
     key: &SigningKey,
     relying_party: &str,
     device: &XboxToken,
-    sisu: &SisuTokens,
+    title_token: &XboxToken,
+    user_token: &XboxToken,
 ) -> Result<XboxToken> {
     let body = json!({
         "RelyingParty": relying_party,
@@ -172,8 +193,8 @@ pub(crate) async fn xsts(
         "Properties": {
             "SandboxId": "RETAIL",
             "DeviceToken": device.token,
-            "TitleToken": sisu.title.token,
-            "UserTokens": [sisu.user.token],
+            "TitleToken": title_token.token,
+            "UserTokens": [user_token.token],
         },
     });
     let req = http.xbox_post(

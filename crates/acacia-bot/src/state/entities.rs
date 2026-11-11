@@ -8,6 +8,10 @@ use super::{Effects, ItemStack, Metadata};
 
 mod apply;
 mod equipment;
+#[cfg(feature = "java")]
+mod java;
+#[cfg(feature = "java")]
+pub(crate) use java::bedrock_kind;
 mod moves;
 mod properties;
 mod solids;

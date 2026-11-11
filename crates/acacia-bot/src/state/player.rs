@@ -238,6 +238,13 @@ impl PlayerState {
         }
     }
 
+    /// Health, hunger and saturation together, as Java's `SetHealth` sends them.
+    #[cfg(feature = "java")]
+    pub(crate) fn set_vitals(&mut self, health: f32, hunger: f32, saturation: f32) {
+        self.set_health(health);
+        (self.hunger, self.saturation) = (hunger, saturation);
+    }
+
     fn set_health(&mut self, health: f32) {
         if (health > 0.0) != self.alive {
             tracing::debug!(health, "alive changed");

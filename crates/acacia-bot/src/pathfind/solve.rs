@@ -2,13 +2,13 @@
 //! a hazard, ceiling or hard fall, and for `Human` under every perturbation of the profile. The planner
 //! solves from a node's momentum, the follower again from the live state when a leap drifts.
 
-use acacia_physics::{BlockPos, PlayerState, WorldView};
+use acacia_physics::BlockPos;
 
 use super::control::{Controller, centre};
 use super::leap::{JumpAt, LeapCtl};
 use super::profile::{Aim, MovementProfile};
 use super::rollout::{self, Body};
-use crate::movement::{Controls, Rollout};
+use crate::movement::{Controls, Motion, Sim, StepIn};
 
 /// Backstop for a rollout; every controller gives up long before.
 const ROLLOUT_CAP: u32 = 200;
@@ -18,8 +18,6 @@ pub(super) const MAX_TAKEOFF: u8 = 12;
 pub(super) const MAX_COAST: u8 = 8;
 /// Falls up to 3 blocks do no damage.
 const MAX_SAFE_FALL: f32 = 3.0;
-/// Least height a jump rises (no effects: 1.25; jump boost only adds).
-const JUMP_RISE: f32 = 1.25;
 /// Most a fall of under 5 blocks drops in one tick: the landing tick's drop is not counted as fallen.
 const LAST_TICK_FALL: f32 = 0.8;
 /// Seed of the planned aim's jitter stream.
@@ -55,10 +53,10 @@ pub(crate) struct Solved {
     /// Least distance from the landing feet to an unsafe side of the target cell (0.5 if none is).
     pub margin: f32,
     /// Where the nominal run ends.
-    pub end: PlayerState,
+    pub end: Motion,
 }
 
-pub(crate) struct Solver<'a, W: WorldView + ?Sized> {
+pub(crate) struct Solver<'a, W: ?Sized> {
     pub w: &'a W,
     /// Cells the body must not touch.
     pub avoid: &'a dyn Fn(BlockPos) -> bool,
@@ -87,7 +85,7 @@ pub(super) struct Attempt {
     pub ctl: LeapCtl,
     pub takeoff: Option<u16>,
     pub bodies: Vec<Body>,
-    pub end: PlayerState,
+    pub end: Motion,
     pub clean: bool,
 }
 
@@ -101,7 +99,7 @@ impl Attempt {
     }
 }
 
-impl<'a, W: WorldView + ?Sized> Solver<'a, W> {
+impl<'a, W: ?Sized> Solver<'a, W> {
     pub fn new(w: &'a W, avoid: &'a dyn Fn(BlockPos) -> bool, safe: &'a dyn Fn(BlockPos) -> bool, profile: MovementProfile, perturb: bool, held: Controls) -> Self {
         Self { w, avoid, pad: profile.hazard_pad(), safe, profile, perturb, held, rollouts: 0, ticks: 0, budget: u64::MAX, starved: false, fails_first: 0 }
     }
@@ -118,17 +116,17 @@ impl<'a, W: WorldView + ?Sized> Solver<'a, W> {
     }
 }
 
-impl<W: WorldView + ?Sized> Solver<'_, W> {
-    /// Runs `ctl` from `start` (until it ends itself): its bodies, end state, and whether it finished cleanly.
-    pub fn run(&mut self, start: &Rollout, ctl: &mut impl Controller, wet: bool) -> (Vec<Body>, PlayerState, bool) {
+impl<W: ?Sized> Solver<'_, W> {
+    /// Runs `ctl` from `start` (until it ends itself): its bodies, end motion, and whether it finished cleanly.
+    pub fn run<S: StepIn<W>>(&mut self, start: &S, ctl: &mut impl Controller, wet: bool) -> (Vec<Body>, Motion, bool) {
         let mut r = start.clone();
         let trace = rollout::run(&mut r, ctl, self.held, ROLLOUT_CAP, self.w);
         (self.rollouts, self.ticks) = (self.rollouts + 1, self.ticks + u64::from(trace.ticks));
         let clean = trace.landed && self.clean(&trace.bodies, wet);
-        (trace.bodies, r.st, clean)
+        (trace.bodies, r.motion(), clean)
     }
 
-    pub(super) fn attempt(&mut self, start: &Rollout, ctl: LeapCtl) -> Attempt {
+    pub(super) fn attempt<S: StepIn<W>>(&mut self, start: &S, ctl: LeapCtl) -> Attempt {
         let mut running = ctl;
         let (bodies, end, clean) = self.run(start, &mut running, ctl.wet);
         Attempt { ctl, takeoff: running.takeoff(), bodies, end, clean }
@@ -158,7 +156,7 @@ impl<W: WorldView + ?Sized> Solver<'_, W> {
     }
 
     /// The fastest clean leap from `start` to the cell `target` (feet `feet`, water if `wet`).
-    pub fn solve(&mut self, start: &Rollout, target: BlockPos, feet: f32, wet: bool, shape: Shape) -> Result<Solved, Miss> {
+    pub fn solve<S: StepIn<W>>(&mut self, start: &S, target: BlockPos, feet: f32, wet: bool, shape: Shape) -> Result<Solved, Miss> {
         let (mut best, mut short): (Option<Solved>, bool) = (None, true);
         let mut settle = |this: &mut Self, a: Attempt| match this.land(start, a) {
             Ok(a) => {
@@ -208,14 +206,14 @@ impl<W: WorldView + ?Sized> Solver<'_, W> {
     }
 
     /// A sprint-jump from `start` at once toward `aim_at`: where it comes down (no cell is required), and when.
-    pub fn hop_landing(&mut self, start: &Rollout, aim_at: BlockPos, feet: f32) -> (Body, u32) {
+    pub fn hop_landing<S: StepIn<W>>(&mut self, start: &S, aim_at: BlockPos, feet: f32) -> (Body, u32) {
         let ctl = LeapCtl::new(aim_at, feet, JumpAt::Tick(0), None, Aim::new(self.profile, AIM_SEED));
         let a = self.attempt(start, ctl);
         (a.last(), a.ticks())
     }
 
     /// A sprint-jump from `start` at once into `target`'s cell (or beside it, on the level), judged like any leap.
-    pub fn hop(&mut self, start: &Rollout, target: BlockPos, feet: f32) -> Option<Solved> {
+    pub fn hop<S: StepIn<W>>(&mut self, start: &S, target: BlockPos, feet: f32) -> Option<Solved> {
         let mut ctl = LeapCtl::new(target, feet, JumpAt::Tick(0), None, Aim::new(self.profile, AIM_SEED));
         ctl.slack = true;
         let a = self.attempt(start, ctl);
@@ -224,7 +222,7 @@ impl<W: WorldView + ?Sized> Solver<'_, W> {
     /// The earliest takeoff tick whose jump is not short of the target, `None` if even the jump at the edge
     /// is. A later takeoff has more run-up nearer the gap, so it flies farther: bisection finds it.
     /// Also returns that takeoff's attempt when the bisection ran it.
-    pub(super) fn first_reaching(&mut self, start: &Rollout, ctl: LeapCtl) -> Option<(u8, Option<Attempt>)> {
+    pub(super) fn first_reaching<S: StepIn<W>>(&mut self, start: &S, ctl: LeapCtl) -> Option<(u8, Option<Attempt>)> {
         let reaches = |this: &mut Self, jump: JumpAt| {
             let mut c = ctl;
             c.jump = jump;
@@ -251,7 +249,7 @@ impl<W: WorldView + ?Sized> Solver<'_, W> {
 
     /// `a` if it landed, else the coast that lands it when it went long (binary search: a later coast
     /// flies farther). `Err(true)`: it fell short.
-    pub(super) fn land(&mut self, start: &Rollout, a: Attempt) -> Result<Attempt, bool> {
+    pub(super) fn land<S: StepIn<W>>(&mut self, start: &S, a: Attempt) -> Result<Attempt, bool> {
         if a.clean {
             return Ok(a);
         }
@@ -278,14 +276,14 @@ impl<W: WorldView + ?Sized> Solver<'_, W> {
 /// Any jump from `start` down to a dry floor at `feet` counts over [`MAX_SAFE_FALL`] fallen from its apex before
 /// it lands (a jumped down-3: 4.25 less the landing tick's ≤ 0.8), so only running off the edge can land there.
 /// Not under effects that change the fall.
-fn falls_too_far(start: &Rollout, feet: f32) -> bool {
-    let e = &start.st.effects;
-    e.levitation.is_none() && !e.slow_falling && start.st.pos[1] - feet + JUMP_RISE - LAST_TICK_FALL > MAX_SAFE_FALL
+fn falls_too_far<S: Sim>(start: &S, feet: f32) -> bool {
+    !start.traits().altered_fall && start.body().pos[1] - feet + S::envelope().jump_rise - LAST_TICK_FALL > MAX_SAFE_FALL
 }
 
 /// The attempt came down over half a block short of its target's centre, along the line from `start`.
-fn short(start: &Rollout, a: &Attempt) -> bool {
-    let from = [start.st.pos[0], start.st.pos[2]];
+fn short<S: Sim>(start: &S, a: &Attempt) -> bool {
+    let pos = start.body().pos;
+    let from = [pos[0], pos[2]];
     let end = a.last();
     along(from, a.ctl.target, [end.pos[0], end.pos[2]]) < along(from, a.ctl.target, centre(a.ctl.target)) - 0.5
 }

@@ -40,8 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(_) => {}
             },
             _ = poll.tick() => {
-                let centre = bot.movement().and_then(|movement| movement.position()).map(|[x, _, z]| [(x.floor() as i32) >> 4, (z.floor() as i32) >> 4]);
-                if let (Some([cx, cz]), Some(view)) = (centre, bot.world().and_then(|world| world.view())) {
+                let centre = bot.bedrock().and_then(|b| b.movement()).and_then(|movement| movement.position()).map(|[x, _, z]| [(x.floor() as i32) >> 4, (z.floor() as i32) >> 4]);
+                if let (Some([cx, cz]), Some(view)) = (centre, bot.bedrock().and_then(|b| b.world()).and_then(|world| world.view())) {
                     have = want.iter().filter(|[dx, dz]| view.chunk(cx + dx, cz + dz).is_some()).count();
                     if have == want.len() && columns_at.is_none() {
                         columns_at = Some(start.elapsed());
@@ -60,6 +60,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ms = |at: Option<Duration>| at.map_or("-".to_owned(), |at| at.as_millis().to_string());
     let sections = (subchunks > 0).then(|| last_section - start);
     println!("join {outcome} spawn_ms={} columns_ms={} sections_ms={} columns={have}/{} subchunks={subchunks}", spawned.as_millis(), ms(columns_at), ms(sections), want.len());
-    bot.client().close();
+    bot.close();
     Ok(())
 }

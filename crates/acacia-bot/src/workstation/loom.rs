@@ -5,7 +5,7 @@ use acacia_client::proto::nbt::{List, Nbt, Value};
 use acacia_client::proto::types::WindowType;
 use acacia_physics::BlockPos;
 
-use super::{named, occupied};
+use super::{named, occupied, StationStep};
 use crate::items::craft::{Craft, CraftAction};
 use crate::items::{to_inventory_ops, ui, Op, SlotRef};
 use crate::state::{GameState, ItemStack};
@@ -46,8 +46,27 @@ impl Bot {
     /// `banner` at the loom at `pos`; `pattern_item` is the banner pattern some designs need.
     pub async fn loom(&mut self, pos: BlockPos, banner: SlotRef, dye: SlotRef, pattern: &str, pattern_item: Option<SlotRef>) -> Result<(), ActionError> {
         let slots = [ui::LOOM_BANNER, ui::LOOM_DYE, ui::LOOM_PATTERN].map(SlotRef::Ui);
-        self.workstation_craft(pos, WindowType::Loom, &[Some(banner), Some(dye), pattern_item], &slots, |state| loom_plan(state, pattern)).await
+        let step = java_button(&self.state, pattern_item, pattern);
+        self.workstation_craft(pos, WindowType::Loom, &[Some(banner), Some(dye), pattern_item], &slots, |state| loom_plan(state, pattern), step).await
     }
+}
+
+/// Java's loom button for `pattern`: its index among the patterns the menu offers for `pattern_item` (vanilla's tag
+/// order, which the constants follow).
+fn java_button(state: &GameState, pattern_item: Option<SlotRef>, pattern: &str) -> StationStep<'static> {
+    let offered = match pattern_item.and_then(|s| s.stack(state)) {
+        Some(item) => item_patterns(state.items.name(item.network_id).unwrap_or_default()),
+        None => PLAIN_PATTERNS.to_vec(),
+    };
+    match offered.iter().position(|&p| p == pattern) {
+        Some(i) => StationStep::Button(i as i32),
+        None => StationStep::Unsupported("that pattern with that pattern item"),
+    }
+}
+
+fn item_patterns(name: &str) -> Vec<&'static str> {
+    let kind = name.strip_prefix("minecraft:").and_then(|n| n.strip_suffix("_banner_pattern"));
+    ITEM_PATTERNS.iter().filter(|(item, _)| Some(*item) == kind).map(|(_, code)| *code).collect()
 }
 
 pub(crate) fn loom_choices(state: &GameState) -> Vec<&'static str> {
@@ -56,9 +75,7 @@ pub(crate) fn loom_choices(state: &GameState) -> Vec<&'static str> {
         return Vec::new();
     }
     let Some(item) = filled(ui::LOOM_PATTERN) else { return PLAIN_PATTERNS.to_vec() };
-    let name = state.items.name(item.network_id).unwrap_or_default();
-    let kind = name.strip_prefix("minecraft:").and_then(|n| n.strip_suffix("_banner_pattern"));
-    ITEM_PATTERNS.iter().filter(|(item, _)| Some(*item) == kind).map(|(_, code)| *code).collect()
+    item_patterns(state.items.name(item.network_id).unwrap_or_default())
 }
 
 /// One banner with `pattern` added in the dye's colour, and the banner and dye slots it comes from.

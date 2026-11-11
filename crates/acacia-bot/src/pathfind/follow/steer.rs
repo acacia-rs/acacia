@@ -1,10 +1,9 @@
 //! Classic steering: the controls that walk, jump and sprint towards the current node.
 
-use acacia_physics::constants::DEFAULT_GROUND_DRAG as GROUND_DRAG;
-use acacia_physics::{Vec3, WorldView};
+use acacia_physics::Vec3;
 
 use super::{Follower, SETTLED, Sense, center, dir, hdist};
-use crate::movement::{Controls, Rollout};
+use crate::movement::{Controls, Sim, StepIn};
 use crate::pathfind::PathNode;
 use crate::pathfind::moves::MoveKind;
 use crate::pathfind::rollout::Spend;
@@ -22,9 +21,19 @@ const TURN_FIRST_DEG: f32 = 30.0;
 const ON_LADDER_TOP: f32 = 0.01;
 
 impl Follower {
+    /// On the final node: releasing every key now comes to rest within the tolerance, by `coast` (where it comes to
+    /// rest, simulated) or else by `S`'s ground drag at `speed`.
+    pub(super) fn stops<S: Sim>(&self, coast: Option<Vec3>, target: Vec3, dist: f32, speed: f32) -> bool {
+        let drag = S::envelope().ground_drag;
+        match coast {
+            Some(end) => hdist(end, target) < self.tolerance - SETTLE_MARGIN,
+            None => dist < speed * drag / (1.0 - drag) + 0.05,
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
-    /// `coast`: on the final node, where releasing every key now comes to rest (simulated).
-    pub(super) fn steer(&mut self, s: &Sense, c: &mut Controls, node: &PathNode, target: Vec3, dist: f32, speed: f32, last: bool, coast: Option<Vec3>) {
+    /// `stops`: on the final node, releasing the keys now comes to rest within the tolerance ([`Follower::stops`]).
+    pub(super) fn steer(&mut self, s: &Sense, c: &mut Controls, node: &PathNode, target: Vec3, dist: f32, last: bool, stops: bool) {
         let (dx, dz) = (target[0] - s.pos[0], target[2] - s.pos[2]);
         let want = (-dx).atan2(dz).to_degrees();
         if dist > 0.05 {
@@ -38,10 +47,6 @@ impl Follower {
             0.0
         } else if last {
             // Ground friction lets the bot coast: release the key once coasting ends within the tolerance.
-            let stops = match coast {
-                Some(end) => hdist(end, target) < self.tolerance - SETTLE_MARGIN,
-                None => dist < speed * GROUND_DRAG / (1.0 - GROUND_DRAG) + 0.05,
-            };
             if stops { 0.0 } else { 1.0 }
         } else if node.kind == MoveKind::ClimbDown && s.on_ground {
             // On a ladder's top: its 3/16 strip holds the body until the feet are within 1/80 of the centre.
@@ -70,18 +75,19 @@ impl Follower {
     }
 
     /// Where `live` comes to rest with every key released, if the budget allows simulating it.
-    pub(super) fn coast_end(live: &Rollout, c: &Controls, w: &dyn WorldView, spend: &mut Spend) -> Option<Vec3> {
+    pub(super) fn coast_end<S: StepIn<W>, W: ?Sized>(live: &S, c: &Controls, w: &W, spend: &mut Spend) -> Option<Vec3> {
         if !spend.affords(u64::from(COAST_TICKS)) {
             return None;
         }
         let (mut r, mut keys) = (live.clone(), *c);
         keys.stop();
         for _ in 0..COAST_TICKS {
-            let before = r.st.pos;
+            let before = r.body().pos;
             r.step(&keys, w);
             spend.ticks += 1;
-            if r.st.on_ground && hdist(before, r.st.pos) < SETTLED {
-                return Some(r.st.pos);
+            let b = r.body();
+            if b.on_ground && hdist(before, b.pos) < SETTLED {
+                return Some(b.pos);
             }
         }
         None

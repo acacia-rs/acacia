@@ -133,15 +133,15 @@ impl Bot {
         let me = self.runtime_id();
         match reflex {
             Reflex::StopUseOn(pos) => {
-                self.client.send(&wire::item_use_on(me, Action::StopItemUseOn, pos, [0, 0, 0], 0));
+                self.send_bedrock(&wire::item_use_on(me, Action::StopItemUseOn, pos, [0, 0, 0], 0));
             }
             Reflex::Swing(source) => self.swing_from(Some(source)),
             Reflex::StopSleeping => {
-                self.client.send(&crate::sleep::player_action(me, Action::StopSleeping));
+                self.send_bedrock(&crate::sleep::player_action(me, Action::StopSleeping));
                 self.reflexes.schedule(0, Reflex::ClearAimAssist);
             }
             Reflex::ClearAimAssist => {
-                self.client.send(&clear_aim_assist());
+                self.send_bedrock(&clear_aim_assist());
             }
             Reflex::Equip if self.held_changed() => self.equip_now(),
             Reflex::Equip => {}

@@ -1,24 +1,24 @@
 //! Re-solving a leap live, for the follower: from the state the bot is really in, not the planned one, within
 //! the follower's per-tick rollout budget ([`Spend`]).
 
-use acacia_physics::{BlockPos, LiquidKind, Vec3, WorldView};
+use acacia_physics::Vec3;
 
 use super::leap::{JumpAt, LeapCtl, MAX_LEAP_TICKS};
 use super::rollout::{Body, Spend};
 use super::solve::{Attempt, MAX_COAST, MAX_TAKEOFF, Shape, Solver};
-use crate::movement::Rollout;
+use crate::movement::StepIn;
 
 /// Rollouts a takeoff bisection or a coast search may run (1 + log2 of the range, rounded up, plus slack).
 const SEARCH_ROLLOUTS: u64 = 6;
 /// Arriving this near the planned velocity (1/100 blocks/tick) ends the search.
 const CLOSE_ENOUGH: u32 = 3;
 
-impl<W: WorldView + ?Sized> Solver<'_, W> {
+impl<W: ?Sized> Solver<'_, W> {
     /// A leap that drifted, solved again from the live state: an airborne one by its coast, else by takeoff
     /// (earliest reaching one first, by bisection) and coast. The landing arriving nearest the planned
     /// horizontal velocity `want` (if any) wins, then the fastest, so the moves after it still start as
     /// planned. Within the budget only: the best landing found before it ran out.
-    pub fn retry(&mut self, ctl: &LeapCtl, live: &Rollout, shape: Shape, want: Option<Vec3>) -> Option<(LeapCtl, Vec<Body>)> {
+    pub fn retry<S: StepIn<W>>(&mut self, ctl: &LeapCtl, live: &S, shape: Shape, want: Option<Vec3>) -> Option<(LeapCtl, Vec<Body>)> {
         let off = |v: Vec3| want.map_or(0, |w| ((v[0] - w[0]).hypot(v[2] - w[2]) * 100.0).round() as u32);
         let mut best: Option<((u32, u32), LeapCtl, Vec<Body>)> = None;
         let mut keep = |a: Attempt| {
@@ -99,14 +99,8 @@ impl<W: WorldView + ?Sized> Solver<'_, W> {
 
 impl Spend {
     /// Books what `s` simulated.
-    pub(crate) fn charge<W: WorldView + ?Sized>(&mut self, s: &Solver<'_, W>) {
+    pub(crate) fn charge<W: ?Sized>(&mut self, s: &Solver<'_, W>) {
         self.ticks += s.ticks;
         self.short |= s.starved;
     }
-}
-
-/// What a live re-solve or shortcut must not touch, read from the physics view: lava and cobwebs.
-pub(crate) fn live_hazard(w: &dyn WorldView, p: BlockPos) -> bool {
-    let b = w.block(p);
-    b.cobweb || b.liquid.is_some_and(|l| l.kind == LiquidKind::Lava)
 }

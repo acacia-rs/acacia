@@ -8,7 +8,7 @@ use acacia_physics::BlockPos;
 
 use super::anvil::{nbt_int, set_nbt};
 use super::enchants::{enchants, is_curse, with_enchant_list};
-use super::{named, occupied, repair};
+use super::{named, occupied, repair, StationStep};
 use crate::items::craft::{Craft, CraftAction};
 use crate::items::{to_inventory_ops, ui, Op, SlotRef};
 use crate::state::{GameState, ItemStack};
@@ -24,7 +24,7 @@ impl Bot {
     /// grindstone at `pos`.
     pub async fn grindstone(&mut self, pos: BlockPos, input: SlotRef, additional: Option<SlotRef>) -> Result<(), ActionError> {
         let slots = [SlotRef::Ui(ui::GRINDSTONE_INPUT), SlotRef::Ui(ui::GRINDSTONE_ADDITIONAL)];
-        self.workstation_craft(pos, WindowType::Grindstone, &[Some(input), additional], &slots, grindstone_plan).await
+        self.workstation_craft(pos, WindowType::Grindstone, &[Some(input), additional], &slots, grindstone_plan, StationStep::Take).await
     }
 }
 

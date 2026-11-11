@@ -59,7 +59,7 @@ async fn main() -> Result<(), Error> {
     for round in 0..rounds {
         pad.build(&mut bot, &[], 10).await?;
         pad.teleport(&mut bot, [0.5, 0.0, 0.5], -90.0).await?;
-        bot.trace_mark(&format!("flight {round}"));
+        bot.bedrock_mut().expect("Bedrock bot").trace_mark(&format!("flight {round}"));
         for p in PHASES {
             let before = corrections(&bot);
             if let Some(c) = bot.controls() {
@@ -79,9 +79,9 @@ async fn main() -> Result<(), Error> {
 }
 
 fn flying(bot: &Bot) -> bool {
-    bot.movement().is_some_and(|m| m.flying())
+    bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.flying())
 }
 
 fn feet(bot: &Bot) -> String {
-    bot.movement().and_then(|m| m.position()).map_or("?".into(), |[x, y, z]| format!("{x:.3} {y:.3} {z:.3}"))
+    bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).map_or("?".into(), |[x, y, z]| format!("{x:.3} {y:.3} {z:.3}"))
 }

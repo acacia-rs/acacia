@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use acacia_world::neutral::{Item, ItemTag};
+
 use crate::human::{CLICK, HOTBAR_KEY, HOTBAR_SWITCH};
 use crate::items::SlotRef;
 use crate::state::{Inventory, ItemStack};
@@ -43,16 +45,15 @@ impl Destination {
     }
 }
 
-/// The armour slot (0 helmet .. 3 boots) an item identifier can be worn in.
-pub(crate) fn armor_slot(name: &str) -> Option<u8> {
-    let n = name.strip_prefix("minecraft:").unwrap_or(name);
-    if n.ends_with("_helmet") || n == "carved_pumpkin" || n.ends_with("_head") || n.ends_with("_skull") {
+/// The armour slot (0 helmet .. 3 boots) `item` can be worn in.
+pub(crate) fn armor_slot(item: Item) -> Option<u8> {
+    if item.is(ItemTag::HeadArmor) || item.is(ItemTag::Skulls) || item == Item::CarvedPumpkin {
         Some(0)
-    } else if n.ends_with("_chestplate") || n == "elytra" {
+    } else if item.is(ItemTag::ChestArmor) || item == Item::Elytra {
         Some(1)
-    } else if n.ends_with("_leggings") {
+    } else if item.is(ItemTag::LegArmor) {
         Some(2)
-    } else if n.ends_with("_boots") {
+    } else if item.is(ItemTag::FootArmor) {
         Some(3)
     } else {
         None
@@ -65,8 +66,14 @@ pub(crate) fn hotbar_target(inv: &Inventory) -> u8 {
 }
 
 impl Bot {
-    /// The first main-inventory slot holding `name` (`minecraft:bread`), hotbar first.
-    pub fn find_item(&self, name: &str) -> Option<SlotRef> {
+    /// The first main-inventory slot holding `item`, hotbar first.
+    pub fn find_item(&self, item: Item) -> Option<SlotRef> {
+        let main = &self.state.inventory.main;
+        (0..main.len()).find(|&i| self.state.item(&main[i]) == Some(item)).map(|i| SlotRef::Main(i as u8))
+    }
+
+    /// [`Bot::find_item`] by the server's identifier, for items with no [`Item`]: custom ones, Bedrock-only ones.
+    pub fn find_item_named(&self, name: &str) -> Option<SlotRef> {
         let id = self.state.items.id(name)?;
         let main = &self.state.inventory.main;
         (0..main.len()).find(|&i| !main[i].is_empty() && main[i].network_id == id).map(|i| SlotRef::Main(i as u8))
@@ -90,9 +97,9 @@ impl Bot {
                 _ => self.wear(from, &stack, SlotRef::Offhand, whole(&stack)).await,
             };
         };
-        let name = self.state.items.name(stack.network_id).unwrap_or_default();
-        if armor_slot(name) != Some(slot) {
-            return Err(ActionError::NotPossible(format!("{name} cannot be worn as {to:?}")));
+        let item = self.state.item(&stack);
+        if item.and_then(armor_slot) != Some(slot) {
+            return Err(ActionError::NotPossible(format!("{item:?} cannot be worn as {to:?}")));
         }
         match method {
             EquipMethod::Inventory => self.wear(from, &stack, SlotRef::Armor(slot), 1).await,

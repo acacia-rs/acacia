@@ -2,6 +2,8 @@ use acacia_client::proto::nbt::Raw;
 use acacia_client::proto::packets::{ContainerOpen, ItemRegistry as ItemRegistryPacket, PlayerHotbar};
 use acacia_client::proto::types::{BlockCoordinates, ItemstatesItem, ItemstatesItemVersion, WindowID, WindowIDVarint, WindowType};
 
+use acacia_world::neutral::Item;
+
 use super::test_support::{content, empty_item, item, raw};
 use crate::state::{GameState, Trackers};
 
@@ -42,9 +44,9 @@ fn names_and_held_item() {
 #[test]
 fn find_item_searches_inventory_then_open_container() {
     let mut state = state();
-    assert_eq!(state.find_item("minecraft:diamond").map(|(w, s, i)| (w, s, i.count)), Some((0, 1, 3)));
-    assert!(state.find_item("minecraft:emerald").is_none());
-    assert!(state.find_item("minecraft:unknown").is_none());
+    assert_eq!(state.find_item(Item::Diamond).map(|(w, s, i)| (w, s, i.count)), Some((0, 1, 3)));
+    assert!(state.find_item(Item::Emerald).is_none());
+    assert!(state.find_item(Item::Stick).is_none(), "not in this registry");
 
     let open = ContainerOpen {
         window_id: WindowID::First,
@@ -54,7 +56,7 @@ fn find_item_searches_inventory_then_open_container() {
     };
     state.apply(&raw(&open)).unwrap();
     state.apply(&raw(&content(WindowIDVarint::First, vec![empty_item(), item(500, 7, 9)]))).unwrap();
-    assert_eq!(state.find_item("minecraft:emerald").map(|(w, s, i)| (w, s, i.count)), Some((1, 1, 7)));
+    assert_eq!(state.find_item(Item::Emerald).map(|(w, s, i)| (w, s, i.count)), Some((1, 1, 7)));
     assert_eq!(state.inventory.count_of(500), 0);
 }
 

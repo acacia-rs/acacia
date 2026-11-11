@@ -34,12 +34,12 @@ _Currently supported Minecraft version: `1.26.51` (protocol `2193`)._
 - Be indistinguishable from a vanilla client on the wire.
 - Run many bots cheaply: a network-free core, no work for packets nobody reads.
 - Track the latest Minecraft version.
+- Java Edition from the same API, pinned to one Java version (docs/java-edition.md).
 
 ## Non-goals
 
 - Supporting several protocol versions at once. Pin an older release for an older server.
 - Graphics.
-- Java Edition. Use [Azalea](https://github.com/azalea-rs/azalea).
 
 ## Example
 

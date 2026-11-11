@@ -48,10 +48,10 @@ impl Bot {
             return Ok(());
         }
         if let Some((_, block)) = self.block_at(pos) {
-            if !block.name.ends_with("bed") {
+            if !tick::is_bed(block) {
                 return Err(ActionError::NotPossible(format!("{} at {pos:?} is not a bed", block.name)));
             }
-            self.bed.lying = tick::lying_in(block.name, block.properties, pos);
+            self.bed.lying = tick::lying_in(block, pos);
         }
         self.bed.clicked_from = Some(self.state.player.position.clone());
         let face = facing_face(self.eye_position(), pos);
@@ -74,7 +74,7 @@ impl Bot {
         }
         let settle = self.human.between(START_SLEEP).saturating_sub(clicked.elapsed());
         self.pause(settle).await?;
-        self.client.send(&player_action(self.runtime_id(), Action::StartSleeping));
+        self.send_bedrock(&player_action(self.runtime_id(), Action::StartSleeping));
         self.reflexes.in_bed = true;
         self.unclaim(bed);
         Ok(())
@@ -92,7 +92,7 @@ impl Bot {
     /// Presses "leave bed" without waiting.
     pub(crate) fn leave_bed(&mut self) {
         self.reflexes.in_bed = false;
-        self.client.send(&player_action(self.runtime_id(), Action::StopSleeping));
+        self.send_bedrock(&player_action(self.runtime_id(), Action::StopSleeping));
         self.reflexes.schedule(0, Reflex::ClearAimAssist);
     }
 }

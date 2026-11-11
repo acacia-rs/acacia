@@ -13,6 +13,10 @@ impl Bot {
     /// reply that doesn't fit the form (button out of range, wrong value types) is refused
     /// before anything is sent.
     pub async fn answer_form(&mut self, id: u32, reply: FormReply) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_answer_form(id, reply).await;
+        }
         let form = self.open_form(id)?;
         if let FormReply::Close = reply {
             return self.close_form(id).await;
@@ -25,6 +29,10 @@ impl Bot {
 
     /// Answers open form `id` at once: for a person at the keyboard, whose delay is their own.
     pub fn answer_form_now(&mut self, id: u32, reply: FormReply) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_answer_form_now(id, reply);
+        }
         let form = self.open_form(id)?;
         let packet = match reply {
             FormReply::Close => cancel(id),
@@ -35,6 +43,10 @@ impl Bot {
 
     /// Closes open form `id` (the X button) after a short delay.
     pub async fn close_form(&mut self, id: u32) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_answer_form(id, FormReply::Close).await;
+        }
         self.open_form(id)?;
         let delay = self.human.between(human::CLICK);
         self.after_shown(id, delay).await?;
@@ -44,6 +56,13 @@ impl Bot {
     /// Waits for the next form the server shows (one already open doesn't count). The form is
     /// taken out of the event queue, so it isn't returned by [`Bot::next`] as well.
     pub async fn wait_form(&mut self, timeout: Duration) -> Result<Form, ActionError> {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            let before = self.state.forms.latest().map(|f| f.id);
+            let id = self.wait_until(timeout, |bot, _| bot.state.forms.latest().map(|f| f.id).filter(|&id| Some(id) != before)).await?;
+            self.pending.retain(|e| !matches!(e, BotEvent::Form(f) if f.id == id));
+            return self.open_form(id);
+        }
         let id = self
             .wait_until(timeout, |_, p| (p.id == ModalFormRequest::ID).then(|| p.decode::<ModalFormRequest>().ok()).flatten())
             .await?
@@ -57,7 +76,7 @@ impl Bot {
     }
 
     /// Waits until `delay` has passed since form `id` was shown.
-    async fn after_shown(&mut self, id: u32, delay: Duration) -> Result<(), ActionError> {
+    pub(super) async fn after_shown(&mut self, id: u32, delay: Duration) -> Result<(), ActionError> {
         let shown = self.state.forms.shown_at(id).unwrap_or_else(tokio::time::Instant::now);
         let left = (shown + delay).saturating_duration_since(tokio::time::Instant::now());
         self.pause(left).await?;
@@ -66,7 +85,8 @@ impl Bot {
     }
 
     fn send_form_response(&mut self, id: u32, packet: &ModalFormResponse) -> Result<(), ActionError> {
+        let b = self.backend.require("forms")?;
         self.state.forms.remove(id);
-        if self.client.send(packet) { Ok(()) } else { Err(ActionError::Disconnected) }
+        if b.client.send(packet) { Ok(()) } else { Err(ActionError::Disconnected) }
     }
 }

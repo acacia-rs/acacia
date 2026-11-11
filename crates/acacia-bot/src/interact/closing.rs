@@ -57,18 +57,24 @@ impl Bot {
     /// Acks a server close (vanilla does; Geyser opens no further window until it gets the ack) and
     /// advances the pending client close.
     pub(crate) fn on_container_close(&mut self, packet: &RawPacket) {
+        let Some(b) = self.backend.bedrock_mut() else { return };
         let Ok(close) = packet.decode::<ContainerClose>() else { return };
         if close.server {
-            self.client.send(&ContainerClose { server: false, ..close });
+            b.client.send(&ContainerClose { server: false, ..close });
         }
-        if self.closing.as_mut().is_some_and(|c| c.on_close(&close, Instant::now())) {
-            self.closing = None;
+        if b.closing.as_mut().is_some_and(|c| c.on_close(&close, Instant::now())) {
+            b.closing = None;
         }
+    }
+
+    /// The client close still settling; never one on Java.
+    fn closing(&self) -> Option<PendingClose> {
+        self.backend.bedrock().and_then(|b| b.closing)
     }
 
     /// The window id of a client close still settling (see the module docs).
     pub fn closing_window(&self) -> Option<i32> {
-        self.closing.filter(|c| c.settles_at() > Instant::now()).map(|c| c.window_id)
+        self.closing().filter(|c| c.settles_at() > Instant::now()).map(|c| c.window_id)
     }
 
     /// Waits until no client close is settling, so the next command cannot have its window closed
@@ -88,8 +94,9 @@ impl Bot {
 
     /// Sends a client close and tracks it until it settles; `tracked_id` is the id the server answers with.
     pub(crate) fn send_close(&mut self, tracked_id: i32, packet: ContainerClose) {
-        self.closing = Some(PendingClose::new(tracked_id, Instant::now()));
-        self.client.send(&packet);
+        let Some(b) = self.backend.bedrock_mut() else { return };
+        b.closing = Some(PendingClose::new(tracked_id, Instant::now()));
+        b.client.send(&packet);
     }
 
     /// Waits for the close just sent; `Timeout` if neither an echo nor a server close came.
@@ -100,14 +107,14 @@ impl Bot {
     /// Processes packets until the pending close settles; false if it timed out unanswered.
     async fn settle_close(&mut self) -> Result<bool, ActionError> {
         loop {
-            let Some(pending) = self.closing else { return Ok(true) };
+            let Some(pending) = self.closing() else { return Ok(true) };
             let until = pending.settles_at();
             let now = Instant::now();
             if until <= now {
-                self.closing = None;
+                self.backend.require_mut("container closes")?.closing = None;
                 return Ok(pending.echoed.is_some());
             }
-            let changed = |bot: &Bot, _: &RawPacket| (bot.closing.map(|c| c.settles_at()) != Some(until)).then_some(());
+            let changed = |bot: &Bot, _: &RawPacket| (bot.closing().map(|c| c.settles_at()) != Some(until)).then_some(());
             match self.wait_until(until - now, changed).await {
                 Ok(()) | Err(ActionError::Timeout) => {}
                 Err(e) => return Err(e),

@@ -26,7 +26,7 @@ const PORTAL_COOLDOWN_TICKS: u32 = 320;
 type Feet = [f32; 3];
 
 fn run(bot: &Bot, dimension: usize, command: &str) {
-    bot.client().command(&format!("/execute in {} run {command}", NAMES[dimension]));
+    bot.command(&format!("/execute in {} run {command}", NAMES[dimension]));
 }
 
 fn dist(a: Feet, b: Feet) -> f32 {
@@ -34,7 +34,7 @@ fn dist(a: Feet, b: Feet) -> f32 {
 }
 
 fn feet(bot: &Bot) -> Result<Feet, Error> {
-    Ok(bot.movement().and_then(|m| m.position()).ok_or("movement stopped")?)
+    Ok(bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).ok_or("movement stopped")?)
 }
 
 fn on_floor(dimension: usize, dx: i32) -> Feet {
@@ -44,10 +44,10 @@ fn on_floor(dimension: usize, dx: i32) -> Feet {
 
 /// Teleports to `target` in the dimension the bot is in and waits for the teleport.
 async fn teleport(bot: &mut Bot, target: Feet) -> Result<(), Error> {
-    let teleports = bot.movement().map_or(0, |m| m.teleports);
-    bot.client().command(&format!("/tp @s {} {} {} -90 0", target[0], target[1], target[2]));
+    let teleports = bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.teleports);
+    bot.command(&format!("/tp @s {} {} {} -90 0", target[0], target[1], target[2]));
     for _ in 0..200 {
-        if bot.movement().is_some_and(|m| m.teleports > teleports) {
+        if bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.teleports > teleports) {
             return Ok(bot.wait_ticks(5).await?);
         }
         bot.wait_ticks(1).await?;
@@ -60,7 +60,7 @@ async fn teleport(bot: &mut Bot, target: Feet) -> Result<(), Error> {
 async fn arrival(bot: &mut Bot, dimension: usize) -> Result<Feet, Error> {
     let (mut left, mut stopped) = (ARRIVAL_TIMEOUT_TICKS, false);
     loop {
-        let started = bot.movement().is_some_and(|m| m.is_started());
+        let started = bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.is_started());
         stopped |= !started;
         if stopped && started && bot.state().player.dimension == dimension as i32 {
             return feet(bot);
@@ -89,7 +89,7 @@ async fn build_room(bot: &mut Bot, dimension: usize) -> Result<(), Error> {
     run(bot, dimension, &format!("fill {} {y} {} {} {y} {} glass", x - 3, z - 3, x + 12, z + 3));
     if dimension == 2 {
         // The dragon knocks players about, and peaceful difficulty does not remove it.
-        bot.client().command("/kill @e[type=ender_dragon]");
+        bot.command("/kill @e[type=ender_dragon]");
     }
     Ok(bot.wait_ticks(20).await?)
 }
@@ -97,10 +97,10 @@ async fn build_room(bot: &mut Bot, dimension: usize) -> Result<(), Error> {
 /// How far the simulation is from where the server has the player: `tp ~ ~ ~` answers with a `MovePlayer` to
 /// the server's own position.
 async fn server_offset(bot: &mut Bot) -> Result<f32, Error> {
-    let (ours, teleports) = (feet(bot)?, bot.movement().map_or(0, |m| m.teleports));
-    bot.client().command("/tp @s ~ ~ ~");
+    let (ours, teleports) = (feet(bot)?, bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.teleports));
+    bot.command("/tp @s ~ ~ ~");
     for _ in 0..200 {
-        if bot.movement().is_some_and(|m| m.teleports > teleports) {
+        if bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.teleports > teleports) {
             let p = &bot.state().player.position;
             let off = dist(ours, [p.x, p.y, p.z]);
             bot.wait_ticks(5).await?;
@@ -143,7 +143,7 @@ async fn measure(bot: &mut Bot, name: &str, start: u32, to: usize, target: Optio
 /// One leg by command.
 async fn leg(bot: &mut Bot, from: usize, to: usize) -> Result<u32, Error> {
     let name = format!("{} > {}", NAMES[from], NAMES[to]);
-    bot.trace_mark(&name);
+    bot.bedrock_mut().expect("Bedrock bot").trace_mark(&name);
     let (start, target) = (corrections(bot), on_floor(to, 0));
     run(bot, to, &format!("tp @s {} {} {} -90 0", target[0], target[1], target[2]));
     measure(bot, &name, start, to, Some(target), false).await
@@ -152,7 +152,7 @@ async fn leg(bot: &mut Bot, from: usize, to: usize) -> Result<u32, Error> {
 /// One leg through a portal: stands in the portal block at `portal` until the game moves the bot to `to`.
 async fn portal_leg(bot: &mut Bot, kind: &str, portal: Feet, to: usize, target: Option<Feet>) -> Result<u32, Error> {
     let name = format!("{kind} > {}", NAMES[to]);
-    bot.trace_mark(&name);
+    bot.bedrock_mut().expect("Bedrock bot").trace_mark(&name);
     teleport(bot, portal).await?;
     measure(bot, &name, corrections(bot), to, target, true).await
 }

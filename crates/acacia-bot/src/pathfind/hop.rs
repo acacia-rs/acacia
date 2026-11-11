@@ -4,17 +4,18 @@
 
 use std::f32::consts::SQRT_2;
 
-use acacia_physics::{BlockPos, PlayerState};
+use acacia_physics::BlockPos;
 
 use super::cache::{Counts, Store, feet_key};
 use super::control::RunCtl;
-use super::costs::{HUMAN_JUMP, SPRINT};
+use super::costs::{self, HUMAN_JUMP};
 use super::moves::offset;
 use super::node::{DIRS, Entry, Momentum};
 use super::profile::{Aim, MovementProfile};
+use super::rollout::PlanSim;
 use super::solve::{AIM_SEED, STRAIGHT, Solved, Solver};
 use super::terrain::{Blocks, EPS, Spot, SpotKind, Terrain};
-use crate::movement::Rollout;
+use crate::movement::Motion;
 
 /// Farthest run (cells), reaching the edge of a gap.
 const RUN_REACH: i32 = 3;
@@ -27,7 +28,7 @@ const HOP_AIM: i32 = 8;
 pub(crate) struct Ran {
     pub ctl: RunCtl,
     pub ticks: u32,
-    pub end: PlayerState,
+    pub end: Motion,
 }
 
 /// A dry floor at the start's level.
@@ -36,7 +37,7 @@ fn level<B: Blocks>(t: &Terrain<B>, q: BlockPos, from: Spot) -> Option<Spot> {
 }
 
 /// The runs from `p`: along every direction from rest, along the running direction otherwise.
-pub(crate) fn runs<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (entry, mom): (Entry, &Momentum), start: &Rollout, solver: &mut Solver<Terrain<B>>, (cache, n): (&Store, &mut Counts)) -> Vec<(BlockPos, Spot, Ran)> {
+pub(crate) fn runs<B: Blocks, S: PlanSim<B>>(t: &Terrain<B>, p: BlockPos, from: Spot, (entry, mom): (Entry, &Momentum), start: &S, solver: &mut Solver<Terrain<B>>, (cache, n): (&Store, &mut Counts)) -> Vec<(BlockPos, Spot, Ran)> {
     let dirs = match entry {
         Entry::Run(d, _) => d..d + 1,
         _ => 0..DIRS.len() as u8,
@@ -71,14 +72,14 @@ pub(crate) fn runs<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, (entry, m
 
 /// The hop on from running along direction `d`: where a sprint-jump along `d` lands on the same level, if it
 /// lands there cleanly.
-pub(crate) fn hop<B: Blocks>(t: &Terrain<B>, p: BlockPos, from: Spot, d: u8, start: &Rollout, solver: &mut Solver<Terrain<B>>) -> Option<(BlockPos, Spot, Solved)> {
+pub(crate) fn hop<B: Blocks, S: PlanSim<B>>(t: &Terrain<B>, p: BlockPos, from: Spot, d: u8, start: &S, solver: &mut Solver<Terrain<B>>) -> Option<(BlockPos, Spot, Solved)> {
     let (dx, dz) = DIRS[usize::from(d)];
     let (down, ticks) = solver.hop_landing(start, offset(p, dx * HOP_AIM, 0, dz * HOP_AIM), from.feet);
     let cell = [down.pos[0].floor() as i32, p[1], down.pos[2].floor() as i32];
     let to = level(t, cell, from).filter(|_| down.on_ground && cell != p)?;
     // `Human` drops hops no faster than sprinting there (see docs/pathfind-plan.md step 7, as built).
     let (a, b) = ((cell[0] - p[0]).abs() as f32, (cell[2] - p[2]).abs() as f32);
-    if solver.profile == MovementProfile::Human && ticks as f32 + HUMAN_JUMP >= SPRINT * (a.max(b) + (SQRT_2 - 1.0) * a.min(b)) {
+    if solver.profile == MovementProfile::Human && ticks as f32 + HUMAN_JUMP >= costs::sprint(S::envelope()) * (a.max(b) + (SQRT_2 - 1.0) * a.min(b)) {
         return None;
     }
     if let Some(s) = solver.hop(start, cell, to.feet) {

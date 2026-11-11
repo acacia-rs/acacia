@@ -6,6 +6,8 @@ mod boat;
 mod exit;
 mod horse;
 mod input;
+#[cfg(feature = "java")]
+mod java;
 mod keys;
 mod tick;
 
@@ -55,7 +57,7 @@ impl Bot {
         if let Some(v) = self.state.riding.vehicle.as_ref().filter(|v| v.runtime_id == Some(runtime_id)) {
             return Ok(v.clone());
         }
-        if self.movement.as_ref().is_some_and(|m| m.controls.sneak) {
+        if self.backend.controls().is_some_and(|c| c.sneak) {
             return Err(ActionError::NotPossible("sneaking".into()));
         }
         self.interact_entity(runtime_id).await?;
@@ -69,7 +71,8 @@ impl Bot {
     /// Leaves the vehicle like vanilla: on the next tick the client gives up its seat itself, sends
     /// `Interact` LeaveVehicle with the point it steps off at (that tick's input already stands there,
     /// no sneak flags) and clears aim assist. A physics bot returns standing at the exit. A server that
-    /// disagrees links the bot again, which shows in [`Bot::vehicle`].
+    /// disagrees links the bot again, which shows in [`Bot::vehicle`]. On Java the input holds shift until the
+    /// server's passengers drop the bot, which the server's exit teleport follows.
     pub async fn dismount(&mut self) -> Result<(), ActionError> {
         if !self.state.riding.is_riding() {
             return Err(ActionError::NotPossible("not riding".into()));
@@ -80,7 +83,7 @@ impl Bot {
             self.next_tick(|_, _| false).await?;
             if !self.ride.dismount || !self.state.riding.is_riding() {
                 self.release(leaving);
-                if self.movement.is_some() {
+                if self.backend.movement().is_some() {
                     // The simulation resumes at the exit on the tick after the seat is given up.
                     self.next_tick(|_, _| false).await?;
                 }
@@ -113,7 +116,7 @@ impl Bot {
     /// `eye`: the dismount tick's input position, which vanilla repeats in LeaveVehicle.
     fn leave_vehicle(&mut self, eye: Vec3f) {
         let target = self.state.riding.vehicle.as_ref().and_then(|v| v.runtime_id).unwrap_or(0);
-        self.client.send(&Interact {
+        self.send_bedrock(&Interact {
             action_id: InteractActionId::LeaveVehicle,
             target_entity_id: target,
             has_position: true,
@@ -126,7 +129,7 @@ impl Bot {
 
     /// `ClientCameraAimAssist` Clear, which vanilla sends on every mount and dismount.
     fn clear_aim_assist(&self) {
-        self.client.send(&ClientCameraAimAssist {
+        self.send_bedrock(&ClientCameraAimAssist {
             preset_id: String::new(),
             action: ClientCameraAimAssistAction::Clear,
             allow_aim_assist: false,

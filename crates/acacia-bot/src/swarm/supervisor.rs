@@ -156,7 +156,7 @@ impl<S, F: AsyncFn(&mut Bot, &mut S)> Run<'_, S, F> {
             Ok(Ok(bot)) => bot,
         };
         self.ctx.registry.set(&id, BotStatus::Online);
-        self.ctx.emit(SwarmEvent::Spawned { id: id.clone(), display_name: bot.client().display_name().to_owned() });
+        self.ctx.emit(SwarmEvent::Spawned { id: id.clone(), display_name: bot.name().to_owned() });
         let since = Instant::now();
         let reason = match guard((self.task)(&mut bot, &mut self.spec.state), &mut self.cancel, &mut self.keeper).await {
             Ok(()) => bot.disconnect_reason().cloned().filter(|r| *r != DisconnectReason::LocalClose),
@@ -208,7 +208,9 @@ impl<S, F: AsyncFn(&mut Bot, &mut S)> Run<'_, S, F> {
 }
 
 async fn guard<T>(fut: impl Future<Output = T>, cancel: &mut watch::Receiver<bool>, keeper: &mut Keeper) -> Result<T, Interrupt> {
+    // Biased so a task is polled at least once even when a cancel came first: its spawn was already announced.
     tokio::select! {
+        biased;
         v = fut => Ok(v),
         _ = cancel.wait_for(|c| *c) => Err(Interrupt::Cancelled),
         () = keeper.lost() => Err(Interrupt::LeaseLost),

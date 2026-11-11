@@ -1,28 +1,45 @@
-//! Move costs in ticks (Baritone's `ActionCosts`, as ported by azalea). Bedrock shares Java's
-//! walk/sprint speeds and gravity, so the tables carry over unchanged.
-
-use acacia_physics::constants::{CLIMB_SPEED, NORMAL_GRAVITY, NORMAL_GRAVITY_MULTIPLIER};
+//! Move costs in ticks (Baritone's `ActionCosts`, as ported by azalea): the movement-derived ones from the
+//! edition's [`Envelope`], the penalties edition-free. Bedrock shares Java's walk/sprint speeds and gravity, so
+//! the tables carry over unchanged.
 
 use super::profile::MovementProfile;
+use crate::movement::Envelope;
 
-pub const WALK: f32 = 20.0 / 4.317;
-pub const SPRINT: f32 = 20.0 / 5.612;
-pub const WALK_OFF: f32 = WALK * 0.8;
-pub const CENTER_AFTER_FALL: f32 = WALK - WALK_OFF;
+pub fn walk(e: &Envelope) -> f32 {
+    20.0 / e.walk_speed
+}
+
+pub fn sprint(e: &Envelope) -> f32 {
+    20.0 / e.sprint_speed
+}
+
+pub fn walk_off(e: &Envelope) -> f32 {
+    walk(e) * 0.8
+}
+
+pub fn center_after_fall(e: &Envelope) -> f32 {
+    walk(e) - walk_off(e)
+}
+
+pub fn swim(e: &Envelope) -> f32 {
+    20.0 / e.swim_speed
+}
+
+pub fn climb(e: &Envelope) -> f32 {
+    1.0 / e.climb_speed
+}
+
+/// Sneaking to an edge to bridge (Baritone `SNEAK_ONE_BLOCK_COST`).
+pub fn sneak(e: &Envelope) -> f32 {
+    20.0 / e.sneak_speed
+}
+
 pub const JUMP_PENALTY: f32 = 2.0;
-pub const SWIM: f32 = 20.0 / 1.960;
 pub const ENTER_WATER: f32 = 3.0;
-pub const CLIMB: f32 = 1.0 / CLIMB_SPEED;
 /// Standing next to cactus, fire or lava: allowed, but only when the detour is long.
 pub const DANGER_NEAR: f32 = 20.0;
 /// Extra risk for a two-block gap jump over a one-block one.
 pub const LONG_JUMP_PENALTY: f32 = 2.0;
-/// Sprint cost per block: turns heuristic distance into ticks (Baritone `costHeuristic`).
-pub const COST_HEURISTIC: f32 = 3.563;
-/// Steady sprint-jumping on flat ground: 0.35633 blocks per tick, one hop per 12 ticks (measured by
-/// `tests::hops::steady_hop_speed_bounds_the_heuristic`).
-pub const HOP_SPEED: f32 = 0.3563;
-pub const HOP_TICKS: f32 = 12.0;
 /// Least ticks a run from standing loses against steady hops over three blocks or more (measured 4.1 at the
 /// first landing; `tests::hops::steady_hop_speed_bounds_the_heuristic` checks the bound).
 pub const MACRO_STARTUP: f32 = 4.0;
@@ -33,15 +50,13 @@ pub const CLASSIC_STARTUP: f32 = 4.0;
 
 /// Fewest ticks per block any move achieves with macro moves on: steady hops (plus the `Human` jump
 /// hesitation, unless plain sprinting is faster), rounded down so the heuristic stays admissible.
-pub fn macro_ticks_per_block(profile: MovementProfile) -> f32 {
+pub fn macro_ticks_per_block(e: &Envelope, profile: MovementProfile) -> f32 {
     let hop = match profile {
-        MovementProfile::Optimal => 1.0 / HOP_SPEED,
-        MovementProfile::Human => ((HOP_TICKS + HUMAN_JUMP) / (HOP_TICKS * HOP_SPEED)).min(SPRINT),
+        MovementProfile::Optimal => 1.0 / e.hop_speed,
+        MovementProfile::Human => ((e.hop_ticks + HUMAN_JUMP) / (e.hop_ticks * e.hop_speed)).min(sprint(e)),
     };
     (hop * 100.0).floor() / 100.0
 }
-/// Sneaking to an edge to bridge (Baritone `SNEAK_ONE_BLOCK_COST`).
-pub const SNEAK: f32 = 20.0 / 1.3;
 /// On top of the break time, for tool switches and the risk (Baritone `blockBreakAdditionalPenalty`).
 pub const BREAK_PENALTY: f32 = 2.0;
 /// Blocks that take longer than this to break (30 s) are not dug.
@@ -62,7 +77,7 @@ pub fn place(left: u32) -> f32 {
 }
 
 /// Ticks to fall `distance` blocks from rest (the first tick moves before gravity applies).
-pub fn fall_ticks(distance: f32) -> f32 {
+pub fn fall_ticks(e: &Envelope, distance: f32) -> f32 {
     if distance <= 0.0 {
         return 0.0;
     }
@@ -73,27 +88,29 @@ pub fn fall_ticks(distance: f32) -> f32 {
         }
         left -= v;
         ticks += 1.0;
-        v = (v + NORMAL_GRAVITY) * NORMAL_GRAVITY_MULTIPLIER;
+        v = (v + e.gravity) * e.air_drag;
     }
 }
 
-pub fn jump_one_block() -> f32 {
-    fall_ticks(1.25) - fall_ticks(0.25)
+pub fn jump_one_block(e: &Envelope) -> f32 {
+    fall_ticks(e, e.jump_rise) - fall_ticks(e, e.jump_rise - 1.0)
 }
 
-pub fn ascend() -> f32 {
-    jump_one_block().max(WALK) + JUMP_PENALTY
+pub fn ascend(e: &Envelope) -> f32 {
+    jump_one_block(e).max(walk(e)) + JUMP_PENALTY
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::movement::BEDROCK;
 
     #[test]
     fn fall_table_matches_baritone() {
-        assert!((fall_ticks(1.0) - 5.61).abs() < 0.05, "{}", fall_ticks(1.0));
-        assert!((fall_ticks(3.0) - 9.47).abs() < 0.05, "{}", fall_ticks(3.0));
-        assert!((jump_one_block() - 3.163).abs() < 0.05);
+        let e = &BEDROCK;
+        assert!((fall_ticks(e, 1.0) - 5.61).abs() < 0.05, "{}", fall_ticks(e, 1.0));
+        assert!((fall_ticks(e, 3.0) - 9.47).abs() < 0.05, "{}", fall_ticks(e, 3.0));
+        assert!((jump_one_block(e) - 3.163).abs() < 0.05);
     }
 
     #[test]

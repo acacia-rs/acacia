@@ -21,13 +21,19 @@ impl Bot {
 
     /// Sends the held stack now and records it as what the server was told.
     pub(crate) fn equip_now(&mut self) {
+        #[cfg(feature = "java")]
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            let slot = self.state.inventory.selected_hotbar_slot;
+            (java.client.actions.selected, java.client.inventory.selected) = (slot, slot);
+            return;
+        }
         let inv = &self.state.inventory;
         let (slot, item) = (inv.selected_hotbar_slot, inv.held().clone());
         if needs_mouse_over(self.reflexes.equipped.as_ref(), slot, &item) {
-            self.client.send(&wire::mouse_over_nothing());
+            self.send_bedrock(&wire::mouse_over_nothing());
             self.reflexes.hovered = None;
         }
-        self.client.send(&wire::mob_equipment(self.runtime_id(), slot, &item));
+        self.send_bedrock(&wire::mob_equipment(self.runtime_id(), slot, &item));
         self.reflexes.equipped = Some((slot, item));
     }
 }

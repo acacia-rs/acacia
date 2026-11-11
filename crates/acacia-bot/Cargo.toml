@@ -13,9 +13,14 @@ exclude = ["tests/traces", "tests/trace_regression.rs"]
 [features]
 # Sign-in through the game connection's SOCKS5 proxy (see acacia-client's `socks`).
 socks = ["acacia-client/socks"]
+# Java Edition servers (docs/java-edition.md).
+java = ["dep:acacia-java-physics", "dep:acacia-java-client", "dep:acacia-java-proto"]
 
 [dependencies]
 acacia-client.workspace = true
+acacia-java-client = { path = "../acacia-java-client", optional = true }
+acacia-java-physics = { path = "../acacia-java-physics", optional = true }
+acacia-java-proto = { path = "../acacia-java-proto", optional = true }
 acacia-molang.workspace = true
 acacia-physics = { workspace = true, features = ["acacia-world"] }
 acacia-world.workspace = true
@@ -25,11 +30,64 @@ flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] 
 memchr = "2"
 regex = "1"
 rustc-hash = "2"
+acacia-registry = { workspace = true, features = ["serde"] }
 serde ={ version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2.0.21"
 tokio = { version = "1.53.1", features = ["rt", "time", "macros", "sync"] }
 tracing = "0.1.44"
+
+[[example]]
+name = "java_walk"
+required-features = ["java"]
+
+[[example]]
+name = "java_goto"
+required-features = ["java"]
+
+[[example]]
+name = "java_chest"
+required-features = ["java"]
+
+[[example]]
+name = "java_craft"
+required-features = ["java"]
+
+[[example]]
+name = "java_smelt"
+required-features = ["java"]
+
+[[example]]
+name = "java_stations"
+required-features = ["java"]
+
+[[example]]
+name = "java_trade"
+required-features = ["java"]
+
+[[example]]
+name = "java_elytra"
+required-features = ["java"]
+
+[[example]]
+name = "java_boat"
+required-features = ["java"]
+
+[[example]]
+name = "java_mount"
+required-features = ["java"]
+
+[[example]]
+name = "java_dialogs"
+required-features = ["java"]
+
+[[example]]
+name = "java_eat"
+required-features = ["java"]
+
+[[example]]
+name = "java_avoid"
+required-features = ["java"]
 
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "test-util"] }

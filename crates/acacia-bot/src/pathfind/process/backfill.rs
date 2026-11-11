@@ -1,4 +1,5 @@
 use acacia_physics::BlockPos;
+use acacia_world::neutral::{Block, Item};
 
 use super::{Act, Ctx, Event, Process, Want};
 use crate::pathfind::{DEFAULT_SCAFFOLD, Goal};
@@ -28,7 +29,7 @@ struct Hole {
 /// briefly, so give it a higher priority than the processes whose digs it fills.
 pub struct Backfill {
     holes: Vec<Hole>,
-    scaffold: Vec<String>,
+    scaffold: Vec<Item>,
     filled: usize,
     abandoned: Vec<BlockPos>,
     tick: u64,
@@ -36,7 +37,7 @@ pub struct Backfill {
 
 impl Default for Backfill {
     fn default() -> Self {
-        Self::with_scaffold(DEFAULT_SCAFFOLD.iter().map(|s| s.to_string()).collect())
+        Self::with_scaffold(DEFAULT_SCAFFOLD.to_vec())
     }
 }
 
@@ -45,8 +46,8 @@ impl Backfill {
         Self::default()
     }
 
-    /// Fills with any of `scaffold` (item identifiers, in preference order) when the original block is missing.
-    pub fn with_scaffold(scaffold: Vec<String>) -> Self {
+    /// Fills with any of `scaffold` (in preference order) when the original block is missing.
+    pub fn with_scaffold(scaffold: Vec<Item>) -> Self {
         Self { holes: Vec::new(), scaffold, filled: 0, abandoned: Vec::new(), tick: 0 }
     }
 
@@ -65,10 +66,12 @@ impl Backfill {
         &self.abandoned
     }
 
-    fn blocks(&self, original: &str) -> Vec<String> {
-        let mut out = vec![original.to_string()];
-        let more = substitutes(original).iter().map(|s| s.to_string()).chain(self.scaffold.iter().cloned());
-        more.for_each(|b| if !out.contains(&b) { out.push(b) });
+    fn blocks(&self, original: &str) -> Vec<Item> {
+        let block = Block::from_name(original);
+        let same = block.and_then(|b| Item::from_name(b.name()));
+        let swaps = block.map_or(&[][..], substitutes);
+        let mut out = Vec::new();
+        same.iter().chain(swaps).chain(&self.scaffold).for_each(|&i| if !out.contains(&i) { out.push(i) });
         out
     }
 
@@ -128,13 +131,14 @@ impl Process for Backfill {
 }
 
 /// What to fill a dug block's cell with when the bot lacks the block (breaking it dropped another).
-pub fn substitutes(block: &str) -> &'static [&'static str] {
+pub fn substitutes(block: Block) -> &'static [Item] {
+    let name = block.name();
     match block {
-        "minecraft:stone" => &["minecraft:cobblestone"],
-        "minecraft:deepslate" => &["minecraft:cobbled_deepslate"],
-        "minecraft:grass_block" | "minecraft:podzol" | "minecraft:mycelium" | "minecraft:grass_path" | "minecraft:dirt_path" | "minecraft:farmland" => &["minecraft:dirt"],
-        b if b.starts_with("minecraft:deepslate_") && b.ends_with("_ore") => &["minecraft:cobbled_deepslate"],
-        b if b.ends_with("_ore") => &["minecraft:cobblestone"],
+        Block::Stone => &[Item::Cobblestone],
+        Block::Deepslate => &[Item::CobbledDeepslate],
+        Block::GrassBlock | Block::Podzol | Block::Mycelium | Block::DirtPath | Block::Farmland => &[Item::Dirt],
+        _ if name.starts_with("minecraft:deepslate_") && name.ends_with("_ore") => &[Item::CobbledDeepslate],
+        _ if name.ends_with("_ore") => &[Item::Cobblestone],
         _ => &[],
     }
 }

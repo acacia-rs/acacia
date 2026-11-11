@@ -42,7 +42,9 @@ pub mod text;
 pub mod trace;
 
 pub use acacia_client::{self as client, proto, ConnectError, DisconnectReason, Reason, Violation};
-pub use bot::Bot;
+pub use bot::{Bedrock, Bot};
+#[cfg(feature = "java")]
+pub use bot::Java;
 pub use cancel::CancelHandle;
 pub use config::BotConfig;
 pub use lag::Lag;

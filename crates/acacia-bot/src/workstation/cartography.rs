@@ -46,6 +46,10 @@ impl Bot {
             Some(slot) => operation(item_name(&self.state, slot)?).is_some(),
             None => rename.is_some(),
         };
+        #[cfg(feature = "java")]
+        if self.java().is_some() && rename.is_some() {
+            return Err(ActionError::Unsupported("renaming at a Java cartography table (Java renames maps at the anvil)"));
+        }
         if !usable {
             return Err(ActionError::NotPossible("a cartography table needs an empty map, paper, a glass pane or a new name".into()));
         }
@@ -70,6 +74,18 @@ impl Bot {
         }
         let mut done = 0;
         while done < times {
+            #[cfg(feature = "java")]
+            if self.java().is_some() {
+                if !self.java_result_offered().await? {
+                    return if done > 0 { Ok(done) } else { Err(ActionError::NotPossible("the cartography table offers nothing".into())) };
+                }
+                if done > 0 {
+                    self.click_pause().await?;
+                }
+                self.java_take_one(2).await?;
+                done += 1;
+                continue;
+            }
             let plan = match cartography_plan(&self.state, rename) {
                 Ok(plan) => plan,
                 Err(ActionError::NotPossible(_)) if done > 0 => break,

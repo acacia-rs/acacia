@@ -38,9 +38,12 @@ pub fn liquid_of(state: &BlockState) -> Option<Liquid> {
 }
 
 /// Blocks whose raised collision (1.5 tall) the support lookup must see.
-fn is_fence_or_wall(name: &str) -> bool {
-    let base = name.trim_start_matches("minecraft:");
-    base.ends_with("_fence") || base.ends_with("_fence_gate") || (base.ends_with("_wall") && !base.contains("sign") && !base.contains("banner") && !base.contains("torch") && !base.contains("head") && !base.contains("skull") && !base.contains("fan"))
+pub fn is_fence_or_wall(state: &BlockState) -> bool {
+    use acacia_world::neutral::BlockTag;
+    state.neutral.is_some_and(|n| {
+        let b = n.block();
+        b.is(BlockTag::Fences) || b.is(BlockTag::FenceGates) || b.is(BlockTag::Walls)
+    })
 }
 
 /// A cell's physics from its layer-0 runtime id and, read only when needed, its layer-1 id.
@@ -84,7 +87,7 @@ pub fn block_physics(registry: &BlockRegistry, block: u32, liquid_layer: impl Fn
         } else {
             Traversal::None
         },
-        fence_or_wall: is_fence_or_wall(s.name),
+        fence_or_wall: is_fence_or_wall(s),
         liquid,
         // Approximation for liquid flow: only full cubes block it on every face.
         solid_faces: if s.is_full_cube() { 0x3f } else { 0 },

@@ -15,6 +15,8 @@ pub enum FormReply {
     Modal(bool),
     /// Custom form: one value per input element, in order (labels, headers and dividers are skipped).
     Custom(Vec<FormValue>),
+    /// Java dialog with inputs ([`super::FormKind::Dialog`]): which button, and one value per input.
+    Dialog { button: usize, values: Vec<FormValue> },
     /// The X button.
     Close,
 }
@@ -29,9 +31,9 @@ pub enum FormValue {
 }
 
 impl Form {
-    /// The custom form's default values, ready to edit and send as [`FormReply::Custom`].
+    /// The custom form's (or Java dialog's) default values, ready to edit and send as [`FormReply::Custom`].
     pub fn defaults(&self) -> Vec<FormValue> {
-        let FormKind::Custom { elements } = &self.kind else { return Vec::new() };
+        let (FormKind::Custom { elements } | FormKind::Dialog { elements, .. }) = &self.kind else { return Vec::new() };
         elements
             .iter()
             .filter_map(|e| match e {

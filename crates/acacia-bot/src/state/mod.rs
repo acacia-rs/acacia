@@ -11,6 +11,10 @@ mod fishing;
 mod hurts;
 mod inventory;
 mod items;
+#[cfg(feature = "java")]
+pub(crate) mod java_inventory;
+#[cfg(feature = "java")]
+pub(crate) mod java_trade;
 mod kept;
 mod metadata;
 mod player;
@@ -45,6 +49,8 @@ pub use stations::{EnchantOption, Stations, TradeItem, TradeOffer, TradeWindow};
 pub use player::PlayerState;
 pub use player_list::{PlayerList, PlayerListEntry};
 pub(crate) use player_list::PlayerChange;
+#[cfg(feature = "java")]
+pub(crate) use entities::bedrock_kind as java_bedrock_kind;
 pub use scoreboard::{Objective, ScoreEntry, Scoreboard, SortOrder, SLOT_BELOW_NAME, SLOT_LIST, SLOT_SIDEBAR};
 pub use signs::{SignEditor, Signs};
 
@@ -160,6 +166,12 @@ impl GameState {
     /// The entity tracker runs (`Trackers::entities`): without it no entity is ever seen.
     pub fn tracks_entities(&self) -> bool {
         self.trackers.entities
+    }
+
+    /// Entities are kept, fully or lean for hazards.
+    #[cfg(feature = "java")]
+    pub(crate) fn keeps_entities(&self) -> bool {
+        self.trackers.entities || self.trackers.hazards
     }
 
     pub fn me(&self) -> Me {

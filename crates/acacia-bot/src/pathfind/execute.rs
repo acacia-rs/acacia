@@ -2,6 +2,7 @@
 //! the best tool, [`Bot::place_block`] with a scaffold block, [`Bot::use_item_on_block`] on doors.
 
 use acacia_physics::BlockPos;
+use acacia_world::neutral::prop;
 
 use super::boat::BoatOpts;
 use super::follow::Sense;
@@ -20,7 +21,7 @@ const EDGE_TICKS: u32 = 30;
 /// Ticks for a pillar jump to clear the cell.
 const RISE_TICKS: u32 = 12;
 
-pub(super) async fn perform(bot: &mut Bot, node: &PathNode, scaffold: &[String], profile: MovementProfile) -> Result<(), ActionError> {
+pub(super) async fn perform(bot: &mut Bot, node: &PathNode, scaffold: &[acacia_world::neutral::Item], profile: MovementProfile) -> Result<(), ActionError> {
     bot.stop_pathing();
     for step in node.work.steps() {
         match step {
@@ -50,17 +51,16 @@ async fn dig(bot: &mut Bot, pos: BlockPos) -> Result<(), ActionError> {
 }
 
 async fn door(bot: &mut Bot, pos: BlockPos, open: bool) -> Result<(), ActionError> {
-    let want = if open { "1" } else { "0" };
-    let state = |bot: &Bot| bot.block_at(pos).and_then(|(_, s)| s.property("open_bit"));
+    let state = |bot: &Bot| bot.block_at(pos).and_then(|(_, s)| s.get(prop::Open));
     match state(bot) {
-        Some(v) if v == want => return Ok(()),
+        Some(v) if v == open => return Ok(()),
         None => return Err(ActionError::NotPossible(format!("no door at {pos:?}"))),
         Some(_) => {}
     }
     bot.door_confirmed(pos, open).await
 }
 
-async fn place(bot: &mut Bot, kind: MoveKind, against: BlockPos, face: Face, scaffold: &[String]) -> Result<(), ActionError> {
+async fn place(bot: &mut Bot, kind: MoveKind, against: BlockPos, face: Face, scaffold: &[acacia_world::neutral::Item]) -> Result<(), ActionError> {
     let target = face.adjacent(against);
     if bot.block_at(target).is_some_and(|(_, s)| !s.is_air() && !s.is_liquid()) {
         return Ok(());
@@ -94,9 +94,8 @@ async fn maneuver_until(bot: &mut Bot, ticks: u32, mut step: impl FnMut(&Sense, 
 }
 
 fn sense(bot: &Bot) -> Option<Sense> {
-    let m = bot.movement.as_ref()?;
-    let pos = m.position()?;
+    let (pos, on_ground) = bot.backend.feet()?;
     let feet = [pos[0].floor() as i32, pos[1].floor() as i32, pos[2].floor() as i32];
     let in_water = bot.block_at(feet).is_some_and(|(_, s)| s.is_water());
-    Some(Sense { pos, on_ground: m.on_ground(), in_water })
+    Some(Sense { pos, on_ground, in_water })
 }

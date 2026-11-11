@@ -9,13 +9,17 @@ use acacia_client::proto::packets::SetEntityData;
 use acacia_client::proto::types::{MetadataDictionaryItemValue, MetadataFlags1};
 use acacia_client::proto::{Packet, RawPacket};
 
+use acacia_world::neutral::Item;
+
 use crate::human::HOTBAR_SWITCH;
 use crate::survival::Destination;
 use crate::state::Inventory;
 use crate::{ActionError, Bot};
 
-const ELYTRA: &str = "minecraft:elytra";
-const FIREWORK: &str = "minecraft:firework_rocket";
+#[cfg(feature = "java")]
+#[path = "elytra_java.rs"]
+mod java;
+
 /// Armor slot of the chestplate.
 const CHEST: u8 = 1;
 /// How long the server has to confirm a glide with the `GLIDING` actor flag.
@@ -27,20 +31,23 @@ impl Bot {
         if self.wears_elytra() {
             return Ok(());
         }
-        let from = self.find_item(ELYTRA).ok_or_else(|| ActionError::NotPossible("no elytra in the inventory".into()))?;
+        let from = self.find_item(Item::Elytra).ok_or_else(|| ActionError::NotPossible("no elytra in the inventory".into()))?;
         self.equip(from, Destination::Chest).await
     }
 
     pub fn wears_elytra(&self) -> bool {
-        let id = self.state.items.id(ELYTRA);
-        self.state.inventory.armor.get(usize::from(CHEST)).is_some_and(|s| !s.is_empty() && Some(s.network_id) == id)
+        self.state.inventory.armor.get(usize::from(CHEST)).is_some_and(|s| self.state.item(s) == Some(Item::Elytra))
     }
 
     /// Opens the elytra mid-air as vanilla does on a jump press while falling: the press plus
     /// `StartGliding` and `WantUp` in the next `PlayerAuthInput`, no `PlayerAction`. Waits for the
     /// server's `GLIDING` flag (`Rejected` without it). Physics bots only, airborne with an elytra worn.
     pub async fn start_gliding(&mut self) -> Result<(), ActionError> {
-        let Some(movement) = self.movement.as_ref().filter(|m| m.is_started()) else {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_start_gliding().await;
+        }
+        let Some(movement) = self.backend.movement().filter(|m| m.is_started()) else {
             return Err(ActionError::NotPossible("gliding needs a physics bot".into()));
         };
         if movement.on_ground() {
@@ -64,7 +71,11 @@ impl Bot {
     /// Closes the elytra (physics bots only). In the air vanilla does it on a jump press (`StopGliding`
     /// + the press flags); landing ends a glide by itself.
     pub async fn stop_gliding(&mut self) -> Result<(), ActionError> {
-        let Some(movement) = self.movement.as_ref().filter(|m| m.is_started()) else {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_stop_gliding().await;
+        }
+        let Some(movement) = self.backend.movement().filter(|m| m.is_started()) else {
             return Err(ActionError::NotPossible("gliding needs a physics bot".into()));
         };
         let airborne = !movement.on_ground();
@@ -77,15 +88,26 @@ impl Bot {
 
     /// Whether the simulation is gliding (physics bots).
     pub fn is_gliding(&self) -> bool {
-        self.movement.as_ref().is_some_and(|m| m.gliding())
+        #[cfg(feature = "java")]
+        if let Some(java) = self.java() {
+            return java.client().movement.player.fall_flying;
+        }
+        self.backend.movement().is_some_and(|m| m.gliding())
     }
 
     /// Uses a firework rocket from the hotbar like vanilla: `Animate` "useitem" + `UseItem` ClickAir,
-    /// no `StartUsingItem`. Selecting the rocket first takes a human pause.
+    /// no `StartUsingItem`. Selecting the rocket first takes a human pause. On Java the server's rocket entity
+    /// boosts the glide (see `acacia_java_physics::Player::firework_boost`).
     pub async fn boost_with_firework(&mut self) -> Result<(), ActionError> {
         self.hold_fireworks().await?;
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            self.java_use_item();
+            self.java_swing();
+            return Ok(());
+        }
         self.use_item_like_vanilla();
-        if let Some(movement) = self.movement.as_mut() {
+        if let Some(movement) = self.backend.movement_mut() {
             movement.predict_glide_boost();
         }
         Ok(())
@@ -94,9 +116,8 @@ impl Bot {
     /// Selects a hotbar slot with firework rockets, after a human pause if it was not selected. A flight does it
     /// before taking off: switched mid-glide, the pause costs the boost's timing (live: a takeoff rocket came too late).
     pub async fn hold_fireworks(&mut self) -> Result<(), ActionError> {
-        let id = self.state.items.id(FIREWORK);
-        let hotbar = self.state.inventory.main.iter().take(usize::from(Inventory::HOTBAR_SLOTS));
-        let slot = id.and_then(|id| hotbar.clone().position(|s| s.network_id == id && !s.is_empty()));
+        let mut hotbar = self.state.inventory.main.iter().take(usize::from(Inventory::HOTBAR_SLOTS));
+        let slot = hotbar.position(|s| self.state.item(s) == Some(Item::FireworkRocket));
         let slot = slot.ok_or_else(|| ActionError::NotPossible("no firework rocket in the hotbar".into()))?;
         if usize::from(self.state.inventory.selected_hotbar_slot) != slot {
             self.select_hotbar(slot as u8)?;
@@ -107,15 +128,15 @@ impl Bot {
     }
 
     fn set_glide(&mut self, on: bool) {
-        if let Some(movement) = self.movement.as_mut() {
+        if let Some(movement) = self.backend.movement_mut() {
             movement.controls.glide = on;
         }
     }
 
     /// Holds jump for one tick, then releases it.
     async fn press_jump(&mut self) -> Result<(), ActionError> {
-        let Some(movement) = self.movement.as_mut() else { return Ok(()) };
-        let held = std::mem::replace(&mut movement.controls.jump, true);
+        let Some(controls) = self.backend.controls_mut() else { return Ok(()) };
+        let held = std::mem::replace(&mut controls.jump, true);
         let press = self.claim(crate::cancel::Held::Jump(held));
         let ticked = self.next_tick(|_, _| false).await;
         self.release(press);

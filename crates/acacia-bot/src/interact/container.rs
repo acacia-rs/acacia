@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use acacia_client::proto::packets::{ContainerClose, Interact, InteractActionId};
-use acacia_client::proto::types::{WindowID, WindowType};
+use acacia_client::proto::types::{BlockCoordinates, WindowID, WindowType};
 use acacia_client::proto::RawPacket;
 use acacia_physics::BlockPos;
 
@@ -25,11 +25,23 @@ impl Bot {
         let opened = self.wait_until(CONTAINER_TIMEOUT, |bot, _| bot.open_container().cloned()).await?;
         // Contents follow ContainerOpen in a separate InventoryContent; slot actions need them.
         let filled = |bot: &Bot, _: &RawPacket| bot.open_container().filter(|c| !c.slots.is_empty()).cloned();
-        match self.wait_until(CONTENTS_TIMEOUT, filled).await {
-            Ok(container) => Ok(container),
-            Err(ActionError::Timeout) => Ok(self.open_container().cloned().unwrap_or(opened)),
-            Err(e) => Err(e),
+        let container = match self.wait_until(CONTENTS_TIMEOUT, filled).await {
+            Ok(container) => container,
+            Err(ActionError::Timeout) => self.open_container().cloned().unwrap_or(opened),
+            Err(e) => return Err(e),
+        };
+        Ok(self.place_java_window(container, pos))
+    }
+
+    /// Java's `OpenScreen` does not say which block opened: it is the one just clicked.
+    fn place_java_window(&mut self, mut container: Container, pos: BlockPos) -> Container {
+        if container.position.is_none() && self.backend.bedrock().is_none() {
+            container.position = Some(BlockCoordinates { x: pos[0], y: pos[1], z: pos[2] });
+            if let Some(open) = self.state.containers.open.as_mut() {
+                open.position = container.position.clone();
+            }
         }
+        container
     }
 
     /// Closes the open container (`ContainerClose`, not server-initiated) and returns once the
@@ -40,6 +52,12 @@ impl Bot {
         let Some(open) = self.state.containers.open.as_ref() else {
             return Err(ActionError::NotPossible("no container is open".into()));
         };
+        #[cfg(feature = "java")]
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            java.client.close_screen().map_err(|_| ActionError::Disconnected)?;
+            self.state.containers.open = None;
+            return Ok(());
+        }
         let (window_id, packet) = (open.window_id, close_packet(open));
         self.send_close(window_id, packet);
         self.await_close().await
@@ -48,7 +66,7 @@ impl Bot {
     /// Opens the player's own inventory screen (`Interact` OpenInventory). The server answers with
     /// a `ContainerOpen` for window 0, which shows up in `state().containers`.
     pub fn open_inventory(&mut self) {
-        self.client.send(&Interact {
+        self.send_bedrock(&Interact {
             action_id: InteractActionId::OpenInventory,
             target_entity_id: self.runtime_id(),
             has_position: false,

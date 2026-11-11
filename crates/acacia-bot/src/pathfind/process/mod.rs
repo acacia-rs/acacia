@@ -12,6 +12,8 @@ pub mod item_key;
 pub(crate) mod run;
 
 use acacia_physics::{BlockPos, Vec3};
+use acacia_world::neutral::prop;
+use acacia_world::neutral::value::SlabType;
 
 use super::hazard::Hazards;
 use super::{GotoOpts, Goal, PathNode};
@@ -45,8 +47,8 @@ pub enum Want {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Act {
-    /// Place a block into `pos` (an air or liquid cell): the first of `blocks` (item identifiers) the bot holds.
-    Fill { pos: BlockPos, blocks: Vec<String> },
+    /// Place a block into `pos` (an air or liquid cell): the first of `blocks` the bot holds.
+    Fill { pos: BlockPos, blocks: Vec<acacia_world::neutral::Item> },
     /// Place `item` against `face` of `against`, clicked at `click` (relative to its minimum corner).
     Place { item: String, against: BlockPos, face: Face, click: Vec3 },
     /// Break the block at `pos` with the best tool held.
@@ -98,6 +100,17 @@ impl BlockView {
 
     pub fn prop(&self, key: &str) -> Option<&'static str> {
         self.props.split(',').find_map(|kv| kv.split_once('=').filter(|(k, _)| *k == key).map(|(_, v)| v))
+    }
+
+    /// The edition-neutral state, by name in the vanilla registry; `None` for custom blocks.
+    pub fn neutral(&self) -> Option<acacia_world::neutral::BlockState> {
+        let r = acacia_world::BlockRegistry::vanilla();
+        r.get(r.find(self.name, self.props)?)?.neutral
+    }
+
+    /// A half slab's half; `None` for anything else, double slabs included.
+    pub fn half_slab(&self) -> Option<SlabType> {
+        self.neutral()?.get(prop::SlabType).filter(|t| *t != SlabType::Double)
     }
 }
 

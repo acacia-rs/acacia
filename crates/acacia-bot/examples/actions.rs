@@ -47,7 +47,7 @@ pub fn count(bot: &Bot, name: &str) -> u32 {
 }
 
 pub fn find(bot: &Bot, name: &str) -> Result<SlotRef, Box<dyn Error>> {
-    bot.find_item(name).ok_or_else(|| format!("no {name} in the inventory").into())
+    bot.find_item_named(name).ok_or_else(|| format!("no {name} in the inventory").into())
 }
 
 pub fn stack(bot: &Bot, slot: SlotRef) -> Option<&ItemStack> {
@@ -115,13 +115,13 @@ pub async fn recent_chat(bot: &mut Bot) -> Vec<String> {
 
 /// The server's view of the bot's stacks of `item` (JSON from the pack's `actiontest:inv` event).
 pub async fn server_inv(bot: &mut Bot, item: &str) -> Result<String, Box<dyn Error>> {
-    bot.client().command(&format!("/scriptevent actiontest:inv {item}"));
+    bot.command(&format!("/scriptevent actiontest:inv {item}"));
     Ok(wait_chat(bot, "inv", Duration::from_secs(5)).await.ok_or("no inventory dump from the pack")?)
 }
 
 /// The server's view of the scene's entities of type `kind` (the pack's `actiontest:ent` event).
 pub async fn server_entities(bot: &mut Bot, kind: &str) -> String {
-    bot.client().command(&format!("/scriptevent actiontest:ent {kind}"));
+    bot.command(&format!("/scriptevent actiontest:ent {kind}"));
     wait_chat(bot, "ent", Duration::from_secs(5)).await.unwrap_or_else(|| "no entity dump from the pack".into())
 }
 
@@ -135,7 +135,7 @@ macro_rules! run {
                 Err(e) => println!("FAIL {:<16} {e}", $name),
             }
             // Where each check left the bot: a later "too far away" points at the check that moved it.
-            eprintln!("after {}: feet {:?}", $name, $bot.movement().and_then(|m| m.position()));
+            eprintln!("after {}: feet {:?}", $name, $bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()));
             $results.push(($name, result.is_ok()));
         }
     };
@@ -162,7 +162,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut bot = Bot::connect(Client::builder(&server).offline(&name), config).await?;
     let line = wait_chat(&mut bot, "scene", Duration::from_secs(30)).await.ok_or("no scene message from the pack")?;
     let scene = Scene::parse(&line);
-    while physics && bot.movement().is_none_or(|m| !m.is_started()) {
+    while physics && bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     bot.wait_ticks(20).await?;

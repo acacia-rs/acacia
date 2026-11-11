@@ -24,7 +24,7 @@ async fn main() -> Result<(), Error> {
     };
     let (mut bot, _pad) = support::connect(&server, &name).await?;
     for cmd in ["/gamemode survival @s".to_string(), "/clear @s".into(), "/give @s elytra".into(), format!("/give @s firework_rocket {rockets}")] {
-        bot.client().command(&cmd);
+        bot.command(&cmd);
         bot.wait_ticks(4).await?;
     }
     bot.wait_ticks(20).await?;
@@ -33,7 +33,7 @@ async fn main() -> Result<(), Error> {
     let (before, t0) = (corrections(&bot), std::time::Instant::now());
     let opts = FlyOpts { profile, ..FlyOpts::default() };
     let result = bot.fly_to(target, opts).await;
-    let feet = bot.movement().and_then(|m| m.position()).ok_or("no position")?;
+    let feet = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).ok_or("no position")?;
     let off = (feet[0] - (target[0] as f32 + 0.5)).hypot(feet[2] - (target[2] as f32 + 0.5));
     let secs = t0.elapsed().as_secs_f32();
     println!(

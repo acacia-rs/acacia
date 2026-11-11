@@ -2,7 +2,7 @@
 
 use acacia_physics::Vec3;
 
-use crate::pathfind::costs::COST_HEURISTIC;
+use crate::movement::Envelope;
 use crate::pathfind::goal::Goal;
 use crate::ActionError;
 
@@ -28,11 +28,12 @@ impl Guard {
         Self { tick: 0, best: f32::INFINITY, best_at: 0, give_up, wait_until: 0, backoff: BACKOFF_TICKS, on_ground: true, searches: 0 }
     }
 
-    /// One tick with the bot at `pos`; fails once it has come no closer to `goal` (by a block) for `give_up` ticks.
-    pub fn tick(&mut self, goal: &Goal, pos: Vec3) -> Result<(), ActionError> {
+    /// One tick with the bot at `pos` (moving as `env`); fails once it has come no closer to `goal` (by a block)
+    /// for `give_up` ticks.
+    pub fn tick(&mut self, goal: &Goal, pos: Vec3, env: &'static Envelope) -> Result<(), ActionError> {
         self.tick += 1;
-        let h = goal.heuristic([pos[0].floor() as i32, (pos[1] + 0.01).floor() as i32, pos[2].floor() as i32]);
-        if h < self.best - COST_HEURISTIC {
+        let h = goal.heuristic([pos[0].floor() as i32, (pos[1] + 0.01).floor() as i32, pos[2].floor() as i32], env);
+        if h < self.best - env.cost_heuristic {
             (self.best, self.best_at) = (h, self.tick);
         } else if self.give_up.is_some_and(|t| self.tick - self.best_at > t) {
             return Err(ActionError::NotPossible(format!("cannot reach {goal:?}: no closer for {} ticks", self.tick - self.best_at)));

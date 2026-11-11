@@ -65,8 +65,12 @@ name = "acacia-bot"
 version = "0.1.0"
 dependencies = [
  "acacia-client",
+ "acacia-java-client",
+ "acacia-java-physics",
+ "acacia-java-proto",
  "acacia-molang",
  "acacia-physics",
+ "acacia-registry",
  "acacia-testserver",
  "acacia-world",
  "arc-swap",
@@ -132,6 +136,39 @@ version = "0.1.0"
 dependencies = [
  "acacia-ui",
  "serde_json",
+]
+
+[[package]]
+name = "acacia-java-client"
+version = "0.1.0"
+dependencies = [
+ "acacia-auth",
+ "acacia-java-physics",
+ "acacia-java-proto",
+ "acacia-registry",
+ "aes",
+ "flate2",
+ "md-5",
+ "rsa",
+ "sha1 0.10.7",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
+name = "acacia-java-physics"
+version = "0.1.0"
+dependencies = [
+ "acacia-registry",
+ "flate2",
+]
+
+[[package]]
+name = "acacia-java-proto"
+version = "0.1.0"
+dependencies = [
+ "crc",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -232,6 +269,13 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "tokio",
+]
+
+[[package]]
+name = "acacia-registry"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -346,6 +390,7 @@ name = "acacia-world"
 version = "0.1.0"
 dependencies = [
  "acacia-proto",
+ "acacia-registry",
  "bytes",
  "parking_lot",
  "rustc-hash 2.1.3",

@@ -44,7 +44,7 @@ pub async fn best_tool(bot: &mut Bot, s: &Scene) -> Check {
         "minecraft:diamond_pickaxe" => Ok(format!("holding the diamond pickaxe from {slot:?}")),
         other => {
             let picks: Vec<_> = ["minecraft:diamond_pickaxe", "minecraft:iron_pickaxe"]
-                .map(|p| (p, bot.find_item(p), bot.find_item(p).and_then(|s| stack(bot, s)).map(|s| s.nbt.clone())))
+                .map(|p| (p, bot.find_item_named(p), bot.find_item_named(p).and_then(|s| stack(bot, s)).map(|s| s.nbt.clone())))
                 .into();
             let server = crate::server_inv(bot, "").await?;
             let server: Vec<&str> = server.split("},{").filter(|s| s.contains("pickaxe")).collect();
@@ -81,12 +81,12 @@ pub async fn book(bot: &mut Bot) -> Check {
 }
 
 fn corrections(bot: &Bot) -> u32 {
-    bot.movement().map_or(0, |m| m.corrections)
+    bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.corrections)
 }
 
 /// Simulated feet of a physics bot, the reported ones of an idle bot.
 fn feet(bot: &Bot) -> Option<[f32; 3]> {
-    match bot.movement() {
+    match bot.bedrock().and_then(|b| b.movement()) {
         Some(m) => m.position(),
         None => {
             let p = &bot.state().player.position;
@@ -167,7 +167,7 @@ pub async fn ride(bot: &mut Bot, kind: &str) -> Check {
 pub async fn fish(bot: &mut Bot, s: &Scene) -> Check {
     // Earlier checks (bed, rides) leave the bot elsewhere; cast from the spot the scene was built for.
     let [bx, by, bz] = s.at("base");
-    bot.client().command(&format!("/tp @s {bx}.5 {by} {bz}.5"));
+    bot.command(&format!("/tp @s {bx}.5 {by} {bz}.5"));
     bot.wait_ticks(20).await?;
     bot.equip(find(bot, "minecraft:fishing_rod")?, Destination::Hand).await?;
     let [x, _, z] = s.at("water");
@@ -194,7 +194,7 @@ pub async fn elytra(bot: &mut Bot) -> Check {
 /// landing ends the glide (physics bots). Passes with no server corrections from the start to the landing.
 pub async fn glide(bot: &mut Bot) -> Check {
     bot.equip(find(bot, "minecraft:firework_rocket")?, Destination::Hand).await?;
-    bot.client().command("/tp @s ~ ~30 ~ -90 0");
+    bot.command("/tp @s ~ ~30 ~ -90 0");
     bot.wait_ticks(15).await?;
     bot.start_gliding().await?;
     let before = corrections(bot);
@@ -213,7 +213,7 @@ pub async fn glide(bot: &mut Bot) -> Check {
 /// Dives from above the scene's pool into the water, which ends the glide (physics bots).
 pub async fn glide_water(bot: &mut Bot, s: &Scene) -> Check {
     let [x, y, z] = s.at("water");
-    bot.client().command(&format!("/tp @s {} {} {} -90 0", x - 2, y + 14, z));
+    bot.command(&format!("/tp @s {} {} {} -90 0", x - 2, y + 14, z));
     bot.wait_ticks(15).await?;
     bot.start_gliding().await?;
     let before = corrections(bot);
@@ -227,7 +227,7 @@ pub async fn glide_water(bot: &mut Bot, s: &Scene) -> Check {
 /// bots). Passes with no server corrections of the horse.
 pub async fn ride_horse(bot: &mut Bot, s: &Scene) -> Check {
     let [x, y, z] = s.at("horse");
-    bot.client().command(&format!("/tp @s {} {y} {} 90 0", x as f32 + 2.5, z as f32 + 0.5));
+    bot.command(&format!("/tp @s {} {y} {} 90 0", x as f32 + 2.5, z as f32 + 0.5));
     bot.wait_ticks(15).await?;
     let me = bot.state().player.position.clone();
     let id = bot.state().entities.nearest(&me, |e| e.kind == "minecraft:horse").map(|e| e.runtime_id).ok_or("no horse tracked")?;
@@ -269,8 +269,8 @@ pub async fn horse_sweep(bot: &mut Bot, s: &Scene) -> Check {
     let [x, y, z] = s.at("horse");
     let mut rows = Vec::new();
     for speed in speeds.split(',').filter_map(|v| v.parse::<f32>().ok()) {
-        bot.client().command(&format!("/scriptevent actiontest:horsespeed {speed}"));
-        bot.client().command(&format!("/tp @s {} {y} {} 90 0", x as f32 + 2.5, z as f32 + 0.5));
+        bot.command(&format!("/scriptevent actiontest:horsespeed {speed}"));
+        bot.command(&format!("/tp @s {} {y} {} 90 0", x as f32 + 2.5, z as f32 + 0.5));
         bot.wait_ticks(40).await?;
         let me = bot.state().player.position.clone();
         let id = bot.state().entities.nearest(&me, |e| e.kind == "minecraft:horse").map(|e| e.runtime_id).ok_or("no horse tracked")?;
@@ -287,7 +287,7 @@ pub async fn horse_sweep(bot: &mut Bot, s: &Scene) -> Check {
         bot.offset_vehicle_report([0.5, 0.0, 0.5]);
         bot.wait_ticks(4).await?;
         let count = vehicle_corrections(bot) - before;
-        let server = (count > 0).then(|| bot.movement().and_then(|m| m.last_vehicle_delta).map(|[_, dy, dz]| (dz, dy))).flatten();
+        let server = (count > 0).then(|| bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.last_vehicle_delta).map(|[_, dy, dz]| (dz, dy))).flatten();
         let ours = 0.98 * speed * 0.546 / 0.454;
         rows.push(format!("({speed}: {count} corrections, last (dz, dy) {server:?}, ours {ours:.6})"));
         if let Some(c) = bot.controls() {
@@ -299,7 +299,7 @@ pub async fn horse_sweep(bot: &mut Bot, s: &Scene) -> Check {
 }
 
 fn vehicle_corrections(bot: &Bot) -> u32 {
-    bot.movement().map_or(0, |m| m.vehicle_corrections)
+    bot.bedrock().and_then(|b| b.movement()).map_or(0, |m| m.vehicle_corrections)
 }
 
 /// Waits for the glide to end by itself, then checks the server never corrected the bot after `before`.

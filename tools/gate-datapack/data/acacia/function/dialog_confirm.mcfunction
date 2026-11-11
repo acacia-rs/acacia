@@ -1,0 +1,1 @@
+dialog show @s {type:"minecraft:confirmation",title:"Sure?",body:{type:"minecraft:plain_message",contents:"Pick one"},yes:{label:"Yes",action:{type:"minecraft:run_command",command:"tellraw @a \"yes\""}},no:{label:"No",action:{type:"minecraft:custom",id:"acacia:no"}}}

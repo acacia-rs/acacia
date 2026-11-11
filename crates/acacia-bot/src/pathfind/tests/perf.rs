@@ -8,6 +8,7 @@ use acacia_physics::Vec3;
 use super::drive::{macro_opts, standing};
 use super::grid::Grid;
 use super::leaps::gap_course;
+use crate::movement::Rollout;
 use crate::pathfind::{Goal, MovementProfile, Path, RolloutCache, SearchOpts, search_cached};
 
 const OPTIMAL: MovementProfile = MovementProfile::Optimal;
@@ -52,7 +53,7 @@ pub fn cases() -> Vec<Case> {
 pub fn run(c: &Case, g: &Grid, cache: &RolloutCache) -> (Path, f32) {
     let m = standing(c.from);
     let t0 = Instant::now();
-    let p = search_cached(&g.terrain(), m.state().expect("started"), &c.goal, &c.opts, cache);
+    let p = search_cached(&g.terrain(), &Rollout::new(m.state().expect("started").clone()),&c.goal, &c.opts, cache);
     (p, t0.elapsed().as_secs_f32() * 1000.0)
 }
 

@@ -136,8 +136,8 @@ impl Bot {
         let using = self.survival.item_use.is_some();
         let inv = &self.state.inventory;
         let choose = |slots: std::ops::Range<u8>| {
-            let names = slots.filter_map(|i| Some((i, self.state.items.name(inv.main[usize::from(i)].network_id)?)));
-            choose_food(names, 20.0 - p.hunger, policy.prefer)
+            let items = slots.filter_map(|i| Some((i, self.state.item(&inv.main[usize::from(i)])?)));
+            choose_food(items, 20.0 - p.hunger, policy.prefer)
         };
         let food = hungry.then(|| choose(0..Inventory::HOTBAR_SLOTS)).flatten();
         let stored = (hungry && food.is_none() && policy.from_inventory)

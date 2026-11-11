@@ -21,11 +21,14 @@ mod entity_sim;
 mod evade_sim;
 mod hazards;
 mod hops;
+#[cfg(feature = "java")]
+mod java_sim;
 mod drive;
 mod leap;
 mod leaps;
 mod leaps_shaped;
 mod macro_start;
+mod neutral_kinds;
 mod perf;
 mod pilot_sim;
 mod pipeline_sim;

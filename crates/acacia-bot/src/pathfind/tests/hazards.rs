@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use acacia_physics::{BlockPos, Vec3};
 
-use super::grid::Grid;
+use super::grid::{Grid, search};
 use super::search::{ORIGIN, opts};
 use crate::pathfind::hazard::{Class, Hazards, Senses, Threat, Threats, View, clear_line};
-use crate::pathfind::{Goal, MovementProfile, Path, SearchOpts, search};
+use crate::pathfind::{Goal, MovementProfile, Path, SearchOpts};
 
 pub fn threat(class: Class, feet: Vec3) -> Threat {
     let size = if class == Class::Solid { (1.4, 0.455) } else { (0.6, 1.95) };

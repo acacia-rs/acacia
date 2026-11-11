@@ -3,6 +3,7 @@
 use std::time::Instant;
 
 use acacia_physics::BlockPos;
+use acacia_world::neutral::Item;
 
 use super::Act;
 use crate::act_timing::Phase;
@@ -41,7 +42,7 @@ pub(super) async fn perform(bot: &mut Bot, act: &Act, human: bool) -> Result<(),
         Act::UseOn { item, against, face, cell, expect } => use_on(bot, item, *against, *face, *cell, expect, human).await,
         Act::Use { pos, item, face } => {
             if let Some(item) = item {
-                let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
+                let slot = bot.find_item_named(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
                 hand(bot, slot, human).await?;
             }
             bot.use_confirmed(*pos, *face).await
@@ -60,7 +61,7 @@ async fn use_on(bot: &mut Bot, item: &str, against: BlockPos, face: Face, cell: 
     if shows(bot) {
         return Ok(());
     }
-    let slot = bot.find_item(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
+    let slot = bot.find_item_named(item).ok_or_else(|| ActionError::NotPossible(format!("no {item} to use")))?;
     hand(bot, slot, human).await?;
     bot.use_item_on_block(against, face).await?;
     for _ in 0..USE_TICKS {
@@ -94,7 +95,7 @@ async fn hand(bot: &mut Bot, slot: SlotRef, human: bool) -> Result<(), ActionErr
 }
 
 /// Places the first of `blocks` held into `pos`; done once the server shows a block there.
-async fn fill(bot: &mut Bot, pos: BlockPos, blocks: &[String], human: bool) -> Result<(), ActionError> {
+async fn fill(bot: &mut Bot, pos: BlockPos, blocks: &[Item], human: bool) -> Result<(), ActionError> {
     let solid = |bot: &Bot, p: BlockPos| bot.block_at(p).map(|(_, s)| !s.is_air() && !s.is_liquid());
     match solid(bot, pos) {
         Some(true) => return Ok(()),
@@ -110,7 +111,7 @@ async fn fill(bot: &mut Bot, pos: BlockPos, blocks: &[String], human: bool) -> R
             && bot.sees_face(against, *f)
     });
     let face = face.ok_or_else(|| ActionError::NotPossible(format!("nothing in view to place against around {pos:?} within reach")))?;
-    let slot = blocks.iter().find_map(|b| bot.find_item(b));
+    let slot = blocks.iter().find_map(|&b| bot.find_item(b));
     let slot = slot.ok_or_else(|| ActionError::NotPossible(format!("none of {blocks:?} to fill {pos:?} with")))?;
     hand(bot, slot, human).await?;
     bot.place_block(against(pos, face), face).await

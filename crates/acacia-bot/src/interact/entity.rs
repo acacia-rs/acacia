@@ -31,7 +31,7 @@ impl Bot {
         self.look_at(aim).await?;
         if self.reflexes.hovered != Some(runtime_id) {
             let (_, hit) = self.entity_in_reach(runtime_id)?;
-            self.client.send(&wire::mouse_over(runtime_id, hit));
+            self.send_bedrock(&wire::mouse_over(runtime_id, hit));
             self.reflexes.hovered = Some(runtime_id);
             let pause = self.human.between(ENTITY_HOVER);
             self.pause(pause).await?;
@@ -47,15 +47,21 @@ impl Bot {
     pub fn click_entity_aimed(&mut self, runtime_id: u64, attack: bool) -> Result<(), ActionError> {
         let (_, hit) = self.entity_in_reach(runtime_id)?;
         if self.reflexes.hovered != Some(runtime_id) {
-            self.client.send(&wire::mouse_over(runtime_id, hit));
+            self.send_bedrock(&wire::mouse_over(runtime_id, hit));
             self.reflexes.hovered = Some(runtime_id);
         }
         tracing::debug!(runtime_id, attack, ?hit, eye = ?self.eye_position(), "entity click");
         if attack {
-            self.swing_from(Some(SwingSource::Attack));
             self.reflexes.attack_ready = Some(Instant::now() + self.human.between(ATTACK_GAP));
         }
-        self.client.send(&wire::use_on_entity(self.hand(), runtime_id, attack, hit));
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_click_entity(runtime_id, attack, hit);
+        }
+        if attack {
+            self.swing_from(Some(SwingSource::Attack));
+        }
+        self.send_bedrock(&wire::use_on_entity(self.hand(), runtime_id, attack, hit));
         if !attack {
             self.later(ENTITY_SWING, Reflex::Swing(SwingSource::Interact));
         }

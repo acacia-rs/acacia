@@ -8,6 +8,7 @@ use super::goal::Goal;
 use super::moves::{self, Ctx};
 use super::node::{Entry, Momentum};
 use super::opts::SearchOpts;
+use super::rollout::PlanSim;
 use super::terrain::{Blocks, PosMap, Spot, Terrain};
 
 /// Cells a classic flood from a node must reach for it to count as open; a 3×3 pit has 9.
@@ -15,15 +16,16 @@ pub(crate) const EXIT_NODES: usize = 64;
 
 /// Classic moves (with the search's dig, bridge and door options) from `pos` reach [`EXIT_NODES`] cells.
 /// `placed`: scaffold blocks the path used getting there.
-pub(crate) fn has_exit<B: Blocks>(t: &Terrain<B>, pos: BlockPos, spot: Spot, opts: &SearchOpts, placed: u32) -> bool {
-    flood(t, pos, spot, opts, placed, None).is_ok()
+/// `S`: the walker's simulation, for its classic move costs.
+pub(crate) fn has_exit<S: PlanSim<B>, B: Blocks>(t: &Terrain<B>, pos: BlockPos, spot: Spot, opts: &SearchOpts, placed: u32) -> bool {
+    flood::<S, B>(t, pos, spot, opts, placed, None).is_ok()
 }
 
 /// A classic flood from `pos`: `Ok` once it reaches [`EXIT_NODES`] cells (or a cell of `goal`), else every cell it
 /// reached (the whole basin, none of which leads out either: whatever they reach, `pos` reaches).
-fn flood<B: Blocks>(t: &Terrain<B>, pos: BlockPos, spot: Spot, opts: &SearchOpts, placed: u32, goal: Option<&Goal>) -> Result<(), Vec<BlockPos>> {
+fn flood<S: PlanSim<B>, B: Blocks>(t: &Terrain<B>, pos: BlockPos, spot: Spot, opts: &SearchOpts, placed: u32, goal: Option<&Goal>) -> Result<(), Vec<BlockPos>> {
     let blocks_left = opts.kit.blocks.saturating_sub(placed);
-    let ctx = Ctx { parkour: opts.parkour, dig: opts.allow_dig, bridge: opts.allow_bridge, doors: opts.open_doors, kit: &opts.kit, blocks_left, macros: None, keep: opts.keep.as_deref(), no_body: opts.no_body.as_deref(), boats: None };
+    let ctx: Ctx<S> = Ctx { parkour: opts.parkour, dig: opts.allow_dig, bridge: opts.allow_bridge, doors: opts.open_doors, kit: &opts.kit, blocks_left, macros: None, keep: opts.keep.as_deref(), no_body: opts.no_body.as_deref(), boats: None };
     let mut seen = PosMap::default();
     seen.insert(pos, ());
     let (mut queue, mut edges, rest) = (VecDeque::from([(pos, spot)]), Vec::new(), Momentum::default());
@@ -51,11 +53,11 @@ fn flood<B: Blocks>(t: &Terrain<B>, pos: BlockPos, spot: Spot, opts: &SearchOpts
 pub(crate) struct Exits(PosMap<bool>);
 
 impl Exits {
-    pub fn open<B: Blocks>(&mut self, t: &Terrain<B>, pos: BlockPos, spot: Spot, opts: &SearchOpts, goal: &Goal) -> bool {
+    pub fn open<S: PlanSim<B>, B: Blocks>(&mut self, t: &Terrain<B>, pos: BlockPos, spot: Spot, opts: &SearchOpts, goal: &Goal) -> bool {
         if let Some(&open) = self.0.get(&pos) {
             return open;
         }
-        match flood(t, pos, spot, opts, 0, Some(goal)) {
+        match flood::<S, B>(t, pos, spot, opts, 0, Some(goal)) {
             Ok(()) => {
                 self.0.insert(pos, true);
                 true

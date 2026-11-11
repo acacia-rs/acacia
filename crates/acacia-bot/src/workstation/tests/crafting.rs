@@ -5,6 +5,8 @@ use acacia_client::proto::types::{
     ItemStackResponsesItemStatus, RecipeIngredient2Content, SmithingTransformRecipe, WindowType,
 };
 
+use acacia_world::neutral::Item;
+
 use super::*;
 use crate::items::{ui, SlotRef};
 use crate::state::queries::test_support::{crafting_data, ingredient, legacy_item, shaped, shapeless};
@@ -47,7 +49,7 @@ pub(super) fn with_recipes(main: &[(usize, ItemStack)]) -> GameState {
 #[test]
 fn recipe_book_craft_consumes_per_cell_and_places_the_result() {
     let state = with_recipes(&[(0, stack("minecraft:oak_planks", 10, 7))]);
-    let recipe = pick_recipe(&state, "minecraft:stick", false).unwrap();
+    let recipe = pick_recipe(&state, Item::Stick, false).unwrap();
     assert_eq!(recipe.network_id, STICKS);
     let plan = auto_craft_plan(&state, recipe, 1).unwrap();
     let request = encode(&state, &plan);
@@ -84,7 +86,7 @@ fn recipe_book_craft_consumes_per_cell_and_places_the_result() {
 fn recipe_book_craft_all_matches_vanilla() {
     let mut state = with_recipes(&[(0, stack("minecraft:oak_planks", 8, 67)), (33, stack("minecraft:stick", 4, 71))]);
     open(&mut state, WindowType::Workbench);
-    let recipe = pick_recipe(&state, "minecraft:oak_fence", true).unwrap().clone();
+    let recipe = pick_recipe(&state, Item::OakFence, true).unwrap().clone();
     assert_eq!((book_crafts(&state, &recipe, 6), book_crafts(&state, &recipe, 3)), (2, 1), "craft all only when all is wanted");
     let request = encode(&state, &auto_craft_plan(&state, &recipe, 2).unwrap());
     let Content::CraftRecipeAuto(auto) = &request.actions[0].content else { panic!() };
@@ -105,7 +107,7 @@ fn recipe_book_craft_all_matches_vanilla() {
 #[test]
 fn accepted_craft_updates_the_inventory() {
     let mut state = with_recipes(&[(0, stack("minecraft:oak_planks", 10, 7))]);
-    let (craft, ops) = auto_craft_plan(&state, pick_recipe(&state, "minecraft:stick", false).unwrap(), 1).unwrap();
+    let (craft, ops) = auto_craft_plan(&state, pick_recipe(&state, Item::Stick, false).unwrap(), 1).unwrap();
     let plan = Plan::craft(&state, Screen::of(&state, BlockKind::Other), &craft, &ops).unwrap();
     let slot = |kind, slot, count, stack_id| ItemStackResponsesItemContainersItem {
         slot_type: FullContainerName { container_id: kind, dynamic_container_id: None },
@@ -134,10 +136,10 @@ fn accepted_craft_updates_the_inventory() {
 #[test]
 fn recipe_choice_respects_grid_and_stock() {
     let state = with_recipes(&[(3, stack("minecraft:oak_planks", 8, 7))]);
-    assert!(matches!(pick_recipe(&state, "minecraft:crafting_table", false), Err(ActionError::NotPossible(_))), "3x3 needs a table");
-    assert!(matches!(pick_recipe(&state, "minecraft:crafting_table", true), Err(ActionError::NotPossible(_))), "8 of 9 planks");
+    assert!(matches!(pick_recipe(&state, Item::CraftingTable, false), Err(ActionError::NotPossible(_))), "3x3 needs a table");
+    assert!(matches!(pick_recipe(&state, Item::CraftingTable, true), Err(ActionError::NotPossible(_))), "8 of 9 planks");
     let state = with_recipes(&[(3, stack("minecraft:oak_planks", 5, 7)), (20, stack("minecraft:oak_planks", 4, 8))]);
-    let plan = auto_craft_plan(&state, pick_recipe(&state, "minecraft:crafting_table", true).unwrap(), 1).unwrap();
+    let plan = auto_craft_plan(&state, pick_recipe(&state, Item::CraftingTable, true).unwrap(), 1).unwrap();
     let consumed: Vec<_> = plan.1.iter().filter_map(|op| if let Op::Consume { from, count } = op { Some((*from, *count)) } else { None }).collect();
     assert_eq!(consumed.len(), 9);
     assert_eq!(consumed.iter().filter(|(from, _)| *from == SlotRef::Main(20)).count(), 4, "the second stack covers the last cells");

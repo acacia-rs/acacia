@@ -64,6 +64,10 @@ impl Bot {
         self.move_item(payment, SlotRef::Ui(ui::BEACON_PAYMENT), 1).await?;
         self.human_pause(human::BEACON_CONFIRM).await?;
         let (head, ops) = beacon_plan(&self.state, primary, secondary)?;
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_beacon(primary as i32 - 1, secondary.map(|s| s as i32 - 1)).await;
+        }
         self.headed_request(head, &ops).await
     }
 }

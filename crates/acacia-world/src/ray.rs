@@ -16,7 +16,7 @@ pub struct RayHit {
 /// The first shape the ray from `origin` along `dir` (normalised) enters within `reach`. `shape` fills the
 /// block-local boxes of the block `id` at a position; an empty list lets the ray through.
 pub fn cast(
-    world: &impl BlockAccess,
+    world: &(impl BlockAccess + ?Sized),
     origin: [f64; 3],
     dir: [f64; 3],
     reach: f64,
@@ -47,7 +47,7 @@ pub fn cast(
 /// The nearest entry into the shapes occupying `cell`: its own block's, and the part of the block below
 /// that rises past its top (fences and walls are 1.5 high).
 fn hit_in(
-    world: &impl BlockAccess,
+    world: &(impl BlockAccess + ?Sized),
     cell: [i32; 3],
     origin: [f64; 3],
     dir: [f64; 3],

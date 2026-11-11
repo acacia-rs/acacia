@@ -11,19 +11,21 @@ use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::Arc;
 
 use acacia_physics::BlockPos;
-use acacia_physics::constants::DEFAULT_PLAYER_HEIGHT;
 use acacia_world::{Aabb, BlockAccess, BlockRegistry, BlockState, ChunkView};
 
 pub use super::cell::Cell;
 use super::cell::{AVOID, DANGER_NEAR, ENTITY, HURT_FLOOR, LIQUID, OPENABLE, Rect, UNLOADED, WATER, state_flags};
 use super::hazard::Hazards;
 use super::memo::CellMemo;
+pub use super::palette::Palette;
 
 pub(crate) const EPS: f32 = 1e-3;
+/// The standing player box the cells are read for: 0.6 wide ([`Rect::FOOT`]) and this tall, in both editions.
+const BODY_HEIGHT: f32 = 1.8;
 
-/// Block ids by position for the search.
+/// Block ids by position for the search, native to the [`Palette`] that reads them.
 pub trait Blocks {
-    /// (layer 0, layer 1 liquid) runtime ids; `None` when the chunk is not loaded.
+    /// (block, liquid layer) ids; `None` when the chunk is not loaded.
     fn ids(&self, pos: BlockPos) -> Option<(u32, u32)>;
 }
 
@@ -104,10 +106,11 @@ impl Span {
     }
 }
 
-/// Terrain as the search sees it, memoized per position (one instance per search or tick).
-pub struct Terrain<'r, B> {
+/// Terrain as the search sees it, memoized per position (one instance per search or tick): `B`'s ids read
+/// through palette `P` (Bedrock's registry unless named).
+pub struct Terrain<'r, B, P: ?Sized = BlockRegistry> {
     blocks: B,
-    registry: &'r BlockRegistry,
+    palette: &'r P,
     pub(crate) cells: CellMemo,
     spots: RefCell<PosMap<Option<Spot>>>,
     toggled: RefCell<HashMap<u32, Option<u32>>>,
@@ -117,8 +120,20 @@ pub struct Terrain<'r, B> {
 
 impl<'r, B: Blocks> Terrain<'r, B> {
     pub fn new(blocks: B, registry: &'r BlockRegistry) -> Self {
+        Self::with_palette(blocks, registry)
+    }
+}
+
+impl<'r, B: Blocks, P: Palette + ?Sized> Terrain<'r, B, P> {
+    pub fn with_palette(blocks: B, palette: &'r P) -> Self {
         let (cells, spots, toggled, unloaded) = Default::default();
-        Self { blocks, registry, cells, spots, toggled, unloaded, hazards: None }
+        Self { blocks, palette, cells, spots, toggled, unloaded, hazards: None }
+    }
+
+    /// The native ids underneath, for an edition engine that reads them itself.
+    #[cfg(feature = "java")]
+    pub(crate) fn blocks(&self) -> &B {
+        &self.blocks
     }
 
     /// The same terrain with the cells `hazards`' solid entities reach into closed ([`ENTITY`] and `AVOID`).
@@ -149,28 +164,23 @@ impl<'r, B: Blocks> Terrain<'r, B> {
             return Cell { boxes: SOLID, flags: UNLOADED, block: u32::MAX, liquid: u32::MAX };
         };
         let entity = if self.hazards.as_ref().is_some_and(|h| h.closed(p)) { ENTITY | AVOID } else { 0 };
-        let Some(state) = self.registry.get(block) else { return Cell { boxes: SOLID, flags: entity, block, liquid } };
-        let liquid_flags = self.registry.get(liquid).map_or(0, |s| state_flags(s) & (WATER | LIQUID | AVOID | DANGER_NEAR));
+        let Some(state) = self.palette.state(block) else { return Cell { boxes: SOLID, flags: entity, block, liquid } };
+        let liquid_flags = self.palette.state(liquid).map_or(0, |s| state_flags(s) & (WATER | LIQUID | AVOID | DANGER_NEAR));
         Cell { boxes: state.boxes, flags: state_flags(state) | liquid_flags | entity, block, liquid }
     }
 
-    pub(crate) fn registry(&self) -> &'r BlockRegistry {
-        self.registry
+    pub(crate) fn palette(&self) -> &'r P {
+        self.palette
     }
 
     pub(crate) fn state(&self, p: BlockPos) -> Option<&'r BlockState> {
-        self.registry.get(self.cell(p).block)
+        self.palette.state(self.cell(p).block)
     }
 
-    /// Boxes of the cell's door, gate or trapdoor once toggled (`open_bit` flipped).
+    /// Boxes of the cell's door, gate or trapdoor once toggled.
     pub(crate) fn toggled_boxes(&self, block: u32) -> Option<&'r [Aabb]> {
-        let id = *self.toggled.borrow_mut().entry(block).or_insert_with(|| {
-            let s = self.registry.get(block)?;
-            let open = s.property("open_bit")?;
-            let flipped = s.properties.replace(&format!("open_bit={open}"), if open == "1" { "open_bit=0" } else { "open_bit=1" });
-            self.registry.find(s.name, &flipped)
-        });
-        Some(self.registry.get(id?)?.boxes)
+        let id = *self.toggled.borrow_mut().entry(block).or_insert_with(|| self.palette.opened(block));
+        Some(self.palette.state(id?)?.boxes)
     }
 
     /// Where the player can be with feet in cell `p`, if anywhere.
@@ -249,7 +259,7 @@ impl<'r, B: Blocks> Terrain<'r, B> {
     /// Visits every cell a standing player box over `rect` of column `p` (feet at `feet`) collides
     /// with or must avoid; `ok` decides whether that cell can be dealt with. Unloaded cells fail.
     pub(crate) fn obstruct(&self, [x, _, z]: BlockPos, rect: Rect, feet: f32, mut ok: impl FnMut(BlockPos, Cell, Span) -> bool) -> bool {
-        let top = feet + DEFAULT_PLAYER_HEIGHT;
+        let top = feet + BODY_HEIGHT;
         // One cell below the feet too: fences and walls reach 1.5 up.
         for y in feet.floor() as i32 - 1..=(top - EPS).floor() as i32 {
             let q = [x, y, z];

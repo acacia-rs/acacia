@@ -1,0 +1,69 @@
+//! A goto tick on Java: the shared pilot over the Java chunks, with Java state ids as the planner's native ids.
+
+use std::sync::Arc;
+
+use acacia_java_client::Chunks;
+use acacia_world::BlockRegistry;
+use tokio::sync::oneshot;
+
+use super::astar::SearchOpts;
+use super::goto::NavStatus;
+use super::job::{Answer, SearchJob};
+use super::pilot::Pilot;
+use super::terrain::{Blocks, Terrain};
+use super::hazard::{self, Body, Hazards};
+use crate::bot::{Backend, Java};
+use crate::movement::{JavaSim, Live, Sim};
+use crate::state::GameState;
+use crate::{ActionError, Bot};
+
+const AIR: u32 = 0;
+
+/// Java has no liquid layer: waterlogging is a block state, so the second id is always air.
+impl Blocks for Chunks {
+    fn ids(&self, pos: [i32; 3]) -> Option<(u32, u32)> {
+        self.block(pos).map(|id| (id, AIR))
+    }
+}
+
+fn spawn(job: SearchJob<JavaSim>, chunks: Chunks) -> Answer {
+    let (tx, rx) = oneshot::channel();
+    tokio::task::spawn_blocking(move || {
+        let terrain = Terrain::new(&chunks, BlockRegistry::java()).with_hazards(job.opts.hazards.clone());
+        let _ = tx.send(job.run(&terrain));
+    });
+    rx
+}
+
+/// The steering half of [`super::goto::step`] on Java, with the threats [`perceive`]d from the mirrored entities.
+pub(super) fn drive(pilot: &mut Pilot, bot: &mut Bot, mut opts: SearchOpts) -> Result<NavStatus, ActionError> {
+    let Backend::Java(java) = &mut bot.backend else { return Ok(NavStatus::Searching) };
+    let chunks = java.client.world.chunks().clone();
+    opts.hazards = perceive(pilot, &bot.state, java.as_ref(), &chunks);
+    let terrain = Terrain::new(&chunks, BlockRegistry::java()).with_hazards(opts.hazards.clone());
+    pilot.drive(&terrain, java.as_mut(), opts, &mut |job| spawn(job, chunks.clone()))
+}
+
+/// [`super::goto`]'s strike-back on Java: the same striker, fed from the Java body.
+pub(super) fn strike_back(pilot: &mut Pilot, bot: &mut Bot) {
+    let eye = bot.eye_position();
+    let tick = bot.state.entities.now();
+    let Backend::Java(java) = &bot.backend else { return };
+    let Some(st) = java.base().map(|b| b.body()) else { return };
+    let (mut controls, me) = (java.controls, i64::from(java.client.world.player_id));
+    let blocks = Terrain::new(java.client.world.chunks(), BlockRegistry::java());
+    let sees = |a, b| hazard::clear_line(&blocks, a, b);
+    let body = Body { eye, feet: st.pos, vel: st.vel, me, tick, sees: &sees };
+    let id = pilot.strike(&body, &mut controls);
+    super::goto::strike(bot, controls, id);
+}
+
+/// The pilot's field this tick from the entities around the bot, as Bedrock's `goto::perceive`.
+fn perceive(pilot: &mut Pilot, state: &GameState, java: &Java, chunks: &Chunks) -> Option<Arc<Hazards>> {
+    let body = java.base()?.body();
+    let threats = hazard::Threats::near(&state.entities, body.pos, hazard::FIELD_RADIUS);
+    let blocks = Terrain::new(chunks, BlockRegistry::java());
+    let sees = |a, b| hazard::clear_line(&blocks, a, b);
+    let eye = [body.pos[0], body.pos[1] + JavaSim::envelope().eye_height, body.pos[2]];
+    pilot.perceive(threats, &hazard::View { eye, yaw: body.yaw, health: state.player.health, sees: &sees })
+}

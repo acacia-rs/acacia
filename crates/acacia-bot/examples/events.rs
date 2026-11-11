@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..BotConfig::default()
     };
     let mut bot = Bot::connect(Client::builder(&server).offline(&name), config).await?;
-    println!("spawned as {}", bot.client().display_name());
+    println!("spawned as {}", bot.name());
 
     let deadline = tokio::time::sleep(Duration::from_secs(secs));
     tokio::pin!(deadline);
@@ -41,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     FormKind::Simple { buttons, .. } => FormReply::Button(buttons.len().saturating_sub(1)),
                     FormKind::Modal { .. } => FormReply::Modal(true),
                     FormKind::Custom { .. } => FormReply::Custom(form.defaults()),
+                    FormKind::Dialog { .. } => FormReply::Dialog { button: 0, values: form.defaults() },
                 };
                 println!("  -> {reply:?}: {:?}", bot.answer_form(form.id, reply.clone()).await);
             }

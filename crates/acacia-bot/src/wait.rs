@@ -24,6 +24,9 @@ pub enum ActionError {
     /// [`crate::CancelHandle::cancel`] ended the action (see [`crate::cancel`]).
     #[error("cancelled")]
     Cancelled,
+    /// The bot's edition has no implementation of this yet.
+    #[error("not supported on Java Edition yet: {0}")]
+    Unsupported(&'static str),
 }
 
 enum Progress {
@@ -62,13 +65,14 @@ impl Bot {
     }
 
     pub(crate) fn keep_for_caller(&mut self, packet: RawPacket) {
-        if self.subscribe.allows(packet.id) {
+        if self.backend.bedrock().is_some_and(|b| b.subscribe.allows(packet.id)) {
             self.pending.push_back(BotEvent::Packet(packet));
         }
     }
 
     /// Keeps processing packets and ticks until `check` (run after each packet is applied to the
-    /// state) returns `Some`. Events meant for the caller are kept for [`Bot::next`].
+    /// state) returns `Some`. Events meant for the caller are kept for [`Bot::next`]. Java packets
+    /// are applied inside the backend, so on Java `check` runs once a tick with [`no_packet`].
     pub(crate) async fn wait_until<T>(
         &mut self,
         timeout: Duration,
@@ -77,18 +81,23 @@ impl Bot {
         let deadline = tokio::time::Instant::now() + timeout;
         loop {
             let progress = tokio::time::timeout_at(deadline, self.progress()).await.map_err(|_| ActionError::Timeout)??;
-            if let Progress::Packet(packet) = progress {
-                let hit = check(self, &packet);
-                self.keep_for_caller(packet);
-                if let Some(value) = hit {
-                    return Ok(value);
+            let hit = match progress {
+                Progress::Packet(packet) => {
+                    let hit = check(self, &packet);
+                    self.keep_for_caller(packet);
+                    hit
                 }
+                Progress::Tick if self.backend.bedrock().is_none() => check(self, &no_packet()),
+                Progress::Tick => None,
+            };
+            if let Some(value) = hit {
+                return Ok(value);
             }
         }
     }
 
     /// Processes packets up to and including the next movement tick; true if `check` matched any
-    /// packet on the way. Physics bots only (others never tick).
+    /// packet on the way. Bedrock physics bots only (others never tick).
     pub(crate) async fn next_tick(&mut self, mut check: impl FnMut(&Bot, &RawPacket) -> bool) -> Result<bool, ActionError> {
         let mut hit = false;
         loop {
@@ -109,9 +118,19 @@ impl Bot {
 
     /// Lets `duration` pass while processing packets.
     pub(crate) async fn pause(&mut self, duration: Duration) -> Result<(), ActionError> {
-        match self.wait_until(duration, |_, _| None::<()>).await {
-            Ok(()) | Err(ActionError::Timeout) => Ok(()),
-            Err(e) => Err(e),
+        let deadline = tokio::time::Instant::now() + duration;
+        loop {
+            match tokio::time::timeout_at(deadline, self.progress()).await {
+                Err(_) => return Ok(()),
+                Ok(Err(e)) => return Err(e),
+                Ok(Ok(Progress::Packet(packet))) => self.keep_for_caller(packet),
+                Ok(Ok(Progress::Tick)) => {}
+            }
         }
     }
+}
+
+/// What [`Bot::wait_until`]'s check sees on Java: an id no Bedrock packet has.
+fn no_packet() -> RawPacket {
+    RawPacket { id: u32::MAX, sender_subclient: 0, target_subclient: 0, body: Default::default() }
 }

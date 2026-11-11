@@ -32,7 +32,7 @@ async fn main() -> Result<(), Error> {
     let trackers = Trackers { entities: true, ..Trackers::default() };
     let config = BotConfig { physics: true, trackers, ..BotConfig::default() };
     let mut bot = Bot::connect(Client::builder(&server).offline("Prop").skin(caped()), config).await?;
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
     // A bot that died here last time respawns at the world spawn first.
@@ -47,7 +47,7 @@ async fn main() -> Result<(), Error> {
         format!("/summon cow {} {y} {}", x as f32 + 2.5, z as f32 + 0.5),
     ];
     for command in &scene {
-        bot.client().command(command);
+        bot.command(command);
         bot.wait_ticks(6).await?;
     }
     bot.select_hotbar(0)?;
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Error> {
     banner(&mut bot, [x - 2, y, z], args.get(4).is_some_and(|a| a == "shield")).await?;
     println!("holding {:?}", bot.state().inventory_summary());
     // Turned back to face north after aiming at the cow and the loom.
-    bot.client().command(&format!("/tp @s {} {y} {} 180 0", x as f32 + 0.5, z as f32 + 0.5));
+    bot.command(&format!("/tp @s {} {y} {} 180 0", x as f32 + 0.5, z as f32 + 0.5));
     bot.wait_ticks(10).await?;
     println!("posed");
     for leg in 0..HOLD / PACE {
@@ -86,23 +86,23 @@ fn caped() -> Skin {
 async fn banner(bot: &mut Bot, loom: [i32; 3], onto_shield: bool) -> Result<(), Error> {
     let setup = [format!("/setblock {} {} {} loom", loom[0], loom[1], loom[2]), "/clear @s".to_owned(), "/give @s banner 1 15".to_owned()];
     for command in &setup {
-        bot.client().command(command);
+        bot.command(command);
         bot.wait_ticks(6).await?;
     }
     for (pattern, dye) in BANNER {
-        bot.client().command(&format!("/give @s {dye}"));
+        bot.command(&format!("/give @s {dye}"));
         let (cloth, dye) = (find(bot, "banner").await?, find(bot, dye).await?);
         bot.loom(loom, cloth, dye, pattern, None).await?;
         bot.wait_ticks(10).await?;
     }
     let held = if onto_shield {
-        bot.client().command("/give @s shield");
+        bot.command("/give @s shield");
         let (shield, cloth) = (find(bot, "shield").await?, find(bot, "banner").await?);
         bot.decorate_shield(shield, cloth).await?;
         bot.wait_ticks(10).await?;
         "shield"
     } else {
-        bot.client().command("/replaceitem entity @s slot.weapon.offhand 0 shield");
+        bot.command("/replaceitem entity @s slot.weapon.offhand 0 shield");
         "banner"
     };
     let slot = find(bot, held).await?;
@@ -118,7 +118,7 @@ async fn banner(bot: &mut Bot, loom: [i32; 3], onto_shield: bool) -> Result<(), 
 /// The slot of item `name`, waiting up to three seconds for the server to hand it over.
 async fn find(bot: &mut Bot, name: &str) -> Result<SlotRef, Error> {
     for _ in 0..60 {
-        if let Some(slot) = bot.find_item(&format!("minecraft:{name}")) {
+        if let Some(slot) = bot.find_item_named(&format!("minecraft:{name}")) {
             return Ok(slot);
         }
         bot.wait_ticks(1).await?;

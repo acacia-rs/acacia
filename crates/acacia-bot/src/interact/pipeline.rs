@@ -117,7 +117,7 @@ impl Bot {
     /// [`Bot::place_block_at`] that returns once the click is out; [`Bot::settle_placements`] tells how it went.
     pub(crate) async fn place_sent(&mut self, against: BlockPos, face: Face, click: Vec3) -> Result<(), ActionError> {
         let (target, half_slab) = self.aim_placement(against, face, click).await?;
-        if self.in_flight.targets().any(|t| t == target) {
+        if self.backend.require("pipelined placements")?.in_flight.targets().any(|t| t == target) {
             return Err(ActionError::NotPossible(format!("a placement at {target:?} is already in flight")));
         }
         let admitted = self.admit_action().await?;
@@ -128,12 +128,12 @@ impl Bot {
             confirm = confirm.predicted();
         }
         self.click_block(against, face, click, SwingSource::Build)?;
-        let speed = self.movement.as_ref().and_then(|m| m.state()).map_or(0.0, |s| s.vel[0].hypot(s.vel[2]));
+        let speed = self.backend.movement().and_then(|m| m.state()).map_or(0.0, |s| s.vel[0].hypot(s.vel[2]));
         let (dist, support) = (super::block_distance(self.eye_position(), against), self.block_at(against).map_or("?", |(_, s)| s.name));
         tracing::debug!(?target, nth = self.governor.sent_this_tick(), speed, dist, ?face, support, "pipelined placement sent");
         let replaced = (before.block_runtime_id != 0 && half_slab.is_none()).then(|| self.predict_block(target, before.block_runtime_id)).flatten();
         let predicted = self.state.inventory.held().clone();
-        self.in_flight.push(target, confirm, Undo { replaced, extra: StackUndo { slot, before, predicted } });
+        self.backend.require_mut("pipelined placements")?.in_flight.push(target, confirm, Undo { replaced, extra: StackUndo { slot, before, predicted } });
         self.unclaim(admitted);
         Ok(())
     }
@@ -142,19 +142,21 @@ impl Bot {
     /// decided now and frees the governor slots of the rest, whose echoes then correct the world on their own.
     pub(crate) fn forget_placements(&mut self) {
         self.settle_placements();
-        for _ in 0..self.in_flight.clear() {
+        let cleared = self.backend.bedrock_mut().map_or(0, |b| b.in_flight.clear());
+        for _ in 0..cleared {
             self.governor.settled();
         }
     }
 
     /// Placements sent and not decided yet.
     pub(crate) fn placements_in_flight(&self) -> impl Iterator<Item = BlockPos> + '_ {
-        self.in_flight.targets()
+        self.backend.bedrock().into_iter().flat_map(|b| b.in_flight.targets())
     }
 
     /// Notes a block update for any in-flight target (every packet an action sees passes here).
     pub(crate) fn note_echo(&mut self, p: &RawPacket) {
-        if self.in_flight.is_empty() {
+        let Some(b) = self.backend.bedrock_mut() else { return };
+        if b.in_flight.is_empty() {
             return;
         }
         let positions: Vec<BlockPos> = match p.id {
@@ -163,16 +165,19 @@ impl Bot {
             UpdateSubchunkBlocks::ID => p.decode::<UpdateSubchunkBlocks>().map(|u| u.blocks.iter().map(|b| [b.position.x, b.position.y, b.position.z]).collect()).unwrap_or_default(),
             _ => return,
         };
-        positions.into_iter().for_each(|pos| self.in_flight.echo(pos));
+        positions.into_iter().for_each(|pos| b.in_flight.echo(pos));
     }
 
     /// Decides the in-flight placements that can be decided now, undoing failed ones; returns each one's target
     /// and outcome.
     pub(crate) fn settle_placements(&mut self) -> Vec<(BlockPos, Result<(), ActionError>)> {
         let now = self.governor.now();
-        let mut pipeline = std::mem::take(&mut self.in_flight);
+        let Some(b) = self.backend.bedrock_mut() else { return Vec::new() };
+        let mut pipeline = std::mem::take(&mut b.in_flight);
         let decided = pipeline.settle(now, |p| self.block_at(p));
-        self.in_flight = pipeline;
+        if let Some(b) = self.backend.bedrock_mut() {
+            b.in_flight = pipeline;
+        }
         decided
             .into_iter()
             .map(|d| {

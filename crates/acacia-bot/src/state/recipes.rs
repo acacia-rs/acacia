@@ -7,9 +7,13 @@ use std::sync::OnceLock;
 use acacia_client::proto::packets::CraftingData;
 use acacia_client::proto::{Packet, RawPacket};
 
+use acacia_world::neutral::Item;
+
 use super::ItemStack;
 
 mod decode;
+#[cfg(feature = "java")]
+mod java;
 mod molang;
 mod tags;
 
@@ -58,6 +62,8 @@ pub enum Ingredient {
     Item { name: String, metadata: Option<i32>, count: u16 },
     Tag { tag: String, count: u16 },
     Molang { expression: String, version: i16, count: u16 },
+    /// Any of these items: Java recipes' tags and item lists.
+    AnyOf { items: Vec<Item>, count: u16 },
 }
 
 impl Ingredient {
@@ -68,7 +74,7 @@ impl Ingredient {
     pub fn count(&self) -> u16 {
         match self {
             Ingredient::Empty => 0,
-            Ingredient::Item { count, .. } | Ingredient::Tag { count, .. } | Ingredient::Molang { count, .. } => *count,
+            Ingredient::Item { count, .. } | Ingredient::Tag { count, .. } | Ingredient::Molang { count, .. } | Ingredient::AnyOf { count, .. } => *count,
         }
     }
 
@@ -81,6 +87,9 @@ impl Ingredient {
             Ingredient::Item { name: want, metadata: meta, .. } => want == name && meta.is_none_or(|m| m as u32 == metadata),
             Ingredient::Tag { tag, .. } => tags::has_tag(name, tag),
             Ingredient::Molang { expression, .. } => molang::accepts(expression, name),
+            Ingredient::AnyOf { items, .. } => {
+                Item::from_bedrock(name, i16::try_from(metadata).unwrap_or(-1)).is_some_and(|i| items.contains(&i))
+            }
         }
     }
 }
@@ -143,6 +152,8 @@ impl RecipeBook {
 pub struct Recipes {
     packets: Vec<RawPacket>,
     book: OnceLock<RecipeBook>,
+    /// Java's vanilla recipes, shared by every Java bot; the server sends none to plan with.
+    shared: Option<&'static RecipeBook>,
 }
 
 impl Recipes {
@@ -156,6 +167,9 @@ impl Recipes {
     /// The recipes, decoding the kept packets on first use (a packet that fails to decode is
     /// skipped and logged).
     pub fn book(&self) -> &RecipeBook {
+        if let Some(book) = self.shared {
+            return book;
+        }
         self.book.get_or_init(|| {
             let mut book = RecipeBook::default();
             for packet in &self.packets {
@@ -168,9 +182,16 @@ impl Recipes {
         })
     }
 
-    /// Whether the server sent any `CraftingData` yet (without decoding it).
+    /// Whether the server sent any `CraftingData` yet (without decoding it), or the recipes are Java's.
     pub fn received(&self) -> bool {
-        !self.packets.is_empty()
+        !self.packets.is_empty() || self.shared.is_some()
+    }
+
+    /// Java 26.3's vanilla crafting recipes.
+    #[cfg(feature = "java")]
+    pub(crate) fn java() -> Self {
+        static BOOK: std::sync::LazyLock<RecipeBook> = std::sync::LazyLock::new(java::book);
+        Recipes { shared: Some(&BOOK), ..Recipes::default() }
     }
 }
 

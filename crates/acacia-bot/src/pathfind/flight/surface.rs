@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use acacia_world::neutral::Block;
 use acacia_world::{BlockAccess, BlockRegistry, Chunk, ChunkView, ColumnHeights};
 
 pub trait Surface {
@@ -14,8 +15,11 @@ pub trait Surface {
     fn landable(&mut self, x: i32, z: i32) -> bool;
 }
 
-/// Floors a landing must not end on, by name fragment.
-const HURTS: [&str; 7] = ["lava", "magma", "fire", "cactus", "sweet_berry", "powder_snow", "pointed_dripstone"];
+/// Floors a landing must not end on.
+pub(crate) const HURTS: [Block; 11] = [
+    Block::Lava, Block::LavaCauldron, Block::MagmaBlock, Block::Fire, Block::SoulFire, Block::Campfire, Block::SoulCampfire,
+    Block::Cactus, Block::SweetBerryBush, Block::PowderSnow, Block::PointedDripstone,
+];
 
 /// Column heights by chunk, kept for a flight; a chunk is redone when its slot is replaced (re-sent).
 #[derive(Default)]
@@ -49,7 +53,7 @@ impl Surface for ChunkSurface<'_> {
         let Some(y) = self.top(x, z).filter(|&y| y != i32::MIN) else { return false };
         let ids = (self.view.block(x, y, z), self.view.liquid(x, y, z));
         let (Some(s), Some(l)) = (self.registry.get(ids.0), self.registry.get(ids.1)) else { return false };
-        s.is_solid() && !s.is_liquid() && l.is_air() && !HURTS.iter().any(|h| s.name.contains(h))
+        s.is_solid() && !s.is_liquid() && l.is_air() && !s.kind().is_some_and(|k| HURTS.contains(&k))
     }
 }
 

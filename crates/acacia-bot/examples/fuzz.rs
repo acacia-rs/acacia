@@ -123,15 +123,15 @@ async fn fuzz_bot(
     }
     for round in 0..rounds {
         let terrain = terrain(&mut rng);
-        bot.trace_mark(&format!("r{round} build"));
+        bot.bedrock_mut().expect("Bedrock bot").trace_mark(&format!("r{round} build"));
         pad.build(&mut bot, &terrain, SETTLE_TICKS).await?;
         pad.teleport(&mut bot, [0.5, 0.0, 0.5], rng.range(-180, 180) as f32).await?;
-        bot.trace_mark(&format!("r{round}"));
+        bot.bedrock_mut().expect("Bedrock bot").trace_mark(&format!("r{round}"));
         let before = corrections(&bot);
         drive(&mut bot, &pad, &mut rng, ticks).await?;
         println!("bot {index} round {round:3} corrections {}", corrections(&bot) - before);
         if std::env::var_os("FUZZ_GLIDE").is_some() {
-            bot.trace_mark(&format!("r{round} glide"));
+            bot.bedrock_mut().expect("Bedrock bot").trace_mark(&format!("r{round} glide"));
             let before = corrections(&bot);
             glide(&mut bot, &pad, &mut rng).await?;
             println!("bot {index} round {round:3} glide corrections {}", corrections(&bot) - before);
@@ -151,7 +151,7 @@ async fn wear(bot: &mut Bot, pad: &Pad, piece: &str) -> Result<(), Error> {
     pad.run(bot, &format!("/give @s {item}"));
     bot.wait_ticks(20).await?;
     if let (Some(enchantment), Some(level)) = (parts.next(), parts.next()) {
-        let given = bot.find_item(&name).ok_or_else(|| format!("{item} was not given"))?;
+        let given = bot.find_item_named(&name).ok_or_else(|| format!("{item} was not given"))?;
         bot.equip(given, Destination::Hand).await?;
         bot.wait_ticks(10).await?;
         pad.run(bot, &format!("/enchant @s {enchantment} {level}"));
@@ -163,11 +163,11 @@ async fn wear(bot: &mut Bot, pad: &Pad, piece: &str) -> Result<(), Error> {
         i if i.ends_with("_boots") => Destination::Feet,
         _ => Destination::Chest,
     };
-    let from = bot.find_item(&name).ok_or_else(|| format!("{item} was not given"))?;
+    let from = bot.find_item_named(&name).ok_or_else(|| format!("{item} was not given"))?;
     let method = if std::env::var_os("FUZZ_EQUIP_USE").is_some() { EquipMethod::Use } else { EquipMethod::Inventory };
     bot.equip_by(from, to, method).await?;
     bot.wait_ticks(20).await?;
-    println!("wearing {piece}: {:?}", bot.movement().map(|m| m.equipment()));
+    println!("wearing {piece}: {:?}", bot.bedrock().and_then(|b| b.movement()).map(|m| m.equipment()));
     if std::env::var_os("FUZZ_DEBUG").is_some() {
         let inv = &bot.state().inventory;
         println!("  armor {:?}\n  hand {:?}", inv.armor, inv.main[usize::from(inv.selected_hotbar_slot)]);
@@ -182,7 +182,7 @@ async fn run_commands(server: &str, admin: &str, mut commands: mpsc::UnboundedRe
     loop {
         match commands.try_recv() {
             Ok(command) => {
-                bot.client().command(&command);
+                bot.command(&command);
             }
             Err(mpsc::error::TryRecvError::Empty) => bot.wait_ticks(1).await?,
             Err(mpsc::error::TryRecvError::Disconnected) => break,
@@ -235,7 +235,7 @@ async fn drive(bot: &mut Bot, pad: &Pad, rng: &mut Rng, ticks: u32) -> Result<()
     let (mut left, mut turn) = (0, 0.0);
     let mut c = Controls::default();
     for _ in 0..ticks {
-        let Some(feet) = bot.movement().and_then(|m| m.position()) else { break };
+        let Some(feet) = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()) else { break };
         let [x, y, z] = [feet[0] - origin[0], feet[1] - origin[1], feet[2] - origin[2]];
         if y < PAD_MIN[1] as f32 {
             break;
@@ -292,7 +292,7 @@ async fn glide(bot: &mut Bot, pad: &Pad, rng: &mut Rng) -> Result<(), Error> {
     }
     let (mut left, mut turn) = (0, 0.0);
     for _ in 0..400 {
-        if bot.movement().is_none_or(|m| m.on_ground()) {
+        if bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| m.on_ground()) {
             break;
         }
         let Some(c) = bot.controls() else { break };

@@ -8,6 +8,7 @@ use acacia_world::ChunkView;
 
 use super::drive::standing;
 use super::perf::{Case, cases, run};
+use crate::movement::Rollout;
 use crate::pathfind::{Blocks, Path, RolloutCache, SearchJob, Terrain};
 
 fn case(name: &str) -> Case {
@@ -44,7 +45,7 @@ fn a_replan_during_a_plan_ahead_hits_the_cache() {
     let (warm, _) = run(&c, &g, &cache);
     let ((started_tx, started_rx), (go_tx, go_rx)) = (channel(), channel());
     let gate = Gate { view: &g.view, hold: Mutex::new(Some((started_tx, go_rx))) };
-    let job = SearchJob { from: standing(c.from).state().cloned().expect("started"), goal: c.goal.clone(), opts: c.opts.clone(), cache: cache.clone() };
+    let job = SearchJob { from: Rollout::new(standing(c.from).state().cloned().expect("started")), goal: c.goal.clone(), opts: c.opts.clone(), cache: cache.clone() };
     std::thread::scope(|s| {
         let ahead = s.spawn(|| job.run(&Terrain::new(&gate, &g.registry)));
         started_rx.recv().expect("plan-ahead started");

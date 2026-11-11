@@ -9,6 +9,8 @@
 
 mod actions;
 mod click;
+#[cfg(feature = "java")]
+mod java_clicks;
 pub(crate) mod craft;
 mod plan;
 mod quick;

@@ -2,6 +2,8 @@
 //! [`crate::Bot::answer_form`]. Formats: docs/research/forms.md.
 
 mod actions;
+#[cfg(feature = "java")]
+mod java;
 mod parse;
 mod reply;
 
@@ -29,6 +31,8 @@ pub enum FormKind {
     Modal { content: String, yes: String, no: String },
     /// Inputs to fill in (`ModalFormData`).
     Custom { elements: Vec<Element> },
+    /// A Java dialog with inputs and buttons: any button submits the inputs ([`FormReply::Dialog`]).
+    Dialog { content: String, elements: Vec<Element>, buttons: Vec<Button> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,7 +70,7 @@ impl Form {
     /// How many fields a custom form asks for (sizes the reading delay).
     pub(crate) fn inputs(&self) -> usize {
         match &self.kind {
-            FormKind::Custom { elements } => elements.iter().filter(|e| e.is_input()).count(),
+            FormKind::Custom { elements } | FormKind::Dialog { elements, .. } => elements.iter().filter(|e| e.is_input()).count(),
             _ => 0,
         }
     }
@@ -93,6 +97,9 @@ impl Form {
                 }
                 FormKind::Modal { content, yes, no } => content.len() + yes.len() + no.len(),
                 FormKind::Custom { elements: e } => elements(e),
+                FormKind::Dialog { content, elements: e, buttons } => {
+                    content.len() + buttons.iter().map(|b| b.text.len()).sum::<usize>() + elements(e)
+                }
             }
     }
 }
@@ -101,6 +108,11 @@ impl Form {
 #[derive(Debug, Default)]
 pub struct Forms {
     open: Vec<(Form, Instant)>,
+    /// The open Java dialog and its form id (Java has one dialog at a time and no ids: they are counted here).
+    #[cfg(feature = "java")]
+    java: Option<(u32, acacia_java_proto::dialog::Dialog)>,
+    #[cfg(feature = "java")]
+    next_java_id: u32,
 }
 
 impl Forms {

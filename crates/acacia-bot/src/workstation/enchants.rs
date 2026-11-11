@@ -19,53 +19,60 @@ enum Rarity {
 
 use Rarity::*;
 
-/// `(max level, rarity)` by enchantment id 0-40.
-const TABLE: [(i16, Rarity); 41] = [
-    (4, Common),   // protection
-    (4, Uncommon), // fire_protection
-    (4, Uncommon), // feather_falling
-    (4, Rare),     // blast_protection
-    (4, Uncommon), // projectile_protection
-    (3, VeryRare), // thorns
-    (3, Rare),     // respiration
-    (3, Rare),     // depth_strider
-    (1, Rare),     // aqua_affinity
-    (5, Common),   // sharpness
-    (5, Uncommon), // smite
-    (5, Uncommon), // bane_of_arthropods
-    (2, Uncommon), // knockback
-    (2, Rare),     // fire_aspect
-    (3, Rare),     // looting
-    (5, Common),   // efficiency
-    (1, VeryRare), // silk_touch
-    (3, Uncommon), // unbreaking
-    (3, Rare),     // fortune
-    (5, Common),   // power
-    (2, Rare),     // punch
-    (1, Rare),     // flame
-    (1, VeryRare), // infinity
-    (3, Rare),     // luck_of_the_sea
-    (3, Rare),     // lure
-    (2, Rare),     // frost_walker
-    (1, Rare),     // mending
-    (1, VeryRare), // binding
-    (1, VeryRare), // vanishing
-    (5, Rare),     // impaling
-    (3, Rare),     // riptide
-    (3, Uncommon), // loyalty
-    (1, VeryRare), // channeling
-    (1, Rare),     // multishot
-    (4, Common),   // piercing
-    (3, Uncommon), // quick_charge
-    (3, VeryRare), // soul_speed
-    (3, VeryRare), // swift_sneak
-    (3, Rare),     // wind_burst
-    (5, Uncommon), // density
-    (4, Rare),     // breach
+/// `(Java registry name, max level, rarity)` by Bedrock enchantment id 0-40.
+const TABLE: [(&str, i16, Rarity); 41] = [
+    ("protection", 4, Common),
+    ("fire_protection", 4, Uncommon),
+    ("feather_falling", 4, Uncommon),
+    ("blast_protection", 4, Rare),
+    ("projectile_protection", 4, Uncommon),
+    ("thorns", 3, VeryRare),
+    ("respiration", 3, Rare),
+    ("depth_strider", 3, Rare),
+    ("aqua_affinity", 1, Rare),
+    ("sharpness", 5, Common),
+    ("smite", 5, Uncommon),
+    ("bane_of_arthropods", 5, Uncommon),
+    ("knockback", 2, Uncommon),
+    ("fire_aspect", 2, Rare),
+    ("looting", 3, Rare),
+    ("efficiency", 5, Common),
+    ("silk_touch", 1, VeryRare),
+    ("unbreaking", 3, Uncommon),
+    ("fortune", 3, Rare),
+    ("power", 5, Common),
+    ("punch", 2, Rare),
+    ("flame", 1, Rare),
+    ("infinity", 1, VeryRare),
+    ("luck_of_the_sea", 3, Rare),
+    ("lure", 3, Rare),
+    ("frost_walker", 2, Rare),
+    ("mending", 1, Rare),
+    ("binding_curse", 1, VeryRare),
+    ("vanishing_curse", 1, VeryRare),
+    ("impaling", 5, Rare),
+    ("riptide", 3, Rare),
+    ("loyalty", 3, Uncommon),
+    ("channeling", 1, VeryRare),
+    ("multishot", 1, Rare),
+    ("piercing", 4, Common),
+    ("quick_charge", 3, Uncommon),
+    ("soul_speed", 3, VeryRare),
+    ("swift_sneak", 3, VeryRare),
+    ("wind_burst", 3, Rare),
+    ("density", 5, Uncommon),
+    ("breach", 4, Rare),
 ];
 
 /// Sets of enchantments no item may carry two of.
 const EXCLUSIVE: [&[i16]; 8] = [&[0, 1, 3, 4], &[9, 10, 11, 39, 40], &[16, 18], &[22, 26], &[7, 25], &[30, 31], &[30, 32], &[33, 34]];
+
+/// Bedrock's id for a Java enchantment registry key; `None` for Java-only ones (sweeping edge, lunge).
+#[cfg(feature = "java")]
+pub(crate) fn bedrock_id(java_name: &str) -> Option<i16> {
+    let name = java_name.strip_prefix("minecraft:").unwrap_or(java_name);
+    TABLE.iter().position(|e| e.0 == name).and_then(|i| i16::try_from(i).ok())
+}
 
 pub(crate) fn is_curse(id: i16) -> bool {
     id == BINDING || id == VANISHING
@@ -129,11 +136,11 @@ pub(crate) fn anvil_value(enchants: &[(i16, i16)], book: bool) -> i32 {
 }
 
 fn max_level(id: i16) -> i16 {
-    usize::try_from(id).ok().and_then(|i| TABLE.get(i)).map_or(1, |e| e.0)
+    usize::try_from(id).ok().and_then(|i| TABLE.get(i)).map_or(1, |e| e.1)
 }
 
 fn weight(id: i16, book: bool) -> i32 {
-    let rarity = usize::try_from(id).ok().and_then(|i| TABLE.get(i)).map_or(Common, |e| e.1);
+    let rarity = usize::try_from(id).ok().and_then(|i| TABLE.get(i)).map_or(Common, |e| e.2);
     match (rarity, book) {
         (VeryRare, false) => 8,
         (VeryRare, true) | (Rare, false) => 4,

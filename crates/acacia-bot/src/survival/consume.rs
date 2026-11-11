@@ -31,20 +31,23 @@ impl Bot {
         if self.survival.item_use.is_some() {
             return Err(ActionError::NotPossible("already using an item".into()));
         }
-        let held = self.state.inventory.held();
-        let name = self.state.items.name(held.network_id).unwrap_or_default();
-        let ticks = use_ticks(name).ok_or_else(|| ActionError::NotPossible(format!("cannot eat or drink {name:?}")))?;
+        let held = self.state.item(self.state.inventory.held());
+        let Some((held, ticks)) = held.and_then(|i| Some((i, use_ticks(i)?))) else {
+            return Err(ActionError::NotPossible(format!("cannot eat or drink {held:?}")));
+        };
         let p = &self.state.player;
         let hungry = p.hunger < 20.0 || !matches!(p.game_mode, GameMode::Survival | GameMode::Adventure);
-        if !hungry && !always_consumable(name) {
-            return Err(ActionError::NotPossible(format!("not hungry enough to eat {name}")));
+        if !hungry && !always_consumable(held) {
+            return Err(ActionError::NotPossible(format!("not hungry enough to eat {held}")));
         }
         let release = self.human.ticks_between(USE_RELEASE);
         let slot = self.state.inventory.selected_hotbar_slot;
         self.survival.item_use = Some(ItemUse::new(slot, self.use_snapshot(), ticks, release, auto));
         self.survival.result = None;
-        self.client.send(&wire::click_air(self.hand()));
-        self.queued_flags.push(InputData::StartUsingItem);
+        self.send_bedrock(&wire::click_air(self.hand()));
+        #[cfg(feature = "java")]
+        self.java_use_item();
+        self.queue_flag(InputData::StartUsingItem);
         self.set_using_item(true);
         Ok(())
     }
@@ -58,7 +61,7 @@ impl Bot {
             UseTick::Nothing => {}
             UseTick::Effect => {
                 let held = self.state.inventory.held();
-                self.client.send(&EntityEvent {
+                self.send_bedrock(&EntityEvent {
                     runtime_entity_id: self.runtime_id(),
                     event_id: EntityEventEventId::EatingItem,
                     data: eating_data(held.network_id, held.metadata),
@@ -66,7 +69,10 @@ impl Bot {
                 });
             }
             UseTick::Finish => {
-                self.client.send(&wire::finish_use(self.hand()));
+                self.send_bedrock(&wire::finish_use(self.hand()));
+                // Java's client completes the use itself at this tick, so its slowdown ends here.
+                #[cfg(feature = "java")]
+                self.set_java_using_item(false);
             }
             UseTick::Done(result) => {
                 let auto = item_use.auto;
@@ -89,8 +95,10 @@ impl Bot {
     }
 
     fn set_using_item(&mut self, on: bool) {
-        if let Some(m) = self.movement.as_mut() {
+        if let Some(m) = self.backend.movement_mut() {
             m.using_item = on;
         }
+        #[cfg(feature = "java")]
+        self.set_java_using_item(on);
     }
 }

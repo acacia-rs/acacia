@@ -190,7 +190,7 @@ pub(super) fn next(b: &mut Builder, cx: &Ctx, needs: &[Need]) -> Next {
         }
         let supported = Face::ALL.iter().any(|f| {
             let o = f.offset();
-            cx.look.block([pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]]).is_some_and(|v| v.solid() && !v.interactive && (v.full || v.name.ends_with("_slab") || rules::post(&v) || rules::redstone::top(v.name).is_some()))
+            cx.look.block([pos[0] - o[0], pos[1] - o[1], pos[2] - o[2]]).is_some_and(|v| v.solid() && !v.interactive && (v.full || v.half_slab().is_some() || rules::post(&v) || rules::redstone::top(v.name).is_some()))
         });
         if !supported {
             unsupported.get_or_insert(pos);

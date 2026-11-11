@@ -191,7 +191,7 @@ impl Builder {
     /// Diagnostics: each open placement in `bot`'s world, with the click it has from where the bot stands and the
     /// stands it could use (a builder for the same job, outside the processes).
     pub fn explain_for(&self, bot: &crate::Bot) -> Vec<String> {
-        let Some(feet) = bot.movement().and_then(|m| m.position()) else { return Vec::new() };
+        let Some(feet) = bot.backend.movement().and_then(|m| m.position()) else { return Vec::new() };
         super::explain::explain(self, &crate::pathfind::process::run::BotLook(bot), feet)
     }
 

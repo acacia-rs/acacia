@@ -29,10 +29,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let config = BotConfig { physics: true, trackers: Trackers { entities: true, ..Trackers::default() }, ..BotConfig::default() };
     let mut bot = Bot::connect(builder, config).await?;
-    while bot.movement().is_none_or(|m| !m.is_started()) {
+    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
         bot.wait_ticks(1).await?;
     }
-    let feet = bot.movement().and_then(|m| m.position()).expect("started");
+    let feet = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.position()).expect("started");
     let [x, y, z] = [feet[0].floor() as i32, feet[1].floor() as i32, feet[2].floor() as i32];
     let stone = [x + 2, y, z];
     let chest = [x, y, z + 2];
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/give @s dirt 16".into(),
         format!("/summon pig {} {} {}", x - 2, y, z),
     ] {
-        bot.client().command(&cmd);
+        bot.command(&cmd);
         bot.wait_ticks(4).await?;
     }
     bot.wait_ticks(20).await?;
@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         (0..9u8).find(|&s| bot.state().item_name(&bot.state().inventory.main[usize::from(s)]) == Some(item))
     };
     let block_name = |bot: &Bot, p: [i32; 3]| {
-        let w = bot.world().expect("physics");
+        let w = bot.bedrock().and_then(|b| b.world()).expect("physics");
         w.registry().and_then(|r| r.get(w.view()?.block(p[0], p[1], p[2]))).map_or("?", |s| s.name)
     };
 
@@ -102,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => println!("SKIP attack: no pig tracked"),
     }
     bot.wait_ticks(10).await?;
-    let m = bot.movement().expect("physics");
+    let m = bot.bedrock().and_then(|b| b.movement()).expect("physics");
     println!("done: corrections {} teleports {}", m.corrections, m.teleports);
     bot.disconnect().await;
     Ok(())

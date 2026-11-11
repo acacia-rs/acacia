@@ -7,7 +7,7 @@ use acacia_client::proto::types::WindowType;
 use acacia_physics::BlockPos;
 
 use super::anvil_cost::{AnvilCost, anvil_outcome, anvil_priced};
-use super::{named, occupied};
+use super::{named, occupied, StationStep};
 use crate::items::craft::{Craft, CraftAction};
 use crate::items::{to_inventory_ops, ui, Op, SlotRef};
 use crate::state::{GameState, ItemStack};
@@ -22,7 +22,8 @@ impl Bot {
             return Err(ActionError::NotPossible("an anvil needs a material or a new name".into()));
         }
         let slots = [SlotRef::Ui(ui::ANVIL_INPUT), SlotRef::Ui(ui::ANVIL_MATERIAL)];
-        self.workstation_craft(pos, WindowType::Anvil, &[Some(input), material], &slots, |state| anvil_plan(state, rename)).await
+        let step = rename.map_or(StationStep::Take, StationStep::Rename);
+        self.workstation_craft(pos, WindowType::Anvil, &[Some(input), material], &slots, |state| anvil_plan(state, rename), step).await
     }
 
     /// What the open anvil asks for what is in its slots, renamed to `rename` if given; `None`
@@ -34,7 +35,7 @@ impl Bot {
     }
 
     /// Opens the station, moves each `inputs[i]` stack into `slots[i]`, sends the craft `plan`
-    /// builds, moves leftovers back and closes.
+    /// builds (on Java does `step`), moves leftovers back and closes.
     pub(super) async fn workstation_craft(
         &mut self,
         pos: BlockPos,
@@ -42,6 +43,7 @@ impl Bot {
         inputs: &[Option<SlotRef>],
         slots: &[SlotRef],
         plan: impl Fn(&GameState) -> Result<(Craft, Vec<Op>), ActionError>,
+        step: StationStep<'_>,
     ) -> Result<(), ActionError> {
         for input in inputs.iter().flatten() {
             occupied(&self.state, *input)?;
@@ -57,10 +59,7 @@ impl Bot {
             }
         }
         if result.is_ok() {
-            result = match plan(&self.state) {
-                Ok(craft) => self.craft_click(craft).await,
-                Err(e) => Err(e),
-            };
+            result = self.finish_station(plan, step).await;
         }
         let back = self.take_back(slots).await;
         self.close_station().await?;

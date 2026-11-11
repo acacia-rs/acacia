@@ -1,9 +1,10 @@
 //! Planning the next segment while a partial path is still followed, and splicing it on (Baritone's plan-ahead).
 
-use acacia_physics::{BlockPos, PlayerState};
+use acacia_physics::BlockPos;
 use tokio::sync::oneshot::error::TryRecvError;
 
 use super::Pilot;
+use crate::movement::Sim;
 use crate::pathfind::astar::SearchOpts;
 use crate::pathfind::job::{Answer, SearchJob, Spawn};
 
@@ -30,13 +31,14 @@ impl Ahead {
 
 impl Pilot {
     /// On a partial path nearing its end, starts the next segment's search from the last node as planned.
-    pub(super) fn plan_ahead(&mut self, live: &PlayerState, opts: &SearchOpts, spawn: Spawn) {
+    pub(super) fn plan_ahead<S: Sim>(&mut self, live: &S, opts: &SearchOpts, spawn: Spawn<S>) {
         let Some(f) = self.follower.as_ref().filter(|_| self.partial && self.pending.is_none()) else { return };
         let key = (self.generation, f.path().len());
         let Some(end) = f.path().last().filter(|_| self.ahead.started_for != Some(key)) else { return };
         // A running shortcut holds the follower's index back, so the planned ticks overstate what is left: the
         // straight line at the fastest speed bounds it from below.
-        let line = (live.pos[0] - end.pos[0] as f32 - 0.5).hypot(live.pos[2] - end.pos[2] as f32 - 0.5) * opts.speed().per_block;
+        let pos = live.body().pos;
+        let line = (pos[0] - end.pos[0] as f32 - 0.5).hypot(pos[2] - end.pos[2] as f32 - 0.5) * opts.speed(S::envelope()).per_block;
         if f.ticks_left().min(line) > PLAN_AHEAD_TICKS {
             return;
         }

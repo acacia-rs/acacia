@@ -8,7 +8,7 @@ use super::alter::{tool, with};
 use super::grid::Grid;
 use super::sim::perform;
 use crate::interact::{block_distance, Face, BLOCK_REACH};
-use crate::movement::Movement;
+use crate::movement::{Movement, Rollout};
 use crate::pathfind::process::{Act, Arbiter, Decision, Look, ProcId};
 use crate::pathfind::{Backfill, Follow, Goal, Goto, GotoOpts, NavStatus, SearchJob, Step, Target, answered};
 use crate::ActionError;
@@ -53,10 +53,10 @@ fn fill(g: &Grid, m: &Movement, act: &Act, held: &[&str]) -> Result<(), ActionEr
         look.solid(against) == Some(true) && block_distance(eye, against) <= BLOCK_REACH
     });
     let inside = (feet[0] - 0.3 < (pos[0] + 1) as f32 && feet[0] + 0.3 > pos[0] as f32) && (feet[2] - 0.3 < (pos[2] + 1) as f32 && feet[2] + 0.3 > pos[2] as f32) && (feet[1] < (pos[1] + 1) as f32 && feet[1] + 1.8 > pos[1] as f32);
-    let block = blocks.iter().find(|b| held.contains(&b.as_str()));
+    let block = blocks.iter().find(|b| held.contains(&b.name()));
     match block {
         Some(b) if reach && !inside => {
-            g.set_state(*pos, b.trim_start_matches("minecraft:"), "");
+            g.set_state(*pos, b.name().trim_start_matches("minecraft:"), "");
             Ok(())
         }
         _ => Err(ActionError::NotPossible(format!("cannot fill {pos:?} from {feet:?} (reach {reach}, inside {inside})"))),
@@ -79,7 +79,7 @@ pub fn run(g: &Grid, start: Vec3, arb: &mut Arbiter, max_ticks: u32, held: &[&st
             Decision::Go => {
                 let pilot = arb.pilot_mut().expect("routed");
                 let opts = pilot.search_opts(None, 20.0);
-                let result = pilot.drive(&g.terrain(), &mut m, opts, &mut |job: SearchJob| answered(job.run(&g.terrain())));
+                let result = pilot.drive(&g.terrain(), &mut m, opts, &mut |job: SearchJob<Rollout>| answered(job.run(&g.terrain())));
                 let mut dug = Vec::new();
                 if result == Ok(NavStatus::Working) {
                     let node = pilot.pending_work().expect("work due");

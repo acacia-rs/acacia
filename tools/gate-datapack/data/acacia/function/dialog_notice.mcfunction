@@ -1,0 +1,1 @@
+dialog show @s {type:"minecraft:notice",title:"Notice",body:{type:"minecraft:plain_message",contents:"Hello bot"},action:{label:"OK",action:{type:"minecraft:run_command",command:"tellraw @a \"closed\""}}}

@@ -12,12 +12,12 @@ const SLACK: f64 = 1e-3;
 /// Points tried on a box: its centre, then inset towards its corners.
 const INSET: f32 = 0.2;
 
-pub(crate) struct Sight<'a, W: BlockAccess> {
+pub(crate) struct Sight<'a, W: BlockAccess + ?Sized> {
     pub world: &'a W,
     pub registry: &'a BlockRegistry,
 }
 
-impl<W: BlockAccess> Sight<'_, W> {
+impl<W: BlockAccess + ?Sized> Sight<'_, W> {
     /// The first block shape on the way from `eye` towards `to`, at most `extra` past it; the cell `through` is
     /// passed through.
     fn cast(&self, eye: Vec3, to: Vec3, extra: f64, through: Option<BlockPos>) -> Option<RayHit> {

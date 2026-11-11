@@ -119,7 +119,7 @@ async fn follow(a: &mut Bot, pad: &Pad, server: &str, name_b: &str) -> Result<St
         procs.tick(a).await?;
         ticks += 1;
         followed += u32::from(procs.arbiter().active() == Some(follow));
-        let me = a.movement().and_then(|m| m.position());
+        let me = a.bedrock().and_then(|b| b.movement()).and_then(|m| m.position());
         let them = a.state().entities.players().find(|e| e.username.as_deref() == Some(name_b)).map(|e| e.feet());
         if let (Some(me), Some(f)) = (me, them) {
             closest = closest.min((me[0] - f.x).hypot(me[2] - f.z).hypot(me[1] - f.y));

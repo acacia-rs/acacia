@@ -4,6 +4,9 @@
 
 use acacia_client::proto::types::Vec3f;
 use acacia_physics::BlockPos;
+use acacia_world::BlockState;
+use acacia_world::neutral::value::Direction;
+use acacia_world::neutral::{Block, BlockTag, prop};
 
 use crate::movement::Idle;
 use crate::Bot;
@@ -22,22 +25,30 @@ pub(crate) struct Bed {
 /// Where BDS puts a player sleeping in the bed block `pos`: eye position at the
 /// clicked block's centre (live: the foot piece clicked, not its head) raised by the bed's height, and
 /// the yaw the bed faces.
-pub(crate) fn lying_in(name: &str, properties: &str, [x, y, z]: BlockPos) -> Option<(Vec3f, f32)> {
-    let height = match name {
-        "minecraft:bed" => 0.90625,
-        "minecraft:straw_bed" => 0.59375,
+pub(crate) fn lying_in(state: &BlockState, [x, y, z]: BlockPos) -> Option<(Vec3f, f32)> {
+    let height = match state.kind()? {
+        b if b.is(BlockTag::Beds) => 0.90625,
+        Block::StrawBed => 0.59375,
         _ => return None,
     };
-    let direction = properties.split(',').find_map(|kv| kv.strip_prefix("direction=")?.parse::<u8>().ok())?;
-    let yaw = *[0.0, 90.0, -180.0, -90.0].get(usize::from(direction))?;
+    let yaw = match state.get(prop::HorizontalFacing)? {
+        Direction::South => 0.0,
+        Direction::West => 90.0,
+        Direction::North => -180.0,
+        _ => -90.0,
+    };
     Some((Vec3f { x: x as f32 + 0.5, y: y as f32 + height, z: z as f32 + 0.5 }, yaw))
+}
+
+pub(crate) fn is_bed(state: &BlockState) -> bool {
+    state.kind().is_some_and(|b| b.is(BlockTag::Beds) || b == Block::StrawBed)
 }
 
 impl Bot {
     /// Physics bots: while the server shows the player sleeping, sends a still input at the bed instead
     /// of simulating and returns true. On waking the simulation resumes at the server's position.
     pub(crate) fn bed_physics_tick(&mut self) -> bool {
-        let Some(movement) = self.movement.as_mut() else { return false };
+        let Some(movement) = self.backend.movement_mut() else { return false };
         if !self.state.player.is_sleeping() {
             if let Some(idle) = self.bed.idle.take() {
                 (self.bed.lying, self.bed.clicked_from) = (None, None);
@@ -59,7 +70,7 @@ impl Bot {
         if let Some(mut input) = idle.tick_facing(&self.state.player, yaw, 0.0, true) {
             input.position = eye;
             self.add_queued_flags(&mut input);
-            self.client.send(&input);
+            self.send_bedrock(&input);
         }
         true
     }
