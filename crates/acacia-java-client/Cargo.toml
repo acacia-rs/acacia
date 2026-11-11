@@ -14,7 +14,7 @@ acacia-java-proto = { path = "../acacia-java-proto" }
 acacia-registry = { path = "../acacia-registry" }
 aes = "0.8"
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
-md-5 = "0.10"
+md-5 = "0.11"
 rsa = { version = "0.9", default-features = false, features = ["std", "u64_digit", "pem"] }
 sha1 = "0.10"
 thiserror = "2"
