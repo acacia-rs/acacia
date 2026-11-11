@@ -20,28 +20,36 @@ pub fn sweep(blocks: &impl Blocks, min: DVec3, max: DVec3, delta: DVec3) -> DVec
     if delta == DVec3::ZERO {
         return delta;
     }
+    let (reach_min, reach_max) = (min.min(min + delta), max.max(max + delta));
     // Fences and walls reach half a block above their cell.
-    let lo = (min.min(min + delta) - DVec3::new(0.0, 1.0, 0.0)).floor().as_ivec3();
-    let hi = max.max(max + delta).floor().as_ivec3();
-    let mut boxes = Vec::new();
+    let lo = (reach_min - DVec3::new(0.0, 1.0, 0.0)).floor().as_ivec3();
+    let hi = reach_max.floor().as_ivec3();
+    let mut shapes = Vec::new();
     for x in lo.x..=hi.x {
         for y in lo.y..=hi.y {
             for z in lo.z..=hi.z {
                 let cell = IVec3::new(x, y, z);
                 let Some(state) = blocks.block(cell) else { continue };
                 let base = cell.as_dvec3();
-                boxes.extend(state.boxes.iter().map(|b| (base + DVec3::from(b.min.map(f64::from)), base + DVec3::from(b.max.map(f64::from)))));
+                let shape: Vec<_> = state.boxes.iter().map(|b| (base + DVec3::from(b.min.map(f64::from)), base + DVec3::from(b.max.map(f64::from)))).collect();
+                // BlockCollisions only yields shapes overlapping the swept box.
+                if shape.iter().any(|(bmin, bmax)| bmin.cmplt(reach_max).all() && bmax.cmpgt(reach_min).all()) {
+                    shapes.push(shape);
+                }
             }
         }
     }
-    if boxes.is_empty() {
+    if shapes.is_empty() {
         return delta;
     }
     let (mut min, mut max) = (min, max);
     let mut out = DVec3::ZERO;
     let order = if delta.x.abs() < delta.z.abs() { [1, 2, 0] } else { [1, 0, 2] };
     for axis in order {
-        let d = clip(&boxes, axis, min, max, delta[axis]);
+        if delta[axis] == 0.0 {
+            continue;
+        }
+        let d = clip(&shapes, axis, min, max, delta[axis]);
         out[axis] = d;
         min[axis] += d;
         max[axis] += d;
@@ -49,8 +57,19 @@ pub fn sweep(blocks: &impl Blocks, min: DVec3, max: DVec3, delta: DVec3) -> DVec
     out
 }
 
-fn clip(boxes: &[(DVec3, DVec3)], axis: usize, min: DVec3, max: DVec3, mut d: f64) -> f64 {
+fn clip(shapes: &[Vec<(DVec3, DVec3)>], axis: usize, min: DVec3, max: DVec3, mut d: f64) -> f64 {
     let (a, b) = ((axis + 1) % 3, (axis + 2) % 3);
+    for shape in shapes {
+        // Shapes.collide: a move this small next to any shape is dropped entirely.
+        if d.abs() < EPSILON {
+            return 0.0;
+        }
+        d = clip_shape(shape, axis, a, b, min, max, d);
+    }
+    d
+}
+
+fn clip_shape(boxes: &[(DVec3, DVec3)], axis: usize, a: usize, b: usize, min: DVec3, max: DVec3, mut d: f64) -> f64 {
     for (bmin, bmax) in boxes {
         let overlaps = |i: usize| bmin[i] < max[i] - EPSILON && bmax[i] > min[i] + EPSILON;
         if !overlaps(a) || !overlaps(b) {

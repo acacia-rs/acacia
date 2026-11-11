@@ -28,4 +28,6 @@ wgpu = "30"
 [dev-dependencies]
 acacia-proto = { path = "../acacia-proto" }
 bytes = "1"
+# Exact float parsing for parity probes reading the oracle's doubles.
+serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.10"

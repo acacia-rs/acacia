@@ -5,7 +5,6 @@
 
 use glam::{DVec3, Vec3};
 
-use super::java::note_color;
 use super::kind::Kind;
 use super::rng::Rng;
 use super::sheet::Set;
@@ -184,4 +183,10 @@ pub fn sprite(kind: Kind, at: DVec3, a: Vec3, rng: &mut Rng) -> Option<Sprite> {
         Kind::CritBurst | Kind::EnchantedHitBurst => return None,
     }
     Some(s)
+}
+
+/// A note's colour by pitch, 0 to 1, as Java's `NoteParticle` picks it.
+fn note_color(pitch: f32) -> [f32; 4] {
+    let channel = |offset: f32| ((pitch + offset) * std::f32::consts::TAU).sin().mul_add(0.65, 0.35).max(0.0);
+    [channel(0.0), channel(1.0 / 3.0), channel(2.0 / 3.0), 1.0]
 }

@@ -5,7 +5,7 @@
 use glam::{DVec3, Vec3};
 
 use super::pipeline::DEPTH_FORMAT;
-use crate::particles::{Blend, Light, Sheet, Sprite};
+use crate::particles::{Blend, Draw, Sheet};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -107,34 +107,21 @@ impl SpritePass {
         }));
     }
 
-    /// Uploads this frame's sprites `partial` of a tick past their last tick; `light` gives
-    /// (block, sky) at a world position.
-    #[allow(clippy::too_many_arguments)]
-    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, sheet: &Sheet, sprites: &[Sprite], partial: f64, camera: DVec3, right: Vec3, up: Vec3, light: impl Fn(DVec3) -> [f32; 2]) {
+    /// Uploads this frame's sprites ([`crate::particles::Particles::draws`]).
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, draws: &[Draw], camera: DVec3, right: Vec3, up: Vec3) {
         self.count = 0;
         if self.bind_group.is_none() {
             return;
         }
-        let mut data: Vec<(f32, Instance)> = sprites
+        let mut data: Vec<(f32, Instance)> = draws
             .iter()
-            .filter(|s| s.visible())
-            .filter_map(|s| {
-                let frames = sheet.frames(s.set);
-                let uv = *frames.get(s.frame_index(frames.len()))?;
-                let at = s.previous.lerp(s.position, partial);
-                let [block, sky] = light(at);
-                let light = match s.light {
-                    Light::World => [block, sky],
-                    Light::Full => [15.0, 15.0],
-                    Light::Ramp => [(block + s.life() * 15.0).min(15.0), sky],
-                    Light::Block => [15.0, sky],
-                };
-                let blend = match s.blend {
+            .map(|d| {
+                let blend = match d.blend {
                     Blend::Cutout => 0,
                     Blend::Alpha => 1,
                 };
-                let centre = (at - camera).as_vec3();
-                Some((centre.length_squared(), Instance { centre: centre.to_array(), size: s.quad_size(), uv, color: s.tint(), light, blend }))
+                let centre = (d.at - camera).as_vec3();
+                (centre.length_squared(), Instance { centre: centre.to_array(), size: d.size, uv: d.uv, color: d.color, light: d.light, blend })
             })
             .collect();
         if data.is_empty() {
