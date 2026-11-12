@@ -42,4 +42,9 @@ impl Aabb {
     pub fn intersects(&self, other: &Aabb) -> bool {
         (0..3).all(|a| self.min[a] < other.max[a] && self.max[a] > other.min[a])
     }
+
+    /// `AABB.minmax`: the box around both.
+    pub fn minmax(&self, other: &Aabb) -> Aabb {
+        Aabb { min: [0, 1, 2].map(|a| self.min[a].min(other.min[a])), max: [0, 1, 2].map(|a| self.max[a].max(other.max[a])) }
+    }
 }

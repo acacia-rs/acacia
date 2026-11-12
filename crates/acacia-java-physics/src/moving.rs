@@ -4,9 +4,9 @@ use crate::aabb::Aabb;
 use crate::block_factors::bounce;
 use crate::collide::Blocks;
 use crate::mth::{cos, length_sqr, sin, DEG_TO_RAD};
-use crate::player::{Player, STEP_HEIGHT};
+use crate::attributes::Attribute;
+use crate::player::Player;
 use crate::support::LEGACY_ON_POS;
-use crate::travel::modified_friction;
 
 const BACK_OFF_STEP: f64 = 0.05;
 
@@ -24,7 +24,7 @@ impl Player {
     }
 
     fn back_off_from_edge(&self, world: &impl Blocks, delta: [f64; 3]) -> [f64; 3] {
-        let step = STEP_HEIGHT as f64;
+        let step = self.step_height() as f64;
         if self.flying || delta[1] > 0.0 || !self.keys.shift {
             return delta;
         }
@@ -88,7 +88,7 @@ impl Player {
 
     fn restitute(&mut self, block: Block, x_hit: bool, z_hit: bool, below: bool, movement: [f64; 3]) {
         let current = self.delta;
-        let mut restitution = 0.0;
+        let mut restitution = if self.keys.shift { 0.0 } else { self.attribute(Attribute::Bounciness) };
         if x_hit {
             self.delta[0] = -current[0] * restitution;
         }
@@ -100,11 +100,11 @@ impl Player {
         }
         if below {
             let bounces = !(-current[1] <= self.gravity()) && !self.keys.shift && !block.is(BlockTag::SuppressesBounce);
-            restitution = if bounces { bounce(block) as f64 } else { 0.0 };
+            restitution = if bounces { restitution.max(bounce(block) as f64) } else { 0.0 };
         }
         let (gravity, drag) = if restitution > 0.0 {
             let portion = movement[1] / current[1];
-            let air = modified_friction(0.98, 1.0) as f64;
+            let air = self.air_drag(0.98) as f64;
             (portion * self.gravity(), 1.0 + portion * (air - 1.0))
         } else {
             (0.0, 1.0)
@@ -116,12 +116,17 @@ impl Player {
         if self.flying || self.fall_flying {
             return 1.0;
         }
-        self.support.speed_factor(world, self.pos)
+        let factor = self.support.speed_factor(world, self.pos);
+        factor + self.attribute(Attribute::MovementEfficiency) as f32 * (1.0 - factor)
+    }
+
+    /// `Entity.move(MoverType.SELF, getDeltaMovement())`.
+    pub(crate) fn move_self(&mut self, world: &impl Blocks) {
+        self.move_by(world, self.delta);
     }
 
     /// `Entity.move` for `MoverType.SELF`.
-    pub(crate) fn move_self(&mut self, world: &impl Blocks) {
-        let mut delta = self.delta;
+    pub(crate) fn move_by(&mut self, world: &impl Blocks, mut delta: [f64; 3]) {
         if length_sqr(self.stuck) > 1.0E-7 {
             for axis in 0..3 {
                 delta[axis] *= self.stuck[axis];

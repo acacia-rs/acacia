@@ -82,7 +82,9 @@ impl Movement {
             self.player.yaw = -180.0;
         }
         if keep & KEEP_ATTRIBUTES != 0 {
-            self.player.speed_add = old.speed_add;
+            self.player.attributes = old.attributes.clone();
+        } else {
+            self.player.attributes.keep_bases(&old.attributes);
         }
         let kept = keep & KEEP_ENTITY_DATA != 0;
         self.reset_sent(kept.then_some((old.keys, old.sprinting)));

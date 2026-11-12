@@ -90,7 +90,7 @@ fn bound(input: &mut &[u8], chat_types: &[String]) -> Result<(Option<String>, Op
     Ok((chat_type, Some(component(input)?)))
 }
 
-fn component(input: &mut &[u8]) -> Result<String, Error> {
+pub(crate) fn component(input: &mut &[u8]) -> Result<String, Error> {
     Ok(Tag::read_root(input)?.as_ref().map(text).unwrap_or_default())
 }
 

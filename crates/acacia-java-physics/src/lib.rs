@@ -2,6 +2,7 @@
 //! comparison against client traces is bit for bit.
 
 mod aabb;
+pub mod attributes;
 mod block_factors;
 mod block_path;
 mod boat;
@@ -17,6 +18,8 @@ mod mount_body;
 mod mount_ridden;
 mod moving;
 mod mth;
+mod open_map;
+mod riptide;
 mod player;
 mod support;
 mod swim;
@@ -30,4 +33,5 @@ pub use collide::Blocks;
 pub use input::{Keys, Pose};
 pub use mount::{seat_feet, Boost, Mount, MountKind, Rider};
 pub use player::{Effects, ItemUse, Player};
+pub use riptide::Nearby;
 pub use teleport::Placement;

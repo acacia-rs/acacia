@@ -1,5 +1,6 @@
 //! Runs the local player's physics and tells the server, as `LocalPlayer.sendChanges` does.
 
+use acacia_java_physics::attributes::{Attribute, Operation};
 use acacia_java_physics::{Blocks, Keys, Placement, Player};
 use acacia_java_proto::packets::{
     COMMAND_START_FALL_FLYING, COMMAND_START_SPRINTING, COMMAND_STOP_SPRINTING, ClientboundAbilities, Empty, MovePlayerPos, MovePlayerPosRot, MovePlayerRot, MovePlayerStatusOnly,
@@ -8,6 +9,7 @@ use acacia_java_proto::packets::{
 use acacia_java_proto::entity::read_lp_vec3;
 use acacia_java_proto::{Error as WireError, VarInt, Wire, ids, read_varint};
 
+use crate::entity::seek_data;
 use crate::frame::Error;
 use crate::join::Client;
 use crate::riding::Riding;
@@ -17,11 +19,14 @@ use ids::play::{clientbound as from, serverbound as to};
 
 const ABILITY_FLYING: u8 = 2;
 const ABILITY_MAY_FLY: u8 = 4;
-const ATTRIBUTE_MOVEMENT_SPEED: i32 = 26;
 const DATA_SHARED_FLAGS: u8 = 0;
 const SERIALIZER_BYTE: i32 = 0;
+const FLAG_SPRINTING: u8 = 1 << 3;
+const FLAG_SWIMMING: u8 = 1 << 4;
+/// `LivingEntity.DATA_LIVING_ENTITY_FLAGS`; bit 4 is the auto spin attack the server sets on a riptide.
+const DATA_LIVING_FLAGS: u8 = 8;
+const LIVING_SPIN_ATTACK: u8 = 4;
 const FLAG_FALL_FLYING: u8 = 1 << 7;
-const OPERATION_ADD_VALUE: i32 = 0;
 const MIN_MOVE_SQUARED: f64 = 2.0E-4 * 2.0E-4;
 const POSITION_REMINDER_TICKS: u32 = 20;
 
@@ -95,6 +100,10 @@ impl Movement {
         if id == from::SET_ENTITY_MOTION && read_varint(&mut input)? == player_id {
             self.player.delta = read_lp_vec3(&mut input)?;
         } else if id == from::SET_ENTITY_DATA && read_varint(&mut input)? == player_id {
+            let mut living = input;
+            if seek_data(&mut living, DATA_LIVING_FLAGS)? == Some(SERIALIZER_BYTE) {
+                self.player.spin_attack = u8::read(&mut living)? & LIVING_SPIN_ATTACK != 0;
+            }
             self.read_shared_flags(&mut input)?;
         } else if id == from::UPDATE_ATTRIBUTES && read_varint(&mut input)? == player_id {
             self.read_attributes(&mut input)?;
@@ -109,29 +118,34 @@ impl Movement {
     }
 
     /// Only the server ends a glide: the client glides on, landed or not, until the shared flags say otherwise.
-    /// Items are sent in index order, so the flags byte (index 0) can only come first.
+    /// The sprint and swim flags are overwritten too (not through `setSprinting`, so the speed modifier stays); a
+    /// differing sprint flag makes the next tick send a command. Items come in index order, so the flags come first.
     fn read_shared_flags(&mut self, input: &mut &[u8]) -> Result<(), WireError> {
         if u8::read(input)? == DATA_SHARED_FLAGS && read_varint(input)? == SERIALIZER_BYTE {
-            self.player.fall_flying = u8::read(input)? & FLAG_FALL_FLYING != 0;
+            let flags = u8::read(input)?;
+            self.player.fall_flying = flags & FLAG_FALL_FLYING != 0;
+            self.player.sprinting = flags & FLAG_SPRINTING != 0;
+            self.player.swimming = flags & FLAG_SWIMMING != 0;
         }
         Ok(())
     }
 
-    /// Only flat movement-speed modifiers matter here (powder snow's freeze); sprint and potions are simulated.
+    /// `handleUpdateAttributes`: the server's view replaces the client's, sprint modifier included, so a sprint
+    /// toggled within the round trip runs at the echoed speed until the next toggle. Grim predicts the same.
     fn read_attributes(&mut self, input: &mut &[u8]) -> Result<(), WireError> {
         for _ in 0..read_varint(input)? {
-            let attribute = read_varint(input)?;
-            f64::read(input)?;
-            let mut flat = 0.0;
+            let attribute = Attribute::from_id(read_varint(input)?);
+            let base = f64::read(input)?;
+            let mut modifiers = Vec::new();
             for _ in 0..read_varint(input)? {
-                String::read(input)?;
+                let id = String::read(input)?;
                 let amount = f64::read(input)?;
-                if read_varint(input)? == OPERATION_ADD_VALUE {
-                    flat += amount;
+                if let Some(op) = Operation::from_id(read_varint(input)?) {
+                    modifiers.push((id, amount, op));
                 }
             }
-            if attribute == ATTRIBUTE_MOVEMENT_SPEED {
-                self.player.speed_add = flat;
+            if let Some(attribute) = attribute {
+                self.player.attributes.sync(attribute, base, &modifiers);
             }
         }
         Ok(())
@@ -163,6 +177,7 @@ impl Client {
             return Ok(());
         }
         self.send_actions()?;
+        self.apply_release();
         self.world.tick_entities();
         self.tick_loading()?;
         let at = self.movement.player.pos.map(|v| v.floor() as i32);
@@ -176,6 +191,7 @@ impl Client {
         } else {
             let feet = self.movement.player.pos[1];
             self.movement.player.solid_entities = self.world.collision_boxes(Mover::Player { feet }, &[]);
+            self.spin_targets();
             self.movement.player.tick(&self.world, keys);
             self.push_player();
             self.send_changes()?;
@@ -184,6 +200,7 @@ impl Client {
                 self.movement.player.firework_boost();
             }
         }
+        self.tick_charge();
         let player = &self.movement.player;
         self.pose.position = player.pos;
         self.pose.y_rot = player.yaw;

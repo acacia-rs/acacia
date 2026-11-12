@@ -213,7 +213,7 @@ impl Client {
         let was_jumping = std::mem::replace(&mut riding.keys, keys).jump;
         let camel = riding.driven.as_ref().and_then(Driven::mount).is_some_and(|m| m.kind == MountKind::Camel);
         // TODO: vanilla's sprint rules (double tap, collisions) aren't run for a camel's rider; the key alone sprints.
-        player.sprinting = camel && keys.sprint && keys.forward && !keys.backward;
+        player.set_sprinting(camel && keys.sprint && keys.forward && !keys.backward);
         riding.rider = player.rider(keys);
         player.set_crouching(keys.shift);
         (player.delta, player.on_ground, player.horizontal_collision) = ([0.0; 3], false, false);

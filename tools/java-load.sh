@@ -14,6 +14,10 @@ printf 'settings:\n  connection-throttle: -1\n' > "$R/bukkit.yml"
 PAPER_PROPS="max-players=$((BOTS + 10))" paper_start "$R" 25603
 server=$PAPER_PID
 from=$(wc -l < "$R/out.log")
+# GRIM_DEBUG=1: Grim prints every bot's predicted and actual movement each tick to out.log once they have joined.
+if [ -n "$GRIM_DEBUG" ]; then
+	(sleep 40; for i in $(seq 0 $((BOTS - 1))); do echo "grim consoledebug Load$i" >&$PAPER_FD; done) &
+fi
 JAVA=1 /usr/bin/time -v -o "$R/time.txt" perf stat -x, -e instructions -o "$R/perf.txt" \
 	"$BIN" 127.0.0.1:25603 "$BOTS" "$WANDER" "$SECS" 9>&- > "$R/swarm.log" 2>&1
 alerts=$(alerts_since "$R/out.log" "$from")

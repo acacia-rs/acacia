@@ -24,6 +24,7 @@ pub enum Pose {
     Crouching,
     Swimming,
     FallFlying,
+    SpinAttack,
 }
 
 impl Pose {
@@ -31,7 +32,7 @@ impl Pose {
         match self {
             Pose::Standing => 1.8,
             Pose::Crouching => 1.5,
-            Pose::Swimming | Pose::FallFlying => 0.6,
+            Pose::Swimming | Pose::FallFlying | Pose::SpinAttack => 0.6,
         }
     }
 
@@ -39,7 +40,7 @@ impl Pose {
         match self {
             Pose::Standing => 1.62,
             Pose::Crouching => 1.27,
-            Pose::Swimming | Pose::FallFlying => 0.4,
+            Pose::Swimming | Pose::FallFlying | Pose::SpinAttack => 0.4,
         }
     }
 }
@@ -89,7 +90,8 @@ impl Player {
                 input = input.map(|v| v * using.speed);
             }
             if self.moving_slowly() {
-                input = input.map(|v| v * 0.3_f64 as f32);
+                let factor = self.attribute(crate::attributes::Attribute::SneakingSpeed) as f32;
+                input = input.map(|v| v * factor);
             }
             input = square_input(input);
         }
@@ -146,17 +148,17 @@ impl Player {
         if self.can_start_sprinting() {
             if !had_forward {
                 if self.sprint_trigger > 0 {
-                    self.sprinting = true;
+                    self.set_sprinting(true);
                 } else {
                     self.sprint_trigger = SPRINT_WINDOW;
                 }
             }
             if self.keys.sprint {
-                self.sprinting = true;
+                self.set_sprinting(true);
             }
         }
         if self.sprinting && self.should_stop_sprinting() {
-            self.sprinting = false;
+            self.set_sprinting(false);
         }
     }
 
@@ -208,7 +210,7 @@ impl Player {
     }
 
     pub(crate) fn push_out_of_blocks(&mut self, world: &impl Blocks) {
-        let half = (crate::player::WIDTH * 0.35) as f64;
+        let half = (self.size().0 * 0.35) as f64;
         for (sx, sz) in [(-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0), (1.0, 1.0)] {
             self.move_towards_closest_space(world, self.pos[0] + sx * half, self.pos[2] + sz * half);
         }

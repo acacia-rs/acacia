@@ -1,3 +1,4 @@
+use crate::attributes::Attribute;
 use crate::collide::Blocks;
 use crate::mth::{look_vector, sin, DEG_TO_RAD};
 use crate::player::Player;
@@ -27,10 +28,19 @@ impl Player {
 
     fn travel_in_water(&mut self, world: &impl Blocks, gravity: f64, falling: bool, old_y: f64) {
         let mut slow = if self.sprinting { 0.9 } else { self.mount.map_or(WATER_SLOWDOWN, |m| m.water_slowdown) };
+        let mut speed = SWIM_SPEED;
+        let mut walker = self.attribute(Attribute::WaterMovementEfficiency) as f32;
+        if !self.on_ground {
+            walker *= 0.5;
+        }
+        if walker > 0.0 {
+            slow += (0.54600006 - slow) * walker;
+            speed += (self.speed() - speed) * walker;
+        }
         if self.effects.dolphins_grace {
             slow = 0.96;
         }
-        self.move_relative(SWIM_SPEED);
+        self.move_relative(speed);
         self.move_self(world);
         if self.horizontal_collision && self.on_climbable(world) {
             self.delta[1] = 0.2;

@@ -18,6 +18,9 @@ use crate::loading::Loading;
 use crate::login::{Session, configure, login};
 use crate::messages::{self, Message};
 use crate::movement::Movement;
+use crate::players::Players;
+use crate::riptide::Charge;
+use crate::teams::Teams;
 use crate::world::World;
 
 pub use crate::login::offline_uuid;
@@ -40,6 +43,9 @@ pub struct Client {
     pub movement: Movement,
     pub actions: Actions,
     pub inventory: Inventory,
+    pub players: Players,
+    pub teams: Teams,
+    pub(crate) charge: Charge,
     /// The stonecutter's recipes in the server's order (its button order), from the last `UpdateRecipes`.
     pub stonecutter: Vec<StonecutterRecipe>,
     /// The open dialog; a new one replaces it and `ClearDialog` closes it. A registry dialog configuration sent
@@ -88,6 +94,9 @@ impl Client {
             movement: Movement::default(),
             actions: Actions::default(),
             inventory: Inventory::default(),
+            players: Players::default(),
+            teams: Teams::default(),
+            charge: Charge::default(),
             stonecutter: Vec::new(),
             dialog: None,
             dialogs: Vec::new(),
@@ -216,6 +225,8 @@ impl Client {
         self.movement.apply_status(id, body, self.world.player_id)?;
         self.actions.apply(id, body)?;
         self.inventory.apply(id, body)?;
+        self.players.apply(id, body)?;
+        self.teams.apply(id, body)?;
         Ok(())
     }
 

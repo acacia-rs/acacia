@@ -2,7 +2,10 @@
 //! Grim): the drill sets itself up by commands, runs its course, then prints
 //! `DRILL <name> setbacks <n> check <ok|reason>`; the runner adds Grim's alerts for the same window.
 //! `cargo run -p acacia-bot --features java --example java_drill -- <host> <port> <drill> [name]`
+mod attrs;
+mod crowd;
 mod drills;
+mod riptide;
 
 use std::sync::{Arc, Mutex};
 
@@ -15,6 +18,8 @@ const SETTLE_TICKS: u32 = 40;
 pub struct Drill {
     pub bot: Bot,
     pub events: Arc<Mutex<Vec<BotEvent>>>,
+    /// Where a drill's second player joins.
+    pub server: (String, u16),
 }
 
 impl Drill {
@@ -75,22 +80,30 @@ impl Drill {
     }
 }
 
+impl Drill {
+    /// Joins `server` as `name` and waits for the join's teleports to settle.
+    pub async fn connect(server: &(String, u16), name: &str) -> Result<Self, String> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = events.clone();
+        let mut config = BotConfig::default();
+        config.events = Events::ALL;
+        config.trackers.entities = true;
+        config.auto_respawn = true;
+        config.event_sink = Some(Arc::new(move |e| sink.lock().unwrap().push(e)));
+        let bot = Bot::connect_java_offline(&server.0, server.1, name, config).await.map_err(|e| e.to_string())?;
+        let mut d = Drill { bot, events, server: server.clone() };
+        d.ticks(SETTLE_TICKS).await?;
+        Ok(d)
+    }
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let [host, port, drill] = &args[..3] else { return Err("usage: java_drill <host> <port> <drill> [name]".into()) };
     let name = args.get(3).map_or("Driller", String::as_str);
-    let events = Arc::new(Mutex::new(Vec::new()));
-    let sink = events.clone();
-    let mut config = BotConfig::default();
-    config.events = Events::ALL;
-    config.trackers.entities = true;
-    config.auto_respawn = true;
-    config.event_sink = Some(Arc::new(move |e| sink.lock().unwrap().push(e)));
-    let bot = Bot::connect_java_offline(host, port.parse()?, name, config).await?;
-    let mut d = Drill { bot, events };
-    d.ticks(SETTLE_TICKS).await?;
+    let mut d = Drill::connect(&(host.clone(), port.parse()?), name).await?;
     let (start, check) = match drills::run(drill, &mut d).await {
         Ok((start, check)) => (start, check),
         Err(e) => (d.setbacks(), Err(e)),

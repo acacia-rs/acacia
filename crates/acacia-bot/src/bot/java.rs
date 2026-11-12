@@ -113,13 +113,23 @@ impl Bot {
         if self.closed.is_some() {
             return None;
         }
+        // Vanilla handles every queued packet before a frame's ticks. Grim's transactions rely on it: it writes a ping
+        // before the packet it times, so a tick between the two runs a move Grim judges with the packet applied.
         let Backend::Java(java) = &mut self.backend else { return None };
-        if !self.ticker.due()
-            && let Some(result) = java.client.try_next()
-        {
+        if let Some(result) = java.client.try_next() {
             return Some(self.on_java_packet(result));
         }
+        if self.ticker.due() {
+            // Deferred until the I/O driver has run, so this shard's readers decode what already arrived.
+            tokio::task::yield_now().await;
+            let Backend::Java(java) = &mut self.backend else { return None };
+            if let Some(result) = java.client.try_next() {
+                return Some(self.on_java_packet(result));
+            }
+        }
+        let Backend::Java(java) = &mut self.backend else { return None };
         tokio::select! {
+            biased;
             result = java.client.next() => Some(self.on_java_packet(result)),
             Some(request) = self.inbox.rx.recv() => {
                 self.on_immediate(request);
@@ -243,13 +253,15 @@ impl Bot {
         // Turned by the shorter way and never wrapped, as a mouse turns it: Grim's AimModulo360 flags a 360° jump.
         player.yaw += wrap_degrees(java.controls.yaw - player.yaw);
         player.pitch = java.controls.pitch.clamp(-90.0, 90.0);
-        player.has_glider = usable_elytra(java.client.inventory.slot(CHEST_SLOT));
-        player.snow_boots = java.client.inventory.slot(FEET_SLOT).is_some_and(|s| s.item == i32::from(acacia_world::neutral::Item::LeatherBoots.java_id()));
+        super::java_gear::apply_worn(player, &java.client.inventory);
         let mut keys = java_keys(&java.controls);
         keys.shift |= dismounting;
         if let Err(e) = java.client.step(keys) {
             tracing::debug!(error = %e, "java movement not sent");
         }
+        let p = &java.client.movement.player;
+        tracing::trace!(target: "java_tick", name = %java.client.name, tick = java.ticks, pos = ?p.pos, delta = ?p.delta,
+            ground = p.on_ground, hcol = p.horizontal_collision, sprinting = p.sprinting, speed = p.speed_value(), keys = ?keys);
         // A boat turns its rider with it.
         if java.client.movement.riding.is_some() {
             java.controls.yaw = java.client.movement.player.yaw;
@@ -260,19 +272,6 @@ impl Bot {
         }
         self.mirror_java_riding();
     }
-}
-
-/// Window 0's chest and feet armour slots.
-const CHEST_SLOT: usize = 6;
-const FEET_SLOT: usize = 8;
-const ELYTRA_DURABILITY: i32 = 432;
-
-/// An elytra that will not break on its next use (`LivingEntity.canGlideUsing`).
-fn usable_elytra(chest: Option<&acacia_java_proto::item::ItemStack>) -> bool {
-    chest.is_some_and(|s| {
-        let max = s.components.max_damage.unwrap_or(ELYTRA_DURABILITY);
-        i32::from(acacia_world::neutral::Item::Elytra.java_id()) == s.item && s.components.damage.unwrap_or(0) < max - 1
-    })
 }
 
 /// `Mth.wrapDegrees`: into [-180, 180).

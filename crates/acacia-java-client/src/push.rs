@@ -1,6 +1,5 @@
 //! Pushes on the local player from the entities around it. A client ticks every living entity's `aiStep`, whose
 //! `pushEntities` only finds the local player there (`EntitySelector.pushableBy`), and every boat's push pass.
-// TODO: team collision rules (`Team.CollisionRule`) aren't read; every pusher pushes.
 
 use acacia_java_physics::Aabb;
 use acacia_java_proto::entity_types::EntityCollision;
@@ -26,6 +25,15 @@ impl Entity {
 }
 
 impl Client {
+    /// `getScoreboardName`: a player's name, any other entity's UUID string.
+    fn team_member(&self, e: &Entity) -> String {
+        if let Some(info) = self.players.get(e.uuid).filter(|_| e.is("minecraft:player")) {
+            return info.name.clone();
+        }
+        let u = e.uuid;
+        format!("{:08x}-{:04x}-{:04x}-{:04x}-{:012x}", u >> 96, (u >> 80) & 0xffff, (u >> 64) & 0xffff, (u >> 48) & 0xffff, u & 0xffff_ffff_ffff)
+    }
+
     /// After the player's tick, as the trace replay applies them (the entities tick after it).
     pub(crate) fn push_player(&mut self) {
         let me = self.world.player_id;
@@ -39,6 +47,7 @@ impl Client {
             .entities
             .iter()
             .filter(|(id, e)| **id != me && !e.passengers.contains(&me) && e.push_box().is_some_and(|b| b.intersects(&area)))
+            .filter(|(_, e)| self.teams.pushes(&self.team_member(e), &self.name))
             .map(|(_, e)| e.position)
             .collect();
         for other in pushers {

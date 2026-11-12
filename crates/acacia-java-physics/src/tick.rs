@@ -91,6 +91,8 @@ impl Player {
             Pose::Swimming
         } else if self.fall_flying {
             Pose::FallFlying
+        } else if self.spin_attack {
+            Pose::SpinAttack
         } else if self.keys.shift && !self.flying {
             Pose::Crouching
         } else {
@@ -144,8 +146,10 @@ impl Player {
         if self.effects.slow_falling || self.effects.levitation.is_some() {
             self.fall_distance = 0.0;
         }
+        let before_travel = self.bounding_box();
         self.travel(world);
         self.apply_block_effects(world);
+        self.tick_auto_spin(before_travel);
         if self.on_ground && self.flying {
             self.flying = false;
         }

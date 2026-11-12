@@ -1,16 +1,17 @@
 use acacia_registry::{BlockTag, prop};
 
 use crate::aabb::Aabb;
+use crate::attributes::{Attribute, Attributes};
 use crate::block_factors::jump_factor;
 use crate::collide::{Blocks, Colliders, Context};
 use crate::fluid::FluidContact;
 use crate::input::{Keys, Pose};
 use crate::mount_body::MountBody;
 use crate::mth::{cos, floor, sin, DEG_TO_RAD};
+use crate::riptide::Nearby;
 use crate::support::{Support, BELOW_MOVEMENT_OFFSET};
 
 pub const WIDTH: f32 = 0.6;
-pub const STEP_HEIGHT: f32 = 0.6;
 const FIT_MARGIN: f64 = 1.0E-7;
 
 /// The held item's `use_effects` component while it is being used; vanilla's default is speed 0.2, no sprinting.
@@ -55,12 +56,18 @@ pub struct Player {
     pub fast_lava: bool,
     pub effects: Effects,
     pub using_item: Option<ItemUse>,
-    /// Sum of the server's flat `movement_speed` modifiers; the powder snow freeze slowdown arrives this way.
-    pub speed_add: f64,
+    /// Synced by the server; potion speed and the powder snow freeze arrive as modifiers. Sprinting goes through
+    /// [`Player::set_sprinting`], which keeps the sprint modifier the way the client does.
+    pub attributes: Attributes,
     /// Boxes of nearby entities the player can't walk through, such as boats and shulkers.
     pub solid_entities: Vec<Aabb>,
     pub in_water: bool,
     pub swimming: bool,
+    /// The server's auto spin attack flag (living entity flag 4), which picks the spin pose.
+    pub spin_attack: bool,
+    /// Entities around the player, for a riptide spin to hit; filled only while one runs.
+    pub nearby: Vec<Nearby>,
+    pub(crate) auto_spin_ticks: i32,
     pub(crate) fluids: FluidContact,
     pub(crate) was_eye_in_water: bool,
     pub(crate) pose: Pose,
@@ -137,7 +144,35 @@ impl Player {
     }
 
     pub(crate) fn fits(&self, world: &impl Blocks, pose: Pose) -> bool {
-        self.colliders(world).no_collision(&Aabb::of_entity(self.pos, WIDTH, pose.height()).deflated(FIT_MARGIN))
+        let (width, height) = self.pose_size(pose);
+        self.colliders(world).no_collision(&Aabb::of_entity(self.pos, width, height).deflated(FIT_MARGIN))
+    }
+
+    /// The player's attribute; a ridden mount's own aren't tracked, so a mount body has the defaults.
+    pub fn attribute(&self, attribute: Attribute) -> f64 {
+        if self.mount.is_some() { attribute.default_value() } else { self.attributes.value(attribute) }
+    }
+
+    /// `LivingEntity.setSprinting`: the flag, and the sprint speed modifier taken off and put back.
+    pub fn set_sprinting(&mut self, on: bool) {
+        self.sprinting = on;
+        self.attributes.set_sprinting(on);
+    }
+
+    /// The speed the player's next move uses (`getSpeed`).
+    pub fn speed_value(&self) -> f32 {
+        self.speed()
+    }
+
+    /// `getScale`.
+    pub(crate) fn scale(&self) -> f32 {
+        self.attribute(Attribute::Scale) as f32
+    }
+
+    /// `getDimensions(pose)`: the pose's size scaled.
+    pub(crate) fn pose_size(&self, pose: Pose) -> (f32, f32) {
+        let scale = self.scale();
+        (WIDTH * scale, pose.height() * scale)
     }
 
     pub(crate) fn block_pos(&self) -> [i32; 3] {
@@ -153,17 +188,7 @@ impl Player {
         if let Some(mount) = &self.mount {
             return mount.speed;
         }
-        let mut value = 0.1_f32 as f64 + self.speed_add;
-        if self.sprinting {
-            value *= 1.0 + 0.3_f32 as f64;
-        }
-        if let Some(amp) = self.effects.speed {
-            value *= 1.0 + 0.2_f32 as f64 * (amp as f64 + 1.0);
-        }
-        if let Some(amp) = self.effects.slowness {
-            value *= 1.0 + -0.15_f32 as f64 * (amp as f64 + 1.0);
-        }
-        value.max(0.0) as f32
+        self.attribute(Attribute::MovementSpeed) as f32
     }
 
     /// `Vec3.add(0, y, 0)`: adding zero turns a negative zero positive, which the bit comparison sees.
@@ -172,7 +197,8 @@ impl Player {
     }
 
     pub(crate) fn gravity(&self) -> f64 {
-        if self.delta[1] <= 0.0 && self.effects.slow_falling { 0.08_f64.min(0.01) } else { 0.08 }
+        let gravity = self.attribute(Attribute::Gravity);
+        if self.delta[1] <= 0.0 && self.effects.slow_falling { gravity.min(0.01) } else { gravity }
     }
 
     pub(crate) fn in_lava(&self) -> bool {
@@ -221,7 +247,7 @@ impl Player {
     }
 
     pub(crate) fn jump_from_ground(&mut self, world: &impl Blocks) {
-        let power = self.jump_power(world, 0.42, 1.0);
+        let power = self.jump_power(world, self.attribute(Attribute::JumpStrength) as f32, 1.0);
         if power <= 1.0E-5 {
             return;
         }
