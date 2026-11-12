@@ -23,6 +23,8 @@ mod dimension;
 mod java;
 #[cfg(feature = "java")]
 mod java_gear;
+#[cfg(feature = "java")]
+mod java_setbacks;
 mod tick;
 
 pub(crate) use bedrock::Backend;

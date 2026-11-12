@@ -51,7 +51,10 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    `START_RIDING_JUMP`, then input, look and `MoveVehicle` (`acacia-java-client` `mount_drive.rs`). Example
    `java_mount` (ahead, a turn, a charged jump or dash, reversing): pig, horse, camel, strider on lava and happy
    ghast all 0 alerts, 0 corrections; a strider's rider stepping off onto lava gets 1 (the player's own lava
-   moves, gone with `ACACIA_STAY`). Other vehicles seat the player at the type's passenger attachment. Not
+   moves, gone with `ACACIA_STAY`). Other vehicles seat the player at the type's passenger attachment. A
+   minecart has no controlling passenger, so the server moves it: the rider sends only `PlayerInput` (forward
+   nudges a still cart, `getLastClientMoveIntent`) and `MovePlayerRot`, never `MoveVehicle`; drill `minecart`
+   (powered run, a hill, a halt, dismount) 0 alerts, 0 setbacks. The dismount's exit teleport isn't a setback. Not
    modelled: the scale attribute and per-type shapes (slimes, pufferfish, shulker peeks), the mount's own
    effects, a rearing horse's or bobbing strider's seat, a camel rider's sprint rules, seats past the first;
    babies (the dump's

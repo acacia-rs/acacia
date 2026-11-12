@@ -7,6 +7,7 @@ use acacia_java_physics::Keys;
 use acacia_java_proto::ids::play::clientbound::{LOGIN, PLAYER_POSITION, RESPAWN, SET_PASSENGERS};
 
 use super::bedrock::Backend;
+use super::java_setbacks::Setbacks;
 use super::Step;
 use super::Assembly;
 use crate::events::{EventOut, EventSource};
@@ -24,13 +25,7 @@ pub struct Java {
     /// back.
     pub(crate) inventory_held: bool,
     ticks: u64,
-    teleports: u32,
-    last_setback: Option<u64>,
-    /// `last_setback` before the latest teleport, restored when that teleport only seated the player.
-    setback_before: Option<u64>,
-    /// A respawn's new player has not ticked yet: positions until then place it (Paper's respawn sends two).
-    respawned: bool,
-    setbacks: u32,
+    setbacks: Setbacks,
 }
 
 impl Java {
@@ -38,9 +33,9 @@ impl Java {
         &self.client
     }
 
-    /// Server positions that corrected the player (its first and a respawn's place it, a seat's isn't one).
+    /// Server positions that corrected the player ([`Setbacks`] says which don't).
     pub fn setbacks(&self) -> u32 {
-        self.setbacks
+        self.setbacks.count
     }
 
     pub(crate) fn started(&self) -> bool {
@@ -67,11 +62,11 @@ impl Live for Java {
     }
 
     fn teleports(&self) -> u32 {
-        self.teleports
+        self.setbacks.teleports
     }
 
     fn setback_age(&self) -> Option<u64> {
-        self.last_setback.map(|t| self.ticks.saturating_sub(t))
+        self.setbacks.last.map(|t| self.ticks.saturating_sub(t))
     }
 
     fn controls(&mut self) -> &mut Controls {
@@ -95,7 +90,7 @@ impl Bot {
         let mut state = GameState::new(config.trackers, 0);
         state.items = crate::state::ItemRegistry::java();
         state.recipes = crate::state::Recipes::java();
-        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, teleports: 0, last_setback: None, setback_before: None, respawned: false, setbacks: 0 };
+        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, setbacks: Setbacks::default() };
         let assembly = Assembly { auto_respawn: config.auto_respawn, auto_eat: config.auto_eat, snapshots: config.snapshots };
         Bot::assemble(Backend::Java(Box::new(java)), state, events, EventOut::new(config.event_sink), assembly)
     }
@@ -151,29 +146,22 @@ impl Bot {
                 {
                     let player = &java.client.movement.player;
                     (java.controls.yaw, java.controls.pitch) = (player.yaw, player.pitch);
-                    if java.teleports > 0 && !java.respawned {
+                    if java.setbacks.on_position(java.ticks) {
                         tracing::debug!(tick = java.ticks, pos = ?player.pos, loaded = java.client.loaded(), "java setback");
-                        java.setback_before = java.last_setback;
-                        java.last_setback = Some(java.ticks);
-                        java.setbacks += 1;
                     }
-                    java.teleports += 1;
                 }
                 // A login after a reconfiguration places a new player too.
                 if matches!(packet.id, RESPAWN | LOGIN)
                     && let Backend::Java(java) = &mut self.backend
                 {
-                    java.respawned = true;
+                    java.setbacks.respawned = true;
                 }
-                // Boarding a boat turns the player to the boat's yaw; `startRiding`'s teleport just before isn't a setback.
+                // Boarding a boat turns the player to the boat's yaw.
                 if packet.id == SET_PASSENGERS
                     && let Backend::Java(java) = &mut self.backend
                 {
                     java.controls.yaw = java.client.movement.player.yaw;
-                    if java.client.movement.riding.is_some() && java.last_setback == Some(java.ticks) {
-                        java.last_setback = java.setback_before;
-                        java.setbacks -= 1;
-                    }
+                    java.setbacks.on_seat(java.client.movement.riding.is_some(), java.ticks);
                 }
                 let was_alive = self.state.player.alive;
                 self.on_java_inventory(packet.id);
@@ -248,7 +236,7 @@ impl Bot {
         let dismounting = self.java_dismounting();
         let Backend::Java(java) = &mut self.backend else { return };
         java.ticks += 1;
-        java.respawned &= !java.client.loaded();
+        java.setbacks.respawned &= !java.client.loaded();
         let player = &mut java.client.movement.player;
         // Turned by the shorter way and never wrapped, as a mouse turns it: Grim's AimModulo360 flags a 360° jump.
         player.yaw += wrap_degrees(java.controls.yaw - player.yaw);

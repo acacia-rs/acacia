@@ -5,6 +5,7 @@
 mod attrs;
 mod crowd;
 mod drills;
+mod minecart;
 mod riptide;
 
 use std::sync::{Arc, Mutex};
