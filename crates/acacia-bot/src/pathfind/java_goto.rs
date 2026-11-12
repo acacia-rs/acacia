@@ -24,6 +24,10 @@ impl Blocks for Chunks {
     fn ids(&self, pos: [i32; 3]) -> Option<(u32, u32)> {
         self.block(pos).map(|id| (id, AIR))
     }
+
+    fn block_column(&self, [x, y, z]: [i32; 3], out: &mut [Option<u32>]) {
+        self.column(x, z, y, out);
+    }
 }
 
 fn spawn(job: SearchJob<JavaSim>, chunks: Chunks) -> Answer {

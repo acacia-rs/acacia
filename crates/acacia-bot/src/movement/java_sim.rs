@@ -130,6 +130,10 @@ impl<B: Blocks + ?Sized> JavaBlocks for JavaView<'_, B> {
     fn min_y(&self) -> i32 {
         MIN_Y
     }
+
+    fn column(&self, x: i32, z: i32, y: i32, out: &mut [Option<u32>]) {
+        self.0.block_column([x, y, z], out);
+    }
 }
 
 impl<B: Blocks + ?Sized> JavaView<'_, B> {

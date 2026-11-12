@@ -27,6 +27,11 @@ const BODY_HEIGHT: f32 = 1.8;
 pub trait Blocks {
     /// (block, liquid layer) ids; `None` when the chunk is not loaded.
     fn ids(&self, pos: BlockPos) -> Option<(u32, u32)>;
+
+    /// Block ids (no liquid layer) of column (x, z) from `y` up, one per slot; override to find the chunk once.
+    fn block_column(&self, [x, y, z]: BlockPos, out: &mut [Option<u32>]) {
+        (0..).zip(out).for_each(|(dy, slot)| *slot = self.ids([x, y + dy, z]).map(|(id, _)| id));
+    }
 }
 
 impl Blocks for ChunkView {
@@ -39,6 +44,10 @@ impl Blocks for ChunkView {
 impl<B: Blocks + ?Sized> Blocks for &B {
     fn ids(&self, pos: BlockPos) -> Option<(u32, u32)> {
         (**self).ids(pos)
+    }
+
+    fn block_column(&self, pos: BlockPos, out: &mut [Option<u32>]) {
+        (**self).block_column(pos, out);
     }
 }
 

@@ -90,8 +90,9 @@ all 50 on one shard (default `shard_fill` 100) ran 10.0–11.5 before and 17.2�
 19.6 both times. A wanderer's tick was ~2.3 ms of CPU, almost all of it the Java physics run by the pathfinder's
 move simulation. The speed-ups: `BlockState::block` from a dense table (was a binary search, 13%), Fx hashing
 for chunk columns and visited-block sets (SipHash was ~16%), and attributes with a cached value behind an `Arc`
-(the simulation cloned and recomputed them every step, ~10%). Left: `Colliders::blocks_in` hashes a chunk column
-per block it reads (~23% with `Chunks::block`). `PERF_RECORD=1 tools/java-load.sh …` records a flat profile.
+(the simulation cloned and recomputed them every step, ~10%). `Colliders::blocks_in` then hashed a chunk column
+per block it read (~23% with `Chunks::block`); it now reads whole columns (`Blocks::column`, `block_column` on the
+planner's trait), not yet measured on a quiet machine. `PERF_RECORD=1 tools/java-load.sh …` records a flat profile.
 
 Standing Java bots cost ~2.4 MB and ~0.15% of a core each. Wandering is ~66x the CPU of standing, with pathfinding
 and physics for every bot (not yet profiled); instructions vary ~50% between identical runs. The 28 alerts were
