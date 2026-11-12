@@ -17,6 +17,7 @@ use crate::entity::Entity;
 use crate::join::Client;
 use crate::lid_shape::{opposite, physical_peek, progress_box, step};
 use crate::mount_data::short_name;
+use crate::mount_drive::controlled_by;
 use crate::world::{Mover, World};
 
 use ids::play::clientbound as from;
@@ -183,7 +184,7 @@ impl Client {
             None => {
                 if let Some(e) = self.world.entities.get(&vehicle) {
                     if let Some((w, h, _)) = e.dimensions().filter(|&(w, h, _)| Aabb::of_entity(e.position, w, h).intersects(sweep)) {
-                        let moved = shove(&self.world, e.position, (w, h), e.on_ground, step_height(e), &solid, delta);
+                        let moved = shove(&self.world, e.position, (w, h), e.on_ground, step_height(&self.world, e), &solid, delta);
                         self.world.entities.entry(vehicle).and_modify(|e| e.position = moved);
                     }
                 }
@@ -199,12 +200,20 @@ impl Client {
     }
 }
 
-/// `maxUpStep` of an entity the client only shows: the step attribute's default for living ones.
-fn step_height(e: &Entity) -> f32 {
-    match short_name(e.kind) {
-        "camel" | "camel_husk" => 1.5,
-        "horse" | "donkey" | "mule" | "skeleton_horse" | "zombie_horse" | "llama" | "trader_llama" => 1.0,
-        _ if ENTITY_SHAPES.get(usize::try_from(e.kind).unwrap_or(usize::MAX)).is_some_and(|s| s.living) => 0.6,
-        _ => 0.0,
+/// `LivingEntity.maxUpStep` of an entity the client only shows: its synced step attribute (else the type's default),
+/// at least 1 while another player controls it.
+fn step_height(world: &World, e: &Entity) -> f32 {
+    if !ENTITY_SHAPES.get(usize::try_from(e.kind).unwrap_or(usize::MAX)).is_some_and(|s| s.living) {
+        return 0.0;
     }
+    let step = e.mount.step_height.map_or_else(
+        || match short_name(e.kind) {
+            "camel" | "camel_husk" => 1.5,
+            "horse" | "donkey" | "mule" | "skeleton_horse" | "zombie_horse" | "llama" | "trader_llama" => 1.0,
+            _ => 0.6,
+        },
+        |v| v as f32,
+    );
+    let driver = e.passengers.first().and_then(|p| world.entities.get(p)).filter(|p| short_name(p.kind) == "player");
+    if driver.is_some_and(|p| controlled_by(e, p.mount.hands)) { step.max(1.0) } else { step }
 }

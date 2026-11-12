@@ -64,6 +64,9 @@ pub(crate) fn apply_attributes(mount: &mut Mount, data: &MountData) {
     mount.movement_speed = data.movement_speed.unwrap_or(mount.movement_speed);
     mount.jump_strength = data.jump_strength.unwrap_or(mount.jump_strength);
     mount.flying_speed = data.flying_speed.unwrap_or(mount.flying_speed);
+    if let Some(step) = data.step_height {
+        mount.set_step_height(step);
+    }
 }
 
 fn new_mount(e: &Entity, game_time: i64) -> Option<Mount> {
@@ -79,20 +82,22 @@ fn new_mount(e: &Entity, game_time: i64) -> Option<Mount> {
     Some(mount)
 }
 
-impl Client {
-    fn holding(&self, item: Item) -> bool {
-        let held = [self.inventory.held(), self.inventory.offhand()];
-        held.into_iter().flatten().any(|s| u16::try_from(s.item).ok().and_then(Item::from_java_id) == Some(item))
+/// `getControllingPassenger` for a player in the driver's seat holding the `held` item ids.
+pub(crate) fn controlled_by(e: &Entity, held: [Option<i32>; 2]) -> bool {
+    let holding = |item| held.iter().flatten().any(|&i| u16::try_from(i).ok().and_then(Item::from_java_id) == Some(item));
+    match short_name(e.kind) {
+        "pig" => e.mount.saddled && holding(Item::CarrotOnAStick),
+        "strider" => e.mount.saddled && holding(Item::WarpedFungusOnAStick),
+        "happy_ghast" => e.mount.harnessed && !e.stays_still,
+        _ => e.mount.saddled,
     }
+}
 
+impl Client {
     /// Whether the player in the driver's seat controls `e`, so the client simulates it.
     fn controls(&self, e: &Entity) -> bool {
-        match short_name(e.kind) {
-            "pig" => e.mount.saddled && self.holding(Item::CarrotOnAStick),
-            "strider" => e.mount.saddled && self.holding(Item::WarpedFungusOnAStick),
-            "happy_ghast" => e.mount.harnessed && !e.stays_still,
-            _ => e.mount.saddled,
-        }
+        let held = [self.inventory.held(), self.inventory.offhand()].map(|s| s.map(|s| s.item));
+        controlled_by(e, held)
     }
 
     /// The mount the player drives now: kept while control lasts, built when it starts, dropped when it ends.

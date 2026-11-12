@@ -150,8 +150,8 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   in `attrs.rs`, riptide, riptide_short, rain_riptide, rain_roofed, rain_relit, minecart, the inside-block drills cobweb,
   berry_bush, cauldron, the size drills crowd_scaled, baby_push, slime_push and camel_dash, riptide_armor_stand,
   sulfur_push, the seat drills camel_sit, scaled_rider, boat_pair, boat_back_seat, camel_back_seat (a `Peer` bot
-  drives), horse_rear and camel_sit_down, checked against vanilla's seat geometry since Grim never sees a
-  passenger, and the vehicle lid drills boat_shulker_push and horse_lid_push; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
+  drives), horse_rear, camel_sit_down and strider_walk, checked against vanilla's seat geometry since Grim never
+  sees a passenger, horse_step (a synced step height of 2 on a driven horse), and the vehicle lid drills boat_shulker_push and horse_lid_push; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
   the player too and `isEntityCollidingWithAnythingNew` teleports it back when its push leads, 1-3 setbacks a run). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
   Every drill server requires a resource pack, so each join also checks the pack answers. Setup waits out Grim's

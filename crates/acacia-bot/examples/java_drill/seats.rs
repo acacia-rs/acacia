@@ -42,8 +42,11 @@ async fn track_rise(d: &mut Drill, n: u32) -> Result<bool, String> {
 pub async fn board(d: &mut Drill, kind: &str) -> Result<(), String> {
     let types = &acacia_java_proto::entity_types::ENTITY_TYPES;
     let named = |k: i32| usize::try_from(k).ok().and_then(|k| types.get(k)).is_some_and(|n| n.ends_with(kind));
+    let feet = d.feet();
+    let away = |p: [f64; 3]| (0..3).map(|i| (p[i] - feet[i]).powi(2)).sum::<f64>();
     let world = d.bot.java().map(|j| &j.client().world);
-    let id = world.and_then(|w| w.entities.iter().find(|(_, e)| named(e.kind)).map(|(&id, _)| id as u64)).ok_or(format!("no {kind} tracked"))?;
+    let nearest = world.and_then(|w| w.entities.iter().filter(|(_, e)| named(e.kind)).min_by(|a, b| away(a.1.position).total_cmp(&away(b.1.position))));
+    let id = nearest.map(|(&id, _)| id as u64).ok_or(format!("no {kind} tracked"))?;
     d.bot.mount(id).await.map_err(|e| format!("boarding: {e}"))?;
     if let Some(c) = d.bot.controls() {
         (c.yaw, c.pitch) = (-90.0, 0.0);

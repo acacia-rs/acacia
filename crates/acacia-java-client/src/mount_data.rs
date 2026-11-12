@@ -27,16 +27,22 @@ pub struct MountData {
     pub movement_speed: Option<f64>,
     pub jump_strength: Option<f64>,
     pub flying_speed: Option<f64>,
+    pub step_height: Option<f64>,
+    /// Main and off hand item ids: whether a riding player holds the stick that steers a pig or strider.
+    pub hands: [Option<i32>; 2],
     /// What the client animates of a seat: a horse's rear, a strider's walk.
     pub anim: SeatAnim,
 }
 
+const SLOT_MAINHAND: u8 = 0;
+const SLOT_OFFHAND: u8 = 1;
 const SLOT_BODY: u8 = 6;
 const SLOT_SADDLE: u8 = 7;
 const ATTRIBUTE_FLYING_SPEED: i32 = 15;
 const ATTRIBUTE_JUMP_STRENGTH: i32 = 19;
 const ATTRIBUTE_MOVEMENT_SPEED: i32 = 26;
 const ATTRIBUTE_SCALE: i32 = 30;
+const ATTRIBUTE_STEP_HEIGHT: i32 = 33;
 /// The strider's own modifier, which the driven strider applies itself.
 const SUFFOCATING: &str = "minecraft:suffocating";
 const HORSE_FLAGS: u8 = 18;
@@ -98,10 +104,11 @@ impl MountData {
     fn read_equipment(&mut self, input: &mut &[u8]) -> Result<(), Error> {
         loop {
             let slot = u8::read(input)?;
-            let filled = Option::<ItemStack>::read(input)?.is_some();
+            let item = Option::<ItemStack>::read(input)?.map(|s| s.item);
             match slot & 0x7f {
-                SLOT_SADDLE => self.saddled = filled,
-                SLOT_BODY => self.harnessed = filled,
+                hand @ (SLOT_MAINHAND | SLOT_OFFHAND) => self.hands[usize::from(hand)] = item,
+                SLOT_SADDLE => self.saddled = item.is_some(),
+                SLOT_BODY => self.harnessed = item.is_some(),
                 _ => {}
             }
             if slot & 0x80 == 0 {
@@ -129,7 +136,7 @@ impl MountData {
                     1 => multiplied_base += amount,
                     _ => total *= 1.0 + amount,
                 }
-                if let Some(op) = Operation::from_id(op).filter(|_| attribute == ATTRIBUTE_SCALE) {
+                if let Some(op) = Operation::from_id(op).filter(|_| matches!(attribute, ATTRIBUTE_SCALE | ATTRIBUTE_STEP_HEIGHT)) {
                     modifiers.push((id, amount, op));
                 }
             }
@@ -140,6 +147,7 @@ impl MountData {
                 ATTRIBUTE_JUMP_STRENGTH => self.jump_strength = value,
                 ATTRIBUTE_FLYING_SPEED => self.flying_speed = value,
                 ATTRIBUTE_SCALE => scale = Some(synced_value(Attribute::Scale, base, &modifiers)),
+                ATTRIBUTE_STEP_HEIGHT => self.step_height = Some(synced_value(Attribute::StepHeight, base, &modifiers)),
                 _ => {}
             }
         }

@@ -130,6 +130,11 @@ impl Mount {
         (body.width, body.height) = (width, height);
     }
 
+    /// The synced `STEP_HEIGHT`; a player driving steps at least 1.
+    pub fn set_step_height(&mut self, attribute: f64) {
+        self.body.mount.as_mut().expect("a mount body").step = (attribute as f32).max(1.0);
+    }
+
     pub fn interpolate_to(&mut self, pos: [f64; 3], yaw: f32, pitch: f32) {
         let b = &self.body;
         self.lerp.start((b.pos, b.yaw, b.pitch), (pos, yaw, pitch));
