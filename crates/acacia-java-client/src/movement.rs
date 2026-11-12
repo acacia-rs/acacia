@@ -177,10 +177,11 @@ impl Client {
             return Ok(());
         }
         self.tick_profile_key()?;
-        let ticked = self.tick(keys);
+        self.tick(keys)?;
         // `ClientLevel.update` runs light after the frame's ticks: a block change shows in the next tick's light.
         self.world.update_light();
-        ticked
+        // `Minecraft.tick` ends every tick with a level this way, also while the player can't tick.
+        self.send(to::CLIENT_TICK_END, &Empty {})
     }
 
     fn tick(&mut self, keys: Keys) -> Result<(), Error> {
@@ -215,7 +216,7 @@ impl Client {
         self.pose.position = player.pos;
         self.pose.y_rot = player.yaw;
         self.pose.x_rot = player.pitch;
-        self.send(to::CLIENT_TICK_END, &Empty {})
+        Ok(())
     }
 
     fn send_command(&mut self, action: i32) -> Result<(), Error> {

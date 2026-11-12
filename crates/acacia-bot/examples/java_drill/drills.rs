@@ -61,8 +61,9 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
             Ok((base, check(top > f64::from(FLOOR) + 3.4, || format!("top {top:.2}"))))
         }
         "levitation" => {
-            let base = start(d, x, &["effect give @s levitation 2 1 true"]).await?;
-            let top = track_top(d, 40, false).await?;
+            let base = start(d, x, &[]).await?;
+            d.bot.command("effect give @s levitation 2 1 true");
+            let top = track_top(d, 60, false).await?;
             d.ticks(80).await?;
             Ok((base, check(top > f64::from(FLOOR) + 3.0, || format!("top {top:.2}"))))
         }

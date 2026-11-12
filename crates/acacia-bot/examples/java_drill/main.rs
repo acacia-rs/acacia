@@ -21,6 +21,9 @@ use acacia_bot::{Bot, BotConfig, BotEvent, Events};
 /// A drill's place on the flat world (surface y -60), clear of the others.
 pub const FLOOR: i32 = -61;
 const SETTLE_TICKS: u32 = 40;
+/// Longer than Grim's 20-tick setback resend: no correction in this window means setup has settled.
+const QUIET_TICKS: u32 = 25;
+const MAX_QUIET_WAITS: u32 = 6;
 
 pub struct Drill {
     pub bot: Bot,
@@ -36,7 +39,16 @@ impl Drill {
             self.bot.command(c);
             self.ticks(3).await?;
         }
-        self.ticks(SETTLE_TICKS).await
+        self.ticks(SETTLE_TICKS).await?;
+        // Grim sometimes sets back silently after the far setup teleport and resends every 20 ticks until settled.
+        for _ in 0..MAX_QUIET_WAITS {
+            let before = self.setbacks();
+            self.ticks(QUIET_TICKS).await?;
+            if self.setbacks() == before {
+                break;
+            }
+        }
+        Ok(())
     }
 
     /// A failed wait, with the connection's close reason when it closed.

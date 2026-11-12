@@ -146,6 +146,8 @@ impl Bot {
                 {
                     let player = &java.client.movement.player;
                     (java.controls.yaw, java.controls.pitch) = (player.yaw, player.pitch);
+                    let teleport = <acacia_java_proto::packets::PlayerPosition as acacia_java_proto::Wire>::read(&mut &packet.body[..]).map(|p| p.id);
+                    tracing::trace!(tick = java.ticks, ?teleport, "java teleport");
                     if java.setbacks.on_position(java.ticks) {
                         tracing::debug!(tick = java.ticks, pos = ?player.pos, loaded = java.client.loaded(), "java setback");
                     }
