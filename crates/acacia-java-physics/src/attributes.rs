@@ -1,6 +1,8 @@
 //! The player's attributes that move it: bases and modifiers as `ClientboundUpdateAttributesPacket` syncs them,
 //! the sprint modifier the client adds itself, and `AttributeInstance.calculateValue`.
 
+use std::sync::Arc;
+
 use crate::open_map::OpenMap;
 
 /// `LivingEntity.SPRINTING_MODIFIER_ID`; `SPEED_MODIFIER_SPRINTING` adds `0.3F` of the total.
@@ -97,10 +99,18 @@ struct Instance {
     base: f64,
     /// `modifiersByOperation`, one map per operation in `Operation` order.
     by_operation: [OpenMap<f64>; 3],
+    /// `calculateValue` as of the last change.
+    value: f64,
 }
 
 impl Instance {
-    fn value(&self, attribute: Attribute) -> f64 {
+    fn new(attribute: Attribute, base: f64) -> Self {
+        let mut instance = Self { base, by_operation: Default::default(), value: 0.0 };
+        instance.value = instance.calculate(attribute);
+        instance
+    }
+
+    fn calculate(&self, attribute: Attribute) -> f64 {
         let (_, min, max) = attribute.defaults();
         let [add, base_mult, total_mult] = &self.by_operation;
         let base = add.values().fold(self.base, |v, a| v + a);
@@ -115,59 +125,72 @@ impl Instance {
     }
 }
 
+/// Shared until written: movement simulations clone the player's attributes every step.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attributes {
-    instances: [Instance; ALL.len()],
+    instances: Arc<[Instance; ALL.len()]>,
 }
 
 impl Default for Attributes {
     fn default() -> Self {
-        Self { instances: ALL.map(|a| Instance { base: a.defaults().0, by_operation: Default::default() }) }
+        Self { instances: Arc::new(ALL.map(|a| Instance::new(a, a.defaults().0))) }
     }
 }
 
 /// `calculateValue` of one attribute as a sync sets it, for an entity whose other attributes aren't kept.
 pub fn synced_value(attribute: Attribute, base: f64, modifiers: &[(String, f64, Operation)]) -> f64 {
-    let mut instance = Instance { base, by_operation: Default::default() };
+    let mut instance = Instance::new(attribute, base);
     for (id, amount, op) in modifiers {
         instance.by_operation[*op as usize].insert(id, *amount);
     }
-    instance.value(attribute)
+    instance.calculate(attribute)
 }
 
 impl Attributes {
-    fn instance(&mut self, attribute: Attribute) -> &mut Instance {
-        &mut self.instances[attribute as usize]
+    /// Changes one attribute and recalculates its value.
+    fn change(&mut self, attribute: Attribute, f: impl FnOnce(&mut Instance)) {
+        let instance = &mut Arc::make_mut(&mut self.instances)[attribute as usize];
+        f(instance);
+        instance.value = instance.calculate(attribute);
     }
 
     pub fn value(&self, attribute: Attribute) -> f64 {
-        self.instances[attribute as usize].value(attribute)
+        self.instances[attribute as usize].value
     }
 
     /// `handleUpdateAttributes` for one attribute: the base set, every modifier replaced by the packet's.
     pub fn sync(&mut self, attribute: Attribute, base: f64, modifiers: &[(String, f64, Operation)]) {
-        let instance = self.instance(attribute);
-        instance.base = base;
-        instance.by_operation.iter_mut().for_each(OpenMap::clear);
-        for (id, amount, op) in modifiers {
-            instance.by_operation[*op as usize].insert(id, *amount);
-        }
+        self.change(attribute, |instance| {
+            instance.base = base;
+            instance.by_operation.iter_mut().for_each(OpenMap::clear);
+            for (id, amount, op) in modifiers {
+                instance.by_operation[*op as usize].insert(id, *amount);
+            }
+        });
     }
 
     /// `AttributeMap.assignBaseValues`: a respawned player keeps the old bases but none of its modifiers.
     pub fn keep_bases(&mut self, old: &Attributes) {
-        for (instance, old) in self.instances.iter_mut().zip(&old.instances) {
-            instance.base = old.base;
+        for attribute in ALL {
+            let base = old.instances[attribute as usize].base;
+            self.change(attribute, |instance| instance.base = base);
         }
     }
 
     /// `LivingEntity.setSprinting`'s modifier: removed, then added back while sprinting.
     pub fn set_sprinting(&mut self, sprinting: bool) {
-        let total = &mut self.instance(Attribute::MovementSpeed).by_operation[Operation::AddMultipliedTotal as usize];
-        total.remove(SPRINTING);
-        if sprinting {
-            total.insert(SPRINTING, 0.3_f32 as f64);
+        // Only this case is a no-op: re-inserting a present key can move it (shiftKeys) and reorder the sum.
+        let total = &self.instances[Attribute::MovementSpeed as usize].by_operation[Operation::AddMultipliedTotal as usize];
+        if !sprinting && !total.contains(SPRINTING) {
+            return;
         }
+        self.change(Attribute::MovementSpeed, |instance| {
+            let total = &mut instance.by_operation[Operation::AddMultipliedTotal as usize];
+            total.remove(SPRINTING);
+            if sprinting {
+                total.insert(SPRINTING, 0.3_f32 as f64);
+            }
+        });
     }
 }
 

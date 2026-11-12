@@ -1,6 +1,6 @@
 //! `BlockGetter.forEachBlockIntersectedBetween`: the cells a box sweeps along a move, in vanilla's order.
 
-use std::collections::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 
 use crate::aabb::Aabb;
 use crate::mth::{floor, length_sqr};
@@ -22,7 +22,7 @@ pub(crate) fn for_each_cell_between(from: [f64; 3], to: [f64; 3], target: &Aabb,
         }
         return;
     }
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     let start = target.moved(travel.map(|v| -v));
     for cell in corners_in_direction(start.min.map(floor), start.max.map(floor), travel) {
         if !visit(cell, 0) {

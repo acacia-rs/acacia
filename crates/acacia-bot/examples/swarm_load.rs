@@ -78,6 +78,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(ms) = std::env::var("JOIN_MS").ok().map(|s| s.parse()).transpose()? {
         builder = builder.join_spacing(Duration::from_millis(ms), Duration::from_millis(ms / 2));
     }
+    if let Some(fill) = std::env::var("SHARD_FILL").ok().map(|s| s.parse()).transpose()? {
+        builder = builder.shard_fill(fill);
+    }
     if let Some(shards) = rest.get(1) {
         builder = builder.shards(shards.parse()?);
     }

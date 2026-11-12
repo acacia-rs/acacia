@@ -1,9 +1,20 @@
 use std::fmt;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use crate::block::Block;
 use crate::generated::blocks::{BLOCKS, JAVA_STATE_COUNT, STATE_COUNT};
 use crate::prop::{PropId, Property};
+
+/// Each state's block: a binary search over `BLOCKS` was the top cost of simulated movement.
+static BLOCK_OF_STATE: LazyLock<Box<[Block]>> = LazyLock::new(|| {
+    let mut table = Vec::with_capacity(STATE_COUNT as usize);
+    for (i, b) in BLOCKS.iter().enumerate() {
+        let end = BLOCKS.get(i + 1).map_or(STATE_COUNT, |next| next.first);
+        table.extend((b.first..end).map(|_| b.block));
+    }
+    table.into_boxed_slice()
+});
 
 /// A neutral block state. Ids below `JAVA_STATE_COUNT` are Java 26.3's global palette ids, so a Java
 /// chunk needs no translation; Bedrock-only blocks follow.
@@ -30,8 +41,7 @@ impl BlockState {
     }
 
     pub fn block(self) -> Block {
-        let i = BLOCKS.partition_point(|b| b.first <= self.0) - 1;
-        BLOCKS[i].block
+        BLOCK_OF_STATE[self.0 as usize]
     }
 
     pub fn is_air(self) -> bool {

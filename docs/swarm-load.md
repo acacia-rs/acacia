@@ -81,13 +81,24 @@ E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%
 | 50 standing | 50 | 8.8 | 26 G | 121 MB | 0 |
 | 50 wandering | 50 | 153 | 1.72 T | 164 MB | 28 |
 | 50 wandering, 2026-11-12 | 50 | 153 / 174 | 1.31 / 2.03 T | 166 MB | 0 / 0 |
+| 50 wandering, `SHARD_FILL=10`, before speed-ups | 50 | 276 | 2.35 T | 200 MB | 0 |
+| 50 wandering, after speed-ups (one shard) | 50 | 182 | 1.58 T | 252 MB | 0 |
+| 50 wandering, `SHARD_FILL=10`, after speed-ups | 50 | 142 | 1.17 T | 191 MB | 0 |
+
+Ticks per second per bot over the last 60 s (`RUST_LOG=java_tick=trace`, per-bot tick counts from the trace):
+all 50 on one shard (default `shard_fill` 100) ran 10.0–11.5 before and 17.2–18.2 after; at `SHARD_FILL=10`
+19.6 both times. A wanderer's tick was ~2.3 ms of CPU, almost all of it the Java physics run by the pathfinder's
+move simulation. The speed-ups: `BlockState::block` from a dense table (was a binary search, 13%), Fx hashing
+for chunk columns and visited-block sets (SipHash was ~16%), and attributes with a cached value behind an `Arc`
+(the simulation cloned and recomputed them every step, ~10%). Left: `Colliders::blocks_in` hashes a chunk column
+per block it reads (~23% with `Chunks::block`). `PERF_RECORD=1 tools/java-load.sh …` records a flat profile.
 
 Standing Java bots cost ~2.4 MB and ~0.15% of a core each. Wandering is ~66x the CPU of standing, with pathfinding
 and physics for every bot (not yet profiled); instructions vary ~50% between identical runs. The 28 alerts were
 sprint offsets of 0.0294: Grim pings before `UpdateAttributes` and shared flags and applies them at the pong, and
 a bot that ticked between the ping and the packet was judged with the new sprint state. `java_step` now handles
 every queued packet before a tick (`Minecraft.runTick`'s order); two runs after it had 0 alerts. `GRIM_DEBUG=1`
-prints Grim's per-bot debug lines. All 50 wanderers land on one shard and tick at ~8.5 tps under this load.
+prints Grim's per-bot debug lines. All 50 wanderers land on one shard, which saturates (see below).
 Not compared with Bedrock: its runs above are relative A/B, and sapling isn't Paper.
 
 ## Left, by owner

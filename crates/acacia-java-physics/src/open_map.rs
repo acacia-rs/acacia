@@ -83,6 +83,10 @@ impl<V> OpenMap<V> {
         }
     }
 
+    pub fn contains(&self, id: &str) -> bool {
+        self.find(id).is_some()
+    }
+
     pub fn clear(&mut self) {
         self.slots.iter_mut().for_each(|s| *s = None);
     }

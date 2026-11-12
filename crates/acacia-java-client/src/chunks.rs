@@ -1,6 +1,6 @@
 //! Loaded chunk columns by state id. Columns are shared, so a clone is a cheap snapshot for work off the tick.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use acacia_java_proto::chunk::Section;
@@ -12,13 +12,14 @@ pub(crate) fn is_air(state: u32) -> bool {
 
 #[derive(Debug, Clone, Default)]
 pub struct Chunks {
-    columns: HashMap<(i32, i32), Arc<Vec<Section>>>,
+    /// Fx, not SipHash: a block read hashes its column key, and simulated movement reads thousands a tick.
+    columns: FxHashMap<(i32, i32), Arc<Vec<Section>>>,
     min_y: i32,
 }
 
 impl Chunks {
     pub(crate) fn new(min_y: i32) -> Self {
-        Self { columns: HashMap::new(), min_y }
+        Self { columns: FxHashMap::default(), min_y }
     }
 
     pub fn len(&self) -> usize {

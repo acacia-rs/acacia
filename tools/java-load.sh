@@ -18,7 +18,13 @@ from=$(wc -l < "$R/out.log")
 if [ -n "$GRIM_DEBUG" ]; then
 	(sleep 40; for i in $(seq 0 $((BOTS - 1))); do echo "grim consoledebug Load$i" >&$PAPER_FD; done) &
 fi
-JAVA=1 /usr/bin/time -v -o "$R/time.txt" perf stat -x, -e instructions -o "$R/perf.txt" \
+# PERF_RECORD=1: a flat perf profile in $R/perf.data instead of the instruction count.
+if [ -n "$PERF_RECORD" ]; then
+	PERF=(perf record -F 499 -o "$R/perf.data")
+else
+	PERF=(perf stat -x, -e instructions -o "$R/perf.txt")
+fi
+JAVA=1 /usr/bin/time -v -o "$R/time.txt" "${PERF[@]}" \
 	"$BIN" 127.0.0.1:25603 "$BOTS" "$WANDER" "$SECS" 9>&- > "$R/swarm.log" 2>&1
 alerts=$(alerts_since "$R/out.log" "$from")
 paper_stop "$server" "$PAPER_FD"

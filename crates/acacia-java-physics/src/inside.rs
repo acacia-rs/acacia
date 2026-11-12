@@ -1,6 +1,6 @@
 //! `Entity.applyEffectsFromBlocks`, shared by the player and the boat it drives.
 
-use std::collections::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 
 use acacia_registry::prop::Drag;
 use acacia_registry::{Block, BlockState, BlockTag};
@@ -107,7 +107,7 @@ pub(crate) trait InsideBody {
                 delta[2] *= scale;
             }
         }
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         for &(from, to, original) in moves {
             let travel = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
             let mut budget = MAX_ITERATIONS;
