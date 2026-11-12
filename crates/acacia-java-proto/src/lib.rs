@@ -11,6 +11,7 @@ pub mod entity;
 pub mod ids;
 pub mod inventory;
 pub mod item;
+pub mod light;
 pub mod merchant;
 pub mod nbt;
 pub mod packets;

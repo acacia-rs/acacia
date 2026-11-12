@@ -4,7 +4,7 @@
 use acacia_registry::Block;
 
 use crate::boat::{Boat, HEIGHT, WIDTH};
-use crate::collide::Blocks;
+use crate::collide::{Blocks, Context};
 use crate::inside::{inside_bubble_column, nothing_above, InsideBody};
 use crate::support::LEGACY_ON_POS;
 
@@ -49,6 +49,10 @@ impl InsideBody for Boat {
 
     fn stepping_carefully(&self) -> bool {
         false
+    }
+
+    fn collision_context(&self) -> Context {
+        self.context()
     }
 
     fn effect_pos(&self, world: &impl Blocks) -> [i32; 3] {

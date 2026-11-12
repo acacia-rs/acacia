@@ -115,6 +115,7 @@ impl Client {
         self.inventory.enchantments = registries.enchantments.into();
         self.dialogs = registries.dialogs;
         self.chat_types = registries.chat_types;
+        self.world.weather.climates = registries.biomes;
     }
 
     /// The next play packet, already applied to the world and movement. Cancel-safe.

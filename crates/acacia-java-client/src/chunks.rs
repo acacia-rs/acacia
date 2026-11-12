@@ -39,6 +39,20 @@ impl Chunks {
         Some((section, Section::index((x & 15) as usize, (y & 15) as usize, (z & 15) as usize)))
     }
 
+    /// `ChunkAccess.getNoiseBiome`: the biome id of a 4×4×4 cell, y clamped into the column; `None` unloaded.
+    pub fn noise_biome(&self, [qx, qy, qz]: [i32; 3]) -> Option<u32> {
+        let column = self.columns.get(&(qx >> 2, qz >> 2))?;
+        let low = self.min_y >> 2;
+        let qy = qy.clamp(low, low + column.len() as i32 * 4 - 1);
+        let section = column.get(((qy - low) >> 2) as usize)?;
+        Some(section.biomes.get((((qy & 3) << 4) | ((qz & 3) << 2) | (qx & 3)) as usize))
+    }
+
+    /// The top of the build height, exclusive.
+    pub fn max_y(&self, x: i32, z: i32) -> Option<i32> {
+        self.columns.get(&(x >> 4, z >> 4)).map(|c| self.min_y + c.len() as i32 * 16)
+    }
+
     /// Copies the column first when a snapshot still holds it.
     pub(crate) fn set_block(&mut self, pos: [i32; 3], state: u32) {
         let Some((section, index)) = self.locate(pos) else { return };

@@ -1,5 +1,4 @@
 //! Riptide on the client: how long the held item has been in use, and the release that launches the player.
-// TODO: `isInRain` (weather, sky access, biome precipitation) isn't modelled; riptide launches only in water.
 
 use acacia_java_physics::{Aabb, Nearby};
 use acacia_java_proto::entity_types::EntityCollision;
@@ -31,8 +30,8 @@ impl Client {
     pub(crate) fn apply_release(&mut self) {
         let Some(riptide) = self.charge.release.take() else { return };
         let held = self.charge.held.take().unwrap_or(0);
-        let player = &self.movement.player;
-        let launches = held >= MIN_HOLD_TICKS && player.in_water && self.movement.riding.is_none();
+        let wet = self.movement.player.in_water || self.in_rain();
+        let launches = held >= MIN_HOLD_TICKS && wet && self.movement.riding.is_none();
         if let Some(strength) = riptide.filter(|s| *s > 0.0 && launches) {
             self.movement.player.riptide(&self.world, strength);
         }

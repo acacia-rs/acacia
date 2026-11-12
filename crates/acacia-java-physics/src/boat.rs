@@ -99,7 +99,11 @@ impl Boat {
     }
 
     pub(crate) fn colliders<'a, W: Blocks>(&'a self, world: &'a W) -> Colliders<'a, W> {
-        Colliders { world, context: Context { feet: self.pos[1], ..Context::default() }, entities: &self.solid_entities }
+        Colliders { world, context: self.context(), entities: &self.solid_entities }
+    }
+
+    pub(crate) fn context(&self) -> Context {
+        Context { feet: self.pos[1], ..Context::default() }
     }
 
     /// `floatBoat`.

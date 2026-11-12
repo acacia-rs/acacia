@@ -36,7 +36,7 @@ pub fn check(ok: bool, what: impl FnOnce() -> String) -> Result<(), String> {
 }
 
 pub async fn run(name: &str, d: &mut Drill) -> Outcome {
-    let all = || NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES);
+    let all = || NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES).chain(crate::inside::NAMES);
     let index = all().position(|n| *n == name).ok_or(format!("no drill {name}; drills: {}", all().copied().collect::<Vec<_>>().join(" ")))?;
     let x = 64 + 32 * index as i32;
     let x0 = f64::from(x) + 0.5;
@@ -154,6 +154,7 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
         "crowd" => crate::crowd::run(d, x).await,
         n if crate::riptide::NAMES.contains(&n) => crate::riptide::run(n, d, x).await,
         "minecart" => crate::minecart::run(d, x).await,
+        n if crate::inside::NAMES.contains(&n) => crate::inside::run(n, d, x).await,
         n => crate::attrs::run(n, d, x).await,
     }
 }

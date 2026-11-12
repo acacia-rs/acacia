@@ -5,6 +5,7 @@
 mod attrs;
 mod crowd;
 mod drills;
+mod inside;
 mod minecart;
 mod riptide;
 

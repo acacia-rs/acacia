@@ -128,7 +128,8 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   scenarios on one Paper + Grim server, a fresh connection each. A drill sets itself up by op commands on its own
   strip and passes with 0 Grim alerts, 0 setbacks after setup and its own check (speed, slowness, jump_boost,
   levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat, crowd, ten `/attribute` courses
-  in `attrs.rs`, riptide, riptide_short). `DRILL_TRACE=1` prints the player
+  in `attrs.rs`, riptide, riptide_short, rain_riptide, rain_roofed, minecart, and the inside-block drills cobweb,
+  berry_bush, cauldron; powder_snow_fall runs only by name). `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
   Every drill server requires a resource pack, so each join also checks the pack answers.
 - `tools/java-switch.sh <java_drill binary>`: the `switch` drill behind Velocity (`tools/java-proxy/velocity.toml`,
@@ -154,8 +155,16 @@ Not done: `Transfer` (reconnecting elsewhere with the cookies).
 - Attributes: `UpdateAttributes` replaces each attribute's base and modifiers (`acacia-java-physics`
   `attributes.rs`), summed in fastutil's hash order (`open_map.rs`) so float results match. Sprint is the
   attribute modifier, as vanilla's `setSprinting`, and the server's shared flags overwrite it.
-- Riptide: a trident with the enchantment held 10+ ticks in water launches on release (`riptide.rs` in client and
-  physics), then spins until it hits a living entity or a wall. Rain doesn't count yet.
+- Riptide: a trident with the enchantment held 10+ ticks in water or rain launches on release (`riptide.rs` in client
+  and physics), then spins until it hits a living entity or a wall. Rain is `Level.isRainingAt` (`rain.rs`): the
+  rain level from `GameEvent`, sky light 15 from the server's light data (`sky_light.rs`; the client doesn't relight
+  after block changes), the MOTION_BLOCKING heightmap scanned from the blocks, and the biome's precipitation through
+  `BiomeManager`'s zoom (`biomes.rs`; climates from acacia-registry `climate`, or the server's biome data).
+- Block effects: `checkInsideBlocks` tests each block's inside shape (`inside_shape.rs`: cauldron contents,
+  tripwire, end portal, a falling body's 0.9 of powder snow) and fluid box, and only touched blocks act or count as
+  visited. Replay trace `snowfall` (a real client's 4-block drop onto powder snow) lands on the 0.9 top. Grim
+  sticks any body in the snow's cell (`StuckSpeed`), resets its fall and expects it to fall through: GroundSpoof,
+  Simulation and a setback loop, as a vanilla client gets, so drill `powder_snow_fall` is opt-in.
 - Death: health 0 is `BotEvent::Died` (`PlayerCombatKill`'s text a chat event); `ClientCommand` 0 respawns (auto-respawn after the death screen).
   `Respawn` rebuilds the player, keeping what its `dataToKeep` byte says, and a new level only on a dimension change.
 - Chat: system, player (signed), disguised and action bar messages decode to `BotEvent::Chat` (`messages.rs`), with

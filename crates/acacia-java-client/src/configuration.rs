@@ -10,6 +10,9 @@ use acacia_java_proto::packets::{
 };
 use acacia_java_proto::tag::Tag;
 use acacia_java_proto::{VarInt, Wire, ids, read_varint};
+use acacia_registry::climate::Climate;
+
+use crate::biomes::climate_of;
 
 use crate::frame::{Error, encode};
 
@@ -25,6 +28,7 @@ pub(crate) struct Registries {
     pub enchantments: Vec<String>,
     pub dialogs: Vec<Option<Dialog>>,
     pub chat_types: Vec<String>,
+    pub biomes: Vec<Option<Climate>>,
 }
 
 impl Registries {
@@ -38,6 +42,7 @@ impl Registries {
             ENCHANTMENT_REGISTRY => self.enchantments = names(registry_entries(input)?),
             CHAT_TYPE_REGISTRY => self.chat_types = names(registry_entries(input)?),
             DIALOG_REGISTRY => self.dialogs = registry_entries(input)?.iter().map(|(_, data)| data.as_ref().and_then(Dialog::from_tag)).collect(),
+            BIOME_REGISTRY => self.biomes = registry_entries(input)?.iter().map(|(name, data)| climate_of(name, data.as_ref())).collect(),
             _ => {}
         }
         Ok(())
@@ -47,6 +52,7 @@ impl Registries {
 const ENCHANTMENT_REGISTRY: &str = "minecraft:enchantment";
 const DIALOG_REGISTRY: &str = "minecraft:dialog";
 const CHAT_TYPE_REGISTRY: &str = "minecraft:chat_type";
+const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
 
 fn names(entries: Vec<(String, Option<Tag>)>) -> Vec<String> {
     entries.into_iter().map(|(name, _)| name).collect()

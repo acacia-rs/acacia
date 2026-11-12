@@ -1,6 +1,7 @@
 //! A Java Edition 26.3 connection: framing, login, configuration, and the replies a client owes the server in play.
 
 mod actions;
+mod biomes;
 mod chat;
 mod chunks;
 pub mod clicks;
@@ -24,9 +25,11 @@ mod mount_drive;
 mod movement;
 pub mod players;
 mod push;
+mod rain;
 mod riding;
 mod riptide;
 mod signing;
+mod sky_light;
 mod station;
 mod status;
 pub mod teams;

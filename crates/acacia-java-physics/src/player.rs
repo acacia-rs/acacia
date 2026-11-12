@@ -129,18 +129,18 @@ impl Player {
         self.pos[1] + self.eye_height() as f64
     }
 
-    pub(crate) fn colliders<'a, W: Blocks>(&'a self, world: &'a W) -> Colliders<'a, W> {
-        Colliders {
-            world,
-            context: Context {
-                feet: self.pos[1],
-                descending: self.keys.shift,
-                fall_distance: self.fall_distance,
-                snow_boots: self.snow_boots,
-                stands_on_lava: self.mount.is_some_and(|m| m.stands_on_lava),
-            },
-            entities: &self.solid_entities,
+    pub(crate) fn context(&self) -> Context {
+        Context {
+            feet: self.pos[1],
+            descending: self.keys.shift,
+            fall_distance: self.fall_distance,
+            snow_boots: self.snow_boots,
+            stands_on_lava: self.mount.is_some_and(|m| m.stands_on_lava),
         }
+    }
+
+    pub(crate) fn colliders<'a, W: Blocks>(&'a self, world: &'a W) -> Colliders<'a, W> {
+        Colliders { world, context: self.context(), entities: &self.solid_entities }
     }
 
     pub(crate) fn fits(&self, world: &impl Blocks, pose: Pose) -> bool {
