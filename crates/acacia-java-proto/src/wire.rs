@@ -98,6 +98,7 @@ macro_rules! optional {
         }
     )*};
 }
+pub(crate) use optional;
 optional!(VarInt, Vec<u8>);
 
 macro_rules! big_endian {

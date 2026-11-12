@@ -6,7 +6,10 @@ use acacia_java_proto::recipes::{StonecutterRecipe, read_update_recipes};
 use acacia_java_proto::{PROTOCOL_VERSION, VarInt, Wire, ids};
 use tokio::net::TcpStream;
 
+use std::sync::Mutex;
+
 use crate::actions::Actions;
+use crate::chat::ChatState;
 use crate::configuration::{Cookies, Registries};
 use crate::frame::{Connection, Error};
 use crate::inventory::Inventory;
@@ -48,6 +51,7 @@ pub struct Client {
     /// The message the last packet carried (chat, system text, our death), until the next packet.
     pub message: Option<Message>,
     chat_types: Vec<String>,
+    pub(crate) chat_state: Mutex<ChatState>,
     loading: Loading,
     /// The server sent the client back to configuration: what it has sent so far.
     reconfiguring: Option<Registries>,
@@ -56,17 +60,18 @@ pub struct Client {
 impl Client {
     /// Joins an offline-mode server as `name`.
     pub async fn join_offline(host: &str, port: u16, name: &str) -> Result<Self, Error> {
-        Self::join(host, port, name, offline_uuid(name), None).await
+        Self::join(host, port, name, offline_uuid(name), None, Mutex::default()).await
     }
 
     /// Joins any server as the account's Java profile.
     pub async fn join_online(host: &str, port: u16, account: &Account) -> Result<Self, Error> {
         let player = account.java_profile().await?;
         let uuid = u128::from_str_radix(&player.uuid, 16).map_err(|e| Error::Crypto(format!("profile id {}: {e}", player.uuid)))?;
-        Self::join(host, port, &player.name.clone(), uuid, Some((account, &player))).await
+        let chat_state = ChatState::fetch(account, &player).await;
+        Self::join(host, port, &player.name.clone(), uuid, Some((account, &player)), chat_state).await
     }
 
-    async fn join(host: &str, port: u16, name: &str, uuid: u128, session: Session<'_>) -> Result<Self, Error> {
+    async fn join(host: &str, port: u16, name: &str, uuid: u128, session: Session<'_>, chat_state: Mutex<ChatState>) -> Result<Self, Error> {
         let mut c = Connection::new(TcpStream::connect((host, port)).await?);
         let intention = Intention { protocol: VarInt(PROTOCOL_VERSION), host: host.to_owned(), port, intent: VarInt(INTENT_LOGIN) };
         c.send(ids::handshake::serverbound::INTENTION, &intention).await?;
@@ -89,6 +94,7 @@ impl Client {
             recipe_book: Vec::new(),
             message: None,
             chat_types: Vec::new(),
+            chat_state,
             loading: Loading::default(),
             reconfiguring: None,
         };
@@ -203,6 +209,7 @@ impl Client {
         }
         // A message we can't read is dropped rather than ending the connection.
         self.message = messages::read(id, body, &self.chat_types, self.world.player_id).ok().flatten();
+        self.apply_chat(id, body)?;
         self.world.apply(id, body)?;
         self.apply_riding(id, body)?;
         self.movement.apply(id, body, self.world.player_id)?;

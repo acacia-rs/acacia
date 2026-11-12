@@ -9,6 +9,7 @@ mod friend_world;
 mod friend_world_tests;
 mod http;
 mod java;
+mod java_key;
 mod jwks;
 mod live;
 #[cfg(test)]
@@ -24,6 +25,7 @@ mod xsapi;
 
 pub use account::Account;
 pub use java::{JAVA_RELYING_PARTY, JavaProfile};
+pub use java_key::JavaProfileKey;
 pub use cache::{CacheError, FileTokenCache, MemoryTokenCache, Stored, TokenCache, Versioned};
 pub use tokens::{CachedCredentials, CachedTokens};
 pub use client::AuthClient;

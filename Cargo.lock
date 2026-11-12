@@ -198,6 +198,7 @@ dependencies = [
  "md-5 0.10.6",
  "rsa",
  "sha1 0.10.7",
+ "sha2",
  "thiserror 2.0.21",
  "tokio",
 ]

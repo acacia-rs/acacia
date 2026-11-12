@@ -2,6 +2,7 @@
 //! packet ids are generated (`tools/gen_ids.mjs`).
 
 pub mod actions;
+pub mod chat;
 pub mod chunk;
 pub mod container;
 pub mod dialog;
