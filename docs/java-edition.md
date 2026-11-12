@@ -146,7 +146,11 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   never sees a passenger; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
   the player too and `isEntityCollidingWithAnythingNew` teleports it back when its push leads, 1-3 setbacks a run). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
-  Every drill server requires a resource pack, so each join also checks the pack answers.
+  Every drill server requires a resource pack, so each join also checks the pack answers. Setup waits out Grim's
+  silent setbacks (random negative teleport ids, no alert) after the far setup `/tp`. A real 26.3 client gets them
+  after every far tp (3-4 each, `tools/tp-trace.sh` in the bridge repo). Grim resyncs any move made while the
+  player's chunk is missing or the ping Grim sent after that chunk is unanswered, and vanilla keeps ticking there.
+  acacia's player waits for its chunk, so it gets fewer.
 - `tools/java-switch.sh <java_drill binary>`: the `switch` drill behind Velocity (`tools/java-proxy/velocity.toml`,
   jar at `~/java-truth/velocity/velocity.jar`) with two Paper + Grim backends; `/server b` reconfigures the client
   in play, and it must walk on b with 0 alerts on both and 0 setbacks.
