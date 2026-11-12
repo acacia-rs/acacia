@@ -1,19 +1,23 @@
-//! Shulker lids that shove the local player. Both tick after it, as vanilla's later entity and block entity ticks do: a
+//! Shulker lids that shove the local player or its vehicle. Both tick after it, as vanilla's later entity and block entity ticks do: a
 //! shulker's peek (`Shulker.onPeekAmountChange`, `MoverType.SHULKER`) and an opening shulker box
 //! (`ShulkerBoxBlockEntity.updateAnimation` and `moveCollidedEntities`, `MoverType.SHULKER_BOX`), whose lid is also a
 //! collision box (`ShulkerBoxBlock.getShape`).
 
 use std::collections::HashMap;
 
-use acacia_java_physics::{Aabb, Blocks};
+use acacia_java_physics::{Aabb, Blocks, shove};
 use acacia_java_proto::actions::BlockPos;
+use acacia_java_proto::entity_types::ENTITY_SHAPES;
 use acacia_java_proto::{Error, Wire, ids};
 use acacia_registry::value::Direction;
 use acacia_registry::{BlockTag, prop};
 
+use crate::driven::Driven;
+use crate::entity::Entity;
 use crate::join::Client;
 use crate::lid_shape::{opposite, physical_peek, progress_box, step};
-use crate::world::World;
+use crate::mount_data::short_name;
+use crate::world::{Mover, World};
 
 use ids::play::clientbound as from;
 
@@ -152,13 +156,55 @@ impl Client {
             pushes.push((sweep, [0, 1, 2].map(|a| (sweep.max[a] - sweep.min[a] + 0.01) * s[a])));
         }
         lids.retain(|_, l| l.animation != Animation::Closed);
-        if self.movement.riding.is_some() {
-            return;
-        }
         for (sweep, delta) in pushes {
-            if self.movement.player.bounding_box().intersects(&sweep) {
+            self.shove(&sweep, delta);
+        }
+    }
+
+    /// `Entity.move(SHULKER…)` on each entity in `sweep` whose move the client keeps: the player, and its vehicle.
+    /// A driven vehicle moves as simulated (and reports it); another moves where it shows, the seat following next
+    /// tick. A pushed passenger moves too, until `positionRider` seats it again.
+    fn shove(&mut self, sweep: &Aabb, delta: [f64; 3]) {
+        let player_hit = self.movement.player.bounding_box().intersects(sweep);
+        let Some(vehicle) = self.movement.riding.as_ref().map(|r| r.vehicle) else {
+            if player_hit {
                 self.movement.player.move_pushed(&self.world, delta);
             }
+            return;
+        };
+        let riders = self.world.entities.get(&vehicle).map_or(Vec::new(), |e| e.passengers.clone());
+        let skip = [&[vehicle][..], &riders].concat();
+        let mut solid = self.world.collision_boxes(Mover::Vehicle, &skip);
+        solid.extend(self.lids.boxes(&self.world));
+        match self.movement.riding.as_mut().and_then(|r| r.driven.as_mut()) {
+            Some(Driven::Boat(boat)) if boat.bounding_box().intersects(sweep) => boat.move_pushed(&self.world, delta),
+            Some(Driven::Mount(mount)) if mount.body.bounding_box().intersects(sweep) => mount.body.move_pushed(&self.world, delta),
+            Some(_) => {}
+            None => {
+                if let Some(e) = self.world.entities.get(&vehicle) {
+                    if let Some((w, h, _)) = e.dimensions().filter(|&(w, h, _)| Aabb::of_entity(e.position, w, h).intersects(sweep)) {
+                        let moved = shove(&self.world, e.position, (w, h), e.on_ground, step_height(e), &solid, delta);
+                        self.world.entities.entry(vehicle).and_modify(|e| e.position = moved);
+                    }
+                }
+            }
         }
+        if player_hit {
+            let feet = self.movement.player.pos[1];
+            let mut solid = self.world.collision_boxes(Mover::Player { feet }, &skip);
+            solid.extend(self.lids.boxes(&self.world));
+            self.movement.player.solid_entities = solid;
+            self.movement.player.move_pushed(&self.world, delta);
+        }
+    }
+}
+
+/// `maxUpStep` of an entity the client only shows: the step attribute's default for living ones.
+fn step_height(e: &Entity) -> f32 {
+    match short_name(e.kind) {
+        "camel" | "camel_husk" => 1.5,
+        "horse" | "donkey" | "mule" | "skeleton_horse" | "zombie_horse" | "llama" | "trader_llama" => 1.0,
+        _ if ENTITY_SHAPES.get(usize::try_from(e.kind).unwrap_or(usize::MAX)).is_some_and(|s| s.living) => 0.6,
+        _ => 0.0,
     }
 }

@@ -3,6 +3,7 @@
 //! `DRILL <name> setbacks <n> check <ok|reason>`; the runner adds Grim's alerts for the same window.
 //! `cargo run -p acacia-bot --features java --example java_drill -- <host> <port> <drill> [name]`
 mod attrs;
+mod back_seats;
 mod camel;
 mod crowd;
 mod drills;
@@ -11,6 +12,7 @@ mod lids;
 mod minecart;
 mod relight;
 mod riptide;
+mod seat_moves;
 mod seats;
 mod sizes;
 

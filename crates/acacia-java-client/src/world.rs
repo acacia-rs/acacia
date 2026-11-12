@@ -86,7 +86,9 @@ impl World {
     pub fn tick_entities(&mut self) {
         self.game_time += 1;
         for e in self.entities.values_mut() {
+            let from = e.position;
             e.lerp.interpolate(&mut e.position);
+            e.tick_seat_anim(from);
             e.shape.tick();
             e.motion = [0.0; 3];
         }

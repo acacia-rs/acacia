@@ -7,7 +7,7 @@ use acacia_registry::Item;
 use crate::entity::Entity;
 use crate::join::Client;
 use crate::mount_data::{MountData, Synced, short_name};
-use crate::seat::{first_seat, resize_mount};
+use crate::seat::{Place, resize_mount, seat};
 
 /// The rider's jump charge: `jumpRidingTicks` and `jumpRidingScale`.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -68,8 +68,9 @@ pub(crate) fn apply_attributes(mount: &mut Mount, data: &MountData) {
 
 fn new_mount(e: &Entity, game_time: i64) -> Option<Mount> {
     let (width, height, _) = e.dimensions()?;
-    let mut mount = Mount::new(short_name(e.kind), (width, height), first_seat(e, game_time)?, e.position, e.y_rot)?;
+    let mut mount = Mount::new(short_name(e.kind), (width, height), seat(e, Place::DRIVER, game_time)?, e.position, e.y_rot)?;
     resize_mount(&mut mount, e);
+    mount.anim = e.mount.anim;
     (mount.body.pitch, mount.body.delta, mount.game_time) = (e.x_rot, e.motion, game_time);
     apply_attributes(&mut mount, &e.mount);
     let synced = Synced { standing: Some(e.mount.standing), dashing: None, last_pose_change: Some(e.mount.last_pose_change), boost: e.mount.boost };

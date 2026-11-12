@@ -1,6 +1,7 @@
 //! What the client tracks about a rideable mob to drive it: saddle and harness, the synced data its ridden movement
 //! reads, and its movement attributes. Other entities' attribute syncs land here, the scale attribute included.
 
+use acacia_java_physics::SeatAnim;
 use acacia_java_physics::attributes::{Attribute, Operation, synced_value};
 use acacia_java_proto::entity_types::ENTITY_TYPES;
 use acacia_java_proto::item::ItemStack;
@@ -26,6 +27,8 @@ pub struct MountData {
     pub movement_speed: Option<f64>,
     pub jump_strength: Option<f64>,
     pub flying_speed: Option<f64>,
+    /// What the client animates of a seat: a horse's rear, a strider's walk.
+    pub anim: SeatAnim,
 }
 
 const SLOT_BODY: u8 = 6;

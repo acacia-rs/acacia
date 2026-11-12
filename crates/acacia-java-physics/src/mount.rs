@@ -8,17 +8,8 @@ use crate::collide::Blocks;
 use crate::fluid::fluid_at;
 use crate::lerp::Lerp;
 use crate::mount_body::MountBody;
-use crate::mth::{cos, sin, DEG_TO_RAD};
+use crate::mount_seat::SeatAnim;
 use crate::player::Player;
-
-/// A player's feet on a vehicle at `pos` turned to `yaw`, from the vehicle's passenger attachment `seat` and the
-/// player's own vehicle attachment height ([`Player::vehicle_attachment`]).
-pub fn seat_feet(pos: [f64; 3], seat: [f64; 3], yaw: f32, attachment: f64) -> [f64; 3] {
-    let radians = f64::from(-yaw * DEG_TO_RAD);
-    let (s, c) = (f64::from(sin(radians)), f64::from(cos(radians)));
-    let [x, y, z] = seat;
-    [pos[0] + x * c + z * s, pos[1] + y - attachment, pos[2] + z * c - x * s]
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MountKind {
@@ -60,6 +51,9 @@ pub struct Mount {
     pub flying_speed: f64,
     /// Where the rider's seat sits relative to the mount's feet, before turning by its yaw.
     pub seat: [f64; 3],
+    /// `getScale() * getAgeScale()`, which a rear's seat shift and a strider's bob scale with.
+    pub seat_scale: f32,
+    pub anim: SeatAnim,
     /// A horse rearing (flag 32, or set here by a rider's jump).
     pub standing: bool,
     pub stand_counter: i32,
@@ -113,6 +107,8 @@ impl Mount {
             jump_strength: jump,
             flying_speed: 0.05_f32 as f64,
             seat,
+            seat_scale: 1.0,
+            anim: SeatAnim::default(),
             standing: false,
             stand_counter: 0,
             boost: None,
@@ -128,12 +124,6 @@ impl Mount {
         })
     }
 
-    /// `positionRider`: the rider's feet on the turned seat.
-    // TODO: a rearing horse's stand animation and a strider's walk bob shift the seat; neither is modelled.
-    pub fn rider_feet(&self, attachment: f64) -> [f64; 3] {
-        seat_feet(self.body.pos, self.seat, self.body.yaw, attachment)
-    }
-
     /// The body's width and height (`refreshDimensions`): a camel's change with its pose.
     pub fn set_size(&mut self, (width, height): (f32, f32)) {
         let body = self.body.mount.as_mut().expect("a mount body");
@@ -147,6 +137,7 @@ impl Mount {
 
     /// One tick under `rider`, whose input is last tick's.
     pub fn tick(&mut self, world: &impl Blocks, rider: Rider) {
+        let from = self.body.pos;
         self.interpolate(world);
         if self.kind == MountKind::Strider {
             self.suffocating = !self.warm(world);
@@ -160,6 +151,9 @@ impl Mount {
         (body.speed, body.input) = (speed, input);
         self.travel(world);
         self.body.apply_block_effects(world);
+        if self.kind == MountKind::Strider {
+            self.anim.tick_walk(from, self.body.pos);
+        }
         self.after_tick(world);
     }
 
@@ -227,6 +221,9 @@ impl Mount {
                 }
                 if !self.standing {
                     self.allow_stand_sliding = false;
+                }
+                if self.kind != MountKind::Camel {
+                    self.anim.tick_stand(self.standing);
                 }
             }
             _ => {}

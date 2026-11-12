@@ -10,7 +10,7 @@ pub const NAMES: &[&str] = &["crowd_scaled"];
 const PEER: &str = "Peer";
 
 /// Both bots tick together: a bot only steps its physics while awaited.
-async fn both(d: &mut Drill, peer: &mut Drill, n: u32, forward: f32) -> Result<(), String> {
+pub async fn both(d: &mut Drill, peer: &mut Drill, n: u32, forward: f32) -> Result<(), String> {
     let (a, b) = tokio::join!(d.walk(n, forward, false, false), peer.walk(n, forward, false, false));
     a.and(b)
 }

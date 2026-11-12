@@ -9,12 +9,24 @@ use crate::fluid::FluidScan;
 use crate::input::Keys;
 use crate::lerp::Lerp;
 use crate::inside::Move;
+use crate::mount_seat::seat_feet;
 use crate::mth::{cos, length_sqr, sin, wrap_degrees, DEG_TO_RAD};
 use crate::support::{Support, LEGACY_ON_POS};
 
 pub const WIDTH: f32 = 1.375;
 pub const HEIGHT: f32 = 0.5625;
 const GRAVITY: f64 = 0.04;
+
+/// `rideHeight`: a raft seats its riders higher.
+pub fn ride_height(raft: bool) -> f64 {
+    f64::from(if raft { HEIGHT * 0.8888889 } else { HEIGHT / 3.0 })
+}
+
+/// `AbstractBoat.clampRotation`: a rider's yaw held within 105 degrees of the boat's.
+pub fn clamp_rider(yaw: f32, boat_yaw: f32) -> f32 {
+    let delta = wrap_degrees(yaw - boat_yaw);
+    yaw + delta.clamp(-105.0, 105.0) - delta
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BoatStatus {
@@ -39,6 +51,8 @@ pub struct Boat {
     pub status: BoatStatus,
     /// Bamboo rafts seat their rider higher.
     pub raft: bool,
+    /// The rider's seat forward of the centre (`getPassengerAttachmentPoint`'s offset): a chest boat's, or a pair's.
+    pub seat_z: f32,
     /// Boxes of nearby entities a vehicle can't pass: solid ones and pushable mobs (`canVehicleCollide`).
     pub solid_entities: Vec<Aabb>,
     pub(crate) old_status: BoatStatus,
@@ -66,18 +80,19 @@ impl Boat {
         Aabb::of_entity(self.pos, WIDTH, HEIGHT)
     }
 
-    /// Where `positionRider` puts a lone player's feet, given its vehicle attachment height.
+    /// Where `positionRider` puts the player's feet, given its vehicle attachment height.
     pub fn rider_feet(&self, attachment: f64) -> [f64; 3] {
-        let ride_height = if self.raft { HEIGHT * 0.8888889 } else { HEIGHT / 3.0 };
-        [self.pos[0], self.pos[1] + ride_height as f64 - attachment, self.pos[2]]
+        seat_feet(self.pos, [0.0, ride_height(self.raft), f64::from(self.seat_z)], self.yaw, attachment)
     }
 
     /// `AbstractBoat.clampRotation` after `positionRider` turned the rider with the boat: the rider's yaw.
     pub fn turn_rider(&self, yaw: f32) -> f32 {
-        let yaw = yaw + self.delta_rotation;
-        let delta = wrap_degrees(yaw - self.yaw);
-        let target = delta.clamp(-105.0, 105.0);
-        yaw + target - delta
+        clamp_rider(yaw + self.delta_rotation, self.yaw)
+    }
+
+    /// `Entity.move` for `MoverType.SHULKER` or `SHULKER_BOX`: a lid shoving the boat.
+    pub fn move_pushed(&mut self, world: &impl Blocks, delta: [f64; 3]) {
+        self.move_by(world, delta);
     }
 
     /// One tick driven with `keys` (the rider's keys of the previous tick); returns the paddles [left, right].
@@ -162,9 +177,12 @@ impl Boat {
         [keys.right && !keys.left || keys.forward, keys.left && !keys.right || keys.forward]
     }
 
-    /// `Entity.move` for `MoverType.SELF`, with the boat's `checkFallDamage`.
     fn move_self(&mut self, world: &impl Blocks) {
-        let mut delta = self.delta;
+        self.move_by(world, self.delta);
+    }
+
+    /// `Entity.move`, with the boat's `checkFallDamage`.
+    fn move_by(&mut self, world: &impl Blocks, mut delta: [f64; 3]) {
         if length_sqr(self.stuck) > 1.0E-7 {
             for axis in 0..3 {
                 delta[axis] *= self.stuck[axis];

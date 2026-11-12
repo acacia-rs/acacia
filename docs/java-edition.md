@@ -64,13 +64,20 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    (`interact/entity.rs`) all use that box. Lids push (`lids.rs`, `lid_shape.rs`): after the player's tick, as
    entities and then block entities tick, a shulker's peek and an opening shulker box (its `BlockEvent`) move the
    player `Entity.move(SHULKER)`-style (`move_pushed`: no edge back-off) when it's in the swept box; an open box
-   lid is also solid. A seat (`seat.rs`) sits the player at `getPassengerRidingPosition` less its own scaled 0.6
-   attachment; a camel's follows `getBodyAnchorAnimationYOffset` through sitting down and standing up, and a
-   driven camel's body takes its standing size on `standUp`. A camel's
+   lid is also solid. While riding, the lid moves the vehicle in its box (driven: as simulated, then reported;
+   otherwise where it shows, `acacia-java-physics` `shove`) and the pushed passenger until `positionRider` reseats
+   it. A shulker box can't open under a boat (`canOpen` counts solid entities). A seat (`seat.rs`, physics
+   `mount_seat.rs`) sits the player at `getPassengerRidingPosition` for its place among the riders the client
+   knows (boats 0.2 fore and 0.6 aft for two, chest boats 0.15; camels' back seat 0.7 aft on its own anchor curve;
+   happy ghasts' four), plus a rearing horse's `standAnimO` shift and a strider's walk bob, less its own scaled 0.6
+   attachment; a passenger's yaw is clamped to a boat's (`clampRotation`). A camel's front seat follows
+   `getBodyAnchorAnimationYOffset` through sitting down and standing up, and a
+   driven camel's body takes its standing size on `standUp`; `/data merge` of a negative `LastPoseTick` sits a
+   ridden camel down live (`readAdditionalSaveData`). A camel's
    rider sprints by `aiStep`'s rules with `vehicleCanSprint` for food, and the flag is sent only beside
    `MoveVehicle`; a camel never rears on a dash, and any synced dash item restarts an idle cooldown. Not modelled:
-   lids pushing a passenger or driven vehicle, the mount's own effects, a rearing horse's or bobbing strider's
-   seat, seats past the first. Every teleport goes through
+   the mount's own effects, an `Animal` passenger's seat shift, other `Vec3` seat attachments' double precision
+   (the table holds floats; only the happy ghast's are exact). Every teleport goes through
    `acacia-java-physics` `Placement::teleported`, `ROTATE_DELTA` included. Elytra flight too: a jump in the air
    with a usable elytra worn starts the glide (`START_FALL_FLYING`), and each firework rocket attached to the
    player (entity data 9) boosts the physics after the player's tick (example `java_elytra`: two boosts, ~930
@@ -142,8 +149,9 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat, crowd, ten `/attribute` courses
   in `attrs.rs`, riptide, riptide_short, rain_riptide, rain_roofed, rain_relit, minecart, the inside-block drills cobweb,
   berry_bush, cauldron, the size drills crowd_scaled, baby_push, slime_push and camel_dash, riptide_armor_stand,
-  sulfur_push, and the seat drills camel_sit and scaled_rider, checked against vanilla's seat geometry since Grim
-  never sees a passenger; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
+  sulfur_push, the seat drills camel_sit, scaled_rider, boat_pair, boat_back_seat, camel_back_seat (a `Peer` bot
+  drives), horse_rear and camel_sit_down, checked against vanilla's seat geometry since Grim never sees a
+  passenger, and the vehicle lid drills boat_shulker_push and horse_lid_push; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
   the player too and `isEntityCollidingWithAnythingNew` teleports it back when its push leads, 1-3 setbacks a run). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
   Every drill server requires a resource pack, so each join also checks the pack answers. Setup waits out Grim's

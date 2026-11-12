@@ -11,15 +11,15 @@ pub const NAMES: &[&str] = &["camel_sit", "scaled_rider"];
 
 const SETTLE_TICKS: u32 = 60;
 /// Feet within this of the expected seat.
-const SAME: f64 = 1e-4;
+pub const SAME: f64 = 1e-4;
 /// A rider's feet above an adult camel: sat, `0.945 - 0.375 + 0.2 - 0.6`; standing, `2.375 - 0.375 - 0.6`.
-const SAT: f64 = 0.17;
+pub const SAT: f64 = 0.17;
 const STOOD: f64 = 1.4;
 /// Above a boat for a half-size rider: `0.5625 / 3 - 0.6 * 0.5`.
 const SMALL_IN_BOAT: f64 = 0.1875 - 0.3;
 
 /// The feet above the driven vehicle's once the seat settles.
-async fn seat_height(d: &mut Drill) -> Result<f64, String> {
+pub async fn seat_height(d: &mut Drill) -> Result<f64, String> {
     d.ticks(SETTLE_TICKS).await?;
     let c = d.bot.java().map(|j| j.client()).ok_or("no java client")?;
     let vehicle = c.movement.riding.as_ref().and_then(|r| r.driven.as_ref()).ok_or("not driving")?;
@@ -39,7 +39,7 @@ async fn track_rise(d: &mut Drill, n: u32) -> Result<bool, String> {
     Ok(up > 0 && down == 0)
 }
 
-async fn board(d: &mut Drill, kind: &str) -> Result<(), String> {
+pub async fn board(d: &mut Drill, kind: &str) -> Result<(), String> {
     let types = &acacia_java_proto::entity_types::ENTITY_TYPES;
     let named = |k: i32| usize::try_from(k).ok().and_then(|k| types.get(k)).is_some_and(|n| n.ends_with(kind));
     let world = d.bot.java().map(|j| &j.client().world);
@@ -51,7 +51,7 @@ async fn board(d: &mut Drill, kind: &str) -> Result<(), String> {
     Ok(())
 }
 
-async fn get_off(d: &mut Drill) -> Result<bool, String> {
+pub async fn get_off(d: &mut Drill) -> Result<bool, String> {
     d.bot.dismount().await.map_err(|e| format!("dismount: {e}"))?;
     d.ticks(40).await?;
     Ok(d.bot.vehicle().is_none())
