@@ -76,7 +76,7 @@ pub(crate) fn seat(e: &Entity, place: Place, game_time: i64) -> Option<[f64; 3]>
     let seat = if name == "happy_ghast" {
         HAPPY_GHAST_SEATS[place.index.min(HAPPY_GHAST_SEATS.len() - 1)]
     } else {
-        ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?.seat.map(f64::from)
+        ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?.seat
     };
     Some(seat.map(|v| if scale == 1.0 { v } else { v * f64::from(scale) }))
 }

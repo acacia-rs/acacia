@@ -41,7 +41,7 @@ const out = [
   '    pub height: f32,',
   '    pub collision: EntityCollision,',
   '    pub living: bool,',
-  '    pub seat: [f32; 3],',
+  '    pub seat: [f64; 3],',
   '    pub baby: Option<(f32, f32, u8)>,',
   '}',
   '',
