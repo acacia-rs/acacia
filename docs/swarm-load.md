@@ -80,12 +80,15 @@ E-2136 without SHA-NI (instructions -1.6% / -3.0% in redstone / mobs, cycles +1%
 |---|---|---|---|---|---|
 | 50 standing | 50 | 8.8 | 26 G | 121 MB | 0 |
 | 50 wandering | 50 | 153 | 1.72 T | 164 MB | 28 |
+| 50 wandering, 2026-11-12 | 50 | 153 / 174 | 1.31 / 2.03 T | 166 MB | 0 / 0 |
 
 Standing Java bots cost ~2.4 MB and ~0.15% of a core each. Wandering is ~66x the CPU of standing, with pathfinding
-and physics for every bot (not yet profiled). The 28 alerts were small Simulation offsets (≤0.05) on 2 bots in 2
-bursts, most likely bots pushing each other in the crowd at spawn, where `push.rs` takes other players as
-pushers. A two-player push drill should settle that. Not compared with Bedrock: its runs above are relative A/B,
-and sapling isn't Paper.
+and physics for every bot (not yet profiled); instructions vary ~50% between identical runs. The 28 alerts were
+sprint offsets of 0.0294: Grim pings before `UpdateAttributes` and shared flags and applies them at the pong, and
+a bot that ticked between the ping and the packet was judged with the new sprint state. `java_step` now handles
+every queued packet before a tick (`Minecraft.runTick`'s order); two runs after it had 0 alerts. `GRIM_DEBUG=1`
+prints Grim's per-bot debug lines. All 50 wanderers land on one shard and tick at ~8.5 tps under this load.
+Not compared with Bedrock: its runs above are relative A/B, and sapling isn't Paper.
 
 ## Left, by owner
 

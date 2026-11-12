@@ -124,7 +124,8 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
 - Drills, after Bedrock's: `tools/java-drills.sh <java_drill binary> [drill...]` runs the `java_drill` example's
   scenarios on one Paper + Grim server, a fresh connection each. A drill sets itself up by op commands on its own
   strip and passes with 0 Grim alerts, 0 setbacks after setup and its own check (speed, slowness, jump_boost,
-  levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat). `DRILL_TRACE=1` prints the player
+  levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat, crowd, ten `/attribute` courses
+  in `attrs.rs`, riptide, riptide_short). `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
   Every drill server requires a resource pack, so each join also checks the pack answers.
 - `tools/java-switch.sh <java_drill binary>`: the `switch` drill behind Velocity (`tools/java-proxy/velocity.toml`,
@@ -145,7 +146,13 @@ Not done: `Transfer` (reconnecting elsewhere with the cookies).
 
 - Health, food and mob effects come from `SetHealth` / `UpdateMobEffect` / `RemoveMobEffect` into the physics
   (`acacia-java-client` `status.rs`): sprinting needs food > 6, FAST_LAVA is the Nether's, leather boots walk on
-  powder snow. Remote mobs push the player after its tick, as `pushEntities` does client-side (`push.rs`).
+  powder snow. Remote mobs push the player after its tick, as `pushEntities` does client-side (`push.rs`), filtered
+  by team collision rules (`teams.rs`); the tab list is `players.rs`.
+- Attributes: `UpdateAttributes` replaces each attribute's base and modifiers (`acacia-java-physics`
+  `attributes.rs`), summed in fastutil's hash order (`open_map.rs`) so float results match. Sprint is the
+  attribute modifier, as vanilla's `setSprinting`, and the server's shared flags overwrite it.
+- Riptide: a trident with the enchantment held 10+ ticks in water launches on release (`riptide.rs` in client and
+  physics), then spins until it hits a living entity or a wall. Rain doesn't count yet.
 - Death: health 0 is `BotEvent::Died` (`PlayerCombatKill`'s text a chat event); `ClientCommand` 0 respawns (auto-respawn after the death screen).
   `Respawn` rebuilds the player, keeping what its `dataToKeep` byte says, and a new level only on a dimension change.
 - Chat: system, player (signed), disguised and action bar messages decode to `BotEvent::Chat` (`messages.rs`), with
