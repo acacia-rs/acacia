@@ -34,13 +34,23 @@ impl Drill {
         self.ticks(SETTLE_TICKS).await
     }
 
+    /// A failed wait, with the connection's close reason when it closed.
+    fn why(&self, e: impl std::fmt::Display) -> String {
+        match self.bot.disconnect_reason() {
+            Some(reason) => format!("{e}: {reason:?}"),
+            None => e.to_string(),
+        }
+    }
+
     /// `DRILL_TRACE=1` prints the player after every tick.
     pub async fn ticks(&mut self, n: u32) -> Result<(), String> {
         if std::env::var_os("DRILL_TRACE").is_none() {
-            return self.bot.wait_ticks(n).await.map_err(|e| e.to_string());
+            let waited = self.bot.wait_ticks(n).await;
+            return waited.map_err(|e| self.why(e));
         }
         for _ in 0..n {
-            self.bot.wait_ticks(1).await.map_err(|e| e.to_string())?;
+            let waited = self.bot.wait_ticks(1).await;
+            waited.map_err(|e| self.why(e))?;
             if let Some(j) = self.bot.java() {
                 let p = &j.client().movement.player;
                 let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
