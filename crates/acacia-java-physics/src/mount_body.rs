@@ -31,6 +31,11 @@ impl Player {
         self.mount.map_or_else(|| self.attribute(Attribute::StepHeight) as f32, |m| m.step)
     }
 
+    /// `getVehicleAttachmentPoint`'s height: `Avatar.DEFAULT_VEHICLE_ATTACHMENT` scaled with the player.
+    pub fn vehicle_attachment(&self) -> f64 {
+        0.6 * f64::from(self.scale())
+    }
+
     /// Mobs' default eye height; it only decides the 0.4 fluid jump threshold and eye-in-fluid flags.
     pub(crate) fn eye_height(&self) -> f32 {
         self.mount.map_or_else(|| self.pose.eye_height() * self.scale(), |m| m.height * 0.85)

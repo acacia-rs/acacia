@@ -12,6 +12,7 @@ use crate::join::Client;
 use crate::mount_data::{Synced, short_name};
 use crate::mount_drive::{JumpBar, apply_attributes, apply_synced};
 use crate::movement::placement;
+use crate::seat::{reseat_mount, resize_mount};
 use crate::world::Mover;
 
 use ids::play::{clientbound as from, serverbound as to};
@@ -154,6 +155,7 @@ impl Client {
     /// carries the rider and is reported at once.
     fn vehicle_teleported(&mut self, input: &mut &[u8]) -> Result<(), Error> {
         let id = read_varint(input)?;
+        let attachment = self.movement.player.vehicle_attachment();
         let Some(driven) = self.driven_mut(id) else { return Ok(()) };
         let change = placement(&PositionMoveRotation::read(input)?);
         let (now, y_rot, x_rot) = driven.pose();
@@ -168,7 +170,7 @@ impl Client {
         }
         driven.set_on_ground(bool::read(input)?);
         if snap {
-            let (echo, feet) = (driven.vehicle_move(), driven.rider_feet());
+            let (echo, feet) = (driven.vehicle_move(), driven.rider_feet(attachment));
             self.movement.player.pos = feet;
             self.send(to::MOVE_VEHICLE, &echo)?;
         }
@@ -195,15 +197,21 @@ impl Client {
             Some(Driven::Mount(mount)) => {
                 mount.body.solid_entities = solid;
                 mount.game_time = self.world.game_time;
+                if let Some(e) = self.world.entities.get(&vehicle) {
+                    resize_mount(mount, e);
+                }
                 mount.tick(&self.world, riding.rider);
             }
             None => {}
         }
-        if let Some(driven) = &riding.driven {
+        if let Some(driven) = &mut riding.driven {
             if let Some(e) = self.world.entities.get_mut(&vehicle) {
                 ((e.position, e.y_rot, e.x_rot), e.on_ground) = (driven.pose(), driven.on_ground());
+                if let Some(mount) = driven.mount_mut() {
+                    reseat_mount(mount, e);
+                }
             }
-            player.pos = driven.rider_feet();
+            player.pos = driven.rider_feet(player.vehicle_attachment());
             if let Some(boat) = driven.boat() {
                 player.yaw = boat.turn_rider(player.yaw);
             }

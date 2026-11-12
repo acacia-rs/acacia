@@ -51,10 +51,27 @@ fn a_shulker_grows_out_of_its_attach_face() {
     // Attached to the west face, opened fully: the lid grows east.
     shulker.read_body_data(&[16, 12, 4, 17, 0, 100, 0xff]).unwrap();
     for _ in 0..20 {
-        shulker.shape.tick();
+        assert!(shulker.shape.update_peek());
     }
+    assert!(!shulker.shape.update_peek());
     assert_eq!(shulker.shape.peek.current, 1.0);
     let bb = shulker.bounding_box().unwrap();
     assert_eq!((bb.min[0], bb.max[1]), (-0.5, 1.0));
     assert!((bb.max[0] - 1.5).abs() < 1e-6, "{bb:?}");
+}
+
+#[test]
+fn a_sulfur_cube_is_sized_like_a_slime() {
+    let mut cube = entity("minecraft:sulfur_cube");
+    let one = cube.dimensions().map(|d| d.0).unwrap();
+    cube.read_body_data(&[0x12, 0x01, 0x03, 0xff]).unwrap();
+    assert_eq!(cube.dimensions().map(|d| d.0), Some(one * 3.0));
+}
+
+#[test]
+fn a_sitting_camel_has_a_standing_size_to_rise_to() {
+    let mut camel = entity("minecraft:camel");
+    camel.pose = POSE_SITTING;
+    assert_eq!(camel.dimensions().map(|d| d.1), Some(2.375 - 1.43));
+    assert_eq!(camel.dimensions_in(POSE_STANDING).map(|d| d.1), Some(2.375));
 }

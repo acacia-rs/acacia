@@ -141,8 +141,10 @@ impl Mount {
                     self.jump_pending = 0.0;
                 }
                 let settled = self.game_time - self.last_pose_change.abs() >= 40;
+                // `standUp`: the pose change refreshes the size before this tick's move.
                 if self.kind == MountKind::Camel && rider.zza > 0.0 && self.last_pose_change < 0 && settled {
                     self.last_pose_change = self.game_time;
+                    self.set_size(self.standing_size);
                 }
             }
         }

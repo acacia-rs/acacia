@@ -11,15 +11,13 @@ use crate::mount_body::MountBody;
 use crate::mth::{cos, sin, DEG_TO_RAD};
 use crate::player::Player;
 
-/// `Avatar.DEFAULT_VEHICLE_ATTACHMENT`.
-const PLAYER_ATTACHMENT: f64 = 0.6;
-
-/// A player's feet on a vehicle at `pos` turned to `yaw`, from the vehicle's passenger attachment `seat`.
-pub fn seat_feet(pos: [f64; 3], seat: [f64; 3], yaw: f32) -> [f64; 3] {
+/// A player's feet on a vehicle at `pos` turned to `yaw`, from the vehicle's passenger attachment `seat` and the
+/// player's own vehicle attachment height ([`Player::vehicle_attachment`]).
+pub fn seat_feet(pos: [f64; 3], seat: [f64; 3], yaw: f32, attachment: f64) -> [f64; 3] {
     let radians = f64::from(-yaw * DEG_TO_RAD);
     let (s, c) = (f64::from(sin(radians)), f64::from(cos(radians)));
     let [x, y, z] = seat;
-    [pos[0] + x * c + z * s, pos[1] + y - PLAYER_ATTACHMENT, pos[2] + z * c - x * s]
+    [pos[0] + x * c + z * s, pos[1] + y - attachment, pos[2] + z * c - x * s]
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,6 +68,8 @@ pub struct Mount {
     pub dashing: bool,
     /// A camel's `LAST_POSE_CHANGE_TICK` (negative while sitting) and the client's game time.
     pub last_pose_change: i64,
+    /// The size the body takes when the rider stands a sitting camel up.
+    pub standing_size: (f32, f32),
     pub game_time: i64,
     pub(crate) jump_pending: f32,
     pub(crate) allow_stand_sliding: bool,
@@ -119,6 +119,7 @@ impl Mount {
             dash_cooldown: 0,
             dashing: false,
             last_pose_change: 0,
+            standing_size: size,
             game_time: 0,
             jump_pending: 0.0,
             allow_stand_sliding: false,
@@ -129,8 +130,14 @@ impl Mount {
 
     /// `positionRider`: the rider's feet on the turned seat.
     // TODO: a rearing horse's stand animation and a strider's walk bob shift the seat; neither is modelled.
-    pub fn rider_feet(&self) -> [f64; 3] {
-        seat_feet(self.body.pos, self.seat, self.body.yaw)
+    pub fn rider_feet(&self, attachment: f64) -> [f64; 3] {
+        seat_feet(self.body.pos, self.seat, self.body.yaw, attachment)
+    }
+
+    /// The body's width and height (`refreshDimensions`): a camel's change with its pose.
+    pub fn set_size(&mut self, (width, height): (f32, f32)) {
+        let body = self.body.mount.as_mut().expect("a mount body");
+        (body.width, body.height) = (width, height);
     }
 
     pub fn interpolate_to(&mut self, pos: [f64; 3], yaw: f32, pitch: f32) {

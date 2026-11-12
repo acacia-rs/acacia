@@ -15,8 +15,6 @@ use crate::support::{Support, LEGACY_ON_POS};
 pub const WIDTH: f32 = 1.375;
 pub const HEIGHT: f32 = 0.5625;
 const GRAVITY: f64 = 0.04;
-/// `Avatar.DEFAULT_VEHICLE_ATTACHMENT`: a player's seat is this far above its feet.
-const PLAYER_ATTACHMENT: f64 = 0.6;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BoatStatus {
@@ -68,10 +66,10 @@ impl Boat {
         Aabb::of_entity(self.pos, WIDTH, HEIGHT)
     }
 
-    /// Where `positionRider` puts a lone player's feet.
-    pub fn rider_feet(&self) -> [f64; 3] {
+    /// Where `positionRider` puts a lone player's feet, given its vehicle attachment height.
+    pub fn rider_feet(&self, attachment: f64) -> [f64; 3] {
         let ride_height = if self.raft { HEIGHT * 0.8888889 } else { HEIGHT / 3.0 };
-        [self.pos[0], self.pos[1] + ride_height as f64 - PLAYER_ATTACHMENT, self.pos[2]]
+        [self.pos[0], self.pos[1] + ride_height as f64 - attachment, self.pos[2]]
     }
 
     /// `AbstractBoat.clampRotation` after `positionRider` turned the rider with the boat: the rider's yaw.

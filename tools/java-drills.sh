@@ -1,12 +1,13 @@
 #!/bin/bash
 # Runs java_drill scenarios on one Paper + Grim server, one connection each; a drill passes with 0 Grim alerts,
 # 0 setbacks and its own checks ok. tools/java-drills.sh <java_drill binary> [drill...]  (default: all but switch,
-# which tools/java-switch.sh runs). Takes the shared heavy lock. Exit 1 if any drill fails.
+# which tools/java-switch.sh runs, and the opt-in powder_snow_fall, shulker_push and shulker_box_push; see
+# docs/java-edition.md). Takes the shared heavy lock. Exit 1 if any drill fails.
 # Each drill's output lands in ~/java-truth/grim/drills/<n>-<drill>.log (DRILL_TRACE=1: the player every tick).
 . "$(dirname "$0")/java-paper.sh"
 BIN=$1
 shift
-DRILLS=${*:-speed slowness jump_boost levitation slow_falling hunger powder_snow nether_lava push death chat crowd gravity jump_strength step_height scale_small scale_big sneaking_speed movement_efficiency friction air_drag sprint_taps riptide riptide_short rain_riptide rain_roofed minecart cobweb berry_bush cauldron crowd_scaled baby_push slime_push camel_dash}
+DRILLS=${*:-speed slowness jump_boost levitation slow_falling hunger powder_snow nether_lava push death chat crowd gravity jump_strength step_height scale_small scale_big sneaking_speed movement_efficiency friction air_drag sprint_taps riptide riptide_short rain_riptide rain_roofed minecart cobweb berry_bush cauldron crowd_scaled baby_push slime_push camel_dash riptide_armor_stand sulfur_push camel_sit scaled_rider}
 NAME=Driller
 R=$G/drills
 LOG=$R/out.log
@@ -15,6 +16,7 @@ flock 9
 paper_start "$R" 25599
 server=$PAPER_PID
 echo 'forceload add 0 -16 1280 16' >&$PAPER_FD
+echo 'forceload add 1296 -16 1600 16' >&$PAPER_FD
 echo "op $NAME" >&$PAPER_FD
 echo 'gamerule doImmediateRespawn false' >&$PAPER_FD
 failed=0

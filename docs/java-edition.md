@@ -56,16 +56,21 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    nudges a still cart, `getLastClientMoveIntent`) and `MovePlayerRot`, never `MoveVehicle`; drill `minecart`
    (powered run, a hill, a halt, dismount) 0 alerts, 0 setbacks. The dismount's exit teleport isn't a setback. Other
    entities are sized as `getDimensions` and `makeBoundingBox` do (`acacia-java-client` `entity_size.rs`): pose,
-   baby (the dump's `BABY_DIMENSIONS` or age scale; camels' own), the scale attribute from `UpdateAttributes` with
-   each type's `sanitizeScale`, and the shapes that change a box: slime/magma cube size, pufferfish puff, salmon
-   variant, phantom size, goat long jump, sitting camel, digging warden and sniffer, and a shulker's lid animated
-   client-side (peek eased 0.05 a tick, the box grown out of its attach face). Pushes, vehicle collisions, riptide
-   hits, mount bodies and seats, and the bot's attack reach (`interact/entity.rs`) all use that box. A camel's
+   baby (the dump's `BABY_DIMENSIONS`, or camels' `BABY_STANDING_DIMENSIONS`, or age scale), the scale attribute
+   from `UpdateAttributes` with each type's `sanitizeScale`, and the shapes that change a box: slime/magma/sulfur
+   cube size, pufferfish puff, salmon variant, phantom size, goat long jump, sitting camel, digging warden and
+   sniffer, and a shulker's lid animated client-side (peek eased 0.05 a tick, the box grown out of its attach
+   face). Pushes, vehicle collisions, riptide hits, mount bodies and seats, and the bot's attack reach
+   (`interact/entity.rs`) all use that box. Lids push (`lids.rs`, `lid_shape.rs`): after the player's tick, as
+   entities and then block entities tick, a shulker's peek and an opening shulker box (its `BlockEvent`) move the
+   player `Entity.move(SHULKER)`-style (`move_pushed`: no edge back-off) when it's in the swept box; an open box
+   lid is also solid. A seat (`seat.rs`) sits the player at `getPassengerRidingPosition` less its own scaled 0.6
+   attachment; a camel's follows `getBodyAnchorAnimationYOffset` through sitting down and standing up, and a
+   driven camel's body takes its standing size on `standUp`. A camel's
    rider sprints by `aiStep`'s rules with `vehicleCanSprint` for food, and the flag is sent only beside
    `MoveVehicle`; a camel never rears on a dash, and any synced dash item restarts an idle cooldown. Not modelled:
-   a shulker's lid pushing the player (`MoverType.SHULKER`), a camel's seat while sitting down or standing up,
-   the local player's scale in a seat, the mount's own effects, a rearing horse's or bobbing strider's seat,
-   seats past the first. Every teleport goes through
+   lids pushing a passenger or driven vehicle, the mount's own effects, a rearing horse's or bobbing strider's
+   seat, seats past the first. Every teleport goes through
    `acacia-java-physics` `Placement::teleported`, `ROTATE_DELTA` included. Elytra flight too: a jump in the air
    with a usable elytra worn starts the glide (`START_FALL_FLYING`), and each firework rocket attached to the
    player (entity data 9) boosts the physics after the player's tick (example `java_elytra`: two boosts, ~930
@@ -136,8 +141,10 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   strip and passes with 0 Grim alerts, 0 setbacks after setup and its own check (speed, slowness, jump_boost,
   levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat, crowd, ten `/attribute` courses
   in `attrs.rs`, riptide, riptide_short, rain_riptide, rain_roofed, minecart, the inside-block drills cobweb,
-  berry_bush, cauldron, and the size drills crowd_scaled, baby_push, slime_push and camel_dash; powder_snow_fall
-  runs only by name). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
+  berry_bush, cauldron, the size drills crowd_scaled, baby_push, slime_push and camel_dash, riptide_armor_stand,
+  sulfur_push, and the seat drills camel_sit and scaled_rider, checked against vanilla's seat geometry since Grim
+  never sees a passenger; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
+  the player too and `isEntityCollidingWithAnythingNew` teleports it back when its push leads, 1-3 setbacks a run). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
   Every drill server requires a resource pack, so each join also checks the pack answers.
 - `tools/java-switch.sh <java_drill binary>`: the `switch` drill behind Velocity (`tools/java-proxy/velocity.toml`,
@@ -164,7 +171,7 @@ Not done: `Transfer` (reconnecting elsewhere with the cookies).
   `attributes.rs`), summed in fastutil's hash order (`open_map.rs`) so float results match. Sprint is the
   attribute modifier, as vanilla's `setSprinting`, and the server's shared flags overwrite it.
 - Riptide: a trident with the enchantment held 10+ ticks in water or rain launches on release (`riptide.rs` in client
-  and physics), then spins until it hits a living entity or a wall. Rain is `Level.isRainingAt` (`rain.rs`): the
+  and physics), then spins until it hits a living entity (the generated table's `living` column) or a wall. Rain is `Level.isRainingAt` (`rain.rs`): the
   rain level from `GameEvent`, sky light 15 from the server's light data (`sky_light.rs`; the client doesn't relight
   after block changes), the MOTION_BLOCKING heightmap scanned from the blocks, and the biome's precipitation through
   `BiomeManager`'s zoom (`biomes.rs`; climates from acacia-registry `climate`, or the server's biome data).

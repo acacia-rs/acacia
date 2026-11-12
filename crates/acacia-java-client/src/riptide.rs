@@ -1,7 +1,7 @@
 //! Riptide on the client: how long the held item has been in use, and the release that launches the player.
 
 use acacia_java_physics::Nearby;
-use acacia_java_proto::entity_types::EntityCollision;
+use acacia_java_proto::entity_types::ENTITY_SHAPES;
 
 use crate::join::Client;
 
@@ -54,8 +54,7 @@ impl Client {
                 .iter()
                 .filter(|(id, _)| **id != me)
                 .filter_map(|(_, e)| {
-                    let (_, _, collision) = e.dimensions()?;
-                    let living = collision == EntityCollision::Pushable && !e.type_name().contains("minecart");
+                    let living = ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?.living;
                     Some(Nearby { bounds: e.bounding_box()?, living })
                 })
                 .collect()

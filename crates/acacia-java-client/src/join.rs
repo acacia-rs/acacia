@@ -13,6 +13,7 @@ use crate::chat::ChatState;
 use crate::configuration::{Cookies, Registries};
 use crate::frame::{Connection, Error};
 use crate::inventory::Inventory;
+use crate::lids::Lids;
 use crate::link::{Link, Packet, Received};
 use crate::loading::Loading;
 use crate::login::{Session, configure, login};
@@ -46,6 +47,7 @@ pub struct Client {
     pub players: Players,
     pub teams: Teams,
     pub(crate) charge: Charge,
+    pub(crate) lids: Lids,
     /// The stonecutter's recipes in the server's order (its button order), from the last `UpdateRecipes`.
     pub stonecutter: Vec<StonecutterRecipe>,
     /// The open dialog; a new one replaces it and `ClearDialog` closes it. A registry dialog configuration sent
@@ -97,6 +99,7 @@ impl Client {
             players: Players::default(),
             teams: Teams::default(),
             charge: Charge::default(),
+            lids: Lids::default(),
             stonecutter: Vec::new(),
             dialog: None,
             dialogs: Vec::new(),
@@ -221,6 +224,7 @@ impl Client {
         self.message = messages::read(id, body, &self.chat_types, self.world.player_id).ok().flatten();
         self.apply_chat(id, body)?;
         self.world.apply(id, body)?;
+        self.lids.apply(&self.world, id, body)?;
         self.apply_riding(id, body)?;
         self.movement.apply(id, body, self.world.player_id)?;
         self.movement.apply_status(id, body, self.world.player_id)?;

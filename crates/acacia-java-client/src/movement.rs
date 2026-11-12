@@ -191,6 +191,7 @@ impl Client {
         } else {
             let feet = self.movement.player.pos[1];
             self.movement.player.solid_entities = self.world.collision_boxes(Mover::Player { feet }, &[]);
+            self.movement.player.solid_entities.extend(self.lids.boxes(&self.world));
             self.spin_targets();
             self.movement.player.tick(&self.world, keys);
             self.push_player();
@@ -200,6 +201,7 @@ impl Client {
                 self.movement.player.firework_boost();
             }
         }
+        self.move_lids();
         self.tick_charge();
         let player = &self.movement.player;
         self.pose.position = player.pos;

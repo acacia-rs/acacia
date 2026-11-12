@@ -1,4 +1,4 @@
-// Dumps each 26.3 entity type's default size and how vehicles collide with it, by registry id, for
+// Dumps each 26.3 entity type's default size, how vehicles collide with it and whether it is a LivingEntity, by registry id, for
 // gen_entity_types.mjs. Run: java -cp <26.3 server-game.jar + its libraries> EntityDump.java <out.json>
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
@@ -34,7 +34,7 @@ public class EntityDump {
 
     // `getAgeScale` overrides in 26.3; every other baby is half size.
     static final Map<String, Float> AGE_SCALES = Map.of(
-        "Dolphin", 0.65F, "HappyGhast", 0.2375F, "Goat", 0.55F, "Armadillo", 0.6F, "Turtle", 0.3F, "Camel", 0.6F);
+        "Dolphin", 0.65F, "HappyGhast", 0.2375F, "Goat", 0.55F, "Armadillo", 0.6F, "Turtle", 0.3F);
 
     static Object staticField(Class<?> c, String name) throws Exception {
         for (; c != Object.class; c = c.getSuperclass()) {
@@ -49,11 +49,17 @@ public class EntityDump {
         return null;
     }
 
+    // A standing baby's own size: most name it BABY_DIMENSIONS, camels BABY_STANDING_DIMENSIONS.
+    static Object babyDimensions(Class<?> c) throws Exception {
+        Object d = staticField(c, "BABY_DIMENSIONS");
+        return d != null ? d : staticField(c, "BABY_STANDING_DIMENSIONS");
+    }
+
     // `,"baby":[w,h],"babyData":id` for types with a synced baby flag.
     static String baby(Class<?> c, EntityType<?> t) throws Exception {
         if (!(staticField(c, "DATA_BABY_ID") instanceof EntityDataAccessor<?> flag)) return "";
         float w, h;
-        if (staticField(c, "BABY_DIMENSIONS") instanceof EntityDimensions d) {
+        if (babyDimensions(c) instanceof EntityDimensions d) {
             w = d.width();
             h = d.height();
         } else {
@@ -91,6 +97,7 @@ public class EntityDump {
                 .append(",\"width\":").append(t.getWidth())
                 .append(",\"height\":").append(t.getHeight())
                 .append(",\"collision\":\"").append(collision(c)).append("\"")
+                .append(",\"living\":").append(LivingEntity.class.isAssignableFrom(c))
                 .append(",\"seat\":").append(seat(t))
                 .append(baby(c, t)).append("}");
         }

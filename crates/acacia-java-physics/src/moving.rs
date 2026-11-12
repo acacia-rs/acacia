@@ -126,7 +126,17 @@ impl Player {
     }
 
     /// `Entity.move` for `MoverType.SELF`.
-    pub(crate) fn move_by(&mut self, world: &impl Blocks, mut delta: [f64; 3]) {
+    pub(crate) fn move_by(&mut self, world: &impl Blocks, delta: [f64; 3]) {
+        self.move_as(world, delta, true);
+    }
+
+    /// `Entity.move` for `MoverType.SHULKER` or `SHULKER_BOX`: an opening lid shoving the player, which no sneak
+    /// holds back at an edge.
+    pub fn move_pushed(&mut self, world: &impl Blocks, delta: [f64; 3]) {
+        self.move_as(world, delta, false);
+    }
+
+    fn move_as(&mut self, world: &impl Blocks, mut delta: [f64; 3], by_self: bool) {
         if length_sqr(self.stuck) > 1.0E-7 {
             for axis in 0..3 {
                 delta[axis] *= self.stuck[axis];
@@ -134,7 +144,7 @@ impl Player {
             self.stuck = [0.0; 3];
             self.delta = [0.0; 3];
         }
-        let delta = self.back_off_from_edge(world, delta);
+        let delta = if by_self { self.back_off_from_edge(world, delta) } else { delta };
         let movement = self.colliders(world).collide(self.bounding_box(), delta, self.on_ground, self.step_height());
         let moved = length_sqr(movement);
         if moved > 1.0E-7 || length_sqr(delta) - moved < 1.0E-7 {

@@ -38,7 +38,8 @@ pub fn check(ok: bool, what: impl FnOnce() -> String) -> Result<(), String> {
 pub async fn run(name: &str, d: &mut Drill) -> Outcome {
     let all = || {
         let sizes = crate::crowd::NAMES.iter().chain(crate::sizes::NAMES).chain(crate::camel::NAMES);
-        NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES).chain(crate::inside::NAMES).chain(sizes)
+        let late = crate::lids::NAMES.iter().chain(crate::seats::NAMES);
+        NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES).chain(crate::inside::NAMES).chain(sizes).chain(late)
     };
     let index = all().position(|n| *n == name).ok_or(format!("no drill {name}; drills: {}", all().copied().collect::<Vec<_>>().join(" ")))?;
     let x = 64 + 32 * index as i32;
@@ -160,6 +161,8 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
         "camel_dash" => crate::camel::run(d, x).await,
         n if crate::riptide::NAMES.contains(&n) => crate::riptide::run(n, d, x).await,
         "minecart" => crate::minecart::run(d, x).await,
+        n if crate::lids::NAMES.contains(&n) => crate::lids::run(n, d, x).await,
+        n if crate::seats::NAMES.contains(&n) => crate::seats::run(n, d, x).await,
         n if crate::inside::NAMES.contains(&n) => crate::inside::run(n, d, x).await,
         n => crate::attrs::run(n, d, x).await,
     }

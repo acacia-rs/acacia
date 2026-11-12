@@ -7,8 +7,10 @@ mod camel;
 mod crowd;
 mod drills;
 mod inside;
+mod lids;
 mod minecart;
 mod riptide;
+mod seats;
 mod sizes;
 
 use std::sync::{Arc, Mutex};

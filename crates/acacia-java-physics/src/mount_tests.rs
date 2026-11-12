@@ -114,7 +114,7 @@ fn a_rider_sprints_only_on_a_vehicle_that_can() {
 fn the_ghast_seats_its_driver_in_front() {
     let mut ghast = Mount::new("happy_ghast", (4.0, 4.0), [0.0, 4.0, 1.7], [0.0; 3], 0.0).unwrap();
     ghast.body.yaw = 90.0;
-    let feet = ghast.rider_feet();
+    let feet = ghast.rider_feet(0.6);
     assert!((feet[0] + 1.7).abs() < 1.0E-4 && feet[2].abs() < 1.0E-4, "{feet:?}");
     assert!((feet[1] - 3.4).abs() < 1.0E-9);
 }

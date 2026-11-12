@@ -1,12 +1,13 @@
 //! Riptide drills, holding a Riptide III trident looking up and east, then releasing: `riptide` holds 15 ticks in a
 //! walled pool and must fly clear of the water; `riptide_short` lets go after 5 ticks, which must do nothing.
 //! `rain_riptide` launches on dry plains in the rain; `rain_roofed` stands under glass in the rain, where the
-//! heightmap and sky light say it's dry, and must not launch.
+//! heightmap and sky light say it's dry, and must not launch. `riptide_armor_stand` launches from the pool into
+//! armour stands, which are living: the spin bounces back off them, so the player drifts back west.
 
 use crate::drills::{check, start, Outcome};
 use crate::{Drill, FLOOR};
 
-pub const NAMES: &[&str] = &["riptide", "riptide_short", "rain_riptide", "rain_roofed"];
+pub const NAMES: &[&str] = &["riptide", "riptide_short", "rain_riptide", "rain_roofed", "riptide_armor_stand"];
 
 /// `/weather rain` ramps the level 0.01 a tick; it rains above 0.2.
 const RAIN_WAIT_TICKS: u32 = 200;
@@ -15,11 +16,17 @@ const RAIN_WAIT_TICKS: u32 = 200;
 fn course(name: &str, x: i32) -> (Vec<String>, Option<String>) {
     let surface = FLOOR + 1;
     let (mut setup, clear) = match name {
-        "riptide" | "riptide_short" => {
-            let pool = vec![
+        "riptide" | "riptide_short" | "riptide_armor_stand" => {
+            let mut pool = vec![
                 format!("fill {} {} -3 {} {surface} 3 glass", x - 2, FLOOR - 2, x + 4),
                 format!("fill {} {} -2 {} {surface} 2 water", x - 1, FLOOR - 2, x + 3),
             ];
+            if name == "riptide_armor_stand" {
+                // A column of floating stands across the launch: armour stands are living, so the spin bounces off.
+                for dy in [1, 3, 5] {
+                    pool.push(format!("summon armor_stand {}.5 {} 0.5 {{NoGravity:1b,Invulnerable:1b}}", x + 2, surface + dy));
+                }
+            }
             (pool, Some(format!("fill {} {} -3 {} {surface} 3 air", x - 2, FLOOR - 2, x + 4)))
         }
         "rain_roofed" => {
@@ -66,10 +73,12 @@ pub async fn run(name: &str, d: &mut Drill, x: i32) -> Outcome {
         let f = d.feet();
         (top, far) = (top.max(f[1]), far.max(f[0]));
     }
-    let (rise, run) = (top - start_at[1], far - start_at[0]);
-    let flew = || format!("rose {rise:.2}, ran {run:.2}, raining {rain}, in rain {in_rain}");
+    let (rise, run, back) = (top - start_at[1], far - start_at[0], far - d.feet()[0]);
+    let flew = || format!("rose {rise:.2}, ran {run:.2}, back {back:.2}, raining {rain}, in rain {in_rain}");
     let result = match name {
         "riptide" | "rain_riptide" => check(rise > 3.0 && run > 3.0, flew),
+        // Only the bounce's reversed delta carries the player back west; the peak tick itself may go unsampled.
+        "riptide_armor_stand" => check(back > 1.0 && run < 3.0, flew),
         _ => check(rise < 1.0 && run < 1.0, flew),
     };
     if name.starts_with("rain") {

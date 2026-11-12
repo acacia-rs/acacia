@@ -1,13 +1,13 @@
 //! Driving a mount: whether the player controls it (`getControllingPassenger`), the mount built from what the client
 //! tracks, synced data handed to it as `onSyncedDataUpdated` does, and the rider's jump bar (`LocalPlayer.aiStep`).
 
-use acacia_java_physics::{Boost, Mount, MountKind, seat_feet};
-use acacia_java_proto::entity_types::ENTITY_SHAPES;
+use acacia_java_physics::{Boost, Mount, MountKind};
 use acacia_registry::Item;
 
 use crate::entity::Entity;
 use crate::join::Client;
 use crate::mount_data::{MountData, Synced, short_name};
+use crate::seat::{first_seat, resize_mount};
 
 /// The rider's jump charge: `jumpRidingTicks` and `jumpRidingScale`.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -66,24 +66,10 @@ pub(crate) fn apply_attributes(mount: &mut Mount, data: &MountData) {
     mount.flying_speed = data.flying_speed.unwrap_or(mount.flying_speed);
 }
 
-/// The first passenger's attachment point, unturned (`getPassengerAttachmentPoint`): the type's, scaled with the
-/// entity, or a lone camel rider's standing body anchor half a block (times the camel's scale) forward.
-// TODO: a camel sitting down or standing up moves its anchor (`getBodyAnchorAnimationYOffset`); not modelled.
-fn first_seat(e: &Entity) -> Option<[f64; 3]> {
-    let scale = e.scale();
-    if matches!(short_name(e.kind), "camel" | "camel_husk") {
-        let (_, height, _) = e.dimensions()?;
-        let (sit_offset, age) = if e.baby { (0.09375, 0.6) } else { (0.375, 1.0) };
-        let y = (f64::from(height) - sit_offset) as f32;
-        return Some([0.0, f64::from(y), f64::from(0.5 * (scale * age))]);
-    }
-    let seat = ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?.seat;
-    Some(seat.map(|v| if scale == 1.0 { f64::from(v) } else { f64::from(v) * f64::from(scale) }))
-}
-
 fn new_mount(e: &Entity, game_time: i64) -> Option<Mount> {
     let (width, height, _) = e.dimensions()?;
-    let mut mount = Mount::new(short_name(e.kind), (width, height), first_seat(e)?, e.position, e.y_rot)?;
+    let mut mount = Mount::new(short_name(e.kind), (width, height), first_seat(e, game_time)?, e.position, e.y_rot)?;
+    resize_mount(&mut mount, e);
     (mount.body.pitch, mount.body.delta, mount.game_time) = (e.x_rot, e.motion, game_time);
     apply_attributes(&mut mount, &e.mount);
     let synced = Synced { standing: Some(e.mount.standing), dashing: None, last_pose_change: Some(e.mount.last_pose_change), boost: e.mount.boost };
@@ -125,13 +111,6 @@ impl Client {
         let charge = riding.jump_bar.step(was_jumping, jumping)?;
         mount.on_player_jump(charge);
         Some(charge)
-    }
-
-    /// Where the player sits on a vehicle the client doesn't drive.
-    // TODO: only the first seat; a second rider (camel, boat) sits elsewhere, and minecarts' seat moves on rails.
-    pub(crate) fn passenger_feet(&self, vehicle: i32) -> Option<[f64; 3]> {
-        let e = self.world.entities.get(&vehicle)?;
-        Some(seat_feet(e.position, first_seat(e)?, e.y_rot))
     }
 }
 
