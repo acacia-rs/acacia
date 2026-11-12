@@ -122,7 +122,7 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
 Java dialogs (`ShowDialog`, inline or a registry entry) are `Bot` forms. Confirmation → `Modal`; no inputs →
 `Simple` (buttons in order); inputs → `FormKind::Dialog`, answered with `FormReply::Dialog { button, values }`.
 Inputs map to Bedrock elements: text → Input, boolean → Toggle, single_option → Dropdown, number_range → Slider
-(snapped to its step). A button sends a command (unsigned `ChatCommand`, templates filled as vanilla does) or a
+(snapped to its step). A button sends a command (`sendUnattendedCommand`, templates filled as vanilla does) or a
 `CustomClickAction`; `Close` runs the cancel action (notice → its button, confirmation → no, else `exit_action`)
 when escape may close it. Registry dialogs come from configuration's `minecraft:dialog` data; the built-in ones
 (sent without data, since the client claims the vanilla packs) show as a form with no buttons titled by index.
@@ -140,7 +140,7 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   scenarios on one Paper + Grim server, a fresh connection each. A drill sets itself up by op commands on its own
   strip and passes with 0 Grim alerts, 0 setbacks after setup and its own check (speed, slowness, jump_boost,
   levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat, crowd, ten `/attribute` courses
-  in `attrs.rs`, riptide, riptide_short, rain_riptide, rain_roofed, minecart, the inside-block drills cobweb,
+  in `attrs.rs`, riptide, riptide_short, rain_riptide, rain_roofed, rain_relit, minecart, the inside-block drills cobweb,
   berry_bush, cauldron, the size drills crowd_scaled, baby_push, slime_push and camel_dash, riptide_armor_stand,
   sulfur_push, and the seat drills camel_sit and scaled_rider, checked against vanilla's seat geometry since Grim
   never sees a passenger; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
@@ -172,8 +172,9 @@ Not done: `Transfer` (reconnecting elsewhere with the cookies).
   attribute modifier, as vanilla's `setSprinting`, and the server's shared flags overwrite it.
 - Riptide: a trident with the enchantment held 10+ ticks in water or rain launches on release (`riptide.rs` in client
   and physics), then spins until it hits a living entity (the generated table's `living` column) or a wall. Rain is `Level.isRainingAt` (`rain.rs`): the
-  rain level from `GameEvent`, sky light 15 from the server's light data (`sky_light.rs`; the client doesn't relight
-  after block changes), the MOTION_BLOCKING heightmap scanned from the blocks, and the biome's precipitation through
+  rain level from `GameEvent`, sky light 15 from the server's light data (`sky_light.rs`), relit by the client
+  after its tick for block changes as `SkyLightEngine` does its column sources (`relight.rs`, whose doc has the
+  boundary; drill `rain_relit`), the MOTION_BLOCKING heightmap scanned from the blocks, and the biome's precipitation through
   `BiomeManager`'s zoom (`biomes.rs`; climates from acacia-registry `climate`, or the server's biome data).
 - Block effects: `checkInsideBlocks` tests each block's inside shape (`inside_shape.rs`: cauldron contents,
   tripwire, end portal, a falling body's 0.9 of powder snow) and fluid box, and only touched blocks act or count as
@@ -184,6 +185,11 @@ Not done: `Transfer` (reconnecting elsewhere with the cookies).
   `Respawn` rebuilds the player, keeping what its `dataToKeep` byte says, and a new level only on a dimension change.
 - Chat: system, player (signed), disguised and action bar messages decode to `BotEvent::Chat` (`messages.rs`), with
   the chat type's name from configuration's `minecraft:chat_type`.
+- Secure chat (`chat.rs`): on an online-mode server the profile key's session signs chat and each command's
+  message arguments, found by brigadier's parse of the server's tree (`brigadier.rs`, argument readers in
+  `arg_types.rs`; the boundary is in `arg_types.rs`). Without a session the same packets go unsigned, with
+  last-seen data. Dialog commands go as `sendUnattendedCommand`. The key is fetched again past its
+  `refreshed_after`, at most hourly (`chat_key.rs`). Live check: `tools/java-online.sh … chat`.
 - Loading follows `LevelLoadTracker` (`loading.rs`): `GameEvent` 13, then the player's chunk, then 10 ticks before
   `PlayerLoaded`; the player neither ticks nor moves until then. Sending it on the first position made a join in
   mid-air fall early, and Grim flagged Simulation.

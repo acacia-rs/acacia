@@ -1,16 +1,18 @@
-//! Chat and commands. On an online-mode server, with the account's profile key, they are signed as vanilla signs
-//! them (secure chat); otherwise they go out unsigned, as offline-mode and session-free servers take them.
-// TODO: refresh the profile key after its `refreshed_after` (`ProfileKeyPairManager.shouldRefreshKeyPair`).
+//! Chat and commands as `ClientPacketListener` sends them. On an online-mode server, with the account's profile key,
+//! they are signed (secure chat); without a chat session the same packets go out with no signatures.
 
 use std::sync::{Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use acacia_auth::{Account, JavaProfile};
-use acacia_java_proto::chat::{ArgumentSignature, Chat, ChatAck, LastSeenUpdate, MessageSignature, PackedSignature, PlayerChatSignatures, SignedChatCommand};
+use acacia_java_proto::chat::{ArgumentSignature, Chat, ChatAck, MessageSignature, PackedSignature, PlayerChatSignatures, SignedChatCommand};
 use acacia_java_proto::ids::play::{clientbound as from, serverbound as to};
 use acacia_java_proto::packets::ChatCommand;
 use acacia_java_proto::{VarInt, Wire};
 
+use crate::arg_types::Source;
+use crate::brigadier::{CommandCheck, Permissions};
+use crate::chat_key::KeyRefresh;
 use crate::command_tree::CommandTree;
 use crate::frame::Error;
 use crate::join::Client;
@@ -21,20 +23,35 @@ use crate::signing::{Body, ChatKey, Session, salt};
 const MAX_CHAT: usize = 256;
 /// `markMessageAsProcessed` acknowledges once more than this many messages are unacknowledged.
 const ACK_AFTER: i32 = 64;
+/// `LocalPlayer.handleEntityEvent`: op levels 0 to 4.
+const PERMISSION_EVENTS: std::ops::RangeInclusive<u8> = 24..=28;
+/// Op level 2 (`GAMEMASTERS`) grants `commands/entity_selectors`.
+const SELECTOR_EVENT: u8 = 26;
 
 /// The client's secure chat state (`ClientPacketListener`'s chat session, tracker and cache).
 pub(crate) struct ChatState {
     /// The profile key, or why there is none.
-    key: Result<ChatKey, String>,
-    session: Option<Session>,
+    pub(crate) key: Result<ChatKey, String>,
+    pub(crate) session: Option<Session>,
     tracker: Tracker,
     cache: SignatureCache,
     commands: Option<CommandTree>,
+    /// The local player may use entity selectors (op level 2+).
+    selectors: bool,
+    pub(crate) refresh: KeyRefresh,
 }
 
 impl Default for ChatState {
     fn default() -> Self {
-        Self { key: Err("joined offline".into()), session: None, tracker: Tracker::default(), cache: SignatureCache::default(), commands: None }
+        Self {
+            key: Err("joined offline".into()),
+            session: None,
+            tracker: Tracker::default(),
+            cache: SignatureCache::default(),
+            commands: None,
+            selectors: false,
+            refresh: KeyRefresh::default(),
+        }
     }
 }
 
@@ -45,7 +62,7 @@ impl ChatState {
             Ok(key) => ChatKey::new(key).map_err(|e| e.to_string()),
             Err(e) => Err(format!("profile key: {e}")),
         };
-        Mutex::new(Self { key, ..Self::default() })
+        Mutex::new(Self { key, refresh: KeyRefresh::new(account.clone()), ..Self::default() })
     }
 
     /// Signs `body` with the session's next link; `None` without a session.
@@ -53,14 +70,19 @@ impl ChatState {
         let key = self.key.as_ref().ok()?;
         self.session.as_mut()?.sign(key, body)
     }
+
+    /// `ClientPacketListener.suggestionsProvider`: the player's permissions, restricted commands allowed.
+    fn permissions(&self) -> Permissions {
+        Permissions { source: Source { selectors: self.selectors }, restricted: true }
+    }
 }
 
-fn now_millis() -> i64 {
+pub(crate) fn now_millis() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
 }
 
 impl Client {
-    fn chat_state(&self) -> MutexGuard<'_, ChatState> {
+    pub(crate) fn chat_state(&self) -> MutexGuard<'_, ChatState> {
         self.chat_state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -74,15 +96,13 @@ impl Client {
         self.chat_state().key.as_ref().err().cloned()
     }
 
-    /// Runs `command` (without the leading `/`). With a chat session, its message arguments are signed
-    /// (`sendCommand`); see `command_tree.rs` for how they are found.
+    /// Runs `command` (one leading `/` dropped), as `sendCommand`: a command with message arguments (found by
+    /// parsing it against the server's tree, `brigadier.rs`) goes as the signed packet, signed with a chat session.
     pub fn command(&self, command: &str) -> Result<(), Error> {
-        let command = command.trim_start_matches('/');
+        let command = command.strip_prefix('/').unwrap_or(command);
         let mut chat = self.chat_state();
-        let signable = match (&chat.session, &chat.commands) {
-            (Some(_), Some(tree)) => tree.signable(command),
-            _ => Vec::new(),
-        };
+        let permissions = chat.permissions();
+        let signable = chat.commands.as_ref().map(|tree| tree.signable(command, permissions)).unwrap_or_default();
         if signable.is_empty() {
             return self.send(to::CHAT_COMMAND, &ChatCommand { command: command.to_owned() });
         }
@@ -98,21 +118,32 @@ impl Client {
         self.send(to::CHAT_COMMAND_SIGNED, &SignedChatCommand { command: command.to_owned(), timestamp_millis, salt, arguments, last_seen })
     }
 
-    /// Says `text`, cut to the protocol's 256 characters; signed with a chat session (`sendChat`).
+    /// A command from a dialog or clickable text (`sendUnattendedCommand`), its confirmation accepted: one needing a
+    /// signature is sent as typed into chat, any other unsigned.
+    pub fn unattended_command(&self, command: &str) -> Result<(), Error> {
+        let command = command.strip_prefix('/').unwrap_or(command);
+        let check = {
+            let chat = self.chat_state();
+            chat.commands.as_ref().map_or(CommandCheck::ParseErrors, |tree| tree.verify(command, chat.permissions()))
+        };
+        if check == CommandCheck::SignatureRequired {
+            return self.command(command);
+        }
+        self.send(to::CHAT_COMMAND, &ChatCommand { command: command.to_owned() })
+    }
+
+    /// Says `text`, cut to the protocol's 256 characters (`sendChat`): signed with a chat session, and carrying the
+    /// last-seen update either way.
     pub fn chat(&self, text: &str) -> Result<(), Error> {
         let message: String = text.chars().take(MAX_CHAT).collect();
         let (timestamp_millis, salt) = (now_millis(), salt());
         let mut chat = self.chat_state();
-        let (signature, last_seen) = if chat.session.is_some() {
-            let (seen, update) = chat.tracker.update();
-            (chat.sign(&Body { content: &message, timestamp_millis, salt, last_seen: &seen }), update)
-        } else {
-            (None, LastSeenUpdate::default())
-        };
+        let (seen, last_seen) = chat.tracker.update();
+        let signature = chat.sign(&Body { content: &message, timestamp_millis, salt, last_seen: &seen });
         self.send(to::CHAT, &Chat { message, timestamp_millis, salt, signature, last_seen })
     }
 
-    /// Keeps the chat session, acknowledgements and command tree in step with the server.
+    /// Keeps the chat session, acknowledgements, command tree and selector permission in step with the server.
     pub(crate) fn apply_chat(&self, id: i32, body: &[u8]) -> Result<(), Error> {
         let mut chat = self.chat_state();
         match id {
@@ -122,6 +153,10 @@ impl Client {
                 chat.tracker = Tracker::default();
                 chat.cache = SignatureCache::default();
                 chat.session = None;
+                if online {
+                    let key = chat.key.as_ref().ok().map(ChatKey::profile).cloned();
+                    chat.refresh.prepare(key.as_ref(), now_millis());
+                }
                 if let (true, Ok(key)) = (online, &chat.key) {
                     let session = Session::new(self.uuid);
                     self.send(to::CHAT_SESSION_UPDATE, &session.update(key))?;
@@ -129,6 +164,15 @@ impl Client {
                 }
             }
             from::COMMANDS => chat.commands = CommandTree::read(&mut &body[..]).ok(),
+            from::ENTITY_EVENT => {
+                let mut input = body;
+                if let (Ok(entity), Ok(event)) = (i32::read(&mut input), u8::read(&mut input))
+                    && entity == self.world.player_id
+                    && PERMISSION_EVENTS.contains(&event)
+                {
+                    chat.selectors = event >= SELECTOR_EVENT;
+                }
+            }
             from::PLAYER_CHAT => {
                 let Ok(head) = PlayerChatSignatures::read(&mut &body[..]) else { return Ok(()) };
                 // Vanilla disconnects on a signature id it doesn't hold; we only stop tracking.

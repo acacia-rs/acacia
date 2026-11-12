@@ -1,6 +1,7 @@
 //! Signs in with a Microsoft account and joins an online-mode server:
 //! `java_online <token dir> [host] [port] [seconds] [chat]`. With `chat`, 5 s in it says a line and sends `/msg`
-//! to itself, signed when the server takes a chat session. `ACACIA_NO_SIGN_IN=1` fails instead of starting a
+//! to itself, signed when the server takes a chat session, then fetches the profile key again and repeats both.
+//! `ACACIA_NO_SIGN_IN=1` fails instead of starting a
 //! device-code sign-in when the token dir has no account.
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -32,13 +33,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let end = Instant::now() + Duration::from_secs(seconds);
     // Nothing ticks here, so `loaded()` never turns true: chat a few seconds in instead.
     let chat_at = Instant::now() + Duration::from_secs(5);
+    let mut refreshed = None;
     while let Ok(packet) = tokio::time::timeout_at(end.into(), client.next()).await {
         packet?;
+        client.tick_profile_key()?;
         if chat && Instant::now() >= chat_at {
             chat = false;
             println!("chat signed: {}", client.signs_chat());
             client.chat("hello from acacia, signed")?;
             client.command(&format!("msg {} a signed whisper", client.name))?;
+            refreshed = Some((client.chat_session(), Instant::now() + Duration::from_secs(5)));
+            client.refresh_profile_key();
+        }
+        if let Some((session, at)) = refreshed
+            && Instant::now() >= at
+            && !client.refreshing_profile_key()
+        {
+            refreshed = None;
+            println!("key refreshed, new session: {}", client.chat_session() != session);
+            client.chat("hello again, after the key refresh")?;
+            client.command(&format!("msg {} a whisper after the refresh", client.name))?;
         }
         if let Some(message) = client.message.take() {
             println!("message {:?}: {}", message.kind, message.text);

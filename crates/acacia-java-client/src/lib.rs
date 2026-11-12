@@ -1,10 +1,15 @@
 //! A Java Edition 26.3 connection: framing, login, configuration, and the replies a client owes the server in play.
 
 mod actions;
+mod arg_types;
+mod arg_values;
 mod biomes;
+mod brigadier;
 mod chat;
+mod chat_key;
 mod chunks;
 pub mod clicks;
+mod command_reader;
 mod command_tree;
 mod configuration;
 mod crypto;
@@ -29,11 +34,16 @@ mod movement;
 pub mod players;
 mod push;
 mod rain;
+mod relight;
 mod riding;
 mod riptide;
 mod seat;
+mod selector;
+mod selector_values;
 mod signing;
 mod sky_light;
+mod sky_props;
+mod snbt;
 mod station;
 mod status;
 pub mod teams;

@@ -38,7 +38,7 @@ pub fn check(ok: bool, what: impl FnOnce() -> String) -> Result<(), String> {
 pub async fn run(name: &str, d: &mut Drill) -> Outcome {
     let all = || {
         let sizes = crate::crowd::NAMES.iter().chain(crate::sizes::NAMES).chain(crate::camel::NAMES);
-        let late = crate::lids::NAMES.iter().chain(crate::seats::NAMES);
+        let late = crate::lids::NAMES.iter().chain(crate::seats::NAMES).chain(crate::relight::NAMES);
         NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES).chain(crate::inside::NAMES).chain(sizes).chain(late)
     };
     let index = all().position(|n| *n == name).ok_or(format!("no drill {name}; drills: {}", all().copied().collect::<Vec<_>>().join(" ")))?;
@@ -140,10 +140,11 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
             let base = start(d, x, &[]).await?;
             d.bot.command("say drill-say");
             d.bot.command("tellraw @s \"drill-tell\"");
+            d.bot.chat("drill-chat");
             d.ticks(20).await?;
             let said = |text: &str| d.seen(|e| matches!(e, BotEvent::Chat(m) if m.message.contains(text)));
-            let (say, tell) = (said("drill-say"), said("drill-tell"));
-            Ok((base, check(say && tell, || format!("say {say}, tellraw {tell}"))))
+            let (say, tell, chat) = (said("drill-say"), said("drill-tell"), said("drill-chat"));
+            Ok((base, check(say && tell && chat, || format!("say {say}, tellraw {tell}, chat {chat}"))))
         }
         "switch" => {
             start(d, x, &[]).await?;
@@ -163,6 +164,7 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
         "minecart" => crate::minecart::run(d, x).await,
         n if crate::lids::NAMES.contains(&n) => crate::lids::run(n, d, x).await,
         n if crate::seats::NAMES.contains(&n) => crate::seats::run(n, d, x).await,
+        n if crate::relight::NAMES.contains(&n) => crate::relight::run(n, d, x).await,
         n if crate::inside::NAMES.contains(&n) => crate::inside::run(n, d, x).await,
         n => crate::attrs::run(n, d, x).await,
     }

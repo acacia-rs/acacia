@@ -1,5 +1,5 @@
-//! `Level.isRainingAt` on the client: the weather the server sends, sky light, the MOTION_BLOCKING heightmap and the
-//! biome's precipitation there.
+//! `Level.isRainingAt` on the client: the weather the server sends, sky light (`sky_light.rs`, relit after block
+//! changes by `relight.rs`), the MOTION_BLOCKING heightmap and the biome's precipitation there.
 
 use acacia_java_physics::fluid_of;
 use acacia_java_proto::light::{read_sky_light, skip_block_entities};
@@ -54,7 +54,7 @@ impl World {
     /// What follows a chunk's sections: its block entities, then its light.
     pub(crate) fn read_chunk_light(&mut self, chunk: (i32, i32), input: &mut &[u8]) -> Result<(), Error> {
         skip_block_entities(input)?;
-        self.sky.set(chunk, read_sky_light(input)?);
+        self.sky.queue(chunk, read_sky_light(input)?);
         Ok(())
     }
 
@@ -73,7 +73,7 @@ impl World {
             }
             from::LIGHT_UPDATE => {
                 let at = (read_varint(input)?, read_varint(input)?);
-                self.sky.set(at, read_sky_light(input)?);
+                self.sky.queue(at, read_sky_light(input)?);
             }
             _ => {}
         }

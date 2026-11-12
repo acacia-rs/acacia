@@ -1,4 +1,4 @@
-use acacia_java_proto::chat::{LAST_SEEN, MessageSignature, PackedSignature, SIGNATURE_BYTES};
+use acacia_java_proto::chat::{LAST_SEEN, LastSeenUpdate, MessageSignature, PackedSignature, SIGNATURE_BYTES};
 
 use super::*;
 use crate::last_seen::checksum;

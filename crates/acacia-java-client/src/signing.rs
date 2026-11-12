@@ -54,6 +54,10 @@ impl ChatKey {
         Ok(Self { signer: SigningKey::new(key), profile })
     }
 
+    pub(crate) fn profile(&self) -> &JavaProfileKey {
+        &self.profile
+    }
+
     fn sign(&self, bytes: &[u8]) -> Option<MessageSignature> {
         self.signer.try_sign(bytes).ok()?.to_vec().try_into().ok().map(MessageSignature)
     }

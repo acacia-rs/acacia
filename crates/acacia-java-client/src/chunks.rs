@@ -4,6 +4,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use acacia_java_proto::chunk::Section;
+use acacia_registry::BlockState;
+
+pub(crate) fn is_air(state: u32) -> bool {
+    BlockState::from_id(state).is_some_and(BlockState::is_air)
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Chunks {
@@ -53,12 +58,20 @@ impl Chunks {
         self.columns.get(&(x >> 4, z >> 4)).map(|c| self.min_y + c.len() as i32 * 16)
     }
 
-    /// Copies the column first when a snapshot still holds it.
-    pub(crate) fn set_block(&mut self, pos: [i32; 3], state: u32) {
-        let Some((section, index)) = self.locate(pos) else { return };
-        if let Some(s) = self.columns.get_mut(&(pos[0] >> 4, pos[2] >> 4)).and_then(|c| Arc::make_mut(c).get_mut(section)) {
-            s.set_block(index, state);
-        }
+    /// Copies the column first when a snapshot still holds it. Returns the old state; keeps the non-air count.
+    pub(crate) fn set_block(&mut self, pos: [i32; 3], state: u32) -> Option<u32> {
+        let (section, index) = self.locate(pos)?;
+        let s = self.columns.get_mut(&(pos[0] >> 4, pos[2] >> 4)).and_then(|c| Arc::make_mut(c).get_mut(section))?;
+        let old = s.blocks.get(index);
+        s.set_block(index, state);
+        s.non_empty += i16::from(is_air(old)) - i16::from(is_air(state));
+        Some(old)
+    }
+
+    /// `LevelChunkSection.hasOnlyAir` of section `sy` in column `(cx, cz)`; `None` unloaded or out of range.
+    pub(crate) fn only_air(&self, [cx, sy, cz]: [i32; 3]) -> Option<bool> {
+        let section = usize::try_from(sy - (self.min_y >> 4)).ok()?;
+        self.columns.get(&(cx, cz))?.get(section).map(|s| s.non_empty == 0)
     }
 
     pub(crate) fn insert(&mut self, x: i32, z: i32, sections: Vec<Section>) {

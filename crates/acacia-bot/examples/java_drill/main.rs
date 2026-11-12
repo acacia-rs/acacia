@@ -9,6 +9,7 @@ mod drills;
 mod inside;
 mod lids;
 mod minecart;
+mod relight;
 mod riptide;
 mod seats;
 mod sizes;

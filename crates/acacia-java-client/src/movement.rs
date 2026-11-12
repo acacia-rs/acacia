@@ -176,6 +176,14 @@ impl Client {
         if self.configuring() {
             return Ok(());
         }
+        self.tick_profile_key()?;
+        let ticked = self.tick(keys);
+        // `ClientLevel.update` runs light after the frame's ticks: a block change shows in the next tick's light.
+        self.world.update_light();
+        ticked
+    }
+
+    fn tick(&mut self, keys: Keys) -> Result<(), Error> {
         self.send_actions()?;
         self.apply_release();
         self.world.tick_entities();

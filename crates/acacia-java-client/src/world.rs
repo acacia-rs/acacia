@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::chunks::Chunks;
 use crate::mount_data::Synced;
 use crate::rain::{Weather, read_spawn_rest};
+use crate::relight::Pending;
 use crate::sky_light::SkyLight;
 use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
 pub use crate::entity::{Entity, Mover};
@@ -37,6 +38,7 @@ pub struct World {
     pub game_time: i64,
     pub weather: Weather,
     pub(crate) sky: SkyLight,
+    pub(crate) light: Pending,
 }
 
 /// Lowest y of a vanilla dimension. The client claims the vanilla packs, so a custom dimension type would be
@@ -74,7 +76,9 @@ impl World {
 
     /// Writes a block ahead of the server, as vanilla's prediction does; the server's update overwrites it.
     pub fn set_block(&mut self, pos: [i32; 3], state: u32) {
-        self.chunks.set_block(pos, state);
+        if let Some(old) = self.chunks.set_block(pos, state) {
+            self.note_light_change(pos, old, state);
+        }
     }
 
     /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick, and a shulker's lid. An unridden
@@ -92,6 +96,7 @@ impl World {
     fn enter_level(&mut self, dimension: String, input: &mut &[u8]) -> Result<(), Error> {
         self.chunks = Chunks::new(min_y(&dimension));
         self.sky.clear();
+        self.light = Pending::default();
         self.dimension = dimension;
         self.entities.clear();
         (self.weather.zoom_seed, self.weather.sea_level) = read_spawn_rest(input)?;
@@ -121,7 +126,7 @@ impl World {
                 let packed = i64::read(input)?;
                 let (x, z) = (packed as i32, (packed >> 32) as i32);
                 self.chunks.remove(x, z);
-                self.sky.remove((x, z));
+                self.sky.queue_removal((x, z));
             }
             from::GAME_EVENT | from::LIGHT_UPDATE => self.apply_weather(id, input)?,
             from::BLOCK_UPDATE => {
