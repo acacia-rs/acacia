@@ -47,8 +47,9 @@ pub(crate) fn apply_synced(mount: &mut Mount, synced: Synced) {
     if let Some(tick) = synced.last_pose_change {
         mount.last_pose_change = tick;
     }
+    // `onSyncedDataUpdated` restarts an idle cooldown on any dash item, a stop included.
     if let Some(dashing) = synced.dashing {
-        if dashing && mount.dash_cooldown == 0 {
+        if mount.dash_cooldown == 0 {
             mount.dash_cooldown = if mount.kind == MountKind::Camel { 55 } else { 40 };
         }
         mount.dashing = dashing;
@@ -65,10 +66,24 @@ pub(crate) fn apply_attributes(mount: &mut Mount, data: &MountData) {
     mount.flying_speed = data.flying_speed.unwrap_or(mount.flying_speed);
 }
 
+/// The first passenger's attachment point, unturned (`getPassengerAttachmentPoint`): the type's, scaled with the
+/// entity, or a lone camel rider's standing body anchor half a block (times the camel's scale) forward.
+// TODO: a camel sitting down or standing up moves its anchor (`getBodyAnchorAnimationYOffset`); not modelled.
+fn first_seat(e: &Entity) -> Option<[f64; 3]> {
+    let scale = e.scale();
+    if matches!(short_name(e.kind), "camel" | "camel_husk") {
+        let (_, height, _) = e.dimensions()?;
+        let (sit_offset, age) = if e.baby { (0.09375, 0.6) } else { (0.375, 1.0) };
+        let y = (f64::from(height) - sit_offset) as f32;
+        return Some([0.0, f64::from(y), f64::from(0.5 * (scale * age))]);
+    }
+    let seat = ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?.seat;
+    Some(seat.map(|v| if scale == 1.0 { f64::from(v) } else { f64::from(v) * f64::from(scale) }))
+}
+
 fn new_mount(e: &Entity, game_time: i64) -> Option<Mount> {
     let (width, height, _) = e.dimensions()?;
-    let seat = ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?.seat;
-    let mut mount = Mount::new(short_name(e.kind), (width, height), seat, e.position, e.y_rot)?;
+    let mut mount = Mount::new(short_name(e.kind), (width, height), first_seat(e)?, e.position, e.y_rot)?;
     (mount.body.pitch, mount.body.delta, mount.game_time) = (e.x_rot, e.motion, game_time);
     apply_attributes(&mut mount, &e.mount);
     let synced = Synced { standing: Some(e.mount.standing), dashing: None, last_pose_change: Some(e.mount.last_pose_change), boost: e.mount.boost };
@@ -116,8 +131,7 @@ impl Client {
     // TODO: only the first seat; a second rider (camel, boat) sits elsewhere, and minecarts' seat moves on rails.
     pub(crate) fn passenger_feet(&self, vehicle: i32) -> Option<[f64; 3]> {
         let e = self.world.entities.get(&vehicle)?;
-        let seat = ENTITY_SHAPES.get(usize::try_from(e.kind).ok()?)?.seat.map(f64::from);
-        Some(seat_feet(e.position, seat, e.y_rot))
+        Some(seat_feet(e.position, first_seat(e)?, e.y_rot))
     }
 }
 

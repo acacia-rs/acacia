@@ -34,6 +34,7 @@ pub use collide::Blocks;
 pub use fluid::fluid_of;
 pub use input::{Keys, Pose};
 pub use mount::{seat_feet, Boost, Mount, MountKind, Rider};
+pub use mth::sin;
 pub use player::{Effects, ItemUse, Player};
 pub use riptide::Nearby;
 pub use teleport::Placement;

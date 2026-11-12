@@ -120,7 +120,7 @@ impl Player {
             !self.flying && !self.swimming && self.fits(world, Pose::Crouching) && (was_shift || !self.fits(world, Pose::Standing));
         self.read_keys(keys);
         self.push_out_of_blocks(world);
-        self.update_sprint(was_shift, had_forward);
+        self.update_sprint(was_shift, had_forward, None);
         let toggled = self.update_flight_toggle(world, was_jumping);
         self.start_gliding_if_asked(world, was_jumping, toggled);
         if self.in_water && keys.shift && !self.flying {

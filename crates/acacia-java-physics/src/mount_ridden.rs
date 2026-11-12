@@ -70,7 +70,10 @@ impl Mount {
                     0
                 } else {
                     self.allow_stand_sliding = true;
-                    (self.standing, self.stand_counter) = (true, 20);
+                    // `standIfPossible`: camels never rear (`canPerformRearing`).
+                    if self.kind != MountKind::Camel {
+                        (self.standing, self.stand_counter) = (true, 20);
+                    }
                     amount
                 };
                 self.jump_pending = jump_scale(amount);

@@ -36,7 +36,10 @@ pub fn check(ok: bool, what: impl FnOnce() -> String) -> Result<(), String> {
 }
 
 pub async fn run(name: &str, d: &mut Drill) -> Outcome {
-    let all = || NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES).chain(crate::inside::NAMES);
+    let all = || {
+        let sizes = crate::crowd::NAMES.iter().chain(crate::sizes::NAMES).chain(crate::camel::NAMES);
+        NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES).chain(crate::inside::NAMES).chain(sizes)
+    };
     let index = all().position(|n| *n == name).ok_or(format!("no drill {name}; drills: {}", all().copied().collect::<Vec<_>>().join(" ")))?;
     let x = 64 + 32 * index as i32;
     let x0 = f64::from(x) + 0.5;
@@ -151,7 +154,10 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
             let configuring = d.bot.java().is_none_or(|j| j.client().configuring());
             Ok((base, check(moved > 8.0 && !configuring, || format!("moved {moved:.2}, configuring {configuring}"))))
         }
-        "crowd" => crate::crowd::run(d, x).await,
+        "crowd" => crate::crowd::run(d, x, 1.0).await,
+        "crowd_scaled" => crate::crowd::run(d, x, 2.0).await,
+        n if crate::sizes::NAMES.contains(&n) => crate::sizes::run(n, d, x).await,
+        "camel_dash" => crate::camel::run(d, x).await,
         n if crate::riptide::NAMES.contains(&n) => crate::riptide::run(n, d, x).await,
         "minecart" => crate::minecart::run(d, x).await,
         n if crate::inside::NAMES.contains(&n) => crate::inside::run(n, d, x).await,

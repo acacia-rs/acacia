@@ -1,11 +1,12 @@
 //! What the client tracks about a rideable mob to drive it: saddle and harness, the synced data its ridden movement
-//! reads, and its movement attributes.
+//! reads, and its movement attributes. Other entities' attribute syncs land here, the scale attribute included.
 
+use acacia_java_physics::attributes::{Attribute, Operation, synced_value};
 use acacia_java_proto::entity_types::ENTITY_TYPES;
 use acacia_java_proto::item::ItemStack;
 use acacia_java_proto::{Error, Wire, ids, read_varint, read_varlong};
 
-use crate::entity::{Entity, seek_data};
+use crate::entity::{Entity, read_item};
 use crate::world::World;
 
 use ids::play::clientbound as from;
@@ -32,6 +33,7 @@ const SLOT_SADDLE: u8 = 7;
 const ATTRIBUTE_FLYING_SPEED: i32 = 15;
 const ATTRIBUTE_JUMP_STRENGTH: i32 = 19;
 const ATTRIBUTE_MOVEMENT_SPEED: i32 = 26;
+const ATTRIBUTE_SCALE: i32 = 30;
 /// The strider's own modifier, which the driven strider applies itself.
 const SUFFOCATING: &str = "minecraft:suffocating";
 const HORSE_FLAGS: u8 = 18;
@@ -49,12 +51,6 @@ const SERIALIZER_BOOLEAN: i32 = 8;
 pub(crate) fn short_name(kind: i32) -> &'static str {
     let name = usize::try_from(kind).ok().and_then(|k| ENTITY_TYPES.get(k)).copied().unwrap_or("");
     name.strip_prefix("minecraft:").unwrap_or(name)
-}
-
-/// One data item's value when it has `serializer`.
-fn read_item<T>(body: &[u8], index: u8, serializer: i32, read: impl Fn(&mut &[u8]) -> Result<T, Error>) -> Result<Option<T>, Error> {
-    let input = &mut &body[..];
-    if seek_data(input, index)? == Some(serializer) { read(input).map(Some) } else { Ok(None) }
 }
 
 /// The mount items one `SetEntityData` carried.
@@ -111,20 +107,27 @@ impl MountData {
         }
     }
 
-    /// `ClientboundUpdateAttributesPacket`: each attribute's value from its base and modifiers.
-    fn read_attributes(&mut self, input: &mut &[u8]) -> Result<(), Error> {
+    /// `ClientboundUpdateAttributesPacket`: each attribute's value from its base and modifiers; the scale attribute's
+    /// is returned, computed as `calculateValue` does.
+    fn read_attributes(&mut self, input: &mut &[u8]) -> Result<Option<f64>, Error> {
+        let mut scale = None;
         for _ in 0..read_varint(input)? {
             let attribute = read_varint(input)?;
             let base = f64::read(input)?;
             let (mut added, mut multiplied_base, mut total) = (0.0, 0.0, 1.0);
+            let mut modifiers = Vec::new();
             for _ in 0..read_varint(input)? {
                 let id = String::read(input)?;
                 let amount = f64::read(input)?;
-                match read_varint(input)? {
+                let op = read_varint(input)?;
+                match op {
                     _ if id == SUFFOCATING => {}
                     0 => added += amount,
                     1 => multiplied_base += amount,
                     _ => total *= 1.0 + amount,
+                }
+                if let Some(op) = Operation::from_id(op).filter(|_| attribute == ATTRIBUTE_SCALE) {
+                    modifiers.push((id, amount, op));
                 }
             }
             let raised = base + added;
@@ -133,10 +136,11 @@ impl MountData {
                 ATTRIBUTE_MOVEMENT_SPEED => self.movement_speed = value,
                 ATTRIBUTE_JUMP_STRENGTH => self.jump_strength = value,
                 ATTRIBUTE_FLYING_SPEED => self.flying_speed = value,
+                ATTRIBUTE_SCALE => scale = Some(synced_value(Attribute::Scale, base, &modifiers)),
                 _ => {}
             }
         }
-        Ok(())
+        Ok(scale)
     }
 }
 
@@ -144,10 +148,15 @@ impl World {
     /// Equipment and attributes of other entities; the player's own attributes are read in `Movement`.
     pub(crate) fn apply_mount_packet(&mut self, id: i32, input: &mut &[u8]) -> Result<(), Error> {
         let entity = read_varint(input)?;
-        let Some(Entity { mount, .. }) = self.entities.get_mut(&entity) else { return Ok(()) };
+        let Some(Entity { mount, shape, .. }) = self.entities.get_mut(&entity) else { return Ok(()) };
         match id {
             from::SET_EQUIPMENT => mount.read_equipment(input),
-            from::UPDATE_ATTRIBUTES => mount.read_attributes(input),
+            from::UPDATE_ATTRIBUTES => {
+                if let Some(scale) = mount.read_attributes(input)? {
+                    shape.scale = scale as f32;
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }

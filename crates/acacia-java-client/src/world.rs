@@ -8,6 +8,7 @@ use crate::rain::{Weather, read_spawn_rest};
 use crate::sky_light::SkyLight;
 use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
 pub use crate::entity::{Entity, Mover};
+pub use crate::entity_size::{Peek, Shape};
 
 use acacia_java_physics::{Aabb, Placement};
 use crate::movement::placement;
@@ -76,12 +77,13 @@ impl World {
         self.chunks.set_block(pos, state);
     }
 
-    /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick. An unridden boat's tick zeroes
-    /// its motion too.
+    /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick, and a shulker's lid. An unridden
+    /// boat's tick zeroes its motion too.
     pub fn tick_entities(&mut self) {
         self.game_time += 1;
         for e in self.entities.values_mut() {
             e.lerp.interpolate(&mut e.position);
+            e.shape.tick();
             e.motion = [0.0; 3];
         }
     }

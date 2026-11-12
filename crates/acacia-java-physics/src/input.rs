@@ -99,10 +99,16 @@ impl Player {
         self.zza = input[1];
     }
 
-    /// The rider a mount reads after this tick's keys: a passenger never crouches and isn't slowed by using items.
-    pub fn rider(&mut self, keys: Keys) -> crate::Rider {
+    /// A passenger's `aiStep` up to the input a mount reads: it never crouches, isn't slowed by using items, and
+    /// sprints by the usual rules where `vehicle_sprints` (`vehicleCanSprint`: a camel it drives) stands for food.
+    pub fn rider(&mut self, keys: Keys, vehicle_sprints: bool) -> crate::Rider {
+        if self.sprint_trigger > 0 {
+            self.sprint_trigger -= 1;
+        }
+        let (was_shift, had_forward) = (self.keys.shift, self.has_forward_impulse());
         self.read_keys(keys);
         self.crouching = false;
+        self.update_sprint(was_shift, had_forward, Some(vehicle_sprints));
         let using = self.using_item.take();
         self.apply_input();
         self.using_item = using;
@@ -118,34 +124,36 @@ impl Player {
         self.in_water && !self.under_water()
     }
 
-    fn sprint_possible(&self, allow_shallow: bool) -> bool {
-        !self.effects.blindness && self.has_food && (allow_shallow || !self.shallow_water())
+    /// `isSprintingPossible`; `vehicle` is `Some(vehicleCanSprint)` for a passenger.
+    fn sprint_possible(&self, allow_shallow: bool, vehicle: Option<bool>) -> bool {
+        !self.effects.blindness && vehicle.unwrap_or(self.has_food) && (allow_shallow || !self.shallow_water())
     }
 
-    fn can_start_sprinting(&self) -> bool {
+    fn can_start_sprinting(&self, vehicle: Option<bool>) -> bool {
         !self.sprinting
             && self.has_forward_impulse()
-            && self.sprint_possible(self.flying)
+            && self.sprint_possible(self.flying, vehicle)
             && !self.slow_from_item()
             && (!self.fall_flying || self.under_water())
             && (!self.moving_slowly() || self.under_water())
     }
 
-    fn should_stop_sprinting(&self) -> bool {
+    fn should_stop_sprinting(&self, vehicle: Option<bool>) -> bool {
         if self.swimming {
-            !self.sprint_possible(true) || !self.in_water || (!self.has_forward_impulse() && !self.on_ground && !self.keys.shift)
+            !self.sprint_possible(true, vehicle) || !self.in_water || (!self.has_forward_impulse() && !self.on_ground && !self.keys.shift)
         } else {
-            !self.sprint_possible(self.flying)
+            !self.sprint_possible(self.flying, vehicle)
                 || !self.has_forward_impulse()
                 || (self.horizontal_collision && !self.minor_horizontal_collision)
         }
     }
 
-    pub(crate) fn update_sprint(&mut self, was_shift: bool, had_forward: bool) {
-        if was_shift || self.slow_from_item() || self.keys.backward {
+    /// `aiStep`'s sprint rules; `vehicle` as in [`Player::sprint_possible`].
+    pub(crate) fn update_sprint(&mut self, was_shift: bool, had_forward: bool, vehicle: Option<bool>) {
+        if was_shift || (self.slow_from_item() && vehicle.is_none()) || self.keys.backward {
             self.sprint_trigger = 0;
         }
-        if self.can_start_sprinting() {
+        if self.can_start_sprinting(vehicle) {
             if !had_forward {
                 if self.sprint_trigger > 0 {
                     self.set_sprinting(true);
@@ -157,7 +165,7 @@ impl Player {
                 self.set_sprinting(true);
             }
         }
-        if self.sprinting && self.should_stop_sprinting() {
+        if self.sprinting && self.should_stop_sprinting(vehicle) {
             self.set_sprinting(false);
         }
     }

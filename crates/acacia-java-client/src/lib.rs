@@ -11,6 +11,7 @@ mod crypto;
 pub mod dialog;
 mod driven;
 mod entity;
+mod entity_size;
 mod frame;
 pub mod interpolation;
 pub mod inventory;

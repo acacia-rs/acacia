@@ -3,11 +3,13 @@
 //! `DRILL <name> setbacks <n> check <ok|reason>`; the runner adds Grim's alerts for the same window.
 //! `cargo run -p acacia-bot --features java --example java_drill -- <host> <port> <drill> [name]`
 mod attrs;
+mod camel;
 mod crowd;
 mod drills;
 mod inside;
 mod minecart;
 mod riptide;
+mod sizes;
 
 use std::sync::{Arc, Mutex};
 

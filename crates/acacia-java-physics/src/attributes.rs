@@ -126,6 +126,15 @@ impl Default for Attributes {
     }
 }
 
+/// `calculateValue` of one attribute as a sync sets it, for an entity whose other attributes aren't kept.
+pub fn synced_value(attribute: Attribute, base: f64, modifiers: &[(String, f64, Operation)]) -> f64 {
+    let mut instance = Instance { base, by_operation: Default::default() };
+    for (id, amount, op) in modifiers {
+        instance.by_operation[*op as usize].insert(id, *amount);
+    }
+    instance.value(attribute)
+}
+
 impl Attributes {
     fn instance(&mut self, attribute: Attribute) -> &mut Instance {
         &mut self.instances[attribute as usize]

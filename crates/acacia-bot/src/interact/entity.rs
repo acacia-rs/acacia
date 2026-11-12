@@ -1,6 +1,6 @@
 use tokio::time::Instant;
 
-use super::geometry::{entity_aims, entity_distance, ENTITY_REACH};
+use super::geometry::{box_aims, distance_to_box, entity_box, ENTITY_REACH};
 use super::wire::{self, SwingSource};
 use crate::human::{ATTACK_GAP, ENTITY_HOVER, ENTITY_SWING};
 use crate::reflex::Reflex;
@@ -75,13 +75,26 @@ impl Bot {
             ActionError::NotPossible(format!("entity {runtime_id} is not tracked (is Trackers::entities on?)"))
         })?;
         let eye = self.eye_position();
-        let distance = entity_distance(eye, entity);
+        let (min, max) = self.entity_bounds(runtime_id).unwrap_or_else(|| entity_box(entity));
+        let distance = distance_to_box(eye, min, max);
         if distance > ENTITY_REACH {
             return Err(ActionError::NotPossible(format!("entity {runtime_id} is {distance:.2} blocks away")));
         }
-        let mut aims = entity_aims(eye, entity);
+        let mut aims = box_aims(eye, min, max);
         let Some(sight) = self.sight() else { return aims.next().ok_or_else(|| ActionError::NotPossible("no aim".into())) };
         aims.find(|&(_, hit)| sight.clear(eye, hit))
             .ok_or_else(|| ActionError::NotVisible(format!("entity {runtime_id} is behind blocks")))
+    }
+
+    /// On Java, the box the vanilla client gives the entity (scale, pose, the type's shape); Bedrock assumes one.
+    fn entity_bounds(&self, runtime_id: u64) -> Option<([f32; 3], [f32; 3])> {
+        #[cfg(feature = "java")]
+        if let Some(java) = self.java() {
+            let e = java.client.world.entities.get(&i32::try_from(runtime_id).ok()?)?;
+            let b = e.bounding_box()?;
+            return Some((b.min.map(|v| v as f32), b.max.map(|v| v as f32)));
+        }
+        let _ = runtime_id;
+        None
     }
 }

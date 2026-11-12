@@ -79,8 +79,8 @@ pub struct Mount {
 
 impl Mount {
     /// The mount an entity type drives as, with its default attributes; `None` for one the client doesn't drive.
-    /// `seat` is the type's first passenger attachment.
-    pub fn new(name: &str, size: (f32, f32), seat: [f32; 3], pos: [f64; 3], yaw: f32) -> Option<Mount> {
+    /// `seat` is the first passenger's attachment point at the mount's size, unturned.
+    pub fn new(name: &str, size: (f32, f32), seat: [f64; 3], pos: [f64; 3], yaw: f32) -> Option<Mount> {
         use MountKind::*;
         let (kind, speed, jump) = match name {
             "horse" | "zombie_horse" => (Horse, 0.225_f32, 0.7),
@@ -94,8 +94,6 @@ impl Mount {
             "zombie_nautilus" => (Nautilus, 1.1, 0.0),
             _ => return None,
         };
-        // A lone camel rider sits on its standing body anchor, half a block forward.
-        let seat = if kind == Camel { [0.0, size.1 - 0.375, 0.5] } else { seat };
         let mut body = Player { pos, yaw, ..Player::default() };
         body.mount = Some(MountBody {
             width: size.0,
@@ -114,7 +112,7 @@ impl Mount {
             movement_speed: speed as f64,
             jump_strength: jump,
             flying_speed: 0.05_f32 as f64,
-            seat: seat.map(f64::from),
+            seat,
             standing: false,
             stand_counter: 0,
             boost: None,
@@ -233,6 +231,10 @@ impl Mount {
                     self.dashing = false;
                 }
                 self.dash_cooldown = (self.dash_cooldown - 1).max(0);
+                // `standUpInstantly`: sitting in water ends at once, as if stood up 53 ticks ago.
+                if self.last_pose_change < 0 && self.body.in_water {
+                    self.last_pose_change = (self.game_time - 53).max(0);
+                }
             }
             MountKind::Nautilus => {
                 if self.dashing && self.dash_cooldown < 35 {
