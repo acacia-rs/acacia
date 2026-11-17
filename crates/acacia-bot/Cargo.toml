@@ -43,6 +43,10 @@ name = "java_walk"
 required-features = ["java"]
 
 [[example]]
+name = "java_online_chat"
+required-features = ["java"]
+
+[[example]]
 name = "java_goto"
 required-features = ["java"]
 

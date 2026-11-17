@@ -1,6 +1,7 @@
 //! The Java Edition side of a [`Bot`] (docs/java-edition.md, build step 4): it joins, ticks and walks by
 //! [`Controls`]; actions that need the Bedrock wire return [`crate::ActionError::Unsupported`].
 
+use acacia_client::proto::types::Vec3f;
 use acacia_client::DisconnectReason;
 use acacia_java_client::{Client, Error, Packet};
 use acacia_java_physics::Keys;
@@ -40,6 +41,11 @@ impl Java {
 
     pub(crate) fn started(&self) -> bool {
         self.client.loaded()
+    }
+
+    /// The server has sent the player's position: it ticks from login, before that.
+    pub(crate) fn placed(&self) -> bool {
+        self.setbacks.teleports > 0
     }
 }
 
@@ -82,7 +88,11 @@ impl Bot {
 
     /// Joins any Java server as `account`'s Java profile. Only `config`'s edition-neutral settings apply.
     pub async fn connect_java(host: &str, port: u16, account: &acacia_client::auth::Account, config: BotConfig) -> Result<Bot, Error> {
-        Ok(Self::java_bot(Client::join_online(host, port, account).await?, config))
+        let client = Client::join_online(host, port, account).await?;
+        if let Some(e) = client.profile_key_error() {
+            tracing::warn!(error = %e, "no profile key: chat goes out unsigned, which secure-chat servers refuse");
+        }
+        Ok(Self::java_bot(client, config))
     }
 
     fn java_bot(client: Client, config: BotConfig) -> Bot {
@@ -146,6 +156,10 @@ impl Bot {
                 {
                     let player = &java.client.movement.player;
                     (java.controls.yaw, java.controls.pitch) = (player.yaw, player.pitch);
+                    // Snapshots read the body only once the client has loaded; until then they read this.
+                    let [x, y, z] = player.pos.map(|c| c as f32);
+                    let mirrored = &mut self.state.player;
+                    (mirrored.position, mirrored.yaw, mirrored.pitch) = (Vec3f { x, y, z }, player.yaw, player.pitch);
                     let teleport = <acacia_java_proto::packets::PlayerPosition as acacia_java_proto::Wire>::read(&mut &packet.body[..]).map(|p| p.id);
                     tracing::trace!(tick = java.ticks, ?teleport, "java teleport");
                     if java.setbacks.on_position(java.ticks) {

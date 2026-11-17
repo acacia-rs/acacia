@@ -173,6 +173,11 @@ reported accepted, downloaded and loaded without being fetched, since declining 
 play packets until `FinishConfiguration`, the client holds its tick, and the next `Login` places a new player.
 Not done: `Transfer` (reconnecting elsewhere with the cookies).
 
+Online, the chat session goes out at `Login` (a failed profile key fetch leaves chat unsigned, as in vanilla, with a
+warning logged). The server applies it on its main thread, which can lag seconds on a fresh server's first join;
+signed chat sent before that is refused ("missing profile public key"), for vanilla too. `java_online_chat`
+reproduces it; `tools/java-js-gate.sh online <token dir> <username>` runs the Node package online.
+
 ## Status, chat and loading
 
 - Health, food and mob effects come from `SetHealth` / `UpdateMobEffect` / `RemoveMobEffect` into the physics
