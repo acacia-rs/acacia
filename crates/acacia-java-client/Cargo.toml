@@ -12,7 +12,7 @@ acacia-auth = { path = "../acacia-auth" }
 acacia-java-physics = { path = "../acacia-java-physics" }
 acacia-java-proto = { path = "../acacia-java-proto" }
 acacia-registry = { path = "../acacia-registry" }
-aes = "0.8"
+aes = "0.9"
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
 md-5 = "0.10"
 rsa = { version = "0.9", default-features = false, features = ["std", "u64_digit", "pem"] }
