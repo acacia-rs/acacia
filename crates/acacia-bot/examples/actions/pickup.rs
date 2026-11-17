@@ -33,6 +33,25 @@ pub async fn pickup(bot: &mut Bot) -> Check {
     Ok(seen.join(", "))
 }
 
+/// An elytra put on by use from the hand, as a chestplate is; given only when the kit has none (a second one
+/// stays in the inventory, so the server check counts them).
+pub async fn equip_use_elytra(bot: &mut Bot) -> Check {
+    if find(bot, "minecraft:elytra").is_err() {
+        bot.command("/give @s elytra");
+        bot.wait_ticks(10).await?;
+    }
+    let count = |inv: &str| inv.matches("minecraft:elytra").count();
+    let before = count(&server_inv(bot, "minecraft:elytra").await?);
+    bot.equip_by(find(bot, "minecraft:elytra")?, Destination::Chest, EquipMethod::Use).await?;
+    bot.wait_ticks(10).await?;
+    let worn = stack(bot, SlotRef::Armor(1)).and_then(|s| bot.state().item_name(s)).unwrap_or("nothing").to_owned();
+    let server = server_inv(bot, "minecraft:elytra").await?;
+    if worn != "minecraft:elytra" || count(&server) + 1 != before || !bot.wears_elytra() {
+        return Err(format!("bot wears {worn}; server inventory had {before} elytras, now {server}").into());
+    }
+    Ok("elytra worn".into())
+}
+
 pub async fn equip_use(bot: &mut Bot) -> Check {
     bot.equip_by(find(bot, "minecraft:iron_chestplate")?, Destination::Chest, EquipMethod::Use).await?;
     bot.wait_ticks(10).await?;

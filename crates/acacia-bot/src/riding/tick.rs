@@ -6,6 +6,7 @@ use super::input::{apply_dismount, apply_seat, Seat};
 use super::keys::{keys, report_jump, report_keys};
 use crate::movement::{Idle, EYE_HEIGHT};
 use crate::spawn::{self, SpawnPacket};
+use crate::trace;
 use crate::world::PhysicsWorld;
 use crate::Bot;
 
@@ -41,9 +42,13 @@ impl Bot {
                 let eye = self.state.player.eye_position();
                 let feet = self.ride.leaving_feet.take().unwrap_or([eye.x, eye.y - EYE_HEIGHT, eye.z]);
                 tracing::debug!(?feet, "left the vehicle");
-                if let Some(movement) = self.backend.movement_mut() {
-                    movement.resync(idle.last_tick(), feet, [0.0; 3]);
+                if let Some(b) = self.backend.bedrock_mut()
+                    && let (Some(world), Some(movement)) = (&b.world, &mut b.movement)
+                    && let (Some(view), Some(registry)) = (world.view(), world.registry())
+                {
+                    movement.dismount(idle.last_tick(), feet, &PhysicsWorld { view, registry });
                 }
+                self.record(&trace::Event::Ride(trace::Ride::Leave { feet }));
             }
             self.ride.seated = 0;
             return false;
@@ -54,6 +59,9 @@ impl Bot {
         }
         let Some(movement) = self.backend.movement_mut() else { return false };
         let (yaw, pitch) = (movement.controls.yaw, movement.controls.pitch);
+        if self.ride.idle.is_none() {
+            self.ride.started = Some(trace::Ride::Seat);
+        }
         let idle = self.ride.idle.get_or_insert_with(|| Idle::continuing(movement.input_tick()));
         if let Some(mut input) = idle.tick_facing(&self.state.player, yaw, pitch, true) {
             self.seat_input(&mut input, &seat, Some(exit));
@@ -63,10 +71,22 @@ impl Bot {
                 report_keys(&mut input, keys(&controls));
                 report_jump(&mut input, controls.jump, std::mem::replace(&mut self.ride.jump_held, controls.jump));
             }
+            if let Some(started) = self.ride.started.take() {
+                self.record(&trace::Event::Ride(started));
+            }
+            if let Some(r) = self.backend.bedrock_mut().and_then(|b| b.recorder.as_mut()) {
+                r.input(&input);
+            }
             self.add_queued_flags(&mut input);
             self.send_bedrock(&input);
         }
         true
+    }
+
+    fn record(&mut self, event: &trace::Event) {
+        if let Some(r) = self.backend.bedrock_mut().and_then(|b| b.recorder.as_mut()) {
+            r.write(event);
+        }
     }
 
     /// Where the server will put the player if it leaves the vehicle now, from the tracked terrain;

@@ -76,15 +76,18 @@ fn horizontal_offsets([dx, dz]: [f32; 2]) -> [[f32; 2]; 8] {
     [s, neg(s), add(s, f, -1.0), add(neg(s), f, -1.0), add(s, f, 1.0), add(f, s, -1.0), neg(f), f]
 }
 
-/// The floor height inside the spot's block if a player fits there, standing on it.
+/// The floor height inside the spot's block if a player fits there, standing on it (BDS `floorHeightAt`). Blocks
+/// [`acacia_physics::BlockPhysics::ignored_for_exit`] are neither floor nor obstacle.
 fn free_spot(world: &(impl WorldView + ?Sized), p: Vec3) -> Option<f32> {
     let cell = [p[0].floor() as i32, p[1].floor() as i32, p[2].floor() as i32];
-    let floor = match top(world, cell) {
+    let ignored = |c: [i32; 3]| world.block(c).ignored_for_exit();
+    let floor = match top(world, cell).filter(|_| !ignored(cell)) {
         Some(t) if t > 0.0 && t < 1.0 => t,
         Some(_) => return None,
         None => {
-            let below = top(world, [cell[0], cell[1] - 1, cell[2]])? - 1.0;
-            if below < 0.0 {
+            let under = [cell[0], cell[1] - 1, cell[2]];
+            let below = top(world, under)? - 1.0;
+            if below < 0.0 || ignored(under) {
                 return None;
             }
             below
@@ -92,9 +95,23 @@ fn free_spot(world: &(impl WorldView + ?Sized), p: Vec3) -> Option<f32> {
     };
     let half = PLAYER_WIDTH.min(1.0) / 2.0;
     let body = Aabb::new(p[0] - half, p[1] + floor, p[2] - half, p[0] + half, p[1] + floor + PLAYER_HEIGHT, p[2] + half);
-    let mut hits = Vec::new();
-    world.collisions(&body, &mut hits);
-    hits.is_empty().then_some(floor)
+    let (lo, hi) = (body.min.map(|v| v.floor() as i32), body.max.map(|v| v.floor() as i32));
+    let mut boxes = Vec::new();
+    for x in lo[0]..=hi[0] {
+        for y in lo[1] - 1..=hi[1] {
+            for z in lo[2]..=hi[2] {
+                if ignored([x, y, z]) {
+                    continue;
+                }
+                boxes.clear();
+                world.block_collisions([x, y, z], &mut boxes);
+                if boxes.iter().any(|b| b.translate([x as f32, y as f32, z as f32]).intersects(&body)) {
+                    return None;
+                }
+            }
+        }
+    }
+    Some(floor)
 }
 
 /// Height of the block's highest collision box above its base, `None` without boxes.

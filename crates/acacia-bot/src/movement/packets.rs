@@ -15,6 +15,8 @@ use crate::state::Me;
 
 /// `Respawn` state carrying the position the player respawns at.
 const RESPAWN_READY: u8 = 1;
+/// Food at or below which sprinting is refused ([`acacia_physics::PlayerState::hungry`]).
+const HUNGRY_FOOD: f32 = 6.0;
 /// `MobEffect` ids of the effects that change movement (Speed and Slowness come through the movement attribute).
 const EFFECT_JUMP_BOOST: i32 = 8;
 const EFFECT_LEVITATION: i32 = 24;
@@ -148,6 +150,9 @@ impl Movement {
                         if p.tick >= self.tick {
                             st.server_freeze = Some(freeze);
                         }
+                    }
+                    if let Some(a) = p.attributes.iter().find(|a| a.name == "minecraft:player.hunger") {
+                        st.hungry = a.current <= HUNGRY_FOOD;
                     }
                 }
             }

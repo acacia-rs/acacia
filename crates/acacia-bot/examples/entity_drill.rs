@@ -47,7 +47,13 @@ const PHASES: &[Phase] = &[
     Phase { name: "cow_overlap", entity: "cow", at: [2.3, 0.0, 0.5], setup: STILL, start: [2.9, 0.0, 0.7], yaw: -90.0, idle: 40, walk: 0 },
     Phase { name: "cow_walk", entity: "cow", at: [4.5, 0.0, 0.5], setup: STILL, start: [0.5, 0.0, 0.5], yaw: -90.0, idle: 10, walk: 40 },
     Phase { name: "cow_offaxis", entity: "cow", at: [4.5, 0.0, 0.8], setup: STILL, start: [0.5, 0.0, 0.5], yaw: -90.0, idle: 10, walk: 40 },
+    // Last: creative (a shulker shoots survival players) stays on for the rest of the run.
+    Phase { name: "shulker_walk", entity: "shulker", at: [4.5, 0.0, 0.5], setup: SHULKER, start: [0.5, 0.0, 0.5], yaw: -90.0, idle: 10, walk: 40 },
+    Phase { name: "shulker_offaxis", entity: "shulker", at: [4.5, 0.0, 1.2], setup: SHULKER, start: [0.5, 0.0, 0.5], yaw: -80.0, idle: 10, walk: 40 },
+    Phase { name: "shulker_stand", entity: "shulker", at: [4.5, 0.0, 0.5], setup: SHULKER, start: [4.5, 1.5, 0.5], yaw: -90.0, idle: 30, walk: 30 },
 ];
+
+const SHULKER: &[&str] = &["/difficulty easy", "/gamemode creative @p"];
 
 /// Connects the spectator that logs every `MovePlayer` it is sent.
 async fn observer(server: &str, name: &str, log: Log) -> Result<tokio::task::JoinHandle<()>, Error> {
@@ -80,7 +86,8 @@ async fn run() -> Result<(), Error> {
     let server = args.first().cloned().unwrap_or_else(|| "127.0.0.1:19188".into());
     let name = args.get(1).cloned().unwrap_or_else(|| "Pusher".into());
     let only: Option<Vec<&str>> = args.get(2).map(|s| s.split(',').collect());
-    let config = BotConfig { trackers: Trackers { entities: true, ..Trackers::default() }, ..BotConfig::default() };
+    let record = std::env::var_os("BEDROCK_RECORD").map(Into::into);
+    let config = BotConfig { record, trackers: Trackers { entities: true, ..Trackers::default() }, ..BotConfig::default() };
     let (mut bot, pad) = support::connect_config(&server, &name, config).await?;
     bot.command("/gamemode survival @s");
     let log: Log = Rc::new(RefCell::new(std::io::BufWriter::new(std::fs::File::create(
@@ -128,6 +135,7 @@ async fn drill(bot: &mut Bot, pad: &Pad, p: &Phase, observer: Option<&str>, log:
     bot.wait_ticks(20).await?;
     pad.teleport(bot, p.start, p.yaw).await?;
     let _ = writeln!(log.borrow_mut(), "phase {}", p.name);
+    bot.bedrock_mut().expect("Bedrock bot").trace_mark(p.name);
     for e in bot.state().entities.iter().filter(|e| !e.is_player()) {
         let m = &e.metadata;
         let _ = writeln!(log.borrow_mut(), "kind {} box {:?} flags {:?} {:?}", e.kind, m.bounding_box(), m.flags(), m.flags_extended());

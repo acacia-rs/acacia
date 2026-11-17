@@ -185,6 +185,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     run!(bot, results, "consume", survival::consume(&mut bot));
     run!(bot, results, "equip", survival::equip(&mut bot));
     run!(bot, results, "equip_use", pickup::equip_use(&mut bot));
+    run!(bot, results, "equip_use_elytra", pickup::equip_use_elytra(&mut bot));
     run!(bot, results, "pickup", pickup::pickup(&mut bot));
     run!(bot, results, "equip_best_tool", survival::best_tool(&mut bot, s));
     run!(bot, results, "write_sign", survival::sign(&mut bot, s));

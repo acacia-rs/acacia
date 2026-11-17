@@ -204,6 +204,7 @@ fn player_at(feet: [f32; 3]) -> Entity {
         effects: Default::default(),
         equipment: None,
         item: None,
+        peek: None,
     }
 }
 

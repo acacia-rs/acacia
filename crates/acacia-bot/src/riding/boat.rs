@@ -12,6 +12,7 @@ use acacia_physics::{self as physics, BoatState, WorldView};
 
 use super::keys::{keys, report_keys, report_paddles};
 use crate::movement::VehicleCorrection;
+use crate::trace::Ride;
 use crate::world::PhysicsWorld;
 use crate::Bot;
 
@@ -36,6 +37,27 @@ pub(crate) struct BoatSim {
 }
 
 impl BoatSim {
+    pub(crate) fn new(unique_id: i64, feet: [f32; 3], yaw: f32) -> Self {
+        BoatSim { unique_id, st: BoatState::new(feet, yaw), history: VecDeque::with_capacity(HISTORY), fixed: None, first: None }
+    }
+
+    pub(crate) fn state(&self) -> &BoatState {
+        &self.st
+    }
+
+    /// Applies the server's `correction` if any, then paddles input `tick` with `held` keys. Returns the
+    /// correction's kind as [`BoatSim::correct`] does.
+    pub(crate) fn step(&mut self, tick: u64, held: [f32; 2], correction: Option<&VehicleCorrection>, world: &impl WorldView) -> Option<bool> {
+        let kind = correction.and_then(|c| self.correct(c, world));
+        self.first.get_or_insert(tick);
+        physics::boat_tick(&mut self.st, held, world);
+        if self.history.len() == HISTORY {
+            self.history.pop_front();
+        }
+        self.history.push_back((tick, held, self.st));
+        kind
+    }
+
     /// Takes the server's boat after input `c.tick` and replays the inputs sent since. `Some(true)` when x, z or
     /// the yaw was off (more than `HORIZONTAL`), not just the height the waves move; `None` for one from before the
     /// ride's first input, the boat as boarded (the spawn packet's yaw is a 1.4° byte step).
@@ -115,22 +137,15 @@ impl Bot {
         let (unique_id, runtime_id) = (vehicle.unique_id, vehicle.runtime_id);
         if self.ride.boat.as_ref().is_none_or(|b| b.unique_id != unique_id) {
             let Some(e) = runtime_id.and_then(|id| self.state.entities.get(id)) else { return false };
-            let st = BoatState::new([e.position.x, e.position.y, e.position.z], e.yaw);
-            self.ride.boat = Some(BoatSim { unique_id, st, history: VecDeque::with_capacity(HISTORY), fixed: None, first: None });
+            let (feet, yaw) = ([e.position.x, e.position.y, e.position.z], e.yaw);
+            self.ride.boat = Some(BoatSim::new(unique_id, feet, yaw));
+            self.ride.started = Some(Ride::Boat { feet, yaw });
         }
         let Some(boat) = self.ride.boat.as_mut() else { return false };
-        if let Some(c) = movement.vehicle_correction.take()
-            && let Some(horizontal) = boat.correct(&c, &world)
-        {
+        let held = keys(&movement.controls);
+        if let Some(horizontal) = boat.step(input.tick, held, movement.vehicle_correction.take().as_ref(), &world) {
             self.ride.boat_corrections[usize::from(horizontal)] += 1;
         }
-        let held = keys(&movement.controls);
-        boat.first.get_or_insert(input.tick);
-        physics::boat_tick(&mut boat.st, held, &world);
-        if boat.history.len() == HISTORY {
-            boat.history.pop_front();
-        }
-        boat.history.push_back((input.tick, held, boat.st));
         let st = &boat.st;
         tracing::trace!(tick = input.tick, pos = ?st.pos, delta = ?st.vel, yaw = st.yaw, wave = st.wave, ?held, "boat input");
         let [x, y, z] = st.pos;

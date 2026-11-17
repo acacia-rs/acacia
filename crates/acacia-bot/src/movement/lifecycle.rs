@@ -1,10 +1,12 @@
 //! Starting, stopping and re-aligning the simulation: at spawn, across a dimension change (docs/DESIGN.md
 //! "Dimension travel") and in replays.
 
-use acacia_physics::{PlayerState, Vec3};
+use acacia_physics::{PlayerState, Vec3, WorldView, collide_box};
 
 use super::rewind::History;
 use super::Movement;
+
+const GROUND_PROBE: f32 = 0.01;
 
 impl Movement {
     /// Starts simulating from the spawn position (feet).
@@ -41,6 +43,17 @@ impl Movement {
     pub(crate) fn resync(&mut self, tick: u64, feet: Vec3, delta: Vec3) {
         if let Some(st) = &mut self.physics {
             st.apply_correction(feet, delta, st.on_ground);
+            self.tick = tick;
+        }
+    }
+
+    /// Resumes walking where a seat was left, on the ground only when blocks hold the feet: BDS walks the first
+    /// tick at the air speed off a boat on water or one falling off a ledge, at the ground speed on stone and
+    /// ice (vehicle drill, 2026-11-12).
+    pub(crate) fn dismount(&mut self, tick: u64, feet: Vec3, world: &impl WorldView) {
+        if let Some(st) = &mut self.physics {
+            st.apply_correction(feet, [0.0; 3], false);
+            st.on_ground = collide_box(world, &st.bounding_box(), [0.0, -GROUND_PROBE, 0.0])[1] > -GROUND_PROBE;
             self.tick = tick;
         }
     }

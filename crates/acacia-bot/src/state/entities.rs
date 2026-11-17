@@ -61,6 +61,8 @@ pub struct Entity {
     pub equipment: Option<Box<Equipment>>,
     /// The stack of a dropped item ([`ITEM_KIND`]).
     pub item: Option<ItemStack>,
+    /// A shulker's lid as BDS steps it toward the metadata's peek (see `solids.rs`); `None` until first stepped.
+    pub(crate) peek: Option<f32>,
 }
 
 impl Entity {
@@ -86,6 +88,7 @@ impl Entity {
             effects: Effects::default(),
             equipment: None,
             item: None,
+            peek: None,
         }
     }
 
@@ -153,6 +156,9 @@ impl Entities {
 
     pub(crate) fn advance(&mut self) {
         self.now += 1;
+        for e in self.by_runtime.values_mut().filter(|e| e.kind == solids::SHULKER) {
+            e.step_peek();
+        }
     }
 
     /// Moves a tracked entity the bot itself simulates (a vehicle it drives, which the server does not

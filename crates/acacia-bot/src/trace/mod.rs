@@ -4,12 +4,19 @@
 //!
 //! File: `BTRC` + version byte, then events: kind `u8`, then for a packet `id u32, len u32, body`,
 //! for an input `len u32, body`, for a start `feet [f32; 3], yaw f32, pitch f32`, for a mark
-//! `len u32, utf8`, for equipment five `i32` (depth strider, soul speed, swift sneak, leather boots, elytra).
+//! `len u32, utf8`, for equipment five `i32` (depth strider, soul speed, swift sneak, leather boots, elytra),
+//! for a ride a tag `u8` and its `f32`s ([`Ride`]), for a glide boost nothing, for solids a count `u32` and
+//! per box min and max as six `f32`, for a riptide the level `u8`.
 //! Integers and floats are little-endian.
 
+mod blocks;
 mod replay;
+mod report;
+mod ride;
 
-pub use replay::{replay, CorrectionDiff, Report, TickDiff, CORRECTION_TOLERANCE};
+pub use replay::replay;
+pub use report::{CorrectionDiff, Report, TickDiff, CORRECTION_TOLERANCE};
+pub use ride::Ride;
 
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter, Read, Write};
@@ -18,7 +25,7 @@ use std::path::Path;
 use acacia_client::proto::packets::{PlayerAuthInput, SetEntityData};
 use acacia_client::proto::types::{MetadataDictionaryItemValue, MetadataFlags1};
 use acacia_client::proto::{Packet, RawPacket};
-use acacia_physics::{Equipment, Vec3};
+use acacia_physics::{Aabb, Equipment, Vec3};
 use bytes::{Bytes, BytesMut};
 
 /// Recorded for analysis only, when about the recording player: its actor flags (the server's sprint state).
@@ -30,6 +37,10 @@ const INPUT: u8 = 1;
 const START: u8 = 2;
 const MARK: u8 = 3;
 const EQUIPMENT: u8 = 4;
+const RIDE: u8 = 5;
+const GLIDE_BOOST: u8 = 6;
+const SOLIDS: u8 = 7;
+const RIPTIDE: u8 = 8;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
@@ -43,6 +54,14 @@ pub enum Event {
     Mark(String),
     /// The worn armour from here on (the client predicts some changes the server never sends).
     Equipment(Equipment),
+    /// A driven vehicle's simulation started, or the player left a seat.
+    Ride(Ride),
+    /// The client used a firework rocket while gliding and predicts its boost from the next input.
+    GlideBoost,
+    /// The solid entity boxes (boats) the simulation collides with from the next input on, until the next.
+    Solids(Vec<Aabb>),
+    /// The client released a Riptide trident of this level and predicts the launch from the next input.
+    Riptide(u8),
 }
 
 /// Whether an [`ANALYSIS_PACKETS`] packet concerns this runtime id.
@@ -58,13 +77,25 @@ pub fn actor_flags(packet: &SetEntityData) -> Option<MetadataFlags1> {
     })
 }
 
-pub struct Recorder(BufWriter<File>);
+pub struct Recorder {
+    w: BufWriter<File>,
+    /// The last [`Event::Solids`] written.
+    solids: Vec<Aabb>,
+}
 
 impl Recorder {
     pub fn create(path: &Path) -> io::Result<Self> {
         let mut w = BufWriter::new(File::create(path)?);
         w.write_all(MAGIC)?;
-        Ok(Self(w))
+        Ok(Self { w, solids: Vec::new() })
+    }
+
+    /// Writes [`Event::Solids`] when `boxes` differ from the last written.
+    pub fn solids(&mut self, boxes: &[Aabb]) {
+        if self.solids != boxes {
+            self.solids = boxes.to_vec();
+            self.write(&Event::Solids(self.solids.clone()));
+        }
     }
 
     pub fn write(&mut self, event: &Event) {
@@ -78,11 +109,11 @@ impl Recorder {
         input.encode(&mut body);
         self.write(&Event::Input(body.freeze()));
         // Once a tick, so a killed process still leaves a usable trace.
-        let _ = self.0.flush();
+        let _ = self.w.flush();
     }
 
     fn try_write(&mut self, event: &Event) -> io::Result<()> {
-        let w = &mut self.0;
+        let w = &mut self.w;
         match event {
             Event::Packet(p) => {
                 w.write_all(&[PACKET])?;
@@ -106,12 +137,41 @@ impl Recorder {
             }
             Event::Equipment(e) => {
                 w.write_all(&[EQUIPMENT])?;
-                for level in [e.depth_strider, e.soul_speed, e.swift_sneak, i32::from(e.leather_boots), i32::from(e.elytra)] {
+                for level in [e.depth_strider, e.soul_speed, e.swift_sneak, i32::from(e.leather_boots), elytra_code(e)] {
                     w.write_all(&level.to_le_bytes())?;
                 }
                 Ok(())
             }
+            Event::Ride(ride) => {
+                let (tag, values) = ride.tag_and_values();
+                w.write_all(&[RIDE, tag])?;
+                for v in values {
+                    w.write_all(&v.to_le_bytes())?;
+                }
+                Ok(())
+            }
+            Event::GlideBoost => w.write_all(&[GLIDE_BOOST]),
+            Event::Solids(boxes) => {
+                w.write_all(&[SOLIDS])?;
+                w.write_all(&(boxes.len() as u32).to_le_bytes())?;
+                for b in boxes {
+                    for v in b.min.iter().chain(&b.max) {
+                        w.write_all(&v.to_le_bytes())?;
+                    }
+                }
+                Ok(())
+            }
+            Event::Riptide(level) => w.write_all(&[RIPTIDE, *level]),
         }
+    }
+}
+
+/// The equipment event's elytra field: 0 none, 1 worn with unknown wear (older traces), 2 + glides left.
+fn elytra_code(e: &Equipment) -> i32 {
+    match (e.elytra, e.elytra_uses) {
+        (false, _) => 0,
+        (true, None) => 1,
+        (true, Some(n)) => 2 + n.min(i32::MAX as u32 - 2) as i32,
     }
 }
 
@@ -166,7 +226,33 @@ fn read_event(r: &mut impl Read, kind: u8) -> io::Result<Event> {
             for x in &mut v {
                 *x = read_u32(r)? as i32;
             }
-            Event::Equipment(Equipment { depth_strider: v[0], soul_speed: v[1], swift_sneak: v[2], leather_boots: v[3] != 0, elytra: v[4] != 0 })
+            Event::Equipment(Equipment {
+                depth_strider: v[0],
+                soul_speed: v[1],
+                swift_sneak: v[2],
+                leather_boots: v[3] != 0,
+                elytra: v[4] != 0,
+                elytra_uses: (v[4] >= 2).then(|| (v[4] - 2) as u32),
+            })
+        }
+        RIDE => Event::Ride(Ride::read(r)?),
+        GLIDE_BOOST => Event::GlideBoost,
+        SOLIDS => {
+            let n = read_u32(r)?;
+            let mut boxes = Vec::with_capacity(n.min(1024) as usize);
+            for _ in 0..n {
+                let mut v = [0.0; 6];
+                for x in &mut v {
+                    *x = f32::from_bits(read_u32(r)?);
+                }
+                boxes.push(Aabb { min: [v[0], v[1], v[2]], max: [v[3], v[4], v[5]] });
+            }
+            Event::Solids(boxes)
+        }
+        RIPTIDE => {
+            let mut level = [0];
+            r.read_exact(&mut level)?;
+            Event::Riptide(level[0])
         }
         k => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("unknown trace event {k}"))),
     })
@@ -185,32 +271,4 @@ fn read_bytes(r: &mut impl Read) -> io::Result<Bytes> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reads_own_actor_flags() {
-        // BDS 1.26 to a vanilla client (runtime id 1): flags only, not sprinting.
-        let body = Bytes::from_static(&[1, 1, 0, 7, 7, 0x80, 0x80, 0xc0, 0x80, 0x80, 0x82, 0x80, 3, 0, 0, 0]);
-        let packet = RawPacket { id: SetEntityData::ID, sender_subclient: 0, target_subclient: 0, body };
-        assert!(about(&packet, 1) && !about(&packet, 2));
-        let flags = actor_flags(&packet.decode().unwrap()).unwrap();
-        assert_eq!(flags.0 & MetadataFlags1::SPRINTING.0, 0);
-    }
-
-    #[test]
-    fn events_round_trip() {
-        let path = std::env::temp_dir().join(format!("btrc-{}.bin", std::process::id()));
-        let events = vec![
-            Event::Mark("drill".into()),
-            Event::Start { feet: [1.5, -60.0, 2.5], yaw: -90.0, pitch: 0.0 },
-            Event::Packet(RawPacket { id: 7, sender_subclient: 0, target_subclient: 0, body: Bytes::from_static(b"abc") }),
-            Event::Input(Bytes::from_static(b"xyz")),
-        ];
-        let mut rec = Recorder::create(&path).unwrap();
-        events.iter().for_each(|e| rec.write(e));
-        drop(rec);
-        assert_eq!(read(&path).unwrap(), events);
-        std::fs::remove_file(path).unwrap();
-    }
-}
+mod tests;

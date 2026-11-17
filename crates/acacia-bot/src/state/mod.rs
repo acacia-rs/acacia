@@ -37,7 +37,7 @@ pub use entities::{Entities, Entity, Equipment, ITEM_KIND, PLAYER_EYE_HEIGHT, PL
 pub(crate) use entities::EntityChange;
 pub use maps::{MAP_SIZE, MapImage, MapMarker, Maps};
 pub use skins::{PlayerSkin, SkinTexture, Skins};
-pub use environment::{BossBar, Environment};
+pub use environment::{BiomeClimate, BossBar, Environment};
 pub use metadata::Metadata;
 pub use fishing::{Fishing, FishingHook, FISHING_HOOK_KIND};
 pub use hurts::Hurts;

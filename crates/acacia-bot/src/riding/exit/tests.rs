@@ -55,6 +55,22 @@ fn no_floor_or_no_headroom_is_not_a_spot() {
 }
 
 #[test]
+fn a_ladder_is_neither_floor_nor_obstacle() {
+    let mut w = flat();
+    // The first spot (-Z of the vehicle) holds a ladder; it is still taken, at the stone floor.
+    w.set([1, 64, 0], TestBlock::Ladder);
+    let feet = mount([1.5, 64.0, 1.5]).exit_feet(&w).unwrap();
+    assert!(close(feet, [1.5, 64.001, 0.5]), "{feet:?}");
+
+    let mut w = TestWorld::new();
+    w.fill(Some(TestBlock::Stone), [-5, 62, -5], [5, 62, 5]);
+    w.fill(Some(TestBlock::Ladder), [-5, 63, -5], [5, 63, 5]);
+    // A ladder under a spot is no floor: the spots fall to the stone a block lower.
+    let feet = mount([1.5, 64.0, 1.5]).exit_feet(&w).unwrap();
+    assert!(close(feet, [1.5, 63.001, 0.5]), "{feet:?}");
+}
+
+#[test]
 fn seat_offset_turns_with_the_vehicle_and_x_z_start_from_the_seat() {
     let m = Mount { vehicle: [0.5, 64.0, 0.5], yaw: 90.0, motion: [0.0; 2], seat_offset: [0.0, 0.2, 0.6] };
     let seat = m.seat();

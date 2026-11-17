@@ -12,6 +12,7 @@ mod keys;
 mod lifecycle;
 mod packets;
 mod rewind;
+mod riptide;
 mod rotation_noise;
 #[cfg(feature = "java")]
 mod java_sim;
@@ -212,7 +213,7 @@ impl Movement {
         let input = self.keys.advance(&c, st, world, self.using_item, self.recorded_want_down.unwrap_or(c.sneak));
         let jump = input.jump;
         let (was_sprinting, was_sneaking, was_swimming, was_gliding) = (st.sprinting, st.sneaking, st.swimming, st.gliding);
-        let was_flying = st.flight.flying;
+        let (was_flying, was_crawling) = (st.flight.flying, st.crawling);
         let knockback = st.knockback;
         st.equipment.elytra = self.elytra;
         let mut out = physics::tick(st, &input, world);
@@ -235,6 +236,7 @@ impl Movement {
             sneak: (st.sneaking && !was_sneaking, !st.sneaking && was_sneaking),
             jump: (jump && !self.prev_jump, !jump && self.prev_jump),
             swim: (st.swimming && !was_swimming, !st.swimming && was_swimming),
+            crawl: (st.crawling && !was_crawling, !st.crawling && was_crawling),
             glide: (st.gliding && !was_gliding, !st.gliding && was_gliding),
             fly: (st.flight.flying && !was_flying, !st.flight.flying && was_flying),
             sneaking: st.sneaking,

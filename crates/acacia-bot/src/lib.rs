@@ -30,6 +30,7 @@ pub mod signs;
 pub mod snapshot;
 mod sleep;
 mod riding;
+mod riptide;
 mod spawn;
 mod subchunks;
 pub mod state;

@@ -11,7 +11,10 @@ mod java;
 mod keys;
 mod tick;
 
+pub(crate) use boat::BoatSim;
 pub(crate) use exit::{Mount, STILL_SQ};
+pub(crate) use horse::HorseSim;
+pub(crate) use keys::keys;
 
 use std::time::Duration;
 
@@ -49,6 +52,8 @@ pub(crate) struct Ride {
     report_offset: Option<[f32; 3]>,
     /// Boat corrections: [height only, horizontal] ([`Bot::boat_corrections`]).
     boat_corrections: [u32; 2],
+    /// A vehicle simulation started this tick, for the trace.
+    started: Option<crate::trace::Ride>,
 }
 
 impl Bot {
