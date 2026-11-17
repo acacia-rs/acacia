@@ -17,7 +17,7 @@
               },
               {
                 "const": "microsoft",
-                "description": "A Microsoft account signed in by device code, its tokens cached per `username` (an `msaCode` record asks a\nperson to sign in when the cache has none).",
+                "description": "A Microsoft account signed in by device code, its tokens cached per `username` (an `msaCode` record asks a\nperson to sign in when the cache has none). Java signs in under its own Xbox title, so its tokens are a\nseparate `<username>.java` entry that `signIn` doesn't fill: the first Java `createBot` asks for its own code.",
                 "type": "string"
               }
             ]

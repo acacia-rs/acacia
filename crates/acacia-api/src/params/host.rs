@@ -75,7 +75,8 @@ pub enum Auth {
     /// No account: servers with `online-mode=false` (LAN, most test servers).
     Offline,
     /// A Microsoft account signed in by device code, its tokens cached per `username` (an `msaCode` record asks a
-    /// person to sign in when the cache has none).
+    /// person to sign in when the cache has none). Java signs in under its own Xbox title, so its tokens are a
+    /// separate `<username>.java` entry that `signIn` doesn't fill: the first Java `createBot` asks for its own code.
     Microsoft,
 }
 

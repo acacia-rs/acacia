@@ -3,31 +3,39 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use acacia_api::{ApiError, ErrorCode};
-use acacia_client::auth::{Account, AuthClient, AuthConfig, DeviceCodePrompt, Error as AuthError, FileTokenCache};
+use acacia_client::auth::{Account, AuthClient, AuthConfig, DeviceCodePrompt, Error as AuthError, FileTokenCache, Title};
 use parking_lot::Mutex;
 
 use super::{DeviceCode, JavaFuture, LoginFuture, MsaAccount, OnlineLogin, Prompt, SignIn};
 
 /// acacia-auth's device-code flow (docs/auth.md) with one [`FileTokenCache`] per profiles folder: a cache's
-/// versions only hold within one instance, so every bot of the host shares it.
+/// versions only hold within one instance, so every bot of the host shares it. Java signs in under the Switch
+/// title (Mojang refuses the others), whose tokens are its own, cached as `<username>.java`.
 pub struct MicrosoftSignIn {
     config: AuthConfig,
-    client: Mutex<Option<Arc<AuthClient>>>,
+    clients: Mutex<HashMap<Title, Arc<AuthClient>>>,
     caches: Mutex<HashMap<PathBuf, Arc<FileTokenCache>>>,
 }
 
 impl MicrosoftSignIn {
     pub fn new(config: AuthConfig) -> Self {
-        Self { config, client: Mutex::new(None), caches: Mutex::new(HashMap::new()) }
+        Self { config, clients: Mutex::new(HashMap::new()), caches: Mutex::new(HashMap::new()) }
     }
 
-    fn account(&self, account: &MsaAccount) -> Result<Account, ApiError> {
-        let client = match &mut *self.client.lock() {
+    fn account(&self, account: &MsaAccount, title: Title) -> Result<Account, ApiError> {
+        let mut clients = self.clients.lock();
+        let client = match clients.get(&title) {
             Some(client) => client.clone(),
-            slot => slot.insert(Arc::new(AuthClient::new(self.config.clone()).map_err(auth)?)).clone(),
+            None => {
+                let client = Arc::new(AuthClient::new(AuthConfig { title, ..self.config.clone() }).map_err(auth)?);
+                clients.insert(title, client.clone());
+                client
+            }
         };
+        drop(clients);
         let cache = self.cache(&account.profiles_folder)?;
-        Ok(Account::new(client, cache, account.username.clone()))
+        let id = if title == Title::NintendoSwitch { format!("{}.java", account.username) } else { account.username.clone() };
+        Ok(Account::new(client, cache, id))
     }
 
     fn cache(&self, folder: &Path) -> Result<Arc<FileTokenCache>, ApiError> {
@@ -49,7 +57,7 @@ impl Default for MicrosoftSignIn {
 
 impl SignIn for MicrosoftSignIn {
     fn login(&self, account: MsaAccount, prompt: Prompt) -> LoginFuture {
-        let account = self.account(&account);
+        let account = self.account(&account, self.config.title);
         Box::pin(async move {
             let account = account?;
             let mut prompt = Some(prompt);
@@ -69,7 +77,7 @@ impl SignIn for MicrosoftSignIn {
     }
 
     fn java_account(&self, account: MsaAccount, prompt: Prompt) -> JavaFuture {
-        let account = self.account(&account);
+        let account = self.account(&account, Title::NintendoSwitch);
         Box::pin(async move {
             let account = account?;
             let mut prompt = Some(prompt);
