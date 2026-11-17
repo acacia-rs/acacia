@@ -1,14 +1,19 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use acacia_client::proto::packets::{ClientCacheMissResponse, CorrectPlayerMovePrediction, MovePlayer, PlayerAuthInput, SetEntityData, SetEntityMotion};
+use acacia_client::proto::packets::{
+    ClientCacheMissResponse, CorrectPlayerMovePrediction, CorrectPlayerMovePredictionPredictionType, MovePlayer, PlayerAuthInput, SetEntityData, SetEntityMotion,
+};
 use acacia_client::{BlobStore, MemoryBlobStore};
 use acacia_client::proto::types::{InputData as F, MetadataFlags1, Vec3f};
 use acacia_client::proto::Packet;
 use acacia_physics::Vec3;
 
-use super::Event;
-use crate::movement::{Controls, Movement, EYE_HEIGHT};
+use super::blocks::nearby_blocks;
+use super::report::{dist, CorrectionDiff, Report, TickDiff};
+use super::ride::{Driven, Seat};
+use super::{Event, Ride};
+use crate::movement::{Controls, Movement, VehicleCorrection, EYE_HEIGHT};
 use crate::state::GameState;
 use crate::world::{PhysicsWorld, SharedWorlds, WorldTracker};
 
@@ -18,85 +23,13 @@ const EVENT_WINDOW: u64 = 30;
 /// differently (the proxy sees packets before the client does).
 const ARRIVAL_WINDOW: u64 = 2;
 
-/// A tick whose replayed output differs from the recorded `PlayerAuthInput`.
-#[derive(Debug, Clone)]
-pub struct TickDiff {
-    pub tick: u64,
-    pub mark: Option<String>,
-    /// Eye positions.
-    pub ours: Vec3,
-    pub recorded: Vec3,
-    pub delta_err: f32,
-    /// Blocks around the recorded position, as in [`CorrectionDiff::blocks`].
-    pub blocks: String,
-    /// Within [`ARRIVAL_WINDOW`] ticks of a teleport or knockback arriving or taking effect.
-    pub near_event: bool,
-}
-
-/// A server correction compared with the replayed position at the tick it names.
-#[derive(Debug, Clone)]
-pub struct CorrectionDiff {
-    pub tick: u64,
-    pub mark: Option<String>,
-    /// Eye positions; `ours` is `None` when the tick was not replayed.
-    pub ours: Option<Vec3>,
-    pub server: Vec3,
-    /// Distance between our velocity and the server's at that tick.
-    pub delta_err: Option<f32>,
-    /// Our velocity and the server's at that tick.
-    pub deltas: (Option<Vec3>, Vec3),
-    /// The eye position and velocity the recorded client sent for that tick (a real client's own physics).
-    pub sent: Option<(Vec3, Vec3)>,
-    /// Explained by what the client had not been sent yet rather than a disagreement: a correction to a
-    /// teleport's target, or one for a tick the server moved us on before we heard of it, froze us by an
-    /// amount it reported later, or simulated in a chunk we had not received.
-    pub explained: bool,
-    /// Non-air blocks around the server's position (both layers), for triage.
-    pub blocks: String,
-}
-
-impl CorrectionDiff {
-    pub fn error(&self) -> Option<f32> {
-        self.ours.map(|o| dist(o, self.server))
-    }
-
-    /// A disagreement in position or velocity beyond `tolerance` (a correction for a tick we did not
-    /// simulate counts).
-    pub fn mismatch(&self, tolerance: f32) -> bool {
-        !self.explained && (self.error().is_none_or(|e| e > tolerance) || self.delta_err.is_some_and(|e| e > tolerance))
-    }
-}
-
-/// Server corrections within this of our position are periodic resyncs, not mismatches.
-pub const CORRECTION_TOLERANCE: f32 = 0.001;
-/// Farther than any tick of movement: BDS applied a `/tp` it has not sent us yet (it can lag many ticks).
-const TELEPORT_LAG_DISTANCE: f32 = 4.0;
 /// Ticks a freeze reported late keeps the position off by more than the tolerance.
 const FREEZE_CARRY: u64 = 2;
 
-#[derive(Debug, Default)]
-pub struct Report {
-    pub ticks: usize,
-    /// Ticks off the recording by more than the tolerance.
-    pub diverged: Vec<TickDiff>,
-    pub corrections: Vec<CorrectionDiff>,
-}
-
-impl Report {
-    /// Corrections we disagree with beyond `tolerance`, and those skipped as teleport lags.
-    pub fn correction_mismatches(&self, tolerance: f32) -> (Vec<&CorrectionDiff>, Vec<&CorrectionDiff>) {
-        let (lagged, mismatches) = self
-            .corrections
-            .iter()
-            .filter(|c| c.mismatch(tolerance))
-            .partition(|c| c.error().is_some_and(|e| e > TELEPORT_LAG_DISTANCE));
-        (mismatches, lagged)
-    }
-}
-
-/// Replays a trace through [`Movement`] with the recorded controls. With `resync`, the state is reset
-/// to the recorded position and velocity after every diverging tick, so each divergence is reported
-/// once instead of cascading (use for traces of real clients).
+/// Replays a trace through [`Movement`] with the recorded controls, and a driven vehicle's seated inputs
+/// through its simulation. With `resync`, the state is reset to the recorded position and velocity after
+/// every diverging tick, so each divergence is reported once instead of cascading (use for traces of real
+/// clients).
 pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     let mut state = GameState::default();
     let mut world = WorldTracker::new("replay".into(), SharedWorlds::new());
@@ -109,6 +42,9 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     let mut sent: HashMap<u64, (Vec3, Vec3)> = HashMap::new();
     // The freeze each input tick was simulated with; `None` in a chunk not received yet.
     let mut frozen: HashMap<u64, Option<f32>> = HashMap::new();
+    let mut seat: Option<Seat> = None;
+    let mut solids = Vec::new();
+    let mut driven: HashMap<u64, Driven> = HashMap::new();
     let mut mark: Option<String> = None;
     // (input tick it takes effect on, teleport target, our tick when it arrived)
     let mut moves: Vec<(u64, Option<Vec3>, u64)> = Vec::new();
@@ -121,6 +57,19 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                 movement.set_equipment(*worn);
             }
             Event::Start { feet, yaw, pitch } => movement.start(*feet, *yaw, *pitch),
+            Event::GlideBoost => movement.predict_glide_boost(),
+            Event::Riptide(level) => {
+                movement.predict_riptide(*level, true);
+            }
+            Event::Solids(boxes) => solids.clone_from(boxes),
+            Event::Ride(ride) => {
+                seat = Seat::start(ride);
+                if let Ride::Leave { feet } = ride
+                    && let (Some(view), Some(registry)) = (world.view(), world.registry())
+                {
+                    movement.dismount(last_tick, *feet, &PhysicsWorld { view, registry });
+                }
+            }
             Event::Packet(p) => {
                 if p.id == ClientCacheMissResponse::ID
                     && let Ok(r) = p.decode::<ClientCacheMissResponse>()
@@ -155,6 +104,14 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                 if p.id == CorrectPlayerMovePrediction::ID
                     && let Ok(c) = p.decode::<CorrectPlayerMovePrediction>()
                 {
+                    if c.prediction_type == CorrectPlayerMovePredictionPredictionType::Vehicle {
+                        // Stored for the next seated input, as the bot takes it.
+                        let _ = movement.apply(p, &state.me());
+                        if let Some(vc) = movement.vehicle_correction {
+                            report.corrections.push(vehicle_diff(&vc, driven.get(&vc.tick), mark.clone(), &world));
+                        }
+                        continue;
+                    }
                     let server = vec3(&c.position);
                     // Geyser stamps no tick: compare with the latest tick instead.
                     let tick = if c.tick == 0 { last_tick } else { c.tick };
@@ -169,7 +126,18 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                         None => false,
                     });
                     let deltas = (ours.get(&tick).map(|&(_, d)| d), vec3(&c.delta));
-                    report.corrections.push(CorrectionDiff { tick, mark: mark.clone(), ours: pos, server, delta_err: delta, deltas, sent, explained, blocks });
+                    report.corrections.push(CorrectionDiff {
+                        tick,
+                        mark: mark.clone(),
+                        ours: pos,
+                        server,
+                        delta_err: delta,
+                        deltas,
+                        sent,
+                        explained,
+                        blocks,
+                        vehicle: false,
+                    });
                 }
                 let _ = movement.apply(p, &state.me());
             }
@@ -183,12 +151,33 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
                     movement.resync(rec.tick, feet(recorded), vec3(&rec.delta));
                     continue;
                 }
+                if let Some(seat) = &mut seat {
+                    last_tick = rec.tick;
+                    // The dismount tick reports no vehicle; nothing is simulated on it.
+                    if !rec.input_data.contains(&F::ClientPredictedVehicle) {
+                        continue;
+                    }
+                    let correction = movement.vehicle_correction.take();
+                    let (Some(view), Some(registry)) = (world.view(), world.registry()) else { continue };
+                    let controls = controls_of(&rec, false, false);
+                    let Some(d) = seat.step(rec.tick, &controls, correction.as_ref(), &PhysicsWorld { view, registry }) else { continue };
+                    tracing::trace!(tick = rec.tick, pos = ?d.pos, delta = ?d.delta, yaw = d.yaw, "replayed vehicle");
+                    driven.insert(rec.tick, d);
+                    report.ticks += 1;
+                    let delta_err = dist(d.delta, vec3(&rec.delta));
+                    if dist(d.pos, recorded) > tolerance || delta_err > tolerance {
+                        let blocks = nearby_blocks(&world, recorded);
+                        report.diverged.push(TickDiff { tick: rec.tick, mark: mark.clone(), ours: d.pos, recorded, delta_err, blocks, near_event: false });
+                    }
+                    continue;
+                }
                 movement.align_tick(rec.tick);
                 movement.set_abilities(&state.player);
                 movement.controls = controls_of(&rec, movement.controls.glide, movement.flying());
                 // Traces don't record armour; a glide start means an elytra was worn.
                 movement.elytra |= rec.input_data.contains(&F::StartGliding);
                 movement.recorded_want_down = Some(rec.input_data.contains(&F::WantDown));
+                movement.set_solids(solids.clone());
                 let (Some(view), Some(registry)) = (world.view(), world.registry()) else { continue };
                 let Some(out) = movement.tick(&PhysicsWorld { view, registry }) else { continue };
                 let pos = vec3(&out.position);
@@ -223,105 +212,21 @@ pub fn replay(events: &[Event], tolerance: f32, resync: bool) -> Report {
     report
 }
 
-/// Distinct non-air block names in the player's box (widened by 0.1) and the layer below its feet.
-fn nearby_blocks(world: &WorldTracker, [x, y, z]: Vec3) -> String {
-    use acacia_world::BlockAccess;
-    let (Some(view), Some(registry)) = (world.view(), world.registry()) else { return String::new() };
-    let span = |lo: f32, hi: f32| lo.floor() as i32..=hi.floor() as i32;
-    let mut names: Vec<&str> = Vec::new();
-    for bx in span(x - 0.4, x + 0.4) {
-        for by in span(y - 1.0, y + 1.9) {
-            for bz in span(z - 0.4, z + 0.4) {
-                for id in [view.block(bx, by, bz), view.liquid(bx, by, bz)] {
-                    if let Some(s) = registry.get(id).filter(|s| !s.is_air()) {
-                        let name = s.name.trim_start_matches("minecraft:");
-                        if !names.contains(&name) {
-                            names.push(name);
-                        }
-                    }
-                }
-            }
-        }
+/// A driven vehicle's correction against our vehicle after the input it names.
+fn vehicle_diff(c: &VehicleCorrection, ours: Option<&Driven>, mark: Option<String>, world: &WorldTracker) -> CorrectionDiff {
+    CorrectionDiff {
+        tick: c.tick,
+        mark,
+        ours: ours.map(|d| d.pos),
+        server: c.feet,
+        delta_err: ours.map(|d| dist(d.delta, c.delta)),
+        deltas: (ours.map(|d| d.delta), c.delta),
+        sent: None,
+        // No replayed tick: the state as boarded, before the ride's first input (riding/boat.rs `correct`).
+        explained: ours.is_none_or(|d| d.wave_only(c)),
+        blocks: nearby_blocks(world, c.feet),
+        vehicle: true,
     }
-    // Liquid levels (Bedrock liquid_depth) in the 5x5 around the feet, at and below their layer.
-    let (fx, fy, fz) = (x.floor() as i32, y.floor() as i32, z.floor() as i32);
-    let mut liquids = Vec::new();
-    for by in [fy, fy - 1] {
-        for bz in fz - 2..=fz + 2 {
-            for bx in fx - 2..=fx + 2 {
-                let state = [(view.block(bx, by, bz), ""), (view.liquid(bx, by, bz), "L")]
-                    .into_iter()
-                    .filter_map(|(id, layer)| registry.get(id).map(|s| (s, layer)))
-                    .find(|(s, _)| s.is_water());
-                // `L` marks water in the second (liquid) layer.
-                if let Some((s, layer)) = state {
-                    liquids.push(format!("{},{},{}:{}{layer}", bx - fx, by - fy, bz - fz, s.liquid_depth));
-                }
-            }
-        }
-    }
-    // Blocks other than stone in the 3x3 below the feet (surface effects) and at the feet (thin blocks).
-    let layer = |by: i32| {
-        let mut found = Vec::new();
-        for bz in fz - 1..=fz + 1 {
-            for bx in fx - 1..=fx + 1 {
-                if let Some(s) = registry.get(view.block(bx, by, bz)).filter(|s| !s.is_air() && !s.name.ends_with(":stone")) {
-                    found.push(format!("{},{}:{}", bx - fx, bz - fz, s.name.trim_start_matches("minecraft:")));
-                }
-            }
-        }
-        found
-    };
-    let mut out = names.join(",");
-    for (label, found) in [("floor", layer(fy - 1)), ("feet", layer(fy))] {
-        if !found.is_empty() {
-            out += &format!(" {label} {}", found.join(" "));
-        }
-    }
-    if !liquids.is_empty() {
-        out += &format!(" water {}", liquids.join(" "));
-    }
-    // Collision boxes of non-stone blocks in the 3x3 around the feet, feet to head layer.
-    if std::env::var_os("BTRC_BOXES").is_some() {
-        for by in fy..=fy + 2 {
-            for bz in fz - 1..=fz + 1 {
-                for bx in fx - 1..=fx + 1 {
-                    let Some(s) = registry.get(view.block(bx, by, bz)).filter(|s| !s.boxes.is_empty() && !s.name.ends_with(":stone")) else { continue };
-                    let boxes: Vec<_> = s.boxes.iter().map(|b| (b.min, b.max)).collect();
-                    out += &format!("\n  [{bx},{by},{bz}] {} {boxes:?}", s.name);
-                }
-            }
-        }
-    }
-    if std::env::var_os("BTRC_MAP").is_some() {
-        out += &block_map(view, registry, [fx, fy, fz]);
-    }
-    out
-}
-
-/// Layers feet-1..=feet+2 of the 5x5 around the feet (x across, z down): `.` air, `#` full block, `~` water
-/// (with its depth), else the first letter of the name.
-fn block_map(view: &impl acacia_world::BlockAccess, registry: &acacia_world::BlockRegistry, [fx, fy, fz]: [i32; 3]) -> String {
-    let mut out = String::new();
-    for by in fy - 1..=fy + 2 {
-        out += &format!("\n  y{:+}", by - fy);
-        for bz in fz - 2..=fz + 2 {
-            out += " ";
-            for bx in fx - 2..=fx + 2 {
-                let solid = registry.get(view.block(bx, by, bz)).filter(|s| !s.is_air());
-                let water = [view.block(bx, by, bz), view.liquid(bx, by, bz)].into_iter().filter_map(|id| registry.get(id)).find(|s| s.is_water());
-                out += &match (solid, water) {
-                    (Some(s), _) if !s.is_water() => {
-                        let n = s.name.trim_start_matches("minecraft:");
-                        if n == "stone" { "#".into() } else { n[..1].to_string() }
-                    }
-                    (_, Some(w)) => format!("{}", w.liquid_depth % 10),
-                    _ => ".".into(),
-                };
-            }
-        }
-    }
-    out
 }
 
 /// The held controls a `PlayerAuthInput` reports. Gliding shows only as Start/StopGliding edges, so it carries
@@ -350,8 +255,4 @@ fn vec3(v: &Vec3f) -> Vec3 {
 
 fn feet([x, y, z]: Vec3) -> Vec3 {
     [x, y - EYE_HEIGHT, z]
-}
-
-fn dist(a: Vec3, b: Vec3) -> f32 {
-    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
 }

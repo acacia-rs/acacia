@@ -54,6 +54,15 @@ fn shrink_towards_zero(v: f32) -> f32 {
 impl<W: WorldView + ?Sized> Sim<'_, W> {
     /// Sweeps Y, X, Z against nearby boxes, tries an auto-step and commits position and flags.
     pub(crate) fn try_collisions(&self, st: &mut PlayerState) -> bool {
+        if st.no_clip {
+            // BDS `NoClipOrNoBlockMoveFilterSystem` (148265630): without HasCollision the box only translates.
+            let bb = st.bounding_box().translate(st.vel);
+            st.set_pos(centre(&bb));
+            st.remember_box(bb);
+            (st.collide_x, st.collide_y, st.collide_z, st.on_ground) = (false, false, false, false);
+            (st.supporting_block, st.sprint_movement_blocked) = (None, false);
+            return true;
+        }
         self.prepare_collision_box(st);
         let start = st.bounding_box();
         let mut bb = start;
@@ -188,9 +197,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         let mut best = None;
         let mut min_dist = f32::MAX;
         let mut boxes = Vec::new();
-        for pos in nearby_cells(bb).filter(|&p| self.collides_for(st, p)) {
+        for pos in nearby_cells(bb) {
             boxes.clear();
-            self.w.block_collisions(pos, &mut boxes);
+            self.block_boxes(st, pos, &mut boxes);
             let origin = pos_vec(pos);
             if let Some(_hit) = boxes.iter().find(|b| !b.is_empty() && bb.intersects(&b.translate(origin))) {
                 let dist = len_sqr(sub(add(origin, [0.5, 0.5, 0.5]), st.pos));
@@ -211,9 +220,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         plane.max[1] = plane.min[1];
         let mut best = None;
         let mut boxes = Vec::new();
-        for pos in nearby_cells(&plane).filter(|&p| self.collides_for(st, p)) {
+        for pos in nearby_cells(&plane) {
             boxes.clear();
-            self.w.block_collisions(pos, &mut boxes);
+            self.block_boxes(st, pos, &mut boxes);
             let origin = pos_vec(pos);
             let crossing = boxes.iter().map(|b| b.translate(origin)).filter(|b| {
                 b.min[1] <= plane.min[1] && b.max[1] >= plane.min[1]

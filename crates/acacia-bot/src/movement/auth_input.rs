@@ -15,6 +15,7 @@ pub(super) struct Edges {
     pub sneak: (bool, bool),
     pub jump: (bool, bool),
     pub swim: (bool, bool),
+    pub crawl: (bool, bool),
     pub glide: (bool, bool),
     pub fly: (bool, bool),
     pub sneaking: bool,
@@ -80,6 +81,8 @@ pub(super) fn build(input: &Input, out: &TickOutput, e: &Edges, tick: u64, loade
     set(e.sprint.1, F::StopSprinting);
     set(e.swim.0, F::StartSwimming);
     set(e.swim.1, F::StopSwimming);
+    set(e.crawl.0, F::StartCrawling);
+    set(e.crawl.1, F::StopCrawling);
     // Landing ends a glide in the simulation on the tick after ground contact, where vanilla sends StopGliding.
     set(e.glide.0, F::StartGliding);
     set(e.glide.1, F::StopGliding);

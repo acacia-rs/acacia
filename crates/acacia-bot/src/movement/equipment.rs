@@ -11,6 +11,8 @@ const SWIFT_SNEAK: i16 = 37;
 const CHEST: usize = 1;
 const LEGS: usize = 2;
 const FEET: usize = 3;
+/// An elytra this damaged (one use left of 432) no longer glides (glide drill worn_out).
+const ELYTRA_WORN_OUT: u32 = 431;
 
 pub(crate) fn worn(inventory: &Inventory, items: &ItemRegistry) -> Equipment {
     let level = |slot: usize, id| inventory.armor.get(slot).map_or(0, |s| i32::from(enchantment_level(s, id)));
@@ -23,5 +25,10 @@ pub(crate) fn worn(inventory: &Inventory, items: &ItemRegistry) -> Equipment {
         swift_sneak: level(LEGS, SWIFT_SNEAK),
         leather_boots: wears(FEET, "minecraft:leather_boots"),
         elytra: wears(CHEST, "minecraft:elytra"),
+        elytra_uses: inventory
+            .armor
+            .get(CHEST)
+            .filter(|_| wears(CHEST, "minecraft:elytra"))
+            .map(|s| ELYTRA_WORN_OUT.saturating_sub(s.damage().max(0) as u32)),
     }
 }

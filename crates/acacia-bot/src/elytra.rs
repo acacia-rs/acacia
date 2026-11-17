@@ -107,8 +107,13 @@ impl Bot {
             return Ok(());
         }
         self.use_item_like_vanilla();
-        if let Some(movement) = self.backend.movement_mut() {
+        if let Some(b) = self.backend.bedrock_mut()
+            && let Some(movement) = &mut b.movement
+        {
             movement.predict_glide_boost();
+            if let Some(r) = &mut b.recorder {
+                r.write(&crate::trace::Event::GlideBoost);
+            }
         }
         Ok(())
     }

@@ -7,7 +7,7 @@ use acacia_client::proto::types::{InputData as F, Vec2f};
 use crate::movement::Controls;
 
 /// The controls' [strafe, forward] as keys: any nonzero value counts as fully pressed.
-pub(super) fn keys(c: &Controls) -> [f32; 2] {
+pub(crate) fn keys(c: &Controls) -> [f32; 2] {
     [axis(c.strafe), axis(c.forward)]
 }
 

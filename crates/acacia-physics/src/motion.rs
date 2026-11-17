@@ -155,6 +155,13 @@ fn steady_angle<const N: usize>(angle: f32, indices: impl Fn(f32) -> [f32; N]) -
         .unwrap_or(angle)
 }
 
+/// Fly-into-wall damage of a glide move (docs/research/riptide-impact-exit.md §2): the horizontal speed the
+/// collision took, `(|pre| − |post|)·10 − 3`, when positive. Health only; the move is unchanged.
+pub(crate) fn glide_impact(pre: Vec3, post: Vec3) -> f32 {
+    let lost = pre[0].hypot(pre[2]) - post[0].hypot(post[2]);
+    (lost * 10.0 - 3.0).max(0.0)
+}
+
 /// Elytra flight acceleration as BDS computes it (docs/research/riding-fishing-elytra.md): the look vector
 /// from -pitch, its true horizontal length, gravity in BDS's form.
 pub(crate) fn simulate_glide(st: &mut PlayerState) {

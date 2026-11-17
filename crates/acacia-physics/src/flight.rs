@@ -80,7 +80,17 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         let friction = if st.on_ground { self.w.block(block_pos(sub(st.pos, [0.0, 0.5, 0.0]))).friction } else { 1.0 };
         attempt_knockback(st);
         let idle_friction = control_vertical(st);
-        let speed = st.flight.fly_speed * if st.sprinting { FLY_SPRINT_MULTIPLIER } else { 1.0 };
+        // BDS `FlyingPlayerStuckOnGroundWorkaroundSystem` (142525c70): a vertical speed of exactly 0 becomes the
+        // smallest f32, so a flyer resting on the ground leaves it (air friction from the next tick); the drag
+        // after the move zeroes it again. Drill `flight` groundfly.
+        if st.vel[1] == 0.0 {
+            st.vel[1] = f32::from_bits(1);
+        }
+        // A swim starting this tick on the floor flies without the sprint boost, which applies from the next tick;
+        // mid-water the same input keeps it (drill flightw: 0.049 then 0.098 on the floor, 0.098 mid-water).
+        // `on_ground` is false here: the stuck-on-ground workaround below lifts a resting flyer every tick.
+        let floor_swim_start = st.swimming && !st.swam_before_input && self.resting_on_floor(st);
+        let speed = st.flight.fly_speed * if st.sprinting && !floor_swim_start { FLY_SPRINT_MULTIPLIER } else { 1.0 };
         move_relative(st, speed);
         let stuck = apply_stuck_speed_multiplier(st);
         if !self.sweep_loaded(st) {
@@ -104,8 +114,16 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             None => DEFAULT_AIR_FRICTION * friction,
         };
         let v = st.vel;
-        st.set_vel([drag(v[0], horizontal), v[1] * FLY_VERTICAL_DRAG, drag(v[2], horizontal)]);
+        st.set_vel([drag(v[0], horizontal), drag(v[1], FLY_VERTICAL_DRAG), drag(v[2], horizontal)]);
         self.apply_inside_block_effects(st);
         true
+    }
+
+    /// A collision top flush with the feet in the cell below them.
+    fn resting_on_floor(&self, st: &PlayerState) -> bool {
+        let mut boxes = Vec::new();
+        let cell = block_pos(sub(st.pos, [0.0, 0.001, 0.0]));
+        self.block_boxes(st, cell, &mut boxes);
+        boxes.iter().any(|b| cell[1] as f32 + b.max[1] == st.pos[1])
     }
 }

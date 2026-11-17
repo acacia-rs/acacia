@@ -39,6 +39,7 @@ impl Bot {
     pub(super) fn on_tick(&mut self) {
         self.governor.tick(self.backend.movement().and_then(|m| m.setback_age()));
         self.state.entities.advance();
+        self.state.environment.tick();
         self.tick_respawn();
         self.tick_reflexes();
         self.tick_survival();
@@ -171,7 +172,11 @@ impl Bot {
         }
         movement.set_abilities(&self.state.player);
         if let Some(feet) = movement.position() {
-            movement.set_solids(self.state.entities.solid_boxes(feet, SOLID_REACH));
+            let solids = self.state.entities.solid_boxes(feet, SOLID_REACH);
+            if let Some(r) = &mut b.recorder {
+                r.solids(&solids);
+            }
+            movement.set_solids(solids);
         }
         let pending = std::mem::take(&mut movement.pending_actions);
         if let Some(mut input) = movement.tick(&PhysicsWorld { view, registry }) {

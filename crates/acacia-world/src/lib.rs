@@ -2,10 +2,12 @@
 //! physics flags), chunk decoding, and chunk storage shared between bots. See README.md.
 
 mod access;
+pub mod biome_ids;
 mod change;
 mod chunk;
 mod find;
 pub mod ray;
+mod rain;
 mod registry;
 pub mod selection;
 mod view;
@@ -23,6 +25,7 @@ pub use registry::{
     ToolKind, ToolTier, fnv1_64,
 };
 pub use acacia_registry as neutral;
+pub use rain::rain_reaches;
 pub use view::ChunkView;
 pub use world::{BlockIds, Inserted, SharedChunk, World};
 

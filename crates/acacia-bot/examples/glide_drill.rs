@@ -66,7 +66,44 @@ const PHASES: &[Phase] = &[
     phase("axis_strafe", -90.0, 10.0, 0.0, false, 60),
     phase("axis_back", -90.0, 10.0, 0.0, false, 60),
     phase("offaxis_back", -50.0, 10.0, 0.0, false, 60),
+    phase("land", 0.0, 20.0, 0.0, false, 200),
+    phase("land_offaxis", 30.0, 20.0, 0.0, false, 200),
+    phase("land_water", 0.0, 20.0, 0.0, false, 200),
+    phase("land_boost", 0.0, 25.0, 0.0, true, 200),
+    // An elytra 3 (2) uses from breaking (432 durability): the glide wears it out mid-air.
+    phase("worn_out", -90.0, 5.0, 0.0, false, 100),
+    phase("worn_out2", -90.0, 5.0, 0.0, false, 100),
 ];
+
+/// A `worn_out` phase's elytra damage.
+fn worn_damage(name: &str) -> Option<u32> {
+    match name {
+        "worn_out" => Some(429),
+        "worn_out2" => Some(430),
+        _ => None,
+    }
+}
+
+/// Landing phases glide onto a strip this high over home, from `LAUNCH` above it.
+const STRIP_UP: i32 = 30;
+const LAUNCH: i32 = 10;
+const STRIP_LEN: i32 = 44;
+/// Walking ticks recorded after a landing.
+const AFTER_LANDING: u32 = 20;
+
+/// A landing phase's strip: stone, or a 3-deep pool in a stone basin for `land_water`; (south-facing).
+fn strip_commands(name: &str, [x, y, z]: [i32; 3]) -> Vec<String> {
+    let y = y + STRIP_UP;
+    let (x0, x1, z1) = (x - 4 - STRIP_LEN / 2, x + 4 + STRIP_LEN / 2, z + STRIP_LEN);
+    let mut cmds = vec![format!("/fill {x0} {} {z} {x1} {} {z1} air", y + 1, y + LAUNCH + 3)];
+    if name == "land_water" {
+        cmds.push(format!("/fill {x0} {} {z} {x1} {y} {z1} stone", y - 3));
+        cmds.push(format!("/fill {} {} {} {} {y} {} water", x0 + 1, y - 2, z + 1, x1 - 1, z1 - 1));
+    } else {
+        cmds.push(format!("/fill {x0} {y} {z} {x1} {y} {z1} stone"));
+    }
+    cmds
+}
 
 /// (forward, strafe) a phase holds, by its name's suffix.
 fn keys(name: &str) -> (f32, f32) {
@@ -119,11 +156,31 @@ async fn run() -> Result<(), Error> {
         }
         if bot.is_gliding() {
             bot.stop_gliding().await?;
+            // Fall a while so the stop tick's correction, if any, is not lost under the next teleport.
+            bot.wait_ticks(10).await?;
         }
-        bot.command(&format!("/tp @s {} {} {} {} 0", home[0], home[1] + 60, home[2], p.yaw));
+        let landing = p.name.starts_with("land");
+        if let Some(damage) = worn_damage(p.name) {
+            // A spent elytra drops the bot from the glide height: survive the landing.
+            for cmd in [format!("/replaceitem entity @s slot.armor.chest 0 elytra 1 {damage}"), "/effect @s resistance 30 255 true".into()] {
+                bot.command(&cmd);
+                bot.wait_ticks(4).await?;
+            }
+        }
+        if landing {
+            for cmd in strip_commands(p.name, home) {
+                bot.command(&cmd);
+                bot.wait_ticks(4).await?;
+            }
+            let top = home[1] + STRIP_UP + 1 + LAUNCH;
+            bot.command(&format!("/tp @s {}.5 {top} {}.5 {} 0", home[0], home[2], p.yaw));
+        } else {
+            bot.command(&format!("/tp @s {} {} {} {} 0", home[0], home[1] + 60, home[2], p.yaw));
+        }
         bot.wait_ticks(20).await?;
         bot.start_gliding().await?;
         let _ = writeln!(log.borrow_mut(), "phase {}", p.name);
+        bot.bedrock_mut().expect("Bedrock bot").trace_mark(p.name);
         let before = corrections(&bot);
         let (mut yaw, pitch) = (p.yaw, p.pitch);
         if let Some(c) = bot.controls() {
@@ -132,7 +189,17 @@ async fn run() -> Result<(), Error> {
         if p.rocket {
             bot.boost_with_firework().await?;
         }
+        let mut landed_for = None;
         for _ in 0..p.ticks {
+            if landing {
+                landed_for = landed_for.map(|n: u32| n + 1).or((!bot.is_gliding()).then_some(0));
+                if landed_for == Some(1) {
+                    let _ = writeln!(log.borrow_mut(), "landed");
+                }
+                if landed_for >= Some(AFTER_LANDING) {
+                    break;
+                }
+            }
             yaw += p.turn;
             if let Some(c) = bot.controls() {
                 c.yaw = yaw;
@@ -141,8 +208,16 @@ async fn run() -> Result<(), Error> {
             if let Some(st) = bot.bedrock().and_then(|b| b.movement()).and_then(|m| m.state()) {
                 let _ = writeln!(log.borrow_mut(), "us {:?} {:?}", st.pos, st.vel);
             }
+            if worn_damage(p.name).is_some() {
+                let damage = bot.state().inventory.armor.get(1).map(|s| s.damage());
+                let _ = writeln!(log.borrow_mut(), "elytra damage {damage:?} gliding {}", bot.is_gliding());
+            }
         }
-        println!("{:>14}: {} corrections", p.name, corrections(&bot) - before);
+        println!("{:>14}: {} corrections; gliding at the end: {}", p.name, corrections(&bot) - before, bot.is_gliding());
+        // A teleport while walking moves on the tick BDS otherwise holds (glide3 land_offaxis); keep setups idle.
+        if let Some(c) = bot.controls() {
+            (c.forward, c.strafe) = (0.0, 0.0);
+        }
     }
     if let Some((_, w)) = watcher {
         w.abort();

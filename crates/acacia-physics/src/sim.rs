@@ -206,7 +206,7 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     pub(crate) fn support_under_box(&self, st: &PlayerState) -> Option<crate::math::BlockPos> {
         let sp = st.supporting_block?;
         let mut boxes = Vec::new();
-        self.w.block_collisions(sp, &mut boxes);
+        self.block_boxes(st, sp, &mut boxes);
         crate::motion::over_supporting_block(st, &boxes).then_some(sp)
     }
 

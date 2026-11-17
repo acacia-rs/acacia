@@ -106,6 +106,7 @@ impl Idle {
             sneak: (false, false),
             jump: (false, false),
             swim: (false, false),
+            crawl: (false, false),
             glide: (false, false),
             fly: (false, false),
             sneaking: false,

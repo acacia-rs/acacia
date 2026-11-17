@@ -22,8 +22,8 @@ fn boss(r#type: BossEventType, title: &str, progress: f32) -> RawPacket {
 #[test]
 fn weather_follows_level_events_and_ignores_the_rest() {
     let mut env = Environment::default();
-    env.apply(&level_event(LevelEventEvent::StartRain, 32768)).unwrap();
-    assert!(env.is_raining() && (env.rain - 0.5).abs() < 0.01);
+    env.apply(&level_event(LevelEventEvent::StartRain, i32::MIN)).unwrap();
+    assert!(env.is_raining() && env.rain == 0.0, "the level ramps; the saturated data is no intensity");
     env.apply(&level_event(LevelEventEvent::StartThunder, 0)).unwrap();
     assert!(env.is_thundering(), "a zero intensity still starts it");
     env.apply(&level_event(LevelEventEvent::SoundClick, 0)).unwrap();
@@ -72,4 +72,22 @@ fn boss_bars_show_update_and_hide() {
     });
     env.apply(&boss(BossEventType::HideBar, "", 0.0)).unwrap();
     assert!(env.boss_bars.is_empty());
+}
+
+#[test]
+fn rain_rains_from_the_20th_tick_and_stops_after_the_81st() {
+    let mut env = Environment::default();
+    env.biomes.insert(1, BiomeClimate { temperature: 0.8, rain: true });
+    env.biomes.insert(12, BiomeClimate { temperature: 0.0, rain: true });
+    env.biomes.insert(2, BiomeClimate { temperature: 2.0, rain: false });
+    env.apply(&level_event(LevelEventEvent::StartRain, i32::MIN)).unwrap();
+    let rains_after = |env: &mut Environment, ticks: usize| {
+        (0..ticks).for_each(|_| env.tick());
+        env.rains_in(1)
+    };
+    assert!(!rains_after(&mut env, 19) && rains_after(&mut env, 1), "BDS: above 0.2 on the 20th tick");
+    assert!(!env.rains_in(12) && !env.rains_in(2) && !env.rains_in(99), "snow, a dry biome, an unknown one");
+    rains_after(&mut env, 200);
+    env.apply(&level_event(LevelEventEvent::StopRain, 0)).unwrap();
+    assert!(rains_after(&mut env, 80) && !rains_after(&mut env, 1), "BDS: back to 0.2 on the 81st tick");
 }

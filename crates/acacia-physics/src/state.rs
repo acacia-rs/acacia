@@ -1,26 +1,9 @@
 use crate::aabb::Aabb;
 use crate::constants::*;
+use crate::gear::{Effects, Equipment};
+use crate::glide_wear::GlideWear;
 use crate::math::{BlockPos, Vec3, add};
-
-/// Active status effects that change movement. Speed/Slowness are not here: they are part of
-/// the server's movement attribute (`PlayerState::movement_speed`).
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Effects {
-    /// Amplifier (level - 1).
-    pub jump_boost: Option<i32>,
-    pub levitation: Option<i32>,
-    pub slow_falling: bool,
-    pub weaving: bool,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Equipment {
-    pub depth_strider: i32,
-    pub soul_speed: i32,
-    pub swift_sneak: i32,
-    pub leather_boots: bool,
-    pub elytra: bool,
-}
+use crate::spin::Spin;
 
 /// Retained native box endpoints after a sweep (bedsim `collisionShape`).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -71,8 +54,7 @@ pub struct PlayerState {
     pub server_freeze: Option<f32>,
     pub air_speed: f32,
     /// Replaces the walk/sprint air speed: a ridden horse's is its movement attribute x 0.1 (`vehicle.rs`).
-    pub fixed_air_speed: Option<f32>,
-    pub input_scale: f32, // the move vector's scale: a player's 0.98, a ridden horse's 1 (`vehicle.rs`)
+    pub fixed_air_speed: Option<f32>,    pub input_scale: f32, // the move vector's scale: a player's 0.98, a ridden horse's 1 (`vehicle.rs`)
     /// Highest ledge walked up without a jump: the player's 0.5625, a ridden horse's 1.0625.
     pub step_height: f32,
     pub underwater_movement_speed: f32,
@@ -86,6 +68,8 @@ pub struct PlayerState {
     pub sprinting: bool,
     /// A sprint started and was cancelled on the last tick (both StartSprinting and StopSprinting are sent).
     pub sprint_start_cancelled: bool,
+    /// Food at 6 or less: no sprint unless the player may fly (the client's own sprint rule).
+    pub hungry: bool,
     pub pressing_sprint: bool,
     pub sneaking: bool,
     pub pressing_sneak: bool,
@@ -120,6 +104,12 @@ pub struct PlayerState {
 
     pub gliding: bool,
     pub glide_boost_ticks: i64,
+    pub glide_wear: GlideWear,
+    /// Fly-into-wall damage this tick's glide took, 0 without (BDS `GlidingCollisionDamageCalculateSystem`).
+    pub glide_impact: f32,
+    pub spin: Spin,
+    /// Moves through blocks untouched (a spectator's NoClip ability): no sweep, step or inside-block effects.
+    pub no_clip: bool,
     pub has_gravity: bool,
     pub slow_falling: bool,
     pub crawling: bool,
@@ -175,6 +165,7 @@ impl PlayerState {
             pending_teleport: None,
             sprinting: false,
             sprint_start_cancelled: false,
+            hungry: false,
             pressing_sprint: false,
             sneaking: false,
             pressing_sneak: false,
@@ -201,6 +192,10 @@ impl PlayerState {
             immobile: false,
             gliding: false,
             glide_boost_ticks: 0,
+            glide_wear: GlideWear::default(),
+            glide_impact: 0.0,
+            spin: Spin::default(),
+            no_clip: false,
             has_gravity: true,
             slow_falling: false,
             crawling: false,
@@ -218,6 +213,11 @@ impl PlayerState {
     /// Swim hitbox: swimming with water contact this tick or within the grace window.
     pub fn swim_pose(&self) -> bool {
         self.swimming && (self.swim_water_contact || self.swim_water_grace_ticks > 0)
+    }
+
+    /// The box touched water on the last tick (BDS WasInWater).
+    pub fn touched_water(&self) -> bool {
+        self.swim_water_contact
     }
 
     /// Eye position for `PlayerAuthInput.position`.

@@ -18,6 +18,7 @@ const THRUST: f32 = 0.01375;
 /// A stroke pulls at 3.0 on its first tick and 2.9 on the other nine.
 const STROKE_TICKS: u8 = 10;
 const WATER_FRICTION: f32 = 0.9;
+const GAP_FRICTION: f32 = 0.9;
 /// Squared speed below which a turning boat turns faster and pushes less.
 const SLOW_SQUARED: f32 = 0.010000001;
 const RADIANS: f32 = 0.017453292;
@@ -155,7 +156,10 @@ fn friction<W: WorldView + ?Sized>(st: &BoatState, world: &W) -> Option<f32> {
     if water(&here) || (here.air && !st.on_ground && water(&below)) {
         return Some(WATER_FRICTION);
     }
-    st.on_ground.then_some(if here.air { below.friction } else { here.friction })
+    // Still grounded over a gap (two ticks off a ledge), BDS slows the boat by 0.9, not the player's air 0.6
+    // (vehicle drill boat_blue_ice ticks 1158-1159: 0.81 a tick).
+    let under = if !here.air { here.friction } else if below.air { GAP_FRICTION } else { below.friction };
+    st.on_ground.then_some(under)
 }
 
 /// Moves by `vel` against the blocks, Y then X then Z, and returns the motion that was left: what was moved,

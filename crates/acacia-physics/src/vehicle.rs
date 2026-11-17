@@ -39,8 +39,7 @@ pub fn horse(feet: Vec3, yaw: f32, speed: f32) -> PlayerState {
     st.set_movement_attribute(speed);
     // Strict BDS, natural horses (2026-10-09): the rider's keys reach the horse unscaled, on the ground and in the air.
     st.input_scale = 1.0;
-    st.fixed_air_speed = Some(speed * 0.1);
-    st.step_height = HORSE_STEP_HEIGHT;
+    st.fixed_air_speed = Some(speed * 0.1);    st.step_height = HORSE_STEP_HEIGHT;
     st
 }
 

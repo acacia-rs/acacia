@@ -2,7 +2,8 @@
 //! takes off, rises, flies forward, sprints, strafes, descends to land, then drops out of a flight in the air.
 //! Prints the server corrections per phase (docs/testing.md "Movement physics").
 //! `cargo run -p acacia-bot --example flight -- <server> <name|@account> [rounds]`
-//! `BEDROCK_RECORD=<file>` records a movement trace for the `replay` example.
+//! `BEDROCK_RECORD=<file>` records a movement trace for the `replay` example; `FLIGHT_LIQUID=water|lava` floods
+//! the pad.
 mod support;
 
 use acacia_bot::movement::Controls;
@@ -36,6 +37,11 @@ const PHASES: &[Phase] = &[
     phase("up-down", 10, Controls { jump: true, sneak: true, ..HOVER }),
     phase("descend", 40, Controls { sneak: true, ..HOVER }),
     phase("landed", 20, HOVER),
+    // Flying along the ground with no vertical input (BDS FlyingPlayerStuckOnGroundWorkaroundSystem).
+    phase("groundfly", 20, Controls { forward: 1.0, ..HOVER }),
+    phase("groundbrake", 20, HOVER),
+    phase("groundsprint", 15, Controls { forward: 1.0, sprint: true, yaw: 90.0, ..HOVER }),
+    phase("groundbrake2", 20, Controls { yaw: 90.0, ..HOVER }),
     phase("rise", 12, Controls { jump: true, ..HOVER }),
     phase("drop", 40, Controls { fly: false, ..HOVER }),
 ];
@@ -48,7 +54,9 @@ async fn main() -> Result<(), Error> {
     let name = args.next().unwrap_or_else(|| "Flyer".into());
     let rounds: u32 = args.next().and_then(|r| r.parse().ok()).unwrap_or(1);
     let (mut bot, pad) = support::connect(&server, &name).await?;
-    pad.run(&bot, "/gamemode creative @s");
+    // FLIGHT_MODE=survival: may-fly in survival (`/ability` needs the world's education features on).
+    let survival = std::env::var("FLIGHT_MODE").is_ok_and(|m| m == "survival");
+    pad.run(&bot, if survival { "/ability @s mayfly true" } else { "/gamemode creative @s" });
     let mut waited = 0;
     while waited < 200 && !bot.state().player.may_fly() {
         bot.wait_ticks(1).await?;
@@ -57,7 +65,10 @@ async fn main() -> Result<(), Error> {
     println!("{:?} after {waited} ticks: {:?}", bot.state().player.game_mode, bot.state().player.abilities);
     let mut total = 0;
     for round in 0..rounds {
-        pad.build(&mut bot, &[], 10).await?;
+        // FLIGHT_LIQUID=water|lava: the phases fly through a pool filling the pad 10 deep.
+        let liquid = std::env::var("FLIGHT_LIQUID").ok();
+        let fills: Vec<support::Fill> = liquid.iter().map(|l| ([-3, 0, -12], [24, 9, 12], l.as_str())).collect();
+        pad.build(&mut bot, &fills, 10).await?;
         pad.teleport(&mut bot, [0.5, 0.0, 0.5], -90.0).await?;
         bot.bedrock_mut().expect("Bedrock bot").trace_mark(&format!("flight {round}"));
         for p in PHASES {

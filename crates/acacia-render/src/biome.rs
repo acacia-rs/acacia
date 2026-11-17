@@ -3,7 +3,7 @@
 //! comes from `biomes_client.json`.
 
 pub mod fog;
-pub mod ids;
+pub use acacia_world::biome_ids as ids;
 pub mod noise;
 
 use std::path::Path;
