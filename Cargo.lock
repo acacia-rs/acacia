@@ -215,6 +215,7 @@ name = "acacia-java-proto"
 version = "0.1.0"
 dependencies = [
  "crc",
+ "flate2",
  "thiserror 2.0.21",
 ]
 

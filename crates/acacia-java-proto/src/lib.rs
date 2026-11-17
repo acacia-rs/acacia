@@ -15,6 +15,7 @@ pub mod nbt;
 pub mod packets;
 pub mod recipe_book;
 pub mod recipes;
+pub mod server;
 pub mod tag;
 mod wire;
 

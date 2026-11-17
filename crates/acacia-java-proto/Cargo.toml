@@ -7,6 +7,11 @@ description = "Minecraft: Java Edition 26.3 packet codecs"
 repository.workspace = true
 rust-version.workspace = true
 
+[features]
+# zlib for `server::frame` compression above the threshold; off keeps the crate dependency-light.
+zlib = ["dep:flate2"]
+
 [dependencies]
 crc = "3"
+flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"], optional = true }
 thiserror = "2"
