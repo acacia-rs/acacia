@@ -38,10 +38,6 @@ impl Blocks for World {
     fn min_y(&self) -> i32 {
         World::min_y(self)
     }
-
-    fn column(&self, x: i32, z: i32, y: i32, out: &mut [Option<u32>]) {
-        self.chunks().column(x, z, y, out);
-    }
 }
 
 /// What the server was last told, next to the simulated player.

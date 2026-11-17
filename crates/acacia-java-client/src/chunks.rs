@@ -40,16 +40,6 @@ impl Chunks {
         self.columns.get(&(x >> 4, z >> 4))?.get(section).map(|s| s.blocks.get(index))
     }
 
-    /// The state ids of column (x, z) from `y` up, one per slot of `out`, finding the chunk once.
-    pub fn column(&self, x: i32, z: i32, y: i32, out: &mut [Option<u32>]) {
-        let column = self.columns.get(&(x >> 4, z >> 4));
-        for (dy, slot) in (0..).zip(out.iter_mut()) {
-            *slot = column.zip(self.locate([x, y + dy, z])).and_then(|(c, (section, index))| {
-                c.get(section).map(|s| s.blocks.get(index))
-            });
-        }
-    }
-
     fn locate(&self, [x, y, z]: [i32; 3]) -> Option<(usize, usize)> {
         let section = usize::try_from((y - self.min_y) >> 4).ok()?;
         Some((section, Section::index((x & 15) as usize, (y & 15) as usize, (z & 15) as usize)))

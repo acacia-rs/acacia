@@ -8,7 +8,6 @@ mod block_path;
 mod boat;
 mod boat_inside;
 mod boat_status;
-mod blocks;
 mod collide;
 mod fluid;
 mod input;

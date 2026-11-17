@@ -12,7 +12,22 @@ static FALLING_SNOW: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 0.9_f32 as f64, 1
 static SCAFFOLD_BOTTOM: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 0.125, 1.0]];
 static LAVA_SURFACE: [CollisionBox; 1] = [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]];
 
-pub use crate::blocks::Blocks;
+pub trait Blocks {
+    /// The Java state id at a position; `None` when the chunk isn't loaded.
+    fn state(&self, x: i32, y: i32, z: i32) -> Option<u32>;
+
+    fn min_y(&self) -> i32;
+
+    fn block_state(&self, pos: [i32; 3]) -> BlockState {
+        self.state(pos[0], pos[1], pos[2])
+            .and_then(BlockState::from_id)
+            .unwrap_or(BlockState::AIR)
+    }
+
+    fn has_chunk(&self, pos: [i32; 3]) -> bool {
+        self.state(pos[0], pos[1], pos[2]).is_some()
+    }
+}
 
 /// `EntityCollisionContext`: what scaffolding and powder snow ask about the player.
 #[derive(Clone, Copy, Debug, Default)]
@@ -161,18 +176,11 @@ impl<W: Blocks> Colliders<'_, W> {
     fn blocks_in(&self, area: &Aabb) -> Vec<Shape> {
         let low = area.min.map(|v| floor(v - EPS) - 1);
         let high = area.max.map(|v| floor(v + EPS) + 1);
-        let size = [0, 1, 2].map(|i| (high[i] - low[i] + 1).max(0) as usize);
-        let mut states = vec![None; size[0] * size[1] * size[2]];
-        for (i, column) in states.chunks_exact_mut(size[1].max(1)).enumerate() {
-            let (x, z) = (low[0] + (i % size[0]) as i32, low[2] + (i / size[0]) as i32);
-            self.world.column(x, z, low[1], column);
-        }
         let mut shapes = Vec::new();
         for z in low[2]..=high[2] {
             for y in low[1]..=high[1] {
                 for x in low[0]..=high[0] {
-                    let at = ((z - low[2]) as usize * size[0] + (x - low[0]) as usize) * size[1] + (y - low[1]) as usize;
-                    let state = states[at].and_then(BlockState::from_id);
+                    let state = self.world.state(x, y, z).and_then(BlockState::from_id);
                     let Some(boxes) = state.and_then(|s| self.boxes(s, [x, y, z])) else { continue };
                     let shape = Shape { pos: [x, y, z], boxes: Boxes::Block(boxes) };
                     if !boxes.is_empty() && shape.intersects(area) {
