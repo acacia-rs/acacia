@@ -1,6 +1,7 @@
 //! The Java player ([`acacia_java_physics::Player`]) as planning and following step it. Worlds hand it native ids
 //! through the planner's [`Blocks`], which on Java are global palette ids (= neutral state ids).
 
+use acacia_java_physics::attributes::Attribute;
 use acacia_java_physics::{Blocks as JavaBlocks, Keys, Player};
 use acacia_physics::{Aabb, BlockPos, Vec3};
 use acacia_registry::{Block, BlockState};
@@ -94,12 +95,12 @@ impl Sim for JavaSim {
         p.delta = widen(m.vel);
         p.yaw = m.yaw;
         p.on_ground = m.on_ground;
-        p.sprinting = m.sprinting;
+        p.attributes = base.attributes.clone();
+        p.set_sprinting(m.sprinting);
         p.set_crouching(m.sneaking);
         p.keys = Keys { jump: m.pressing_jump, shift: m.sneaking, ..Keys::default() };
         p.set_jump_delay(i32::from(m.jump_delay));
         p.effects = base.effects.clone();
-        p.speed_add = base.speed_add;
         (p.may_fly, p.flying, p.flying_speed) = (base.may_fly, base.flying, base.flying_speed);
         (p.has_glider, p.snow_boots, p.has_food, p.fast_lava) = (base.has_glider, base.snow_boots, base.has_food, base.fast_lava);
         JavaSim(p)
@@ -111,9 +112,9 @@ impl Sim for JavaSim {
 
     fn traits(&self) -> Traits {
         let e = &self.0.effects;
-        let level = |amp: Option<u8>| amp.map_or(0.0, |a| f32::from(a) + 1.0);
-        let multiplier = 1.0 + 0.2 * level(e.speed) - 0.15 * level(e.slowness);
-        let speed = (JAVA.movement_speed + self.0.speed_add as f32) * multiplier;
+        let mut walking = self.0.attributes.clone();
+        walking.set_sprinting(false);
+        let speed = walking.value(Attribute::MovementSpeed) as f32;
         Traits { speed, jump_boost: e.jump_boost.is_some(), altered_fall: e.levitation.is_some() || e.slow_falling }
     }
 }

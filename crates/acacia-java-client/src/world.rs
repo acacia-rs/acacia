@@ -4,8 +4,12 @@ use std::collections::HashMap;
 
 use crate::chunks::Chunks;
 use crate::mount_data::Synced;
+use crate::rain::{Weather, read_spawn_rest};
+use crate::relight::Pending;
+use crate::sky_light::SkyLight;
 use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
 pub use crate::entity::{Entity, Mover};
+pub use crate::entity_size::{Peek, Shape};
 
 use acacia_java_physics::{Aabb, Placement};
 use crate::movement::placement;
@@ -26,12 +30,15 @@ fn degrees(angle: i8) -> f32 {
 pub struct World {
     pub dimension: String,
     pub player_id: i32,
-    chunks: Chunks,
+    pub(crate) chunks: Chunks,
     pub entities: HashMap<i32, Entity>,
     /// The vehicle the player drives: the client simulates it, so the server's moves only set its codec base.
     pub(crate) driven: Option<i32>,
     /// `getGameTime`: set by `SetTime`, counted on each tick.
     pub game_time: i64,
+    pub weather: Weather,
+    pub(crate) sky: SkyLight,
+    pub(crate) light: Pending,
 }
 
 /// Lowest y of a vanilla dimension. The client claims the vanilla packs, so a custom dimension type would be
@@ -69,23 +76,34 @@ impl World {
 
     /// Writes a block ahead of the server, as vanilla's prediction does; the server's update overwrites it.
     pub fn set_block(&mut self, pos: [i32; 3], state: u32) {
-        self.chunks.set_block(pos, state);
+        if let Some(old) = self.chunks.set_block(pos, state) {
+            self.note_light_change(pos, old, state);
+        }
     }
 
-    /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick. An unridden boat's tick zeroes
-    /// its motion too.
+    /// Each entity's `interpolate()`, as `tickEntities` runs it once a client tick, and a shulker's lid. An unridden
+    /// boat's tick zeroes its motion too.
     pub fn tick_entities(&mut self) {
         self.game_time += 1;
         for e in self.entities.values_mut() {
+            let from = e.position;
             e.lerp.interpolate(&mut e.position);
+            e.tick_seat_anim(from);
+            e.shape.tick();
             e.motion = [0.0; 3];
         }
     }
 
-    fn enter_level(&mut self, dimension: String) {
+    /// A new `ClientLevel`: no rain until the server says so.
+    fn enter_level(&mut self, dimension: String, input: &mut &[u8]) -> Result<(), Error> {
         self.chunks = Chunks::new(min_y(&dimension));
+        self.sky.clear();
+        self.light = Pending::default();
         self.dimension = dimension;
         self.entities.clear();
+        (self.weather.zoom_seed, self.weather.sea_level) = read_spawn_rest(input)?;
+        self.weather.rain_level = 0.0;
+        Ok(())
     }
 
     /// Updates the world from a play packet; ones it has no use for are ignored.
@@ -93,18 +111,26 @@ impl World {
         let input = &mut input;
         match id {
             from::LOGIN => self.login(input)?,
+            // `handleRespawn` builds a new level only when the dimension changes.
             from::RESPAWN => {
                 read_varint(input)?;
-                self.enter_level(String::read(input)?);
+                let dimension = String::read(input)?;
+                if dimension != self.dimension {
+                    self.enter_level(dimension, input)?;
+                }
             }
             from::LEVEL_CHUNK_WITH_LIGHT => {
                 let (x, z, buffer) = read_chunk_header(input)?;
                 self.chunks.insert(x, z, read_sections(&buffer)?);
+                self.read_chunk_light((x, z), input)?;
             }
             from::FORGET_LEVEL_CHUNK => {
                 let packed = i64::read(input)?;
-                self.chunks.remove(packed as i32, (packed >> 32) as i32);
+                let (x, z) = (packed as i32, (packed >> 32) as i32);
+                self.chunks.remove(x, z);
+                self.sky.queue_removal((x, z));
             }
+            from::GAME_EVENT | from::LIGHT_UPDATE => self.apply_weather(id, input)?,
             from::BLOCK_UPDATE => {
                 let BlockPos(pos) = BlockPos::read(input)?;
                 self.set_block(pos, read_varint(input)? as u32);
@@ -198,8 +224,8 @@ impl World {
             bool::read(input)?;
         }
         read_varint(input)?;
-        self.enter_level(String::read(input)?);
-        Ok(())
+        let dimension = String::read(input)?;
+        self.enter_level(dimension, input)
     }
 
     fn add_entity(&mut self, input: &mut &[u8]) -> Result<(), Error> {

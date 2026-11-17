@@ -39,6 +39,27 @@ packet!(PlaceRecipe { container: VarInt, recipe: VarInt, use_max_items: bool });
 packet!(Ping { id: i32 });
 packet!(KnownPack { namespace: String, id: String, version: String });
 packet!(SelectKnownPacks { packs: Vec<KnownPack> });
+packet!(CookieRequest { key: String });
+packet!(CookieResponse { key: String, payload: Option<Vec<u8>> });
+packet!(StoreCookie { key: String, payload: Vec<u8> });
+packet!(CustomQuery { transaction: VarInt });
+packet!(CustomQueryAnswer { transaction: VarInt, payload: Option<Vec<u8>> });
+// An optional prompt component follows.
+packet!(ResourcePackPush { id: u128, url: String, hash: String, required: bool });
+packet!(ResourcePackResponse { id: u128, action: VarInt });
+// `ServerboundCustomPayloadPacket` carrying `BrandPayload`.
+packet!(Brand { channel: String, brand: String });
+packet!(ClientInformation {
+    language: String,
+    view_distance: i8,
+    chat_visibility: VarInt,
+    chat_colors: bool,
+    model_customisation: u8,
+    main_hand: VarInt,
+    text_filtering: bool,
+    allows_listing: bool,
+    particles: VarInt,
+});
 packet!(PositionMoveRotation { x: f64, y: f64, z: f64, delta_x: f64, delta_y: f64, delta_z: f64, y_rot: f32, x_rot: f32 });
 packet!(PlayerPosition { id: VarInt, change: PositionMoveRotation, relatives: i32 });
 packet!(AcceptTeleportation { id: VarInt, x: f64, y: f64, z: f64, y_rot: f32, x_rot: f32 });
@@ -61,41 +82,6 @@ packet!(ServerboundAbilities { flags: u8 });
 packet!(ClientboundAbilities { flags: u8, flying_speed: f32, walking_speed: f32 });
 
 packet!(ChatCommand { command: String });
-
-/// `ServerboundChatPacket` with no signature and nothing acknowledged, as servers without chat sessions take it.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct UnsignedChat {
-    pub message: String,
-    pub timestamp_millis: i64,
-    pub salt: i64,
-}
-
-/// `LastSeenMessages.Update`'s acknowledged set: a fixed 20-bit set.
-const ACKNOWLEDGED_BYTES: usize = 3;
-const SIGNATURE_BYTES: usize = 256;
-
-impl Wire for UnsignedChat {
-    fn read(input: &mut &[u8]) -> Result<Self, Error> {
-        let (message, timestamp_millis, salt) = (String::read(input)?, i64::read(input)?, i64::read(input)?);
-        let skip = if bool::read(input)? { SIGNATURE_BYTES } else { 0 };
-        VarInt::read(input)?;
-        for _ in 0..skip + ACKNOWLEDGED_BYTES + 1 {
-            u8::read(input)?;
-        }
-        Ok(Self { message, timestamp_millis, salt })
-    }
-
-    fn write(&self, out: &mut Vec<u8>) {
-        self.message.write(out);
-        self.timestamp_millis.write(out);
-        self.salt.write(out);
-        false.write(out);
-        VarInt(0).write(out);
-        out.extend([0; ACKNOWLEDGED_BYTES]);
-        // Checksum 0: `LastSeenMessages.Update.IGNORE_CHECKSUM`.
-        out.push(0);
-    }
-}
 
 /// `ServerboundPlayerCommandPacket.Action` ordinals.
 pub const COMMAND_START_SPRINTING: i32 = 1;

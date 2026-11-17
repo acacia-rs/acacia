@@ -4,6 +4,7 @@ mod containers;
 mod crafting;
 mod interact;
 mod items;
+mod stations;
 mod survival;
 
 use std::future::Future;
@@ -68,6 +69,20 @@ pub(crate) fn action(bot: &mut Bot, method: Method) -> Action<'_> {
             let items = survival::craftable_items(bot, p.table == Some(true));
             Box::pin(async move { Ok(Reply::CraftableItems(items)) })
         }
+        Method::Mount(p) => Box::pin(async move { answer(interact::mount(bot, p.entity.0).await, Reply::Mount) }),
+        Method::Dismount(_) => Box::pin(async move { done(Reply::Dismount(()))(bot.dismount().await) }),
+        Method::MoveItem(p) => Box::pin(async move { done(Reply::MoveItem(()))(items::move_item(bot, p).await) }),
+        Method::SwapItems(p) => Box::pin(async move { done(Reply::SwapItems(()))(items::swap_items(bot, p).await) }),
+        Method::Anvil(p) => Box::pin(async move { done(Reply::Anvil(()))(stations::anvil(bot, p).await) }),
+        Method::Enchant(p) => Box::pin(async move { done(Reply::Enchant(()))(stations::enchant(bot, p).await) }),
+        Method::Grindstone(p) => Box::pin(async move { done(Reply::Grindstone(()))(stations::grindstone(bot, p).await) }),
+        Method::Smith(p) => Box::pin(async move { done(Reply::Smith(()))(stations::smith(bot, p).await) }),
+        Method::Stonecut(p) => Box::pin(async move { answer(stations::stonecut(bot, p).await, Reply::Stonecut) }),
+        Method::Loom(p) => Box::pin(async move { done(Reply::Loom(()))(stations::loom(bot, p).await) }),
+        Method::Cartography(p) => Box::pin(async move { answer(stations::cartography(bot, p).await, Reply::Cartography) }),
+        Method::Beacon(p) => Box::pin(async move { done(Reply::Beacon(()))(stations::beacon(bot, p).await) }),
+        Method::Brew(p) => Box::pin(async move { done(Reply::Brew(()))(stations::brew(bot, p).await) }),
+        Method::Trade(p) => Box::pin(async move { answer(stations::trade(bot, p).await, Reply::Trade) }),
         other => {
             let name = other.name();
             Box::pin(async move { Err(ApiError::new(ErrorCode::Internal, format!("{name} is not a queued method"))) })

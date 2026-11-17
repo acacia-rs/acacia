@@ -24,7 +24,7 @@ impl Blocks for Ground {
 const AHEAD: Rider = Rider { xxa: 0.0, zza: 0.98, jumping: false, sprinting: false, yaw: 0.0, pitch: 0.0 };
 
 fn mount(name: &str, size: (f32, f32), pos: [f64; 3]) -> Mount {
-    let mut mount = Mount::new(name, size, [0.0, size.1, 0.0], pos, 0.0).expect("drivable");
+    let mut mount = Mount::new(name, size, [0.0, f64::from(size.1), 0.0], pos, 0.0).expect("drivable");
     for _ in 0..3 {
         mount.tick(&Ground, Rider::default());
     }
@@ -87,10 +87,34 @@ fn a_full_charge_horse_jump_leaves_at_its_strength() {
 }
 
 #[test]
+fn a_camel_dash_neither_rears_nor_sprints_on_cooldown() {
+    let mut camel = mount("camel", (1.7, 2.375), [0.5, 0.0, 0.5]);
+    camel.game_time = 100;
+    camel.on_player_jump(100);
+    assert!(!camel.standing);
+    camel.tick(&Ground, Rider::default());
+    assert_eq!((camel.dashing, camel.dash_cooldown), (true, 54));
+    let sprinting = Rider { sprinting: true, ..AHEAD };
+    assert_eq!(camel.ridden_speed(sprinting), 0.09);
+}
+
+#[test]
+fn a_rider_sprints_only_on_a_vehicle_that_can() {
+    use crate::{Keys, Player};
+    let ahead = Keys { forward: true, sprint: true, ..Keys::default() };
+    let mut rider = Player::at([0.0; 3]);
+    assert!(rider.rider(ahead, true).sprinting);
+    // Letting go of the sprint key keeps the sprint while forward is held; letting go of forward ends it.
+    assert!(rider.rider(Keys { sprint: false, ..ahead }, true).sprinting);
+    assert!(!rider.rider(Keys::default(), true).sprinting);
+    assert!(!rider.rider(ahead, false).sprinting);
+}
+
+#[test]
 fn the_ghast_seats_its_driver_in_front() {
     let mut ghast = Mount::new("happy_ghast", (4.0, 4.0), [0.0, 4.0, 1.7], [0.0; 3], 0.0).unwrap();
     ghast.body.yaw = 90.0;
-    let feet = ghast.rider_feet();
+    let feet = ghast.rider_feet(0.6);
     assert!((feet[0] + 1.7).abs() < 1.0E-4 && feet[2].abs() < 1.0E-4, "{feet:?}");
     assert!((feet[1] - 3.4).abs() < 1.0E-9);
 }

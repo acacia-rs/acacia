@@ -5,8 +5,9 @@ import type { Face } from './generated/types/Face.js'
 import type { FormAnswer } from './generated/types/FormAnswer.js'
 import type { Goal } from './generated/types/Goal.js'
 import type { Vec3 } from './generated/types/Vec3.js'
+import type { Vehicle } from './generated/types/Vehicle.js'
 import type { CallOptions } from './session.js'
-import { BotSurvival } from './survival.js'
+import { BotStations } from './stations.js'
 
 /** An entity, or its `id`. */
 export type EntityRef = Entity | string
@@ -29,7 +30,7 @@ const idOf = (entity: EntityRef): string => (typeof entity === 'string' ? entity
  * await bot.close()
  * ```
  */
-export class Bot extends BotSurvival {
+export class Bot extends BotStations {
   /**
    * Walks to `goal` (see {@link goals}); needs `physics`. Fails with `NOT_POSSIBLE` when there is no path.
    *
@@ -118,6 +119,27 @@ export class Bot extends BotSurvival {
   /** Right-clicks an entity in reach: trade, mount, feed, shear. */
   activateEntity(entity: EntityRef, options?: CallOptions): Promise<void> {
     return this.call('bot.activateEntity', { entity: idOf(entity) }, options)
+  }
+
+  /**
+   * Gets on an entity in reach (boat, minecart, horse, saddled pig or strider) and resolves with the vehicle once the
+   * server seats the bot (`REJECTED` when it never does).
+   */
+  mount(entity: EntityRef, options?: CallOptions): Promise<Vehicle> {
+    return this.call('bot.mount', { entity: idOf(entity) }, options)
+  }
+
+  /** Leaves the vehicle; a physics bot resolves standing at the exit. `NOT_POSSIBLE` when not riding. */
+  dismount(options?: CallOptions): Promise<void> {
+    return this.call('bot.dismount', {}, options)
+  }
+
+  /**
+   * Trades offer `offer` (its index in the trade screen, from 0) `times` times (default 1) with a villager or wandering
+   * trader in reach; resolves with how many trades went through.
+   */
+  async trade(trader: EntityRef, offer: number, times = 1, options?: CallOptions): Promise<number> {
+    return (await this.call('bot.trade', { entity: idOf(trader), offer, times }, options)).traded
   }
 
   /** Swings the main hand, hitting nothing. */

@@ -34,12 +34,14 @@ pub enum Target {
     Server { address: String },
     /// Needs an online login that is a member of the realm.
     Realm { id: i64 },
+    /// A Java Edition server, `host:port` (port 25565 when left out); needs the `java` feature, and no proxy.
+    Java { address: String },
 }
 
 impl fmt::Display for Target {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Target::Server { address } => f.write_str(address),
+            Target::Server { address } | Target::Java { address } => f.write_str(address),
             Target::Realm { id } => write!(f, "realm:{id}"),
         }
     }

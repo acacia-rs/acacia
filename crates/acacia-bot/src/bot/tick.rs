@@ -24,6 +24,10 @@ impl Bot {
                 super::Backend::Java(_) => self.java_tick(),
             }
         }
+        // Nothing to show of an unplaced player: readers would see it at the origin.
+        if !self.backend.placed() {
+            return;
+        }
         self.publish_snapshot(ticks);
         self.events.on_ticks(&self.state, &mut self.out);
         if self.out.is_sink() && self.events.wants(crate::Events::TICKS) {

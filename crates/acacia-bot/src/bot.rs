@@ -21,12 +21,18 @@ mod body;
 mod dimension;
 #[cfg(feature = "java")]
 mod java;
+#[cfg(feature = "java")]
+mod java_gear;
+#[cfg(feature = "java")]
+mod java_setbacks;
 mod tick;
 
 pub(crate) use bedrock::Backend;
 pub use bedrock::Bedrock;
 #[cfg(feature = "java")]
 pub use java::Java;
+#[cfg(feature = "java")]
+pub(crate) use java::disconnect_reason as java_disconnect_reason;
 
 /// One unit of work done by [`Bot::step`].
 pub(crate) enum Step {

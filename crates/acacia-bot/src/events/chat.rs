@@ -77,6 +77,22 @@ impl ChatMessage {
     pub fn plain(&self) -> String {
         strip_formatting(&self.message)
     }
+
+    /// A Java message: player chat by its `chat_type`, system text as `Raw` (a server's own lines), action bar
+    /// text as `Popup`, our death message as `System`.
+    #[cfg(feature = "java")]
+    pub fn from_java(m: acacia_java_client::Message) -> Self {
+        use acacia_java_client::MessageKind as J;
+        let kind = match (m.kind, m.chat_type.as_deref()) {
+            (J::Player | J::Disguised, Some("minecraft:msg_command_incoming" | "minecraft:msg_command_outgoing")) => ChatKind::Whisper,
+            (J::Player | J::Disguised, Some("minecraft:say_command" | "minecraft:emote_command")) => ChatKind::Announcement,
+            (J::Player | J::Disguised, _) => ChatKind::Chat,
+            (J::System, _) => ChatKind::Raw,
+            (J::ActionBar, _) => ChatKind::Popup,
+            (J::Death, _) => ChatKind::System,
+        };
+        Self { kind, sender: m.sender, message: m.text, params: Vec::new(), rawtext: None, xuid: String::new() }
+    }
 }
 
 /// A named regex matched against the plain text of every chat message (see the module docs).

@@ -118,10 +118,10 @@ fn fill(template: &str, inputs: &[Input], values: &[Value]) -> String {
 }
 
 impl Client {
-    /// Sends what `effect` sends; a command goes without its leading `/`, unsigned, as from a dialog.
+    /// Sends what `effect` sends; a command goes as `sendUnattendedCommand` sends it (`unattended_command`).
     pub fn send_effect(&self, effect: &Effect) -> Result<(), Error> {
         match effect {
-            Effect::Command(command) => self.command(command),
+            Effect::Command(command) => self.unattended_command(command),
             Effect::Custom { id, payload } => self.send(to::CUSTOM_CLICK_ACTION, &CustomClickAction { id: id.clone(), payload: payload.clone() }),
             Effect::Open(_) | Effect::Nothing => Ok(()),
         }

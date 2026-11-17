@@ -4,8 +4,11 @@
 
 use std::collections::HashMap;
 
-use acacia_java_physics::{Aabb, Blocks, Effects, ItemUse, Keys, Player};
+use acacia_java_physics::attributes::{Attribute, Operation};
+use acacia_java_physics::{Aabb, Blocks, Keys, Player};
 use acacia_registry::{Block, BlockState};
+
+use crate::line::{Line, Nearby, parse};
 
 fn parse_state(text: &str) -> BlockState {
     let (name, props) = text.split_once('[').unwrap_or((text, ""));
@@ -56,118 +59,6 @@ impl Blocks for Course {
     }
 }
 
-struct Nearby {
-    pos: [f64; 3],
-    bounds: Aabb,
-    pushes: bool,
-    solid: bool,
-}
-
-struct Line {
-    tick: u64,
-    keys: Keys,
-    on_ground: bool,
-    sprinting: bool,
-    yaw: f32,
-    pitch: f32,
-    pos: [f64; 3],
-    delta: [f64; 3],
-    start_pos: [f64; 3],
-    start_delta: [f64; 3],
-    mobility: String,
-    flying_speed: f32,
-    effects: Effects,
-    nearby: Vec<Nearby>,
-    speed_add: f64,
-    item_use: Option<ItemUse>,
-}
-
-fn f64_at(cols: &[&str], i: usize) -> f64 {
-    f64::from_bits(u64::from_str_radix(cols[i], 16).expect("double bits"))
-}
-
-fn f32_at(cols: &[&str], i: usize) -> f32 {
-    f32::from_bits(u32::from_str_radix(cols[i], 16).expect("float bits"))
-}
-
-fn vec_at(cols: &[&str], i: usize) -> [f64; 3] {
-    [f64_at(cols, i), f64_at(cols, i + 1), f64_at(cols, i + 2)]
-}
-
-fn parse_effects(text: &str) -> Effects {
-    let mut effects = Effects::default();
-    for entry in text.split(',').filter(|e| *e != "-") {
-        let (name, amp) = entry.split_once(':').map(|(n, a)| (n, a)).unwrap_or((entry, "0"));
-        let (name, amp) = match name.strip_prefix("minecraft") {
-            Some(_) => amp.split_once(':').unwrap_or((amp, "0")),
-            None => (name, amp),
-        };
-        let amp: u8 = amp.parse().expect("amplifier");
-        match name {
-            "speed" => effects.speed = Some(amp),
-            "slowness" => effects.slowness = Some(amp),
-            "jump_boost" => effects.jump_boost = Some(amp),
-            "levitation" => effects.levitation = Some(amp),
-            "slow_falling" => effects.slow_falling = true,
-            "dolphins_grace" => effects.dolphins_grace = true,
-            "blindness" => effects.blindness = true,
-            "weaving" => effects.weaving = true,
-            _ => {}
-        }
-    }
-    effects
-}
-
-fn parse_nearby(text: &str) -> Vec<Nearby> {
-    text.split(';')
-        .filter(|e| *e != "-")
-        .map(|entry| {
-            let cols: Vec<&str> = entry.split(',').collect();
-            let at = |i: usize| cols[i].parse::<f64>().expect("entity value");
-            Nearby {
-                pos: [at(0), at(1), at(2)],
-                bounds: Aabb { min: [at(3), at(4), at(5)], max: [at(6), at(7), at(8)] },
-                pushes: cols[9] == "true",
-                solid: cols[10] == "true",
-            }
-        })
-        .collect()
-}
-
-fn parse(line: &str) -> Line {
-    let cols: Vec<&str> = line.split(' ').collect();
-    let has = |column: usize, letter: char| cols[column].contains(letter);
-    Line {
-        tick: cols[0].parse().expect("tick"),
-        keys: Keys {
-            forward: has(1, 'f'),
-            backward: has(1, 'b'),
-            left: has(1, 'l'),
-            right: has(1, 'r'),
-            jump: has(1, 'j'),
-            shift: has(1, 's'),
-            sprint: has(1, 'p'),
-        },
-        on_ground: has(2, 'g'),
-        sprinting: has(2, 'p'),
-        yaw: f32_at(&cols, 3),
-        pitch: f32_at(&cols, 4),
-        pos: vec_at(&cols, 7),
-        delta: vec_at(&cols, 10),
-        start_pos: vec_at(&cols, 13),
-        start_delta: vec_at(&cols, 16),
-        mobility: cols[19].to_string(),
-        flying_speed: f32_at(&cols, 20),
-        effects: parse_effects(cols[21]),
-        nearby: parse_nearby(cols[22]),
-        speed_add: if cols.len() > 23 { f64_at(&cols, 23) } else { 0.0 },
-        item_use: cols.get(24).and_then(|c| c.split_once(':')).map(|(speed, sprint)| ItemUse {
-            speed: f32::from_bits(u32::from_str_radix(speed, 16).expect("float bits")),
-            can_sprint: sprint == "true",
-        }),
-    }
-}
-
 /// Whether a pushing entity touches the player; boats (the solid pushers here) reach out with a grown box.
 fn reaches(other: &Nearby, area: &Aabb) -> bool {
     if !other.solid {
@@ -187,8 +78,22 @@ fn seed(player: &mut Player, line: &Line) {
     player.pos = line.pos;
     player.delta = line.delta;
     player.on_ground = line.on_ground;
-    player.sprinting = line.sprinting;
+    player.set_sprinting(line.sprinting);
     player.keys = line.keys;
+}
+
+/// The client's `movement_speed` modifiers for the traced effects and powder snow freeze, sprint kept as simulated.
+fn sync_speed(player: &mut Player, line: &Line) {
+    let effect = |id: &str, per_level: f32, amp: Option<u8>| {
+        amp.map(|a| (format!("minecraft:effect.{id}"), per_level as f64 * (f64::from(a) + 1.0), Operation::AddMultipliedTotal))
+    };
+    let freeze = (line.speed_add != 0.0).then(|| ("minecraft:powder_snow".to_owned(), line.speed_add, Operation::AddValue));
+    let modifiers: Vec<_> = [freeze, effect("speed", 0.2, line.effects.speed), effect("slowness", -0.15, line.effects.slowness)]
+        .into_iter()
+        .flatten()
+        .collect();
+    player.attributes.sync(Attribute::MovementSpeed, Attribute::MovementSpeed.default_value(), &modifiers);
+    player.attributes.set_sprinting(player.sprinting);
 }
 
 fn apply_server_state(player: &mut Player, previous: &Line, line: &Line) {
@@ -200,7 +105,7 @@ fn apply_server_state(player: &mut Player, previous: &Line, line: &Line) {
     player.snow_boots = line.mobility.contains('b');
     player.flying_speed = line.flying_speed;
     player.effects = line.effects.clone();
-    player.speed_add = line.speed_add;
+    sync_speed(player, line);
     player.using_item = line.item_use;
     player.solid_entities = line.nearby.iter().filter(|n| n.solid).map(|n| n.bounds).collect();
     if !line.mobility.contains('F') {

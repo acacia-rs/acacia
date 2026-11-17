@@ -70,7 +70,10 @@ impl Mount {
                     0
                 } else {
                     self.allow_stand_sliding = true;
-                    (self.standing, self.stand_counter) = (true, 20);
+                    // `standIfPossible`: camels never rear (`canPerformRearing`).
+                    if self.kind != MountKind::Camel {
+                        (self.standing, self.stand_counter) = (true, 20);
+                    }
                     amount
                 };
                 self.jump_pending = jump_scale(amount);
@@ -138,8 +141,10 @@ impl Mount {
                     self.jump_pending = 0.0;
                 }
                 let settled = self.game_time - self.last_pose_change.abs() >= 40;
+                // `standUp`: the pose change refreshes the size before this tick's move.
                 if self.kind == MountKind::Camel && rider.zza > 0.0 && self.last_pose_change < 0 && settled {
                     self.last_pose_change = self.game_time;
+                    self.set_size(self.standing_size);
                 }
             }
         }

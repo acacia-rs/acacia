@@ -37,10 +37,11 @@ impl Driven {
         }
     }
 
-    pub fn rider_feet(&self) -> [f64; 3] {
+    /// The seated player's feet, given its vehicle attachment height.
+    pub fn rider_feet(&self, attachment: f64) -> [f64; 3] {
         match self {
-            Driven::Boat(b) => b.rider_feet(),
-            Driven::Mount(m) => m.rider_feet(),
+            Driven::Boat(b) => b.rider_feet(attachment),
+            Driven::Mount(m) => m.rider_feet(attachment),
         }
     }
 

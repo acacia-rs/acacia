@@ -18,6 +18,10 @@ impl Bot {
         if let Some(b) = self.backend.bedrock() {
             b.client.respawn();
         }
+        #[cfg(feature = "java")]
+        if let Some(Err(e)) = self.java().map(|j| j.client.respawn()) {
+            tracing::debug!(error = %e, "respawn not sent");
+        }
     }
 
     /// Schedules one respawn per death. BDS shows the death screen with `Respawn(searching)`; Geyser
@@ -25,12 +29,17 @@ impl Bot {
     /// arrive for the same death. BDS also sends "searching" while a live player joins, which vanilla
     /// doesn't answer. `was_alive`: before `packet` was applied.
     pub(crate) fn auto_respawn(&mut self, packet: &RawPacket, was_alive: bool) {
+        let searching = packet.id == Respawn::ID && packet.decode::<Respawn>().is_ok_and(|r| r.state == SEARCHING_FOR_SPAWN);
+        self.schedule_respawn(searching || was_alive);
+    }
+
+    /// Schedules the respawn for a dead player on `trigger`; a live one cancels any pending.
+    pub(crate) fn schedule_respawn(&mut self, trigger: bool) {
         if self.state.player.alive {
             self.respawn_in = None;
             return;
         }
-        let searching = packet.id == Respawn::ID && packet.decode::<Respawn>().is_ok_and(|r| r.state == SEARCHING_FOR_SPAWN);
-        if self.auto_respawn && self.respawn_in.is_none() && (searching || was_alive) {
+        if self.auto_respawn && self.respawn_in.is_none() && trigger {
             self.respawn_in = Some(DEATH_SCREEN_TICKS);
         }
     }

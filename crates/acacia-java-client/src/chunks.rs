@@ -1,19 +1,25 @@
 //! Loaded chunk columns by state id. Columns are shared, so a clone is a cheap snapshot for work off the tick.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use acacia_java_proto::chunk::Section;
+use acacia_registry::BlockState;
+
+pub(crate) fn is_air(state: u32) -> bool {
+    BlockState::from_id(state).is_some_and(BlockState::is_air)
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Chunks {
-    columns: HashMap<(i32, i32), Arc<Vec<Section>>>,
+    /// Fx, not SipHash: a block read hashes its column key, and simulated movement reads thousands a tick.
+    columns: FxHashMap<(i32, i32), Arc<Vec<Section>>>,
     min_y: i32,
 }
 
 impl Chunks {
     pub(crate) fn new(min_y: i32) -> Self {
-        Self { columns: HashMap::new(), min_y }
+        Self { columns: FxHashMap::default(), min_y }
     }
 
     pub fn len(&self) -> usize {
@@ -39,12 +45,34 @@ impl Chunks {
         Some((section, Section::index((x & 15) as usize, (y & 15) as usize, (z & 15) as usize)))
     }
 
-    /// Copies the column first when a snapshot still holds it.
-    pub(crate) fn set_block(&mut self, pos: [i32; 3], state: u32) {
-        let Some((section, index)) = self.locate(pos) else { return };
-        if let Some(s) = self.columns.get_mut(&(pos[0] >> 4, pos[2] >> 4)).and_then(|c| Arc::make_mut(c).get_mut(section)) {
-            s.set_block(index, state);
-        }
+    /// `ChunkAccess.getNoiseBiome`: the biome id of a 4×4×4 cell, y clamped into the column; `None` unloaded.
+    pub fn noise_biome(&self, [qx, qy, qz]: [i32; 3]) -> Option<u32> {
+        let column = self.columns.get(&(qx >> 2, qz >> 2))?;
+        let low = self.min_y >> 2;
+        let qy = qy.clamp(low, low + column.len() as i32 * 4 - 1);
+        let section = column.get(((qy - low) >> 2) as usize)?;
+        Some(section.biomes.get((((qy & 3) << 4) | ((qz & 3) << 2) | (qx & 3)) as usize))
+    }
+
+    /// The top of the build height, exclusive.
+    pub fn max_y(&self, x: i32, z: i32) -> Option<i32> {
+        self.columns.get(&(x >> 4, z >> 4)).map(|c| self.min_y + c.len() as i32 * 16)
+    }
+
+    /// Copies the column first when a snapshot still holds it. Returns the old state; keeps the non-air count.
+    pub(crate) fn set_block(&mut self, pos: [i32; 3], state: u32) -> Option<u32> {
+        let (section, index) = self.locate(pos)?;
+        let s = self.columns.get_mut(&(pos[0] >> 4, pos[2] >> 4)).and_then(|c| Arc::make_mut(c).get_mut(section))?;
+        let old = s.blocks.get(index);
+        s.set_block(index, state);
+        s.non_empty += i16::from(is_air(old)) - i16::from(is_air(state));
+        Some(old)
+    }
+
+    /// `LevelChunkSection.hasOnlyAir` of section `sy` in column `(cx, cz)`; `None` unloaded or out of range.
+    pub(crate) fn only_air(&self, [cx, sy, cz]: [i32; 3]) -> Option<bool> {
+        let section = usize::try_from(sy - (self.min_y >> 4)).ok()?;
+        self.columns.get(&(cx, cz))?.get(section).map(|s| s.non_empty == 0)
     }
 
     pub(crate) fn insert(&mut self, x: i32, z: i32, sections: Vec<Section>) {

@@ -1,12 +1,14 @@
 //! The Java Edition side of a [`Bot`] (docs/java-edition.md, build step 4): it joins, ticks and walks by
 //! [`Controls`]; actions that need the Bedrock wire return [`crate::ActionError::Unsupported`].
 
+use acacia_client::proto::types::Vec3f;
 use acacia_client::DisconnectReason;
 use acacia_java_client::{Client, Error, Packet};
 use acacia_java_physics::Keys;
-use acacia_java_proto::ids::play::clientbound::{PLAYER_POSITION, SET_PASSENGERS};
+use acacia_java_proto::ids::play::clientbound::{LOGIN, PLAYER_POSITION, RESPAWN, SET_PASSENGERS};
 
 use super::bedrock::Backend;
+use super::java_setbacks::Setbacks;
 use super::Step;
 use super::Assembly;
 use crate::events::{EventOut, EventSource};
@@ -24,10 +26,7 @@ pub struct Java {
     /// back.
     pub(crate) inventory_held: bool,
     ticks: u64,
-    teleports: u32,
-    last_setback: Option<u64>,
-    /// `last_setback` before the latest teleport, restored when that teleport only seated the player.
-    setback_before: Option<u64>,
+    setbacks: Setbacks,
 }
 
 impl Java {
@@ -35,8 +34,18 @@ impl Java {
         &self.client
     }
 
+    /// Server positions that corrected the player ([`Setbacks`] says which don't).
+    pub fn setbacks(&self) -> u32 {
+        self.setbacks.count
+    }
+
     pub(crate) fn started(&self) -> bool {
         self.client.loaded()
+    }
+
+    /// The server has sent the player's position: it ticks from login, before that.
+    pub(crate) fn placed(&self) -> bool {
+        self.setbacks.teleports > 0
     }
 }
 
@@ -59,11 +68,11 @@ impl Live for Java {
     }
 
     fn teleports(&self) -> u32 {
-        self.teleports
+        self.setbacks.teleports
     }
 
     fn setback_age(&self) -> Option<u64> {
-        self.last_setback.map(|t| self.ticks.saturating_sub(t))
+        self.setbacks.last.map(|t| self.ticks.saturating_sub(t))
     }
 
     fn controls(&mut self) -> &mut Controls {
@@ -79,7 +88,11 @@ impl Bot {
 
     /// Joins any Java server as `account`'s Java profile. Only `config`'s edition-neutral settings apply.
     pub async fn connect_java(host: &str, port: u16, account: &acacia_client::auth::Account, config: BotConfig) -> Result<Bot, Error> {
-        Ok(Self::java_bot(Client::join_online(host, port, account).await?, config))
+        let client = Client::join_online(host, port, account).await?;
+        if let Some(e) = client.profile_key_error() {
+            tracing::warn!(error = %e, "no profile key: chat goes out unsigned, which secure-chat servers refuse");
+        }
+        Ok(Self::java_bot(client, config))
     }
 
     fn java_bot(client: Client, config: BotConfig) -> Bot {
@@ -87,7 +100,7 @@ impl Bot {
         let mut state = GameState::new(config.trackers, 0);
         state.items = crate::state::ItemRegistry::java();
         state.recipes = crate::state::Recipes::java();
-        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, teleports: 0, last_setback: None, setback_before: None };
+        let java = Java { client, controls: Controls::default(), awaiting: 0, inventory_held: false, ticks: 0, setbacks: Setbacks::default() };
         let assembly = Assembly { auto_respawn: config.auto_respawn, auto_eat: config.auto_eat, snapshots: config.snapshots };
         Bot::assemble(Backend::Java(Box::new(java)), state, events, EventOut::new(config.event_sink), assembly)
     }
@@ -105,13 +118,23 @@ impl Bot {
         if self.closed.is_some() {
             return None;
         }
+        // Vanilla handles every queued packet before a frame's ticks. Grim's transactions rely on it: it writes a ping
+        // before the packet it times, so a tick between the two runs a move Grim judges with the packet applied.
         let Backend::Java(java) = &mut self.backend else { return None };
-        if !self.ticker.due()
-            && let Some(result) = java.client.try_next()
-        {
+        if let Some(result) = java.client.try_next() {
             return Some(self.on_java_packet(result));
         }
+        if self.ticker.due() {
+            // Deferred until the I/O driver has run, so this shard's readers decode what already arrived.
+            tokio::task::yield_now().await;
+            let Backend::Java(java) = &mut self.backend else { return None };
+            if let Some(result) = java.client.try_next() {
+                return Some(self.on_java_packet(result));
+            }
+        }
+        let Backend::Java(java) = &mut self.backend else { return None };
         tokio::select! {
+            biased;
             result = java.client.next() => Some(self.on_java_packet(result)),
             Some(request) = self.inbox.rx.recv() => {
                 self.on_immediate(request);
@@ -133,24 +156,40 @@ impl Bot {
                 {
                     let player = &java.client.movement.player;
                     (java.controls.yaw, java.controls.pitch) = (player.yaw, player.pitch);
-                    if java.teleports > 0 {
-                        java.setback_before = java.last_setback;
-                        java.last_setback = Some(java.ticks);
+                    // Snapshots read the body only once the client has loaded; until then they read this.
+                    let [x, y, z] = player.pos.map(|c| c as f32);
+                    let mirrored = &mut self.state.player;
+                    (mirrored.position, mirrored.yaw, mirrored.pitch) = (Vec3f { x, y, z }, player.yaw, player.pitch);
+                    let teleport = <acacia_java_proto::packets::PlayerPosition as acacia_java_proto::Wire>::read(&mut &packet.body[..]).map(|p| p.id);
+                    tracing::trace!(tick = java.ticks, ?teleport, "java teleport");
+                    if java.setbacks.on_position(java.ticks) {
+                        tracing::debug!(tick = java.ticks, pos = ?player.pos, loaded = java.client.loaded(), "java setback");
                     }
-                    java.teleports += 1;
                 }
-                // Boarding a boat turns the player to the boat's yaw; `startRiding`'s teleport just before isn't a setback.
+                // A login after a reconfiguration places a new player too.
+                if matches!(packet.id, RESPAWN | LOGIN)
+                    && let Backend::Java(java) = &mut self.backend
+                {
+                    java.setbacks.respawned = true;
+                }
+                // Boarding a boat turns the player to the boat's yaw.
                 if packet.id == SET_PASSENGERS
                     && let Backend::Java(java) = &mut self.backend
                 {
                     java.controls.yaw = java.client.movement.player.yaw;
-                    if java.client.movement.riding.is_some() && java.last_setback == Some(java.ticks) {
-                        java.last_setback = java.setback_before;
-                    }
+                    java.setbacks.on_seat(java.client.movement.riding.is_some(), java.ticks);
                 }
+                let was_alive = self.state.player.alive;
                 self.on_java_inventory(packet.id);
                 self.on_java_health(&packet);
                 self.on_java_dialog(packet.id);
+                let message = match &mut self.backend {
+                    Backend::Java(java) => java.client.message.take().map(crate::events::ChatMessage::from_java),
+                    Backend::Bedrock(_) => None,
+                };
+                self.events.on_java_packet(message, &mut self.state, &mut self.out);
+                // Java has no "searching for spawn": dying is the only trigger.
+                self.schedule_respawn(was_alive);
                 Step::Idle
             }
             Err(e) => {
@@ -208,20 +247,25 @@ impl Bot {
 
     pub(super) fn java_tick(&mut self) {
         self.governor.tick(None);
+        self.tick_respawn();
         self.tick_survival();
         let dismounting = self.java_dismounting();
         let Backend::Java(java) = &mut self.backend else { return };
         java.ticks += 1;
+        java.setbacks.respawned &= !java.client.loaded();
         let player = &mut java.client.movement.player;
         // Turned by the shorter way and never wrapped, as a mouse turns it: Grim's AimModulo360 flags a 360° jump.
         player.yaw += wrap_degrees(java.controls.yaw - player.yaw);
         player.pitch = java.controls.pitch.clamp(-90.0, 90.0);
-        player.has_glider = usable_elytra(java.client.inventory.slot(CHEST_SLOT));
+        super::java_gear::apply_worn(player, &java.client.inventory);
         let mut keys = java_keys(&java.controls);
         keys.shift |= dismounting;
         if let Err(e) = java.client.step(keys) {
             tracing::debug!(error = %e, "java movement not sent");
         }
+        let p = &java.client.movement.player;
+        tracing::trace!(target: "java_tick", name = %java.client.name, tick = java.ticks, pos = ?p.pos, delta = ?p.delta,
+            ground = p.on_ground, hcol = p.horizontal_collision, sprinting = p.sprinting, speed = p.speed_value(), keys = ?keys);
         // A boat turns its rider with it.
         if java.client.movement.riding.is_some() {
             java.controls.yaw = java.client.movement.player.yaw;
@@ -232,18 +276,6 @@ impl Bot {
         }
         self.mirror_java_riding();
     }
-}
-
-/// Window 0's chest armour slot.
-const CHEST_SLOT: usize = 6;
-const ELYTRA_DURABILITY: i32 = 432;
-
-/// An elytra that will not break on its next use (`LivingEntity.canGlideUsing`).
-fn usable_elytra(chest: Option<&acacia_java_proto::item::ItemStack>) -> bool {
-    chest.is_some_and(|s| {
-        let max = s.components.max_damage.unwrap_or(ELYTRA_DURABILITY);
-        i32::from(acacia_world::neutral::Item::Elytra.java_id()) == s.item && s.components.damage.unwrap_or(0) < max - 1
-    })
 }
 
 /// `Mth.wrapDegrees`: into [-180, 180).
@@ -258,7 +290,7 @@ fn wrap_degrees(d: f32) -> f32 {
     }
 }
 
-fn disconnect_reason(e: Error) -> DisconnectReason {
+pub(crate) fn disconnect_reason(e: Error) -> DisconnectReason {
     match e {
         // The link's tasks ended without an error of their own: Client::close stopped them.
         Error::Closed => DisconnectReason::LocalClose,

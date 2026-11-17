@@ -29,6 +29,8 @@ async fn serve(stream: TcpStream) -> u128 {
 
     c.send(ids::login::clientbound::LOGIN_FINISHED, &LoginFinished { uuid, name: "Enc".into() }).await.unwrap();
     assert_eq!(c.read().await.unwrap().0, ids::login::serverbound::LOGIN_ACKNOWLEDGED);
+    assert_eq!(c.read().await.unwrap().0, ids::configuration::serverbound::CUSTOM_PAYLOAD);
+    assert_eq!(c.read().await.unwrap().0, ids::configuration::serverbound::CLIENT_INFORMATION);
     c.send(ids::configuration::clientbound::FINISH_CONFIGURATION, &Empty {}).await.unwrap();
     assert_eq!(c.read().await.unwrap().0, ids::configuration::serverbound::FINISH_CONFIGURATION);
     c.send(ids::play::clientbound::PING, &Ping { id: 77 }).await.unwrap();

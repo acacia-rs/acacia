@@ -91,6 +91,8 @@ impl Player {
             Pose::Swimming
         } else if self.fall_flying {
             Pose::FallFlying
+        } else if self.spin_attack {
+            Pose::SpinAttack
         } else if self.keys.shift && !self.flying {
             Pose::Crouching
         } else {
@@ -118,7 +120,7 @@ impl Player {
             !self.flying && !self.swimming && self.fits(world, Pose::Crouching) && (was_shift || !self.fits(world, Pose::Standing));
         self.read_keys(keys);
         self.push_out_of_blocks(world);
-        self.update_sprint(was_shift, had_forward);
+        self.update_sprint(was_shift, had_forward, None);
         let toggled = self.update_flight_toggle(world, was_jumping);
         self.start_gliding_if_asked(world, was_jumping, toggled);
         if self.in_water && keys.shift && !self.flying {
@@ -144,8 +146,10 @@ impl Player {
         if self.effects.slow_falling || self.effects.levitation.is_some() {
             self.fall_distance = 0.0;
         }
+        let before_travel = self.bounding_box();
         self.travel(world);
         self.apply_block_effects(world);
+        self.tick_auto_spin(before_travel);
         if self.on_ground && self.flying {
             self.flying = false;
         }

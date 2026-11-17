@@ -1,0 +1,13 @@
+# tools/java-switch.sh's proxy: offline, no forwarding, two backends; Velocity fills the rest with its defaults.
+config-version = "2.9"
+bind = "127.0.0.1:25600"
+online-mode = false
+force-key-authentication = false
+player-info-forwarding-mode = "NONE"
+
+[servers]
+a = "127.0.0.1:25601"
+b = "127.0.0.1:25602"
+try = ["a"]
+
+[forced-hosts]

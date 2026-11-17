@@ -2,7 +2,7 @@
 //! first `wanderers` of them walking with physics between random spots near spawn, the rest
 //! standing. Every bot tracks entities, so each sees the others. Prints swarm events as JSON lines.
 //! `cargo run --release -p acacia-bot --example swarm_load -- <server> <bots> <wanderers> [seconds] [shards]`
-//! `JOIN_MS` replaces the swarm's 500 ms join spacing.
+//! `JOIN_MS` replaces the swarm's 500 ms join spacing; `JAVA=1` joins a Java server (`--features java`).
 use std::time::Duration;
 
 use acacia_bot::pathfind::{Goal, GotoOpts, NavStatus, Navigator};
@@ -30,7 +30,7 @@ fn next(seed: &mut u64) -> i32 {
 }
 
 async fn wander(bot: &mut Bot, mut seed: u64) -> Result<(), ActionError> {
-    while bot.bedrock().and_then(|b| b.movement()).is_none_or(|m| !m.is_started()) {
+    while !started(bot) {
         bot.wait_ticks(1).await?;
     }
     bot.wait_ticks(40).await?;
@@ -52,6 +52,14 @@ async fn wander(bot: &mut Bot, mut seed: u64) -> Result<(), ActionError> {
     }
 }
 
+fn started(bot: &Bot) -> bool {
+    #[cfg(feature = "java")]
+    if let Some(java) = bot.java() {
+        return java.client().loaded();
+    }
+    bot.bedrock().and_then(|b| b.movement()).is_some_and(|m| m.is_started())
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).init();
@@ -70,6 +78,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(ms) = std::env::var("JOIN_MS").ok().map(|s| s.parse()).transpose()? {
         builder = builder.join_spacing(Duration::from_millis(ms), Duration::from_millis(ms / 2));
     }
+    if let Some(fill) = std::env::var("SHARD_FILL").ok().map(|s| s.parse()).transpose()? {
+        builder = builder.shard_fill(fill);
+    }
     if let Some(shards) = rest.get(1) {
         builder = builder.shards(shards.parse()?);
     }
@@ -84,7 +95,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..bots {
         let state = if i < wanderers { Role::Wander } else { Role::Stand };
         let login = Login::Offline { name: format!("Load{i}") };
-        swarm.add(BotSpec { id: BotId(format!("b{i}")), login, target: Target::Server { address: server.clone() }, proxy: None, state })?;
+        let address = server.clone();
+        let target = if std::env::var_os("JAVA").is_some() { Target::Java { address } } else { Target::Server { address } };
+        swarm.add(BotSpec { id: BotId(format!("b{i}")), login, target, proxy: None, state })?;
     }
 
     let deadline = tokio::time::sleep(Duration::from_secs(secs));

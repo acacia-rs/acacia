@@ -1,4 +1,5 @@
 use crate::aabb::Aabb;
+use crate::attributes::Attribute;
 use crate::block_factors::friction;
 use crate::collide::Blocks;
 use crate::mth::{cos, length_sqr, look_vector, sin, DEG_TO_RAD};
@@ -7,6 +8,13 @@ use crate::support::BELOW_MOVEMENT_OFFSET;
 
 pub(crate) fn modified_friction(friction: f32, modifier: f32) -> f32 {
     (1.0 - (1.0 - friction) * modifier).clamp(0.0, 1.0)
+}
+
+impl Player {
+    /// `computeModifiedFriction` of an air friction by the `air_drag_modifier` attribute.
+    pub(crate) fn air_drag(&self, friction: f32) -> f32 {
+        modified_friction(friction, self.attribute(Attribute::AirDragModifier) as f32)
+    }
 }
 
 const CLIMB_LIMIT: f64 = 0.15_f32 as f64;
@@ -78,7 +86,8 @@ impl Player {
 
     pub(crate) fn travel_in_air(&mut self, world: &impl Blocks) {
         let below = self.on_pos(world, BELOW_MOVEMENT_OFFSET);
-        let block_friction = if self.on_ground { modified_friction(friction(world.block_state(below).block()), 1.0) } else { 1.0 };
+        let friction_modifier = self.attribute(Attribute::FrictionModifier) as f32;
+        let block_friction = if self.on_ground { modified_friction(friction(world.block_state(below).block()), friction_modifier) } else { 1.0 };
         let speed = if !self.on_ground {
             self.air_speed()
         } else if block_friction as f64 > 0.6 {
@@ -103,9 +112,9 @@ impl Player {
         } else {
             y = 0.0;
         }
-        let air = modified_friction(0.91, 1.0);
+        let air = self.air_drag(0.91);
         let horizontal = (block_friction * air) as f64;
-        let vertical = modified_friction(0.98, 1.0) as f64;
+        let vertical = self.air_drag(0.98) as f64;
         self.delta = [self.delta[0] * horizontal, y * vertical, self.delta[2] * horizontal];
     }
 

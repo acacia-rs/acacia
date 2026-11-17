@@ -1,6 +1,6 @@
 //! `BlockGetter.forEachBlockIntersectedBetween`: the cells a box sweeps along a move, in vanilla's order.
 
-use std::collections::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 
 use crate::aabb::Aabb;
 use crate::mth::{floor, length_sqr};
@@ -22,7 +22,7 @@ pub(crate) fn for_each_cell_between(from: [f64; 3], to: [f64; 3], target: &Aabb,
         }
         return;
     }
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     let start = target.moved(travel.map(|v| -v));
     for cell in corners_in_direction(start.min.map(floor), start.max.map(floor), travel) {
         if !visit(cell, 0) {
@@ -63,7 +63,7 @@ fn along_travel(seen: &mut HashSet<[i32; 3]>, travel: [f64; 3], target: &Aabb, v
         cell[axis] += sign[axis];
         t[axis] += t_delta[axis];
         let block = Aabb { min: cell.map(f64::from), max: cell.map(|v| f64::from(v) + 1.0) };
-        let Some(hit) = clip(&block, from_corner, to_corner) else { continue };
+        let Some(hit) = block.clip(from_corner, to_corner) else { continue };
         iterations += 1;
         let margin = 1.0E-5_f32 as f64;
         let hit = [0, 1, 2].map(|a| hit[a].clamp(cell[a] as f64 + margin, cell[a] as f64 + 1.0 - margin));
@@ -110,32 +110,6 @@ fn corners_in_direction(a: [i32; 3], b: [i32; 3], direction: [f64; 3]) -> Vec<[i
         }
     }
     cells
-}
-
-/// `AABB.clip`: where the segment first enters `area`.
-fn clip(area: &Aabb, from: [f64; 3], to: [f64; 3]) -> Option<[f64; 3]> {
-    let d = sub(to, from);
-    let mut scale = 1.0;
-    let mut hit = false;
-    // Each axis as (a, b, c): the face's axis, then the other two in vanilla's argument order.
-    for (a, b, c) in [(0, 1, 2), (1, 2, 0), (2, 0, 1)] {
-        let face = if d[a] > 1.0E-7 {
-            area.min[a]
-        } else if d[a] < -1.0E-7 {
-            area.max[a]
-        } else {
-            continue;
-        };
-        let s = (face - from[a]) / d[a];
-        let pb = from[b] + s * d[b];
-        let pc = from[c] + s * d[c];
-        let inside = |p: f64, axis: usize| area.min[axis] - 1.0E-7 < p && p < area.max[axis] + 1.0E-7;
-        if 0.0 < s && s < scale && inside(pb, b) && inside(pc, c) {
-            scale = s;
-            hit = true;
-        }
-    }
-    hit.then(|| [0, 1, 2].map(|i| from[i] + scale * d[i]))
 }
 
 fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
