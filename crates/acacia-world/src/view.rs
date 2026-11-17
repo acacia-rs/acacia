@@ -79,6 +79,11 @@ impl ChunkView {
         self.chunks.get(&(x, z))
     }
 
+    /// Biome id at a world position, if its chunk and biomes are known.
+    pub fn biome(&self, x: i32, y: i32, z: i32) -> Option<u32> {
+        self.chunks.get(&(x >> 4, z >> 4))?.read().biome(x, y, z)
+    }
+
     pub fn len(&self) -> usize {
         self.chunks.len()
     }
