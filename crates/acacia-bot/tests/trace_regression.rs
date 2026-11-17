@@ -23,6 +23,30 @@ const TRACES: &[(&str, usize, f32)] = &[
     // 8 until the received-yaw wrap (acacia-physics `math.rs` `wrap_degrees`), 6 until BDS's walk acceleration
     // (`motion.rs` `move_relative`).
     ("course-human-linux.btrc.gz", 5, 0.0),
+    ("flight-survival.btrc.gz", 0, CORRECTION_TOLERANCE),
+    ("flight-sprint.btrc.gz", 0, CORRECTION_TOLERANCE),
+    ("flight-lava.btrc.gz", 0, CORRECTION_TOLERANCE),
+    // The first sprint tick flying grounded in water (docs/physics-gaps.md).
+    ("flight-water.btrc.gz", 0, CORRECTION_TOLERANCE),
+    // Effect-end ticks and build teleports.
+    // The one mismatch is the levitation effect starting a tick before its packet arrives (phase start race).
+    ("levitation-liquids.btrc.gz", 1, CORRECTION_TOLERANCE),
+    // Build-phase teleports only.
+    ("drills-gaps.btrc.gz", 3, CORRECTION_TOLERANCE),
+    // Landing ticks (land_offaxis, land_water).
+    ("glide-phases.btrc.gz", 2, CORRECTION_TOLERANCE),
+    ("glide-worn.btrc.gz", 0, CORRECTION_TOLERANCE),
+    // Rain launches the bot does not predict.
+    // Its two rain launches predate the rain prediction; riptide-rain has them predicted.
+    ("riptide.btrc.gz", 2, CORRECTION_TOLERANCE),
+    ("riptide-rain.btrc.gz", 0, CORRECTION_TOLERANCE),
+    ("vehicle-camel.btrc.gz", 0, CORRECTION_TOLERANCE),
+    // Dismounts beside a bobbing boat, blue-ice dismount gravity.
+    ("vehicle-boat-horse.btrc.gz", 11, CORRECTION_TOLERANCE),
+    ("vehicle-back-seat.btrc.gz", 5, CORRECTION_TOLERANCE),
+    ("vehicle-strider.btrc.gz", 0, CORRECTION_TOLERANCE),
+    // Standing on a shulker that peeks (its top moves).
+    ("entity-shulker.btrc.gz", 0, CORRECTION_TOLERANCE),
 ];
 
 #[test]

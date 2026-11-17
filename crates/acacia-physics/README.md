@@ -44,14 +44,14 @@ Weaving; powder snow and berry-bush stuck multipliers; powder snow freeze (`froz
 honey wall slide; and bubble columns. Liquids cover water and lava travel, swimming (with the swim hitbox and
 water grace), currents including falling water, Depth Strider and the dolphin multiplier, and the ledge-exit
 boost. Effects: jump boost, levitation, slow falling. Also ported: elytra gliding (including the firework boost
-ticks), sneak, crawl and swim pose fitting under ceilings, teleports, knockback, and loaded-area freezing.
+ticks), sneak, crawl and swim pose fitting under ceilings, teleports, knockback, and loaded-area freezing. Since
+bedsim: riptide (launch, spin box, stop rules; the caller decides water or rain), spectator no-clip, crawl entry, and
+powder snow's player-dependent shape (leather boots, a long fall).
 
 ## Not ported
-Riptide, vehicles other than horses and boats, and no-clip (bedsim does not simulate these either; it resets to the client),
-bedsim's client-drift correction and reconciliation, the step tie-breaker (always accepted, as with
-`IgnoreClientStepTiebreaker`), slide offset, legacy sprint timing, server-forced sprint, crawl input flags,
-the `AutoJumpingInWater` input flag, scaffolding's unsupported-bottom lip, and powder snow's player-dependent
-collision shape (leather boots, a long fall) — the world adapter must resolve that one itself. Scaffolding
+Bedsim's client-drift correction and reconciliation, the step tie-breaker (always accepted, as with
+`IgnoreClientStepTiebreaker`), slide offset, legacy sprint timing, server-forced sprint, the `AutoJumpingInWater`
+input flag, and scaffolding's unsupported-bottom lip. Open residuals are tracked in docs/physics-gaps.md. Scaffolding
 collides only under a player standing above it who isn't descending (`Sim::collides_for`). Speed and Slowness
 come in through `set_movement_attribute`, which takes the server's `minecraft:movement` without its sprint and
 freeze modifiers (the simulation adds both itself).
@@ -151,7 +151,7 @@ mismatches there; `tests/bedsim_diff.rs` lists the bedsim scenarios that diverge
   is an inside-block effect, once per honey cell the box is in (see the cells above): honey's box is inset
   1/16, so a box against it is in its cell, and one flush against a full block beside it is not.
 - Levitation's vertical speed takes the 0.98 air drag too: v = (v + (0.05·level − v)·0.2)·0.98, a steady
-  climb of 0.04537 a tick at level 1 (bedsim: 0.05). In liquid it is untested.
+  climb of 0.04537 a tick at level 1 (bedsim: 0.05); water and lava drilled (`levitation-liquids` trace).
 - Weaving replaces any queued inside-block slowdown with (0.5, 0.25, 0.5), not only a cobweb's (BDS).
 - A horizontal axis counts as collided when the move was cut by more than 1.19e-7 (BDS `FinalizeMoveSystem`).
 - The standing eye offset is 1.62001 (BDS; bedsim: 1.62), so `PlayerAuthInput.position` matches the server's
@@ -195,8 +195,10 @@ drew 0 corrections in 3 rounds on strict BDS, recorded as `tests/traces/drills-f
   excludes flyers). Flying takes precedence over liquid travel (`TravelTypeSensingSystem::fn0`).
 - The sneak key only descends: no sneak pose or slowdown while flying. Landing does not end a flight (live: the
   landed and rise phases match with the flight continuing).
-- Untested live: the survival may-fly 0.75 override and flight in liquids. Not ported:
-  `FlyingPlayerStuckOnGroundWorkaroundSystem`, which turns a vertical speed of exactly 0 into the smallest f32.
+- A swim starting on the tick a flyer rests flush on a floor flies without the sprint boost, from the next tick
+  with it; mid-water the same input keeps it (drill `flightw`).
+- `FlyingPlayerStuckOnGroundWorkaroundSystem` turns a vertical speed of exactly 0 into the smallest f32, so
+  `on_ground` stays false for a resting flyer.
 
 ## Entities
 Not in bedsim; read out of BDS 1.26.52 (bdsre, labels in brackets) and drilled on strict BDS with the `acacia-bot`
@@ -213,7 +215,10 @@ corrections, 2026-10-28.
 - A tick collides with the boxes as the client tracked them a tick earlier: with same-tick boxes the off-axis phase
   missed the step-up on the tick a pushed boat moved (one correction, then two 2e-6 ones off the rebuilt box).
   `CopyCollisionShapesRewindSystem` (144843610) replays a player's stored shapes while it stays within 2 blocks.
-- Untested live: shulkers, boats in water.
+- Shulkers (`acacia-bot` solids, docs/research/shulker-peek-box.md): the shell's box steps 0.05 a tick toward
+  the metadata peek, a 0.98 shell on its attach block, x/z inset 0.0001 (`entity-shulker` trace). Its solid-mob
+  depenetration, which would lift a player off an opening shell, is not ported.
+- Boats in water: post-dismount corrections come from the empty boat drifting into the player (docs/physics-gaps.md).
 
 ## WorldView contract
 - `block_collisions`: block-local boxes (0..1, taller for fences and walls) of layer 0. They are used for collisions,
