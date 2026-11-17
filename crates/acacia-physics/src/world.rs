@@ -88,6 +88,7 @@ pub struct BlockPhysics {
     pub traversal: Traversal,
     /// Fences, fence gates and walls (support lookup through their raised boxes).
     pub fence_or_wall: bool,
+    pub open_trapdoor: bool,
     /// Liquid in this cell from either layer.
     pub liquid: Option<Liquid>,
     /// Bit `1 << face` set when that face is solid for liquid flow (face order: down, up, north(-z), south(+z), west(-x), east(+x)).
@@ -108,6 +109,7 @@ impl BlockPhysics {
         inside: InsideMovement::None,
         traversal: Traversal::None,
         fence_or_wall: false,
+        open_trapdoor: false,
         liquid: None,
         solid_faces: 0,
         bubble_column: None,
@@ -133,6 +135,12 @@ impl BlockPhysics {
 
     pub const fn liquid(liquid: Liquid) -> Self {
         Self { liquid: Some(liquid), ..Self::block() }
+    }
+
+    /// BDS `blockIgnoredForExit` (docs/research/riptide-impact-exit.md §3): neither floor nor obstacle for a
+    /// dismount's exit spot.
+    pub fn ignored_for_exit(&self) -> bool {
+        self.climbable || self.open_trapdoor || self.traversal != Traversal::None
     }
 }
 

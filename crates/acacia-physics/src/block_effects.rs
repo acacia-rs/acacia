@@ -7,7 +7,9 @@ use crate::sim::Sim;
 use crate::state::PlayerState;
 use crate::world::{InsideMovement, LiquidKind, Traversal, WorldView};
 
+/// Also resets the fall, as Java's `makeStuckInBlock` (drill powderfall2: no 0.9 powder slab under a sinking player).
 fn queue_stuck_speed_multiplier(st: &mut PlayerState, m: Vec3) {
+    st.fall_distance = 0.0;
     let mut q = st.stuck_speed_multiplier;
     if len_sqr(q) <= 1e-7 {
         st.stuck_speed_multiplier = m;
@@ -75,6 +77,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     }
 
     pub(crate) fn apply_inside_block_effects(&self, st: &mut PlayerState) {
+        if st.no_clip {
+            return;
+        }
         for pos in inside_cells(&st.bounding_box()) {
             let b = self.w.block(pos);
             if b.air {

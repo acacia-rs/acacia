@@ -1,7 +1,8 @@
 //! Bounding boxes, retained collision endpoints and pose transitions (bedsim `bbox.go` + pose helpers).
 
 use crate::aabb::Aabb;
-use crate::math::{BlockPos, Vec3, block_pos};
+use crate::collide::nearby_cells;
+use crate::math::{BlockPos, Vec3, block_pos, pos_vec};
 use crate::sim::Sim;
 use crate::state::{CollisionShape, PlayerState};
 use crate::world::{Traversal, WorldView};
@@ -11,7 +12,7 @@ impl PlayerState {
     pub(crate) fn collision_dims(&self) -> [f32; 2] {
         let scale = self.size[2];
         let mut height = self.size[1] * scale;
-        if self.swim_pose() || self.gliding {
+        if self.swim_pose() || self.gliding || self.spin.spinning() {
             height = self.size[0] * scale;
         }
         [(self.size[0] * 0.5) * scale, height]
@@ -133,7 +134,33 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         let mut out = Vec::new();
         self.w.collisions(area, &mut out);
         out.retain(|b| !b.is_empty() && self.collides_for(st, block_pos(b.min)));
+        out.extend(nearby_cells(area).filter_map(|c| Some(self.powder_snow_box(st, c)?.translate(pos_vec(c)))));
         out
+    }
+
+    /// A cell's boxes as this player collides with them, cell-local: the world's, filtered for scaffolding, plus
+    /// powder snow's player-dependent shape.
+    pub(crate) fn block_boxes(&self, st: &PlayerState, cell: BlockPos, out: &mut Vec<Aabb>) {
+        if self.collides_for(st, cell) {
+            self.w.block_collisions(cell, out);
+        }
+        out.extend(self.powder_snow_box(st, cell));
+    }
+
+    /// BDS `PowderSnowBlock::getCollisionShape` (ELF 0xcf596f0), for feet on or above the top and not
+    /// descending: a 0.9 slab after a fall over 2.5 (even in leather boots), else a full cube in leather boots.
+    fn powder_snow_box(&self, st: &PlayerState, cell: BlockPos) -> Option<Aabb> {
+        // TODO: BDS canDescendThroughBlock is neither sneak nor WantDown (drill powderboots: a sneaking player in boots
+        // stays on top); what sinks one through is unknown.
+        let on_top = st.pos[1] >= cell[1] as f32 + 1.0 - 1.1920929e-7;
+        if !on_top || self.w.block(cell).traversal != Traversal::PowderSnow {
+            return None;
+        }
+        if st.fall_distance > 2.5 {
+            Some(Aabb::new(0.0, 0.0, 0.0, 1.0, 0.9, 1.0))
+        } else {
+            st.equipment.leather_boots.then(|| Aabb::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0))
+        }
     }
 
     pub(crate) fn has_nearby_bboxes(&self, st: &PlayerState, area: &Aabb) -> bool {

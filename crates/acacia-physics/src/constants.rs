@@ -2,8 +2,7 @@
 
 pub const DEFAULT_JUMP_HEIGHT: f32 = 0.42;
 pub const DEFAULT_AIR_FRICTION: f32 = 0.91;
-pub const DEFAULT_BLOCK_FRICTION: f32 = 0.6;
-/// Horizontal speed a walker keeps per tick on default ground.
+pub const DEFAULT_BLOCK_FRICTION: f32 = 0.6;/// Horizontal speed a walker keeps per tick on default ground.
 pub const DEFAULT_GROUND_DRAG: f32 = DEFAULT_BLOCK_FRICTION * DEFAULT_AIR_FRICTION;
 pub const NORMAL_GRAVITY_MULTIPLIER: f32 = 0.98;
 pub const LEVITATION_GRAVITY_MULTIPLIER: f32 = 0.05;

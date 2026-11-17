@@ -93,7 +93,8 @@ impl Input {
             forward >= SPRINT_MIN_IMPULSE
         };
         // The sprint before the jump-in-water rule: it decides a swim start (vanilla capture 6-1).
-        let wanted = self.sprint && enough && !st.sprint_movement_blocked;
+        let fed = !st.hungry || st.flight.may_fly;
+        let wanted = self.sprint && enough && fed && !st.sprint_movement_blocked;
         // A jump held last tick in water then ends that sprint or cancels its start (StartSprinting and
         // StopSprinting on one tick).
         let jump_in_water = in_water && !st.swimming && st.pressing_jump;
@@ -199,6 +200,18 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             st.sneaking = false;
             st.size[1] = st.standing_height;
         }
+        // Neither standing nor sneaking fits (a block over the head): crawl (drill crawlenter; vanilla StartCrawling).
+        // A no-clip spectator inside a wall never crawls (drill spectatorwall: 0.0343 short with the slowdown).
+        if !st.crawling && !st.swimming && !st.gliding && !st.no_clip && available {
+            let mut fit_known = true;
+            let stands = can_fit(st, st.standing_height, &mut fit_known) || can_fit(st, st.sneaking_height, &mut fit_known);
+            if fit_known && !stands {
+                st.crawling = true;
+                st.sneaking = false;
+                st.size[1] = st.crawling_height;
+            }
+            known &= fit_known;
+        }
 
         let was_swimming = st.swimming;
         st.swam_before_input = was_swimming;
@@ -225,8 +238,10 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         // it in water, where sneak means sink.
         let in_water = !self.touching_liquid_blocks(st, crate::world::LiquidKind::Water).is_empty();
         let sneak_held = was_sneaking || st.sneaking;
-        // A glide on the ground ends in `travel` and walks at full impulse this tick (strict BDS touchdown, 0.08 a tick).
-        let gliding = st.gliding && !st.on_ground;
+        // A glide ending this tick walks at full impulse: on the ground it ends in `travel` (strict BDS touchdown,
+        // 0.08 a tick), in the air with StopGliding (glide drill offaxis_back: back key, 0.0125 off with the slowdown)
+        // or a spent elytra (glide drill worn_out2: 0.0137 off).
+        let gliding = st.gliding && !st.on_ground && !f.stop_gliding && st.glide_wear.usable(st.equipment.elytra_uses);
         // A crawl slows from the tick after it starts (vanilla capture). Sneak ticks in water still count
         // towards Swift Sneak (strict BDS fuzz).
         if sneak_held || was_crawling || gliding {

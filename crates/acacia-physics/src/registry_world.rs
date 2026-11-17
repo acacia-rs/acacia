@@ -46,6 +46,11 @@ pub fn is_fence_or_wall(state: &BlockState) -> bool {
     })
 }
 
+fn is_open_trapdoor(state: &BlockState) -> bool {
+    use acacia_world::neutral::{prop, BlockTag};
+    state.neutral.is_some_and(|n| n.block().is(BlockTag::Trapdoors) && n.get(prop::Open) == Some(true))
+}
+
 /// A cell's physics from its layer-0 runtime id and, read only when needed, its layer-1 id.
 pub fn block_physics(registry: &BlockRegistry, block: u32, liquid_layer: impl FnOnce() -> u32) -> BlockPhysics {
     let Some(s) = registry.get(block) else { return BlockPhysics::AIR };
@@ -88,6 +93,7 @@ pub fn block_physics(registry: &BlockRegistry, block: u32, liquid_layer: impl Fn
             Traversal::None
         },
         fence_or_wall: is_fence_or_wall(s),
+        open_trapdoor: is_open_trapdoor(s),
         liquid,
         // Approximation for liquid flow: only full cubes block it on every face.
         solid_faces: if s.is_full_cube() { 0x3f } else { 0 },

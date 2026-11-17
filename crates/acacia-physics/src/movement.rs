@@ -50,7 +50,9 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             st.set_swimming_pose_flags();
         }
 
+        self.launch_spin(st, in_water);
         let mut known = self.travel(st, in_water, &water, &lava);
+        st.spin.end_tick(st.collide_x || st.collide_z, st.on_ground);
 
         let had_swim_pose = st.swim_pose();
         if in_water {
@@ -66,6 +68,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
     }
 
     fn travel(&self, st: &mut PlayerState, in_water: bool, water: &[[i32; 3]], lava: &[[i32; 3]]) -> bool {
+        st.glide_wear.sync(st.equipment.elytra_uses, st.gliding);
+        st.glide_impact = 0.0;
         // BDS `TravelTypeSensingSystem` picks flying over liquid travel.
         if st.flight.travel {
             return (!st.gliding || self.stop_gliding(st)) && self.fly(st);
@@ -110,7 +114,8 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
             return false;
         }
         if st.gliding {
-            if st.equipment.elytra && !st.on_ground {
+            if st.equipment.elytra && st.glide_wear.usable(st.equipment.elytra_uses) && !st.on_ground {
+                st.glide_wear.step();
                 return self.glide(st);
             }
             if !self.stop_gliding(st) {
@@ -221,11 +226,12 @@ impl<W: WorldView + ?Sized> Sim<'_, W> {
         if !self.sweep_loaded(st) {
             return false;
         }
-        let old_y = st.pos[1];
+        let (old_y, pre) = (st.pos[1], st.vel);
         if !self.try_collisions(st) {
             return false;
         }
         update_fall_distance(st, old_y);
+        st.glide_impact = glide_impact(pre, st.vel);
         st.mov = st.vel;
         if stuck {
             st.set_vel([0.0; 3]);
