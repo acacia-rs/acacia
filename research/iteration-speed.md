@@ -115,7 +115,8 @@ placed; 970 on 10-29), not a stall. A full trial is outpost + ~1 min; everything
   (test) or the log tail (run); exits with the job's code; exits 99 when the dir has no job script. Both remote
   scripts end with it, so a filtered test is one foreground call with the failure text in it.
 - `remote-test.sh` / `remote-run.sh`: refuse while the other kind of job is still going in the dir.
-  remote-test sets `CARGO_INCREMENTAL=1` (`REMOTE_ENV` can override it).
+  remote-test set `CARGO_INCREMENTAL=1` until 2026-11-17, when sccache 0.13 began refusing it; it now builds
+  non-incrementally, which is slower per edit (see the table above).
 - `tools/bds-pool.sh status`: checks the lease file `run` takes.
 - `examples/support/house.rs`: `STALL_TICKS` (default 3000).
 - `tools/iter-bench.sh`: times the unit-test loop (launch, compile, rest; medians). Rerun:
