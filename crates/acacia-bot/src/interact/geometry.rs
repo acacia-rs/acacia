@@ -163,14 +163,20 @@ pub(crate) fn entity_box(entity: &Entity) -> (Vec3, Vec3) {
 }
 
 /// Distance from `eye` to the nearest point of the entity's hitbox: what reach checks measure.
+#[cfg(test)]
 pub(crate) fn entity_distance(eye: Vec3, entity: &Entity) -> f32 {
     let (min, max) = entity_box(entity);
     distance_to_box(eye, min, max)
 }
 
-/// Aim points in the hitbox, centre first, each with where the ray from `eye` towards it enters the box.
+#[cfg(test)]
 pub(crate) fn entity_aims(eye: Vec3, entity: &Entity) -> impl Iterator<Item = (Vec3, Vec3)> {
     let (min, max) = entity_box(entity);
+    box_aims(eye, min, max)
+}
+
+/// Aim points in a hitbox, centre first, each with where the ray from `eye` towards it enters the box.
+pub(crate) fn box_aims(eye: Vec3, min: Vec3, max: Vec3) -> impl Iterator<Item = (Vec3, Vec3)> {
     let at = move |fx: f32, fy: f32, fz: f32| -> Vec3 { [min[0] + (max[0] - min[0]) * fx, min[1] + (max[1] - min[1]) * fy, min[2] + (max[2] - min[2]) * fz] };
     let points = [at(0.5, 0.5, 0.5), at(0.5, 0.8, 0.5), at(0.5, 0.2, 0.5), at(0.25, 0.5, 0.25), at(0.75, 0.5, 0.75), at(0.25, 0.5, 0.75), at(0.75, 0.5, 0.25)];
     points.into_iter().map(move |aim| {

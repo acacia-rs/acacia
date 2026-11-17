@@ -212,6 +212,18 @@ acacia-host's; the addon: acacia-node's).
   false)` eat when hungry while the bot is idle. `sleep(bed)` resolves once the server shows the bot asleep
   (`REJECTED` with its reason), `wake()` once awake. `writeSign(pos, lines, { back })` writes up to 4 lines; the
   server opens the side the bot faces (`NOT_POSSIBLE` for the other one).
+- **Riding and item moves.** `mount(entity)` right-clicks a vehicle in reach and resolves with the `Vehicle` once
+  the server seats the bot (`REJECTED` when it never does); `dismount()` (`NOT_POSSIBLE` when not riding).
+  `moveItem(from, to, count?)` (the whole stack when absent) and `swapItems(a, b)` move between the bot's own slots.
+  A `SlotRef` is a main-inventory slot number, a `{ window, slot }` place or an `inventory` entry (0 main, 119 off
+  hand, 120 armour), or an item name for its first main-inventory stack.
+- **Workstations** are stateless like containers: each opens the block at its first argument (within reach), acts,
+  takes the result into the inventory and closes it. `anvil(pos, input, { material, rename })`, `enchant(pos, item,
+  option)`, `grindstone(pos, input, { additional })`, `smith(pos, base, addition, template)`, `stonecut(pos, item,
+  count = 1)` (resolves with how many were made), `loom(pos, banner, dye, pattern, { patternItem })`,
+  `cartography(pos, map, { additional, rename, times })` (resolves with the crafts made), `beacon(pos, primary,
+  payment, { secondary })` and `brew(pos, bottles, ingredient)`; items go by `SlotRef`. `trade(trader, offer,
+  times = 1)` trades with a villager in reach and resolves with how many trades went through.
 - **Process lifetime.** The addon never holds Node open by itself. The session holds it while a bot is live or a
   call is unanswered, and a closing `NativeTransport` holds it until its stream ends, so `node script.js` runs while
   it has bots and exits once they are closed. A `WsTransport`'s open socket holds Node, so it closes the socket when

@@ -141,12 +141,20 @@ impl Client {
         let player = &self.movement.player;
         let packet = UseItem { hand, sequence: VarInt(sequence), y_rot: player.yaw, x_rot: player.pitch };
         self.queue(to::USE_ITEM, &packet)?;
+        self.start_charge();
         Ok(sequence)
     }
 
     /// Lets go of an item being used, such as a drawn bow.
     pub fn release_use_item(&mut self) -> Result<(), Error> {
+        self.release_use_item_with(None)
+    }
+
+    /// Lets go of the held item; `riptide` is a trident's riptide strength, which launches the player when it was
+    /// held 10 ticks in water.
+    pub fn release_use_item_with(&mut self, riptide: Option<f32>) -> Result<(), Error> {
         self.sync_carried()?;
+        self.queue_release(riptide);
         self.block_action(Action::ReleaseUseItem, [0; 3], Direction::Down, false).map(drop)
     }
 

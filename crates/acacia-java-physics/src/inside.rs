@@ -1,14 +1,15 @@
 //! `Entity.applyEffectsFromBlocks`, shared by the player and the boat it drives.
 
-use std::collections::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 
 use acacia_registry::prop::Drag;
 use acacia_registry::{Block, BlockState, BlockTag};
 
 use crate::aabb::Aabb;
 use crate::block_path::for_each_cell_between;
-use crate::collide::Blocks;
+use crate::collide::{Blocks, Context};
 use crate::fluid::fluid_of;
+use crate::inside_shape::touched;
 use crate::mth::{floor, length_sqr};
 use crate::player::Player;
 use crate::support::LEGACY_ON_POS;
@@ -62,6 +63,8 @@ pub(crate) trait InsideBody {
     fn stepping_carefully(&self) -> bool;
     /// `getOnPosLegacy`.
     fn effect_pos(&self, world: &impl Blocks) -> [i32; 3];
+    /// `CollisionContext.of(entity)` now, for shapes that depend on the body (powder snow).
+    fn collision_context(&self) -> Context;
     /// `Block.entityInside` for the blocks that move this body.
     fn entity_inside(&mut self, world: &impl Blocks, pos: [i32; 3], precise: bool);
 
@@ -88,9 +91,8 @@ pub(crate) trait InsideBody {
         true
     }
 
-    /// `applyEffectsFromBlocks(movements)`: slime's `stepOn`, then every block the moves pass through.
-    /// TODO: blocks with their own inside shape (cauldrons, tripwire, end portals, falling into powder snow) count
-    /// as full cubes, and fluids' own `entityInside` isn't run.
+    /// `applyEffectsFromBlocks(movements)`: slime's `stepOn`, then every block the moves pass through. Fluids'
+    /// own `entityInside` only puts out or lights fires, so it isn't run.
     fn apply_effects_from_blocks(&mut self, world: &impl Blocks, moves: &[Move])
     where
         Self: Sized,
@@ -105,7 +107,7 @@ pub(crate) trait InsideBody {
                 delta[2] *= scale;
             }
         }
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         for &(from, to, original) in moves {
             let travel = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
             let mut budget = MAX_ITERATIONS;
@@ -137,13 +139,19 @@ fn visit_step(body: &mut impl InsideBody, world: &impl Blocks, from: [f64; 3], t
     let target = Aabb::of_entity(to, width, height).deflated(TARGET_MARGIN);
     let travel = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
     let far = length_sqr(travel) > 0.9999900000002526_f64.powi(2);
+    let start = Aabb::of_entity(from, width, height);
     let mut last = 0;
     for_each_cell_between(from, to, &target, |pos, iteration| {
         if iteration as i32 >= budget {
             return false;
         }
         last = iteration as i32;
-        if !world.block_state(pos).is_air() && seen.insert(pos) {
+        let state = world.block_state(pos);
+        if state.is_air() {
+            return true;
+        }
+        let (block, fluid) = touched(world, state, pos, &body.collision_context(), &start, travel);
+        if (block || fluid) && seen.insert(pos) && block {
             let cell = Aabb { min: pos.map(f64::from), max: pos.map(|v| f64::from(v) + 1.0) };
             body.entity_inside(world, pos, far || target.intersects(&cell));
         }
@@ -193,6 +201,10 @@ impl InsideBody for Player {
         self.on_pos(world, LEGACY_ON_POS)
     }
 
+    fn collision_context(&self) -> Context {
+        self.context()
+    }
+
     fn entity_inside(&mut self, world: &impl Blocks, pos: [i32; 3], precise: bool) {
         let state = world.block_state(pos);
         match state.block() {
@@ -212,14 +224,15 @@ impl InsideBody for Player {
                     self.fall_distance = 0.0;
                 }
             }
-            Block::BubbleColumn if precise => {
+            // `Player.onAbove/onInsideBubbleColumn` do nothing while flying; only the inside one resets the fall.
+            Block::BubbleColumn if precise && !self.flying => {
                 if nothing_above(world, pos) {
                     let y = self.delta[1];
                     self.delta[1] = if state.get(Drag) == Some(true) { (-0.9_f64).max(y - 0.03) } else { 1.8_f64.min(y + 0.1) };
                 } else {
                     inside_bubble_column(&mut self.delta, state);
+                    self.fall_distance = 0.0;
                 }
-                self.fall_distance = 0.0;
             }
             _ => {}
         }

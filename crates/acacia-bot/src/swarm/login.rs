@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use acacia_client::auth::{Account, AuthClient, AuthConfig, Error as AuthError, TokenCache};
-use acacia_client::{realm_builder, Client, ClientBuilder, ConnectError, RealmJoinError, Socks5Proxy};
+use acacia_client::auth::{Account, AuthClient, AuthConfig, Error as AuthError, Title, TokenCache};
+use acacia_client::{realm_builder, Client, ClientBuilder, ConnectError, DisconnectReason, RealmJoinError, Socks5Proxy};
 
 use super::policy::Ended;
 use super::spec::{Login, Target};
@@ -12,13 +12,16 @@ use super::spec::{Login, Target};
 pub(crate) struct NodeAuth {
     config: AuthConfig,
     cache: Arc<dyn TokenCache>,
-    clients: Mutex<HashMap<Option<String>, Arc<AuthClient>>>,
+    clients: Mutex<HashMap<(Option<String>, Title), Arc<AuthClient>>>,
 }
 
 pub(crate) enum Failure {
     Auth(AuthError),
     Connect(ConnectError),
     Invalid(String),
+    /// A Java join that ended before play, judged as a session that ended at once (a kick counts as one).
+    #[cfg_attr(not(feature = "java"), allow(dead_code))]
+    Session(DisconnectReason),
 }
 
 impl Failure {
@@ -27,6 +30,7 @@ impl Failure {
             Failure::Auth(e) => Ended::Auth(e),
             Failure::Connect(e) => Ended::Connect(e),
             Failure::Invalid(e) => Ended::Invalid(e.clone()),
+            Failure::Session(reason) => Ended::Session { reason, uptime: std::time::Duration::ZERO },
         }
     }
 }
@@ -46,21 +50,23 @@ impl NodeAuth {
         Self { config, cache, clients: Mutex::new(HashMap::new()) }
     }
 
-    fn auth_client(&self, proxy: Option<&Socks5Proxy>) -> Result<Arc<AuthClient>, Failure> {
-        let url = proxy.map(Socks5Proxy::to_url);
+    fn auth_client(&self, proxy: Option<&Socks5Proxy>, title: Title) -> Result<Arc<AuthClient>, Failure> {
+        let key = (proxy.map(Socks5Proxy::to_url), title);
         let mut clients = self.clients.lock().expect("auth clients lock poisoned");
-        if let Some(c) = clients.get(&url) {
+        if let Some(c) = clients.get(&key) {
             return Ok(c.clone());
         }
-        let config = AuthConfig { proxy: url.clone(), ..self.config.clone() };
+        let config = AuthConfig { proxy: key.0.clone(), title, ..self.config.clone() };
         // Only a bad proxy URL (e.g. socks5 without the `socks` feature) fails here.
         let c = Arc::new(AuthClient::new(config).map_err(|e| Failure::Invalid(e.to_string()))?);
-        clients.insert(url, c.clone());
+        clients.insert(key, c.clone());
         Ok(c)
     }
 
-    async fn account(&self, id: &str, proxy: Option<&Socks5Proxy>) -> Result<(Arc<AuthClient>, Account), Failure> {
-        let client = self.auth_client(proxy)?;
+    /// `account`'s cached sign-in. Java needs the Switch title, whose tokens are its own (see docs/swarm.md).
+    pub(crate) async fn account(&self, id: &str, proxy: Option<&Socks5Proxy>, java: bool) -> Result<(Arc<AuthClient>, Account), Failure> {
+        let title = if java { Title::NintendoSwitch } else { self.config.title };
+        let client = self.auth_client(proxy, title)?;
         let account = Account::new(client.clone(), self.cache.clone(), id);
         if !account.is_signed_in().await.map_err(Failure::Auth)? {
             return Err(Failure::Invalid(format!("account {id} is not signed in")));
@@ -80,11 +86,13 @@ pub(crate) async fn client_builder(
         Login::Offline { name } => match target {
             Target::Server { address } => Client::builder(address).offline(name),
             Target::Realm { .. } => return Err(Failure::Invalid("realms need an online login".into())),
+            Target::Java { .. } => unreachable!("Java targets join through swarm::java"),
         },
         Login::Online { account } => {
             let auth = auth.ok_or_else(|| Failure::Invalid("online login but the swarm has no token cache".into()))?;
-            let (client, account) = auth.account(account, proxy).await?;
+            let (client, account) = auth.account(account, proxy, false).await?;
             match target {
+                Target::Java { .. } => unreachable!("Java targets join through swarm::java"),
                 Target::Server { address } => {
                     let (key, credentials) = account.login_credentials().await.map_err(Failure::Auth)?;
                     Client::builder(address).online(credentials, key)

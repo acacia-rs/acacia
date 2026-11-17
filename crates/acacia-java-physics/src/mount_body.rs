@@ -1,6 +1,7 @@
 //! What a ridden mount changes about the body [`Player`] physics move: its size, step, speed and input.
 
-use crate::player::{Player, STEP_HEIGHT, WIDTH};
+use crate::attributes::Attribute;
+use crate::player::Player;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct MountBody {
@@ -22,15 +23,21 @@ pub(crate) struct MountBody {
 impl Player {
     /// Width and height.
     pub(crate) fn size(&self) -> (f32, f32) {
-        self.mount.map_or((WIDTH, self.pose.height()), |m| (m.width, m.height))
+        self.mount.map_or_else(|| self.pose_size(self.pose), |m| (m.width, m.height))
     }
 
+    /// `maxUpStep`: the `step_height` attribute.
     pub(crate) fn step_height(&self) -> f32 {
-        self.mount.map_or(STEP_HEIGHT, |m| m.step)
+        self.mount.map_or_else(|| self.attribute(Attribute::StepHeight) as f32, |m| m.step)
+    }
+
+    /// `getVehicleAttachmentPoint`'s height: `Avatar.DEFAULT_VEHICLE_ATTACHMENT` scaled with the player.
+    pub fn vehicle_attachment(&self) -> f64 {
+        0.6 * f64::from(self.scale())
     }
 
     /// Mobs' default eye height; it only decides the 0.4 fluid jump threshold and eye-in-fluid flags.
     pub(crate) fn eye_height(&self) -> f32 {
-        self.mount.map_or(self.pose.eye_height(), |m| m.height * 0.85)
+        self.mount.map_or_else(|| self.pose.eye_height() * self.scale(), |m| m.height * 0.85)
     }
 }

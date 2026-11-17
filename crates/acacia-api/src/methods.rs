@@ -117,4 +117,38 @@ api! {
     /// The block the bot is looking at: the first block shape its line of sight enters (collision or selection box,
     /// as the crosshair and anticheats see it), read from its terrain without waiting for an action.
     "bot.blockAtCursor" => BlockAtCursor(BlockAtCursorParams) -> BlockAtCursorResult, Immediate [mcp];
+    /// Gets on a tracked entity in reach (boat, minecart, horse, saddled pig or strider) by right-clicking it, and
+    /// resolves once the server seats the bot. `REJECTED` when it never does, `NOT_POSSIBLE` while sneaking.
+    "bot.mount" => Mount(ActivateEntityParams) -> Vehicle, Queued [];
+    /// Leaves the vehicle; a physics bot resolves standing at the exit. `NOT_POSSIBLE` when not riding.
+    "bot.dismount" => Dismount(BotParams) -> (), Queued [];
+    /// Moves items from one of the bot's own slots onto an empty slot or a stack of the same item, once the server
+    /// accepts it (`REJECTED` when it refuses).
+    "bot.moveItem" => MoveItem(MoveItemParams) -> (), Queued [];
+    /// Exchanges the contents of two of the bot's own slots, which must not hold the same item.
+    "bot.swapItems" => SwapItems(SwapItemsParams) -> (), Queued [];
+    /// Repairs, combines and/or renames at an anvil. `NOT_POSSIBLE` when the server would make nothing: no change,
+    /// too expensive (40+ levels) or above the bot's level.
+    "bot.anvil" => Anvil(AnvilParams) -> (), Queued [];
+    /// Enchants an item at an enchanting table with one of its three offers.
+    "bot.enchant" => Enchant(EnchantParams) -> (), Queued [];
+    /// Disenchants an item at a grindstone (curses stay), or merges two of the same kind.
+    "bot.grindstone" => Grindstone(GrindstoneParams) -> (), Queued [];
+    /// Upgrades or trims an item at a smithing table.
+    "bot.smith" => Smith(SmithParams) -> (), Queued [];
+    /// Cuts an item at a stonecutter; resolves with how many were made. `NOT_POSSIBLE` when no stonecutter recipe
+    /// makes it from what the inventory holds.
+    "bot.stonecut" => Stonecut(StonecutParams) -> StonecutResult, Queued [];
+    /// Adds a pattern in a dye's colour to a banner at a loom.
+    "bot.loom" => Loom(LoomParams) -> (), Queued [];
+    /// Clones, zooms out, locks and/or renames filled maps at a cartography table; resolves with the crafts made.
+    "bot.cartography" => Cartography(CartographyParams) -> CartographyResult, Queued [];
+    /// Sets a beacon's powers, paying one item.
+    "bot.beacon" => Beacon(BeaconParams) -> (), Queued [];
+    /// Brews at a brewing stand: puts the bottles in, a blaze powder when the fuel slot is empty, and the ingredient;
+    /// waits for the brew (20 s) and takes the bottles back.
+    "bot.brew" => Brew(BrewParams) -> (), Queued [];
+    /// Trades an offer with a tracked villager or wandering trader in reach, `times` times; resolves with how many
+    /// trades went through.
+    "bot.trade" => Trade(TradeParams) -> TradeResult, Queued [];
 }

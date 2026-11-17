@@ -134,5 +134,5 @@ fn the_rider_turns_with_the_boat_within_105_degrees() {
     boat.delta_rotation = 2.0;
     assert_eq!(boat.turn_rider(10.0), 12.0);
     assert_eq!(boat.turn_rider(150.0), 105.0);
-    assert_eq!(boat.rider_feet()[1], boat.pos[1] + 0.1875 - 0.6);
+    assert_eq!(boat.rider_feet(0.6)[1], boat.pos[1] + 0.1875 - 0.6);
 }

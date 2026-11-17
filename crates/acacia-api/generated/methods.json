@@ -17,7 +17,7 @@
               },
               {
                 "const": "microsoft",
-                "description": "A Microsoft account signed in by device code, its tokens cached per `username` (an `msaCode` record asks a\nperson to sign in when the cache has none).",
+                "description": "A Microsoft account signed in by device code, its tokens cached per `username` (an `msaCode` record asks a\nperson to sign in when the cache has none). Java signs in under its own Xbox title, so its tokens are a\nseparate `<username>.java` entry that `signIn` doesn't fill: the first Java `createBot` asks for its own code.",
                 "type": "string"
               }
             ]
@@ -3393,6 +3393,1216 @@
           "hit"
         ],
         "title": "BlockAtCursorResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Gets on a tracked entity in reach (boat, minecart, horse, saddled pig or strider) by right-clicking it, and\nresolves once the server seats the bot. `REJECTED` when it never does, `NOT_POSSIBLE` while sneaking.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.mount",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The entity to right-click.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "entity": {
+            "$ref": "#/$defs/EntityId",
+            "description": "A tracked entity's id (players included)."
+          }
+        },
+        "required": [
+          "bot",
+          "entity"
+        ],
+        "title": "ActivateEntityParams",
+        "type": "object"
+      },
+      "result": {
+        "$defs": {
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          },
+          "UniqueId": {
+            "description": "An entity's unique id (the one player lists and containers name), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What `bot.mount` seated the bot on.",
+        "properties": {
+          "driver": {
+            "description": "In the controlling seat rather than a passenger seat.",
+            "type": "boolean"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/EntityId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The runtime id actions take; null when the vehicle's spawn was not seen."
+          },
+          "kind": {
+            "description": "`minecraft:boat`, ...; null when unknown.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uniqueId": {
+            "$ref": "#/$defs/UniqueId"
+          }
+        },
+        "required": [
+          "uniqueId",
+          "id",
+          "kind",
+          "driver"
+        ],
+        "title": "Vehicle",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Leaves the vehicle; a physics bot resolves standing at the exit. `NOT_POSSIBLE` when not riding.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.dismount",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The bot a method without other params acts on.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot"
+        ],
+        "title": "BotParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Moves items from one of the bot's own slots onto an empty slot or a stack of the same item, once the server\naccepts it (`REJECTED` when it refuses).",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.moveItem",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Moves items from one slot onto an empty slot or a stack of the same item.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "How many; the whole stack when absent.",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "from": {
+            "$ref": "#/$defs/SlotRef"
+          },
+          "to": {
+            "$ref": "#/$defs/SlotRef"
+          }
+        },
+        "required": [
+          "bot",
+          "from",
+          "to"
+        ],
+        "title": "MoveItemParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Exchanges the contents of two of the bot's own slots, which must not hold the same item.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.swapItems",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Exchanges the contents of two slots (which must not hold the same item).",
+        "properties": {
+          "a": {
+            "$ref": "#/$defs/SlotRef"
+          },
+          "b": {
+            "$ref": "#/$defs/SlotRef"
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          }
+        },
+        "required": [
+          "bot",
+          "a",
+          "b"
+        ],
+        "title": "SwapItemsParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Repairs, combines and/or renames at an anvil. `NOT_POSSIBLE` when the server would make nothing: no change,\ntoo expensive (40+ levels) or above the bot's level.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.anvil",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Repairs, combines and/or renames at an anvil; needs a `material`, a `rename` or both.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "input": {
+            "$ref": "#/$defs/SlotRef",
+            "description": "Into the first slot."
+          },
+          "material": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SlotRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Into the second slot: a repair material, or a second item or book to combine with."
+          },
+          "rename": {
+            "description": "The result's new name.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "input"
+        ],
+        "title": "AnvilParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Enchants an item at an enchanting table with one of its three offers.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.enchant",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Enchants an item at an enchanting table.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "item": {
+            "$ref": "#/$defs/SlotRef"
+          },
+          "option": {
+            "description": "The offered enchantment, 0-2 (cheapest first); needs its level and `option + 1` lapis lazuli.",
+            "format": "uint8",
+            "maximum": 2,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "item",
+          "option"
+        ],
+        "title": "EnchantParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Disenchants an item at a grindstone (curses stay), or merges two of the same kind.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.grindstone",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Disenchants an item at a grindstone, or merges it with a second one of the same kind.",
+        "properties": {
+          "additional": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SlotRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "input": {
+            "$ref": "#/$defs/SlotRef"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "input"
+        ],
+        "title": "GrindstoneParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Upgrades or trims an item at a smithing table.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.smith",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Upgrades or trims an item at a smithing table.",
+        "properties": {
+          "addition": {
+            "$ref": "#/$defs/SlotRef",
+            "description": "The ingot or trim material."
+          },
+          "base": {
+            "$ref": "#/$defs/SlotRef",
+            "description": "The item to upgrade or trim."
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "template": {
+            "$ref": "#/$defs/SlotRef",
+            "description": "The smithing template."
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "base",
+          "addition",
+          "template"
+        ],
+        "title": "SmithParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Cuts an item at a stonecutter; resolves with how many were made. `NOT_POSSIBLE` when no stonecutter recipe\nmakes it from what the inventory holds.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.stonecut",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Cuts an item at a stonecutter from what the inventory holds.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "count": {
+            "description": "At least this many; 1 when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "item": {
+            "description": "The item to make (`minecraft:stone_bricks`, or just `stone_bricks`).",
+            "type": "string"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "item"
+        ],
+        "title": "StonecutParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many items `bot.stonecut` made.",
+        "properties": {
+          "made": {
+            "description": "Fewer than asked only when the input ran out after the first cut.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "made"
+        ],
+        "title": "StonecutResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Adds a pattern in a dye's colour to a banner at a loom.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.loom",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Adds a pattern to a banner at a loom.",
+        "properties": {
+          "banner": {
+            "$ref": "#/$defs/SlotRef"
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "dye": {
+            "$ref": "#/$defs/SlotRef",
+            "description": "The pattern's colour."
+          },
+          "pattern": {
+            "description": "The Bedrock pattern id (`bo`, `cr`, `flo`, ...).",
+            "type": "string"
+          },
+          "patternItem": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SlotRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The banner pattern item the design needs, if any."
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "banner",
+          "dye",
+          "pattern"
+        ],
+        "title": "LoomParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Clones, zooms out, locks and/or renames filled maps at a cartography table; resolves with the crafts made.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.cartography",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Clones, zooms out, locks and/or renames filled maps at a cartography table.",
+        "properties": {
+          "additional": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SlotRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An empty map clones, paper zooms out, a glass pane locks."
+          },
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "map": {
+            "$ref": "#/$defs/SlotRef",
+            "description": "A filled map stack."
+          },
+          "rename": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "times": {
+            "description": "Crafts to make (a clone makes two maps, a rename one); 1 when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "map"
+        ],
+        "title": "CartographyParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many crafts `bot.cartography` made.",
+        "properties": {
+          "crafted": {
+            "description": "The crafts that went through.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "crafted"
+        ],
+        "title": "CartographyResult",
+        "type": "object"
+      }
+    },
+    {
+      "description": "Sets a beacon's powers, paying one item.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.beacon",
+      "params": {
+        "$defs": {
+          "BeaconEffect": {
+            "description": "A beacon power.",
+            "enum": [
+              "speed",
+              "haste",
+              "strength",
+              "jumpBoost",
+              "regeneration",
+              "resistance"
+            ],
+            "type": "string"
+          },
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Sets a beacon's powers, paying one item.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "payment": {
+            "$ref": "#/$defs/SlotRef",
+            "description": "An iron, gold or netherite ingot, an emerald or a diamond."
+          },
+          "primary": {
+            "$ref": "#/$defs/BeaconEffect"
+          },
+          "secondary": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/BeaconEffect"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Needs a full pyramid: `regeneration`, or the primary again for level II."
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "primary",
+          "payment"
+        ],
+        "title": "BeaconParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Brews at a brewing stand: puts the bottles in, a blaze powder when the fuel slot is empty, and the ingredient;\nwaits for the brew (20 s) and takes the bottles back.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.brew",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "InventorySlot": {
+            "description": "A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),\n119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).",
+            "properties": {
+              "slot": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "window": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window",
+              "slot"
+            ],
+            "type": "object"
+          },
+          "SlotRef": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/InventorySlot"
+              },
+              {
+                "description": "An item name (`minecraft:stone`, or just `stone`).",
+                "type": "string"
+              }
+            ],
+            "description": "One of the bot's own slots: by place, or the first main-inventory stack of an item."
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Brews at a brewing stand.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "bottles": {
+            "description": "One to three bottle slots.",
+            "items": {
+              "$ref": "#/$defs/SlotRef"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "type": "array"
+          },
+          "ingredient": {
+            "description": "The ingredient (`minecraft:nether_wart`, or just `nether_wart`).",
+            "type": "string"
+          },
+          "x": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "y": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "z": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot",
+          "x",
+          "y",
+          "z",
+          "bottles",
+          "ingredient"
+        ],
+        "title": "BrewParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "null",
+        "type": "null"
+      }
+    },
+    {
+      "description": "Trades an offer with a tracked villager or wandering trader in reach, `times` times; resolves with how many\ntrades went through.",
+      "flags": [],
+      "lane": "queued",
+      "name": "bot.trade",
+      "params": {
+        "$defs": {
+          "BotId": {
+            "description": "A bot the host runs, named by the host when `createBot` is called.",
+            "type": "string"
+          },
+          "EntityId": {
+            "description": "An entity's runtime id (the per-connection one actions take), as a decimal string.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Trades with a villager or wandering trader.",
+        "properties": {
+          "bot": {
+            "$ref": "#/$defs/BotId"
+          },
+          "entity": {
+            "$ref": "#/$defs/EntityId",
+            "description": "A tracked villager's or wandering trader's id."
+          },
+          "offer": {
+            "description": "The offer's index in the trade screen's list, from 0.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "times": {
+            "description": "1 when absent.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "bot",
+          "entity",
+          "offer"
+        ],
+        "title": "TradeParams",
+        "type": "object"
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "How many trades `bot.trade` made.",
+        "properties": {
+          "traded": {
+            "description": "Fewer than asked only when payment or stock ran out after one trade.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "traded"
+        ],
+        "title": "TradeResult",
         "type": "object"
       }
     }

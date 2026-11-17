@@ -111,6 +111,44 @@ pub struct CursorHit {
     pub distance: f32,
 }
 
+/// One of the bot's own slots: by place, or the first main-inventory stack of an item.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(untagged)]
+pub enum SlotRef {
+    Slot(InventorySlot),
+    /// An item name (`minecraft:stone`, or just `stone`).
+    Item(String),
+}
+
+/// A slot as `inventory` entries name it: `window` 0 is the main inventory (slots 0-8 the hotbar, 9-35 the rest),
+/// 119 the off hand (slot 0), 120 the armour (0-3: head, chest, legs, feet).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct InventorySlot {
+    pub window: i32,
+    pub slot: u8,
+}
+
+/// Moves items from one slot onto an empty slot or a stack of the same item.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct MoveItemParams {
+    pub bot: BotId,
+    pub from: SlotRef,
+    pub to: SlotRef,
+    /// How many; the whole stack when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    #[schemars(range(min = 1, max = 255))]
+    pub count: Option<u8>,
+}
+
+/// Exchanges the contents of two slots (which must not hold the same item).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+pub struct SwapItemsParams {
+    pub bot: BotId,
+    pub a: SlotRef,
+    pub b: SlotRef,
+}
+
 /// What to eat or drink.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 pub struct ConsumeParams {

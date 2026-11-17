@@ -1,6 +1,7 @@
 //! Compares the port tick by tick with traces recorded from the 26.3 client (bridge tools/move-trace.sh).
 //! `ACACIA_TRACE=<file>` with `ACACIA_COURSE=<file>` replays one uncompressed recording instead.
 
+mod line;
 mod trace;
 
 use std::fs::{self, File};

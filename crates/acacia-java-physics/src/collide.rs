@@ -53,7 +53,7 @@ impl Context {
         }
     }
 
-    fn powder_snow(&self, y: i32) -> &'static [CollisionBox] {
+    pub(crate) fn powder_snow(&self, y: i32) -> &'static [CollisionBox] {
         if self.fall_distance > 2.5 {
             &FALLING_SNOW
         } else if self.snow_boots && self.is_above(y, 1.0) && !self.descending {

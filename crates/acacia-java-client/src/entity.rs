@@ -1,12 +1,11 @@
 //! Other entities as the client tracks them: position as a vanilla client sees it, and the data bots react to.
 
 use acacia_java_proto::entity::PositionPath;
-use acacia_java_proto::entity_types::{ENTITY_SHAPES, ENTITY_TYPES, EntityCollision};
+use acacia_java_proto::entity_types::{ENTITY_SHAPES, ENTITY_TYPES};
 use acacia_java_proto::item::ItemStack;
 use acacia_java_proto::{Error, Wire, read_varint, read_varlong};
 
-use acacia_java_physics::Aabb;
-
+use crate::entity_size::Shape;
 use crate::interpolation::Lerp;
 use crate::mount_data::MountData;
 
@@ -33,6 +32,7 @@ pub struct Entity {
     /// Riders by entity id, the controlling one first.
     pub passengers: Vec<i32>,
     pub mount: MountData,
+    pub shape: Shape,
     /// The last `SetEntityMotion` since the last tick, which a boat boarded now starts with.
     pub(crate) motion: [f64; 3],
     /// `VecDeltaCodec` base: the server's last position, which relative moves decode from.
@@ -46,45 +46,21 @@ const SNAP_DISTANCE_SQR: f64 = 4096.0;
 impl Entity {
     pub fn new(uuid: u128, kind: i32, position: [f64; 3], y_rot: f32, x_rot: f32) -> Self {
         let name = usize::try_from(kind).ok().and_then(|k| ENTITY_TYPES.get(k)).copied().unwrap_or("");
-        Entity { uuid, kind, position, y_rot, x_rot, on_ground: false, aggressive: false, pose: 0, baby: false, stays_still: false, attached_to: None, passengers: Vec::new(), mount: MountData::default(), motion: [0.0; 3], base: position, lerp: Lerp::for_kind(name) }
+        Entity { uuid, kind, position, y_rot, x_rot, on_ground: false, aggressive: false, pose: 0, baby: false, stays_still: false, attached_to: None, passengers: Vec::new(), mount: MountData::default(), shape: Shape::for_kind(name), motion: [0.0; 3], base: position, lerp: Lerp::for_kind(name) }
     }
 
-    /// `getDimensions` and how movers collide with it.
-    // TODO: the scale attribute and per-type shapes (slime size, pufferfish puff, shulker peek) aren't applied.
-    pub fn dimensions(&self) -> Option<(f32, f32, EntityCollision)> {
-        let shape = ENTITY_SHAPES.get(usize::try_from(self.kind).ok()?)?;
-        let player = self.is("minecraft:player");
-        let (width, height) = match self.pose {
-            POSE_SLEEPING => (0.2, 0.2),
-            POSE_DYING if player => (0.2, 0.2),
-            POSE_FALL_FLYING | POSE_SWIMMING | POSE_SPIN_ATTACK if player => (0.6, 0.6),
-            POSE_CROUCHING if player => (0.6, 1.5),
-            _ => match shape.baby.filter(|_| self.baby) {
-                Some((w, h, _)) => (w, h),
-                None => (shape.width, shape.height),
-            },
-        };
-        Some((width, height, shape.collision))
+    pub(crate) fn is(&self, name: &str) -> bool {
+        self.type_name() == name
     }
 
-    /// Its box when it blocks `mover` (`canCollideWith`).
-    pub fn collision_box(&self, mover: Mover) -> Option<Aabb> {
-        let (width, height, collision) = self.dimensions()?;
-        let bb = Aabb::of_entity(self.position, width, height);
-        let blocks = match (collision, mover) {
-            (EntityCollision::Solid, _) | (EntityCollision::Pushable, Mover::Vehicle) => true,
-            (_, Mover::Player { feet }) => self.is(HAPPY_GHAST) && !self.baby && (feet >= bb.max[1] || self.stays_still),
-            _ => false,
-        };
-        blocks.then_some(bb)
+    /// Its `entity_type` registry name; empty for an unknown id.
+    pub(crate) fn type_name(&self) -> &'static str {
+        usize::try_from(self.kind).ok().and_then(|k| ENTITY_TYPES.get(k)).copied().unwrap_or("")
     }
 
-    fn is(&self, name: &str) -> bool {
-        usize::try_from(self.kind).ok().and_then(|k| ENTITY_TYPES.get(k)) == Some(&name)
-    }
-
-    /// Pose and baby flag from `SetEntityData` items.
+    /// Pose, baby flag and the type's size data from `SetEntityData` items.
     pub(crate) fn read_body_data(&mut self, body: &[u8]) -> Result<(), Error> {
+        self.read_shape_data(body)?;
         let input = &mut &body[..];
         if seek_data(input, POSE)? == Some(SERIALIZER_POSE) {
             self.pose = read_varint(input)?;
@@ -132,15 +108,9 @@ pub(crate) const ROCKET_TARGET: u8 = 9;
 const SERIALIZER_BYTE: i32 = 0;
 const SERIALIZER_BOOLEAN: i32 = 8;
 const SERIALIZER_POSE: i32 = 20;
-/// `Entity.DATA_POSE`, and the `Pose` ids that change a size.
+/// `Entity.DATA_POSE`.
 const POSE: u8 = 6;
-const POSE_FALL_FLYING: i32 = 1;
-const POSE_SLEEPING: i32 = 2;
-const POSE_SWIMMING: i32 = 3;
-const POSE_SPIN_ATTACK: i32 = 4;
-const POSE_CROUCHING: i32 = 5;
-const POSE_DYING: i32 = 7;
-const HAPPY_GHAST: &str = "minecraft:happy_ghast";
+pub(crate) const HAPPY_GHAST: &str = "minecraft:happy_ghast";
 /// `HappyGhast.STAYS_STILL`: after AgeableMob's 16 and 17 and its leash flag.
 const HAPPY_GHAST_STAYS_STILL: u8 = 19;
 
@@ -170,11 +140,13 @@ pub(crate) fn read_rocket_target(input: &mut &[u8]) -> Result<Option<Option<i32>
 
 /// A boolean data item, `None` when absent.
 fn read_flag(body: &[u8], index: u8) -> Result<Option<bool>, Error> {
+    read_item(body, index, SERIALIZER_BOOLEAN, |i| bool::read(i))
+}
+
+/// One data item's value when it has `serializer`, `None` when absent.
+pub(crate) fn read_item<T>(body: &[u8], index: u8, serializer: i32, read: impl Fn(&mut &[u8]) -> Result<T, Error>) -> Result<Option<T>, Error> {
     let input = &mut &body[..];
-    match seek_data(input, index)? {
-        Some(SERIALIZER_BOOLEAN) => Ok(Some(bool::read(input)?)),
-        _ => Ok(None),
-    }
+    if seek_data(input, index)? == Some(serializer) { read(input).map(Some) } else { Ok(None) }
 }
 
 /// Moves `input` to data item `wanted`'s value, skipping the items before it, and returns its serializer; `None` if
@@ -212,22 +184,6 @@ pub(crate) fn seek_data(input: &mut &[u8], wanted: u8) -> Result<Option<i32>, Er
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn kind(name: &str) -> i32 {
-        ENTITY_TYPES.iter().position(|&n| n == name).unwrap() as i32
-    }
-
-    #[test]
-    fn poses_and_babies_size_the_box() {
-        let mut player = Entity::new(0, kind("minecraft:player"), [0.0; 3], 0.0, 0.0);
-        player.read_body_data(&[0, 0, 0, POSE, 20, 5, 0xff]).unwrap();
-        assert_eq!(player.dimensions(), Some((0.6, 1.5, EntityCollision::Pushable)));
-        let mut pig = Entity::new(0, kind("minecraft:pig"), [0.0; 3], 0.0, 0.0);
-        pig.read_body_data(&[16, 8, 1, 0xff]).unwrap();
-        assert_eq!(pig.dimensions(), Some((0.45, 0.45, EntityCollision::Pushable)));
-        let boat = Entity::new(0, kind("minecraft:oak_boat"), [0.0; 3], 0.0, 0.0);
-        assert_eq!(boat.dimensions(), Some((1.375, 0.5625, EntityCollision::Solid)));
-    }
 
     #[test]
     fn mob_flags_are_found_past_sized_items_and_not_past_others() {

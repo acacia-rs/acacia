@@ -15,6 +15,16 @@ pub(crate) fn direction(face: Face) -> Direction {
     Direction::from_index(face as i32).unwrap_or_default()
 }
 
+/// A riptide trident's launch strength, `perLevel(1.5F, 0.75F)`.
+fn riptide_strength(stack: &acacia_java_proto::item::ItemStack, enchantments: &[String]) -> Option<f32> {
+    if i32::from(acacia_world::neutral::Item::Trident.java_id()) != stack.item {
+        return None;
+    }
+    let is_riptide = |id: i32| usize::try_from(id).ok().and_then(|i| enchantments.get(i)).is_some_and(|n| n == "minecraft:riptide");
+    let level = stack.components.enchantments.iter().find(|(id, _)| is_riptide(*id))?.1;
+    Some(1.5 + 0.75 * (level - 1) as f32)
+}
+
 impl Bot {
     /// [`Bot::mine`] on Java; `Ok(true)` if the block disappeared on its own first.
     pub(super) async fn java_mine(&mut self, pos: BlockPos, face: Face, mining: Mining) -> Result<bool, ActionError> {
@@ -97,7 +107,11 @@ impl Bot {
     /// `RELEASE_USE_ITEM`, sent with the next tick; nothing on Bedrock.
     pub(crate) fn java_release_item(&mut self) {
         if let Backend::Java(java) = &mut self.backend
-            && let Err(e) = java.client.release_use_item()
+            && let Err(e) = {
+                let inventory = &java.client.inventory;
+                let riptide = [inventory.held(), inventory.offhand()].into_iter().flatten().find_map(|s| riptide_strength(s, &inventory.enchantments));
+                java.client.release_use_item_with(riptide)
+            }
         {
             tracing::debug!(error = %e, "java release not queued");
         }

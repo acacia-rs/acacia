@@ -29,6 +29,10 @@ those a lower `shard_fill`.
 - `Login::Online { account }` names an account; the node signs it in from its `token_cache`. Share one
   `TokenCache` implementation (e.g. a database) across nodes and any node can run any account (see Accounts).
 - `Target::Server { address }` or `Target::Realm { id }` (online only, via `acacia_client::realm_builder`).
+- `Target::Java { address }` (`java` feature): a Java server, port 25565 if left out. Same policy, leases and
+  shards; no proxy, no `client` hook, no shared worlds. Online Java accounts sign in with the Switch title, whose
+  tokens are separate from Bedrock's, so give a Java account its own account id in the cache. A Java join that
+  fails before play counts as a session that ended at once (a kick there is a quick kick).
 - `proxy` (`host:port[:user:pass]`) carries both the game connection and sign-in (one auth client per proxy).
 
 ## Reconnect policy (`Policy`, policy.rs)

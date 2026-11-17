@@ -1,5 +1,6 @@
 //! Runs the local player's physics and tells the server, as `LocalPlayer.sendChanges` does.
 
+use acacia_java_physics::attributes::{Attribute, Operation};
 use acacia_java_physics::{Blocks, Keys, Placement, Player};
 use acacia_java_proto::packets::{
     COMMAND_START_FALL_FLYING, COMMAND_START_SPRINTING, COMMAND_STOP_SPRINTING, ClientboundAbilities, Empty, MovePlayerPos, MovePlayerPosRot, MovePlayerRot, MovePlayerStatusOnly,
@@ -8,6 +9,7 @@ use acacia_java_proto::packets::{
 use acacia_java_proto::entity::read_lp_vec3;
 use acacia_java_proto::{Error as WireError, VarInt, Wire, ids, read_varint};
 
+use crate::entity::seek_data;
 use crate::frame::Error;
 use crate::join::Client;
 use crate::riding::Riding;
@@ -17,11 +19,14 @@ use ids::play::{clientbound as from, serverbound as to};
 
 const ABILITY_FLYING: u8 = 2;
 const ABILITY_MAY_FLY: u8 = 4;
-const ATTRIBUTE_MOVEMENT_SPEED: i32 = 26;
 const DATA_SHARED_FLAGS: u8 = 0;
 const SERIALIZER_BYTE: i32 = 0;
+const FLAG_SPRINTING: u8 = 1 << 3;
+const FLAG_SWIMMING: u8 = 1 << 4;
+/// `LivingEntity.DATA_LIVING_ENTITY_FLAGS`; bit 4 is the auto spin attack the server sets on a riptide.
+const DATA_LIVING_FLAGS: u8 = 8;
+const LIVING_SPIN_ATTACK: u8 = 4;
 const FLAG_FALL_FLYING: u8 = 1 << 7;
-const OPERATION_ADD_VALUE: i32 = 0;
 const MIN_MOVE_SQUARED: f64 = 2.0E-4 * 2.0E-4;
 const POSITION_REMINDER_TICKS: u32 = 20;
 
@@ -42,6 +47,8 @@ pub struct Movement {
     pub riding: Option<Riding>,
     /// Server corrections of driven vehicles since joining: [height only, horizontal].
     pub vehicle_corrections: [u32; 2],
+    pub health: f32,
+    pub food: i32,
     sent_keys: Keys,
     sent_sprinting: bool,
     sent_flying: bool,
@@ -59,6 +66,8 @@ impl Default for Movement {
             player: Player::at([0.0; 3]),
             riding: None,
             vehicle_corrections: [0; 2],
+            health: 20.0,
+            food: 20,
             sent_keys: Keys::default(),
             sent_sprinting: false,
             sent_flying: false,
@@ -91,6 +100,10 @@ impl Movement {
         if id == from::SET_ENTITY_MOTION && read_varint(&mut input)? == player_id {
             self.player.delta = read_lp_vec3(&mut input)?;
         } else if id == from::SET_ENTITY_DATA && read_varint(&mut input)? == player_id {
+            let mut living = input;
+            if seek_data(&mut living, DATA_LIVING_FLAGS)? == Some(SERIALIZER_BYTE) {
+                self.player.spin_attack = u8::read(&mut living)? & LIVING_SPIN_ATTACK != 0;
+            }
             self.read_shared_flags(&mut input)?;
         } else if id == from::UPDATE_ATTRIBUTES && read_varint(&mut input)? == player_id {
             self.read_attributes(&mut input)?;
@@ -105,32 +118,45 @@ impl Movement {
     }
 
     /// Only the server ends a glide: the client glides on, landed or not, until the shared flags say otherwise.
-    /// Items are sent in index order, so the flags byte (index 0) can only come first.
+    /// The sprint and swim flags are overwritten too (not through `setSprinting`, so the speed modifier stays); a
+    /// differing sprint flag makes the next tick send a command. Items come in index order, so the flags come first.
     fn read_shared_flags(&mut self, input: &mut &[u8]) -> Result<(), WireError> {
         if u8::read(input)? == DATA_SHARED_FLAGS && read_varint(input)? == SERIALIZER_BYTE {
-            self.player.fall_flying = u8::read(input)? & FLAG_FALL_FLYING != 0;
+            let flags = u8::read(input)?;
+            self.player.fall_flying = flags & FLAG_FALL_FLYING != 0;
+            self.player.sprinting = flags & FLAG_SPRINTING != 0;
+            self.player.swimming = flags & FLAG_SWIMMING != 0;
         }
         Ok(())
     }
 
-    /// Only flat movement-speed modifiers matter here (powder snow's freeze); sprint and potions are simulated.
+    /// `handleUpdateAttributes`: the server's view replaces the client's, sprint modifier included, so a sprint
+    /// toggled within the round trip runs at the echoed speed until the next toggle. Grim predicts the same.
     fn read_attributes(&mut self, input: &mut &[u8]) -> Result<(), WireError> {
         for _ in 0..read_varint(input)? {
-            let attribute = read_varint(input)?;
-            f64::read(input)?;
-            let mut flat = 0.0;
+            let attribute = Attribute::from_id(read_varint(input)?);
+            let base = f64::read(input)?;
+            let mut modifiers = Vec::new();
             for _ in 0..read_varint(input)? {
-                String::read(input)?;
+                let id = String::read(input)?;
                 let amount = f64::read(input)?;
-                if read_varint(input)? == OPERATION_ADD_VALUE {
-                    flat += amount;
+                if let Some(op) = Operation::from_id(read_varint(input)?) {
+                    modifiers.push((id, amount, op));
                 }
             }
-            if attribute == ATTRIBUTE_MOVEMENT_SPEED {
-                self.player.speed_add = flat;
+            if let Some(attribute) = attribute {
+                self.player.attributes.sync(attribute, base, &modifiers);
             }
         }
         Ok(())
+    }
+
+    /// What a new `LocalPlayer` has sent: nothing, or the old one's input and sprint when its data is kept.
+    pub(crate) fn reset_sent(&mut self, kept: Option<(Keys, bool)>) {
+        let (keys, sprinting) = kept.unwrap_or_default();
+        (self.sent_keys, self.sent_sprinting) = (keys, sprinting);
+        (self.sent_flying, self.sent_gliding, self.sent_on_ground, self.sent_collision) = (false, false, false, false);
+        (self.sent_pos, self.sent_rot, self.position_reminder) = ([0.0; 3], [0.0; 2], 0);
     }
 
     fn collision_flags(&self) -> u8 {
@@ -146,29 +172,51 @@ impl Client {
     /// One client tick: simulates the player with `keys` and sends what changed. Does nothing before the first
     /// teleport or while the player's chunk is missing.
     pub fn step(&mut self, keys: Keys) -> Result<(), Error> {
+        // No level while the server reconfigures; queued actions wait for the next one.
+        if self.configuring() {
+            return Ok(());
+        }
+        self.tick_profile_key()?;
+        self.tick(keys)?;
+        // `ClientLevel.update` runs light after the frame's ticks: a block change shows in the next tick's light.
+        self.world.update_light();
+        // `Minecraft.tick` ends every tick with a level this way, also while the player can't tick.
+        self.send(to::CLIENT_TICK_END, &Empty {})
+    }
+
+    fn tick(&mut self, keys: Keys) -> Result<(), Error> {
         self.send_actions()?;
+        self.apply_release();
         self.world.tick_entities();
+        self.tick_loading()?;
         let at = self.movement.player.pos.map(|v| v.floor() as i32);
         if !self.loaded() || !self.world.has_chunk(at) {
             return Ok(());
         }
+        let keys = if self.movement.dead() { Keys::default() } else { keys };
+        self.update_status();
         if self.movement.riding.is_some() {
             self.ride_step(keys)?;
         } else {
             let feet = self.movement.player.pos[1];
             self.movement.player.solid_entities = self.world.collision_boxes(Mover::Player { feet }, &[]);
+            self.movement.player.solid_entities.extend(self.lids.boxes(&self.world));
+            self.spin_targets();
             self.movement.player.tick(&self.world, keys);
+            self.push_player();
             self.send_changes()?;
             let me = self.world.player_id;
             for _ in self.world.entities.values().filter(|e| e.attached_to == Some(me)) {
                 self.movement.player.firework_boost();
             }
         }
+        self.move_lids();
+        self.tick_charge();
         let player = &self.movement.player;
         self.pose.position = player.pos;
         self.pose.y_rot = player.yaw;
         self.pose.x_rot = player.pitch;
-        self.send(to::CLIENT_TICK_END, &Empty {})
+        Ok(())
     }
 
     fn send_command(&mut self, action: i32) -> Result<(), Error> {

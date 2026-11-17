@@ -2,6 +2,7 @@
 //! packet ids are generated (`tools/gen_ids.mjs`).
 
 pub mod actions;
+pub mod chat;
 pub mod chunk;
 pub mod container;
 pub mod dialog;
@@ -10,6 +11,7 @@ pub mod entity;
 pub mod ids;
 pub mod inventory;
 pub mod item;
+pub mod light;
 pub mod merchant;
 pub mod nbt;
 pub mod packets;

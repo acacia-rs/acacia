@@ -8,6 +8,7 @@ mod host;
 mod interact;
 mod items;
 mod moves;
+mod stations;
 mod survival;
 
 pub use actions::*;
@@ -17,4 +18,5 @@ pub use host::*;
 pub use interact::*;
 pub use items::*;
 pub use moves::*;
+pub use stations::*;
 pub use survival::*;

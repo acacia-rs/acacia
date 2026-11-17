@@ -1,4 +1,5 @@
 //! Joins an offline-mode server and checks the decoded world: `java_join [host] [port] [seconds]`.
+//! `ACACIA_DUMP_COMMANDS=<path>` writes each command tree packet body to `<path>.<n>` (test fixtures).
 use std::time::{Duration, Instant};
 
 use acacia_java_client::Client;
@@ -20,9 +21,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("joined as {} {:032x}", client.name, client.uuid);
     let end = Instant::now() + Duration::from_secs(seconds);
     let not_air = |id: u32| !BlockState::from_java_id(id).is_some_and(BlockState::is_air);
-    let (mut sections, mut wrong) = (0, 0);
+    let (mut sections, mut wrong, mut commands) = (0, 0, 0);
     while let Ok(packet) = tokio::time::timeout_at(end.into(), client.next()).await {
         let packet = packet?;
+        if let (true, Some(path)) = (packet.id == ids::play::clientbound::COMMANDS, std::env::var_os("ACACIA_DUMP_COMMANDS")) {
+            commands += 1;
+            std::fs::write(format!("{}.{commands}", path.to_string_lossy()), &packet.body)?;
+        }
         // At decode time: later block updates change a section without changing the server's count.
         if packet.id == ids::play::clientbound::LEVEL_CHUNK_WITH_LIGHT {
             let (_, _, buffer) = read_chunk_header(&mut &packet.body[..])?;

@@ -16,6 +16,16 @@ pub(crate) struct Motion {
 }
 
 impl Backend {
+    /// Whether the server has placed the player: Bedrock's StartGame does before the first tick, Java's first
+    /// position comes after a few.
+    pub(crate) fn placed(&self) -> bool {
+        match self {
+            Backend::Bedrock(_) => true,
+            #[cfg(feature = "java")]
+            Backend::Java(j) => j.placed(),
+        }
+    }
+
     /// The simulated body once movement has started; `None` for Bedrock bots without physics.
     pub(crate) fn motion(&self) -> Option<Motion> {
         match self {

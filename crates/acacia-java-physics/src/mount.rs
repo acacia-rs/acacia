@@ -8,19 +8,8 @@ use crate::collide::Blocks;
 use crate::fluid::fluid_at;
 use crate::lerp::Lerp;
 use crate::mount_body::MountBody;
-use crate::mth::{cos, sin, DEG_TO_RAD};
+use crate::mount_seat::SeatAnim;
 use crate::player::Player;
-
-/// `Avatar.DEFAULT_VEHICLE_ATTACHMENT`.
-const PLAYER_ATTACHMENT: f64 = 0.6;
-
-/// A player's feet on a vehicle at `pos` turned to `yaw`, from the vehicle's passenger attachment `seat`.
-pub fn seat_feet(pos: [f64; 3], seat: [f64; 3], yaw: f32) -> [f64; 3] {
-    let radians = f64::from(-yaw * DEG_TO_RAD);
-    let (s, c) = (f64::from(sin(radians)), f64::from(cos(radians)));
-    let [x, y, z] = seat;
-    [pos[0] + x * c + z * s, pos[1] + y - PLAYER_ATTACHMENT, pos[2] + z * c - x * s]
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MountKind {
@@ -62,6 +51,9 @@ pub struct Mount {
     pub flying_speed: f64,
     /// Where the rider's seat sits relative to the mount's feet, before turning by its yaw.
     pub seat: [f64; 3],
+    /// `getScale() * getAgeScale()`, which a rear's seat shift and a strider's bob scale with.
+    pub seat_scale: f32,
+    pub anim: SeatAnim,
     /// A horse rearing (flag 32, or set here by a rider's jump).
     pub standing: bool,
     pub stand_counter: i32,
@@ -70,6 +62,8 @@ pub struct Mount {
     pub dashing: bool,
     /// A camel's `LAST_POSE_CHANGE_TICK` (negative while sitting) and the client's game time.
     pub last_pose_change: i64,
+    /// The size the body takes when the rider stands a sitting camel up.
+    pub standing_size: (f32, f32),
     pub game_time: i64,
     pub(crate) jump_pending: f32,
     pub(crate) allow_stand_sliding: bool,
@@ -79,8 +73,8 @@ pub struct Mount {
 
 impl Mount {
     /// The mount an entity type drives as, with its default attributes; `None` for one the client doesn't drive.
-    /// `seat` is the type's first passenger attachment.
-    pub fn new(name: &str, size: (f32, f32), seat: [f32; 3], pos: [f64; 3], yaw: f32) -> Option<Mount> {
+    /// `seat` is the first passenger's attachment point at the mount's size, unturned.
+    pub fn new(name: &str, size: (f32, f32), seat: [f64; 3], pos: [f64; 3], yaw: f32) -> Option<Mount> {
         use MountKind::*;
         let (kind, speed, jump) = match name {
             "horse" | "zombie_horse" => (Horse, 0.225_f32, 0.7),
@@ -94,8 +88,6 @@ impl Mount {
             "zombie_nautilus" => (Nautilus, 1.1, 0.0),
             _ => return None,
         };
-        // A lone camel rider sits on its standing body anchor, half a block forward.
-        let seat = if kind == Camel { [0.0, size.1 - 0.375, 0.5] } else { seat };
         let mut body = Player { pos, yaw, ..Player::default() };
         body.mount = Some(MountBody {
             width: size.0,
@@ -114,13 +106,16 @@ impl Mount {
             movement_speed: speed as f64,
             jump_strength: jump,
             flying_speed: 0.05_f32 as f64,
-            seat: seat.map(f64::from),
+            seat,
+            seat_scale: 1.0,
+            anim: SeatAnim::default(),
             standing: false,
             stand_counter: 0,
             boost: None,
             dash_cooldown: 0,
             dashing: false,
             last_pose_change: 0,
+            standing_size: size,
             game_time: 0,
             jump_pending: 0.0,
             allow_stand_sliding: false,
@@ -129,10 +124,15 @@ impl Mount {
         })
     }
 
-    /// `positionRider`: the rider's feet on the turned seat.
-    // TODO: a rearing horse's stand animation and a strider's walk bob shift the seat; neither is modelled.
-    pub fn rider_feet(&self) -> [f64; 3] {
-        seat_feet(self.body.pos, self.seat, self.body.yaw)
+    /// The body's width and height (`refreshDimensions`): a camel's change with its pose.
+    pub fn set_size(&mut self, (width, height): (f32, f32)) {
+        let body = self.body.mount.as_mut().expect("a mount body");
+        (body.width, body.height) = (width, height);
+    }
+
+    /// The synced `STEP_HEIGHT`; a player driving steps at least 1.
+    pub fn set_step_height(&mut self, attribute: f64) {
+        self.body.mount.as_mut().expect("a mount body").step = (attribute as f32).max(1.0);
     }
 
     pub fn interpolate_to(&mut self, pos: [f64; 3], yaw: f32, pitch: f32) {
@@ -142,6 +142,7 @@ impl Mount {
 
     /// One tick under `rider`, whose input is last tick's.
     pub fn tick(&mut self, world: &impl Blocks, rider: Rider) {
+        let from = self.body.pos;
         self.interpolate(world);
         if self.kind == MountKind::Strider {
             self.suffocating = !self.warm(world);
@@ -155,6 +156,9 @@ impl Mount {
         (body.speed, body.input) = (speed, input);
         self.travel(world);
         self.body.apply_block_effects(world);
+        if self.kind == MountKind::Strider {
+            self.anim.tick_walk(from, self.body.pos);
+        }
         self.after_tick(world);
     }
 
@@ -223,6 +227,9 @@ impl Mount {
                 if !self.standing {
                     self.allow_stand_sliding = false;
                 }
+                if self.kind != MountKind::Camel {
+                    self.anim.tick_stand(self.standing);
+                }
             }
             _ => {}
         }
@@ -233,6 +240,10 @@ impl Mount {
                     self.dashing = false;
                 }
                 self.dash_cooldown = (self.dash_cooldown - 1).max(0);
+                // `standUpInstantly`: sitting in water ends at once, as if stood up 53 ticks ago.
+                if self.last_pose_change < 0 && self.body.in_water {
+                    self.last_pose_change = (self.game_time - 53).max(0);
+                }
             }
             MountKind::Nautilus => {
                 if self.dashing && self.dash_cooldown < 35 {

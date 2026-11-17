@@ -2,12 +2,17 @@
 import type { ActivateBlockParams } from "./types/ActivateBlockParams";
 import type { ActivateEntityParams } from "./types/ActivateEntityParams";
 import type { AnswerFormParams } from "./types/AnswerFormParams";
+import type { AnvilParams } from "./types/AnvilParams";
 import type { AttackParams } from "./types/AttackParams";
+import type { BeaconParams } from "./types/BeaconParams";
 import type { BlockAtCursorParams } from "./types/BlockAtCursorParams";
 import type { BlockAtCursorResult } from "./types/BlockAtCursorResult";
 import type { BotParams } from "./types/BotParams";
+import type { BrewParams } from "./types/BrewParams";
 import type { CancelCallParams } from "./types/CancelCallParams";
 import type { CancelParams } from "./types/CancelParams";
+import type { CartographyParams } from "./types/CartographyParams";
+import type { CartographyResult } from "./types/CartographyResult";
 import type { ChatParams } from "./types/ChatParams";
 import type { CommandParams } from "./types/CommandParams";
 import type { ConsumeParams } from "./types/ConsumeParams";
@@ -20,6 +25,7 @@ import type { CraftableItemsResult } from "./types/CraftableItemsResult";
 import type { CreateBotParams } from "./types/CreateBotParams";
 import type { CreateBotResult } from "./types/CreateBotResult";
 import type { DigParams } from "./types/DigParams";
+import type { EnchantParams } from "./types/EnchantParams";
 import type { EquipBestToolParams } from "./types/EquipBestToolParams";
 import type { EquipBestToolResult } from "./types/EquipBestToolResult";
 import type { EquipParams } from "./types/EquipParams";
@@ -27,7 +33,10 @@ import type { FindBlocksParams } from "./types/FindBlocksParams";
 import type { FindBlocksResult } from "./types/FindBlocksResult";
 import type { FollowParams } from "./types/FollowParams";
 import type { GotoParams } from "./types/GotoParams";
+import type { GrindstoneParams } from "./types/GrindstoneParams";
 import type { LookAtParams } from "./types/LookAtParams";
+import type { LoomParams } from "./types/LoomParams";
+import type { MoveItemParams } from "./types/MoveItemParams";
 import type { PlaceBlockParams } from "./types/PlaceBlockParams";
 import type { RecipesForParams } from "./types/RecipesForParams";
 import type { RecipesForResult } from "./types/RecipesForResult";
@@ -40,11 +49,18 @@ import type { SignInResult } from "./types/SignInResult";
 import type { SleepParams } from "./types/SleepParams";
 import type { SmeltParams } from "./types/SmeltParams";
 import type { SmeltResult } from "./types/SmeltResult";
+import type { SmithParams } from "./types/SmithParams";
 import type { Snapshot } from "./types/Snapshot";
+import type { StonecutParams } from "./types/StonecutParams";
+import type { StonecutResult } from "./types/StonecutResult";
+import type { SwapItemsParams } from "./types/SwapItemsParams";
 import type { TossParams } from "./types/TossParams";
 import type { TossResult } from "./types/TossResult";
+import type { TradeParams } from "./types/TradeParams";
+import type { TradeResult } from "./types/TradeResult";
 import type { TransferParams } from "./types/TransferParams";
 import type { TransferResult } from "./types/TransferResult";
+import type { Vehicle } from "./types/Vehicle";
 import type { WaitForTicksParams } from "./types/WaitForTicksParams";
 import type { WriteSignParams } from "./types/WriteSignParams";
 
@@ -287,6 +303,68 @@ export interface Methods {
    * @mcp
    */
   "bot.blockAtCursor": { params: BlockAtCursorParams; result: BlockAtCursorResult; lane: "immediate" };
+  /**
+   * Gets on a tracked entity in reach (boat, minecart, horse, saddled pig or strider) by right-clicking it, and
+   * resolves once the server seats the bot. `REJECTED` when it never does, `NOT_POSSIBLE` while sneaking.
+   */
+  "bot.mount": { params: ActivateEntityParams; result: Vehicle; lane: "queued" };
+  /**
+   * Leaves the vehicle; a physics bot resolves standing at the exit. `NOT_POSSIBLE` when not riding.
+   */
+  "bot.dismount": { params: BotParams; result: null; lane: "queued" };
+  /**
+   * Moves items from one of the bot's own slots onto an empty slot or a stack of the same item, once the server
+   * accepts it (`REJECTED` when it refuses).
+   */
+  "bot.moveItem": { params: MoveItemParams; result: null; lane: "queued" };
+  /**
+   * Exchanges the contents of two of the bot's own slots, which must not hold the same item.
+   */
+  "bot.swapItems": { params: SwapItemsParams; result: null; lane: "queued" };
+  /**
+   * Repairs, combines and/or renames at an anvil. `NOT_POSSIBLE` when the server would make nothing: no change,
+   * too expensive (40+ levels) or above the bot's level.
+   */
+  "bot.anvil": { params: AnvilParams; result: null; lane: "queued" };
+  /**
+   * Enchants an item at an enchanting table with one of its three offers.
+   */
+  "bot.enchant": { params: EnchantParams; result: null; lane: "queued" };
+  /**
+   * Disenchants an item at a grindstone (curses stay), or merges two of the same kind.
+   */
+  "bot.grindstone": { params: GrindstoneParams; result: null; lane: "queued" };
+  /**
+   * Upgrades or trims an item at a smithing table.
+   */
+  "bot.smith": { params: SmithParams; result: null; lane: "queued" };
+  /**
+   * Cuts an item at a stonecutter; resolves with how many were made. `NOT_POSSIBLE` when no stonecutter recipe
+   * makes it from what the inventory holds.
+   */
+  "bot.stonecut": { params: StonecutParams; result: StonecutResult; lane: "queued" };
+  /**
+   * Adds a pattern in a dye's colour to a banner at a loom.
+   */
+  "bot.loom": { params: LoomParams; result: null; lane: "queued" };
+  /**
+   * Clones, zooms out, locks and/or renames filled maps at a cartography table; resolves with the crafts made.
+   */
+  "bot.cartography": { params: CartographyParams; result: CartographyResult; lane: "queued" };
+  /**
+   * Sets a beacon's powers, paying one item.
+   */
+  "bot.beacon": { params: BeaconParams; result: null; lane: "queued" };
+  /**
+   * Brews at a brewing stand: puts the bottles in, a blaze powder when the fuel slot is empty, and the ingredient;
+   * waits for the brew (20 s) and takes the bottles back.
+   */
+  "bot.brew": { params: BrewParams; result: null; lane: "queued" };
+  /**
+   * Trades an offer with a tracked villager or wandering trader in reach, `times` times; resolves with how many
+   * trades went through.
+   */
+  "bot.trade": { params: TradeParams; result: TradeResult; lane: "queued" };
 }
 
 /** A method's name (`createBot`, `bot.goto`, ...). */

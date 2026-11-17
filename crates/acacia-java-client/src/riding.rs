@@ -2,7 +2,7 @@
 //! vehicle ticks first (`AbstractBoat.tick`, or a mount's `travelRidden`), then `LocalPlayer.rideTick` and
 //! `sendChanges`. A vehicle the client doesn't control (a minecart, an unsaddled horse) only carries the player.
 
-use acacia_java_physics::{Boat, Keys, MountKind, Placement, Rider};
+use acacia_java_physics::{Boat, Keys, MountKind, Placement, Rider, clamp_rider};
 use acacia_java_proto::packets::{COMMAND_START_RIDING_JUMP, MovePlayerRot, PaddleBoat, PositionMoveRotation, VehiclePose};
 use acacia_java_proto::{Wire, ids, read_varint};
 
@@ -12,6 +12,7 @@ use crate::join::Client;
 use crate::mount_data::{Synced, short_name};
 use crate::mount_drive::{JumpBar, apply_attributes, apply_synced};
 use crate::movement::placement;
+use crate::seat::{boat_seat_z, reseat_mount, resize_mount};
 use crate::world::Mover;
 
 use ids::play::{clientbound as from, serverbound as to};
@@ -32,7 +33,7 @@ pub struct Riding {
     pub(crate) jump_bar: JumpBar,
 }
 
-fn is_boat(name: &str) -> bool {
+pub(crate) fn is_boat(name: &str) -> bool {
     name.ends_with("_boat") || name.ends_with("_raft")
 }
 
@@ -154,6 +155,7 @@ impl Client {
     /// carries the rider and is reported at once.
     fn vehicle_teleported(&mut self, input: &mut &[u8]) -> Result<(), Error> {
         let id = read_varint(input)?;
+        let attachment = self.movement.player.vehicle_attachment();
         let Some(driven) = self.driven_mut(id) else { return Ok(()) };
         let change = placement(&PositionMoveRotation::read(input)?);
         let (now, y_rot, x_rot) = driven.pose();
@@ -168,7 +170,7 @@ impl Client {
         }
         driven.set_on_ground(bool::read(input)?);
         if snap {
-            let (echo, feet) = (driven.vehicle_move(), driven.rider_feet());
+            let (echo, feet) = (driven.vehicle_move(), driven.rider_feet(attachment));
             self.movement.player.pos = feet;
             self.send(to::MOVE_VEHICLE, &echo)?;
         }
@@ -182,12 +184,16 @@ impl Client {
         self.update_mount();
         let Some(vehicle) = self.movement.riding.as_ref().map(|r| r.vehicle) else { return Ok(()) };
         let carried = self.passenger_feet(vehicle);
+        let place = self.place_on(vehicle);
+        let boat_yaw = self.world.entities.get(&vehicle).filter(|e| is_boat(short_name(e.kind))).map(|e| (short_name(e.kind), e.y_rot));
         let passengers = self.world.entities.get(&vehicle).map_or(&[][..], |e| &e.passengers);
-        let solid = self.world.collision_boxes(Mover::Vehicle, &[&[vehicle][..], passengers].concat());
+        let mut solid = self.world.collision_boxes(Mover::Vehicle, &[&[vehicle][..], passengers].concat());
+        solid.extend(self.lids.boxes(&self.world));
         let (Some(riding), player) = (self.movement.riding.as_mut(), &mut self.movement.player) else { return Ok(()) };
         let mut paddles = None;
         match riding.driven.as_mut() {
             Some(Driven::Boat(boat)) => {
+                boat.seat_z = boat_yaw.map_or(0.0, |(name, _)| boat_seat_z(name, place));
                 boat.solid_entities = solid;
                 let [left, right] = boat.tick(&self.world, riding.keys);
                 paddles = Some(PaddleBoat { left, right });
@@ -195,26 +201,33 @@ impl Client {
             Some(Driven::Mount(mount)) => {
                 mount.body.solid_entities = solid;
                 mount.game_time = self.world.game_time;
+                if let Some(e) = self.world.entities.get(&vehicle) {
+                    resize_mount(mount, e);
+                }
                 mount.tick(&self.world, riding.rider);
             }
             None => {}
         }
-        if let Some(driven) = &riding.driven {
+        if let Some(driven) = &mut riding.driven {
             if let Some(e) = self.world.entities.get_mut(&vehicle) {
                 ((e.position, e.y_rot, e.x_rot), e.on_ground) = (driven.pose(), driven.on_ground());
+                if let Some(mount) = driven.mount_mut() {
+                    reseat_mount(mount, e);
+                }
             }
-            player.pos = driven.rider_feet();
+            player.pos = driven.rider_feet(player.vehicle_attachment());
             if let Some(boat) = driven.boat() {
                 player.yaw = boat.turn_rider(player.yaw);
             }
         } else if let Some(feet) = carried {
             player.pos = feet;
+            if let Some((_, yaw)) = boat_yaw {
+                player.yaw = clamp_rider(player.yaw, yaw);
+            }
         }
         let was_jumping = std::mem::replace(&mut riding.keys, keys).jump;
         let camel = riding.driven.as_ref().and_then(Driven::mount).is_some_and(|m| m.kind == MountKind::Camel);
-        // TODO: vanilla's sprint rules (double tap, collisions) aren't run for a camel's rider; the key alone sprints.
-        player.sprinting = camel && keys.sprint && keys.forward && !keys.backward;
-        riding.rider = player.rider(keys);
+        riding.rider = player.rider(keys, camel);
         player.set_crouching(keys.shift);
         (player.delta, player.on_ground, player.horizontal_collision) = ([0.0; 3], false, false);
         let (y_rot, x_rot) = (player.yaw, player.pitch);
@@ -228,9 +241,11 @@ impl Client {
         }
         self.send_keys()?;
         self.send(to::MOVE_PLAYER_ROT, &MovePlayerRot { y_rot, x_rot, flags: 0 })?;
+        // `sendChanges` reports the sprint flag only beside a vehicle the client moves.
         if let Some(moved) = &moved {
             self.send(to::MOVE_VEHICLE, moved)?;
+            self.send_sprint()?;
         }
-        self.send_sprint()
+        Ok(())
     }
 }

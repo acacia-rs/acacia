@@ -58,6 +58,9 @@ impl<S> Ctx<S> {
     }
 
     async fn connect(&self, spec: &BotSpec<S>, target: &Target, proxy: Option<&Socks5Proxy>) -> Result<Bot, Failure> {
+        if let Target::Java { address } = target {
+            return super::java::connect(&spec.login, address, proxy, self.auth.as_ref(), (self.bot_config)(spec)).await;
+        }
         let builder = client_builder(&spec.login, target, proxy, self.auth.as_ref()).await?;
         let builder = (self.client)(spec, builder);
         let config = BotConfig { shared_worlds: self.worlds.clone(), ..(self.bot_config)(spec) };
@@ -132,7 +135,12 @@ impl<S, F: AsyncFn(&mut Bot, &mut S)> Run<'_, S, F> {
                         return Exit::Removed;
                     }
                 }
-                Next::Follow(address) => follow = Some(Target::Server { address }),
+                Next::Follow(address) => {
+                    follow = Some(match self.spec.target {
+                        Target::Java { .. } => Target::Java { address },
+                        _ => Target::Server { address },
+                    })
+                }
                 Next::Stop(error) => return Exit::Failed(error),
             }
         }

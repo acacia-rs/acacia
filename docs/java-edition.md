@@ -51,11 +51,33 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    `START_RIDING_JUMP`, then input, look and `MoveVehicle` (`acacia-java-client` `mount_drive.rs`). Example
    `java_mount` (ahead, a turn, a charged jump or dash, reversing): pig, horse, camel, strider on lava and happy
    ghast all 0 alerts, 0 corrections; a strider's rider stepping off onto lava gets 1 (the player's own lava
-   moves, gone with `ACACIA_STAY`). Other vehicles seat the player at the type's passenger attachment. Not
-   modelled: the scale attribute and per-type shapes (slimes, pufferfish, shulker peeks), the mount's own
-   effects, a rearing horse's or bobbing strider's seat, a camel rider's sprint rules, seats past the first;
-   babies (the dump's
-   `BABY_DIMENSIONS` or age scale), player poses and a still happy ghast are sized. Every teleport goes through
+   moves, gone with `ACACIA_STAY`). Other vehicles seat the player at the type's passenger attachment. A
+   minecart has no controlling passenger, so the server moves it: the rider sends only `PlayerInput` (forward
+   nudges a still cart, `getLastClientMoveIntent`) and `MovePlayerRot`, never `MoveVehicle`; drill `minecart`
+   (powered run, a hill, a halt, dismount) 0 alerts, 0 setbacks. The dismount's exit teleport isn't a setback. Other
+   entities are sized as `getDimensions` and `makeBoundingBox` do (`acacia-java-client` `entity_size.rs`): pose,
+   baby (the dump's `BABY_DIMENSIONS`, or camels' `BABY_STANDING_DIMENSIONS`, or age scale), the scale attribute
+   from `UpdateAttributes` with each type's `sanitizeScale`, and the shapes that change a box: slime/magma/sulfur
+   cube size, pufferfish puff, salmon variant, phantom size, goat long jump, sitting camel, digging warden and
+   sniffer, and a shulker's lid animated client-side (peek eased 0.05 a tick, the box grown out of its attach
+   face). Pushes, vehicle collisions, riptide hits, mount bodies and seats, and the bot's attack reach
+   (`interact/entity.rs`) all use that box. Lids push (`lids.rs`, `lid_shape.rs`): after the player's tick, as
+   entities and then block entities tick, a shulker's peek and an opening shulker box (its `BlockEvent`) move the
+   player `Entity.move(SHULKER)`-style (`move_pushed`: no edge back-off) when it's in the swept box; an open box
+   lid is also solid. While riding, the lid moves the vehicle in its box (driven: as simulated, then reported;
+   otherwise where it shows, `acacia-java-physics` `shove`) and the pushed passenger until `positionRider` reseats
+   it. A shulker box can't open under a boat (`canOpen` counts solid entities). A seat (`seat.rs`, physics
+   `mount_seat.rs`) sits the player at `getPassengerRidingPosition` for its place among the riders the client
+   knows (boats 0.2 fore and 0.6 aft for two, chest boats 0.15; camels' back seat 0.7 aft on its own anchor curve;
+   happy ghasts' four), plus a rearing horse's `standAnimO` shift and a strider's walk bob, less its own scaled 0.6
+   attachment; a passenger's yaw is clamped to a boat's (`clampRotation`). A camel's front seat follows
+   `getBodyAnchorAnimationYOffset` through sitting down and standing up, and a
+   driven camel's body takes its standing size on `standUp`; `/data merge` of a negative `LastPoseTick` sits a
+   ridden camel down live (`readAdditionalSaveData`). A camel's
+   rider sprints by `aiStep`'s rules with `vehicleCanSprint` for food, and the flag is sent only beside
+   `MoveVehicle`; a camel never rears on a dash, and any synced dash item restarts an idle cooldown. Not modelled:
+   the mount's own effects, an `Animal` passenger's seat shift, other `Vec3` seat attachments' double precision
+   (the table holds floats; only the happy ghast's are exact). Every teleport goes through
    `acacia-java-physics` `Placement::teleported`, `ROTATE_DELTA` included. Elytra flight too: a jump in the air
    with a usable elytra worn starts the glide (`START_FALL_FLYING`), and each firework rocket attached to the
    player (entity data 9) boosts the physics after the player's tick (example `java_elytra`: two boosts, ~930
@@ -107,7 +129,7 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
 Java dialogs (`ShowDialog`, inline or a registry entry) are `Bot` forms. Confirmation → `Modal`; no inputs →
 `Simple` (buttons in order); inputs → `FormKind::Dialog`, answered with `FormReply::Dialog { button, values }`.
 Inputs map to Bedrock elements: text → Input, boolean → Toggle, single_option → Dropdown, number_range → Slider
-(snapped to its step). A button sends a command (unsigned `ChatCommand`, templates filled as vanilla does) or a
+(snapped to its step). A button sends a command (`sendUnattendedCommand`, templates filled as vanilla does) or a
 `CustomClickAction`; `Close` runs the cancel action (notice → its button, confirmation → no, else `exit_action`)
 when escape may close it. Registry dialogs come from configuration's `minecraft:dialog` data; the built-in ones
 (sent without data, since the client claims the vanilla packs) show as a form with no buttons titled by index.
@@ -121,3 +143,70 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   scripts; judge by server corrections and Grim's verbose flags. `ACACIA_GATE_CHEAT=1` is the control that must fail.
   Other examples run through it behind a wrapper that keeps `<host> <port>` and drops the gate's other arguments
   (e.g. `java_goto` with `ACACIA_DIG`/`ACACIA_BRIDGE`).
+- Drills, after Bedrock's: `tools/java-drills.sh <java_drill binary> [drill...]` runs the `java_drill` example's
+  scenarios on one Paper + Grim server, a fresh connection each. A drill sets itself up by op commands on its own
+  strip and passes with 0 Grim alerts, 0 setbacks after setup and its own check (speed, slowness, jump_boost,
+  levitation, slow_falling, hunger, powder_snow, nether_lava, push, death, chat, crowd, ten `/attribute` courses
+  in `attrs.rs`, riptide, riptide_short, rain_riptide, rain_roofed, rain_relit, minecart, the inside-block drills cobweb,
+  berry_bush, cauldron, the size drills crowd_scaled, baby_push, slime_push and camel_dash, riptide_armor_stand,
+  sulfur_push, the seat drills camel_sit, scaled_rider, boat_pair, boat_back_seat, camel_back_seat (a `Peer` bot
+  drives), horse_rear, camel_sit_down and strider_walk, checked against vanilla's seat geometry since Grim never
+  sees a passenger, horse_step (a synced step height of 2 on a driven horse), and the vehicle lid drills boat_shulker_push and horse_lid_push; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
+  the player too and `isEntityCollidingWithAnythingNew` teleports it back when its push leads, 1-3 setbacks a run). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
+  every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
+  Every drill server requires a resource pack, so each join also checks the pack answers. Setup waits out Grim's
+  silent setbacks (random negative teleport ids, no alert) after the far setup `/tp`. A real 26.3 client gets them
+  after every far tp (3-4 each, `tools/tp-trace.sh` in the bridge repo). Grim resyncs any move made while the
+  player's chunk is missing or the ping Grim sent after that chunk is unanswered, and vanilla keeps ticking there.
+  acacia's player waits for its chunk, so it gets fewer.
+- `tools/java-switch.sh <java_drill binary>`: the `switch` drill behind Velocity (`tools/java-proxy/velocity.toml`,
+  jar at `~/java-truth/velocity/velocity.jar`) with two Paper + Grim backends; `/server b` reconfigures the client
+  in play, and it must walk on b with 0 alerts on both and 0 setbacks.
+
+## Joining
+
+Login answers cookie requests (none stored yet) and plugin queries ("no payload"), then sends the vanilla brand
+and client information. Configuration (`configuration.rs`) answers keep-alives, pings, known packs, cookies
+(`StoreCookie` keeps them for the connection), the code of conduct (accepted) and resource packs: every pack is
+reported accepted, downloaded and loaded without being fetched, since declining a required one is a kick.
+`StartConfiguration` in play (a proxy switching backends) is answered on the link's reader: the writer drops
+play packets until `FinishConfiguration`, the client holds its tick, and the next `Login` places a new player.
+Not done: `Transfer` (reconnecting elsewhere with the cookies).
+
+Online, the chat session goes out at `Login` (a failed profile key fetch leaves chat unsigned, as in vanilla, with a
+warning logged). The server applies it on its main thread, which can lag seconds on a fresh server's first join;
+signed chat sent before that is refused ("missing profile public key"), for vanilla too. `java_online_chat`
+reproduces it; `tools/java-js-gate.sh online <token dir> <username>` runs the Node package online.
+
+## Status, chat and loading
+
+- Health, food and mob effects come from `SetHealth` / `UpdateMobEffect` / `RemoveMobEffect` into the physics
+  (`acacia-java-client` `status.rs`): sprinting needs food > 6, FAST_LAVA is the Nether's, leather boots walk on
+  powder snow. Remote mobs push the player after its tick, as `pushEntities` does client-side (`push.rs`), filtered
+  by team collision rules (`teams.rs`); the tab list is `players.rs`.
+- Attributes: `UpdateAttributes` replaces each attribute's base and modifiers (`acacia-java-physics`
+  `attributes.rs`), summed in fastutil's hash order (`open_map.rs`) so float results match. Sprint is the
+  attribute modifier, as vanilla's `setSprinting`, and the server's shared flags overwrite it.
+- Riptide: a trident with the enchantment held 10+ ticks in water or rain launches on release (`riptide.rs` in client
+  and physics), then spins until it hits a living entity (the generated table's `living` column) or a wall. Rain is `Level.isRainingAt` (`rain.rs`): the
+  rain level from `GameEvent`, sky light 15 from the server's light data (`sky_light.rs`), relit by the client
+  after its tick for block changes as `SkyLightEngine` does its column sources (`relight.rs`, whose doc has the
+  boundary; drill `rain_relit`), the MOTION_BLOCKING heightmap scanned from the blocks, and the biome's precipitation through
+  `BiomeManager`'s zoom (`biomes.rs`; climates from acacia-registry `climate`, or the server's biome data).
+- Block effects: `checkInsideBlocks` tests each block's inside shape (`inside_shape.rs`: cauldron contents,
+  tripwire, end portal, a falling body's 0.9 of powder snow) and fluid box, and only touched blocks act or count as
+  visited. Replay trace `snowfall` (a real client's 4-block drop onto powder snow) lands on the 0.9 top. Grim
+  sticks any body in the snow's cell (`StuckSpeed`), resets its fall and expects it to fall through: GroundSpoof,
+  Simulation and a setback loop, as a vanilla client gets, so drill `powder_snow_fall` is opt-in.
+- Death: health 0 is `BotEvent::Died` (`PlayerCombatKill`'s text a chat event); `ClientCommand` 0 respawns (auto-respawn after the death screen).
+  `Respawn` rebuilds the player, keeping what its `dataToKeep` byte says, and a new level only on a dimension change.
+- Chat: system, player (signed), disguised and action bar messages decode to `BotEvent::Chat` (`messages.rs`), with
+  the chat type's name from configuration's `minecraft:chat_type`.
+- Secure chat (`chat.rs`): on an online-mode server the profile key's session signs chat and each command's
+  message arguments, found by brigadier's parse of the server's tree (`brigadier.rs`, argument readers in
+  `arg_types.rs`; the boundary is in `arg_types.rs`). Without a session the same packets go unsigned, with
+  last-seen data. Dialog commands go as `sendUnattendedCommand`. The key is fetched again past its
+  `refreshed_after`, at most hourly (`chat_key.rs`). Live check: `tools/java-online.sh … chat`.
+- Loading follows `LevelLoadTracker` (`loading.rs`): `GameEvent` 13, then the player's chunk, then 10 ticks before
+  `PlayerLoaded`; the player neither ticks nor moves until then. Sending it on the first position made a join in
+  mid-air fall early, and Grim flagged Simulation.
