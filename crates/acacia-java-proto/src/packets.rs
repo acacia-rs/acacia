@@ -84,6 +84,7 @@ packet!(ClientboundAbilities { flags: u8, flying_speed: f32, walking_speed: f32 
 packet!(ChatCommand { command: String });
 
 /// `ServerboundPlayerCommandPacket.Action` ordinals.
+pub const COMMAND_STOP_SLEEPING: i32 = 0;
 pub const COMMAND_START_SPRINTING: i32 = 1;
 pub const COMMAND_STOP_SPRINTING: i32 = 2;
 /// Its data is the released jump charge, out of 100.

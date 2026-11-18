@@ -89,7 +89,10 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    them (`acacia-java-client` `interpolation.rs`, 26.3's stepped interpolation); the newest packet position gave
    Grim Reach flags. A mob's aggressive flag stands in for Bedrock's `TargetEid`, since Java zombies chase at
    stroll speed. Sent yaw stays continuous (AimModulo360). A 1-wide corridor with a chasing zombie: killed in
-   every run, 0 alerts.
+   every run, 0 alerts. Beds too (`acacia-java-client` `bed.rs`): the click alone starts sleep; the player's
+   `SLEEPING_POS` puts it on the bed as `setPosToBed` does (0.2 box, no keys, pitch 0) and `STOP_SLEEPING` leaves.
+   Lying down's teleports (Paper sends two) and waking's stand-up teleport aren't setbacks; refusals come as
+   untranslated `block.minecraft.bed.*` keys.
 5. **Inventory and crafting.** Java container clicks (state ids, carried item) behind the same API as
    Bedrock's ItemStackRequest. Own-inventory moves done 2026-11-10: `Bot`'s item moves become window-0 clicks
    predicted as `doClick` (`acacia-java-client` `clicks.rs`, bot `items/java_clicks.rs`); live, goto pulls a tool
@@ -113,7 +116,9 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    0 alerts. The loom's button is the pattern's index in the `no_item_required` tag (or the pattern item's own),
    cartography crafts are a click on the result each (Java renames maps at the anvil), and the beacon is `SetBeacon`
    with Java's `mob_effect` ids. Stacks keep `map_id`, or every click on a filled map misses its hash and the
-   server's stale cursor resend lands after the next predicted click. `java_stations` runs all nine stations with 0
+   server's stale cursor resend lands after the next predicted click. Plain potions keep their `potion_contents`
+   for the same reason (hashed as `{potion: <name>}`, names from `item/potions.rs`); custom ones still miss. The
+   brewing stand's slots are Java's own (bottles 0-2, ingredient 3, fuel 4). `java_stations` runs all nine stations with 0
    alerts. A craft matching an unlocked recipe (`RecipeBookAdd`, matched by result and cell items) is laid out by
    `PlaceRecipe`, one per craft up to 8, as a player clicking the book; others are placed by hand. `java_craft`
    now crafts planks, sticks and the pickaxe from the book, 0 alerts.
@@ -152,7 +157,9 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   berry_bush, cauldron, the size drills crowd_scaled, baby_push, slime_push and camel_dash, riptide_armor_stand,
   sulfur_push, the seat drills camel_sit, scaled_rider, boat_pair, boat_back_seat, camel_back_seat (a `Peer` bot
   drives), horse_rear, camel_sit_down and strider_walk, checked against vanilla's seat geometry since Grim never
-  sees a passenger, horse_step (a synced step height of 2 on a driven horse), and the vehicle lid drills boat_shulker_push and horse_lid_push; powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
+  sees a passenger, horse_step (a synced step height of 2 on a driven horse), the vehicle lid drills boat_shulker_push and horse_lid_push, and the bed drills sleep (lie down at night, leave
+  the bed, walk on) and sleep_day (refused by day), and brew (three water bottles to awkward potions, 0 hash
+  misses); powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
   the player too and `isEntityCollidingWithAnythingNew` teleports it back when its push leads, 1-3 setbacks a run). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
   Every drill server requires a resource pack, so each join also checks the pack answers. Setup waits out Grim's

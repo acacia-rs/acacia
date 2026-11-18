@@ -3,6 +3,7 @@
 mod codecs;
 pub mod components;
 mod composites;
+pub mod potions;
 #[cfg(test)]
 mod tests;
 
@@ -19,6 +20,7 @@ pub const UNBREAKABLE: i32 = 4;
 pub const CUSTOM_NAME: i32 = 6;
 pub const ENCHANTMENTS: i32 = 13;
 pub const MAP_ID: i32 = 48;
+pub const POTION_CONTENTS: i32 = 53;
 
 /// A non-empty stack. On the wire an empty one is a count of 0, so slots read as `Option<ItemStack>`.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -49,6 +51,9 @@ pub struct Components {
     pub enchantments: Vec<(i32, i32)>,
     /// A filled map's id; without it a map's hash misses on every click.
     pub map_id: Option<i32>,
+    /// A plain `potion_contents`' potion id; without it every potion's hash misses. Custom colours, effects or
+    /// names aren't kept, so such a potion still misses.
+    pub potion: Option<i32>,
     /// Component type ids the patch removes from the item's defaults.
     pub removed: Vec<i32>,
 }
@@ -128,6 +133,9 @@ impl Components {
         if let Some(id) = self.map_id {
             put(MAP_ID, &|out| write_varint(id, out));
         }
+        if let Some(id) = self.potion {
+            put(POTION_CONTENTS, &|out| potions::write_plain(id, out));
+        }
         added
     }
 }
@@ -168,6 +176,7 @@ fn read_component(id: i32, input: &mut &[u8], depth: u32, components: &mut Compo
             }
         }
         MAP_ID => components.map_id = Some(read_varint(input)?),
+        POTION_CONTENTS => components.potion = potions::read_plain(input)?,
         _ => components::skip(id, input, depth)?,
     }
     Ok(())

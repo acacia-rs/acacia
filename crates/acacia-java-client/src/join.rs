@@ -227,6 +227,7 @@ impl Client {
         self.lids.apply(&self.world, id, body)?;
         self.apply_riding(id, body)?;
         self.movement.apply(id, body, self.world.player_id)?;
+        self.apply_bed(id, body)?;
         self.movement.apply_status(id, body, self.world.player_id)?;
         self.actions.apply(id, body)?;
         self.inventory.apply(id, body)?;

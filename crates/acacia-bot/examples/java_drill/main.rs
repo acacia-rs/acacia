@@ -4,6 +4,8 @@
 //! `cargo run -p acacia-bot --features java --example java_drill -- <host> <port> <drill> [name]`
 mod attrs;
 mod back_seats;
+mod beds;
+mod brewing;
 mod camel;
 mod crowd;
 mod drills;

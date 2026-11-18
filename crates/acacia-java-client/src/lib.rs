@@ -3,6 +3,7 @@
 mod actions;
 mod arg_types;
 mod arg_values;
+mod bed;
 mod biomes;
 mod brigadier;
 mod chat;

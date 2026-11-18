@@ -4,7 +4,7 @@
 use acacia_client::proto::types::Vec3f;
 use acacia_client::DisconnectReason;
 use acacia_java_client::{Client, Error, Packet};
-use acacia_java_physics::Keys;
+use acacia_java_physics::{wrap_degrees, Keys};
 use acacia_java_proto::ids::play::clientbound::{LOGIN, PLAYER_POSITION, RESPAWN, SET_PASSENGERS};
 
 use super::bedrock::Backend;
@@ -162,6 +162,7 @@ impl Bot {
                     (mirrored.position, mirrored.yaw, mirrored.pitch) = (Vec3f { x, y, z }, player.yaw, player.pitch);
                     let teleport = <acacia_java_proto::packets::PlayerPosition as acacia_java_proto::Wire>::read(&mut &packet.body[..]).map(|p| p.id);
                     tracing::trace!(tick = java.ticks, ?teleport, "java teleport");
+                    java.setbacks.in_bed |= java.client.at_sleep_spot();
                     if java.setbacks.on_position(java.ticks) {
                         tracing::debug!(tick = java.ticks, pos = ?player.pos, loaded = java.client.loaded(), "java setback");
                     }
@@ -187,6 +188,7 @@ impl Bot {
                     Backend::Java(java) => java.client.message.take().map(crate::events::ChatMessage::from_java),
                     Backend::Bedrock(_) => None,
                 };
+                self.note_java_bed_refusal(message.as_ref());
                 self.events.on_java_packet(message, &mut self.state, &mut self.out);
                 // Java has no "searching for spawn": dying is the only trigger.
                 self.schedule_respawn(was_alive);
@@ -263,6 +265,8 @@ impl Bot {
         if let Err(e) = java.client.step(keys) {
             tracing::debug!(error = %e, "java movement not sent");
         }
+        let in_bed = java.client.bed().is_some();
+        (self.state.player.sleep_flags[0], java.setbacks.in_bed) = (in_bed, in_bed);
         let p = &java.client.movement.player;
         tracing::trace!(target: "java_tick", name = %java.client.name, tick = java.ticks, pos = ?p.pos, delta = ?p.delta,
             ground = p.on_ground, hcol = p.horizontal_collision, sprinting = p.sprinting, speed = p.speed_value(), keys = ?keys);
@@ -275,18 +279,6 @@ impl Bot {
             self.state.entities.mirror_java(&java.client.world.entities, i64::from(java.client.world.player_id));
         }
         self.mirror_java_riding();
-    }
-}
-
-/// `Mth.wrapDegrees`: into [-180, 180).
-fn wrap_degrees(d: f32) -> f32 {
-    let d = d % 360.0;
-    if d >= 180.0 {
-        d - 360.0
-    } else if d < -180.0 {
-        d + 360.0
-    } else {
-        d
     }
 }
 

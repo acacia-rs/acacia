@@ -193,7 +193,8 @@ impl Client {
         if !self.loaded() || !self.world.has_chunk(at) {
             return Ok(());
         }
-        let keys = if self.movement.dead() { Keys::default() } else { keys };
+        // `isImmobile` while dead or asleep; the bed screen holds no keys either.
+        let keys = if self.movement.dead() || self.bed().is_some() { Keys::default() } else { keys };
         self.update_status();
         if self.movement.riding.is_some() {
             self.ride_step(keys)?;

@@ -2,6 +2,8 @@
 //! sleeping in `SetEntityData` (or explains in chat why not), and the client confirms with
 //! `PlayerAction StartSleeping`. Leaving is `StopSleeping`, sent by the player or in answer to the
 //! server's `Animate WakeUp` (`crate::reflex`). Sources: docs/research/survival-signs-beds.md §5.
+//! On Java the click alone starts sleep, shown by the player's sleeping position (acacia-java-client `bed.rs`),
+//! and leaving is the `STOP_SLEEPING` command.
 
 use std::time::{Duration, Instant};
 
@@ -33,6 +35,8 @@ const REFUSALS: &[&str] = &[
     "bed is occupied",
     "bed is obstructed",
     "bed is too far away",
+    // Java's `BedSleepingProblem` keys, which the Java client keeps untranslated.
+    "block.minecraft.bed.",
 ];
 
 impl Bot {
@@ -56,6 +60,7 @@ impl Bot {
         self.bed.clicked_from = Some(self.state.player.position.clone());
         let face = facing_face(self.eye_position(), pos);
         let bed = self.claim(crate::cancel::Held::Bed);
+        self.bed.java_refusal = None;
         self.use_item_on_block(pos, face).await?;
         let clicked = Instant::now();
         let outcome = self
@@ -63,7 +68,8 @@ impl Bot {
                 if bot.is_sleeping() {
                     return Some(Ok(()));
                 }
-                bed_refusal(packet).map(|message| Err(ActionError::Rejected(message)))
+                let refusal = bot.bed.java_refusal.clone().or_else(|| bed_refusal(packet));
+                refusal.map(|message| Err(ActionError::Rejected(message)))
             })
             .await;
         match outcome {
@@ -92,6 +98,12 @@ impl Bot {
     /// Presses "leave bed" without waiting.
     pub(crate) fn leave_bed(&mut self) {
         self.reflexes.in_bed = false;
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            if let Err(e) = java.client.leave_bed() {
+                tracing::debug!(error = %e, "leave bed not sent");
+            }
+            return;
+        }
         self.send_bedrock(&player_action(self.runtime_id(), Action::StopSleeping));
         self.reflexes.schedule(0, Reflex::ClearAimAssist);
     }
@@ -109,10 +121,22 @@ pub(crate) fn bed_refusal(packet: &RawPacket) -> Option<String> {
     if packet.id != Text::ID {
         return None;
     }
-    let message = ChatMessage::from_packet(packet.decode().ok()?)?;
+    refusal(&ChatMessage::from_packet(packet.decode().ok()?)?)
+}
+
+fn refusal(message: &ChatMessage) -> Option<String> {
     let plain = message.plain();
     let lower = plain.to_lowercase();
     REFUSALS.iter().any(|r| lower.contains(r)).then_some(plain)
+}
+
+impl Bot {
+    /// Java's refusals come as system text, which only lasts its packet; [`Bot::sleep`] checks once a tick.
+    pub(crate) fn note_java_bed_refusal(&mut self, message: Option<&ChatMessage>) {
+        if let Some(text) = message.and_then(refusal) {
+            self.bed.java_refusal = Some(text);
+        }
+    }
 }
 
 mod tick;

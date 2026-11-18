@@ -40,7 +40,7 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
         let sizes = crate::crowd::NAMES.iter().chain(crate::sizes::NAMES).chain(crate::camel::NAMES);
         let seats = crate::back_seats::NAMES.iter().chain(crate::seat_moves::NAMES);
         let late = crate::lids::NAMES.iter().chain(crate::seats::NAMES).chain(crate::relight::NAMES).chain(seats);
-        NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES).chain(crate::inside::NAMES).chain(sizes).chain(late)
+        NAMES.iter().chain(crate::attrs::NAMES).chain(crate::riptide::NAMES).chain(crate::minecart::NAMES).chain(crate::inside::NAMES).chain(sizes).chain(late).chain(crate::beds::NAMES).chain(crate::brewing::NAMES)
     };
     let index = all().position(|n| *n == name).ok_or(format!("no drill {name}; drills: {}", all().copied().collect::<Vec<_>>().join(" ")))?;
     let x = 64 + 32 * index as i32;
@@ -170,6 +170,8 @@ pub async fn run(name: &str, d: &mut Drill) -> Outcome {
         n if crate::seat_moves::NAMES.contains(&n) => crate::seat_moves::run(n, d, x).await,
         n if crate::relight::NAMES.contains(&n) => crate::relight::run(n, d, x).await,
         n if crate::inside::NAMES.contains(&n) => crate::inside::run(n, d, x).await,
+        n if crate::beds::NAMES.contains(&n) => crate::beds::run(n, d, x).await,
+        "brew" => crate::brewing::run(d, x).await,
         n => crate::attrs::run(n, d, x).await,
     }
 }

@@ -87,7 +87,9 @@ impl Player {
         if !self.fits(world, Pose::Swimming) {
             return;
         }
-        let desired = if self.swimming {
+        let desired = if self.sleeping_pos.is_some() {
+            Pose::Sleeping
+        } else if self.swimming {
             Pose::Swimming
         } else if self.fall_flying {
             Pose::FallFlying
@@ -109,6 +111,9 @@ impl Player {
 
     /// One client tick, in `LocalPlayer.tick` order: base tick, `aiStep`, then the pose update.
     pub fn tick(&mut self, world: &impl Blocks, keys: Keys) {
+        if self.sleeping_pos.is_some() {
+            self.pitch = 0.0;
+        }
         self.base_tick(world);
         if self.sprint_trigger > 0 {
             self.sprint_trigger -= 1;

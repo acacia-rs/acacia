@@ -3,7 +3,8 @@
 
 use crc::{CRC_32_ISCSI, Crc};
 
-use crate::item::{CUSTOM_NAME, DAMAGE, ENCHANTMENTS, ItemStack, MAP_ID, MAX_DAMAGE, MAX_STACK_SIZE, UNBREAKABLE};
+use crate::item::potions::potion_name;
+use crate::item::{CUSTOM_NAME, DAMAGE, ENCHANTMENTS, ItemStack, MAP_ID, MAX_DAMAGE, MAX_STACK_SIZE, POTION_CONTENTS, UNBREAKABLE};
 use crate::nbt;
 use crate::wire::read_len;
 use crate::{Error, VarInt, Wire, write_varint};
@@ -91,6 +92,10 @@ impl HashedStack {
         let named = |&(id, level): &(i32, i32)| Some((hash_string(enchantments.get(usize::try_from(id).ok()?)?), hash_int(level)));
         if let Some(entries) = c.enchantments.iter().map(named).collect::<Option<Vec<_>>>().filter(|e| !e.is_empty()) {
             added.push((ENCHANTMENTS, hash_map(entries)));
+        }
+        // `PotionContents.CODEC` encodes with its full record codec: a plain one is `{potion: <name>}`.
+        if let Some(potion) = c.potion.and_then(potion_name) {
+            added.push((POTION_CONTENTS, hash_map(vec![(hash_string("potion"), hash_string(&potion))])));
         }
         HashedStack { item: stack.item, count: stack.count, added, removed: c.removed.clone() }
     }

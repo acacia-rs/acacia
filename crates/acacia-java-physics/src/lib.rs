@@ -38,7 +38,7 @@ pub use input::{Keys, Pose};
 pub use mount::{Boost, Mount, MountKind, Rider};
 pub use mount_seat::{feet_at, seat_feet, turned, SeatAnim};
 pub use shove::shove;
-pub use mth::sin;
+pub use mth::{sin, wrap_degrees};
 pub use player::{Effects, ItemUse, Player};
 pub use riptide::Nearby;
 pub use teleport::Placement;

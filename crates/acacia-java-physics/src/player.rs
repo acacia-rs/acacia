@@ -65,6 +65,8 @@ pub struct Player {
     pub swimming: bool,
     /// The server's auto spin attack flag (living entity flag 4), which picks the spin pose.
     pub spin_attack: bool,
+    /// The server's `getSleepingPos`; while set the player sleeps: the sleeping pose, pitch held at 0.
+    pub sleeping_pos: Option<[i32; 3]>,
     /// Entities around the player, for a riptide spin to hit; filled only while one runs.
     pub nearby: Vec<Nearby>,
     pub(crate) auto_spin_ticks: i32,
@@ -172,7 +174,7 @@ impl Player {
     /// `getDimensions(pose)`: the pose's size scaled.
     pub(crate) fn pose_size(&self, pose: Pose) -> (f32, f32) {
         let scale = self.scale();
-        (WIDTH * scale, pose.height() * scale)
+        (pose.width() * scale, pose.height() * scale)
     }
 
     pub(crate) fn block_pos(&self) -> [i32; 3] {

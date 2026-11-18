@@ -20,6 +20,8 @@ pub(crate) struct Bed {
     pub(crate) lying: Option<(Vec3f, f32)>,
     /// The server's position of the player (feet) when it clicked the bed.
     pub(crate) clicked_from: Option<Vec3f>,
+    /// A Java server's refusal since the last bed click.
+    pub(crate) java_refusal: Option<String>,
 }
 
 /// Where BDS puts a player sleeping in the bed block `pos`: eye position at the
