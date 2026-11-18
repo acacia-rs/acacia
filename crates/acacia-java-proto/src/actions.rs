@@ -154,6 +154,30 @@ packet!(SetCarriedItem { slot: i16 });
 packet!(Attack { entity: VarInt });
 packet!(Interact { entity: VarInt, hand: Hand, location: LpVec3, secondary: bool });
 packet!(BlockChangedAck { sequence: VarInt });
+// `SignTextSlot` goes as a varint id, FRONT 1 and BACK 0: the same byte as a bool.
+packet!(OpenSignEditor { pos: BlockPos, front: bool });
+
+/// `ServerboundSignUpdatePacket`: all four lines of one side, each at most 384 characters.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SignUpdate {
+    pub pos: BlockPos,
+    pub lines: [String; 4],
+    pub front: bool,
+}
+
+impl Wire for SignUpdate {
+    fn read(input: &mut &[u8]) -> Result<Self, Error> {
+        let pos = BlockPos::read(input)?;
+        let lines = [String::read(input)?, String::read(input)?, String::read(input)?, String::read(input)?];
+        Ok(Self { pos, lines, front: bool::read(input)? })
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        self.pos.write(out);
+        self.lines.iter().for_each(|l| l.write(out));
+        self.front.write(out);
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -177,6 +201,8 @@ mod tests {
         let use_on = UseItemOn { face: Direction::Up, click: [0.5, 1.0, 0.25], sequence: 300, ..Default::default() };
         round_trip(use_on);
         round_trip(Interact { entity: VarInt(9), hand: Hand::Off, location: LpVec3([0.0; 3]), secondary: true });
+        let lines = ["a".into(), String::new(), "ü".into(), "d".into()];
+        round_trip(SignUpdate { pos: BlockPos([4, 70, -9]), lines, front: true });
     }
 
     #[test]

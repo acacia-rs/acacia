@@ -8,6 +8,7 @@ mod beds;
 mod brewing;
 mod digging;
 mod fishing;
+mod signs;
 mod camel;
 mod crowd;
 mod drills;

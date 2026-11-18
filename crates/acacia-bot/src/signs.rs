@@ -1,6 +1,7 @@
 //! Writing signs. The server opens the editor (`OpenSign`) after a sign is placed or clicked, one
 //! side at a time, and the client answers with the whole sign block entity in `BlockActorData`
 //! when the editor closes. NBT layout, sources and captured timing: docs/research/survival-signs-beds.md §3.
+//! Java: `signs/java.rs`.
 
 use std::time::Duration;
 
@@ -49,8 +50,12 @@ impl Bot {
         if editor.front != front {
             let pause = self.human.between(CLICK);
             self.pause(pause).await?;
-            let current = self.state.block_entities.sign_text(pos, editor.front).unwrap_or_default().to_owned();
-            self.close_sign_editor(pos, editor.front, &current);
+            // Java sign text isn't tracked, and an empty answer would wipe that side: the editor goes unanswered.
+            if self.java().is_none() {
+                let current = self.state.block_entities.sign_text(pos, editor.front).unwrap_or_default().to_owned();
+                self.close_sign_editor(pos, editor.front, &current);
+            }
+            self.state.signs.editor = None;
             let opened = if editor.front { "front" } else { "back" };
             return Err(ActionError::NotPossible(format!("the server opened the {opened} side of the sign at {pos:?}")));
         }
@@ -81,6 +86,9 @@ impl Bot {
 
     /// Sends the sign with `text` on the editor's side.
     fn close_sign_editor(&mut self, pos: BlockPos, front: bool, text: &str) {
+        if self.java_close_sign_editor(pos, front, text) {
+            return;
+        }
         let hanging = self.block_at(pos).is_some_and(|(_, s)| s.name.contains("hanging_sign"));
         let edit = SideEdit { front, text };
         let nbt = sign_nbt(self.state.block_entities.sign(pos), pos, hanging, &edit, self.state.player.unique_entity_id);
@@ -173,5 +181,6 @@ fn sorted(value: Value) -> Value {
     }
 }
 
+mod java;
 #[cfg(test)]
 mod tests;

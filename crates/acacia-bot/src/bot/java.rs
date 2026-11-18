@@ -184,6 +184,7 @@ impl Bot {
                 self.on_java_inventory(packet.id);
                 self.on_java_health(&packet);
                 self.on_java_dialog(packet.id);
+                self.on_java_sign(&packet);
                 let message = match &mut self.backend {
                     Backend::Java(java) => java.client.message.take().map(crate::events::ChatMessage::from_java),
                     Backend::Bedrock(_) => None,
