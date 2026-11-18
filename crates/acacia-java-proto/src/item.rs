@@ -5,6 +5,9 @@ pub mod components;
 mod composites;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_typed;
+pub mod typed;
 
 use crate::wire::read_len;
 use crate::{Error, VarInt, Wire, nbt, read_varint, write_varint};
@@ -51,6 +54,8 @@ pub struct Components {
     pub map_id: Option<i32>,
     /// Component type ids the patch removes from the item's defaults.
     pub removed: Vec<i32>,
+    /// Raw values of the components [`typed`] encodes, by type id; use [`Components::set`] and [`Components::get`].
+    pub extra: Vec<(i32, Vec<u8>)>,
 }
 
 impl Components {
@@ -128,6 +133,8 @@ impl Components {
         if let Some(id) = self.map_id {
             put(MAP_ID, &|out| write_varint(id, out));
         }
+        added.extend(self.extra.iter().cloned());
+        added.sort_by_key(|&(id, _)| id);
         added
     }
 }
@@ -168,6 +175,7 @@ fn read_component(id: i32, input: &mut &[u8], depth: u32, components: &mut Compo
             }
         }
         MAP_ID => components.map_id = Some(read_varint(input)?),
+        id if typed::CAPTURED.contains(&id) => typed::capture(id, input, depth, components)?,
         _ => components::skip(id, input, depth)?,
     }
     Ok(())

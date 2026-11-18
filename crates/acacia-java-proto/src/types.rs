@@ -254,5 +254,7 @@ var_int_enum!(
     [Integer, Hearts]
 );
 
+pub(crate) use var_int_enum;
+
 #[cfg(test)]
 mod tests;
