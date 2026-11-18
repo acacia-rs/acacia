@@ -31,6 +31,10 @@ pub struct Entity {
     pub attached_to: Option<i32>,
     /// Riders by entity id, the controlling one first.
     pub passengers: Vec<i32>,
+    /// `AddEntity`'s data: a projectile's owner (a fishing bobber's angler), a falling block's state, ...
+    pub data: i32,
+    /// A fishing bobber's `DATA_BITING`: a fish is on and a reel-in now catches it.
+    pub biting: bool,
     pub mount: MountData,
     pub shape: Shape,
     /// The last `SetEntityMotion` since the last tick, which a boat boarded now starts with.
@@ -46,7 +50,7 @@ const SNAP_DISTANCE_SQR: f64 = 4096.0;
 impl Entity {
     pub fn new(uuid: u128, kind: i32, position: [f64; 3], y_rot: f32, x_rot: f32) -> Self {
         let name = usize::try_from(kind).ok().and_then(|k| ENTITY_TYPES.get(k)).copied().unwrap_or("");
-        Entity { uuid, kind, position, y_rot, x_rot, on_ground: false, aggressive: false, pose: 0, baby: false, stays_still: false, attached_to: None, passengers: Vec::new(), mount: MountData::default(), shape: Shape::for_kind(name), motion: [0.0; 3], base: position, lerp: Lerp::for_kind(name) }
+        Entity { uuid, kind, position, y_rot, x_rot, on_ground: false, aggressive: false, pose: 0, baby: false, stays_still: false, attached_to: None, passengers: Vec::new(), data: 0, biting: false, mount: MountData::default(), shape: Shape::for_kind(name), motion: [0.0; 3], base: position, lerp: Lerp::for_kind(name) }
     }
 
     pub(crate) fn is(&self, name: &str) -> bool {
@@ -71,6 +75,8 @@ impl Entity {
         }
         if self.is(HAPPY_GHAST) {
             self.stays_still = read_flag(body, HAPPY_GHAST_STAYS_STILL)?.unwrap_or(self.stays_still);
+        } else if self.is(FISHING_BOBBER) {
+            self.biting = read_flag(body, BOBBER_BITING)?.unwrap_or(self.biting);
         }
         Ok(())
     }
@@ -113,6 +119,9 @@ const POSE: u8 = 6;
 pub(crate) const HAPPY_GHAST: &str = "minecraft:happy_ghast";
 /// `HappyGhast.STAYS_STILL`: after AgeableMob's 16 and 17 and its leash flag.
 const HAPPY_GHAST_STAYS_STILL: u8 = 19;
+pub(crate) const FISHING_BOBBER: &str = "minecraft:fishing_bobber";
+/// `FishingHook.DATA_BITING`, after `DATA_HOOKED_ENTITY` (8).
+const BOBBER_BITING: u8 = 9;
 
 /// What moves, for [`Entity::collision_box`]: the player (feet height) or a vehicle.
 #[derive(Clone, Copy, Debug)]

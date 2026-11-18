@@ -66,6 +66,7 @@ pub async fn run(name: &str, d: &mut Drill, x: i32) -> Outcome {
     d.bot.use_item();
     d.ticks(if name == "riptide_short" { 5 } else { 15 }).await?;
     d.bot.release_item();
+    let stands = d.bot.state().entities.iter().filter(|e| e.kind.ends_with(":armor_stand")).count();
     let start_at = d.feet();
     let (mut top, mut far) = (start_at[1], start_at[0]);
     for _ in 0..60 {
@@ -74,7 +75,7 @@ pub async fn run(name: &str, d: &mut Drill, x: i32) -> Outcome {
         (top, far) = (top.max(f[1]), far.max(f[0]));
     }
     let (rise, run, back) = (top - start_at[1], far - start_at[0], far - d.feet()[0]);
-    let flew = || format!("rose {rise:.2}, ran {run:.2}, back {back:.2}, raining {rain}, in rain {in_rain}");
+    let flew = || format!("rose {rise:.2}, ran {run:.2}, back {back:.2}, raining {rain}, in rain {in_rain}, {stands} stands known");
     let result = match name {
         "riptide" | "rain_riptide" => check(rise > 3.0 && run > 3.0, flew),
         // Only the bounce's reversed delta carries the player back west; the peak tick itself may go unsampled.

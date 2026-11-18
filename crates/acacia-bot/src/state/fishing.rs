@@ -28,6 +28,8 @@ pub struct FishingHook {
     /// sudden dip of the resting hook (Geyser sends no hook events).
     pub bites: u32,
     resting_updates: u32,
+    /// Java: the bobber's biting flag last tick.
+    biting: bool,
 }
 
 /// Only the own fishing hook, so fishing works without `Trackers::entities`.
@@ -85,6 +87,7 @@ impl Fishing {
                         spawned_at: p.position,
                         bites: 0,
                         resting_updates: 0,
+                        biting: false,
                     });
                 }
             }
@@ -121,6 +124,25 @@ impl Fishing {
             _ => {}
         }
         Ok(())
+    }
+
+    /// Java, once a tick: the own bobber the client tracks (entity id, position, biting flag), a bite counted on
+    /// each rise of its flag.
+    pub(crate) fn mirror_java(&mut self, bobber: Option<(i32, [f64; 3], bool)>) {
+        let Some((id, [x, y, z], biting)) = bobber else {
+            self.hook = None;
+            return;
+        };
+        let runtime_id = id as u64;
+        let hook = match &mut self.hook {
+            Some(hook) if hook.runtime_id == runtime_id => hook,
+            hook => {
+                let spawned_at = Vec3f { x: x as f32, y: y as f32, z: z as f32 };
+                hook.insert(FishingHook { runtime_id, unique_id: i64::from(id), spawned_at, bites: 0, resting_updates: 0, biting: false })
+            }
+        };
+        hook.bites += u32::from(biting && !hook.biting);
+        hook.biting = biting;
     }
 }
 

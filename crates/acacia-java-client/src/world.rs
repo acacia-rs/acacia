@@ -7,7 +7,7 @@ use crate::mount_data::Synced;
 use crate::rain::{Weather, read_spawn_rest};
 use crate::relight::Pending;
 use crate::sky_light::SkyLight;
-use crate::entity::{MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
+use crate::entity::{FISHING_BOBBER, MOB_AGGRESSIVE, has_mob_flags, is_rocket, read_mob_flags, read_rocket_target};
 pub use crate::entity::{Entity, Mover};
 pub use crate::entity_size::{Peek, Shape};
 
@@ -63,6 +63,11 @@ impl World {
     /// The state id at a position, `None` outside the loaded sections.
     pub fn block(&self, pos: [i32; 3]) -> Option<u32> {
         self.chunks.block(pos)
+    }
+
+    /// The player's own fishing bobber, by entity id.
+    pub fn own_bobber(&self) -> Option<(i32, &Entity)> {
+        self.entities.iter().find(|(_, e)| e.is(FISHING_BOBBER) && e.data == self.player_id).map(|(id, e)| (*id, e))
     }
 
     pub fn min_y(&self) -> i32 {
@@ -235,7 +240,10 @@ impl World {
         let position = [f64::read(input)?, f64::read(input)?, f64::read(input)?];
         skip_lp_vec3(input)?;
         let (x_rot, y_rot) = (degrees(i8::read(input)?), degrees(i8::read(input)?));
-        self.entities.insert(id, Entity::new(uuid, kind, position, y_rot, x_rot));
+        i8::read(input)?;
+        let mut entity = Entity::new(uuid, kind, position, y_rot, x_rot);
+        entity.data = read_varint(input)?;
+        self.entities.insert(id, entity);
         Ok(())
     }
 

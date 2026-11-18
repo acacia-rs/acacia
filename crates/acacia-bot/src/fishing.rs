@@ -77,6 +77,12 @@ impl Bot {
     /// Casts or reels in, which vanilla sends identically: the use swing, `UseItem` ClickAir and
     /// `StartUsingItem` on the next input.
     fn use_rod(&mut self) {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            self.java_use_item();
+            self.java_swing();
+            return;
+        }
         self.use_item_like_vanilla();
         self.queue_flag(InputData::StartUsingItem);
     }

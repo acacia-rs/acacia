@@ -92,7 +92,9 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    every run, 0 alerts. Beds too (`acacia-java-client` `bed.rs`): the click alone starts sleep; the player's
    `SLEEPING_POS` puts it on the bed as `setPosToBed` does (0.2 box, no keys, pitch 0) and `STOP_SLEEPING` leaves.
    Lying down's teleports (Paper sends two) and waking's stand-up teleport aren't setbacks; refusals come as
-   untranslated `block.minecraft.bed.*` keys.
+   untranslated `block.minecraft.bed.*` keys. Held mining (`start_mining`) runs `java_mine`'s sequence from the tick,
+   progress summed in f32. Fishing: the own bobber is the `fishing_bobber` whose `AddEntity` data is the player's
+   id, and each rise of its `DATA_BITING` is a bite; a cast or reel-in is `UseItem` then the swing.
 5. **Inventory and crafting.** Java container clicks (state ids, carried item) behind the same API as
    Bedrock's ItemStackRequest. Own-inventory moves done 2026-11-10: `Bot`'s item moves become window-0 clicks
    predicted as `doClick` (`acacia-java-client` `clicks.rs`, bot `items/java_clicks.rs`); live, goto pulls a tool
@@ -159,7 +161,8 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   drives), horse_rear, camel_sit_down and strider_walk, checked against vanilla's seat geometry since Grim never
   sees a passenger, horse_step (a synced step height of 2 on a driven horse), the vehicle lid drills boat_shulker_push and horse_lid_push, and the bed drills sleep (lie down at night, leave
   the bed, walk on) and sleep_day (refused by day), and brew (three water bottles to awkward potions, 0 hash
-  misses); powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
+  misses), hold_mine (`start_mining` on dirt, let go halfway, mine again) and fish (a Lure III cast to a catch);
+  powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
   the player too and `isEntityCollidingWithAnythingNew` teleports it back when its push leads, 1-3 setbacks a run). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.
   Every drill server requires a resource pack, so each join also checks the pack answers. Setup waits out Grim's

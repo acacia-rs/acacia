@@ -138,6 +138,14 @@ impl Progress {
         self.done >= 1.0 - 1e-9
     }
 
+    /// One Java tick: `continueDestroyBlock` adds this tick's [`java_progress`] in f32; true when it reaches 1.
+    pub fn add_java(&mut self, progress: f32) -> bool {
+        self.ticks += 1;
+        let done = self.done as f32 + progress;
+        self.done = f64::from(done);
+        done >= 1.0
+    }
+
     /// Ticks mined so far.
     pub fn ticks(&self) -> u32 {
         self.ticks

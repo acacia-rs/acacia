@@ -19,10 +19,10 @@ const SWING_EVERY: u32 = 5;
 /// A block being mined through [`Bot::start_mining`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Mining {
-    pos: BlockPos,
-    face: Face,
-    mining: acacia_world::Mining,
-    progress: Progress,
+    pub(super) pos: BlockPos,
+    pub(super) face: Face,
+    pub(super) mining: acacia_world::Mining,
+    pub(super) progress: Progress,
     creative: bool,
 }
 
@@ -94,10 +94,12 @@ impl Bot {
 
     /// Stops mining (`AbortBreak` with the next tick) if a break is in progress.
     pub fn stop_mining(&mut self) {
-        if let Some(m) = self.mining.take()
-            && m.progress.ticks() > 0
-            && let Some(movement) = self.backend.movement_mut()
-        {
+        let Some(m) = self.mining.take().filter(|m| m.progress.ticks() > 0) else { return };
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_abort_break(m.pos, m.face);
+        }
+        if let Some(movement) = self.backend.movement_mut() {
             movement.pending_actions.push(wire::block_action(Action::AbortBreak, m.pos, m.face));
         }
     }
@@ -120,6 +122,10 @@ impl Bot {
     /// One tick of [`Bot::start_mining`]: the same block actions [`Bot::break_block`] sends, ending
     /// with `PredictBreak`. The server's `UpdateBlock` then removes the block.
     pub(crate) fn tick_mining(&mut self) {
+        #[cfg(feature = "java")]
+        if self.java().is_some() {
+            return self.java_tick_mining();
+        }
         let Some(mut m) = self.mining else { return };
         if self.block_at(m.pos).is_none_or(|(_, s)| s.is_air()) {
             if m.progress.ticks() > 0 {

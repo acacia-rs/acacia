@@ -6,6 +6,8 @@ mod attrs;
 mod back_seats;
 mod beds;
 mod brewing;
+mod digging;
+mod fishing;
 mod camel;
 mod crowd;
 mod drills;

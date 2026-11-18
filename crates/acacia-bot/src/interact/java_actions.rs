@@ -85,6 +85,33 @@ impl Bot {
         Ok(())
     }
 
+    /// [`Bot::start_mining`]'s tick on Java, as `java_mine` does it: `START_DESTROY` (breaking at once when one tick's
+    /// progress reaches 1), then progress each tick until `STOP_DESTROY`, swinging every tick. A block gone meanwhile
+    /// ends it with nothing sent.
+    pub(crate) fn java_tick_mining(&mut self) {
+        let Some(mut m) = self.mining else { return };
+        if self.block_at(m.pos).is_none_or(|(_, s)| s.is_air()) {
+            self.mining = None;
+            return;
+        }
+        let progress = java_progress(&m.mining, &self.break_conditions()).unwrap_or(0.0);
+        let (pos, face) = (m.pos, direction(m.face));
+        let sent = if m.progress.ticks() == 0 {
+            let breaks = progress >= 1.0;
+            m.progress.add_java(if breaks { 1.0 } else { 0.0 });
+            self.java_send(|c| c.start_destroy(pos, face, breaks))
+        } else if m.progress.add_java(progress) {
+            self.java_send(|c| c.stop_destroy(pos, face))
+        } else {
+            Ok(())
+        };
+        if let Err(e) = sent.and_then(|()| self.java_send(|c| c.punch().map(|()| 0))) {
+            tracing::debug!(error = %e, "mining not sent");
+        }
+        tracing::trace!(?pos, ticks = m.progress.ticks(), done = m.progress.fraction(), "java mining");
+        self.mining = (m.progress.fraction() < 1.0).then_some(m);
+    }
+
     pub(crate) fn java_abort_break(&mut self, pos: BlockPos, face: Face) {
         if let Backend::Java(java) = &mut self.backend
             && let Err(e) = java.client.abort_destroy(pos, direction(face))

@@ -251,6 +251,8 @@ impl Bot {
         self.governor.tick(None);
         self.tick_respawn();
         self.tick_survival();
+        // `Minecraft.tick` handles the held attack key before the player ticks.
+        self.tick_mining();
         let dismounting = self.java_dismounting();
         let Backend::Java(java) = &mut self.backend else { return };
         java.ticks += 1;
@@ -265,6 +267,7 @@ impl Bot {
         if let Err(e) = java.client.step(keys) {
             tracing::debug!(error = %e, "java movement not sent");
         }
+        self.state.fishing.mirror_java(java.client.world.own_bobber().map(|(id, e)| (id, e.position, e.biting)));
         let in_bed = java.client.bed().is_some();
         (self.state.player.sleep_flags[0], java.setbacks.in_bed) = (in_bed, in_bed);
         let p = &java.client.movement.player;
