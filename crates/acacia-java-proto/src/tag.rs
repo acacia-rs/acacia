@@ -96,9 +96,17 @@ impl Tag {
             }
             Tag::String(s) => write_string(s, out),
             Tag::List(items) => {
-                out.push(items.first().map_or(TAG_END, Tag::kind));
+                let element = list_element_kind(items);
+                out.push(element);
                 (items.len() as i32).write(out);
-                items.iter().for_each(|t| t.write_payload(out));
+                for item in items {
+                    let plain_compound = matches!(item, Tag::Compound(entries) if !is_wrapper(entries));
+                    if element == TAG_COMPOUND && !plain_compound {
+                        Tag::Compound(vec![(String::new(), item.clone())]).write_payload(out);
+                    } else {
+                        item.write_payload(out);
+                    }
+                }
             }
             Tag::Compound(entries) => {
                 for (key, value) in entries {
@@ -117,6 +125,24 @@ impl Tag {
                 v.iter().for_each(|n| n.write(out));
             }
         }
+    }
+}
+
+/// `ListTag.identifyRawElementType`: a mixed list is written as compounds, each non-compound element wrapped as `{"": e}`.
+fn list_element_kind(items: &[Tag]) -> u8 {
+    let first = items.first().map_or(TAG_END, Tag::kind);
+    if items.iter().all(|t| t.kind() == first) { first } else { TAG_COMPOUND }
+}
+
+fn is_wrapper(entries: &[(String, Tag)]) -> bool {
+    matches!(entries, [(key, _)] if key.is_empty())
+}
+
+/// `ListTag.tryUnwrap`: the inverse of the mixed-list wrapping.
+fn unwrap_element(tag: Tag) -> Tag {
+    match tag {
+        Tag::Compound(mut entries) if is_wrapper(&entries) => entries.remove(0).1,
+        other => other,
     }
 }
 
@@ -163,7 +189,8 @@ fn read_payload(kind: u8, input: &mut &[u8], depth: u32) -> Result<Tag, Error> {
             if count > input.len() {
                 return Err(Error::Invalid("NBT list length"));
             }
-            Tag::List((0..count).map(|_| read_payload(element, input, depth + 1)).collect::<Result<_, _>>()?)
+            let items = (0..count).map(|_| read_payload(element, input, depth + 1)).collect::<Result<Vec<_>, _>>()?;
+            Tag::List(if element == TAG_COMPOUND { items.into_iter().map(unwrap_element).collect() } else { items })
         }
         TAG_COMPOUND => {
             let mut entries = Vec::new();
@@ -208,6 +235,17 @@ mod tests {
         let mut input = &out[..];
         assert_eq!(Tag::read_root(&mut input), Ok(Some(tag)));
         assert!(input.is_empty());
+    }
+
+    #[test]
+    fn mixed_lists_are_wrapped_like_vanilla() {
+        let mixed = Tag::List(vec![Tag::String("a".into()), Tag::Compound(vec![("k".into(), Tag::Byte(1))])]);
+        let mut out = Vec::new();
+        mixed.write_root(&mut out);
+        // list of compounds, 2 elements; the string rides in {"": "a"}
+        assert_eq!(&out[..6], &[9, 10, 0, 0, 0, 2]);
+        assert_eq!(&out[6..], &[8, 0, 0, 0, 1, b'a', 0, 1, 0, 1, b'k', 1, 0]);
+        assert_eq!(Tag::read_root(&mut &out[..]), Ok(Some(mixed)));
     }
 
     #[test]

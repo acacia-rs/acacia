@@ -15,8 +15,11 @@ pub mod nbt;
 pub mod packets;
 pub mod recipe_book;
 pub mod recipes;
+pub mod registry;
 pub mod server;
 pub mod tag;
+pub mod text;
+pub mod types;
 mod wire;
 
 pub use wire::{Error, VarInt, Wire, read_varint, read_varlong, write_varint};
