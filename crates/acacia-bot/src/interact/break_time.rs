@@ -139,6 +139,7 @@ impl Progress {
     }
 
     /// One Java tick: `continueDestroyBlock` adds this tick's [`java_progress`] in f32; true when it reaches 1.
+    #[cfg(feature = "java")]
     pub fn add_java(&mut self, progress: f32) -> bool {
         self.ticks += 1;
         let done = self.done as f32 + progress;

@@ -128,6 +128,7 @@ impl Fishing {
 
     /// Java, once a tick: the own bobber the client tracks (entity id, position, biting flag), a bite counted on
     /// each rise of its flag.
+    #[cfg(feature = "java")]
     pub(crate) fn mirror_java(&mut self, bobber: Option<(i32, [f64; 3], bool)>) {
         let Some((id, [x, y, z], biting)) = bobber else {
             self.hook = None;

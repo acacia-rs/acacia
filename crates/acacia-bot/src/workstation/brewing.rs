@@ -37,7 +37,7 @@ impl Bot {
 
     /// Vanilla order (2026-10-02 capture): bottles, ingredient, then fuel.
     async fn brew_open(&mut self, bottles: &[SlotRef], ingredient: &str) -> Result<(), ActionError> {
-        let layout = if self.java().is_some() { JAVA } else { BEDROCK };
+        let layout = if self.backend.bedrock().is_some() { BEDROCK } else { JAVA };
         for (&bottle, slot) in bottles.iter().zip(layout.bottles) {
             self.put(bottle, SlotRef::Container(slot), 1).await?;
         }

@@ -98,6 +98,7 @@ impl Bot {
     /// Presses "leave bed" without waiting.
     pub(crate) fn leave_bed(&mut self) {
         self.reflexes.in_bed = false;
+        #[cfg(feature = "java")]
         if let crate::bot::Backend::Java(java) = &mut self.backend {
             if let Err(e) = java.client.leave_bed() {
                 tracing::debug!(error = %e, "leave bed not sent");
@@ -132,6 +133,7 @@ fn refusal(message: &ChatMessage) -> Option<String> {
 
 impl Bot {
     /// Java's refusals come as system text, which only lasts its packet; [`Bot::sleep`] checks once a tick.
+    #[cfg(feature = "java")]
     pub(crate) fn note_java_bed_refusal(&mut self, message: Option<&ChatMessage>) {
         if let Some(text) = message.and_then(refusal) {
             self.bed.java_refusal = Some(text);

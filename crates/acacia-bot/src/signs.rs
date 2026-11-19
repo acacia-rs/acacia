@@ -51,7 +51,7 @@ impl Bot {
             let pause = self.human.between(CLICK);
             self.pause(pause).await?;
             // Java sign text isn't tracked, and an empty answer would wipe that side: the editor goes unanswered.
-            if self.java().is_none() {
+            if self.backend.bedrock().is_some() {
                 let current = self.state.block_entities.sign_text(pos, editor.front).unwrap_or_default().to_owned();
                 self.close_sign_editor(pos, editor.front, &current);
             }
@@ -86,6 +86,7 @@ impl Bot {
 
     /// Sends the sign with `text` on the editor's side.
     fn close_sign_editor(&mut self, pos: BlockPos, front: bool, text: &str) {
+        #[cfg(feature = "java")]
         if self.java_close_sign_editor(pos, front, text) {
             return;
         }
@@ -181,6 +182,7 @@ fn sorted(value: Value) -> Value {
     }
 }
 
+#[cfg(feature = "java")]
 mod java;
 #[cfg(test)]
 mod tests;
