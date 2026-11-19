@@ -49,15 +49,13 @@ impl Bot {
     /// echo (see interact/closing.rs). `ActionError::Timeout` if the server answered nothing.
     pub async fn close_container(&mut self) -> Result<(), ActionError> {
         self.container_settled().await?;
+        #[cfg(feature = "java")]
+        if let Some(closed) = self.java_close_screen(false) {
+            return closed;
+        }
         let Some(open) = self.state.containers.open.as_ref() else {
             return Err(ActionError::NotPossible("no container is open".into()));
         };
-        #[cfg(feature = "java")]
-        if let crate::bot::Backend::Java(java) = &mut self.backend {
-            java.client.close_screen().map_err(|_| ActionError::Disconnected)?;
-            self.state.containers.open = None;
-            return Ok(());
-        }
         let (window_id, packet) = (open.window_id, close_packet(open));
         self.send_close(window_id, packet);
         self.await_close().await
@@ -66,12 +64,31 @@ impl Bot {
     /// Opens the player's own inventory screen (`Interact` OpenInventory). The server answers with
     /// a `ContainerOpen` for window 0, which shows up in `state().containers`.
     pub fn open_inventory(&mut self) {
+        // Java's own inventory screen is the client's: nothing goes out, and item moves leave it open.
+        #[cfg(feature = "java")]
+        if let crate::bot::Backend::Java(java) = &mut self.backend {
+            java.inventory_held = true;
+            return;
+        }
         self.send_bedrock(&Interact {
             action_id: InteractActionId::OpenInventory,
             target_entity_id: self.runtime_id(),
             has_position: false,
             position: None,
         });
+    }
+
+    /// Java's close of the open screen, sent with the next tick; there's no echo to wait for. `any`: close even
+    /// with no screen known open. None off Java.
+    #[cfg(feature = "java")]
+    pub(crate) fn java_close_screen(&mut self, any: bool) -> Option<Result<(), ActionError>> {
+        let crate::bot::Backend::Java(java) = &mut self.backend else { return None };
+        if !any && self.state.containers.open.is_none() && !java.inventory_held {
+            return Some(Err(ActionError::NotPossible("no container is open".into())));
+        }
+        java.inventory_held = false;
+        self.state.containers.open = None;
+        Some(java.client.close_screen().map_err(|_| ActionError::Disconnected))
     }
 
     /// The open container, unless it is the player's own inventory.

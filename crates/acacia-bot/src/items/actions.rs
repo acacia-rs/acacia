@@ -47,6 +47,10 @@ impl Bot {
 
     /// Deletes `count` items from a slot (creative mode only).
     pub async fn destroy_item(&mut self, from: SlotRef, count: u8) -> Result<(), ActionError> {
+        #[cfg(feature = "java")]
+        if matches!(self.backend, crate::bot::Backend::Java(_)) {
+            return self.java_destroy_item(from, count).await;
+        }
         self.item_stack_request(&[Op::Destroy { from, count }]).await
     }
 

@@ -76,6 +76,20 @@ fn container_slots_need_an_open_container_and_deletes_are_creative_only() {
 }
 
 #[test]
+fn creative_deletes_set_the_slot_to_what_is_left() {
+    let mut inv = inventory(&[(SlotRef::Main(0), stack("dirt", 4))]);
+    assert!(creative_delete(&inv, SlotRef::Main(0), 1).is_err());
+    inv.creative = true;
+    assert_eq!(creative_delete(&inv, SlotRef::Main(0), 1).unwrap(), (36, stack("dirt", 3)));
+    assert_eq!(creative_delete(&inv, SlotRef::Main(0), 4).unwrap(), (36, None));
+    let mut opaque = stack("dirt", 4).unwrap();
+    opaque.components.unread = true;
+    inv.set_slot(36, Some(opaque));
+    assert!(creative_delete(&inv, SlotRef::Main(0), 1).is_err());
+    assert!(creative_delete(&inv, SlotRef::Main(0), 4).is_ok());
+}
+
+#[test]
 fn crafting_grids_are_menu_slots_one_on() {
     let mut inv = inventory(&[(SlotRef::Main(0), stack("oak_planks", 2))]);
     let to_grid = |cell| [Op::Transfer { from: SlotRef::Main(0), to: SlotRef::Ui(cell), count: 1 }];

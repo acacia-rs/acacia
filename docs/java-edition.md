@@ -97,6 +97,10 @@ Each step ships on its own; Bedrock behaviour stays unchanged throughout.
    id, and each rise of its `DATA_BITING` is a bite; a cast or reel-in is `UseItem` then the swing. Signs: the
    server's `OpenSignEditor` is the editor, and `SignUpdate` sends the side's four lines. Java sign text isn't
    tracked, so when the server opens the other side the editor goes unanswered rather than sent blank.
+   `destroy_item` is the creative inventory's: `SetCreativeModeSlot` with what's left (window 0 only, creative from
+   the abilities' instabuild flag); a partial delete is refused when the stack has components the client skipped
+   reading. The own inventory screen is the client's, so `open_inventory` sends nothing; `close_window` closes
+   whatever is open, as the server ignores the id.
 5. **Inventory and crafting.** Java container clicks (state ids, carried item) behind the same API as
    Bedrock's ItemStackRequest. Own-inventory moves done 2026-11-10: `Bot`'s item moves become window-0 clicks
    predicted as `doClick` (`acacia-java-client` `clicks.rs`, bot `items/java_clicks.rs`); live, goto pulls a tool
@@ -164,7 +168,8 @@ Example `java_dialogs` runs the four dialogs in `tools/gate-datapack`, 0 alerts.
   sees a passenger, horse_step (a synced step height of 2 on a driven horse), the vehicle lid drills boat_shulker_push and horse_lid_push, and the bed drills sleep (lie down at night, leave
   the bed, walk on) and sleep_day (refused by day), and brew (three water bottles to awkward potions, 0 hash
   misses), hold_mine (`start_mining` on dirt, let go halfway, mine again), fish (a Lure III cast to a catch), and sign and sign_place (write
-  a clicked or a just-placed sign, read back with `tellraw`);
+  a clicked or a just-placed sign, read back with `tellraw`) and destroy (refused in survival, then
+  creative deletes read back from the server);
   powder_snow_fall, shulker_push and shulker_box_push run only by name: the server pushes
   the player too and `isEntityCollidingWithAnythingNew` teleports it back when its push leads, 1-3 setbacks a run). Grim tolerates a missing push, so the size drills check the push (or its absence) themselves. `DRILL_TRACE=1` prints the player
   every tick with a UTC clock to match Grim's log; `RUST_LOG=acacia_bot::bot::java=debug` logs each setback.

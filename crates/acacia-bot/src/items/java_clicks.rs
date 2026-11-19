@@ -10,6 +10,7 @@
 use acacia_java_client::{Client, Error as ClientError, Inventory};
 use acacia_java_client::clicks::{Click, OFFHAND_BUTTON, OUTSIDE};
 use acacia_java_client::inventory::{ARMOUR_HEAD, HOTBAR_START, OFFHAND};
+use acacia_java_proto::item::ItemStack;
 
 /// The player's slots below a container's: 27 main, then 9 hotbar.
 const MAIN_ROWS: u8 = 27;
@@ -49,6 +50,24 @@ fn window(inv: &Inventory, slot: SlotRef) -> Result<i16, ActionError> {
         (_, other) => return Err(not_possible(&format!("{other:?} is not in the open Java menu"))),
     };
     i16::try_from(i).map_err(|_| not_possible("slot out of range"))
+}
+
+/// The window-0 slot to set and what's left there after deleting `count` from `from`, as the creative inventory
+/// (window 0 only) does it.
+pub(crate) fn creative_delete(inv: &Inventory, from: SlotRef, count: u8) -> Result<(i16, Option<ItemStack>), ActionError> {
+    if !inv.creative {
+        return Err(not_possible("deleting items needs creative mode"));
+    }
+    if inv.window.is_some() {
+        return Err(not_possible("a container is open: the creative inventory deletes only in the own"));
+    }
+    let slot = window(inv, from)?;
+    let stack = inv.menu_slot(slot as usize).ok_or_else(|| not_possible(&format!("{from:?} is empty")))?;
+    let rest = stack.count - i32::from(count);
+    if rest > 0 && stack.components.unread {
+        return Err(not_possible("the stack has components the client can't write back"));
+    }
+    Ok((slot, (rest > 0).then(|| ItemStack { count: rest, ..stack.clone() })))
 }
 
 /// The number key that swaps with `slot`; the offhand key only in the own inventory.
@@ -204,6 +223,13 @@ impl Bot {
         let Backend::Java(java) = &self.backend else { return Err(ActionError::Unsupported("Java item moves")) };
         let clicks = plan(&java.client.inventory, ops)?;
         self.java_clicks(|client| clicks.into_iter().try_for_each(|c| client.click(c))).await
+    }
+
+    /// [`Bot::destroy_item`] on Java: the creative inventory takes the stack and puts back what's left.
+    pub(crate) async fn java_destroy_item(&mut self, from: SlotRef, count: u8) -> Result<(), ActionError> {
+        let Backend::Java(java) = &self.backend else { return Err(ActionError::Unsupported("Java item moves")) };
+        let (slot, left) = creative_delete(&java.client.inventory, from, count)?;
+        self.java_clicks(|client| client.set_creative_slot(slot, left)).await
     }
 
     /// Shift-clicks the open menu's result `slot` (crafting, stations). Only the server knows what that makes, so the click

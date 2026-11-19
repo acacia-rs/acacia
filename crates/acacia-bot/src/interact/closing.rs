@@ -88,6 +88,11 @@ impl Bot {
     /// GUI command opens nothing. `ActionError::Timeout` if the server answered nothing.
     pub async fn close_window(&mut self, window_id: i32) -> Result<(), ActionError> {
         self.container_settled().await?;
+        // Java's `handleContainerClose` closes whatever is open, ignoring the id.
+        #[cfg(feature = "java")]
+        if let Some(closed) = self.java_close_screen(true) {
+            return closed;
+        }
         self.send_close(window_id, ContainerClose { window_id: WindowID::from_raw(i64::from(window_id)), window_type: WindowType::None, server: false });
         self.await_close().await
     }

@@ -254,6 +254,7 @@ fn decoded_components_round_trip() {
         map_id: Some(7),
         potion: Some(3),
         removed: vec![12, 18],
+        unread: false,
     };
     let mut out = Vec::new();
     components.write(&mut out);

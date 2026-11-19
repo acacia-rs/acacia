@@ -6,6 +6,7 @@
 use acacia_java_proto::VarInt;
 use acacia_java_proto::container::{ContainerClick, ContainerClose, ContainerInput, HashedStack};
 use acacia_java_proto::ids::play::serverbound as to;
+use acacia_java_proto::inventory::SetCreativeModeSlot;
 use acacia_java_proto::item::ItemStack;
 use acacia_registry::Item;
 
@@ -226,6 +227,13 @@ impl Client {
     pub fn click_unpredicted(&mut self, click: Click) -> Result<(), Error> {
         let packet = self.inventory.unpredicted(click);
         self.queue(to::CONTAINER_CLICK, &packet)
+    }
+
+    /// Sets window-0 `slot` outright, as the creative inventory screen does (the server takes it only in creative);
+    /// queued like clicks.
+    pub fn set_creative_slot(&mut self, slot: i16, item: Option<ItemStack>) -> Result<(), Error> {
+        self.inventory.set_slot(usize::try_from(slot).unwrap_or(usize::MAX), item.clone());
+        self.queue(to::SET_CREATIVE_MODE_SLOT, &SetCreativeModeSlot { slot, item })
     }
 
     /// Closes the open screen, as vanilla does when it closes; queued like clicks. The carried stack is the

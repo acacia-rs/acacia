@@ -56,6 +56,8 @@ pub struct Components {
     pub potion: Option<i32>,
     /// Component type ids the patch removes from the item's defaults.
     pub removed: Vec<i32>,
+    /// A component was read past without being kept: writing this patch back would lose it.
+    pub unread: bool,
 }
 
 impl Components {
@@ -100,6 +102,35 @@ impl Components {
             write_varint(id, out);
             out.extend(value);
         }
+    }
+
+    /// `DataComponentPatch.DELIMITED_STREAM_CODEC`: each added value carries its length.
+    pub(crate) fn read_delimited(input: &mut &[u8]) -> Result<Self, Error> {
+        let (added, removed) = (read_len(input)?, read_len(input)?);
+        let mut components = Self::default();
+        for _ in 0..added {
+            let id = read_varint(input)?;
+            let len = read_len(input)?;
+            let value = input.get(..len).ok_or(Error::Eof)?;
+            *input = &input[len..];
+            read_component(id, &mut &value[..], 0, &mut components)?;
+        }
+        for _ in 0..removed {
+            components.removed.push(read_varint(input)?);
+        }
+        Ok(components)
+    }
+
+    pub(crate) fn write_delimited(&self, out: &mut Vec<u8>) {
+        let added = self.added();
+        write_varint(added.len() as i32, out);
+        write_varint(self.removed.len() as i32, out);
+        for (id, value) in added {
+            write_varint(id, out);
+            write_varint(value.len() as i32, out);
+            out.extend(value);
+        }
+        self.removed.iter().for_each(|&id| write_varint(id, out));
     }
 
     fn added(&self) -> Vec<(i32, Vec<u8>)> {
@@ -176,8 +207,14 @@ fn read_component(id: i32, input: &mut &[u8], depth: u32, components: &mut Compo
             }
         }
         MAP_ID => components.map_id = Some(read_varint(input)?),
-        POTION_CONTENTS => components.potion = potions::read_plain(input)?,
-        _ => components::skip(id, input, depth)?,
+        POTION_CONTENTS => {
+            components.potion = potions::read_plain(input)?;
+            components.unread |= components.potion.is_none();
+        }
+        _ => {
+            components::skip(id, input, depth)?;
+            components.unread = true;
+        }
     }
     Ok(())
 }

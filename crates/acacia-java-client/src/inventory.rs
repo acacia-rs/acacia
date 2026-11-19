@@ -5,6 +5,7 @@ use acacia_java_proto::inventory::{ContainerSetContent, ContainerSetSlot, PLAYER
 use acacia_java_proto::container::{ContainerClose, ContainerSetData, OpenScreen};
 use acacia_java_proto::item::ItemStack;
 use acacia_java_proto::merchant::MerchantOffers;
+use acacia_java_proto::packets::ClientboundAbilities;
 use acacia_java_proto::{Error as WireError, Wire};
 
 use crate::window::Window;
@@ -16,6 +17,7 @@ pub const MAIN_START: usize = 9;
 pub const HOTBAR_START: usize = 36;
 pub const OFFHAND: usize = 45;
 const HOTBAR_SIZE: usize = 9;
+const ABILITY_INSTABUILD: u8 = 8;
 
 /// Window 0: 0 craft result, 1-4 craft grid, 5-8 head to feet, 9-35 main, 36-44 hotbar, 45 offhand.
 #[derive(Debug, Clone, PartialEq)]
@@ -33,11 +35,13 @@ pub struct Inventory {
     pub(crate) predicted: Vec<usize>,
     /// Predicted own-inventory slots the server re-sent unchanged: each is a click hash that missed.
     pub resent: u32,
+    /// `Abilities.instabuild`, the creative inventory's (and `hasInfiniteMaterials`') mode.
+    pub creative: bool,
 }
 
 impl Default for Inventory {
     fn default() -> Self {
-        Self { slots: std::array::from_fn(|_| None), selected: 0, cursor: None, state_id: 0, window: None, enchantments: std::sync::Arc::from([]), predicted: Vec::new(), resent: 0 }
+        Self { slots: std::array::from_fn(|_| None), selected: 0, cursor: None, state_id: 0, window: None, enchantments: std::sync::Arc::from([]), predicted: Vec::new(), resent: 0, creative: false }
     }
 }
 
@@ -115,7 +119,8 @@ impl Inventory {
                     self.set_slot(slot, packet.item);
                 }
             }
-            from::OPEN_SCREEN => self.open(&OpenScreen::read(&mut body)?),
+            from::PLAYER_ABILITIES => self.creative = ClientboundAbilities::read(&mut body)?.flags & ABILITY_INSTABUILD != 0,
+            from::OPEN_SCREEN =>self.open(&OpenScreen::read(&mut body)?),
             from::CONTAINER_SET_DATA => self.set_window_data(ContainerSetData::read(&mut body)?),
             from::MERCHANT_OFFERS => self.set_offers(MerchantOffers::read(&mut body)?),
             from::CONTAINER_CLOSE =>self.close(ContainerClose::read(&mut body)?.container.0),

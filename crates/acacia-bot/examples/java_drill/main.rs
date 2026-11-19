@@ -10,6 +10,7 @@ mod digging;
 mod fishing;
 mod signs;
 mod camel;
+mod creative;
 mod crowd;
 mod drills;
 mod inside;
